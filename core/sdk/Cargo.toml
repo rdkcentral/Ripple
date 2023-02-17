@@ -1,0 +1,22 @@
+[package]
+name = "ripple_sdk"
+version = "0.1.0"
+edition = "2021"
+repository = "https://github.comcast.com/sdeena200/ripple-opensource"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9.10"
+semver = "*"
+log = "0.4"
+fern = "0.6"
+chrono = "0.4"
+async-trait = "^0.1.57"
+libloading = "0.7.4"
+crossbeam = "0.8.2"
+tokio = { version = "1.16.1", features = ["macros", "sync", "rt-multi-thread", "signal", "time"] }
+uuid = { version = "1.1.2", features = ["serde", "v5", "v4"] }
+futures = "0.3.21"
+jsonrpsee = { version = "0.9.0", features = [ "macros", "jsonrpsee-core"] }
