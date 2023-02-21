@@ -10,16 +10,20 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-
+  formatting: 
+    name: Format checker
     runs-on: ubuntu-latest
-
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt
+      - name: Rust Format Checker
+        uses: actions-rust-lang/rustfmt@v1
+  test:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - uses: olix0r/cargo-action-fmt/setup@v2
-    - name: Format Check
-      run: cargo check -q --message-format=json | cargo-action-fmt
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
+    - run: cargo test
