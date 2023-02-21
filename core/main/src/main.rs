@@ -1,11 +1,7 @@
-use std::fmt::Debug;
 
 fn main() {
     println!("Main method");
-    if (true) 
-    
-    {
+    if true {
         println!("This should print a format warning");
-    
     }
 }
