@@ -16,6 +16,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    - uses: olix0r/cargo-action-fmt/setup@v2
+    - name: Format Check
+      run: cargo check -q --message-format=json | cargo-action-fmt
     - name: Build
       run: cargo build --verbose
     - name: Run tests
