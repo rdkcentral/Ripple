@@ -5,7 +5,9 @@ use ripple_sdk::{
     tokio::sync::mpsc,
 };
 
-use crate::{firebolt::firebolt_permittor::FireboltGatewayPermitter, state::platform_state::PlatformState};
+use crate::{
+    firebolt::firebolt_permittor::FireboltGatewayPermitter, state::platform_state::PlatformState,
+};
 
 use super::rpc_router::RpcRouter;
 pub struct FireboltGateway {
@@ -24,7 +26,7 @@ pub enum FireboltGatewayCommand {
     },
     HandleRpc {
         request: RpcRequest,
-    }
+    },
 }
 
 impl FireboltGateway {
@@ -50,7 +52,7 @@ impl FireboltGateway {
                     // TODO add provider broker
                     //ProviderBroker::unregister_session(&platform_state, session_id.clone()).await;
                 }
-                HandleRpc { request } => self.handle(request).await
+                HandleRpc { request } => self.handle(request).await,
             }
         }
     }

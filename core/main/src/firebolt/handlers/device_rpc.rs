@@ -1,14 +1,10 @@
-use crate::{
-    firebolt::rpc::RippleRPCProvider, service::extn::ripple_client::RippleClient,
-};
+use crate::{firebolt::rpc::RippleRPCProvider, service::extn::ripple_client::RippleClient};
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
     RpcModule,
 };
-use ripple_sdk::{
-    api::{ gateway::rpc_gateway_api::CallContext},
-};
+use ripple_sdk::api::gateway::rpc_gateway_api::CallContext;
 
 #[rpc(server)]
 pub trait Device {
@@ -18,7 +14,7 @@ pub trait Device {
 
 #[derive(Debug)]
 pub struct DeviceImpl {
-   pub client: RippleClient,
+    pub client: RippleClient,
 }
 
 #[async_trait]

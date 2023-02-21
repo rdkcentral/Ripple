@@ -9,9 +9,9 @@ use ripple_sdk::{
 
 /// Session state encapsulates the session table with mappings to Application identifier and
 /// callback senders.
-/// 
+///
 /// # Examples
-/// 
+///
 /// ### To add an App Id
 /// ```
 /// let session_state = SessionState::default();

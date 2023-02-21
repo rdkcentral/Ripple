@@ -1,8 +1,5 @@
 use crate::{bootstrap::boot::boot, state::platform_state::PlatformState};
-use ripple_sdk::{
-    tokio,
-    utils::logger::init_logger,
-};
+use ripple_sdk::{tokio, utils::logger::init_logger};
 pub mod bootstrap;
 pub mod firebolt;
 pub mod service;

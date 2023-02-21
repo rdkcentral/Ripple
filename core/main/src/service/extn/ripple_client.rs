@@ -1,17 +1,13 @@
 use std::sync::{Arc, RwLock};
 
-use ripple_sdk::{
-    log::error,
-    tokio::sync::mpsc::Sender,
-    utils::error::RippleError,
-};
+use ripple_sdk::{log::error, tokio::sync::mpsc::Sender, utils::error::RippleError};
 
 use crate::firebolt::firebolt_gateway::FireboltGatewayCommand;
 
 /// RippleClient is an internal delegate component which helps in operating
-/// 1. ExtnClient 
+/// 1. ExtnClient
 /// 2. Firebolt Gateway
-/// 3. Capabilities 
+/// 3. Capabilities
 /// 4. Usergrants
 ///
 /// # Examples
@@ -21,7 +17,7 @@ use crate::firebolt::firebolt_gateway::FireboltGatewayCommand;
 ///     let client = RippleClient::new();
 ///     client.send_gateway_command()
 /// }
-/// 
+///
 /// ```
 #[derive(Debug, Clone)]
 pub struct RippleClient {

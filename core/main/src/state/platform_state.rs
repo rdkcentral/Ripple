@@ -1,10 +1,8 @@
 use std::sync::{Arc, RwLock};
 
 use ripple_sdk::{
-    api::{
-        device::DevicePlatformType, manifest::device_manifest::DeviceManifest,
-    },
-    log::{debug},
+    api::{device::DevicePlatformType, manifest::device_manifest::DeviceManifest},
+    log::debug,
     tokio::sync::mpsc::Sender,
     utils::error::RippleError,
 };
@@ -13,19 +11,18 @@ use crate::{
     firebolt::firebolt_gateway::FireboltGatewayCommand, service::extn::ripple_client::RippleClient,
 };
 
-use super::{session_state::SessionState, cap::cap_state::CapState};
-
+use super::{cap::cap_state::CapState, session_state::SessionState};
 
 /// Platform state encapsulates the internal state of the Ripple Main application.
-/// 
+///
 /// # Examples
 /// ```
 /// let state = PlatformState::default();
-/// 
+///
 /// let manifest = state.get_device_manifest();
 /// println!("{}", manifest.unwrap().configuration.platform);
 /// ```
-/// 
+///
 #[derive(Debug, Clone, Default)]
 pub struct PlatformState {
     pub device_manifest: Arc<RwLock<Option<DeviceManifest>>>,
@@ -72,12 +69,12 @@ impl PlatformState {
     /// # Examples
     /// ```
     /// use crate::firebolt::firebolt_gateway::FireboltGatewayCommand,
-    /// 
+    ///
     /// fn send_command(cmd: FireboltGatewayCommand) {
     ///     let state = PlatformState::default();
     ///     state.client().send_gateway_command(cmd)
     /// }
-    /// 
+    ///
     /// ```
     pub fn client(&self) -> RippleClient {
         let ripple_client_state = self.ripple_client.read().unwrap();
@@ -93,10 +90,9 @@ impl PlatformState {
     ///     let state = PlatformState::default();
     ///     state.client().set_gateway_sender(sender)
     /// }
-    /// 
+    ///
     /// ```
     pub fn set_fb_gateway_sender(&self, sender: Sender<FireboltGatewayCommand>) {
         self.client().set_gateway_sender(sender);
     }
-
 }

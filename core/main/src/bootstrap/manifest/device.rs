@@ -3,7 +3,7 @@ use ripple_sdk::{
     framework::bootstrap::Bootstep, log::info, serde_json, utils::error::RippleError,
 };
 
-use crate::{ state::platform_state::PlatformState};
+use crate::state::platform_state::PlatformState;
 
 pub struct LoadDeviceManifestStep;
 

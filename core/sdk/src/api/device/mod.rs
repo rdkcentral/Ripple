@@ -16,4 +16,3 @@ impl ToString for DevicePlatformType {
         }
     }
 }
-

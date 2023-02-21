@@ -18,7 +18,6 @@ use ripple_sdk::{
     utils::error::RippleError,
 };
 
-
 pub struct RpcRouter {
     methods: Methods,
     resources: Resources,
