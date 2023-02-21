@@ -1,4 +1,3 @@
-
 fn main() {
     println!("Main method");
     if true {
