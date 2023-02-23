@@ -1,5 +1,6 @@
-use crate::{bootstrap::boot::boot, state::platform_state::PlatformState};
+use crate::bootstrap::boot::boot;
 use ripple_sdk::{tokio, utils::logger::init_logger};
+use state::bootstrap_state::BootstrapState;
 pub mod bootstrap;
 pub mod firebolt;
 pub mod service;
@@ -13,6 +14,7 @@ async fn main() {
         println!("{:?} logger init error", e);
         return;
     }
+    let bootstate = BootstrapState::build().expect("Failure to init state for bootstrap");
     // bootstrap
-    boot(PlatformState::default()).await
+    boot(bootstate).await
 }

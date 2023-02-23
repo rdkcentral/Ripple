@@ -1,14 +1,13 @@
 use crate::{
     firebolt::{
-        firebolt_gateway::{FireboltGateway, FireboltGatewayCommand},
-        handlers::device_rpc::DeviceRPCProvider,
+        firebolt_gateway::FireboltGateway, handlers::device_rpc::DeviceRPCProvider,
         rpc::RippleRPCProvider,
     },
     service::extn::ripple_client::RippleClient,
-    state::platform_state::PlatformState,
+    state::bootstrap_state::BootstrapState,
 };
 use jsonrpsee::core::{async_trait, server::rpc_module::Methods};
-use ripple_sdk::{framework::bootstrap::Bootstep, tokio::sync::mpsc, utils::error::RippleError};
+use ripple_sdk::{framework::bootstrap::Bootstep, utils::error::RippleError};
 
 pub struct FireboltGatewayStep;
 
@@ -28,19 +27,16 @@ impl FireboltGatewayStep {
 }
 
 #[async_trait]
-impl Bootstep<PlatformState> for FireboltGatewayStep {
+impl Bootstep<BootstrapState> for FireboltGatewayStep {
     fn get_name(&self) -> String {
         "FireboltGatewayStep".into()
     }
 
-    async fn setup(&self, state: PlatformState) -> Result<(), RippleError> {
-        let ripple_client = state.client();
+    async fn setup(&self, state: BootstrapState) -> Result<(), RippleError> {
+        let ripple_client = state.platform_state.get_client();
         let methods = self.init_handlers(ripple_client, None).await;
         let gateway = FireboltGateway::new(state.clone(), methods);
-        let (firebolt_gateway_tx, firebolt_gateway_rx) =
-            mpsc::channel::<FireboltGatewayCommand>(32);
-        state.set_fb_gateway_sender(firebolt_gateway_tx);
-        gateway.start(firebolt_gateway_rx).await;
+        gateway.start().await;
         Ok(())
     }
 }

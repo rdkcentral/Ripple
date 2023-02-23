@@ -1,38 +1,22 @@
 use ripple_sdk::{
-    api::manifest::device_manifest::DeviceManifest, async_trait::async_trait,
-    framework::bootstrap::Bootstep, log::info, serde_json, utils::error::RippleError,
+    api::manifest::device_manifest::DeviceManifest, log::info, serde_json,
+    utils::error::RippleError,
 };
-
-use crate::state::platform_state::PlatformState;
 
 pub struct LoadDeviceManifestStep;
 
-#[async_trait]
-impl Bootstep<PlatformState> for LoadDeviceManifestStep {
-    fn get_name(&self) -> String {
-        "LoadDeviceManifestStep".into()
-    }
-
-    async fn setup(&self, s: PlatformState) -> Result<(), RippleError> {
-        info!("Loading Device manifest step");
-
-        let v = try_manifest_files();
-        let manifest = if v.is_some() {
-            v.unwrap()
-        } else {
-            load_default_manifest()
-        };
-
-        {
-            let mut device_manifest = s.device_manifest.write().unwrap();
-            let _ = device_manifest.insert(manifest);
+impl LoadDeviceManifestStep {
+    pub fn get_manifest() -> DeviceManifest {
+        let r = try_manifest_files();
+        if r.is_ok() {
+            return r.unwrap();
         }
 
-        Ok(())
+        load_default_manifest()
     }
 }
 
-fn try_manifest_files() -> Option<DeviceManifest> {
+fn try_manifest_files() -> Result<DeviceManifest, RippleError> {
     let dm_arr: Vec<fn() -> Result<(String, DeviceManifest), RippleError>>;
     if cfg!(test) {
         dm_arr = vec![load_from_env];
@@ -43,10 +27,10 @@ fn try_manifest_files() -> Option<DeviceManifest> {
     for dm_provider in dm_arr {
         if let Ok((p, m)) = dm_provider() {
             info!("loaded_manifest_file_content={}", p);
-            return Some(m);
+            return Ok(m);
         }
     }
-    None
+    Err(RippleError::BootstrapError)
 }
 
 fn load_default_manifest() -> DeviceManifest {

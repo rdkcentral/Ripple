@@ -1,8 +1,8 @@
-use std::sync::{Arc, RwLock};
-
 use ripple_sdk::{log::error, tokio::sync::mpsc::Sender, utils::error::RippleError};
 
-use crate::firebolt::firebolt_gateway::FireboltGatewayCommand;
+use crate::{
+    firebolt::firebolt_gateway::FireboltGatewayCommand, state::bootstrap_state::ChannelsState,
+};
 
 /// RippleClient is an internal delegate component which helps in operating
 /// 1. ExtnClient
@@ -21,28 +21,18 @@ use crate::firebolt::firebolt_gateway::FireboltGatewayCommand;
 /// ```
 #[derive(Debug, Clone)]
 pub struct RippleClient {
-    gateway_sender: Arc<RwLock<Option<Sender<FireboltGatewayCommand>>>>,
+    gateway_sender: Sender<FireboltGatewayCommand>,
 }
 
 impl RippleClient {
-    pub fn new() -> RippleClient {
+    pub fn new(state: ChannelsState) -> RippleClient {
         RippleClient {
-            gateway_sender: Arc::new(RwLock::new(None)),
+            gateway_sender: state.get_gateway_sender(),
         }
-    }
-
-    pub fn set_gateway_sender(&self, sender: Sender<FireboltGatewayCommand>) {
-        let mut sender_state = self.gateway_sender.write().unwrap();
-        let _ = sender_state.insert(sender);
     }
 
     pub fn send_gateway_command(&self, cmd: FireboltGatewayCommand) -> Result<(), RippleError> {
-        let sender_state = self.gateway_sender.read().unwrap();
-        if sender_state.is_none() {
-            return Err(RippleError::SenderMissing);
-        }
-        let sender = sender_state.clone().unwrap();
-        if let Err(e) = sender.try_send(cmd) {
+        if let Err(e) = self.gateway_sender.try_send(cmd) {
             error!("failed to send firebolt gateway message {:?}", e);
             return Err(RippleError::SendFailure);
         }

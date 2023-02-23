@@ -135,7 +135,7 @@ impl FireboltWs {
         let try_socket = TcpListener::bind(&server_addr).await; //create the server on the address
         let listener = try_socket.expect(format!("Failed to bind {:?}", server_addr).as_str());
         info!("Listening on: {} secure={}", server_addr, secure);
-        let client = state.clone().client();
+        let client = state.ripple_client.clone();
         let session_state = state.session_state.clone();
         // Let's spawn the handling of each connection in a separate task.
         while let Ok((stream, client_addr)) = listener.accept().await {

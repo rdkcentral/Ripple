@@ -1,11 +1,8 @@
 use ripple_sdk::framework::bootstrap::Bootstrap;
 
-use crate::state::platform_state::PlatformState;
+use crate::state::bootstrap_state::BootstrapState;
 
-use super::{
-    manifest::device::LoadDeviceManifestStep, start_fbgateway_step::FireboltGatewayStep,
-    start_ws_step::StartWsStep,
-};
+use super::{start_fbgateway_step::FireboltGatewayStep, start_ws_step::StartWsStep};
 /// Starts up Ripple uses `PlatformState` to manage State
 /// # Arguments
 /// * `platform_state` - PlatformState
@@ -16,16 +13,12 @@ use super::{
 ///
 /// # Steps
 ///
-/// 1. [LoadDeviceManifestStep] - Loads up Device manifest and updates the app state.
-/// 2. [StartWsStep] - Starts the Websocket to accept external and internal connections
-/// 3. [FireboltGatewayStep] - Starts the firebolt gateway and blocks the thread to keep it alive till interruption.
+/// 1. [StartWsStep] - Starts the Websocket to accept external and internal connections
+/// 2. [FireboltGatewayStep] - Starts the firebolt gateway and blocks the thread to keep it alive till interruption.
 ///
-pub async fn boot(platform_state: PlatformState) {
-    let bootstrap = &Bootstrap::new(platform_state);
+pub async fn boot(state: BootstrapState) {
+    let bootstrap = &Bootstrap::new(state);
     bootstrap
-        .step(LoadDeviceManifestStep)
-        .await
-        .expect("Device manifest load failure")
         .step(StartWsStep)
         .await
         .expect("Websocket startup failure")

@@ -349,6 +349,14 @@ impl DeviceManifest {
         }
     }
 
+    /// Provides the device platform information from the device manifest
+    /// as this value is read from a file loaded dynamically during runtime the response
+    /// provided will always be a result which can have an error. Handler should panic if
+    /// no valid platform type is provided.
+    pub fn get_device_platform(&self) -> DevicePlatformType {
+        self.configuration.platform.clone()
+    }
+
     pub fn get_web_socket_enabled(&self) -> bool {
         self.configuration.ws_configuration.enabled
     }
