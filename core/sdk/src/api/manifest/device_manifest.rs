@@ -376,4 +376,8 @@ impl DeviceManifest {
     pub fn get_internal_app_id(&self) -> Option<String> {
         self.configuration.internal_app_id.clone()
     }
+
+    pub fn get_form_factor(&self) -> String {
+        self.configuration.form_factor.clone()
+    }
 }

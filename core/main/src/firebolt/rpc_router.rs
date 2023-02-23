@@ -11,9 +11,10 @@ use jsonrpsee::{
     types::{error::ErrorCode, Id, Params},
 };
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{ApiMessage, RpcRequest},
+    api::gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
+    extn::extn_client_message::{ExtnMessage, ExtnResponse},
     log::{error, info, trace},
-    tokio,
+    serde_json, tokio,
     utils::error::RippleError,
 };
 
@@ -95,6 +96,26 @@ impl RpcRouter {
                 trace!("sending back to {}", session_id);
                 if let Err(e) = session.send(msg).await {
                     error!("Error while responding back message {:?}", e)
+                }
+            }
+        });
+    }
+
+    pub async fn route_extn_protocol(&self, req: RpcRequest, extn_msg: ExtnMessage) {
+        let methods = self.methods.clone();
+        let resources = self.resources.clone();
+        tokio::spawn(async move {
+            if let Ok(msg) = resolve_route(methods, resources, req).await {
+                let resp: JsonRpcApiResponse = serde_json::from_str(&msg.jsonrpc_msg).unwrap();
+                let response_value = if resp.result.is_some() {
+                    resp.result.unwrap()
+                } else {
+                    resp.error.unwrap()
+                };
+                let return_value = ExtnResponse::Value(response_value);
+                let callback = extn_msg.clone().callback.unwrap();
+                if let Err(e) = callback.send(extn_msg.get_response(return_value).unwrap().into()) {
+                    error!("Error while sending back rpc request for extn {:?}", e);
                 }
             }
         });
