@@ -3,7 +3,10 @@ use std::net::SocketAddr;
 use super::firebolt_gateway::FireboltGatewayCommand;
 use crate::{
     service::extn::ripple_client::RippleClient,
-    state::{platform_state::PlatformState, session_state::SessionState},
+    state::{
+        platform_state::PlatformState,
+        session_state::{Session, SessionState},
+    },
 };
 use futures::SinkExt;
 use futures::StreamExt;
@@ -175,11 +178,12 @@ impl FireboltWs {
         let (session_tx, mut resp_rx) = mpsc::channel(32);
         let ctx = ClientContext {
             session_id: identity.session_id.clone(),
-            app_id: identity.app_id,
+            app_id: identity.app_id.clone(),
         };
+        let session = Session::new(identity.app_id.clone(), session_tx.clone());
         let msg = FireboltGatewayCommand::RegisterSession {
             session_id: identity.session_id.clone(),
-            session_tx: session_tx.clone(),
+            session,
         };
         if let Err(e) = client.send_gateway_command(msg) {
             error!("Error registering the connection {:?}", e);

@@ -1,12 +1,13 @@
 use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{ApiMessage, RpcRequest},
+    api::gateway::rpc_gateway_api::RpcRequest,
     log::{error, info},
     tokio::sync::mpsc,
 };
 
 use crate::{
-    firebolt::firebolt_permittor::FireboltGatewayPermitter, state::platform_state::PlatformState,
+    firebolt::firebolt_permitter::FireboltGatewayPermitter,
+    state::{platform_state::PlatformState, session_state::Session},
 };
 
 use super::rpc_router::RpcRouter;
@@ -19,7 +20,7 @@ pub struct FireboltGateway {
 pub enum FireboltGatewayCommand {
     RegisterSession {
         session_id: String,
-        session_tx: mpsc::Sender<ApiMessage>,
+        session: Session,
     },
     UnregisterSession {
         session_id: String,
@@ -43,14 +44,12 @@ impl FireboltGateway {
             match cmd {
                 RegisterSession {
                     session_id,
-                    session_tx,
+                    session,
                 } => {
-                    self.state.session_state.add_session(session_id, session_tx);
+                    self.state.session_state.add_session(session_id, session);
                 }
                 UnregisterSession { session_id } => {
                     self.state.session_state.clear_session(session_id)
-                    // TODO add provider broker
-                    //ProviderBroker::unregister_session(&platform_state, session_id.clone()).await;
                 }
                 HandleRpc { request } => self.handle(request).await,
             }
@@ -64,7 +63,7 @@ impl FireboltGateway {
         );
         // First check sender if no sender no need to process
         let session_id = request.clone().ctx.session_id;
-        if !self.state.session_state.has_sender(session_id.clone()) {
+        if !self.state.session_state.has_session(session_id.clone()) {
             error!("No sender for request {:?} ", request);
             return;
         }
@@ -73,8 +72,9 @@ impl FireboltGateway {
                 // Route
                 match request.clone().ctx.protocol {
                     _ => {
-                        let sender = self.state.session_state.get_sender(session_id);
-                        self.router.route(request.clone(), sender.unwrap()).await;
+                        let session = self.state.session_state.get_sender(session_id);
+                        // session is already precheched before gating so it is safe to unwrap
+                        self.router.route(request.clone(), session.unwrap()).await;
                     }
                 }
             }

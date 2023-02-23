@@ -14,9 +14,10 @@ use ripple_sdk::{
     api::gateway::rpc_gateway_api::{ApiMessage, RpcRequest},
     log::{error, info, trace},
     tokio,
-    tokio::sync::mpsc::Sender,
     utils::error::RippleError,
 };
+
+use crate::state::session_state::Session;
 
 pub struct RpcRouter {
     methods: Methods,
@@ -85,14 +86,14 @@ impl RpcRouter {
         }
     }
 
-    pub async fn route(&self, req: RpcRequest, sender: Sender<ApiMessage>) {
+    pub async fn route(&self, req: RpcRequest, session: Session) {
         let methods = self.methods.clone();
         let resources = self.resources.clone();
         tokio::spawn(async move {
             let session_id = req.ctx.session_id.clone();
             if let Ok(msg) = resolve_route(methods, resources, req).await {
                 trace!("sending back to {}", session_id);
-                if let Err(e) = sender.send(msg).await {
+                if let Err(e) = session.send(msg).await {
                     error!("Error while responding back message {:?}", e)
                 }
             }
