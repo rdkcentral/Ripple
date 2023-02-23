@@ -16,5 +16,6 @@ pub enum RippleError {
     ProcessorError,
     ClientMissing,
     NoResponse,
+    InvalidAccess,
     Permission(DenyReason),
 }

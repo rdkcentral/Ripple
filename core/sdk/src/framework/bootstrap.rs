@@ -71,6 +71,6 @@ impl<T> TransientChannel<T> {
             return Ok(tr.take().unwrap());
         }
 
-        Err(RippleError::InvalidOutput)
+        Err(RippleError::InvalidAccess)
     }
 }
