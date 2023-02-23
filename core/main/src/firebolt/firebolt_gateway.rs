@@ -81,11 +81,8 @@ impl FireboltGateway {
             error!("No sender for request {:?} ", request);
             return;
         }
-        match FireboltGatekeeper::gate(
-            self.state.platform_state.cap_state.clone(),
-            request.clone(),
-        )
-        .await
+        match FireboltGatekeeper::gate(self.state.platform_state.cap_state.clone(), request.clone())
+            .await
         {
             Ok(_) => {
                 // Route
