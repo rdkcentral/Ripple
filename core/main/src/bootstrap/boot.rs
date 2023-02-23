@@ -25,13 +25,13 @@ pub async fn boot(platform_state: PlatformState) {
     bootstrap
         .step(LoadDeviceManifestStep)
         .await
-        .unwrap()
+        .expect("Device manifest load failure")
         .step(StartWsStep)
         .await
-        .unwrap()
+        .expect("Websocket startup failure")
         .step(FireboltGatewayStep)
         .await
-        .unwrap();
+        .expect("Firebolt Gateway failure");
     // -- capability Manager
     // -- App event manager
     // -- User grant manager
