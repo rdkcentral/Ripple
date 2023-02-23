@@ -38,12 +38,14 @@ pub trait Bootstep<S: Clone> {
 /// # Examples
 /// ```
 /// // pre init
-///  let (tx, tr) = mpsc::channel::<RpcRequest>::(32);
+/// use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
+/// use ripple_sdk::framework::bootstrap::TransientChannel;
+///  let (tx, tr) = tokio::sync::mpsc::channel::<RpcRequest>(32);
 ///  let transient_channel = TransientChannel::new(tx,tr);
 /// // step 1
-///  transient_channel.get_sender() // gets tx you can call this any number of times
+///  let tx = transient_channel.get_sender(); // gets tx you can call this any number of times
 /// // step x
-///  transient_channel.get_receiver().recv().expect("can be called only once").await
+///  let rx = transient_channel.get_receiver().expect("can be called only once");
 /// ```
 #[derive(Debug, Clone)]
 pub struct TransientChannel<T> {
