@@ -13,11 +13,6 @@ async fn main() {
         println!("{:?} logger init error", e);
         return;
     }
-
-    // default app state
-    let app_state: PlatformState = PlatformState::default();
-
-    let app_state_c = app_state.clone();
     // bootstrap
-    boot(app_state_c).await
+    boot(PlatformState::default()).await
 }
