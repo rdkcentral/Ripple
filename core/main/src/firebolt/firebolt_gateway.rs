@@ -5,7 +5,7 @@ use ripple_sdk::{
 };
 
 use crate::{
-    firebolt::firebolt_permitter::FireboltGatewayPermitter,
+    firebolt::firebolt_gatekeeper::FireboltGatekeeper,
     state::{bootstrap_state::BootstrapState, session_state::Session},
 };
 
@@ -81,7 +81,7 @@ impl FireboltGateway {
             error!("No sender for request {:?} ", request);
             return;
         }
-        match FireboltGatewayPermitter::gate(
+        match FireboltGatekeeper::gate(
             self.state.platform_state.cap_state.clone(),
             request.clone(),
         )
