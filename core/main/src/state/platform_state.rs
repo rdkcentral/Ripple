@@ -17,7 +17,7 @@ use super::{cap::cap_state::CapState, session_state::SessionState};
 #[derive(Debug, Clone)]
 pub struct PlatformState {
     device_manifest: DeviceManifest,
-    pub ripple_client: RippleClient,
+    ripple_client: RippleClient,
     pub session_state: SessionState,
     pub cap_state: CapState,
 }
