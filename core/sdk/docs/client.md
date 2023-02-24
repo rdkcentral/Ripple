@@ -3,8 +3,11 @@ Extension client is at the heart of the Ripple architecture by providing a relia
 
 ## Glossary
 __*FFI*__ - [Foreign Functional Interface](https://en.wikipedia.org/wiki/Foreign_function_interface) is the mechanism used for dynamic link library.
+
 __*ABI*__ - [Application Binary Interface](https://en.wikipedia.org/wiki/Application_binary_interface) is the interface between the dynamic link library and the loader
+
 __*Crossbeam Channel*__ - [Rust library](https://docs.rs/crossbeam/latest/crossbeam/channel/index.html) which provides channels that can work across the loader and the dynamic link libraries.
+
 __*Extension*__ - Ripple Dynamic link library which can be loaded during runtime and offer more extensive capabilities. 
 
 ## Overview
