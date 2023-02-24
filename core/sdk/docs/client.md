@@ -88,21 +88,103 @@ Above diagram explains how 2 clients are binded within a crossbeam channel using
 
 ![Client operations](./images/client_operations.jpeg)
 Above image explains the operations possible within Extn client.
+For any processing of a given message there needs to be a processor.
+Every client has built in support for processing requests, response and events. 
 ### Request Response Lifecycle
 
+There are 3 stages for the Request and Response operation.
+
 #### Registration
+`Main` and the extensions are expected to create processors and add them to their clients. Each processor will have a unique capability. This capability is the used for identification phase of a request and response lifecycle. Any struct which wants to become a request processor should implement `ExtnRequestProcessor`. An example for the implementation is provided below
+```
+#[derive(Debug)]
+pub struct SampleRequestProcessor {
+    state: CloneableState,
+    streamer: ExtnStreamer,
+}
+
+pub struct RequestValue{
+    value: Value
+}
+
+impl ExtnPayloadProvider for RequestValue{
+    #... snip
+}
+
+#[async_trait]
+impl ExtnStreamProcessor for SampleRequestProcessor {
+    type S = CloneableState;
+    type V = RequestValue;
+    fn get_state(&self) -> Self::S {
+        self.state.clone()
+    }
+
+    fn sender(&self) -> MSender<ExtnMessage> {
+        self.streamer.sender()
+    }
+
+    fn receiver(&mut self) -> MReceiver<ExtnMessage> {
+        self.streamer.receiver()
+    }
+}
+
+#[async_trait]
+impl ExtnRequestProcessor for SampleRequestProcessor {
+    async fn process_error(
+        _state: Self::S,
+        _msg: ExtnMessage,
+        _error: ripple_sdk::utils::error::RippleError,
+    ) -> Option<bool> {
+            #... snip
+
+    }
+
+    async fn process_request(state: Self::S,
+        msg: ExtnMessage,
+        extracted_message: Self::V,
+    ) -> Option<bool> {
+            #... snip
+    }
+
+
+    client.addRequestProcessor(sampleRequestProcessor)
+
+```
 
 #### Identification
+Client registers the processor based on the request value provided in the `ExtnStreamProcessor` trait. As this trait expects the `V` to be an `impl ExtnPayloadProvider` it will be able to get the `ExtnCapability` using the `ExtnPayloadProvider::cap()` method available in the trait.
+
+Now the capability is registered in the client and it will be identified for any incoming messages.
 
 #### Delegation
 
-Below diagram explains the list of steps for an Extn request to get a response. 
+Below diagram explains the a simple usecase where `Main` calls an `Extension` for a response.
 ![Request Response Lifecycle](./images/request_response_lifecycle.jpeg)
 
 1. Caller provides the `ExtnPayload` this payload has to implement `ExtnPayloadProvider` provided in the `core/sdk`
-2. `Client` receives the payload and checks the `requestor`. 
-If `Client` is inside a Extension library it will send the payload to `Sender`
-If `Client` is in `Main` it will check for the requestor permissions. Once Permissions are satisfied it will forward the request to the Target extn client. 
-### Event Subscription Lifecycle
+2. Client finds the Crossbeam sender passes it down the `Sender` along with message.
+2a. Client adds a Response processor using the `id` field in the message. This will be used for callback in step `10`.
+3. `Sender` receives the request and adds the `requestor` field and sends the message to `Main`. In this step `Encoder` converts the `ExtnMessage` to `CExtnMessage`.
+4. Target `Client` receives the request and decodes it back to `ExtnMessage` passes it down to the `Request` handler.
+5. Client processors tries to find a matching capability within its processors and sends the message to Processor.
+6. `Request` Processor handles the request and creates the `ExtnResponse` to be sent back to the `requestor`
+7. Response reaches the `Client` of the target and it passes the message to the `Sender`
+8. `Sender` encodes the response and sends it over the channel back to the requestor `Client`.
+9. Requestor `Client` has now received back the response it decodes it and sends it to the `Response` handler.
+10. Response handler uses the `id` field generated in step `2.a` and sends it to the response processor.
+11. Callback in the response processor is executed and the response reaches back the caller.
 
+##### Variation for Extn to Extn calls
+There is a small variation when a call is made from an extension and the intended target is also an extension
+1. `Client` receives the payload and forwards the request to `Sender`
+1.a Client adds a Response processor using the `id` field in the message. This will be used for callback in step `10`.
+2. `Sender` sends the request to `Main` Extn client.
+3. `Client` receives the message in `Main` and checks for the requestor permissions. Once Permissions are satisfied it will check for the capability if it needs forwarding. If required it forwards the request to the Target extn client using `Crossbeam Sender` and adds a `callback`. This usecase is explained in the [Response needs no stopovers](#response-needs-no-stopovers) section.
+
+Othersteps are same as the above usecase.
+
+### Event Subscription Lifecycle
+Event lifecycle is very similar to Request Response lifecycle. Only difference being the callback is not a one time operation but will be repeated multiple times based on the Event emission.
+
+![Event subscription lifecycle](./images/EventLifecycle.jpeg)
 ## References
