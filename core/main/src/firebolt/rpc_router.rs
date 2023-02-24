@@ -14,7 +14,8 @@ use ripple_sdk::{
     api::gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
     extn::extn_client_message::{ExtnMessage, ExtnResponse},
     log::{error, info, trace},
-    serde_json, tokio,
+    serde_json::{self, Result as SResult},
+    tokio,
     utils::error::RippleError,
 };
 
@@ -102,20 +103,33 @@ impl RpcRouter {
     }
 
     pub async fn route_extn_protocol(&self, req: RpcRequest, extn_msg: ExtnMessage) {
+        if extn_msg.callback.is_none() {
+            // The caller of this function already checks this adding it here none the less.
+            error!("No valid callbacks")
+        }
+        let callback = extn_msg.clone().callback.unwrap();
         let methods = self.methods.clone();
         let resources = self.resources.clone();
         tokio::spawn(async move {
             if let Ok(msg) = resolve_route(methods, resources, req).await {
-                let resp: JsonRpcApiResponse = serde_json::from_str(&msg.jsonrpc_msg).unwrap();
-                let response_value = if resp.result.is_some() {
-                    resp.result.unwrap()
-                } else {
-                    resp.error.unwrap()
-                };
-                let return_value = ExtnResponse::Value(response_value);
-                let callback = extn_msg.clone().callback.unwrap();
-                if let Err(e) = callback.send(extn_msg.get_response(return_value).unwrap().into()) {
-                    error!("Error while sending back rpc request for extn {:?}", e);
+                let r: SResult<JsonRpcApiResponse> = serde_json::from_str(&msg.jsonrpc_msg);
+
+                if let Ok(resp) = r {
+                    let response_value = if resp.result.is_some() {
+                        resp.result.unwrap()
+                    } else {
+                        if resp.error.is_some() {
+                            resp.error.unwrap()
+                        } else {
+                            serde_json::to_value(RippleError::InvalidOutput).unwrap()
+                        }
+                    };
+                    let return_value = ExtnResponse::Value(response_value);
+                    if let Err(e) =
+                        callback.send(extn_msg.get_response(return_value).unwrap().into())
+                    {
+                        error!("Error while sending back rpc request for extn {:?}", e);
+                    }
                 }
             }
         });
