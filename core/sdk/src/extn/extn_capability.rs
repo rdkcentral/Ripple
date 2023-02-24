@@ -1,12 +1,5 @@
 use crate::utils::error::RippleError;
 
-/// Contains enums and structs for Extn
-/// Types
-/// Class
-/// Capability enclosure
-///
-///
-///
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExtnClass {
     Gateway,
@@ -98,6 +91,31 @@ impl ExtnClassType {
     }
 }
 
+/// Below is anatomy of a Ripple capability in a String format
+///
+/// `ripple:[channel/extn]:[class]:[service]:[feature (optional)]`
+
+/// ## Decoding some ExtnCapabilit(ies)
+///
+/// Below capability means the given plugin offers a channel for Device Connection. Service used  for the device connection is Thunder.
+///
+/// `ripple:channel:device:thunder`
+///
+/// Below Capability means the given plugin offers a channel for Data Governance. Service used for the feature is `somegovernance` service
+///
+/// `ripple:channel:data-governance:somegovernance`
+///
+/// Below capability means the given plugin offers an extension for the Device Thunder Channel. It offers the auth thunder plugin implementation.
+///
+/// `ripple:extn:device:thunder:auth`
+///
+/// Below capability means the given plugin offers a permission extension for the distributor. Name of the service is called `fireboltpermissions`.
+///
+/// `ripple:extn:distributor:permissions:fireboltpermissions`
+///
+/// Below capability means the given plugin offers a JsonRpsee rpc extension for a service named badger
+///
+/// `ripple:extn:jsonrpsee:bridge`
 #[derive(Debug, Clone)]
 pub struct ExtnCapability {
     _type: ExtnType,
@@ -158,6 +176,16 @@ impl TryFrom<String> for ExtnCapability {
 }
 
 impl ExtnCapability {
+    /// Returns the Main target capability for a given service
+    /// # Arguments
+    /// `service` - Type of String which defins the type of service
+    /// # Examples
+    /// ```
+    /// use ripple_sdk::extn::extn_capability::ExtnCapability;
+    ///
+    /// let main_cap = ExtnCapability::get_main_target("cap".into());
+    /// assert!(main_cap.to_string().eq("ripple:main:internal:cap"));
+    /// ```
     pub fn get_main_target(service: String) -> ExtnCapability {
         ExtnCapability {
             _type: ExtnType::Main,
@@ -166,6 +194,14 @@ impl ExtnCapability {
         }
     }
 
+    /// Checks if the given capability is a device channel.
+    /// # Examples
+    /// ```
+    /// use ripple_sdk::extn::extn_capability::{ExtnCapability,ExtnClass};
+    ///
+    /// let device_channel = ExtnCapability::new_channel(ExtnClass::Device, "info".into());
+    /// assert!(device_channel.is_device_channel());
+    /// ```
     pub fn is_device_channel(&self) -> bool {
         if let ExtnType::Channel = self._type {
             if let ExtnClass::Device = self.class {
@@ -175,6 +211,17 @@ impl ExtnCapability {
         false
     }
 
+    /// Checks if the given capability has the same type and channel as the owner
+    /// # Arguments
+    /// `ref_cap` - Type of ExtnCapability which will be checked against the owner.
+    /// # Examples
+    /// ```
+    /// use ripple_sdk::extn::extn_capability::{ExtnCapability,ExtnClass};
+    ///
+    /// let info = ExtnCapability::new_channel(ExtnClass::Device, "info".into());
+    /// let remote = ExtnCapability::new_channel(ExtnClass::Device, "remote".into());
+    /// assert!(info.match_layer(remote));
+    /// ```
     pub fn match_layer(&self, ref_cap: ExtnCapability) -> bool {
         if ref_cap._type == ExtnType::Main && self._type == ExtnType::Main {
             return true;
@@ -197,22 +244,44 @@ impl ExtnCapability {
         false
     }
 
+    /// Gets a short form value of the given capability. Useful for ExtnClient to detect
+    /// other senders for a given ExtnCapability.
+    /// # Examples
+    /// ```
+    /// use ripple_sdk::extn::extn_capability::{ExtnCapability,ExtnClass};
+    ///
+    /// let device_channel = ExtnCapability::new_channel(ExtnClass::Device, "info".into());
+    /// assert!(device_channel.get_short().eq("Channel:Device"));
+    /// ```
     pub fn get_short(&self) -> String {
         if self._type == ExtnType::Channel {
             format!("{:?}:{:?}", self._type, self.class)
         } else {
-            format!("{:?}:{:?}", self.class, self.service)
+            format!("{:?}:{}", self.class, self.service)
         }
     }
 
+    /// Returns the `ExtnType` for the capability
     pub fn get_type(&self) -> ExtnType {
         self._type.clone()
     }
 
+    /// Returns the `ExtnClass` for the capability
     pub fn class(&self) -> ExtnClass {
         self.class.clone()
     }
 
+    /// Gets a new Channel capability based on the given `ExtnClass` and `Service`
+    /// # Arguments
+    /// `class` - Type of [ExtnClass]
+    /// `service` - Type of String which defines a unique service for a given Class channel
+    /// # Examples
+    /// ```
+    /// use ripple_sdk::extn::extn_capability::{ExtnCapability,ExtnClass};
+    ///
+    /// let device_channel = ExtnCapability::new_channel(ExtnClass::Device, "info".into());
+    /// assert!(device_channel.get_short().eq("Channel:Device"));
+    /// ```
     pub fn new_channel(class: ExtnClass, service: String) -> Self {
         Self {
             _type: ExtnType::Channel,
@@ -221,6 +290,17 @@ impl ExtnCapability {
         }
     }
 
+    /// Gets a new Channel capability based on the given `ExtnClass` and `Service`
+    /// # Arguments
+    /// `class` - Type of [ExtnClass]
+    /// `service` - Type of String which defines a unique service for a given Class channel
+    /// # Examples
+    /// ```
+    /// use ripple_sdk::extn::extn_capability::{ExtnCapability,ExtnClass};
+    ///
+    /// let device_channel = ExtnCapability::new_extn(ExtnClass::Device, "remote".into());
+    /// assert!(device_channel.get_short().eq("Device:remote"));
+    /// ```
     pub fn new_extn(class: ExtnClass, service: String) -> Self {
         Self {
             _type: ExtnType::Extn,
@@ -233,42 +313,5 @@ impl ExtnCapability {
 impl PartialEq for ExtnCapability {
     fn eq(&self, other: &ExtnCapability) -> bool {
         self._type == other._type && self.class == other.class
-    }
-}
-
-impl ExtnCapability {
-    pub fn from(cap: String) -> Option<ExtnCapability> {
-        let c_a = cap.split(":");
-        if c_a.count() > 4 {
-            let c_a: Vec<&str> = cap.split(":").collect();
-            match c_a.get(0).unwrap().to_lowercase().as_str() {
-                "ripple" => {}
-                _ => return None,
-            }
-            let _type = ExtnType::get(c_a.get(1).unwrap());
-            if _type.is_none() {
-                return None;
-            }
-            let _type = _type.unwrap();
-
-            let class = ExtnClass::get(c_a.get(2).unwrap());
-            if class.is_none() {
-                return None;
-            }
-            let class = class.unwrap();
-
-            let service = c_a.get(3);
-            if service.is_none() {
-                return None;
-            }
-            let service = String::from(*service.unwrap());
-
-            return Some(Self {
-                _type,
-                class,
-                service,
-            });
-        }
-        None
     }
 }

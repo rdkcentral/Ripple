@@ -20,15 +20,20 @@ use crate::{
 };
 
 use super::{
-    extn_processor::{ExtnEventProcessor, ExtnRequestProcessor, ExtnStreamProcessor},
+    extn_processor::{ExtnEventProcessor, ExtnRequestProcessor},
     extn_sender::ExtnSender,
 };
 
-/// Defines the SDK Client implementation of the Inter process communication between extensions
-///
-/// Defines
-/// ExtnRequest
-/// ExtnResponse
+/// Defines the SDK Client implementation of the Inter Extension communication.
+/// # Overview
+/// Core objective for the Extn client is to provide a reliable and robust communication channel between the  `Main` and its extensions. There are challenges when using Dynamic Linked libraries which needs to be carefully handled for memory, security and reliability. `Client` is built into the `core/sdk` for a better Software Delivery and Operational(SDO) performance.
+/// Each client within an extension contains the below fields
+/// 1. `reciever` - Crossbeam Receiver which is connected to the processors for handling incoming messages
+/// 2. `sender` - Crossbeam Sender to send the request back to `Main` application
+/// 3. `extn_sender_map` - Contains a list of senders based on a short [ExtnCapability] string which can be used to send  the request to other extensions.
+/// 4. `response_processors` - Map of response processors which are used for Response processor handling
+/// 5. `request_processors` - Map of request processors used for Request process handling
+/// 6. `event_processors` - Map of event processors used for Event Process handling
 ///
 
 #[repr(C)]
@@ -70,6 +75,12 @@ pub fn remove_processor<P>(id: String, map: Arc<RwLock<HashMap<String, P>>>) {
 }
 
 impl ExtnClient {
+    /// Creates a new ExtnClient to be used by Extensions during initialization.
+    ///
+    /// # Arguments
+    /// `receiver` - Crossbeam Receiver provided by the `Main` Application for IEC
+    ///
+    /// `sender` - [ExtnSender] object provided by `Main` Application with a unique [ExtnCapability]
     pub fn new(receiver: CReceiver<CExtnMessage>, sender: ExtnSender) -> ExtnClient {
         ExtnClient {
             receiver,
@@ -81,6 +92,11 @@ impl ExtnClient {
         }
     }
 
+    /// Adds a new request processor reference to the internal map of processors
+    ///
+    /// Uses the capability provided by the Processor for registration
+    ///
+    /// Also starts the thread in the processor to accept incoming requests.
     pub fn add_request_processor(&mut self, mut processor: impl ExtnRequestProcessor) {
         let processor_string = processor.capability().to_string();
         info!("adding request processor {}", processor_string);
@@ -95,13 +111,16 @@ impl ExtnClient {
         });
     }
 
-    pub fn remove_request_processor(&mut self, processor: &impl ExtnStreamProcessor) {
-        remove_processor(
-            processor.capability().to_string(),
-            self.request_processors.clone(),
-        );
+    /// Removes a request processor reference on the internal map of processors
+    pub fn remove_request_processor(&mut self, capability: ExtnCapability) {
+        remove_processor(capability.to_string(), self.request_processors.clone());
     }
 
+    /// Adds a new event processor reference to the internal map of processors
+    ///
+    /// Uses the capability provided by the Processor for registration
+    ///
+    /// Also starts the thread in the processor to accept incoming events.
     pub fn add_event_processor(&mut self, mut processor: impl ExtnEventProcessor) {
         add_vec_stream_processor(
             processor.capability().to_string(),
@@ -111,15 +130,18 @@ impl ExtnClient {
         tokio::spawn(async move { processor.run().await });
     }
 
+    /// Removes an event processor reference on the internal map of processors
     pub fn cleanup_event_stream(&mut self, capability: ExtnCapability) {
         Self::cleanup_vec_stream(capability.to_string(), None, self.event_processors.clone());
     }
 
+    /// Used mainly by `Main` application to add senders of the extensions for IEC
     pub fn add_sender(&mut self, capability: ExtnCapability, sender: CSender<CExtnMessage>) {
         let mut sender_map = self.extn_sender_map.write().unwrap();
         sender_map.insert(capability.get_short(), sender);
     }
 
+    /// Called once per client initialization this is a blocking method. Use a spawned thread to call this method
     pub async fn initialize(&self) {
         debug!("Starting initialize");
         let receiver = self.receiver.clone();
@@ -189,7 +211,7 @@ impl ExtnClient {
         debug!("Initialize Ended Abruptly");
     }
 
-    pub fn handle_single(
+    fn handle_single(
         msg: ExtnMessage,
         processor: Arc<RwLock<HashMap<String, OSender<ExtnMessage>>>>,
     ) {
@@ -210,7 +232,7 @@ impl ExtnClient {
         }
     }
 
-    pub fn handle_stream(
+    fn handle_stream(
         msg: ExtnMessage,
         processor: Arc<RwLock<HashMap<String, MSender<ExtnMessage>>>>,
     ) {
@@ -232,7 +254,7 @@ impl ExtnClient {
         }
     }
 
-    pub fn handle_vec_stream(
+    fn handle_vec_stream(
         msg: ExtnMessage,
         processor: Arc<RwLock<HashMap<String, Vec<MSender<ExtnMessage>>>>>,
     ) {
@@ -263,7 +285,7 @@ impl ExtnClient {
         Self::cleanup_vec_stream(id_c, Some(gc_sender_indexes), processor);
     }
 
-    pub fn cleanup_vec_stream(
+    fn cleanup_vec_stream(
         id_c: String,
         gc_sender_indexes: Option<Vec<usize>>,
         processor: Arc<RwLock<HashMap<String, Vec<MSender<ExtnMessage>>>>>,
@@ -295,20 +317,32 @@ impl ExtnClient {
         }
     }
 
-    pub fn get_extn_sender(&self, cap: ExtnCapability) -> Option<CSender<CExtnMessage>> {
+    fn get_extn_sender(&self, cap: ExtnCapability) -> Option<CSender<CExtnMessage>> {
         let key = cap.get_short();
         self.extn_sender_map.read().unwrap().get(&key).cloned()
     }
 
+    /// Critical method used by request processors to send response message back to the requestor
+    /// # Arguments
+    /// `msg` - [ExtnMessage] response object
     pub async fn respond(&mut self, msg: ExtnMessage) -> Result<(), RippleError> {
         self.sender
             .respond(msg.clone().into(), self.get_extn_sender(msg.clone().target))
     }
 
+    /// Critical method used by event processors to emit event back to the requestor
+    /// # Arguments
+    /// `msg` - [ExtnMessage] event object
     pub async fn event(&mut self, event: impl ExtnPayloadProvider) -> Result<(), RippleError> {
         self.sender.send_event(event).await
     }
 
+    /// Request method which accepts a impl [ExtnPayloadProvider] and uses the capability provided by the trait to send the request.
+    /// As part of the send process it adds a callback to asynchronously respond back to the caller when the response does get
+    /// received.
+    ///
+    /// # Arguments
+    /// `payload` - impl [ExtnPayloadProvider]
     pub async fn request(
         &mut self,
         payload: impl ExtnPayloadProvider,
@@ -326,22 +360,5 @@ impl ExtnClient {
         }
 
         Err(RippleError::ExtnError)
-    }
-
-    pub fn request_async(
-        &mut self,
-        payload: impl ExtnPayloadProvider,
-        callback: CSender<CExtnMessage>,
-    ) -> Result<(), RippleError> {
-        let id = uuid::Uuid::new_v4().to_string();
-        let other_sender = self.get_extn_sender(payload.get_capability());
-
-        if let Err(e) = self
-            .sender
-            .send_request(id, payload, other_sender, Some(callback))
-        {
-            return Err(e);
-        }
-        Ok(())
     }
 }
