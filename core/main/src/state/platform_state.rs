@@ -1,4 +1,7 @@
-use ripple_sdk::api::manifest::device_manifest::DeviceManifest;
+use ripple_sdk::{
+    api::manifest::device_manifest::DeviceManifest, extn::extn_client_message::ExtnMessage,
+    utils::error::RippleError,
+};
 
 use crate::service::extn::ripple_client::RippleClient;
 
@@ -38,5 +41,9 @@ impl PlatformState {
 
     pub fn get_client(&self) -> RippleClient {
         self.ripple_client.clone()
+    }
+
+    pub async fn respond(&self, msg: ExtnMessage) -> Result<(), RippleError> {
+        self.get_client().respond(msg).await
     }
 }

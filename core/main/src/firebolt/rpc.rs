@@ -1,7 +1,7 @@
 use jsonrpsee::RpcModule;
 
-use crate::service::extn::ripple_client::RippleClient;
+use crate::state::platform_state::PlatformState;
 
 pub trait RippleRPCProvider<I> {
-    fn provide(client: RippleClient) -> RpcModule<I>;
+    fn provide(state: PlatformState) -> RpcModule<I>;
 }

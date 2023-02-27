@@ -2,6 +2,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::sync::{mpsc, oneshot};
 
+use crate::extn::{
+    extn_capability::ExtnCapability,
+    extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
+};
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CallContext {
     pub session_id: String,
@@ -143,6 +148,23 @@ pub struct RpcRequest {
     pub method: String,
     pub params_json: String,
     pub ctx: CallContext,
+}
+
+impl ExtnPayloadProvider for RpcRequest {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(ExtnRequest::Rpc(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        if let ExtnPayload::Request(ExtnRequest::Rpc(v)) = payload {
+            return Some(v);
+        }
+        None
+    }
+
+    fn cap() -> ExtnCapability {
+        ExtnCapability::get_main_target("rpc".into())
+    }
 }
 
 #[derive(Debug)]

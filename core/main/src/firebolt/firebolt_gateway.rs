@@ -1,6 +1,7 @@
 use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::RpcRequest,
+    api::gateway::rpc_gateway_api::{ApiProtocol, RpcRequest},
+    extn::extn_client_message::ExtnMessage,
     log::{error, info},
 };
 
@@ -26,6 +27,9 @@ pub enum FireboltGatewayCommand {
     },
     HandleRpc {
         request: RpcRequest,
+    },
+    HandleRpcForExtn {
+        msg: ExtnMessage,
     },
 }
 
@@ -60,26 +64,44 @@ impl FireboltGateway {
                     .platform_state
                     .session_state
                     .clear_session(session_id),
-                HandleRpc { request } => self.handle(request).await,
+                HandleRpc { request } => self.handle(request, None).await,
+                HandleRpcForExtn { msg } => {
+                    if let Some(request) = msg.payload.clone().extract() {
+                        self.handle(request, Some(msg)).await
+                    } else {
+                        error!("Not a valid RPC Request {:?}", msg);
+                    }
+                }
             }
         }
     }
 
-    pub async fn handle(&self, request: RpcRequest) {
+    pub async fn handle(&self, request: RpcRequest, extn_msg: Option<ExtnMessage>) {
         info!(
             "Received Firebolt request {} {} {}",
             request.ctx.request_id, request.method, request.params_json
         );
         // First check sender if no sender no need to process
         let session_id = request.clone().ctx.session_id;
-        if !self
-            .state
-            .platform_state
-            .session_state
-            .has_session(session_id.clone())
-        {
-            error!("No sender for request {:?} ", request);
-            return;
+        let callback_c = extn_msg.clone();
+        match request.clone().ctx.protocol {
+            ApiProtocol::Extn => {
+                if callback_c.is_none() || callback_c.unwrap().callback.is_none() {
+                    error!("No callback for request {:?} ", request);
+                    return;
+                }
+            }
+            _ => {
+                if !self
+                    .state
+                    .platform_state
+                    .session_state
+                    .has_session(session_id.clone())
+                {
+                    error!("No sender for request {:?} ", request);
+                    return;
+                }
+            }
         }
         match FireboltGatekeeper::gate(self.state.platform_state.cap_state.clone(), request.clone())
             .await
@@ -87,6 +109,11 @@ impl FireboltGateway {
             Ok(_) => {
                 // Route
                 match request.clone().ctx.protocol {
+                    ApiProtocol::Extn => {
+                        self.router
+                            .route_extn_protocol(request.clone(), extn_msg.unwrap())
+                            .await
+                    }
                     _ => {
                         let session = self
                             .state
