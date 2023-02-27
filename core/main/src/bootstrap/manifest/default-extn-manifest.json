@@ -1,0 +1,9 @@
+{
+    "default_path": "/usr/lib/rust/",
+    "default_extension": "so",
+    "extns": [
+        {
+            "path": "libthunder"
+        }
+    ]
+}

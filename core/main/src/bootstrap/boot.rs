@@ -4,7 +4,7 @@ use crate::state::bootstrap_state::BootstrapState;
 
 use super::{
     setup_extn_client_step::SetupExtnClientStep, start_fbgateway_step::FireboltGatewayStep,
-    start_ws_step::StartWsStep,
+    start_ws_step::StartWsStep, extn::{load_extn_metadata_step::LoadExtensionMetadataStep, load_extn_step::LoadExtensionsStep, start_device_channel_step::StartDeviceChannel},
 };
 /// Starts up Ripple uses `PlatformState` to manage State
 /// # Arguments
@@ -17,6 +17,7 @@ use super::{
 /// # Steps
 ///
 /// 1. [SetupExtnClientStep] - Initializes the extn client to start the Inter process communication backbone
+/// 2. [LoadEx]
 /// 2. [StartWsStep] - Starts the Websocket to accept external and internal connections
 /// 3. [FireboltGatewayStep] - Starts the firebolt gateway and blocks the thread to keep it alive till interruption.
 ///
@@ -26,6 +27,15 @@ pub async fn boot(state: BootstrapState) {
         .step(SetupExtnClientStep)
         .await
         .expect("Extn Client setup failure")
+        .step(LoadExtensionMetadataStep)
+        .await
+        .expect("Extn Metadata load failure")
+        .step(LoadExtensionsStep)
+        .await
+        .expect("Extn load failure")
+        .step(StartDeviceChannel)
+        .await
+        .expect("Start Device channel failure")
         .step(StartWsStep)
         .await
         .expect("Websocket startup failure")

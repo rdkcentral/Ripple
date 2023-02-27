@@ -7,11 +7,12 @@ use ripple_sdk::{
 };
 
 use crate::{
-    bootstrap::manifest::device::LoadDeviceManifestStep,
-    firebolt::firebolt_gateway::FireboltGatewayCommand, service::extn::ripple_client::RippleClient,
+    bootstrap::manifest::{device::LoadDeviceManifestStep, extn::LoadExtnManifestStep},
+    firebolt::firebolt_gateway::FireboltGatewayCommand,
+    service::extn::ripple_client::RippleClient,
 };
 
-use super::platform_state::PlatformState;
+use super::{extn_state::ExtnState, platform_state::PlatformState};
 
 #[derive(Debug, Clone)]
 pub struct ChannelsState {
@@ -45,12 +46,17 @@ impl ChannelsState {
     pub fn get_extn_receiver(&self) -> CReceiver<CExtnMessage> {
         self.extn_receiver.clone()
     }
+
+    pub fn get_crossbeam_channel() -> (CSender<CExtnMessage>, CReceiver<CExtnMessage>) {
+        unbounded()
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct BootstrapState {
     pub platform_state: PlatformState,
     pub channels_state: ChannelsState,
+    pub extn_state: ExtnState,
 }
 
 impl BootstrapState {
@@ -58,9 +64,12 @@ impl BootstrapState {
         let channels_state = ChannelsState::new();
         let client = RippleClient::new(channels_state.clone());
         let platform_state = PlatformState::new(LoadDeviceManifestStep::get_manifest(), client);
+        let extn_state =
+            ExtnState::new(channels_state.clone(), LoadExtnManifestStep::get_manifest());
         Ok(BootstrapState {
             platform_state,
             channels_state,
+            extn_state,
         })
     }
 }
