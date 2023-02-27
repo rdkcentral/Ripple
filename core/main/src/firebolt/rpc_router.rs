@@ -125,10 +125,12 @@ impl RpcRouter {
                         }
                     };
                     let return_value = ExtnResponse::Value(response_value);
-                    if let Err(e) =
-                        callback.send(extn_msg.get_response(return_value).unwrap().into())
-                    {
-                        error!("Error while sending back rpc request for extn {:?}", e);
+                    if let Ok(response) = extn_msg.get_response(return_value) {
+                        if let Err(e) = callback.send(response.into()) {
+                            error!("Error while sending back rpc request for extn {:?}", e);
+                        }
+                    } else {
+                        error!("Not a Request object {:?}", extn_msg);
                     }
                 }
             }
