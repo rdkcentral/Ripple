@@ -10,12 +10,6 @@ use log::{debug, error, trace};
 use std::fmt::Debug;
 use tokio::sync::mpsc::{self, Receiver as MReceiver, Sender as MSender};
 
-/// ExtnRequestHandler is a building block for a any request handler within the Ripple Ecosystem
-/// A Request handler should
-/// 1. Provide a type which is bounded by the ExtnPayloadProvider. Check `ExtnPayloadProvider for more information about what
-/// 2. Have a handle method which takes in a Result from the transaction
-/// 3. Provide a Unique Uuid for the the transaction
-
 #[derive(Debug)]
 pub struct DefaultExtnStreamer {
     rx: Option<MReceiver<ExtnMessage>>,
@@ -48,6 +42,11 @@ pub trait ExtnStreamer {
     fn receiver(&mut self) -> MReceiver<ExtnMessage>;
 }
 
+/// ExtnStreamProcessor is a building for any communication receiver within the Ripple IEC
+/// A stream processor should
+/// 1. Provide a VALUE which is bound by [ExtnPayloadProvider].
+/// 2. Have a STATE which is bound by [Clone]
+/// 3. Provide a Sender and Receiver
 pub trait ExtnStreamProcessor: Send + Sync + 'static {
     type VALUE: ExtnPayloadProvider;
     type STATE: Clone + Send + Sync;
@@ -97,14 +96,47 @@ macro_rules! start_rx_stream {
     };
 }
 
+/// ExtnRequestProcessor extends [ExtnStreamProcessor] and is the building block for any Request processing within the Ripple IEC.
+/// Implementors of ExtnRequestProcessor should implement 2 methods one for Processing request and other for error handling
 #[async_trait]
 pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
+    /// This method is called for any request which had passed through
+    ///
+    /// 1. Security checks
+    ///
+    /// 2. Decoding checks
+    ///
+    /// 3. Type Validity checks
+    ///
+    /// So if a given processor recieves this request it is safe and type friendly to implement the processing logic for any given request.
+    ///
+    /// # Arguments
+    ///
+    /// `state` -> STATE defined in the [ExtnStreamProcessor]
+    ///
+    /// `msg` -> Request [ExtnMessage] in the original format useful for responding
+    ///
+    /// `extracted_message` - VALUE defined in [ExtnStreamProcessor]
+    ///
+    /// # Returns
+    ///
+    /// `Option<bool>` -> Used by [ExtnClient] to handle post processing
     async fn process_request(
         state: Self::STATE,
         msg: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> Option<bool>;
 
+    /// This method is called when there was an error during  processing this incoming request
+    /// Erros Could be related to
+    ///
+    /// 1. Security and Permissions
+    ///
+    /// 2. Decoding Failures
+    ///
+    /// 3. Type validity Failures
+    ///
+    /// Processor should implement the response for such failures.
     async fn process_error(
         state: Self::STATE,
         msg: ExtnMessage,
@@ -127,8 +159,31 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     }
 }
 
+/// ExtnEventProcessor extends [ExtnStreamProcessor] and is the building block for any Event processing within the Ripple IEC.
+/// Implementors of ExtnEventProcessor should implement method for processing the event
 #[async_trait]
 pub trait ExtnEventProcessor: ExtnStreamProcessor + Send + Sync + 'static {
+    /// This method is called for any event which had passed through
+    ///
+    /// 1. Security checks
+    ///
+    /// 2. Decoding checks
+    ///
+    /// 3. Type Validity checks
+    ///
+    /// So if a given processor recieves this event it is safe and type friendly to implement the listening logic for any given event.
+    ///
+    /// # Arguments
+    ///
+    /// `state` -> STATE defined in the [ExtnStreamProcessor]
+    ///
+    /// `msg` -> Request [ExtnMessage] in the original format useful for getting more detail
+    ///
+    /// `extracted_message` - VALUE defined in [ExtnStreamProcessor]
+    ///
+    /// # Returns
+    ///
+    /// `Option<bool>` -> Used by [ExtnClient] to handle post processing
     async fn process_event(
         state: Self::STATE,
         msg: ExtnMessage,
