@@ -114,7 +114,6 @@ impl ExtnPayloadProvider for RequestValue{
     #... snip
 }
 
-#[async_trait]
 impl ExtnStreamProcessor for SampleRequestProcessor {
     type S = CloneableState;
     type V = RequestValue;
@@ -190,4 +189,172 @@ Othersteps are same as the above usecase.
 Event lifecycle is very similar to Request Response lifecycle. Only difference being the callback is not a one time operation but will be repeated multiple times based on the Event emission.
 
 ![Event subscription lifecycle](./images/EventLifecycle.jpeg)
-## References
+## Usage
+
+For both Single and Subscription requests it is necessary to register an appropriate Request Processor as defined in this [step](#registration).
+
+### Single Request Usage
+
+Below snippet is an example of a sample request and response operation
+```
+ if let Ok(response) = client.request(DeviceInfoRequest::Make).await {
+    if let Some(ExtnResponse::String(v)) = response.payload.clone().extract() {
+        // Success receiving a String response from the payload
+    } else {
+        // Error
+    }
+```
+
+To unpack this above lines of code
+
+> client.request(DeviceInfoRequest::Make)
+
+Client request method takes in a `impl ExtnPayloadProvider` so it will take any object which implements this `ExtnPayloadProvider` trait.
+
+
+> if let Some(ExtnResponse::String(v)) = response.payload.clone().extract()
+
+ExtnPayload implements the extract method which can retrieve the response in the form of a `ExtnPayloadProvider` trait.
+
+#### Custom ExtnPayload Example
+Here is an example of how to create your own Custom Request enum payload
+
+```
+ use serde::{Deserialize, Serialize};
+ use ripple_sdk::extn::extn_capability::ExtnCapability;
+ use ripple_sdk::extn::extn_client_message::ExtnPayload;
+ use ripple_sdk::extn::extn_client_message::ExtnRequest;
+ use ripple_sdk::extn::extn_client_message::ExtnPayloadProvider;
+ use ripple_sdk::extn::extn_capability::ExtnClass;
+
+ #[derive(Debug, Clone, Serialize, Deserialize)]
+ pub enum MyCustomEnumRequestPayload {
+     String(String),
+     Bool(bool)
+ }
+
+ impl ExtnPayloadProvider for MyCustomEnumRequestPayload {
+     fn get_extn_payload(&self) -> ExtnPayload {
+     ExtnPayload::Request(ExtnRequest::Extn(serde_json::to_value(self.clone()).unwrap()))
+ }
+
+ fn get_from_payload(payload: ExtnPayload) -> Option<MyCustomEnumRequestPayload> {
+     match payload {
+         ExtnPayload::Request(request) => match request {
+             ExtnRequest::Extn(value) => {
+                 match serde_json::from_value(value) {
+                     Ok(r) => return Some(r),
+                     Err(e) => return None
+                 }
+             },
+             _ => {}
+         },
+         _ => {}
+     }
+     None
+ }
+
+ fn cap() -> ExtnCapability {
+     ExtnCapability::new_extn(ExtnClass::Device, "custom".into())
+ }
+ }
+```
+To use this on the caller end you will replace the `if let Some(ExtnResponse::String(v))` condition with
+
+```
+let data:Option<MyCustomEnumRequestPayload> = message.payload.clone().extract();
+if let Some(customRequestPayload) = data {
+}
+```
+
+### Subscription Requests Usage
+
+Subscription type of requests require an Event Processor to accept the incoming event as a stream.
+
+Below snippet is an example for the Event Processor
+```
+use ripple_sdk::{
+    api::status_update::ExtnStatus,
+    async_trait::async_trait,
+    extn::{
+        client::{
+            extn_client_message::ExtnMessage,
+            processor::{ExtnEventProcessor, ExtnStreamProcessor, ExtnStreamer},
+        },
+        manager::types::ExtnCapability,
+    },
+    log::error,
+    tokio::sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
+};
+
+#[derive(Debug, Clone)]
+pub struct WaitForState {
+    capability: ExtnCapability,
+    sender: MSender<ExtnStatus>,
+}
+
+#[derive(Debug)]
+pub struct WaitForStatusReadyEventProcessor {
+    state: WaitForState,
+    streamer: ExtnStreamer,
+}
+
+impl WaitForStatusReadyEventProcessor {
+    pub fn new(
+        capability: ExtnCapability,
+        sender: MSender<ExtnStatus>,
+    ) -> WaitForStatusReadyEventProcessor {
+        WaitForStatusReadyEventProcessor {
+            state: WaitForState { capability, sender },
+            streamer: ExtnStreamer::new(),
+        }
+    }
+}
+
+#[async_trait]
+impl ExtnStreamProcessor for WaitForStatusReadyEventProcessor {
+    type V = ExtnStatus;
+    type S = WaitForState;
+
+    fn get_state(&self) -> Self::S {
+        self.state.clone()
+    }
+
+    fn sender(&self) -> MSender<ExtnMessage> {
+        self.streamer.sender()
+    }
+
+    fn receiver(&mut self) -> MReceiver<ExtnMessage> {
+        self.streamer.receiver()
+    }
+}
+
+#[async_trait]
+impl ExtnEventProcessor for WaitForStatusReadyEventProcessor {
+    async fn process_event(
+        state: Self::S,
+        msg: ExtnMessage,
+        extracted_message: Self::V,
+    ) -> Option<bool> {
+        if msg.requestor.to_string().eq(&state.capability.to_string()) {
+            match extracted_message {
+                ExtnStatus::Ready => {
+                    if let Err(_) = state.sender.send(ExtnStatus::Ready).await {
+                        error!("Failure to wait status message")
+                    }
+                    return Some(true);
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+}
+```
+
+Most of the above snippet relates to a [registration process](#registration) with the client.
+Event processor is already loaded with method to just the event with the clonable state.
+
+>async fn process_event(state: Self::S, msg: ExtnMessage, extracted_message: Self::V)
+
+To unpack the above line, when the caller implements a `EventProcessor` event is already decoded and provided in the expected type in the `process_event` method. SDK takes care of the decoding and delegation of the message between the publisher and the subscriber.

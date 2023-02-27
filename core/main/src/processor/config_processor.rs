@@ -2,7 +2,9 @@ use ripple_sdk::{
     api::config::Config,
     async_trait::async_trait,
     extn::{
-        client::extn_processor::{ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer},
+        client::extn_processor::{
+            DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
+        },
         extn_client_message::{ExtnMessage, ExtnResponse},
     },
     log::error,
@@ -16,23 +18,22 @@ use crate::state::platform_state::PlatformState;
 #[derive(Debug)]
 pub struct ConfigRequestProcessor {
     state: PlatformState,
-    streamer: ExtnStreamer,
+    streamer: DefaultExtnStreamer,
 }
 
 impl ConfigRequestProcessor {
     pub fn new(state: PlatformState) -> ConfigRequestProcessor {
         ConfigRequestProcessor {
             state,
-            streamer: ExtnStreamer::new(),
+            streamer: DefaultExtnStreamer::new(),
         }
     }
 }
 
-#[async_trait]
 impl ExtnStreamProcessor for ConfigRequestProcessor {
-    type S = PlatformState;
-    type V = Config;
-    fn get_state(&self) -> Self::S {
+    type STATE = PlatformState;
+    type VALUE = Config;
+    fn get_state(&self) -> Self::STATE {
         self.state.clone()
     }
 
@@ -48,7 +49,7 @@ impl ExtnStreamProcessor for ConfigRequestProcessor {
 #[async_trait]
 impl ExtnRequestProcessor for ConfigRequestProcessor {
     async fn process_error(
-        _state: Self::S,
+        _state: Self::STATE,
         _msg: ExtnMessage,
         _error: ripple_sdk::utils::error::RippleError,
     ) -> Option<bool> {
@@ -57,9 +58,9 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
     }
 
     async fn process_request(
-        state: Self::S,
+        state: Self::STATE,
         msg: ExtnMessage,
-        extracted_message: Self::V,
+        extracted_message: Self::VALUE,
     ) -> Option<bool> {
         let device_manifest = state.get_device_manifest();
         let config_request = extracted_message;

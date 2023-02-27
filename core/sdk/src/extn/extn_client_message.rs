@@ -15,14 +15,17 @@ use super::{extn_capability::ExtnCapability, ffi::ffi_message::CExtnMessage};
 /// Default Message enum for the Communication Channel
 /// Message would be either a request or response or event
 ///
-/// Contains the Requester information
-/// Unique UUID <optional for Events>
+/// Below fields constitute an [ExtnMessage]
 ///
-/// Here are some examples
-/// GatewayMessage(ServiceStatusRequest) -> sends the status of the extension
-/// GatewayMessage(RPCRequest) --> Sends a RPC request
-/// DeviceMessage(LaunchAppRequest) --> Launches the app
-/// RpcMessage(RPCExtnRequest) // contains Extn capability for checking
+/// `id` | String | Usually an UUID to identify a specific message |
+///
+/// `requestor` | [ExtnCapability]| Used by Clients to identify the requestor for the message. Looks something like `ripple:main:internal:rpc` when converted to String for a request coming from `Main`.  |
+///
+/// `target` | [ExtnCapability]| Used by Clients to identify the target for the message. Something like `ripple:channel:device:info` for the device channel info request|
+///
+/// `payload` | [ExtnPayload]| Type of payload could be [ExtnRequest], [ExtnResponse] or [ExtnEvent]
+///
+/// `callback` |Crossbeam [crossbeam::channel::Sender<CExtnMessage>] | Usually added by `Main` to the `target` to respond back to the `requestor`|
 
 #[derive(Debug, Clone)]
 pub struct ExtnMessage {
@@ -101,6 +104,54 @@ impl ExtnPayload {
     }
 }
 
+/// Most critical trait used in Inter Extension Communication(IEC). Any message has to conform to this trait specification
+/// in order to be used inside the channel.
+///
+/// Common structs required for general opensource Firebolt Operations will be implemented for this trait in the `sdk`
+/// Developers can also extend this trait for their own Extensions and use it with the [crate::extn::client::extn_client::ExtnClient]
+/// Defines the type of payload for the owner. The owner has to implement this method for the client to create a
+/// payload for the [ExtnMessage]. [ExtnPayload] is an enumeration with types of [ExtnRequest], [ExtnResponse] and [ExtnEvent]
+/// # Example
+///
+/// ```
+/// use serde::{Deserialize, Serialize};
+/// use ripple_sdk::extn::extn_capability::ExtnCapability;
+/// use ripple_sdk::extn::extn_client_message::ExtnPayload;
+/// use ripple_sdk::extn::extn_client_message::ExtnRequest;
+/// use ripple_sdk::extn::extn_client_message::ExtnPayloadProvider;
+/// use ripple_sdk::extn::extn_capability::ExtnClass;
+/// #[derive(Debug, Clone, Serialize, Deserialize)]
+/// pub enum MyCustomEnumRequestPayload {
+///     String(String),
+///     Bool(bool)
+/// }
+///
+/// impl ExtnPayloadProvider for MyCustomEnumRequestPayload {
+///     fn get_extn_payload(&self) -> ExtnPayload {
+///     ExtnPayload::Request(ExtnRequest::Extn(serde_json::to_value(self.clone()).unwrap()))
+/// }
+
+/// fn get_from_payload(payload: ExtnPayload) -> Option<MyCustomEnumRequestPayload> {
+///     match payload {
+///         ExtnPayload::Request(request) => match request {
+///             ExtnRequest::Extn(value) => {
+///                 match serde_json::from_value(value) {
+///                     Ok(r) => return Some(r),
+///                     Err(e) => return None
+///                 }
+///             },
+///             _ => {}
+///         },
+///         _ => {}
+///     }
+///     None
+/// }
+///
+/// fn cap() -> ExtnCapability {
+///     ExtnCapability::new_extn(ExtnClass::Device, "custom".into())
+/// }
+/// }
+/// ```
 pub trait ExtnPayloadProvider: Clone + Send + Sync
 where
     Self: Sized,
@@ -117,6 +168,7 @@ where
 pub enum ExtnRequest {
     Config(Config),
     Rpc(RpcRequest),
+    Extn(Value),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -151,6 +203,7 @@ impl ExtnPayloadProvider for ExtnResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ExtnEvent {
     String(String),
+    Value(Value),
 }
 
 impl ExtnPayloadProvider for ExtnEvent {

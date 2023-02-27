@@ -17,41 +17,48 @@ use tokio::sync::mpsc::{self, Receiver as MReceiver, Sender as MSender};
 /// 3. Provide a Unique Uuid for the the transaction
 
 #[derive(Debug)]
-pub struct ExtnStreamer {
+pub struct DefaultExtnStreamer {
     rx: Option<MReceiver<ExtnMessage>>,
     tx: Option<MSender<ExtnMessage>>,
 }
 
-impl ExtnStreamer {
-    pub fn new() -> ExtnStreamer {
+impl DefaultExtnStreamer {
+    pub fn new() -> DefaultExtnStreamer {
         let (tx, rx) = mpsc::channel(10);
-        ExtnStreamer {
+        DefaultExtnStreamer {
             rx: Some(rx),
             tx: Some(tx),
         }
     }
+}
 
-    pub fn sender(&self) -> MSender<ExtnMessage> {
+impl ExtnStreamer for DefaultExtnStreamer {
+    fn sender(&self) -> MSender<ExtnMessage> {
         self.tx.clone().unwrap()
     }
 
-    pub fn receiver(&mut self) -> MReceiver<ExtnMessage> {
+    fn receiver(&mut self) -> MReceiver<ExtnMessage> {
         let rx = self.rx.take();
         rx.unwrap()
     }
 }
 
+pub trait ExtnStreamer {
+    fn sender(&self) -> MSender<ExtnMessage>;
+    fn receiver(&mut self) -> MReceiver<ExtnMessage>;
+}
+
 pub trait ExtnStreamProcessor: Send + Sync + 'static {
-    type V: ExtnPayloadProvider;
-    type S: Clone + Send + Sync;
-    fn get(payload: ExtnPayload) -> Option<Self::V> {
-        Self::V::get_from_payload(payload)
+    type VALUE: ExtnPayloadProvider;
+    type STATE: Clone + Send + Sync;
+    fn get(payload: ExtnPayload) -> Option<Self::VALUE> {
+        Self::VALUE::get_from_payload(payload)
     }
 
-    fn get_state(&self) -> Self::S;
+    fn get_state(&self) -> Self::STATE;
     fn receiver(&mut self) -> MReceiver<ExtnMessage>;
     fn capability(&self) -> ExtnCapability {
-        Self::V::cap()
+        Self::VALUE::cap()
     }
     fn sender(&self) -> MSender<ExtnMessage>;
 }
@@ -93,12 +100,16 @@ macro_rules! start_rx_stream {
 #[async_trait]
 pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     async fn process_request(
-        state: Self::S,
+        state: Self::STATE,
         msg: ExtnMessage,
-        extracted_message: Self::V,
+        extracted_message: Self::VALUE,
     ) -> Option<bool>;
 
-    async fn process_error(state: Self::S, msg: ExtnMessage, error: RippleError) -> Option<bool>;
+    async fn process_error(
+        state: Self::STATE,
+        msg: ExtnMessage,
+        error: RippleError,
+    ) -> Option<bool>;
 
     async fn run(&mut self) {
         debug!(
@@ -119,12 +130,16 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
 #[async_trait]
 pub trait ExtnEventProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     async fn process_event(
-        state: Self::S,
+        state: Self::STATE,
         msg: ExtnMessage,
-        extracted_message: Self::V,
+        extracted_message: Self::VALUE,
     ) -> Option<bool>;
 
-    async fn process_error(_state: Self::S, msg: ExtnMessage, error: RippleError) -> Option<bool> {
+    async fn process_error(
+        _state: Self::STATE,
+        msg: ExtnMessage,
+        error: RippleError,
+    ) -> Option<bool> {
         error!("invalid event received {:?} for {:?}", msg.payload, error);
         None
     }

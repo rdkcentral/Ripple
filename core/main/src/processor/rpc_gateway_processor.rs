@@ -2,7 +2,9 @@ use ripple_sdk::{
     api::gateway::rpc_gateway_api::RpcRequest,
     async_trait::async_trait,
     extn::{
-        client::extn_processor::{ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer},
+        client::extn_processor::{
+            DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
+        },
         extn_client_message::ExtnMessage,
     },
     log::error,
@@ -17,24 +19,22 @@ use crate::{
 #[derive(Debug)]
 pub struct RpcGatewayProcessor {
     sender: Sender<FireboltGatewayCommand>,
-    streamer: ExtnStreamer,
+    streamer: DefaultExtnStreamer,
 }
 
 impl RpcGatewayProcessor {
     pub fn new(state: ChannelsState) -> RpcGatewayProcessor {
         RpcGatewayProcessor {
             sender: state.get_gateway_sender(),
-            streamer: ExtnStreamer::new(),
+            streamer: DefaultExtnStreamer::new(),
         }
     }
 }
 
-#[async_trait]
 impl ExtnStreamProcessor for RpcGatewayProcessor {
-    type S = Sender<FireboltGatewayCommand>;
-    type V = RpcRequest;
-
-    fn get_state(&self) -> Self::S {
+    type STATE = Sender<FireboltGatewayCommand>;
+    type VALUE = RpcRequest;
+    fn get_state(&self) -> Self::STATE {
         self.sender.clone()
     }
 
@@ -50,7 +50,7 @@ impl ExtnStreamProcessor for RpcGatewayProcessor {
 #[async_trait]
 impl ExtnRequestProcessor for RpcGatewayProcessor {
     async fn process_error(
-        _state: Self::S,
+        _state: Self::STATE,
         _msg: ExtnMessage,
         _error: ripple_sdk::utils::error::RippleError,
     ) -> Option<bool> {
@@ -58,7 +58,11 @@ impl ExtnRequestProcessor for RpcGatewayProcessor {
         None
     }
 
-    async fn process_request(state: Self::S, msg: ExtnMessage, _request: Self::V) -> Option<bool> {
+    async fn process_request(
+        state: Self::STATE,
+        msg: ExtnMessage,
+        _request: Self::VALUE,
+    ) -> Option<bool> {
         if let Err(e) = state
             .send(FireboltGatewayCommand::HandleRpcForExtn { msg })
             .await

@@ -115,7 +115,7 @@ pub struct LifecycleConfiguration {
 }
 
 /// Device manifest contains all the specifications required for coniguration of a Ripple application.
-/// Device manifest file should be compliant to the Openrpc schema specified here [here][https://github.com/rdkcentral/firebolt-configuration]
+/// Device manifest file should be compliant to the Openrpc schema specified in <https://github.com/rdkcentral/firebolt-configuration>
 #[derive(Deserialize, Debug, Clone)]
 pub struct DeviceManifest {
     pub configuration: RippleConfiguration,
