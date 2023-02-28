@@ -393,7 +393,7 @@ impl ThunderClientBuilder {
     pub fn get_client(
         url: Url,
         plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
-        pool_tx: Option<mpsc::Sender<ThunderPoolCommand>>
+        pool_tx: Option<mpsc::Sender<ThunderPoolCommand>>,
     ) -> ThunderClient {
         let id = Uuid::new_v4();
 
