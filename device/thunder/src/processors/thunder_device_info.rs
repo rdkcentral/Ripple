@@ -68,7 +68,7 @@ impl ThunderDeviceInfoRequestProcessor {
             .respond(req.get_response(ExtnResponse::String(response)).unwrap())
             .await
         {
-            error!("Sending back response for device.make ");
+            error!("Sending back response for device.model ");
         }
     }
 }

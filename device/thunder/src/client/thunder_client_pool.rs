@@ -40,8 +40,7 @@ impl ThunderClientPool {
     pub fn start(
         url: Url,
         plugin_manager_tx: Option<mpsc::Sender<PluginManagerCommand>>,
-        size: u32,
-        //client_builder: Option<Box<dyn JsonRpcClientBuilder + Send>>,
+        size: u32
     ) -> ThunderClient {
         debug!("Starting a Thunder connection pool of size {}", size);
         let (s, mut r) = mpsc::channel::<ThunderPoolCommand>(32);
@@ -50,8 +49,7 @@ impl ThunderClientPool {
             let client = ThunderClientBuilder::get_client(
                 url.clone(),
                 plugin_manager_tx.clone(),
-                Some(s.clone()),
-                //client_builder.clone(),
+                Some(s.clone())
             );
             clients.push(PooledThunderClient {
                 in_use: Arc::new(AtomicBool::new(false)),
