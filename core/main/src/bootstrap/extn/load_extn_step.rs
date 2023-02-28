@@ -13,6 +13,10 @@ use ripple_sdk::{
 
 use crate::state::bootstrap_state::BootstrapState;
 
+/// Actual bootstep which loads the extensions into the ExtnState.
+/// Currently this step loads
+/// 1. Device Channel
+/// 2. Device Extensions
 pub struct LoadExtensionsStep;
 
 #[async_trait]
@@ -35,11 +39,11 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                     match metadata.get_cap().get_type() {
                         ExtnType::Channel => match metadata.get_cap().class() {
                             ExtnClass::Device => match load_device_channel(library) {
-                                Some(channel) => {
+                                Ok(channel) => {
                                     info!("Adding to channel map {}", cap_string.clone());
                                     let _ = device_channel.insert(channel);
                                 }
-                                None => return Err(RippleError::BootstrapError),
+                                Err(e) => return Err(e),
                             },
                             _ => {}
                         },

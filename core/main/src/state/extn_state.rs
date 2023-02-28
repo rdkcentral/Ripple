@@ -53,6 +53,8 @@ impl LoadedLibrary {
     }
 }
 
+/// Bootstrap state which is used to store transient extension information used while bootstrapping.
+/// Content within state is related to extension symbols and Libraries.
 #[derive(Debug, Clone)]
 pub struct ExtnState {
     sender: CSender<CExtnMessage>,

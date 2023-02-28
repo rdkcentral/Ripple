@@ -12,6 +12,8 @@ use ripple_sdk::{
 
 use crate::state::{bootstrap_state::BootstrapState, extn_state::LoadedLibrary};
 
+/// Loads the metadata from the Extensions shared libraries. This first step helps ripple catalogue the contents of a given dynamic linked file.
+/// This step will be used for resolutions and also setting up permissions in future.
 pub struct LoadExtensionMetadataStep;
 
 impl LoadExtensionMetadataStep {

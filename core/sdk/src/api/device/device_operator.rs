@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::mpsc;
 
+/// Generic Operator trait used for Device Communications
+/// Each platform like `Thunder` should implement this trait based on the underlying service
 #[async_trait]
 pub trait DeviceOperator: Clone {
     async fn call_thunder(&self, request: DeviceCallRequest) -> DeviceResponseMessage;

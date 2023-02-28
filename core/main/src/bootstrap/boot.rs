@@ -3,8 +3,13 @@ use ripple_sdk::framework::bootstrap::Bootstrap;
 use crate::state::bootstrap_state::BootstrapState;
 
 use super::{
-    setup_extn_client_step::SetupExtnClientStep, start_fbgateway_step::FireboltGatewayStep,
-    start_ws_step::StartWsStep, extn::{load_extn_metadata_step::LoadExtensionMetadataStep, load_extn_step::LoadExtensionsStep, start_device_channel_step::StartDeviceChannel},
+    extn::{
+        load_extn_metadata_step::LoadExtensionMetadataStep, load_extn_step::LoadExtensionsStep,
+        start_device_channel_step::StartDeviceChannel,
+    },
+    setup_extn_client_step::SetupExtnClientStep,
+    start_fbgateway_step::FireboltGatewayStep,
+    start_ws_step::StartWsStep,
 };
 /// Starts up Ripple uses `PlatformState` to manage State
 /// # Arguments
@@ -17,9 +22,11 @@ use super::{
 /// # Steps
 ///
 /// 1. [SetupExtnClientStep] - Initializes the extn client to start the Inter process communication backbone
-/// 2. [LoadEx]
-/// 2. [StartWsStep] - Starts the Websocket to accept external and internal connections
-/// 3. [FireboltGatewayStep] - Starts the firebolt gateway and blocks the thread to keep it alive till interruption.
+/// 2. [LoadExtensionMetadataStep] - Loads the Extn metadata from the So files
+/// 3. [LoadExtensionsStep] - Loads the Extensions in to [crate::state::extn_state::ExtnState]
+/// 4. [StartDeviceChannel] - Starts the Device channel extension
+/// 5. [StartWsStep] - Starts the Websocket to accept external and internal connections
+/// 6. [FireboltGatewayStep] - Starts the firebolt gateway and blocks the thread to keep it alive till interruption.
 ///
 pub async fn boot(state: BootstrapState) {
     let bootstrap = &Bootstrap::new(state);

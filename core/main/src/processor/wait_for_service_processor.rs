@@ -24,6 +24,8 @@ pub struct WaitForStatusReadyEventProcessor {
     streamer: DefaultExtnStreamer,
 }
 
+/// Event processor used for cases where a certain Extension Capability is required to be ready.
+/// Bootstrap uses the [WaitForStatusReadyEventProcessor] to await during Device Connnection before starting the gateway.
 impl WaitForStatusReadyEventProcessor {
     pub fn new(
         capability: ExtnCapability,

@@ -1,5 +1,5 @@
-use jsonrpsee::RpcModule;
 use jsonrpsee::core::Error;
+use jsonrpsee::RpcModule;
 
 use crate::state::platform_state::PlatformState;
 

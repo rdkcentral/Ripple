@@ -13,6 +13,9 @@ use crate::{
     state::bootstrap_state::{BootstrapState, ChannelsState},
 };
 
+/// Bootstep which starts the Device channel intitiating a device interface connection channel.
+/// This step calls the start method on the Device Channel and waits for a successful Device
+/// connection before proceeding to the next boot step.
 pub struct StartDeviceChannel;
 
 #[async_trait]

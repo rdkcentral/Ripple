@@ -7,9 +7,6 @@ use crate::utils::error::RippleError;
 
 /// Contains the default path for the manifest
 /// file extension type based on platform
-/// Resolution strategies
-///
-
 #[derive(Deserialize, Debug, Clone)]
 pub struct ExtnManifest {
     pub default_path: String,
@@ -24,6 +21,7 @@ pub struct ExtnResolutionEntry {
     pub exclusion: Option<bool>,
 }
 
+/// Contains Resolution strategies and path for the manifest.
 #[derive(Deserialize, Debug, Clone)]
 pub struct ExtnEntry {
     pub path: String,

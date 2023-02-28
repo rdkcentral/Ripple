@@ -12,6 +12,8 @@ use serde_json::Value;
 
 use super::ffi_message::CExtnMessage;
 
+/// Extension channel derived specifically for Device Connections.
+/// Accepts Device Extensions and the Sender Receiver for ExtnClient setup
 #[repr(C)]
 #[derive(Debug)]
 pub struct DeviceChannel {
@@ -20,6 +22,7 @@ pub struct DeviceChannel {
     pub capability: ExtnCapability,
 }
 
+/// Device Extn struct provides the Service and other parameters required for Extending device operations
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct DeviceExtn {
@@ -47,6 +50,31 @@ impl DeviceExtnBuilder {
     }
 }
 
+/// Macro used by Extensions to export a device channel.
+///
+/// # Example
+/// ```
+/// use ripple_sdk::export_device_channel;
+/// use ripple_sdk::extn::client::extn_sender::ExtnSender;
+/// use ripple_sdk::extn::ffi::ffi_message::CExtnMessage;
+/// use ripple_sdk::extn::ffi::ffi_device::DeviceExtn;
+/// use ripple_sdk::extn::ffi::ffi_device::DeviceChannel;
+/// use ripple_sdk::extn::extn_capability::{ExtnClass,ExtnCapability};
+/// use ripple_sdk::crossbeam::channel::Receiver as CReceiver;
+/// use semver::Version;
+/// fn start(sender: ExtnSender, receiver: CReceiver<CExtnMessage>, extns: Vec<DeviceExtn>) {
+///  // snip
+/// }
+///  fn init_device_channel() -> DeviceChannel {
+///    DeviceChannel {
+///        start,
+///        capability: ExtnCapability::new_channel(ExtnClass::Device, "device_interface".into()),
+///        version: Version::new(1, 1, 0),
+///    }
+/// }
+///
+/// export_device_channel!(DeviceChannel, init_device_channel);
+/// ```
 #[macro_export]
 macro_rules! export_device_channel {
     ($plugin_type:ty, $constructor:path) => {
@@ -60,18 +88,19 @@ macro_rules! export_device_channel {
     };
 }
 
-pub unsafe fn load_device_channel(lib: &Library) -> Option<Box<DeviceChannel>> {
+/// Method used by Ripple Main to load the device channel
+pub unsafe fn load_device_channel(lib: &Library) -> Result<Box<DeviceChannel>, RippleError> {
     type LibraryFfi = unsafe fn() -> *mut DeviceChannel;
     let r = lib.get(b"device_channel_create");
     match r {
         Ok(r) => {
             debug!("Symbol extracted from library");
             let constructor: Symbol<LibraryFfi> = r;
-            return Some(Box::from_raw(constructor()));
+            return Ok(Box::from_raw(constructor()));
         }
         Err(e) => error!("Extn library symbol loading failed {:?}", e),
     }
-    None
+    Err(RippleError::ExtnError)
 }
 
 #[repr(C)]
@@ -100,6 +129,7 @@ pub enum DeviceResponse {
     Error(RippleError),
 }
 
+/// TBA
 #[macro_export]
 macro_rules! export_device_extn_builder {
     ($plugin_type:ty, $constructor:path) => {
