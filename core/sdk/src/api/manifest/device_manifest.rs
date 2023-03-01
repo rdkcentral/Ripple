@@ -385,4 +385,11 @@ impl DeviceManifest {
     pub fn get_app_library_path(&self) -> String {
         self.applications.distribution.library.clone()
     }
+
+    pub fn get_lifecycle_policy(&self) -> LifecyclePolicy {
+        LifecyclePolicy {
+            app_ready_timeout_ms: self.lifecycle.app_ready_timeout_ms,
+            app_finished_timeout_ms: self.lifecycle.app_finished_timeout_ms,
+        }
+    }
 }

@@ -7,10 +7,7 @@ use ripple_sdk::{
     utils::error::RippleError,
 };
 
-use crate::service::{
-    apps::{app_events::AppEventsState, delegated_launcher_handler::AppManagerState},
-    extn::ripple_client::RippleClient,
-};
+use crate::service::{apps::app_events::AppEventsState, extn::ripple_client::RippleClient};
 
 use super::{cap::cap_state::CapState, session_state::SessionState};
 
@@ -32,7 +29,6 @@ pub struct PlatformState {
     pub session_state: SessionState,
     pub cap_state: CapState,
     pub app_events_state: AppEventsState,
-    pub app_mgr_state: AppManagerState,
 }
 
 impl PlatformState {
@@ -48,7 +44,6 @@ impl PlatformState {
             ripple_client: client,
             app_library_state: AppLibraryState::new(app_library),
             app_events_state: AppEventsState::default(),
-            app_mgr_state: AppManagerState::default(),
         }
     }
 

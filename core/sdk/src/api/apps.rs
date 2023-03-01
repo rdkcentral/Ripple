@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
+use crate::utils::{channel_utils::oneshot_send_and_log, error::RippleError};
+
 use super::firebolt::{
     fb_discovery::{LaunchRequest, NavigationIntent},
     fb_lifecycle::LifecycleState,
@@ -72,10 +74,24 @@ pub enum EffectiveTransport {
     Websocket,
 }
 
+pub type AppResponse = Result<AppManagerResponse, AppError>;
+
 #[derive(Debug, Clone)]
 pub struct AppRequest {
     pub method: AppMethod,
-    pub resp_tx: Arc<RwLock<Option<oneshot::Sender<Result<AppManagerResponse, AppError>>>>>, // Allow fire-and-forget.
+    pub resp_tx: Arc<RwLock<Option<oneshot::Sender<AppResponse>>>>, // Allow fire-and-forget.
+}
+
+impl AppRequest {
+    pub fn send_response(&self, response: AppResponse) -> Result<(), RippleError> {
+        let mut sender = self.resp_tx.write().unwrap();
+        if sender.is_some() {
+            oneshot_send_and_log(sender.take().unwrap(), response, "AppManager response");
+            Ok(())
+        } else {
+            Err(RippleError::SenderMissing)
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

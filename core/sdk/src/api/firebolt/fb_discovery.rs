@@ -24,6 +24,28 @@ pub struct LaunchRequest {
     pub intent: Option<NavigationIntent>,
 }
 
+impl LaunchRequest {
+    pub fn new(
+        app_id: String,
+        action: String,
+        data: Option<Value>,
+        source: String,
+    ) -> LaunchRequest {
+        LaunchRequest {
+            app_id,
+            intent: Some(NavigationIntent {
+                action,
+                data,
+                context: DiscoveryContext { source },
+            }),
+        }
+    }
+
+    pub fn get_intent(&self) -> NavigationIntent {
+        self.intent.clone().unwrap_or_default()
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct NavigationIntent {
     pub action: String,

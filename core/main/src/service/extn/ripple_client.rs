@@ -41,7 +41,7 @@ use crate::{
 pub struct RippleClient {
     client: Arc<RwLock<ExtnClient>>,
     gateway_sender: Sender<FireboltGatewayCommand>,
-    app_mgr_sender: Sender<AppRequest>,
+    _app_mgr_sender: Sender<AppRequest>, // will be used by LCM RPC
 }
 
 impl RippleClient {
@@ -51,7 +51,7 @@ impl RippleClient {
         let extn_client = ExtnClient::new(state.get_extn_receiver(), extn_sender);
         RippleClient {
             gateway_sender: state.get_gateway_sender(),
-            app_mgr_sender: state.get_app_mgr_sender(),
+            _app_mgr_sender: state.get_app_mgr_sender(),
             client: Arc::new(RwLock::new(extn_client)),
         }
     }
