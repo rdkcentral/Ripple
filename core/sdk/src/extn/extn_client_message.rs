@@ -6,7 +6,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    api::{config::Config, gateway::rpc_gateway_api::RpcRequest},
+    api::{
+        config::Config, device::device_request::DeviceRequest,
+        gateway::rpc_gateway_api::RpcRequest, status_update::ExtnStatus,
+    },
     utils::error::RippleError,
 };
 
@@ -58,6 +61,10 @@ impl ExtnMessage {
         }
     }
 
+    /// This method can be used to create [ExtnResponse] payload message from a given [ExtnRequest]
+    /// payload.
+    ///
+    /// Note: If used in a processor this method can be safely unwrapped
     pub fn get_response(&self, response: ExtnResponse) -> Result<ExtnMessage, RippleError> {
         match self.clone().payload {
             ExtnPayload::Request(_) => Ok(ExtnMessage {
@@ -168,6 +175,7 @@ where
 pub enum ExtnRequest {
     Config(Config),
     Rpc(RpcRequest),
+    Device(DeviceRequest),
     Extn(Value),
 }
 
@@ -204,6 +212,7 @@ impl ExtnPayloadProvider for ExtnResponse {
 pub enum ExtnEvent {
     String(String),
     Value(Value),
+    Status(ExtnStatus),
 }
 
 impl ExtnPayloadProvider for ExtnEvent {

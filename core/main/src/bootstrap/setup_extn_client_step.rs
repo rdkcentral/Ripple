@@ -6,7 +6,7 @@ use crate::{
     processor::config_processor::ConfigRequestProcessor, state::bootstrap_state::BootstrapState,
 };
 
-/// Sets up the SDK Extn Client and other components for inter process communication clients are updated to app state for future use.
+/// Sets up the SDK Extn Client and other components for IEC(Inter Extension Communication) clients are updated to app state for future use.
 pub struct SetupExtnClientStep;
 
 #[async_trait]
