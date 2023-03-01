@@ -61,6 +61,10 @@ impl ExtnMessage {
         }
     }
 
+    /// This method can be used to create [ExtnResponse] payload message from a given [ExtnRequest]
+    /// payload.
+    ///
+    /// Note: If used in a processor this method can be safely unwrapped
     pub fn get_response(&self, response: ExtnResponse) -> Result<ExtnMessage, RippleError> {
         match self.clone().payload {
             ExtnPayload::Request(_) => Ok(ExtnMessage {

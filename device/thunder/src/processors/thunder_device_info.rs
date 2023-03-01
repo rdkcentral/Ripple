@@ -12,6 +12,7 @@ use ripple_sdk::{
         extn_client_message::{ExtnMessage, ExtnResponse},
     },
     log::{error, info},
+    utils::error::RippleError,
 };
 
 #[derive(Debug)]
@@ -38,14 +39,11 @@ impl ThunderDeviceInfoRequestProcessor {
             .await;
         info!("{}", response.message);
         let response = match response.message["make"].as_str() {
-            Some(v) => v.to_string(),
-            None => "".to_string(),
+            Some(v) => ExtnResponse::String(v.to_string()),
+            None => ExtnResponse::Error(RippleError::InvalidOutput),
         };
-        if let Err(_e) = state
-            .get_client()
-            .respond(req.get_response(ExtnResponse::String(response)).unwrap())
-            .await
-        {
+
+        if let Err(_e) = Self::respond(state.get_client(), req, response).await {
             error!("Sending back response for device.make ");
         }
     }
@@ -60,14 +58,13 @@ impl ThunderDeviceInfoRequestProcessor {
             .await;
         info!("{}", response.message);
         let response = match response.message["stbVersion"].as_str() {
-            Some(v) => v.to_string(),
-            None => "".to_string(),
+            Some(v) => {
+                let split_string: Vec<&str> = v.split("_").collect();
+                ExtnResponse::String(String::from(split_string[0]))
+            }
+            None => ExtnResponse::Error(RippleError::InvalidOutput),
         };
-        if let Err(_e) = state
-            .get_client()
-            .respond(req.get_response(ExtnResponse::String(response)).unwrap())
-            .await
-        {
+        if let Err(_e) = Self::respond(state.get_client(), req, response).await {
             error!("Sending back response for device.model ");
         }
     }

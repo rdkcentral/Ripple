@@ -1,7 +1,7 @@
 use crate::{
     extn::{
         extn_capability::ExtnCapability,
-        extn_client_message::{ExtnMessage, ExtnPayload, ExtnPayloadProvider},
+        extn_client_message::{ExtnMessage, ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     },
     utils::error::RippleError,
 };
@@ -9,6 +9,8 @@ use async_trait::async_trait;
 use log::{debug, error, trace};
 use std::fmt::Debug;
 use tokio::sync::mpsc::{self, Receiver as MReceiver, Sender as MSender};
+
+use super::extn_client::ExtnClient;
 
 #[derive(Debug)]
 pub struct DefaultExtnStreamer {
@@ -64,31 +66,41 @@ pub trait ExtnStreamProcessor: Send + Sync + 'static {
 
 #[macro_export]
 macro_rules! start_rx_stream {
-    ($get_type:ty, $caller:ident, $recv:ident, $state:ident, $process:ident, $error:ident) => {
+    ($get_type:ty, $caller:ident, $recv:ident, $state:ident, $process:ident, $error:ident, $type_check:expr) => {
         let mut rx = $caller.$recv();
         let state = $caller.$state().clone();
         tokio::spawn(async move {
             while let Some(msg) = rx.recv().await {
-                let state_c = state.clone();
-                let extracted_message = <$get_type>::get(msg.payload.clone());
-                if extracted_message.is_none() {
+                // check the type of the message
+                if $type_check(&msg) {
+                    let state_c = state.clone();
+                    let extracted_message = <$get_type>::get(msg.payload.clone());
+                    if extracted_message.is_none() {
+                        <$get_type>::$error(
+                            state_c,
+                            msg,
+                            $crate::utils::error::RippleError::ParseError,
+                        )
+                        .await;
+                        continue;
+                    }
+                    if let Some(v) =
+                        <$get_type>::$process(state_c, msg, extracted_message.unwrap()).await
+                    {
+                        if v {
+                            // trigger closure processor is dropped
+                            trace!("dropping rx to trigger cleanup");
+                            rx.close();
+                            break;
+                        }
+                    }
+                } else {
                     <$get_type>::$error(
-                        state_c,
+                        state.clone(),
                         msg,
-                        $crate::utils::error::RippleError::ParseError,
+                        $crate::utils::error::RippleError::InvalidInput,
                     )
                     .await;
-                    continue;
-                }
-                if let Some(v) =
-                    <$get_type>::$process(state_c, msg, extracted_message.unwrap()).await
-                {
-                    if v {
-                        // trigger closure processor is dropped
-                        trace!("dropping rx to trigger cleanup");
-                        rx.close();
-                        break;
-                    }
                 }
             }
             drop(rx)
@@ -143,6 +155,21 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
         error: RippleError,
     ) -> Option<bool>;
 
+    fn check_message_type(message: &ExtnMessage) -> bool {
+        message.is_request()
+    }
+
+    async fn respond(
+        mut extn_client: ExtnClient,
+        request: ExtnMessage,
+        response: ExtnResponse,
+    ) -> Result<(), RippleError> {
+        if let Ok(msg) = request.get_response(response) {
+            return extn_client.respond(msg).await;
+        }
+        Err(RippleError::ExtnError)
+    }
+
     async fn run(&mut self) {
         debug!(
             "starting request processor for {}",
@@ -154,7 +181,8 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
             receiver,
             get_state,
             process_request,
-            process_error
+            process_error,
+            Self::check_message_type
         );
     }
 }
@@ -210,7 +238,12 @@ pub trait ExtnEventProcessor: ExtnStreamProcessor + Send + Sync + 'static {
             receiver,
             get_state,
             process_event,
-            process_error
+            process_error,
+            Self::check_message_type
         );
+    }
+
+    fn check_message_type(message: &ExtnMessage) -> bool {
+        message.is_event()
     }
 }
