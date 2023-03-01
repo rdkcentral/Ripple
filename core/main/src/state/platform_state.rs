@@ -7,7 +7,10 @@ use ripple_sdk::{
     utils::error::RippleError,
 };
 
-use crate::service::{apps::app_events::AppEventsState, extn::ripple_client::RippleClient};
+use crate::service::{
+    apps::{app_events::AppEventsState, provider_broker::ProviderBrokerState},
+    extn::ripple_client::RippleClient,
+};
 
 use super::{cap::cap_state::CapState, session_state::SessionState};
 
@@ -29,6 +32,7 @@ pub struct PlatformState {
     pub session_state: SessionState,
     pub cap_state: CapState,
     pub app_events_state: AppEventsState,
+    pub provider_broker_state: ProviderBrokerState,
 }
 
 impl PlatformState {
@@ -44,6 +48,7 @@ impl PlatformState {
             ripple_client: client,
             app_library_state: AppLibraryState::new(app_library),
             app_events_state: AppEventsState::default(),
+            provider_broker_state: ProviderBrokerState::default(),
         }
     }
 

@@ -83,6 +83,13 @@ pub struct AppRequest {
 }
 
 impl AppRequest {
+    pub fn new(method: AppMethod, sender: oneshot::Sender<AppResponse>) -> AppRequest {
+        AppRequest {
+            method,
+            resp_tx: Arc::new(RwLock::new(Some(sender))),
+        }
+    }
+
     pub fn send_response(&self, response: AppResponse) -> Result<(), RippleError> {
         let mut sender = self.resp_tx.write().unwrap();
         if sender.is_some() {

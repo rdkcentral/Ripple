@@ -8,6 +8,7 @@ use super::{
         start_device_channel_step::StartDeviceChannel,
     },
     setup_extn_client_step::SetupExtnClientStep,
+    start_app_manager_step::StartAppManagerStep,
     start_fbgateway_step::FireboltGatewayStep,
     start_ws_step::StartWsStep,
 };
@@ -25,8 +26,9 @@ use super::{
 /// 2. [LoadExtensionMetadataStep] - Loads the Extn metadata from the So files
 /// 3. [LoadExtensionsStep] - Loads the Extensions in to [crate::state::extn_state::ExtnState]
 /// 4. [StartDeviceChannel] - Starts the Device channel extension
-/// 5. [StartWsStep] - Starts the Websocket to accept external and internal connections
-/// 6. [FireboltGatewayStep] - Starts the firebolt gateway and blocks the thread to keep it alive till interruption.
+/// 5. [StartAppManager] - Starts the App Manager and other supporting services
+/// 6. [StartWsStep] - Starts the Websocket to accept external and internal connections
+/// 7. [FireboltGatewayStep] - Starts the firebolt gateway and blocks the thread to keep it alive till interruption.
 ///
 pub async fn boot(state: BootstrapState) {
     let bootstrap = &Bootstrap::new(state);
@@ -43,6 +45,9 @@ pub async fn boot(state: BootstrapState) {
         .step(StartDeviceChannel)
         .await
         .expect("Start Device channel failure")
+        .step(StartAppManagerStep)
+        .await
+        .expect("App Manager start")
         .step(StartWsStep)
         .await
         .expect("Websocket startup failure")

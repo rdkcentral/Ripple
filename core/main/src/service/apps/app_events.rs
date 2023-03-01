@@ -3,13 +3,15 @@ use jsonrpsee::{
     types::{Id, Response, TwoPointZero},
 };
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{ApiMessage, CallContext},
+    api::{
+        firebolt::fb_general::ListenRequest,
+        gateway::rpc_gateway_api::{ApiMessage, CallContext},
+    },
     log::error,
     serde_json::{json, Value},
     tokio::sync::mpsc,
     utils::channel_utils::mpsc_send_and_log,
 };
-use serde::{Deserialize, Serialize};
 
 use std::{
     collections::HashMap,
@@ -123,17 +125,6 @@ impl EventListener {
             .decorate(&state, &self.call_ctx, event_name, &result)
             .await
     }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ListenRequest {
-    pub listen: bool,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct ListenerResponse {
-    pub listening: bool,
-    pub event: &'static str,
 }
 
 impl AppEvents {
