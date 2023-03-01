@@ -1,0 +1,93 @@
+{
+    "default_library": [
+        {
+          "app_id": "refui",
+          "manifest": {
+            "embedded": {
+              "app_key": "xrn:firebolt:application:refui",
+              "name": "refui",
+              "content_catalog": "refui_some_content_catalog",
+              "start_page": "https://firecertapp.firecert.comcast.com/prod/index.html?systemui=true",
+              "runtime": "lightning",
+              "capabilities": {
+                "used": {
+                  "required": [
+                    "xrn:firebolt:capability:keyboard"
+                  ],
+                  "optional": []
+                },
+                "managed": {
+                  "required": [],
+                  "optional": []
+                },
+                "provided": {
+                  "required": [
+                    "xrn:firebolt:capability:keyboard"
+                  ],
+                  "optional": []
+                }
+              }
+            }
+          },
+          "boot_state": "foreground"
+        },
+        {
+          "app_id": "comcast_firebolt_reference",
+          "manifest": {
+            "embedded": {
+              "app_key": "xrn:firebolt:application:certapp",
+              "name": "comcast_firebolt_reference",
+              "content_catalog": "comcast_firebolt_some_content_catalog",
+              "start_page": "https://firecertapp.firecert.comcast.com/prod/index.html",
+              "runtime": "web",
+              "capabilities": {
+                "used": {
+                  "required": [
+                    "xrn:firebolt:capability:keyboard"
+                  ],
+                  "optional": []
+                },
+                "managed": {
+                  "required": [],
+                  "optional": []
+                },
+                "provided": {
+                  "required": [],
+                  "optional": []
+                }
+              }
+            }
+          },
+          "boot_state": "unloaded"
+        },
+        {
+          "app_id": "test",
+          "manifest": {
+            "embedded": {
+              "app_key": "xrn:firebolt:application:test",
+              "name": "test",
+              "content_catalog": "test_some_content_catalog",
+              "start_page": "https://firecertapp.firecert.comcast.com/prod/index.html",
+              "runtime": "web",
+              "capabilities": {
+                "used": {
+                  "required": [
+                    "xrn:firebolt:capability:keyboard"
+                  ],
+                  "optional": []
+                },
+                "managed": {
+                  "required": [],
+                  "optional": []
+                },
+                "provided": {
+                  "required": [],
+                  "optional": []
+                }
+              }
+            }
+          },
+          "boot_state": "unloaded"
+        }
+      ]  
+}

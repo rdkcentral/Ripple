@@ -2,6 +2,7 @@
 //pub mod firebolt_gateway;
 pub mod handlers {
     pub mod device_rpc;
+    pub mod lcm_rpc;
 }
 pub mod firebolt_gatekeeper;
 pub mod firebolt_gateway;
