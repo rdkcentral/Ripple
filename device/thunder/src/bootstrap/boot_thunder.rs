@@ -1,27 +1,26 @@
-use ripple_sdk::{framework::bootstrap::Bootstrap, log::info};
+use ripple_sdk::log::info;
 
 use crate::{
     bootstrap::{
         setup_thunder_extns::SetupThunderExtns, setup_thunder_processors::SetupThunderProcessor,
     },
-    thunder_state::ThunderBootstrapState,
+    thunder_state::ThunderBootstrapStateInitial,
 };
 
 use super::{get_config_step::ThunderGetConfigStep, setup_thunder_pool_step::ThunderPoolStep};
 
-pub async fn boot(state: ThunderBootstrapState) {
+pub async fn boot(state: ThunderBootstrapStateInitial) {
     info!("Booting thunder");
-    Bootstrap::new(state)
-        .step(ThunderGetConfigStep)
+    let state = ThunderGetConfigStep::setup(state)
         .await
-        .unwrap()
-        .step(ThunderPoolStep)
+        .expect(&ThunderGetConfigStep::get_name());
+    let state = ThunderPoolStep::setup(state)
         .await
-        .unwrap()
-        .step(SetupThunderProcessor)
+        .expect(&ThunderPoolStep::get_name());
+    let state = SetupThunderProcessor::setup(state)
         .await
-        .unwrap()
-        .step(SetupThunderExtns)
+        .expect(&SetupThunderProcessor::get_name());
+    SetupThunderExtns::setup(state)
         .await
-        .unwrap();
+        .expect(&SetupThunderExtns::get_name())
 }

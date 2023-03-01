@@ -1,24 +1,24 @@
-use jsonrpsee::core::async_trait;
-use ripple_sdk::{framework::bootstrap::Bootstep, utils::error::RippleError};
+use ripple_sdk::utils::error::RippleError;
 
 use crate::{
     processors::thunder_device_info::ThunderDeviceInfoRequestProcessor,
-    thunder_state::ThunderBootstrapState,
+    thunder_state::ThunderBootstrapStateWithClient,
 };
 
 pub struct SetupThunderProcessor;
 
-#[async_trait]
-impl Bootstep<ThunderBootstrapState> for SetupThunderProcessor {
-    fn get_name(&self) -> String {
+impl SetupThunderProcessor {
+    pub fn get_name() -> String {
         "SetupThunderProcessor".into()
     }
 
-    async fn setup(&self, state: ThunderBootstrapState) -> Result<(), RippleError> {
+    pub async fn setup(
+        state: ThunderBootstrapStateWithClient,
+    ) -> Result<ThunderBootstrapStateWithClient, RippleError> {
         state
-            .get()
+            .state
             .get_client()
-            .add_request_processor(ThunderDeviceInfoRequestProcessor::new(state.get()));
-        Ok(())
+            .add_request_processor(ThunderDeviceInfoRequestProcessor::new(state.state.clone()));
+        Ok(state)
     }
 }

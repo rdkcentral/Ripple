@@ -16,7 +16,7 @@ use ripple_sdk::{
     utils::logger::init_logger,
 };
 
-use crate::{bootstrap::boot_thunder::boot, thunder_state::ThunderBootstrapState};
+use crate::{bootstrap::boot_thunder::boot, thunder_state::ThunderBootstrapStateInitial};
 
 fn init_library() -> CExtnMetadata {
     let _ = init_logger("device_channel".into());
@@ -42,7 +42,10 @@ pub fn start(sender: ExtnSender, receiver: CReceiver<CExtnMessage>, extns: Vec<D
     runtime.block_on(async move {
         let client_for_receiver = client.clone();
         let client_for_thunder = client.clone();
-        let state = ThunderBootstrapState::new(client_for_thunder, extns);
+        let state = ThunderBootstrapStateInitial {
+            extns,
+            extn_client: client_for_thunder,
+        };
         tokio::spawn(async move { boot(state).await });
         client_for_receiver.initialize().await;
     });
