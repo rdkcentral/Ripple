@@ -13,7 +13,7 @@ use ripple_sdk::{
 };
 use ripple_sdk::{
     api::device::device_operator::{
-        DeviceCallRequest, DeviceSubsribeRequest, DeviceUnsubsribeRequest,
+        DeviceCallRequest, DeviceSubsribeRequest, DeviceUnsubscribeRequest,
     },
     tokio,
 };
@@ -193,7 +193,7 @@ impl DeviceOperator for ThunderClient {
         rx.await.unwrap()
     }
 
-    async fn unsubscribe(&self, request: DeviceUnsubsribeRequest) {
+    async fn unsubscribe(&self, request: DeviceUnsubscribeRequest) {
         let message = ThunderUnsubscribeMessage {
             module: request.module,
             event_name: request.event_name,

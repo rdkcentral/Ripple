@@ -4,7 +4,7 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 
 /// Generic Operator trait used for Device Communications
-/// Each platform like `Thunder` should implement this trait based on the underlying service
+/// Each Device platform should implement this trait based on the underlying service
 #[async_trait]
 pub trait DeviceOperator: Clone {
     async fn call_thunder(&self, request: DeviceCallRequest) -> DeviceResponseMessage;
@@ -15,14 +15,14 @@ pub trait DeviceOperator: Clone {
         handler: mpsc::Sender<DeviceResponseMessage>,
     ) -> DeviceResponseMessage;
 
-    async fn unsubscribe(&self, request: DeviceUnsubsribeRequest);
+    async fn unsubscribe(&self, request: DeviceUnsubscribeRequest);
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DeviceChannelRequest {
     Call(DeviceCallRequest),
     Subscribe(DeviceSubsribeRequest),
-    Unsubscribe(DeviceUnsubsribeRequest),
+    Unsubscribe(DeviceUnsubscribeRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,7 +40,7 @@ pub struct DeviceSubsribeRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeviceUnsubsribeRequest {
+pub struct DeviceUnsubscribeRequest {
     pub module: String,
     pub event_name: String,
 }
