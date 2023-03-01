@@ -8,7 +8,7 @@ use crate::extn::{
     extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
 };
 
-use super::manifest::{device_manifest::AppLibraryEntry};
+use super::manifest::device_manifest::AppLibraryEntry;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Config {
@@ -70,5 +70,5 @@ pub enum ConfigResponse {
     Value(Value),
     StringMap(HashMap<String, String>),
     List(Vec<String>),
-    AllApps(Vec<AppLibraryEntry>)
+    AllApps(Vec<AppLibraryEntry>),
 }

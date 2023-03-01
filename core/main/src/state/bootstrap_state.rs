@@ -1,13 +1,16 @@
 use ripple_sdk::{
+    api::apps::AppRequest,
     crossbeam::channel::{unbounded, Receiver as CReceiver, Sender as CSender},
     extn::ffi::ffi_message::CExtnMessage,
     framework::bootstrap::TransientChannel,
     tokio::sync::mpsc::{self, Receiver, Sender},
-    utils::error::RippleError, api::apps::AppRequest,
+    utils::error::RippleError,
 };
 
 use crate::{
-    bootstrap::manifest::{device::LoadDeviceManifestStep, extn::LoadExtnManifestStep},
+    bootstrap::manifest::{
+        apps::LoadAppManifestStep, device::LoadDeviceManifestStep, extn::LoadExtnManifestStep,
+    },
     firebolt::firebolt_gateway::FireboltGatewayCommand,
     service::extn::ripple_client::RippleClient,
 };
@@ -76,8 +79,11 @@ impl BootstrapState {
         let channels_state = ChannelsState::new();
         let client = RippleClient::new(channels_state.clone());
         let device_manifest = LoadDeviceManifestStep::get_manifest();
-        let app_manifest_result = LoadAppManifestStep::get_manifest(device_manifest.clone().get_app_library_path()).expect("Valid app manifest");
-        let platform_state = PlatformState::new(device_manifest.clone(), client, app_manifest_result);
+        let app_manifest_result =
+            LoadAppManifestStep::get_manifest(device_manifest.clone().get_app_library_path())
+                .expect("Valid app manifest");
+        let platform_state =
+            PlatformState::new(device_manifest.clone(), client, app_manifest_result);
         let extn_state =
             ExtnState::new(channels_state.clone(), LoadExtnManifestStep::get_manifest());
         Ok(BootstrapState {

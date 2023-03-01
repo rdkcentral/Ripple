@@ -1,9 +1,16 @@
 use ripple_sdk::{
-    api::manifest::{device_manifest::{DeviceManifest, AppLibraryEntry}, app_library::AppLibraryState}, extn::extn_client_message::ExtnMessage,
+    api::manifest::{
+        app_library::AppLibraryState,
+        device_manifest::{AppLibraryEntry, DeviceManifest},
+    },
+    extn::extn_client_message::ExtnMessage,
     utils::error::RippleError,
 };
 
-use crate::service::{extn::ripple_client::RippleClient, apps::{app_events::AppEventsState, delegated_launcher_handler::AppManagerState}};
+use crate::service::{
+    apps::{app_events::AppEventsState, delegated_launcher_handler::AppManagerState},
+    extn::ripple_client::RippleClient,
+};
 
 use super::{cap::cap_state::CapState, session_state::SessionState};
 
@@ -29,7 +36,11 @@ pub struct PlatformState {
 }
 
 impl PlatformState {
-    pub fn new(manifest: DeviceManifest, client: RippleClient, app_library: Vec<AppLibraryEntry>) -> PlatformState {
+    pub fn new(
+        manifest: DeviceManifest,
+        client: RippleClient,
+        app_library: Vec<AppLibraryEntry>,
+    ) -> PlatformState {
         Self {
             cap_state: CapState::default(),
             session_state: SessionState::default(),
@@ -37,7 +48,7 @@ impl PlatformState {
             ripple_client: client,
             app_library_state: AppLibraryState::new(app_library),
             app_events_state: AppEventsState::default(),
-            app_mgr_state: AppManagerState::default()
+            app_mgr_state: AppManagerState::default(),
         }
     }
 

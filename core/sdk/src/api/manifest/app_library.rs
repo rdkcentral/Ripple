@@ -1,7 +1,10 @@
-use std::collections::HashMap;
-use log::{warn,error};
+use super::{
+    apps::AppManifest,
+    device_manifest::{AppLibraryEntry, AppManifestLoad},
+};
+use log::{error, warn};
 use serde::Deserialize;
-use super::{device_manifest::{AppLibraryEntry, AppManifestLoad}, apps::AppManifest};
+use std::collections::HashMap;
 
 #[derive(Clone, Default)]
 pub struct AppLibraryState {
@@ -37,7 +40,6 @@ impl AppLibraryState {
 }
 
 impl AppLibrary {
-
     pub fn get_provider(state: &AppLibraryState, capability: String) -> Option<String> {
         let provider = state.providers.get(&capability);
         match provider {
@@ -86,4 +88,3 @@ impl AppLibrary {
         map
     }
 }
-

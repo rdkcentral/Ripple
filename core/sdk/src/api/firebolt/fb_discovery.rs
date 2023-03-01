@@ -3,7 +3,6 @@ use serde_json::Value;
 
 pub const DISCOVERY_EVENT_ON_NAVIGATE_TO: &'static str = "discovery.onNavigateTo";
 
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct DiscoveryContext {
     pub source: String,

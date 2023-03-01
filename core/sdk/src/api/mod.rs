@@ -1,7 +1,7 @@
+pub mod apps;
 pub mod config;
 pub mod device;
 pub mod manifest;
-pub mod apps;
 pub mod status_update;
 pub mod gateway {
     pub mod rpc_error;
@@ -11,7 +11,7 @@ pub mod gateway {
 pub mod firebolt {
     pub mod fb_discovery;
     pub mod fb_lifecycle;
-    pub mod fb_parameters;
     pub mod fb_lifecycle_management;
+    pub mod fb_parameters;
     pub mod fb_secondscreen;
 }

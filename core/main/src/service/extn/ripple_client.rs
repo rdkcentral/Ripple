@@ -1,6 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use ripple_sdk::{
+    api::apps::AppRequest,
     crossbeam::channel::Sender as CSender,
     extn::{
         client::{
@@ -14,7 +15,7 @@ use ripple_sdk::{
     },
     log::error,
     tokio::{self, sync::mpsc::Sender},
-    utils::error::RippleError, api::apps::AppRequest,
+    utils::error::RippleError,
 };
 
 use crate::{
@@ -40,7 +41,7 @@ use crate::{
 pub struct RippleClient {
     client: Arc<RwLock<ExtnClient>>,
     gateway_sender: Sender<FireboltGatewayCommand>,
-    app_mgr_sender: Sender<AppRequest>
+    app_mgr_sender: Sender<AppRequest>,
 }
 
 impl RippleClient {

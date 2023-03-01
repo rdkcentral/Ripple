@@ -1,10 +1,15 @@
 use std::fs;
 
-use ripple_sdk::{utils::error::RippleError, api::manifest::{device_manifest::AppLibraryEntry, app_library::DefaultLibrary}, log::{info, warn, error}, serde_json};
+use ripple_sdk::{
+    api::manifest::{app_library::DefaultLibrary, device_manifest::AppLibraryEntry},
+    log::{error, info, warn},
+    serde_json,
+    utils::error::RippleError,
+};
 pub struct LoadAppManifestStep;
 
 impl LoadAppManifestStep {
-    pub fn get_manifest(path:String) -> Result<Vec<AppLibraryEntry>, RippleError> {
+    pub fn get_manifest(path: String) -> Result<Vec<AppLibraryEntry>, RippleError> {
         info!("Trying to load app library from {}", path);
         let result = match fs::read_to_string(&path) {
             Ok(contents) => match serde_json::from_str::<DefaultLibrary>(&contents) {

@@ -7,8 +7,10 @@ use serde_json::Value;
 
 use crate::{
     api::{
-        config::{Config, ConfigResponse}, device::device_request::DeviceRequest,
-        gateway::rpc_gateway_api::RpcRequest, status_update::ExtnStatus,
+        config::{Config, ConfigResponse},
+        device::device_request::DeviceRequest,
+        gateway::rpc_gateway_api::RpcRequest,
+        status_update::ExtnStatus,
     },
     utils::error::RippleError,
 };
@@ -188,7 +190,7 @@ pub enum ExtnResponse {
     StringMap(HashMap<String, String>),
     List(Vec<String>),
     Error(RippleError),
-    Config(ConfigResponse)
+    Config(ConfigResponse),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {

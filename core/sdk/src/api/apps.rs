@@ -1,10 +1,14 @@
 use std::sync::{Arc, RwLock};
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
-use super::firebolt::{fb_discovery::{NavigationIntent, LaunchRequest}, fb_parameters::SecondScreenEvent, fb_lifecycle::LifecycleState};
+use super::firebolt::{
+    fb_discovery::{LaunchRequest, NavigationIntent},
+    fb_lifecycle::LifecycleState,
+    fb_parameters::SecondScreenEvent,
+};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppSession {

@@ -67,8 +67,10 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
         let response = match config_request {
             Config::PlatformParameters => {
                 ExtnResponse::Value(device_manifest.configuration.platform_parameters.clone())
-            },
-            Config::AllDefaultApps => ExtnResponse::Config(ConfigResponse::AllApps(state.app_library_state.get_all_apps())),
+            }
+            Config::AllDefaultApps => ExtnResponse::Config(ConfigResponse::AllApps(
+                state.app_library_state.get_all_apps(),
+            )),
             _ => ExtnResponse::Error(ripple_sdk::utils::error::RippleError::InvalidInput),
         };
         if let Ok(response_ext_message) = msg.get_response(response) {
