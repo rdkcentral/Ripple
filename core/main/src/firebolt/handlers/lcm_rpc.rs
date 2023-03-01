@@ -54,7 +54,6 @@ pub trait LifecycleManagement {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
 
-    // This api should be only available for access via the gateway feature
     #[method(name = "lifecyclemanagement.session")]
     async fn session(
         &self,
