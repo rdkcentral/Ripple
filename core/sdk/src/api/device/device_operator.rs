@@ -11,7 +11,7 @@ pub trait DeviceOperator: Clone {
 
     async fn subscribe(
         &self,
-        request: DeviceSubsribeRequest,
+        request: DeviceSubscribeRequest,
         handler: mpsc::Sender<DeviceResponseMessage>,
     ) -> DeviceResponseMessage;
 
@@ -21,7 +21,7 @@ pub trait DeviceOperator: Clone {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DeviceChannelRequest {
     Call(DeviceCallRequest),
-    Subscribe(DeviceSubsribeRequest),
+    Subscribe(DeviceSubscribeRequest),
     Unsubscribe(DeviceUnsubscribeRequest),
 }
 
@@ -32,7 +32,7 @@ pub struct DeviceCallRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeviceSubsribeRequest {
+pub struct DeviceSubscribeRequest {
     pub module: String,
     pub event_name: String,
     pub params: Option<String>,

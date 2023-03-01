@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use ripple_sdk::tokio;
 use ripple_sdk::{
-    api::device::device_operator::{DeviceCallRequest, DeviceSubsribeRequest},
+    api::device::device_operator::{DeviceCallRequest, DeviceSubscribeRequest},
     log::error,
 };
 use ripple_sdk::{
@@ -137,7 +137,7 @@ impl PluginManager {
         thunder_client
             .clone()
             .subscribe(
-                DeviceSubsribeRequest {
+                DeviceSubscribeRequest {
                     module: Controller.callsign_and_version(),
                     event_name: "statechange".into(),
                     params: None,

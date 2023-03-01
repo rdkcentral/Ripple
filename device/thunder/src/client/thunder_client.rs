@@ -13,7 +13,7 @@ use ripple_sdk::{
 };
 use ripple_sdk::{
     api::device::device_operator::{
-        DeviceCallRequest, DeviceSubsribeRequest, DeviceUnsubscribeRequest,
+        DeviceCallRequest, DeviceSubscribeRequest, DeviceUnsubscribeRequest,
     },
     tokio,
 };
@@ -176,7 +176,7 @@ impl DeviceOperator for ThunderClient {
 
     async fn subscribe(
         &self,
-        request: DeviceSubsribeRequest,
+        request: DeviceSubscribeRequest,
         handler: mpsc::Sender<DeviceResponseMessage>,
     ) -> DeviceResponseMessage {
         let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
