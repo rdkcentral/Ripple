@@ -7,7 +7,7 @@ use tokio::sync::mpsc;
 /// Each Device platform should implement this trait based on the underlying service
 #[async_trait]
 pub trait DeviceOperator: Clone {
-    async fn call_thunder(&self, request: DeviceCallRequest) -> DeviceResponseMessage;
+    async fn call(&self, request: DeviceCallRequest) -> DeviceResponseMessage;
 
     async fn subscribe(
         &self,

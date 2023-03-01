@@ -234,7 +234,7 @@ impl PluginManager {
         let r = ThunderActivatePluginParams { callsign };
         self.thunder_client
             .clone()
-            .call_thunder(DeviceCallRequest {
+            .call(DeviceCallRequest {
                 method: Controller.method("activate"),
                 params: Some(DeviceChannelParams::Json(
                     serde_json::to_string(&r).unwrap(),
@@ -248,7 +248,7 @@ impl PluginManager {
         let resp = self
             .thunder_client
             .clone()
-            .call_thunder(DeviceCallRequest {
+            .call(DeviceCallRequest {
                 method: status_meth,
                 params: None,
             })

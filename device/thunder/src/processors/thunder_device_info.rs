@@ -32,7 +32,7 @@ impl ThunderDeviceInfoRequestProcessor {
     pub async fn make(state: ThunderState, req: ExtnMessage) {
         let response = state
             .get_thunder_client()
-            .call_thunder(DeviceCallRequest {
+            .call(DeviceCallRequest {
                 method: ThunderPlugin::System.method("getDeviceInfo"),
                 params: None,
             })
@@ -51,7 +51,7 @@ impl ThunderDeviceInfoRequestProcessor {
     async fn model(state: ThunderState, req: ExtnMessage) {
         let response = state
             .get_thunder_client()
-            .call_thunder(DeviceCallRequest {
+            .call(DeviceCallRequest {
                 method: ThunderPlugin::System.method("getSystemVersions"),
                 params: None,
             })

@@ -163,7 +163,7 @@ impl ThunderClient {
 
 #[async_trait]
 impl DeviceOperator for ThunderClient {
-    async fn call_thunder(&self, request: DeviceCallRequest) -> DeviceResponseMessage {
+    async fn call(&self, request: DeviceCallRequest) -> DeviceResponseMessage {
         let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
         let message = ThunderMessage::ThunderCallMessage(ThunderCallMessage {
             method: request.method,

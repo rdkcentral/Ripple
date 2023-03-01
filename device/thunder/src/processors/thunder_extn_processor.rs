@@ -86,7 +86,7 @@ impl ExtnRequestProcessor for ThunderExtnProcessor {
 
         match thunder_request {
             DeviceChannelRequest::Call(c) => {
-                let response = client.call_thunder(c).await;
+                let response = client.call(c).await;
                 if let Ok(r) = (state.extn.process)(response.message) {
                     if let Err(_e) = state
                         .state
