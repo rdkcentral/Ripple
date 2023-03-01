@@ -3,11 +3,11 @@ use ripple_sdk::{
     extn::ffi::ffi_message::CExtnMessage,
     framework::bootstrap::TransientChannel,
     tokio::sync::mpsc::{self, Receiver, Sender},
-    utils::error::RippleError,
+    utils::error::RippleError, api::apps::AppRequest,
 };
 
 use crate::{
-    bootstrap::manifest::device::LoadDeviceManifestStep,
+    bootstrap::manifest::{device::LoadDeviceManifestStep, apps::LoadAppManifestStep},
     firebolt::firebolt_gateway::FireboltGatewayCommand, service::extn::ripple_client::RippleClient,
 };
 
@@ -16,6 +16,7 @@ use super::platform_state::PlatformState;
 #[derive(Debug, Clone)]
 pub struct ChannelsState {
     gateway_channel: TransientChannel<FireboltGatewayCommand>,
+    app_req_channel: TransientChannel<AppRequest>,
     extn_sender: CSender<CExtnMessage>,
     extn_receiver: CReceiver<CExtnMessage>,
 }
@@ -23,13 +24,24 @@ pub struct ChannelsState {
 impl ChannelsState {
     pub fn new() -> ChannelsState {
         let (gateway_tx, gateway_tr) = mpsc::channel(32);
+        let (app_req_tx, app_req_tr) = mpsc::channel(32);
         let (ctx, ctr) = unbounded();
         ChannelsState {
             gateway_channel: TransientChannel::new(gateway_tx, gateway_tr),
+            app_req_channel: TransientChannel::new(app_req_tx, app_req_tr),
             extn_sender: ctx,
             extn_receiver: ctr,
         }
     }
+
+    pub fn get_app_mgr_sender(&self) -> Sender<AppRequest> {
+        self.app_req_channel.get_sender()
+    }
+
+    pub fn get_app_mgr_receiver(&self) -> Result<Receiver<AppRequest>, RippleError> {
+        self.app_req_channel.get_receiver()
+    }
+
     pub fn get_gateway_sender(&self) -> Sender<FireboltGatewayCommand> {
         self.gateway_channel.get_sender()
     }
@@ -57,7 +69,9 @@ impl BootstrapState {
     pub fn build() -> Result<BootstrapState, RippleError> {
         let channels_state = ChannelsState::new();
         let client = RippleClient::new(channels_state.clone());
-        let platform_state = PlatformState::new(LoadDeviceManifestStep::get_manifest(), client);
+        let device_manifest = LoadDeviceManifestStep::get_manifest();
+        let app_manifest_result = LoadAppManifestStep::get_manifest(device_manifest.clone().get_app_library_path()).expect("Valid app manifest");
+        let platform_state = PlatformState::new(device_manifest.clone(), client, app_manifest_result);
         Ok(BootstrapState {
             platform_state,
             channels_state,

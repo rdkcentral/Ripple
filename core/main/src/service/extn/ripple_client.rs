@@ -14,7 +14,7 @@ use ripple_sdk::{
     },
     log::error,
     tokio::{self, sync::mpsc::Sender},
-    utils::error::RippleError,
+    utils::error::RippleError, api::apps::AppRequest,
 };
 
 use crate::{
@@ -40,6 +40,7 @@ use crate::{
 pub struct RippleClient {
     client: Arc<RwLock<ExtnClient>>,
     gateway_sender: Sender<FireboltGatewayCommand>,
+    app_mgr_sender: Sender<AppRequest>
 }
 
 impl RippleClient {
@@ -49,6 +50,7 @@ impl RippleClient {
         let extn_client = ExtnClient::new(state.get_extn_receiver(), extn_sender);
         RippleClient {
             gateway_sender: state.get_gateway_sender(),
+            app_mgr_sender: state.get_app_mgr_sender(),
             client: Arc::new(RwLock::new(extn_client)),
         }
     }
