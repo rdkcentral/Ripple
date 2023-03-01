@@ -1,15 +1,15 @@
 use std::{collections::HashMap, sync::{Arc,RwLock}, os::macos::raw::stat};
 
 use jsonrpsee::core::async_trait;
-use ripple_sdk::{serde_json::Value, api::{apps::{AppSession, AppMethod, AppManagerResponse, AppError, EffectiveTransport}, firebolt::fb_lifecycle::LifecycleState}, log::debug, uuid::Uuid};
+use ripple_sdk::{serde_json::{self,Value}, api::{apps::{AppSession, AppMethod, AppManagerResponse, AppError, EffectiveTransport, StateChange}, firebolt::{fb_lifecycle::LifecycleState, fb_discovery::DISCOVERY_EVENT_ON_NAVIGATE_TO, fb_secondscreen::SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST}}, log::{debug, warn}, uuid::Uuid};
 use ripple_sdk::tokio::{self,sync::{
     mpsc::{Receiver, Sender},
     oneshot,
 }};
 
-use crate::state::{platform_state::PlatformState, bootstrap_state::ChannelsState};
+use crate::{state::{platform_state::PlatformState, bootstrap_state::ChannelsState}, service::apps::app_events::AppEvents};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct App {
     pub initial_session: AppSession,
     pub current_session: AppSession,
@@ -19,7 +19,7 @@ pub struct App {
 
 #[derive(Debug,Clone,Default)]
 pub struct AppManagerState {
-    apps: Arc<RwLock<HashMap<String,App>>>
+    apps: Arc<RwLock<HashMap<String,App>>>,
 }
 
 impl AppManagerState {
@@ -40,12 +40,23 @@ impl AppManagerState {
         }
         None
     }
+
+    fn insert(&self, app_id:String, app:App) {
+        let mut apps = self.apps.write().unwrap();
+        let _ = apps.insert(app_id, app);
+    }
+
+    fn get (&self, app_id:&str) -> Option<App> {
+        self.apps.read().unwrap().get(app_id).cloned()
+    }
+
+
 }
 
 pub struct DelegatedLauncherHandler;
 
 impl DelegatedLauncherHandler {
-    pub async fn start(channels_state:ChannelsState, state: PlatformState) {
+    pub async fn start(channels_state:ChannelsState, platform_state: PlatformState) {
         let receiver = channels_state.get_app_mgr_receiver().expect("App Mgr receiver to be available");
         tokio::spawn(async move {
             tokio::select! {
@@ -57,10 +68,10 @@ impl DelegatedLauncherHandler {
                             let resp;
                             match req.method {
                                 AppMethod::BrowserSession(session) => {
-                                    resp = start_session(state.clone(), session).await;
+                                    resp = start_session(platform_state.clone(), session).await;
                                 }
                                 AppMethod::SetState(app_id, state) => {
-                                    resp = self.set_state(&app_id, state).await;
+                                    resp = set_state(platform_state.clone(), &app_id, state).await;
                                 }
                                 AppMethod::Launch(launch_request) => {
                                     resp = self.send_lifecycle_mgmt_event(LifecycleManagementRequest::Launch(
@@ -139,63 +150,41 @@ impl DelegatedLauncherHandler {
         debug!("start_session: entry: app_id={}", app_id);
         let transport = session.get_transport();
         let exists = state.app_mgr_state.exists(&app_id);
+        let session_id;
         if exists {
-            state.app_mgr_state.set_session(&app_id, session);
-            if let Some(session_id) = state.app_mgr_state.get_session_id(&app_id) {
-                return Ok(AppManagerResponse::SessionId(session_id));
-            }
-        } else {
-            let session_id = Uuid::new_v4().to_string();  // TODO add bridge logic for Effective Transport
-               
-        }
-        match self.apps.get_mut(&app_id) {
-            Some(app) => {
-                app.current_session = session.clone();
-                exists = true;
-                resp = Ok(AppManagerResponse::SessionId(app.session_id.clone()));
-            }
-            None => {
-                
-
-                PermissionStore::fetch_for_app_session(&self.platform_state, &app_id).await;
-
-                AppManager::add_app_session(
-                    &&self.platform_state.app_sessions_state,
-                    session_id.clone(),
-                    app_id.clone(),
-                );
-                self.apps.insert(
-                    app_id,
-                    App {
-                        initial_session: session.clone(),
-                        current_session: session.clone(),
-                        session_id: session_id.clone(),
-                        state: LifecycleState::Initializing,
-                    },
-                );
-                resp = Ok(AppManagerResponse::SessionId(session_id));
-            }
-        }
-
-        if exists {
+            state.app_mgr_state.set_session(&app_id, session.clone());
             AppEvents::emit(
-                &self.platform_state,
-                EVENT_ON_NAVIGATE_TO,
+                &state,
+                DISCOVERY_EVENT_ON_NAVIGATE_TO,
                 &serde_json::to_value(session.launch.intent).unwrap(),
             )
             .await;
 
             if let Some(ss) = session.launch.second_screen {
                 AppEvents::emit(
-                    &self.platform_state,
-                    EVENT_SECOND_SCREEN_ON_LAUNCH_REQUEST,
+                    &state,
+                    SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST,
                     &serde_json::to_value(ss).unwrap(),
                 )
                 .await;
             }
-        }
 
-        resp
+            if let Some(v) = state.app_mgr_state.get_session_id(&app_id) {
+                session_id = v;
+            } else {
+                return Err(AppError::AppNotReady)
+            }
+        } else {
+            session_id = Uuid::new_v4().to_string();  // TODO add bridge logic for Effective Transport
+            state.app_mgr_state.insert(app_id, App {
+                initial_session: session.clone(),
+                current_session: session.clone(),
+                session_id: session_id.clone(),
+                state: LifecycleState::Initializing,
+            });
+            
+        }
+        return Ok(AppManagerResponse::SessionId(session_id));
     }
 
     async fn end_session(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
@@ -237,23 +226,23 @@ impl DelegatedLauncherHandler {
     }
 
     async fn set_state(
-        &mut self,
+        platform_state:PlatformState,
         app_id: &str,
         state: LifecycleState,
     ) -> Result<AppManagerResponse, AppError> {
         debug!("set_state: entry: app_id={}, state={:?}", app_id, state);
-
-        let item = self.apps.get_mut(app_id);
-        if let None = item {
-            warn!(%app_id, "set_state: Not found");
+        let app_mgr_state = platform_state.clone().app_mgr_state;
+        let app = app_mgr_state.get(app_id);
+        if app.is_none() {
+            warn!("appid:{} Not found", app_id);
             return Err(AppError::NotFound);
         }
 
-        let app = item.unwrap();
+        let mut app = app.unwrap();
         let previous_state = app.state;
 
         if previous_state == state {
-            warn!(%app_id, ?state, "set_state: Already in state");
+            warn!( "set_state app_id:{} state:{:?} Already in state", app_id, state);
             return Err(AppError::UnexpectedState);
         }
 
@@ -264,7 +253,7 @@ impl DelegatedLauncherHandler {
         };
         let event_name = state.as_event();
         AppEvents::emit_to_app(
-            &self.platform_state,
+            &platform_state,
             app_id.to_string(),
             event_name,
             &serde_json::to_value(state_change).unwrap(),
@@ -272,7 +261,7 @@ impl DelegatedLauncherHandler {
         .await;
 
         if LifecycleState::Unloading == state {
-            self.on_unloading(&app_id).await.ok();
+            on_unloading(platform_state.clone(), &app_id).await.ok();
         }
         Ok(AppManagerResponse::None)
     }
@@ -349,7 +338,7 @@ impl DelegatedLauncherHandler {
         }
     }
 
-    async fn on_unloading(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
+    async fn on_unloading(platform_state:PlatformState, app_id: &str) -> Result<AppManagerResponse, AppError> {
         debug!("on_unloading: entry: app_id={}", app_id);
         let id = app_id.to_string();
         if let Err(_) = self
