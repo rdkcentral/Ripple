@@ -26,7 +26,7 @@ use super::{
 /// 2. [LoadExtensionMetadataStep] - Loads the Extn metadata from the So files
 /// 3. [LoadExtensionsStep] - Loads the Extensions in to [crate::state::extn_state::ExtnState]
 /// 4. [StartDeviceChannel] - Starts the Device channel extension
-/// 5. [StartAppManager] - Starts the App Manager and other supporting services
+/// 5. [StartAppManagerStep] - Starts the App Manager and other supporting services
 /// 6. [StartWsStep] - Starts the Websocket to accept external and internal connections
 /// 7. [FireboltGatewayStep] - Starts the firebolt gateway and blocks the thread to keep it alive till interruption.
 ///

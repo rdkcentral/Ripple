@@ -9,7 +9,7 @@ use ripple_sdk::{
 
 use crate::{
     bootstrap::manifest::{
-        apps::LoadAppManifestStep, device::LoadDeviceManifestStep, extn::LoadExtnManifestStep,
+        apps::LoadAppLibraryStep, device::LoadDeviceManifestStep, extn::LoadExtnManifestStep,
     },
     firebolt::firebolt_gateway::FireboltGatewayCommand,
     service::extn::ripple_client::RippleClient,
@@ -80,7 +80,7 @@ impl BootstrapState {
         let client = RippleClient::new(channels_state.clone());
         let device_manifest = LoadDeviceManifestStep::get_manifest();
         let app_manifest_result =
-            LoadAppManifestStep::get_manifest(device_manifest.clone().get_app_library_path())
+            LoadAppLibraryStep::get_manifest(device_manifest.clone().get_app_library_path())
                 .expect("Valid app manifest");
         let platform_state =
             PlatformState::new(device_manifest.clone(), client, app_manifest_result);
