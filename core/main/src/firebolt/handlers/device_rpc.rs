@@ -1,6 +1,6 @@
 use crate::{
-    firebolt::rpc::{rpc_err, RippleRPCProvider},
-    state::platform_state::PlatformState,
+    firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState,
+    utils::rpc_utils::rpc_err,
 };
 use jsonrpsee::{
     core::{async_trait, RpcResult},

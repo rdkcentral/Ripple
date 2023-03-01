@@ -1,6 +1,7 @@
 use crate::{
     firebolt::{
-        firebolt_gateway::FireboltGateway, handlers::device_rpc::DeviceRPCProvider,
+        firebolt_gateway::FireboltGateway,
+        handlers::{device_rpc::DeviceRPCProvider, lcm_rpc::LifecycleManagementProvider},
         rpc::RippleRPCProvider,
     },
     processor::rpc_gateway_processor::RpcGatewayProcessor,
@@ -15,6 +16,7 @@ impl FireboltGatewayStep {
     async fn init_handlers(&self, state: PlatformState, extn_methods: Option<Methods>) -> Methods {
         let mut methods = Methods::new();
         let _ = methods.merge(DeviceRPCProvider::provide(state.clone()));
+        let _ = methods.merge(LifecycleManagementProvider::provide(state.clone()));
         if extn_methods.is_some() {
             let _ = methods.merge(extn_methods.unwrap());
         }

@@ -1,6 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use ripple_sdk::{
+    api::apps::AppRequest,
     crossbeam::channel::Sender as CSender,
     extn::{
         client::{
@@ -40,6 +41,7 @@ use crate::{
 pub struct RippleClient {
     client: Arc<RwLock<ExtnClient>>,
     gateway_sender: Sender<FireboltGatewayCommand>,
+    app_mgr_sender: Sender<AppRequest>, // will be used by LCM RPC
 }
 
 impl RippleClient {
@@ -49,12 +51,21 @@ impl RippleClient {
         let extn_client = ExtnClient::new(state.get_extn_receiver(), extn_sender);
         RippleClient {
             gateway_sender: state.get_gateway_sender(),
+            app_mgr_sender: state.get_app_mgr_sender(),
             client: Arc::new(RwLock::new(extn_client)),
         }
     }
 
     pub fn send_gateway_command(&self, cmd: FireboltGatewayCommand) -> Result<(), RippleError> {
         if let Err(e) = self.gateway_sender.try_send(cmd) {
+            error!("failed to send firebolt gateway message {:?}", e);
+            return Err(RippleError::SendFailure);
+        }
+        Ok(())
+    }
+
+    pub fn send_app_request(&self, request: AppRequest) -> Result<(), RippleError> {
+        if let Err(e) = self.app_mgr_sender.try_send(request) {
             error!("failed to send firebolt gateway message {:?}", e);
             return Err(RippleError::SendFailure);
         }

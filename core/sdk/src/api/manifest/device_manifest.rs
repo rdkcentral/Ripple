@@ -1,5 +1,5 @@
 use log::{info, warn};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::HashMap, fs};
 
@@ -195,14 +195,14 @@ pub struct AppsDistributionConfiguration {
     pub default_id_salt: Option<IdSalt>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AppLibraryEntry {
     pub app_id: String,
     pub manifest: AppManifestLoad,
     pub boot_state: BootState,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum AppManifestLoad {
     Remote(String),
@@ -249,7 +249,7 @@ pub struct VoiceGuidance {
     pub speed: f32,
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum BootState {
     Inactive,
@@ -379,5 +379,17 @@ impl DeviceManifest {
 
     pub fn get_form_factor(&self) -> String {
         self.configuration.form_factor.clone()
+    }
+
+    /// Get path to the app library file
+    pub fn get_app_library_path(&self) -> String {
+        self.applications.distribution.library.clone()
+    }
+
+    pub fn get_lifecycle_policy(&self) -> LifecyclePolicy {
+        LifecyclePolicy {
+            app_ready_timeout_ms: self.lifecycle.app_ready_timeout_ms,
+            app_finished_timeout_ms: self.lifecycle.app_finished_timeout_ms,
+        }
     }
 }
