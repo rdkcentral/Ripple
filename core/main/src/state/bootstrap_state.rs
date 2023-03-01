@@ -80,7 +80,7 @@ impl BootstrapState {
         let client = RippleClient::new(channels_state.clone());
         let device_manifest = LoadDeviceManifestStep::get_manifest();
         let app_manifest_result =
-            LoadAppLibraryStep::get_manifest(device_manifest.clone().get_app_library_path())
+            LoadAppLibraryStep::load_app_library(device_manifest.clone().get_app_library_path())
                 .expect("Valid app manifest");
         let platform_state =
             PlatformState::new(device_manifest.clone(), client, app_manifest_result);

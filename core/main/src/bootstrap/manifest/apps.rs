@@ -9,7 +9,7 @@ use ripple_sdk::{
 pub struct LoadAppLibraryStep;
 
 impl LoadAppLibraryStep {
-    pub fn get_manifest(path: String) -> Result<Vec<AppLibraryEntry>, RippleError> {
+    pub fn load_app_library(path: String) -> Result<Vec<AppLibraryEntry>, RippleError> {
         info!("Trying to load app library from {}", path);
         let result = match fs::read_to_string(&path) {
             Ok(contents) => match serde_json::from_str::<DefaultLibrary>(&contents) {
