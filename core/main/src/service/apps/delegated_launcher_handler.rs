@@ -240,6 +240,34 @@ impl DelegatedLauncherHandler {
         return Ok(AppManagerResponse::SessionId(session_id));
     }
 
+    async fn end_session(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
+        debug!("end_session: entry: app_id={}", app_id);
+        let app = self.state.remove(app_id);
+        if let Some(app) = app {
+            let transport = app.initial_session.get_transport();
+            if let EffectiveTransport::Bridge(_browser_name) = transport {
+                // TODO add support for bridge sesssion closure
+            }
+        } else {
+            error!("end_session app_id={} Not found", app_id);
+            return Err(AppError::NotFound);
+        }
+        Ok(AppManagerResponse::None)
+    }
+
+    async fn get_launch_request(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
+        match self.state.get(app_id) {
+            Some(app) => {
+                let launch_request = LaunchRequest {
+                    app_id: app.initial_session.app.id.clone(),
+                    intent: Some(app.initial_session.launch.intent.clone()),
+                };
+                Ok(AppManagerResponse::LaunchRequest(launch_request))
+            }
+            None => Err(AppError::NotFound),
+        }
+    }
+
     async fn set_state(
         &mut self,
         app_id: &str,
@@ -283,49 +311,6 @@ impl DelegatedLauncherHandler {
         Ok(AppManagerResponse::None)
     }
 
-    async fn on_unloading(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
-        debug!("on_unloading: entry: app_id={}", app_id);
-        let timer_ms = self
-            .platform_state
-            .get_device_manifest()
-            .get_lifecycle_policy()
-            .app_finished_timeout_ms;
-        sleep(Duration::from_millis(timer_ms)).await;
-        self.check_finished(app_id).await
-    }
-
-    async fn check_finished(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
-        debug!("check_finished: app_id={}", app_id);
-        let entry = self.state.get(app_id);
-        match entry {
-            Some(_app) => {
-                warn!(
-                    "check_finished app_id:{} App not finished unloading, forcing",
-                    app_id
-                );
-                return self.end_session(app_id).await;
-            }
-            None => {
-                return Ok(AppManagerResponse::None);
-            }
-        }
-    }
-
-    async fn end_session(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
-        debug!("end_session: entry: app_id={}", app_id);
-        let app = self.state.remove(app_id);
-        if let Some(app) = app {
-            let transport = app.initial_session.get_transport();
-            if let EffectiveTransport::Bridge(_browser_name) = transport {
-                // TODO add support for bridge sesssion closure
-            }
-        } else {
-            error!("end_session app_id={} Not found", app_id);
-            return Err(AppError::NotFound);
-        }
-        Ok(AppManagerResponse::None)
-    }
-
     async fn send_lifecycle_mgmt_event(
         &mut self,
         request: LifecycleManagementRequest,
@@ -356,19 +341,6 @@ impl DelegatedLauncherHandler {
         Ok(AppManagerResponse::None)
     }
 
-    async fn get_launch_request(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
-        match self.state.get(app_id) {
-            Some(app) => {
-                let launch_request = LaunchRequest {
-                    app_id: app.initial_session.app.id.clone(),
-                    intent: Some(app.initial_session.launch.intent.clone()),
-                };
-                Ok(AppManagerResponse::LaunchRequest(launch_request))
-            }
-            None => Err(AppError::NotFound),
-        }
-    }
-
     async fn get_start_page(&mut self, app_id: String) -> Result<AppManagerResponse, AppError> {
         match self.state.get(&app_id) {
             Some(app) => Ok(AppManagerResponse::StartPage(
@@ -378,15 +350,31 @@ impl DelegatedLauncherHandler {
         }
     }
 
-    async fn get_app_content_catalog(
-        &mut self,
-        app_id: String,
-    ) -> Result<AppManagerResponse, AppError> {
-        match self.state.get(&app_id) {
-            Some(app) => Ok(AppManagerResponse::AppContentCatalog(
-                app.initial_session.app.catalog.clone(),
-            )),
-            None => Err(AppError::NotFound),
+    async fn on_unloading(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
+        debug!("on_unloading: entry: app_id={}", app_id);
+        let timer_ms = self
+            .platform_state
+            .get_device_manifest()
+            .get_lifecycle_policy()
+            .app_finished_timeout_ms;
+        sleep(Duration::from_millis(timer_ms)).await;
+        self.check_finished(app_id).await
+    }
+
+    async fn check_finished(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
+        debug!("check_finished: app_id={}", app_id);
+        let entry = self.state.get(app_id);
+        match entry {
+            Some(_app) => {
+                warn!(
+                    "check_finished app_id:{} App not finished unloading, forcing",
+                    app_id
+                );
+                return self.end_session(app_id).await;
+            }
+            None => {
+                return Ok(AppManagerResponse::None);
+            }
         }
     }
 
@@ -401,5 +389,17 @@ impl DelegatedLauncherHandler {
             return Ok(AppManagerResponse::SecondScreenPayload(payload));
         }
         Err(AppError::NotFound)
+    }
+
+    async fn get_app_content_catalog(
+        &mut self,
+        app_id: String,
+    ) -> Result<AppManagerResponse, AppError> {
+        match self.state.get(&app_id) {
+            Some(app) => Ok(AppManagerResponse::AppContentCatalog(
+                app.initial_session.app.catalog.clone(),
+            )),
+            None => Err(AppError::NotFound),
+        }
     }
 }

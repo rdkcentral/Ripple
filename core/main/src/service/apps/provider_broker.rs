@@ -53,7 +53,7 @@ struct ProviderMethod {
 struct ProviderSession {
     caller: ProviderCaller,
     provider: ProviderMethod,
-    capability: String,
+    _capability: String,
     focused: bool,
 }
 
@@ -271,12 +271,7 @@ impl ProviderBroker {
                 .await;
             }
         } else {
-            #[cfg(any(feature = "only_launcher", feature = "gateway_with_launcher"))]
-            let _cap = request.capability.clone();
             ProviderBroker::queue_provider_request(pst, request);
-
-            #[cfg(any(feature = "only_launcher", feature = "gateway_with_launcher"))]
-            ProviderBroker::launch_provider(pst, _cap).await.ok();
         }
     }
 
@@ -295,7 +290,7 @@ impl ProviderBroker {
                     tx: request.tx,
                 },
                 provider: provider.clone(),
-                capability: request.capability,
+                _capability: request.capability,
                 focused: false,
             },
         );
@@ -315,26 +310,14 @@ impl ProviderBroker {
     }
 
     pub async fn provider_response(pst: &PlatformState, resp: ProviderResponse) {
-        let cap_with_focused_ui = {
-            let mut cap_with_focused_ui = None;
-            let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
-            match active_sessions.remove(&resp.correlation_id) {
-                Some(session) => {
-                    if session.focused {
-                        cap_with_focused_ui = Some(session.capability.clone())
-                    }
-                    oneshot_send_and_log(session.caller.tx, resp.result, "ProviderResponse");
-                }
-                None => {
-                    error!("Ignored provider response because there was no active session waiting")
-                }
+        let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
+        match active_sessions.remove(&resp.correlation_id) {
+            Some(session) => {
+                oneshot_send_and_log(session.caller.tx, resp.result, "ProviderResponse");
             }
-            cap_with_focused_ui
-        };
-
-        if let Some(_cap) = cap_with_focused_ui {
-            #[cfg(any(feature = "only_launcher", feature = "gateway_with_launcher"))]
-            ProviderBroker::remove_ui(pst, _cap).await;
+            None => {
+                error!("Ignored provider response because there was no active session waiting")
+            }
         }
     }
 
@@ -404,20 +387,11 @@ impl ProviderBroker {
         _capability: String,
         request: FocusRequest,
     ) {
-        let needs_ui = {
-            let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
-            if let Some(session) = active_sessions.get_mut(&request.correlation_id) {
-                session.focused = true;
-                true
-            } else {
-                warn!("Focus: No active session for request");
-                false
-            }
-        };
-
-        if needs_ui {
-            #[cfg(any(feature = "only_launcher", feature = "gateway_with_launcher"))]
-            ProviderBroker::display_ui(pst, _ctx, _capability).await;
+        let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
+        if let Some(session) = active_sessions.get_mut(&request.correlation_id) {
+            session.focused = true;
+        } else {
+            warn!("Focus: No active session for request");
         }
     }
 }
