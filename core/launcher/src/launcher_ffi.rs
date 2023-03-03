@@ -49,8 +49,8 @@ fn start_launcher(sender: ExtnSender, receiver: Receiver<CExtnMessage>) {
     runtime.block_on(async move {
         tokio::spawn(async move {
             let state = LauncherState::new(client.clone())
-            .await
-            .expect("state initialization to succeed");
+                .await
+                .expect("state initialization to succeed");
             let mut client_for_processor = client.clone();
             let state_c = state.clone();
             client_for_processor.add_event_processor(LauncherLifecycleEventProcessor::new(state));

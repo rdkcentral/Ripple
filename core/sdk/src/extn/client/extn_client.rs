@@ -260,7 +260,7 @@ impl ExtnClient {
     ) {
         let id_c = msg.clone().target.to_string();
         let mut gc_sender_indexes: Vec<usize> = Vec::new();
-        let mut sender:Option<MSender<ExtnMessage>> = None;
+        let mut sender: Option<MSender<ExtnMessage>> = None;
         {
             let read_processor = processor.clone();
             let processors = read_processor.read().unwrap();
@@ -275,7 +275,6 @@ impl ExtnClient {
                         gc_sender_indexes.push(index);
                     }
                 }
-                
             }
         };
         if sender.is_some() {
@@ -286,8 +285,7 @@ impl ExtnClient {
             });
         } else {
             error!("No Event Processor for {:?}", msg);
-        }   
-        
+        }
 
         Self::cleanup_vec_stream(id_c, None, processor);
     }

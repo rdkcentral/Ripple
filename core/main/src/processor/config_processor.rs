@@ -1,5 +1,5 @@
 use ripple_sdk::{
-    api::config::{Config, LauncherConfig, ConfigResponse},
+    api::config::{Config, ConfigResponse, LauncherConfig},
     async_trait::async_trait,
     extn::{
         client::extn_processor::{
