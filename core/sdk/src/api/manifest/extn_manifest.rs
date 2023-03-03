@@ -38,7 +38,9 @@ pub struct ExtnSymbol {
 impl ExtnSymbol {
     fn get_launcher_capability(&self) -> Option<ExtnCapability> {
         if let Ok(cap) = ExtnCapability::try_from(self.capability.clone()) {
-            return Some(cap);
+            if cap.is_launcher_channel() {
+                return Some(cap);
+            }
         }
         None
     }

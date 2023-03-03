@@ -259,30 +259,37 @@ impl ExtnClient {
         processor: Arc<RwLock<HashMap<String, Vec<MSender<ExtnMessage>>>>>,
     ) {
         let id_c = msg.clone().target.to_string();
-        let read_processor = processor.clone();
-        let processors = read_processor.read().unwrap();
-        let v = processors.get(&id_c).cloned();
         let mut gc_sender_indexes: Vec<usize> = Vec::new();
-        if v.is_some() {
-            let v = v.clone().unwrap();
-            for (index, s) in v.iter().enumerate() {
-                let sender = s.clone();
-                let msg_c = msg.clone();
-                if sender.is_closed() {
-                    gc_sender_indexes.push(index);
-                } else {
-                    tokio::spawn(async move {
-                        if let Err(e) = sender.try_send(msg_c) {
-                            error!("Error sending the response back {:?}", e);
-                        }
-                    });
+        let mut sender:Option<MSender<ExtnMessage>> = None;
+        {
+            let read_processor = processor.clone();
+            let processors = read_processor.read().unwrap();
+            let v = processors.get(&id_c).cloned();
+            if v.is_some() {
+                let v = v.clone().unwrap();
+                for (index, s) in v.iter().enumerate() {
+                    if !s.is_closed() {
+                        let _ = sender.insert(s.clone());
+                        break;
+                    } else {
+                        gc_sender_indexes.push(index);
+                    }
                 }
+                
             }
+        };
+        if sender.is_some() {
+            tokio::spawn(async move {
+                if let Err(e) = sender.unwrap().clone().try_send(msg) {
+                    error!("Error sending the response back {:?}", e);
+                }
+            });
         } else {
             error!("No Event Processor for {:?}", msg);
-        }
+        }   
+        
 
-        Self::cleanup_vec_stream(id_c, Some(gc_sender_indexes), processor);
+        Self::cleanup_vec_stream(id_c, None, processor);
     }
 
     fn cleanup_vec_stream(

@@ -115,9 +115,7 @@ impl ExtnState {
             });
             client.add_extn_sender(capability, extn_tx);
             return Ok(());
-        }
-
-        if capability.is_launcher_channel() {
+        } else if capability.is_launcher_channel() {
             let channel = {
                 let mut channel = self.launcher_channel.write().unwrap();
                 channel.take().unwrap()

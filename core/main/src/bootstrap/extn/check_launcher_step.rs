@@ -7,7 +7,7 @@ use ripple_sdk::{
     tokio::sync::mpsc::channel,
 };
 
-use crate::state::bootstrap_state::{BootstrapState, ChannelsState};
+use crate::{state::bootstrap_state::{BootstrapState, ChannelsState}, processor::lifecycle_management_processor::LifecycleManagementProcessor};
 
 /// Bootstep which checks if the given run has the launcher channel and starts,
 /// This step calls the start method on the Launcher Channel and waits for a successful Status
@@ -37,7 +37,7 @@ impl Bootstep<BootstrapState> for CheckLauncherStep {
             state.platform_state.get_client().add_event_processor(
                 WaitForStatusReadyEventProcessor::new(extn_capability.clone(), tx),
             );
-
+            state.platform_state.get_client().add_request_processor(LifecycleManagementProcessor::new(state.platform_state.get_client()));
             if let Some(_) = tr.recv().await {
                 debug!("Launcher ready");
                 state

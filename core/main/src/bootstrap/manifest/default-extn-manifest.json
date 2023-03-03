@@ -7,7 +7,7 @@
             "symbols": [
                 {
                     "capability": "ripple:channel:device:thunder",
-                    "permisssions": [
+                    "permissions": [
                         "ripple:main:internal:config"
                     ]
                 }
@@ -17,8 +17,8 @@
             "path": "liblauncher",
             "symbols": [
                 {
-                    "capability": "ripple:channel:device:thunder",
-                    "permisssions": [
+                    "capability": "ripple:channel:launcher:thunder",
+                    "permissions": [
                         "ripple:main:internal:config"
                     ]
                 }
