@@ -1,5 +1,5 @@
 use ripple_sdk::{
-    api::config::{Config, LauncherConfig},
+    api::config::{Config, LauncherConfig, ConfigResponse},
     async_trait::async_trait,
     extn::{
         client::extn_processor::{
@@ -81,6 +81,9 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
                     ExtnResponse::Error(ripple_sdk::utils::error::RippleError::ProcessorError)
                 }
             }
+            Config::AllDefaultApps => ExtnResponse::Config(ConfigResponse::AllApps(
+                state.app_library_state.get_all_apps(),
+            )),
             _ => ExtnResponse::Error(ripple_sdk::utils::error::RippleError::InvalidInput),
         };
         if let Ok(response_ext_message) = msg.get_response(response) {

@@ -13,6 +13,8 @@ use super::manifest::{
     device_manifest::{LifecyclePolicy, RetentionPolicy},
 };
 
+use super::manifest::device_manifest::AppLibraryEntry;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Config {
     AllDefaultApps,
@@ -74,6 +76,7 @@ pub enum ConfigResponse {
     Value(Value),
     StringMap(HashMap<String, String>),
     List(Vec<String>),
+    AllApps(Vec<AppLibraryEntry>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
