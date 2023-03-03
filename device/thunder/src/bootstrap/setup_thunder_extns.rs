@@ -1,4 +1,4 @@
-use ripple_sdk::utils::error::RippleError;
+use ripple_sdk::framework::RippleResponse;
 
 use crate::{
     processors::thunder_extn_processor::ThunderExtnProcessor,
@@ -12,7 +12,7 @@ impl SetupThunderExtns {
         "SetupThunderExtns".into()
     }
 
-    pub async fn setup(state: ThunderBootstrapStateWithClient) -> Result<(), RippleError> {
+    pub async fn setup(state: ThunderBootstrapStateWithClient) -> RippleResponse {
         let extns = state.prev.prev.extns;
         let thunder_state = state.state;
         for extn in extns {

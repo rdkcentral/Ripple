@@ -158,9 +158,9 @@ impl ExtnClient {
                         continue;
                     }
                     let message = message_result.unwrap();
-                    if message.is_response() {
+                    if message.payload.is_response() {
                         Self::handle_single(message, self.response_processors.clone());
-                    } else if message.is_event() {
+                    } else if message.payload.is_event() {
                         Self::handle_vec_stream(message, self.event_processors.clone());
                     } else {
                         let current_cap = self.sender.get_cap();

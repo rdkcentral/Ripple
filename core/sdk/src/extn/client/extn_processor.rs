@@ -3,6 +3,7 @@ use crate::{
         extn_capability::ExtnCapability,
         extn_client_message::{ExtnMessage, ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     },
+    framework::RippleResponse,
     utils::error::RippleError,
 };
 use async_trait::async_trait;
@@ -133,6 +134,9 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     /// # Returns
     ///
     /// `Option<bool>` -> Used by [ExtnClient] to handle post processing
+    /// None - means not processed
+    /// Some(true) - Successful processing with status success
+    /// Some(false) - Successful processing with status error
     async fn process_request(
         state: Self::STATE,
         msg: ExtnMessage,
@@ -156,14 +160,14 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     ) -> Option<bool>;
 
     fn check_message_type(message: &ExtnMessage) -> bool {
-        message.is_request()
+        message.payload.is_request()
     }
 
     async fn respond(
         mut extn_client: ExtnClient,
         request: ExtnMessage,
         response: ExtnResponse,
-    ) -> Result<(), RippleError> {
+    ) -> RippleResponse {
         if let Ok(msg) = request.get_response(response) {
             return extn_client.respond(msg).await;
         }
@@ -244,6 +248,6 @@ pub trait ExtnEventProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     }
 
     fn check_message_type(message: &ExtnMessage) -> bool {
-        message.is_event()
+        message.payload.is_event()
     }
 }

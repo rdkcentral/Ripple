@@ -16,7 +16,10 @@ impl FireboltGatewayStep {
     async fn init_handlers(&self, state: PlatformState, extn_methods: Option<Methods>) -> Methods {
         let mut methods = Methods::new();
         let _ = methods.merge(DeviceRPCProvider::provide(state.clone()));
-        let _ = methods.merge(LifecycleManagementProvider::provide(state.clone()));
+        // LCM Api(s) not required for internal launcher
+        if !state.has_internal_launcher() {
+            let _ = methods.merge(LifecycleManagementProvider::provide(state.clone()));
+        }
         if extn_methods.is_some() {
             let _ = methods.merge(extn_methods.unwrap());
         }

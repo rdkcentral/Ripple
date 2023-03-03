@@ -14,6 +14,7 @@ use ripple_sdk::{
     log::{error, info},
     utils::error::RippleError,
 };
+use serde_json::json;
 
 #[derive(Debug)]
 pub struct ThunderDeviceInfoRequestProcessor {
@@ -68,6 +69,31 @@ impl ThunderDeviceInfoRequestProcessor {
             error!("Sending back response for device.model ");
         }
     }
+
+    async fn available_memory(state: ThunderState, req: ExtnMessage) {
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::RDKShell.method("getSystemMemory"),
+                params: None,
+            })
+            .await;
+        info!("{}", response.message);
+        if response.message.get("success").is_some()
+            && response.message["success"].as_bool().unwrap() == true
+        {
+            if let Some(v) = response.message["freeRam"].as_u64() {
+                if let Err(_e) =
+                    Self::respond(state.get_client(), req, ExtnResponse::Value(json!(v))).await
+                {
+                    error!("Sending back response for device.model ");
+                }
+            }
+            return;
+        }
+        error!("{}", response.message);
+        Self::process_error(state.clone(), req, RippleError::ProcessorError).await;
+    }
 }
 
 impl ExtnStreamProcessor for ThunderDeviceInfoRequestProcessor {
@@ -106,6 +132,7 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
         match extracted_message {
             DeviceInfoRequest::Make => Self::make(state.clone(), msg).await,
             DeviceInfoRequest::Model => Self::model(state.clone(), msg).await,
+            DeviceInfoRequest::AvailableMemory => Self::available_memory(state.clone(), msg).await,
             _ => {}
         }
         None

@@ -1,11 +1,11 @@
 use ripple_sdk::{
-    api::config::{Config, ConfigResponse},
+    api::config::{Config, LauncherConfig},
     async_trait::async_trait,
     extn::{
         client::extn_processor::{
             DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
         },
-        extn_client_message::{ExtnMessage, ExtnResponse},
+        extn_client_message::{ExtnMessage, ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     },
     log::error,
     tokio::sync::mpsc::{Receiver as MReceiver, Sender as MSender},
@@ -63,14 +63,24 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
         extracted_message: Self::VALUE,
     ) -> Option<bool> {
         let device_manifest = state.get_device_manifest();
+
         let config_request = extracted_message;
         let response = match config_request {
             Config::PlatformParameters => {
                 ExtnResponse::Value(device_manifest.configuration.platform_parameters.clone())
             }
-            Config::AllDefaultApps => ExtnResponse::Config(ConfigResponse::AllApps(
-                state.app_library_state.get_all_apps(),
-            )),
+            Config::LauncherConfig => {
+                let config = LauncherConfig {
+                    lifecycle_policy: device_manifest.get_lifecycle_policy(),
+                    retention_policy: device_manifest.get_retention_policy(),
+                    app_library_state: state.clone().app_library_state,
+                };
+                if let ExtnPayload::Response(r) = config.get_extn_payload() {
+                    r
+                } else {
+                    ExtnResponse::Error(ripple_sdk::utils::error::RippleError::ProcessorError)
+                }
+            }
             _ => ExtnResponse::Error(ripple_sdk::utils::error::RippleError::InvalidInput),
         };
         if let Ok(response_ext_message) = msg.get_response(response) {

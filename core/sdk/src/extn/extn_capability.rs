@@ -211,6 +211,23 @@ impl ExtnCapability {
         false
     }
 
+    /// Checks if the given capability is a launcher channel.
+    /// # Examples
+    /// ```
+    /// use ripple_sdk::extn::extn_capability::{ExtnCapability,ExtnClass};
+    ///
+    /// let launcher_channel = ExtnCapability::new_channel(ExtnClass::Launcher, "info".into());
+    /// assert!(device_channel.is_launcher_channel());
+    /// ```
+    pub fn is_launcher_channel(&self) -> bool {
+        if let ExtnType::Channel = self._type {
+            if let ExtnClass::Launcher = self.class {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Checks if the given capability has the same type and channel as the owner
     /// # Arguments
     /// `ref_cap` - Type of ExtnCapability which will be checked against the owner.

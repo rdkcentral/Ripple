@@ -6,6 +6,7 @@ use crate::{
         extn_capability::ExtnCapability, extn_client_message::ExtnPayloadProvider,
         ffi::ffi_message::CExtnMessage,
     },
+    framework::RippleResponse,
     utils::error::RippleError,
 };
 
@@ -96,7 +97,7 @@ impl ExtnSender {
         &self,
         msg: CExtnMessage,
         other_sender: Option<CSender<CExtnMessage>>,
-    ) -> Result<(), RippleError> {
+    ) -> RippleResponse {
         if msg.callback.is_some() {
             debug!("Sending message on the callback sender");
             if let Err(e) = msg.clone().callback.unwrap().send(msg) {

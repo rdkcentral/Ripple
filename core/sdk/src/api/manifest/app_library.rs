@@ -3,10 +3,10 @@ use super::{
     device_manifest::{AppLibraryEntry, AppManifestLoad},
 };
 use log::{error, warn};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct AppLibraryState {
     default_apps: Vec<AppLibraryEntry>,
     providers: HashMap<String, String>,

@@ -3,7 +3,26 @@
     "default_extension": "so",
     "extns": [
         {
-            "path": "libthunder"
+            "path": "libthunder",
+            "symbols": [
+                {
+                    "capability": "ripple:channel:device:thunder",
+                    "permisssions": [
+                        "ripple:main:internal:config"
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "liblauncher",
+            "symbols": [
+                {
+                    "capability": "ripple:channel:device:thunder",
+                    "permisssions": [
+                        "ripple:main:internal:config"
+                    ]
+                }
+            ]
         }
     ]
 }

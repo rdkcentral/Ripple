@@ -6,6 +6,8 @@ use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::utils::error::RippleError;
 
+use super::RippleResponse;
+
 pub struct Bootstrap<S: Clone> {
     state: S,
 }
@@ -29,7 +31,7 @@ impl<S: Clone> Bootstrap<S> {
 #[async_trait]
 pub trait Bootstep<S: Clone> {
     fn get_name(&self) -> String;
-    async fn setup(&self, s: S) -> Result<(), RippleError>;
+    async fn setup(&self, s: S) -> RippleResponse;
 }
 
 /// This struct can be used during bootstrap process where we initialize the channel and setup sender.

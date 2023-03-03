@@ -9,6 +9,7 @@ use crate::{
     api::{
         config::{Config, ConfigResponse},
         device::device_request::DeviceRequest,
+        firebolt::fb_lifecycle_management::LifecycleManagementRequest,
         gateway::rpc_gateway_api::RpcRequest,
         status_update::ExtnStatus,
     },
@@ -42,27 +43,6 @@ pub struct ExtnMessage {
 }
 
 impl ExtnMessage {
-    pub fn is_request(&self) -> bool {
-        match self.payload {
-            ExtnPayload::Request(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_response(&self) -> bool {
-        match self.payload {
-            ExtnPayload::Response(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_event(&self) -> bool {
-        match self.payload {
-            ExtnPayload::Event(_) => true,
-            _ => false,
-        }
-    }
-
     /// This method can be used to create [ExtnResponse] payload message from a given [ExtnRequest]
     /// payload.
     ///
@@ -110,6 +90,27 @@ pub enum ExtnPayload {
 impl ExtnPayload {
     pub fn extract<T: ExtnPayloadProvider>(&self) -> Option<T> {
         T::get_from_payload(self.clone())
+    }
+
+    pub fn is_request(&self) -> bool {
+        match self {
+            ExtnPayload::Request(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_response(&self) -> bool {
+        match self {
+            ExtnPayload::Response(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_event(&self) -> bool {
+        match self {
+            ExtnPayload::Event(_) => true,
+            _ => false,
+        }
     }
 }
 
@@ -179,10 +180,12 @@ pub enum ExtnRequest {
     Rpc(RpcRequest),
     Device(DeviceRequest),
     Extn(Value),
+    LifecycleManagement(LifecycleManagementRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ExtnResponse {
+    None(()),
     String(String),
     Boolean(bool),
     Number(u32),

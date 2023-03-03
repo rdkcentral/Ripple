@@ -16,7 +16,7 @@ impl DiscoveryContext {
     }
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct LaunchRequest {
     #[serde(rename = "appId")]
     pub app_id: String,

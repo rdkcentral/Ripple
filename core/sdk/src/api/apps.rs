@@ -1,10 +1,16 @@
 use std::sync::{Arc, RwLock};
 
 use serde::{Deserialize, Serialize};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::oneshot;
 use uuid::Uuid;
 
-use crate::utils::{channel_utils::oneshot_send_and_log, error::RippleError};
+use crate::{
+    extn::{
+        extn_capability::ExtnCapability,
+        extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
+    },
+    utils::{channel_utils::oneshot_send_and_log, error::RippleError},
+};
 
 use super::firebolt::{
     fb_discovery::{LaunchRequest, NavigationIntent},
@@ -76,6 +82,42 @@ pub enum EffectiveTransport {
 
 pub type AppResponse = Result<AppManagerResponse, AppError>;
 
+impl ExtnPayloadProvider for AppResponse {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        let response = if self.is_ok() {
+            if let Ok(resp) = self {
+                ExtnResponse::Value(serde_json::to_value(resp.clone()).unwrap())
+            } else {
+                ExtnResponse::None(())
+            }
+        } else {
+            ExtnResponse::Error(RippleError::ProcessorError)
+        };
+
+        ExtnPayload::Response(response)
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        match payload {
+            ExtnPayload::Response(resp) => match resp {
+                ExtnResponse::Value(v) => {
+                    if let Ok(v) = serde_json::from_value(v) {
+                        return Some(Ok(v));
+                    }
+                }
+                ExtnResponse::Error(_) => return Some(Err(AppError::General)),
+                _ => {}
+            },
+            _ => {}
+        }
+        None
+    }
+
+    fn cap() -> ExtnCapability {
+        ExtnCapability::get_main_target("lifecycle-management".into())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct AppRequest {
     pub method: AppMethod,
@@ -101,7 +143,7 @@ impl AppRequest {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AppManagerResponse {
     None,
     State(LifecycleState),
@@ -142,7 +184,6 @@ pub enum AppMethod {
     Finished(String),
     CheckReady(String, u128),
     CheckFinished(String),
-    LifecycleEventRegistration(mpsc::Sender<StateChangeInternal>),
     GetAppContentCatalog(String),
     GetViewId(String),
     GetStartPage(String),
@@ -175,25 +216,11 @@ impl CloseReason {
 }
 
 #[derive(Debug, Serialize, Clone, PartialEq)]
-pub struct StateChangeInternal {
-    pub states: StateChange,
-    pub container_props: ContainerProperties,
-}
-
-#[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct StateChange {
     pub previous: LifecycleState,
     pub state: LifecycleState,
 }
 pub type ViewId = Uuid;
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct ContainerProperties {
-    pub name: String,
-    pub view_id: ViewId,
-    pub requires_focus: bool,
-    pub dimensions: Dimensions,
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Dimensions {

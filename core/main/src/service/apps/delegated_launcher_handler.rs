@@ -9,11 +9,11 @@ use ripple_sdk::{
         firebolt::{
             fb_discovery::LaunchRequest,
             fb_lifecycle_management::{
-                LifecycleManagementCloseParameters, LifecycleManagementCloseRequest,
-                LifecycleManagementFinishedParameters, LifecycleManagementFinishedRequest,
-                LifecycleManagementLaunchParameters, LifecycleManagementLaunchRequest,
-                LifecycleManagementReadyParameters, LifecycleManagementReadyRequest,
-                LifecycleManagementRequest, LCM_EVENT_ON_REQUEST_CLOSE,
+                LifecycleManagementCloseEvent, LifecycleManagementCloseParameters,
+                LifecycleManagementEventRequest, LifecycleManagementFinishedEvent,
+                LifecycleManagementFinishedParameters, LifecycleManagementLaunchEvent,
+                LifecycleManagementLaunchParameters, LifecycleManagementReadyEvent,
+                LifecycleManagementReadyParameters, LCM_EVENT_ON_REQUEST_CLOSE,
                 LCM_EVENT_ON_REQUEST_FINISHED, LCM_EVENT_ON_REQUEST_LAUNCH,
                 LCM_EVENT_ON_REQUEST_READY,
             },
@@ -128,8 +128,8 @@ impl DelegatedLauncherHandler {
                                 resp = self.set_state(&app_id, state).await;
                             }
                             AppMethod::Launch(launch_request) => {
-                                resp = self.send_lifecycle_mgmt_event(LifecycleManagementRequest::Launch(
-                                    LifecycleManagementLaunchRequest {
+                                resp = self.send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Launch(
+                                    LifecycleManagementLaunchEvent {
                                         parameters: LifecycleManagementLaunchParameters {
                                             app_id: launch_request.app_id.clone(),
                                             intent: Some(launch_request.get_intent()),
@@ -137,8 +137,8 @@ impl DelegatedLauncherHandler {
                                     })).await;
                             }
                             AppMethod::Ready(app_id) => {
-                                resp = self.send_lifecycle_mgmt_event(LifecycleManagementRequest::Ready(
-                                    LifecycleManagementReadyRequest {
+                                resp = self.send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Ready(
+                                    LifecycleManagementReadyEvent {
                                             parameters: LifecycleManagementReadyParameters {
                                                 app_id: app_id,
                                             }
@@ -146,8 +146,8 @@ impl DelegatedLauncherHandler {
                                     )).await;
                             }
                             AppMethod::Close(app_id, reason) => {
-                                resp = self.send_lifecycle_mgmt_event(LifecycleManagementRequest::Close(
-                                    LifecycleManagementCloseRequest {
+                                resp = self.send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Close(
+                                    LifecycleManagementCloseEvent {
                                             parameters: LifecycleManagementCloseParameters {
                                                 app_id: app_id,
                                                 reason: reason,
@@ -159,8 +159,8 @@ impl DelegatedLauncherHandler {
                                 resp = self.check_finished(&app_id).await;
                             }
                             AppMethod::Finished(app_id) => {
-                                self.send_lifecycle_mgmt_event(LifecycleManagementRequest::Finished(
-                                    LifecycleManagementFinishedRequest {
+                                self.send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Finished(
+                                    LifecycleManagementFinishedEvent {
                                             parameters: LifecycleManagementFinishedParameters {
                                                 app_id: app_id.clone(),
                                             }
@@ -180,6 +180,9 @@ impl DelegatedLauncherHandler {
                             AppMethod::GetSecondScreenPayload(app_id) => {
                                 resp = self.get_second_screen_payload(&app_id);
                             }
+                            AppMethod::State(app_id) => {
+                                resp = self.get_state(&app_id)
+                            }
                             _ => resp = Err(AppError::NotSupported)
                         }
                         if let Err(e) = resp {
@@ -193,6 +196,14 @@ impl DelegatedLauncherHandler {
                     }
                 }
             }
+        }
+    }
+
+    fn get_state(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
+        let manifest = self.state.get(app_id);
+        match manifest {
+            Some(app) => Ok(AppManagerResponse::State(app.state)),
+            None => Err(AppError::NotFound),
         }
     }
 
@@ -313,24 +324,24 @@ impl DelegatedLauncherHandler {
 
     async fn send_lifecycle_mgmt_event(
         &mut self,
-        request: LifecycleManagementRequest,
+        request: LifecycleManagementEventRequest,
     ) -> Result<AppManagerResponse, AppError> {
         let event_name;
         let value;
         match request {
-            LifecycleManagementRequest::Launch(req) => {
+            LifecycleManagementEventRequest::Launch(req) => {
                 event_name = LCM_EVENT_ON_REQUEST_LAUNCH;
                 value = serde_json::to_value(req).unwrap();
             }
-            LifecycleManagementRequest::Ready(req) => {
+            LifecycleManagementEventRequest::Ready(req) => {
                 event_name = LCM_EVENT_ON_REQUEST_READY;
                 value = serde_json::to_value(req).unwrap();
             }
-            LifecycleManagementRequest::Close(req) => {
+            LifecycleManagementEventRequest::Close(req) => {
                 event_name = LCM_EVENT_ON_REQUEST_CLOSE;
                 value = serde_json::to_value(req).unwrap();
             }
-            LifecycleManagementRequest::Finished(req) => {
+            LifecycleManagementEventRequest::Finished(req) => {
                 event_name = LCM_EVENT_ON_REQUEST_FINISHED;
                 value = serde_json::to_value(req).unwrap();
             }

@@ -1,20 +1,16 @@
 use crossbeam::channel::Receiver as CReceiver;
 use libloading::{Library, Symbol};
-use log::{error,debug};
-use semver::Version;
+use log::{debug, error};
 
-use crate::{extn::{client::extn_sender::ExtnSender, extn_capability::ExtnCapability}, utils::error::RippleError};
+use crate::{extn::client::extn_sender::ExtnSender, utils::error::RippleError};
 
 use super::ffi_message::CExtnMessage;
-
 
 /// Generic Extension channel
 #[repr(C)]
 #[derive(Debug)]
 pub struct ExtnChannel {
     pub start: fn(client: ExtnSender, receiver: CReceiver<CExtnMessage>),
-    pub version: Version,
-    pub capability: ExtnCapability,
 }
 
 /// Macro used by Extensions to export a channel.
