@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     api::apps::{AppSession, CloseReason},
     extn::{
-        extn_capability::ExtnCapability,
+        extn_capability::{ExtnCapability, ExtnClass},
         extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     },
 };
@@ -45,7 +45,7 @@ impl ExtnPayloadProvider for LifecycleManagementEventRequest {
     }
 
     fn cap() -> ExtnCapability {
-        ExtnCapability::get_main_target("lifecycle-management-event".into())
+        ExtnCapability::new_channel(ExtnClass::Launcher, "launcher".into())
     }
 }
 

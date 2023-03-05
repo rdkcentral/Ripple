@@ -324,30 +324,37 @@ impl DelegatedLauncherHandler {
 
     async fn send_lifecycle_mgmt_event(
         &mut self,
-        request: LifecycleManagementEventRequest,
+        event: LifecycleManagementEventRequest,
     ) -> Result<AppManagerResponse, AppError> {
-        let event_name;
-        let value;
-        match request {
-            LifecycleManagementEventRequest::Launch(req) => {
-                event_name = LCM_EVENT_ON_REQUEST_LAUNCH;
-                value = serde_json::to_value(req).unwrap();
+        if self.platform_state.has_internal_launcher() {
+            if let Err(e) = self.platform_state.get_client().send_event(event).await {
+                error!("send event error {:?}", e);
+                return Err(AppError::OsError);
             }
-            LifecycleManagementEventRequest::Ready(req) => {
-                event_name = LCM_EVENT_ON_REQUEST_READY;
-                value = serde_json::to_value(req).unwrap();
+        } else {
+            let event_name;
+            let value;
+            match event {
+                LifecycleManagementEventRequest::Launch(req) => {
+                    event_name = LCM_EVENT_ON_REQUEST_LAUNCH;
+                    value = serde_json::to_value(req).unwrap();
+                }
+                LifecycleManagementEventRequest::Ready(req) => {
+                    event_name = LCM_EVENT_ON_REQUEST_READY;
+                    value = serde_json::to_value(req).unwrap();
+                }
+                LifecycleManagementEventRequest::Close(req) => {
+                    event_name = LCM_EVENT_ON_REQUEST_CLOSE;
+                    value = serde_json::to_value(req).unwrap();
+                }
+                LifecycleManagementEventRequest::Finished(req) => {
+                    event_name = LCM_EVENT_ON_REQUEST_FINISHED;
+                    value = serde_json::to_value(req).unwrap();
+                }
             }
-            LifecycleManagementEventRequest::Close(req) => {
-                event_name = LCM_EVENT_ON_REQUEST_CLOSE;
-                value = serde_json::to_value(req).unwrap();
-            }
-            LifecycleManagementEventRequest::Finished(req) => {
-                event_name = LCM_EVENT_ON_REQUEST_FINISHED;
-                value = serde_json::to_value(req).unwrap();
-            }
-        }
 
-        AppEvents::emit(&self.platform_state, event_name, &value).await;
+            AppEvents::emit(&self.platform_state, event_name, &value).await;
+        }
 
         Ok(AppManagerResponse::None)
     }

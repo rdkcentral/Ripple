@@ -142,12 +142,14 @@ impl ExtnStreamProcessor for ThunderWindowManagerRequestProcessor {
 #[async_trait]
 impl ExtnRequestProcessor for ThunderWindowManagerRequestProcessor {
     async fn process_error(
-        _state: Self::STATE,
-        _msg: ExtnMessage,
-        _error: ripple_sdk::utils::error::RippleError,
+        state: Self::STATE,
+        msg: ExtnMessage,
+        error: ripple_sdk::utils::error::RippleError,
     ) -> Option<bool> {
-        error!("Invalid message");
-        None
+        if let Err(e) = Self::respond(state.get_client(), msg, ExtnResponse::Error(error)).await {
+            error!("Error while processing {:?}", e);
+        }
+        Some(false)
     }
 
     async fn process_request(

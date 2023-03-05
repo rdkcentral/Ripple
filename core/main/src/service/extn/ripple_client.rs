@@ -13,6 +13,7 @@ use ripple_sdk::{
         extn_client_message::{ExtnMessage, ExtnPayloadProvider},
         ffi::ffi_message::CExtnMessage,
     },
+    framework::RippleResponse,
     log::error,
     tokio::{self, sync::mpsc::Sender},
     utils::error::RippleError,
@@ -114,5 +115,9 @@ impl RippleClient {
         self.get_extn_client()
             .clone()
             .cleanup_event_stream(capability);
+    }
+
+    pub async fn send_event(&self, event: impl ExtnPayloadProvider) -> RippleResponse {
+        self.get_extn_client().event(event).await
     }
 }

@@ -201,7 +201,7 @@ impl ExtnClient {
                     _ => {}
                 },
             }
-            if index % 200 == 0 {
+            if index % 1000 == 0 {
                 index = 0;
                 debug!("Receiver still running");
             }
@@ -339,7 +339,8 @@ impl ExtnClient {
     /// # Arguments
     /// `msg` - [ExtnMessage] event object
     pub async fn event(&mut self, event: impl ExtnPayloadProvider) -> Result<(), RippleError> {
-        self.sender.send_event(event).await
+        let other_sender = self.get_extn_sender(event.get_capability());
+        self.sender.send_event(event, other_sender).await
     }
 
     /// Request method which accepts a impl [ExtnPayloadProvider] and uses the capability provided by the trait to send the request.
