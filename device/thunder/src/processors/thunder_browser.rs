@@ -13,7 +13,8 @@ use ripple_sdk::{
         extn_client_message::{ExtnMessage, ExtnResponse},
     },
     framework::RippleResponse,
-    log::error, utils::error::RippleError,
+    log::error,
+    utils::error::RippleError,
 };
 use serde::{Deserialize, Serialize};
 
@@ -106,14 +107,14 @@ impl ThunderBrowserRequestProcessor {
                     Self::handle_local_storage(state.clone(), browser_name, lc_enabled, req.clone())
                         .await
                 {
-                    return
+                    return;
                 }
             } else {
                 if let Ok(_) =
-                        Self::respond(state.get_client(), req.clone(), ExtnResponse::None(())).await
-                    {
-                       return
-                    }
+                    Self::respond(state.get_client(), req.clone(), ExtnResponse::None(())).await
+                {
+                    return;
+                }
             }
         }
         Self::process_error(
