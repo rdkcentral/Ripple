@@ -67,7 +67,7 @@ impl RippleClient {
 
     pub fn send_app_request(&self, request: AppRequest) -> Result<(), RippleError> {
         if let Err(e) = self.app_mgr_sender.try_send(request) {
-            error!("failed to send firebolt gateway message {:?}", e);
+            error!("failed to send firebolt app request {:?}", e);
             return Err(RippleError::SendFailure);
         }
         Ok(())

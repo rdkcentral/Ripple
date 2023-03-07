@@ -5,7 +5,7 @@ use jsonrpsee::ws_client::WsClientBuilder;
 
 use jsonrpsee::core::async_trait;
 use jsonrpsee::types::ParamsSer;
-use ripple_sdk::tokio::sync::oneshot::{self, Sender as OneShotSender};
+use ripple_sdk::{tokio::sync::oneshot::{self, Sender as OneShotSender}, log::debug};
 use ripple_sdk::tokio::task::JoinHandle;
 use ripple_sdk::{
     api::device::device_operator::DeviceResponseMessage,
@@ -170,8 +170,11 @@ impl DeviceOperator for ThunderClient {
             params: request.params,
             callback: tx,
         });
+        debug!("sending thunder message {:?}", message);
         self.send_message(message).await;
-        rx.await.unwrap()
+        let result = rx.await.unwrap();
+        debug!("received thunder message {:?}", result);
+        result
     }
 
     async fn subscribe(

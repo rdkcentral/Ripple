@@ -86,9 +86,9 @@ macro_rules! start_rx_stream {
                         continue;
                     }
                     if let Some(v) =
-                        <$get_type>::$process(state_c, msg, extracted_message.unwrap()).await
+                        <$get_type>::$process(state_c, msg.clone(), extracted_message.unwrap()).await
                     {
-                        if v {
+                        if msg.payload.is_event() && v {
                             // trigger closure processor is dropped
                             trace!("dropping rx to trigger cleanup");
                             rx.close();

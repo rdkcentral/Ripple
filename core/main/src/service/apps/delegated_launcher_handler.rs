@@ -20,7 +20,6 @@ use ripple_sdk::{
         },
     },
     tokio::{
-        self,
         sync::mpsc::Receiver,
         time::{sleep, Duration},
     },
@@ -113,90 +112,88 @@ impl DelegatedLauncherHandler {
     }
 
     pub async fn start(&mut self) {
-        tokio::select! {
-            data = self.app_mgr_req_rx.recv() => {
-                // App request
-                debug!("DelegatedLauncherHandler: App request: data={:?}", data);
-                match data {
-                    Some(req) => {
-                        let resp;
-                        match req.method.clone() {
-                            AppMethod::BrowserSession(session) => {
-                                resp = self.start_session(session).await;
-                            }
-                            AppMethod::SetState(app_id, state) => {
-                                resp = self.set_state(&app_id, state).await;
-                            }
-                            AppMethod::Launch(launch_request) => {
-                                resp = self.send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Launch(
-                                    LifecycleManagementLaunchEvent {
-                                        parameters: LifecycleManagementLaunchParameters {
-                                            app_id: launch_request.app_id.clone(),
-                                            intent: Some(launch_request.get_intent()),
-                                        }
-                                    })).await;
-                            }
-                            AppMethod::Ready(app_id) => {
-                                resp = self.send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Ready(
-                                    LifecycleManagementReadyEvent {
-                                            parameters: LifecycleManagementReadyParameters {
-                                                app_id: app_id,
-                                            }
-                                        }
-                                    )).await;
-                            }
-                            AppMethod::Close(app_id, reason) => {
-                                resp = self.send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Close(
-                                    LifecycleManagementCloseEvent {
-                                            parameters: LifecycleManagementCloseParameters {
-                                                app_id: app_id,
-                                                reason: reason,
-                                            }
-                                        }
-                                )).await;
-                            }
-                            AppMethod::CheckFinished(app_id) => {
-                                resp = self.check_finished(&app_id).await;
-                            }
-                            AppMethod::Finished(app_id) => {
-                                self.send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Finished(
-                                    LifecycleManagementFinishedEvent {
-                                            parameters: LifecycleManagementFinishedParameters {
-                                                app_id: app_id.clone(),
-                                            }
-                                        }
-                                )).await.ok();
-                                resp = self.end_session(&app_id).await;
-                            }
-                            AppMethod::GetLaunchRequest(app_id) => {
-                                resp = self.get_launch_request(&app_id).await;
-                            }
-                            AppMethod::GetStartPage(app_id) => {
-                                resp = self.get_start_page(app_id).await;
-                            }
-                            AppMethod::GetAppContentCatalog(app_id) => {
-                                resp = self.get_app_content_catalog(app_id).await;
-                            }
-                            AppMethod::GetSecondScreenPayload(app_id) => {
-                                resp = self.get_second_screen_payload(&app_id);
-                            }
-                            AppMethod::State(app_id) => {
-                                resp = self.get_state(&app_id)
-                            }
-                            _ => resp = Err(AppError::NotSupported)
-                        }
-                        if let Err(e) = resp {
-                            error!( "App error {:?}", e);
-                        }
-                        if let Err(e) = req.send_response(resp) {
-                            error!( "App response send error {:?}", e);
-                        }
-                    },
-                    None => {
-                    }
+        while let Some(data) = self.app_mgr_req_rx.recv().await {
+            // App request
+            debug!("DelegatedLauncherHandler: App request: data={:?}", data);
+            let resp;
+            match data.method.clone() {
+                AppMethod::BrowserSession(session) => {
+                    resp = self.start_session(session).await;
                 }
+                AppMethod::SetState(app_id, state) => {
+                    resp = self.set_state(&app_id, state).await;
+                }
+                AppMethod::Launch(launch_request) => {
+                    resp = self
+                        .send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Launch(
+                            LifecycleManagementLaunchEvent {
+                                parameters: LifecycleManagementLaunchParameters {
+                                    app_id: launch_request.app_id.clone(),
+                                    intent: Some(launch_request.get_intent()),
+                                },
+                            },
+                        ))
+                        .await;
+                }
+                AppMethod::Ready(app_id) => {
+                    resp = self
+                        .send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Ready(
+                            LifecycleManagementReadyEvent {
+                                parameters: LifecycleManagementReadyParameters { app_id: app_id },
+                            },
+                        ))
+                        .await;
+                }
+                AppMethod::Close(app_id, reason) => {
+                    resp = self
+                        .send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Close(
+                            LifecycleManagementCloseEvent {
+                                parameters: LifecycleManagementCloseParameters {
+                                    app_id: app_id,
+                                    reason: reason,
+                                },
+                            },
+                        ))
+                        .await;
+                }
+                AppMethod::CheckFinished(app_id) => {
+                    resp = self.check_finished(&app_id).await;
+                }
+                AppMethod::Finished(app_id) => {
+                    self.send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Finished(
+                        LifecycleManagementFinishedEvent {
+                            parameters: LifecycleManagementFinishedParameters {
+                                app_id: app_id.clone(),
+                            },
+                        },
+                    ))
+                    .await
+                    .ok();
+                    resp = self.end_session(&app_id).await;
+                }
+                AppMethod::GetLaunchRequest(app_id) => {
+                    resp = self.get_launch_request(&app_id).await;
+                }
+                AppMethod::GetStartPage(app_id) => {
+                    resp = self.get_start_page(app_id).await;
+                }
+                AppMethod::GetAppContentCatalog(app_id) => {
+                    resp = self.get_app_content_catalog(app_id).await;
+                }
+                AppMethod::GetSecondScreenPayload(app_id) => {
+                    resp = self.get_second_screen_payload(&app_id);
+                }
+                AppMethod::State(app_id) => resp = self.get_state(&app_id),
+                _ => resp = Err(AppError::NotSupported),
+            }
+            if let Err(e) = resp {
+                error!("App error {:?}", e);
+            }
+            if let Err(e) = data.send_response(resp) {
+                error!("App response send error {:?}", e);
             }
         }
+        error!("App manager receiver loop ended abruptly");
     }
 
     fn get_state(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {

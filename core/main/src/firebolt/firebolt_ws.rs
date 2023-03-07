@@ -196,7 +196,7 @@ impl FireboltWs {
                 let send_result = sender.send(Message::Text(rs.jsonrpc_msg.clone())).await;
                 match send_result {
                     Ok(_) => {
-                        trace!("Sent Firebolt response");
+                        trace!("Sent Firebolt response {}", rs.jsonrpc_msg);
                     }
                     Err(err) => error!("{:?}", err),
                 }
