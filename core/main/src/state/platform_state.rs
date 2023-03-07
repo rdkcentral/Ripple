@@ -9,7 +9,10 @@ use ripple_sdk::{
 };
 
 use crate::service::{
-    apps::{app_events::AppEventsState, provider_broker::ProviderBrokerState, delegated_launcher_handler::AppManagerState},
+    apps::{
+        app_events::AppEventsState, delegated_launcher_handler::AppManagerState,
+        provider_broker::ProviderBrokerState,
+    },
     extn::ripple_client::RippleClient,
 };
 
@@ -35,7 +38,7 @@ pub struct PlatformState {
     pub cap_state: CapState,
     pub app_events_state: AppEventsState,
     pub provider_broker_state: ProviderBrokerState,
-    pub app_manager_state: AppManagerState
+    pub app_manager_state: AppManagerState,
 }
 
 impl PlatformState {
@@ -54,7 +57,7 @@ impl PlatformState {
             app_library_state: AppLibraryState::new(app_library),
             app_events_state: AppEventsState::default(),
             provider_broker_state: ProviderBrokerState::default(),
-            app_manager_state: AppManagerState::default()
+            app_manager_state: AppManagerState::default(),
         }
     }
 

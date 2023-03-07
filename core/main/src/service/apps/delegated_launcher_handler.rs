@@ -215,7 +215,9 @@ impl DelegatedLauncherHandler {
         let exists = self.platform_state.app_manager_state.exists(&app_id);
         let session_id;
         if exists {
-            self.platform_state.app_manager_state.set_session(&app_id, session.clone());
+            self.platform_state
+                .app_manager_state
+                .set_session(&app_id, session.clone());
             AppEvents::emit(
                 &self.platform_state,
                 DISCOVERY_EVENT_ON_NAVIGATE_TO,
@@ -232,7 +234,11 @@ impl DelegatedLauncherHandler {
                 .await;
             }
 
-            if let Some(v) = self.platform_state.app_manager_state.get_session_id(&app_id) {
+            if let Some(v) = self
+                .platform_state
+                .app_manager_state
+                .get_session_id(&app_id)
+            {
                 session_id = v;
             } else {
                 return Err(AppError::AppNotReady);
@@ -303,7 +309,9 @@ impl DelegatedLauncherHandler {
             );
             return Err(AppError::UnexpectedState);
         }
-        self.platform_state.app_manager_state.set_state(app_id, state);
+        self.platform_state
+            .app_manager_state
+            .set_state(app_id, state);
         let state_change = StateChange {
             state: state.clone(),
             previous: previous_state,

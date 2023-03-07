@@ -2,11 +2,10 @@ use std::net::SocketAddr;
 
 use super::firebolt_gateway::FireboltGatewayCommand;
 use crate::{
-    service::{extn::ripple_client::RippleClient, apps::delegated_launcher_handler::AppManagerState},
-    state::{
-        platform_state::PlatformState,
-        session_state::{Session},
+    service::{
+        apps::delegated_launcher_handler::AppManagerState, extn::ripple_client::RippleClient,
     },
+    state::{platform_state::PlatformState, session_state::Session},
 };
 use futures::SinkExt;
 use futures::StreamExt;
@@ -106,7 +105,10 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
                 if !a {
                     let err = tungstenite::http::response::Builder::new()
                         .status(403)
-                        .body(Some(format!("No application session found for {}", session_id)))
+                        .body(Some(format!(
+                            "No application session found for {}",
+                            session_id
+                        )))
                         .unwrap();
                     error!("No application session found for app_id={}", session_id);
                     return Err(err);
