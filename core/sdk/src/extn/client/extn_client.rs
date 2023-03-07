@@ -13,9 +13,10 @@ use tokio::sync::{
 use crate::{
     extn::{
         extn_capability::ExtnCapability,
-        extn_client_message::{ExtnMessage, ExtnPayloadProvider},
+        extn_client_message::{ExtnMessage, ExtnPayloadProvider, ExtnResponse},
         ffi::ffi_message::CExtnMessage,
     },
+    framework::RippleResponse,
     utils::error::RippleError,
 };
 
@@ -329,8 +330,25 @@ impl ExtnClient {
 
     /// Critical method used by request processors to send response message back to the requestor
     /// # Arguments
-    /// `msg` - [ExtnMessage] response object
-    pub async fn respond(&mut self, msg: ExtnMessage) -> Result<(), RippleError> {
+    /// `req` - [ExtnMessage] request object
+    /// `response` - [ExtnResponse] object
+    pub async fn respond(
+        &mut self,
+        req: ExtnMessage,
+        response: ExtnResponse,
+    ) -> Result<(), RippleError> {
+        if !req.payload.is_request() {
+            return Err(RippleError::InvalidInput);
+        } else {
+            let msg = req.get_response(response).unwrap();
+            self.send_message(msg).await
+        }
+    }
+
+    /// Method used for sending a fully build [ExtnMessage]
+    /// # Arguments
+    /// `msg` - [ExtnMessage]
+    pub async fn send_message(&mut self, msg: ExtnMessage) -> RippleResponse {
         self.sender
             .respond(msg.clone().into(), self.get_extn_sender(msg.clone().target))
     }

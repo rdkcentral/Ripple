@@ -7,7 +7,6 @@ use ripple_sdk::{
         },
         extn_client_message::{ExtnMessage, ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     },
-    log::error,
     tokio::sync::mpsc::{Receiver as MReceiver, Sender as MSender},
 };
 
@@ -48,20 +47,15 @@ impl ExtnStreamProcessor for ConfigRequestProcessor {
 
 #[async_trait]
 impl ExtnRequestProcessor for ConfigRequestProcessor {
-    async fn process_error(
-        _state: Self::STATE,
-        _msg: ExtnMessage,
-        _error: ripple_sdk::utils::error::RippleError,
-    ) -> Option<bool> {
-        error!("Invalid config request");
-        None
+    fn get_client(&self) -> ripple_sdk::extn::client::extn_client::ExtnClient {
+        self.state.get_client().get_extn_client()
     }
 
     async fn process_request(
         state: Self::STATE,
         msg: ExtnMessage,
         extracted_message: Self::VALUE,
-    ) -> Option<bool> {
+    ) -> bool {
         let device_manifest = state.get_device_manifest();
 
         let config_request = extracted_message;
@@ -87,12 +81,14 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
             _ => ExtnResponse::Error(ripple_sdk::utils::error::RippleError::InvalidInput),
         };
         if let Ok(response_ext_message) = msg.get_response(response) {
-            if let Err(e) = state.respond(response_ext_message).await {
-                error!("Error sending config response back {:?}", e);
-            }
+            state.respond(response_ext_message).await.is_ok()
         } else {
-            error!("Not a valid request object");
+            Self::handle_error(
+                state.get_client().get_extn_client(),
+                msg,
+                ripple_sdk::utils::error::RippleError::InvalidInput,
+            )
+            .await
         }
-        None
     }
 }

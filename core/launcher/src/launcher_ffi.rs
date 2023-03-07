@@ -48,13 +48,21 @@ fn start_launcher(sender: ExtnSender, receiver: Receiver<CExtnMessage>) {
     let client_for_receiver = client.clone();
     runtime.block_on(async move {
         tokio::spawn(async move {
+            // create state
             let state = LauncherState::new(client.clone())
                 .await
                 .expect("state initialization to succeed");
+            // Create a client for processors
             let mut client_for_processor = client.clone();
             let state_c = state.clone();
+
+            // All Lifecyclemanagement events will come through this processor
             client_for_processor.add_event_processor(LauncherLifecycleEventProcessor::new(state));
+
+            // Lets Main know that the launcher is ready
             let _ = client_for_processor.event(ExtnStatus::Ready).await;
+
+            // Launches default app from library
             if let Some(default_app) = state_c.config.app_library_state.get_default_app() {
                 let request =
                     LaunchRequest::new(default_app.app_id, "boot".into(), None, "boot".into());

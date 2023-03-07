@@ -12,11 +12,12 @@ use ripple_sdk::{
     },
     log::error,
     tokio::sync::{mpsc::Sender, oneshot},
+    utils::error::RippleError,
 };
 
 use crate::service::extn::ripple_client::RippleClient;
 
-/// Processor to service incoming RPC Requests used by extensions and other local rpc handlers for aliasing.
+/// Processor to service incoming Lifecycle Requests from launcher extension.
 #[derive(Debug)]
 pub struct LifecycleManagementProcessor {
     client: RippleClient,
@@ -50,20 +51,17 @@ impl ExtnStreamProcessor for LifecycleManagementProcessor {
 
 #[async_trait]
 impl ExtnRequestProcessor for LifecycleManagementProcessor {
-    async fn process_error(
-        _state: Self::STATE,
-        _msg: ExtnMessage,
-        _error: ripple_sdk::utils::error::RippleError,
-    ) -> Option<bool> {
-        error!("parsing the request");
-        None
+    fn get_client(&self) -> ripple_sdk::extn::client::extn_client::ExtnClient {
+        self.client.get_extn_client()
     }
 
-    async fn process_request(
-        state: Self::STATE,
-        msg: ExtnMessage,
-        request: Self::VALUE,
-    ) -> Option<bool> {
+    async fn process_request(state: Self::STATE, msg: ExtnMessage, request: Self::VALUE) -> bool {
+        // Safety handler
+        if !msg.requestor.is_launcher_channel() {
+            return Self::handle_error(state.get_extn_client(), msg, RippleError::InvalidAccess)
+                .await;
+        }
+
         let (resp_tx, resp_rx) = oneshot::channel::<AppResponse>();
         let method = match request {
             LifecycleManagementRequest::Session(s) => AppMethod::BrowserSession(s.session),
@@ -71,19 +69,17 @@ impl ExtnRequestProcessor for LifecycleManagementProcessor {
         };
         if let Err(e) = state.send_app_request(AppRequest::new(method, resp_tx)) {
             error!("Sending to App manager {:?}", e);
-            return Some(false);
+            return Self::handle_error(state.get_extn_client(), msg, e).await;
         }
         let resp = resp_rx.await;
         if let Ok(app_response) = resp {
             if let ExtnPayload::Response(payload) = app_response.get_extn_payload() {
-                if let Ok(msg) = msg.get_response(payload) {
-                    if let Err(e) = state.respond(msg).await {
-                        error!("Error sending back response {:?}", e);
-                    }
-                }
+                return Self::respond(state.get_extn_client(), msg, payload)
+                    .await
+                    .is_ok();
             }
         }
 
-        None
+        true
     }
 }

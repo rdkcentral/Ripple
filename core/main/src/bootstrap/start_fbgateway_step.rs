@@ -45,7 +45,7 @@ impl Bootstep<BootstrapState> for FireboltGatewayStep {
         state
             .platform_state
             .get_client()
-            .add_request_processor(RpcGatewayProcessor::new(state.channels_state));
+            .add_request_processor(RpcGatewayProcessor::new(state.platform_state.get_client()));
         gateway.start().await;
         Ok(())
     }

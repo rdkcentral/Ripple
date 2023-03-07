@@ -67,13 +67,13 @@ impl RippleClient {
 
     pub fn send_app_request(&self, request: AppRequest) -> Result<(), RippleError> {
         if let Err(e) = self.app_mgr_sender.try_send(request) {
-            error!("failed to send firebolt app request {:?}", e);
+            error!("failed to send firebolt app message {:?}", e);
             return Err(RippleError::SendFailure);
         }
         Ok(())
     }
 
-    fn get_extn_client(&self) -> ExtnClient {
+    pub fn get_extn_client(&self) -> ExtnClient {
         self.client.read().unwrap().clone()
     }
 
@@ -90,7 +90,7 @@ impl RippleClient {
     }
 
     pub async fn respond(&self, msg: ExtnMessage) -> Result<(), RippleError> {
-        self.get_extn_client().clone().respond(msg).await
+        self.get_extn_client().clone().send_message(msg).await
     }
 
     pub fn add_request_processor(&self, stream_processor: impl ExtnRequestProcessor) {

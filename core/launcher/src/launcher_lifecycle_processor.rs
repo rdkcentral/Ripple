@@ -15,6 +15,8 @@ use ripple_sdk::{
 
 use crate::{launcher_state::LauncherState, manager::app_launcher::AppLauncher};
 
+/// This processor will be the processor which handles in the incoming LifecycleManagementEvent(s) from the
+/// delegated launcher existing in main module.
 #[derive(Debug)]
 pub struct LauncherLifecycleEventProcessor {
     state: LauncherState,

@@ -75,7 +75,11 @@ impl ThunderBrowserRequestProcessor {
         Ok(())
     }
 
-    async fn start(state: ThunderState, launch_params: BrowserLaunchParams, req: ExtnMessage) {
+    async fn start(
+        state: ThunderState,
+        launch_params: BrowserLaunchParams,
+        req: ExtnMessage,
+    ) -> bool {
         let thunder_method = ThunderPlugin::RDKShell.method("launch");
         let client = state.get_thunder_client();
         let browser_name = launch_params.browser_name.clone();
@@ -103,29 +107,33 @@ impl ThunderBrowserRequestProcessor {
             .await;
         if let Some(status) = response.message["success"].as_bool() {
             if status {
-                if let Ok(_) =
-                    Self::handle_local_storage(state.clone(), browser_name, lc_enabled, req.clone())
-                        .await
-                {
-                    return;
-                }
+                return Self::handle_local_storage(
+                    state.clone(),
+                    browser_name,
+                    lc_enabled,
+                    req.clone(),
+                )
+                .await
+                .is_ok();
             } else {
-                if let Ok(_) =
-                    Self::respond(state.get_client(), req.clone(), ExtnResponse::None(())).await
-                {
-                    return;
-                }
+                return Self::respond(state.get_client(), req.clone(), ExtnResponse::None(()))
+                    .await
+                    .is_ok();
             }
         }
-        Self::process_error(
-            state,
+        Self::handle_error(
+            state.get_client(),
             req,
             ripple_sdk::utils::error::RippleError::ProcessorError,
         )
-        .await;
+        .await
     }
 
-    async fn destroy(state: ThunderState, destroy_params: BrowserDestroyParams, req: ExtnMessage) {
+    async fn destroy(
+        state: ThunderState,
+        destroy_params: BrowserDestroyParams,
+        req: ExtnMessage,
+    ) -> bool {
         let params = RDKShellDestroyRequest {
             callsign: destroy_params.browser_name,
         };
@@ -144,44 +152,42 @@ impl ThunderBrowserRequestProcessor {
                 {
                     error!("Sending back response for browser.destroy");
                 }
-                return;
+                return false;
             }
         }
-        Self::process_error(
-            state,
+        Self::handle_error(
+            state.get_client(),
             req,
             ripple_sdk::utils::error::RippleError::ProcessorError,
         )
-        .await;
+        .await
     }
 
     async fn get_browser_name(
         state: ThunderState,
         bnr: BrowserNameRequestParams,
         req: ExtnMessage,
-    ) {
+    ) -> bool {
         let browser_name = match bnr.runtime.as_str() {
             "web" => Some(format!("Html-{}", bnr.instances)),
             "lightning" => Some(format!("FireboltMainApp-{}", bnr.name)),
             _ => None,
         };
         if let None = browser_name {
-            Self::process_error(
-                state,
+            return Self::handle_error(
+                state.get_client(),
                 req,
                 ripple_sdk::utils::error::RippleError::ProcessorError,
             )
             .await;
         } else {
-            if let Err(_) = Self::respond(
+            return Self::respond(
                 state.get_client(),
                 req.clone(),
                 ExtnResponse::String(browser_name.unwrap()),
             )
             .await
-            {
-                error!("Sending back response for browser.destroy");
-            }
+            .is_ok();
         }
     }
 }
@@ -205,22 +211,15 @@ impl ExtnStreamProcessor for ThunderBrowserRequestProcessor {
 
 #[async_trait]
 impl ExtnRequestProcessor for ThunderBrowserRequestProcessor {
-    async fn process_error(
-        state: Self::STATE,
-        msg: ExtnMessage,
-        error: ripple_sdk::utils::error::RippleError,
-    ) -> Option<bool> {
-        if let Err(e) = Self::respond(state.get_client(), msg, ExtnResponse::Error(error)).await {
-            error!("Error while processing {:?}", e);
-        }
-        Some(false)
+    fn get_client(&self) -> ripple_sdk::extn::client::extn_client::ExtnClient {
+        self.state.get_client()
     }
 
     async fn process_request(
         state: Self::STATE,
         msg: ExtnMessage,
         extracted_message: Self::VALUE,
-    ) -> Option<bool> {
+    ) -> bool {
         match extracted_message {
             BrowserRequest::Start(start_params) => {
                 Self::start(state.clone(), start_params, msg).await
@@ -232,6 +231,5 @@ impl ExtnRequestProcessor for ThunderBrowserRequestProcessor {
                 Self::get_browser_name(state.clone(), browser_params, msg).await
             }
         }
-        None
     }
 }

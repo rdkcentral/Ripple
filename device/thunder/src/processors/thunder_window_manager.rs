@@ -13,7 +13,6 @@ use ripple_sdk::{
         },
         extn_client_message::{ExtnMessage, ExtnResponse},
     },
-    log::error,
 };
 use serde::{Deserialize, Serialize};
 
@@ -141,22 +140,15 @@ impl ExtnStreamProcessor for ThunderWindowManagerRequestProcessor {
 
 #[async_trait]
 impl ExtnRequestProcessor for ThunderWindowManagerRequestProcessor {
-    async fn process_error(
-        state: Self::STATE,
-        msg: ExtnMessage,
-        error: ripple_sdk::utils::error::RippleError,
-    ) -> Option<bool> {
-        if let Err(e) = Self::respond(state.get_client(), msg, ExtnResponse::Error(error)).await {
-            error!("Error while processing {:?}", e);
-        }
-        Some(false)
+    fn get_client(&self) -> ripple_sdk::extn::client::extn_client::ExtnClient {
+        self.state.get_client()
     }
 
     async fn process_request(
         state: Self::STATE,
         msg: ExtnMessage,
         extracted_message: Self::VALUE,
-    ) -> Option<bool> {
+    ) -> bool {
         let device_request = DeviceCallRequest {
             method: Self::get_thunder_method(&extracted_message),
             params: Some(Self::get_thunder_params(&extracted_message)),
@@ -165,23 +157,19 @@ impl ExtnRequestProcessor for ThunderWindowManagerRequestProcessor {
         let response = state.get_thunder_client().call(device_request).await;
         if let Some(status) = response.message["success"].as_bool() {
             if status {
-                if let Err(_) =
-                    Self::respond(state.get_client(), msg.clone(), ExtnResponse::None(())).await
-                {
-                    error!("Sending back response for browser.destroy");
-                }
-                return Some(true);
+                return Self::respond(state.get_client(), msg.clone(), ExtnResponse::None(()))
+                    .await
+                    .is_ok();
             } else if let WindowManagerRequest::MoveToFront(_) = extracted_message {
-                if let Err(_) =
-                    Self::respond(state.get_client(), msg.clone(), ExtnResponse::None(())).await
-                {
-                    error!("Sending back response for browser.destroy");
-                }
-                return Some(true);
+                // This move to front api will return false when the window is already in front which doesnt necessarily
+                // term it as an error as the intention of bringing the window to front is still successful
+                return Self::respond(state.get_client(), msg.clone(), ExtnResponse::None(()))
+                    .await
+                    .is_ok();
             }
         }
-        Self::process_error(
-            state,
+        Self::handle_error(
+            state.get_client(),
             msg,
             ripple_sdk::utils::error::RippleError::ProcessorError,
         )
