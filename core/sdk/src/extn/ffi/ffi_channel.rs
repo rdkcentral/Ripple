@@ -29,9 +29,7 @@ pub struct ExtnChannel {
 /// }
 ///  fn init_channel() -> ExtnChannel {
 ///    ExtnChannel {
-///        start,
-///        capability: ExtnCapability::new_channel(ExtnClass::Launcher, "device_interface".into()),
-///        version: Version::new(1, 1, 0),
+///        start
 ///    }
 /// }
 ///
