@@ -5,7 +5,6 @@ use jsonrpsee::ws_client::WsClientBuilder;
 
 use jsonrpsee::core::async_trait;
 use jsonrpsee::types::ParamsSer;
-use ripple_sdk::{tokio::sync::oneshot::{self, Sender as OneShotSender}, log::debug};
 use ripple_sdk::tokio::task::JoinHandle;
 use ripple_sdk::{
     api::device::device_operator::DeviceResponseMessage,
@@ -20,6 +19,10 @@ use ripple_sdk::{
 use ripple_sdk::{
     api::device::device_operator::{DeviceChannelParams, DeviceOperator},
     uuid::Uuid,
+};
+use ripple_sdk::{
+    log::debug,
+    tokio::sync::oneshot::{self, Sender as OneShotSender},
 };
 use ripple_sdk::{
     log::{error, info, trace, warn},
