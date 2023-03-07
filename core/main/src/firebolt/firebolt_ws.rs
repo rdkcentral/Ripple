@@ -2,10 +2,10 @@ use std::net::SocketAddr;
 
 use super::firebolt_gateway::FireboltGatewayCommand;
 use crate::{
-    service::extn::ripple_client::RippleClient,
+    service::{extn::ripple_client::RippleClient, apps::delegated_launcher_handler::AppManagerState},
     state::{
         platform_state::PlatformState,
-        session_state::{Session, SessionState},
+        session_state::{Session},
     },
 };
 use futures::SinkExt;
@@ -37,7 +37,7 @@ pub struct ClientIdentity {
 
 struct ConnectionCallbackConfig {
     pub next: oneshot::Sender<ClientIdentity>,
-    pub sessions_state: SessionState,
+    pub app_state: AppManagerState,
     pub secure: bool,
     pub internal_app_id: Option<String>,
 }
@@ -101,17 +101,17 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
         let app_id = match app_id_opt {
             Some(a) => a,
             None => {
-                let a = cfg.sessions_state.get_app_id(session_id.clone());
+                let a = cfg.app_state.exists(&session_id.clone());
 
-                if let None = a {
+                if !a {
                     let err = tungstenite::http::response::Builder::new()
                         .status(403)
-                        .body(Some(String::from("No application session found")))
+                        .body(Some(format!("No application session found for {}", session_id)))
                         .unwrap();
-                    error!("No application session found");
+                    error!("No application session found for app_id={}", session_id);
                     return Err(err);
                 }
-                a.unwrap()
+                session_id.clone()
             }
         };
         let cid = ClientIdentity {
@@ -136,13 +136,13 @@ impl FireboltWs {
         let listener = try_socket.expect(format!("Failed to bind {:?}", server_addr).as_str());
         info!("Listening on: {} secure={}", server_addr, secure);
         let client = state.get_client();
-        let session_state = state.session_state.clone();
+        let app_state = state.app_manager_state.clone();
         // Let's spawn the handling of each connection in a separate task.
         while let Ok((stream, client_addr)) = listener.accept().await {
             let (connect_tx, connect_rx) = oneshot::channel::<ClientIdentity>();
             let cfg = ConnectionCallbackConfig {
                 next: connect_tx,
-                sessions_state: session_state.clone(),
+                app_state: app_state.clone(),
                 secure: secure,
                 internal_app_id: internal_app_id.clone(),
             };

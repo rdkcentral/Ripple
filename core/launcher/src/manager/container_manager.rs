@@ -186,17 +186,6 @@ impl ContainerManager {
         result
     }
 
-    pub fn on_state_changed(state: LauncherState, state_change: StateChangeInternal) {
-        debug!("on_app_state_change: state_change={:?}", state_change);
-        let app_id = state_change.container_props.name.clone();
-        if (state_change.states.previous != LifecycleState::Initializing
-            && state_change.states.state == LifecycleState::Inactive)
-            || state_change.states.state == LifecycleState::Unloading
-        {
-            let _ = state.container_state.remove_container(app_id);
-        }
-    }
-
     async fn bring_to_front(
         state: LauncherState,
         name: &str,
@@ -333,5 +322,16 @@ impl ContainerManager {
         }
 
         result
+    }
+
+    pub fn on_state_changed(state: LauncherState, state_change: StateChangeInternal) {
+        debug!("on_app_state_change: state_change={:?}", state_change);
+        let app_id = state_change.container_props.name.clone();
+        if (state_change.states.previous != LifecycleState::Initializing
+            && state_change.states.state == LifecycleState::Inactive)
+            || state_change.states.state == LifecycleState::Unloading
+        {
+            let _ = state.container_state.remove_container(app_id);
+        }
     }
 }

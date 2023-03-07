@@ -58,7 +58,7 @@ pub struct AppManagerState {
 }
 
 impl AppManagerState {
-    fn exists(&self, app_id: &str) -> bool {
+    pub fn exists(&self, app_id: &str) -> bool {
         self.apps.read().unwrap().contains_key(app_id)
     }
 
@@ -66,6 +66,13 @@ impl AppManagerState {
         let mut apps = self.apps.write().unwrap();
         if let Some(app) = apps.get_mut(app_id) {
             app.current_session = session
+        }
+    }
+
+    fn set_state(&self, app_id: &str, state: LifecycleState) {
+        let mut apps = self.apps.write().unwrap();
+        if let Some(app) = apps.get_mut(app_id) {
+            app.state = state;
         }
     }
 
@@ -93,7 +100,6 @@ impl AppManagerState {
 
 pub struct DelegatedLauncherHandler {
     platform_state: PlatformState,
-    state: AppManagerState,
     app_mgr_req_rx: Receiver<AppRequest>,
 }
 
@@ -104,7 +110,6 @@ impl DelegatedLauncherHandler {
     ) -> DelegatedLauncherHandler {
         DelegatedLauncherHandler {
             platform_state,
-            state: AppManagerState::default(),
             app_mgr_req_rx: channels_state
                 .get_app_mgr_receiver()
                 .expect("App Mgr receiver to be available"),
@@ -197,7 +202,7 @@ impl DelegatedLauncherHandler {
     }
 
     fn get_state(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
-        let manifest = self.state.get(app_id);
+        let manifest = self.platform_state.app_manager_state.get(app_id);
         match manifest {
             Some(app) => Ok(AppManagerResponse::State(app.state)),
             None => Err(AppError::NotFound),
@@ -207,10 +212,10 @@ impl DelegatedLauncherHandler {
     async fn start_session(&mut self, session: AppSession) -> Result<AppManagerResponse, AppError> {
         let app_id = session.app.id.clone();
         debug!("start_session: entry: app_id={}", app_id);
-        let exists = self.state.exists(&app_id);
+        let exists = self.platform_state.app_manager_state.exists(&app_id);
         let session_id;
         if exists {
-            self.state.set_session(&app_id, session.clone());
+            self.platform_state.app_manager_state.set_session(&app_id, session.clone());
             AppEvents::emit(
                 &self.platform_state,
                 DISCOVERY_EVENT_ON_NAVIGATE_TO,
@@ -227,7 +232,7 @@ impl DelegatedLauncherHandler {
                 .await;
             }
 
-            if let Some(v) = self.state.get_session_id(&app_id) {
+            if let Some(v) = self.platform_state.app_manager_state.get_session_id(&app_id) {
                 session_id = v;
             } else {
                 return Err(AppError::AppNotReady);
@@ -235,7 +240,7 @@ impl DelegatedLauncherHandler {
         } else {
             session_id = Uuid::new_v4().to_string();
             // TODO add bridge logic for Effective Transport
-            self.state.insert(
+            self.platform_state.app_manager_state.insert(
                 app_id,
                 App {
                     initial_session: session.clone(),
@@ -250,7 +255,7 @@ impl DelegatedLauncherHandler {
 
     async fn end_session(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
         debug!("end_session: entry: app_id={}", app_id);
-        let app = self.state.remove(app_id);
+        let app = self.platform_state.app_manager_state.remove(app_id);
         if let Some(app) = app {
             let transport = app.initial_session.get_transport();
             if let EffectiveTransport::Bridge(_browser_name) = transport {
@@ -264,7 +269,7 @@ impl DelegatedLauncherHandler {
     }
 
     async fn get_launch_request(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
-        match self.state.get(app_id) {
+        match self.platform_state.app_manager_state.get(app_id) {
             Some(app) => {
                 let launch_request = LaunchRequest {
                     app_id: app.initial_session.app.id.clone(),
@@ -282,13 +287,13 @@ impl DelegatedLauncherHandler {
         state: LifecycleState,
     ) -> Result<AppManagerResponse, AppError> {
         debug!("set_state: entry: app_id={}, state={:?}", app_id, state);
-        let app = self.state.get(app_id);
+        let app = self.platform_state.app_manager_state.get(app_id);
         if app.is_none() {
             warn!("appid:{} Not found", app_id);
             return Err(AppError::NotFound);
         }
 
-        let mut app = app.unwrap();
+        let app = app.unwrap();
         let previous_state = app.state;
 
         if previous_state == state {
@@ -298,8 +303,7 @@ impl DelegatedLauncherHandler {
             );
             return Err(AppError::UnexpectedState);
         }
-
-        app.state = state;
+        self.platform_state.app_manager_state.set_state(app_id, state);
         let state_change = StateChange {
             state: state.clone(),
             previous: previous_state,
@@ -357,7 +361,7 @@ impl DelegatedLauncherHandler {
     }
 
     async fn get_start_page(&mut self, app_id: String) -> Result<AppManagerResponse, AppError> {
-        match self.state.get(&app_id) {
+        match self.platform_state.app_manager_state.get(&app_id) {
             Some(app) => Ok(AppManagerResponse::StartPage(
                 app.initial_session.app.url.clone(),
             )),
@@ -378,7 +382,7 @@ impl DelegatedLauncherHandler {
 
     async fn check_finished(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
         debug!("check_finished: app_id={}", app_id);
-        let entry = self.state.get(app_id);
+        let entry = self.platform_state.app_manager_state.get(app_id);
         match entry {
             Some(_app) => {
                 warn!(
@@ -394,7 +398,7 @@ impl DelegatedLauncherHandler {
     }
 
     fn get_second_screen_payload(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
-        if let Some(app) = self.state.get(app_id) {
+        if let Some(app) = self.platform_state.app_manager_state.get(app_id) {
             let mut payload = "".to_string();
             if let Some(sse) = &app.current_session.launch.second_screen {
                 if let Some(data) = &sse.data {
@@ -410,7 +414,7 @@ impl DelegatedLauncherHandler {
         &mut self,
         app_id: String,
     ) -> Result<AppManagerResponse, AppError> {
-        match self.state.get(&app_id) {
+        match self.platform_state.app_manager_state.get(&app_id) {
             Some(app) => Ok(AppManagerResponse::AppContentCatalog(
                 app.initial_session.app.catalog.clone(),
             )),

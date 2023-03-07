@@ -1,7 +1,7 @@
 {
   "configuration": {
     "ws_configuration": {
-      "enabled": true,
+      "enabled": false,
       "gateway": "0.0.0.0:3473"
     },
     "internal_ws_configuration": {
