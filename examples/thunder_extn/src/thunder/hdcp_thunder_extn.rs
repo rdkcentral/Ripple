@@ -3,10 +3,10 @@ use std::{collections::HashMap, str::ParseBoolError};
 use ripple_sdk::{
     api::{
         device::thunder::thunder_operator::{ThunderCallRequest, ThunderRequest},
-        firebolt::hdcp_fb::HdcpProfile,
+        firebolt::fb_hdcp::HdcpProfile,
     },
     export_thunder_extn_builder,
-    extn::ffi::library::{CThunderRequest, ThunderExtn, ThunderExtnBuilder},
+    extn::ffi::ffi_library::{CThunderRequest, ThunderExtn, ThunderExtnBuilder},
     utils::{error::RippleError, logger::init_logger},
 };
 use serde_json::Value;

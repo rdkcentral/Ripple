@@ -2,9 +2,9 @@ use std::time::Duration;
 
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{CallContext, RpcRequest, ApiProtocol},
+    api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
     crossbeam::channel::{bounded, TryRecvError},
-    extn::client::{extn_client::ExtnClient},
+    extn::client::extn_client::ExtnClient,
     extn::extn_client_message::{ExtnMessage, ExtnResponse},
     log::error,
 };
@@ -30,11 +30,11 @@ impl LegacyServer for LegacyImpl {
         let mut client = self.client.clone();
         let mut new_ctx = ctx.clone();
         new_ctx.protocol = ApiProtocol::Extn;
-        
+
         let rpc_request = RpcRequest {
             ctx: new_ctx.clone(),
             method: "device.make".into(),
-            params_json: RpcRequest::prepend_ctx(Some(serde_json::Value::Null), &new_ctx ),
+            params_json: RpcRequest::prepend_ctx(Some(serde_json::Value::Null), &new_ctx),
         };
 
         let (tx, tr) = bounded(2);
@@ -44,7 +44,7 @@ impl LegacyServer for LegacyImpl {
                     Ok(cmessage) => {
                         let message: ExtnMessage = cmessage.try_into().unwrap();
                         if let Some(ExtnResponse::Value(v)) = message.payload.clone().extract() {
-                            if let Some(v) =  v.as_str() {
+                            if let Some(v) = v.as_str() {
                                 return Ok(v.into());
                             }
                         }

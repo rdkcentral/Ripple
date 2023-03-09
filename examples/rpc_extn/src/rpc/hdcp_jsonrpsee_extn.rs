@@ -7,7 +7,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::CallContext,
     },
     crossbeam::channel::{bounded, TryRecvError},
-    extn::client::{extn_client::ExtnClient},
+    extn::client::extn_client::ExtnClient,
     extn::extn_client_message::{ExtnMessage, ExtnResponse},
     log::error,
 };

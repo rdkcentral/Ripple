@@ -1,7 +1,10 @@
 use std::str::FromStr;
 
-use crate::{extn::extn_capability::ExtnCapability, utils::error::RippleError,
-    extn::{client::extn_sender::ExtnSender, ffi::{ffi_message::CExtnMessage}},
+use crate::{
+    api::device::thunder::thunder_operator::ThunderRequest,
+    extn::extn_capability::ExtnCapability,
+    extn::{client::extn_sender::ExtnSender, ffi::ffi_message::CExtnMessage},
+    utils::error::RippleError,
 };
 use crossbeam::channel::Receiver as CReceiver;
 use jsonrpsee::core::server::rpc_module::Methods;
@@ -9,7 +12,7 @@ use libloading::{Library, Symbol};
 use log::{debug, error, info};
 use semver::Version;
 use serde::{Deserialize, Serialize};
-
+use serde_json::Value;
 
 #[repr(C)]
 #[derive(Debug, Clone)]
@@ -181,6 +184,80 @@ pub struct JsonRpseeExtnBuilder {
 pub unsafe fn load_jsonrpsee_methods(lib: &Library) -> Option<Box<JsonRpseeExtnBuilder>> {
     type LibraryFfi = unsafe fn() -> *mut JsonRpseeExtnBuilder;
     let r = lib.get(b"jsonrpsee_extn_builder_create");
+    match r {
+        Ok(r) => {
+            debug!("Thunder Extn Builder Symbol extracted from library");
+            let constructor: Symbol<LibraryFfi> = r;
+            return Some(Box::from_raw(constructor()));
+        }
+        Err(e) => error!("Thunder Extn Builder symbol loading failed {:?}", e),
+    }
+    None
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct CThunderRequest {
+    request: Value,
+}
+
+impl From<ThunderRequest> for CThunderRequest {
+    fn from(request: ThunderRequest) -> Self {
+        Self {
+            request: serde_json::to_value(request).unwrap(),
+        }
+    }
+}
+
+impl Into<ThunderRequest> for CThunderRequest {
+    fn into(self) -> ThunderRequest {
+        serde_json::from_value(self.request).unwrap()
+    }
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct ThunderExtnBuilder {
+    pub build: fn(cap_str: &'static str) -> Option<ThunderExtn>,
+    pub caps: Vec<&'static str>,
+}
+
+impl ThunderExtnBuilder {
+    pub fn get_all(self: Box<Self>) -> Vec<ThunderExtn> {
+        let mut extns = Vec::new();
+        for cap in self.caps {
+            if let Some(extn) = (self.build)(cap) {
+                extns.push(extn)
+            }
+        }
+        extns
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct ThunderExtn {
+    pub service: String,
+    pub get_request: fn(params: Value) -> CThunderRequest,
+    pub process: fn(value: Value) -> Result<Value, RippleError>,
+}
+
+#[macro_export]
+macro_rules! export_thunder_extn_builder {
+    ($plugin_type:ty, $constructor:path) => {
+        #[no_mangle]
+        pub extern "C" fn thunder_extn_builder_create() -> *mut ThunderExtnBuilder {
+            let constructor: fn() -> $plugin_type = $constructor;
+            let object = constructor();
+            let boxed = Box::new(object);
+            Box::into_raw(boxed)
+        }
+    };
+}
+
+pub unsafe fn load_thunder_extn_builder(lib: &Library) -> Option<Box<ThunderExtnBuilder>> {
+    type LibraryFfi = unsafe fn() -> *mut ThunderExtnBuilder;
+    let r = lib.get(b"thunder_extn_builder_create");
     match r {
         Ok(r) => {
             debug!("Thunder Extn Builder Symbol extracted from library");

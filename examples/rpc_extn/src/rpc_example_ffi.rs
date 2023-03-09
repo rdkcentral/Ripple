@@ -4,11 +4,11 @@ use ripple_sdk::{
     export_extn_metadata, export_jsonrpc_extn_builder,
     extn::{
         client::{extn_client::ExtnClient, extn_sender::ExtnSender},
+        extn_capability::ExtnCapability,
         ffi::{
             ffi_library::{CExtnMetadata, ExtnMetaEntry, ExtnMetadata, JsonRpseeExtnBuilder},
             ffi_message::CExtnMessage,
         },
-        extn_capability::{ExtnCapability},
     },
     log::debug,
     semver::Version,

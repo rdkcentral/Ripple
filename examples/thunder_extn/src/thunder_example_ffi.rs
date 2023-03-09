@@ -1,8 +1,8 @@
 use ripple_sdk::{
     export_extn_metadata,
     extn::{
-        ffi::library::{CExtnMetadata, ExtnMetaEntry, ExtnMetadata},
-        manager::types::ExtnCapability,
+        extn_capability::ExtnCapability,
+        ffi::ffi_library::{CExtnMetadata, ExtnMetaEntry, ExtnMetadata},
     },
     log::debug,
     semver::Version,
@@ -13,7 +13,7 @@ fn init_library() -> CExtnMetadata {
     let _ = init_logger("device_extn".into());
     let thunder_extn_meta = ExtnMetaEntry::get(
         ExtnCapability::new_extn(
-            ripple_sdk::extn::manager::types::ExtnClass::Device,
+            ripple_sdk::extn::extn_capability::ExtnClass::Device,
             "other".into(),
         ),
         Version::new(1, 1, 0),
