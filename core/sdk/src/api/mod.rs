@@ -15,4 +15,5 @@ pub mod firebolt {
     pub mod fb_lifecycle_management;
     pub mod fb_parameters;
     pub mod fb_secondscreen;
+    pub mod fb_hdcp;
 }

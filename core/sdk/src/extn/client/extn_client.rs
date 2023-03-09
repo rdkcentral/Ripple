@@ -361,4 +361,21 @@ impl ExtnClient {
 
         Err(RippleError::ExtnError)
     }
+
+    pub fn request_async(
+        &mut self,
+        payload: impl ExtnPayloadProvider,
+        callback: CSender<CExtnMessage>,
+    ) -> Result<(), RippleError> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let other_sender = self.get_extn_sender(payload.get_capability());
+
+        if let Err(e) = self
+            .sender
+            .send_request(id, payload, other_sender, Some(callback))
+        {
+            return Err(e);
+        }
+        Ok(())
+    }
 }
