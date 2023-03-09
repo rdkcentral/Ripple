@@ -12,6 +12,7 @@ pub enum DeviceInfoRequest {
     MacAddress,
     Model,
     Make,
+    Name,
     Version,
     HdcpSupport,
     HdcpStatus,

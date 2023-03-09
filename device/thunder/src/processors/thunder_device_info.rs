@@ -68,6 +68,27 @@ impl ThunderDeviceInfoRequestProcessor {
             error!("Sending back response for device.model ");
         }
     }
+
+    async fn name(state: ThunderState, req: ExtnMessage) {
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::DeviceInfo.method("systeminfo"),
+                params: None,
+            })
+            .await;
+        info!("{}", response.message);
+        let response = match response.message["devicename"].as_str() {
+            Some(v) => {
+                let split_string: Vec<&str> = v.split("_").collect();
+                ExtnResponse::String(String::from(split_string[0]))
+            }
+            None => ExtnResponse::Error(RippleError::InvalidOutput),
+        };
+        if let Err(_e) = Self::respond(state.get_client(), req, response).await {
+            error!("Sending back response for device.name ");
+        }
+    }
 }
 
 impl ExtnStreamProcessor for ThunderDeviceInfoRequestProcessor {
@@ -106,6 +127,7 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
         match extracted_message {
             DeviceInfoRequest::Make => Self::make(state.clone(), msg).await,
             DeviceInfoRequest::Model => Self::model(state.clone(), msg).await,
+            DeviceInfoRequest::Name => Self::name(state.clone(), msg).await,
             _ => {}
         }
         None
