@@ -22,6 +22,7 @@ use ThunderPluginConfig as Cfg;
 #[derive(Debug, EnumIter)]
 pub enum ThunderPlugin {
     Controller,
+    DeviceInfo,
     DisplaySettings,
     LocationSync,
     Network,
@@ -33,6 +34,7 @@ pub enum ThunderPlugin {
     TextToSpeech,
 }
 const CONTROLLER_CFG: Cfg = Cfg::new("Controller", false, true);
+const DEVICE_INFO_CFG: Cfg = Cfg::new("DeviceInfo", true, false);
 const DISPLAY_SETTINGS_CFG: Cfg = Cfg::new("org.rdk.DisplaySettings", true, false);
 const NETWORK_CFG: Cfg = Cfg::new("org.rdk.Network", true, false);
 const PERSISTENT_STORAGE_CFG: Cfg = Cfg::new("org.rdk.PersistentStore", false, false);
@@ -48,6 +50,7 @@ impl ThunderPlugin {
         use ThunderPlugin::*;
         match self {
             Controller => CONTROLLER_CFG,
+            DeviceInfo => DEVICE_INFO_CFG,
             DisplaySettings => DISPLAY_SETTINGS_CFG,
             Network => NETWORK_CFG,
             PersistentStorage => PERSISTENT_STORAGE_CFG,

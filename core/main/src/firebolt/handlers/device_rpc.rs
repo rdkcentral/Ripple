@@ -37,6 +37,8 @@ pub trait Device {
     async fn model(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "device.type")]
     async fn typ(&self, ctx: CallContext) -> RpcResult<String>;
+    #[method(name = "device.name")]
+    async fn name(&self, ctx: CallContext) -> RpcResult<String>;
 }
 
 #[derive(Debug)]
@@ -65,6 +67,20 @@ impl DeviceServer for DeviceImpl {
             .state
             .get_client()
             .send_extn_request(DeviceInfoRequest::Model)
+            .await
+        {
+            if let Some(ExtnResponse::String(v)) = response.payload.clone().extract() {
+                return Ok(v);
+            }
+        }
+        Err(rpc_err("FB error response TBD"))
+    }
+
+    async fn name(&self, _ctx: CallContext) -> RpcResult<String> {
+        if let Ok(response) = self
+            .state
+            .get_client()
+            .send_extn_request(DeviceInfoRequest::Name)
             .await
         {
             if let Some(ExtnResponse::String(v)) = response.payload.clone().extract() {
