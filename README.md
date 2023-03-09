@@ -22,9 +22,9 @@ Update  __*default_extension*__
 ```
 5. Open the App library file `~/.ripple/firebolt-app-library.json`
 
-Add the below parameter to the `start_page` in the app library. Replace [app_id] with actual app id
+Add the below parameter to the `start_page` in the app library. Replace [app_id] with actual app id and [RIPPLE_IP_ADDR] with the IP address where ripple is running
 ```
-__firebolt_endpoint=ws%3A%2F%2F10.0.0.107%3A3473%3FappId%3D[app_id]%26session%3D[app_id]
+__firebolt_endpoint=ws%3A%2F%2F[RIPPLE_IP_ADDR]%3A3473%3FappId%3D[app_id]%26session%3D[app_id]
 ```
 
 For eg for refui of firebolt cert app
@@ -36,7 +36,7 @@ default_library": [
           "start_page": "https://firecertapp.firecert.comcast.com/prod/index.html?systemui=true&__firebolt_endpoint=ws%3A%2F%2F10.0.0.107%3A3473%3FappId%3Drefui%26session%3Drefui&systemui=true",
 ```
 
-4. Find the ip address of the device which is connected to the same network router as the machine running Ripple.
+6. Find the ip address of the device which is connected to the same network router as the machine running Ripple.
 > ripple run {ip address of the device} 
 
 Note: Device should be accessible bothways between the machine which is running ripple and target device.
