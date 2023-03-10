@@ -1,0 +1,36 @@
+#!/bin/bash
+
+function print_help() {
+    echo "Instructions to use Rip Utility"
+    echo "_______________________________"
+    echo ""
+    echo "Init"
+    echo "Initialize rip utility and manifest files"
+    echo "./ripple init"
+    echo ""
+    echo "Run"
+    echo "To Run Ripple alongside a device connected to the same network use the below command"
+    echo "ripple run <ip address of the device>"
+    echo "Example"
+    echo "ripple run 10.0.0.1"
+}
+
+case ${1} in
+    "init")
+        cp -f ./ripple ~/.cargo/bin
+        mkdir -p ~/.ripple
+        cp ./examples/manifest/device-manifest-example.json ~/.ripple/firebolt-device-manifest.json
+        cp ./examples/manifest/extn-manifest-example.json ~/.ripple/firebolt-extn-manifest.json
+        cp ./examples/manifest/app-library-example.json ~/.ripple/firebolt-app-library.json
+    ;;
+    "run")
+        cargo build
+        THUNDER_HOST=${2} cargo run core/main
+    ;;
+    "-h")
+        print_help
+    ;;
+    *)  
+      	print_help
+    ;; 
+esac

@@ -4,15 +4,13 @@ use std::{
 };
 
 use ripple_sdk::{
-    api::{
-        manifest::extn_manifest::{ExtnManifest, ExtnResolutionEntry},
-        status_update::ExtnStatus,
-    },
+    api::{manifest::extn_manifest::ExtnResolutionEntry, status_update::ExtnStatus},
     crossbeam::channel::{Receiver as CReceiver, Sender as CSender},
     extn::{
         client::extn_sender::ExtnSender,
         extn_capability::ExtnCapability,
         ffi::{
+            ffi_channel::ExtnChannel,
             ffi_device::{DeviceChannel, DeviceExtn},
             ffi_library::ExtnMetadata,
             ffi_message::CExtnMessage,
@@ -58,9 +56,9 @@ impl LoadedLibrary {
 #[derive(Debug, Clone)]
 pub struct ExtnState {
     sender: CSender<CExtnMessage>,
-    extn_manifest: ExtnManifest,
     pub loaded_libraries: Arc<RwLock<Vec<LoadedLibrary>>>,
     pub device_channel: Arc<RwLock<Option<Box<DeviceChannel>>>>,
+    pub launcher_channel: Arc<RwLock<Option<Box<ExtnChannel>>>>,
     pub extn_sender_map:
         Arc<RwLock<HashMap<String, (CSender<CExtnMessage>, CReceiver<CExtnMessage>)>>>,
     pub extn_state_map: Arc<RwLock<HashMap<String, ExtnStatus>>>,
@@ -68,20 +66,16 @@ pub struct ExtnState {
 }
 
 impl ExtnState {
-    pub fn new(channels_state: ChannelsState, extn_manifest: ExtnManifest) -> ExtnState {
+    pub fn new(channels_state: ChannelsState) -> ExtnState {
         ExtnState {
             sender: channels_state.get_extn_sender(),
-            extn_manifest,
             loaded_libraries: Arc::new(RwLock::new(Vec::new())),
             device_channel: Arc::new(RwLock::new(None)),
+            launcher_channel: Arc::new(RwLock::new(None)),
             extn_sender_map: Arc::new(RwLock::new(HashMap::new())),
             extn_state_map: Arc::new(RwLock::new(HashMap::new())),
             device_extns: Arc::new(RwLock::new(None)),
         }
-    }
-
-    pub fn get_manifest(&self) -> ExtnManifest {
-        self.extn_manifest.clone()
     }
 
     pub fn get_sender(self) -> CSender<CExtnMessage> {
@@ -118,6 +112,16 @@ impl ExtnState {
             };
             tokio::spawn(async move {
                 (channel.start)(extn_sender, extn_rx, extns);
+            });
+            client.add_extn_sender(capability, extn_tx);
+            return Ok(());
+        } else if capability.is_launcher_channel() {
+            let channel = {
+                let mut channel = self.launcher_channel.write().unwrap();
+                channel.take().unwrap()
+            };
+            tokio::spawn(async move {
+                (channel.start)(extn_sender, extn_rx);
             });
             client.add_extn_sender(capability, extn_tx);
             return Ok(());

@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::api::apps::CloseReason;
+
 pub const LIFECYCLE_EVENT_ON_INACTIVE: &'static str = "lifecycle.onInactive";
 pub const LIFECYCLE_EVENT_ON_FOREGROUND: &'static str = "lifecycle.onForeground";
 pub const LIFECYCLE_EVENT_ON_BACKGROUND: &'static str = "lifecycle.onBackground";
@@ -39,4 +41,9 @@ impl LifecycleState {
             LifecycleState::Suspended => LIFECYCLE_EVENT_ON_SUSPENDED,
         }
     }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct CloseRequest {
+    pub reason: CloseReason,
 }

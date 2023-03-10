@@ -1,17 +1,17 @@
 use ripple_sdk::{
     api::status_update::ExtnStatus,
     async_trait::async_trait,
-    extn::extn_capability::{ExtnCapability, ExtnClass},
+    extn::{
+        client::wait_for_service_processor::WaitForStatusReadyEventProcessor,
+        extn_capability::{ExtnCapability, ExtnClass},
+    },
     framework::bootstrap::Bootstep,
     log::{debug, error},
     tokio::sync::mpsc::channel,
     utils::error::RippleError,
 };
 
-use crate::{
-    processor::wait_for_service_processor::WaitForStatusReadyEventProcessor,
-    state::bootstrap_state::{BootstrapState, ChannelsState},
-};
+use crate::state::bootstrap_state::{BootstrapState, ChannelsState};
 
 /// Bootstep which starts the Device channel intitiating a device interface connection channel.
 /// This step calls the start method on the Device Channel and waits for a successful Device

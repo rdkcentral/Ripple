@@ -1,0 +1,28 @@
+{
+    "default_path": "/usr/lib/rust/",
+    "default_extension": "so",
+    "extns": [
+        {
+            "path": "libthunder",
+            "symbols": [
+                {
+                    "capability": "ripple:channel:device:thunder",
+                    "permissions": [
+                        "ripple:main:internal:config"
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "liblauncher",
+            "symbols": [
+                {
+                    "capability": "ripple:channel:launcher:thunder",
+                    "permissions": [
+                        "ripple:main:internal:config"
+                    ]
+                }
+            ]
+        }
+    ]
+}

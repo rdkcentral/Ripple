@@ -13,6 +13,7 @@ use ripple_sdk::{
         extn_client_message::{ExtnMessage, ExtnPayloadProvider},
         ffi::ffi_message::CExtnMessage,
     },
+    framework::RippleResponse,
     log::error,
     tokio::{self, sync::mpsc::Sender},
     utils::error::RippleError,
@@ -66,13 +67,13 @@ impl RippleClient {
 
     pub fn send_app_request(&self, request: AppRequest) -> Result<(), RippleError> {
         if let Err(e) = self.app_mgr_sender.try_send(request) {
-            error!("failed to send firebolt gateway message {:?}", e);
+            error!("failed to send firebolt app message {:?}", e);
             return Err(RippleError::SendFailure);
         }
         Ok(())
     }
 
-    fn get_extn_client(&self) -> ExtnClient {
+    pub fn get_extn_client(&self) -> ExtnClient {
         self.client.read().unwrap().clone()
     }
 
@@ -89,7 +90,7 @@ impl RippleClient {
     }
 
     pub async fn respond(&self, msg: ExtnMessage) -> Result<(), RippleError> {
-        self.get_extn_client().clone().respond(msg).await
+        self.get_extn_client().clone().send_message(msg).await
     }
 
     pub fn add_request_processor(&self, stream_processor: impl ExtnRequestProcessor) {
@@ -114,5 +115,9 @@ impl RippleClient {
         self.get_extn_client()
             .clone()
             .cleanup_event_stream(capability);
+    }
+
+    pub async fn send_event(&self, event: impl ExtnPayloadProvider) -> RippleResponse {
+        self.get_extn_client().event(event).await
     }
 }

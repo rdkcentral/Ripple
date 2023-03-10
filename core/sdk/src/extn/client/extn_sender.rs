@@ -6,6 +6,7 @@ use crate::{
         extn_capability::ExtnCapability, extn_client_message::ExtnPayloadProvider,
         ffi::ffi_message::CExtnMessage,
     },
+    framework::RippleResponse,
     utils::error::RippleError,
 };
 
@@ -54,7 +55,11 @@ impl ExtnSender {
         self.send(msg, other_sender)
     }
 
-    pub async fn send_event(&self, payload: impl ExtnPayloadProvider) -> Result<(), RippleError> {
+    pub async fn send_event(
+        &self,
+        payload: impl ExtnPayloadProvider,
+        other_sender: Option<CSender<CExtnMessage>>,
+    ) -> Result<(), RippleError> {
         let id = uuid::Uuid::new_v4().to_string();
         let p = payload.get_extn_payload();
         let c_event = p.into();
@@ -65,7 +70,7 @@ impl ExtnSender {
             id,
             target: payload.get_capability().to_string(),
         };
-        self.respond(msg, None)
+        self.respond(msg, other_sender)
     }
 
     pub fn send(
@@ -96,7 +101,7 @@ impl ExtnSender {
         &self,
         msg: CExtnMessage,
         other_sender: Option<CSender<CExtnMessage>>,
-    ) -> Result<(), RippleError> {
+    ) -> RippleResponse {
         if msg.callback.is_some() {
             debug!("Sending message on the callback sender");
             if let Err(e) = msg.clone().callback.unwrap().send(msg) {

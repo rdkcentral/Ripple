@@ -13,9 +13,10 @@ use tokio::sync::{
 use crate::{
     extn::{
         extn_capability::ExtnCapability,
-        extn_client_message::{ExtnMessage, ExtnPayloadProvider},
+        extn_client_message::{ExtnMessage, ExtnPayloadProvider, ExtnResponse},
         ffi::ffi_message::CExtnMessage,
     },
+    framework::RippleResponse,
     utils::error::RippleError,
 };
 
@@ -158,9 +159,9 @@ impl ExtnClient {
                         continue;
                     }
                     let message = message_result.unwrap();
-                    if message.is_response() {
+                    if message.payload.is_response() {
                         Self::handle_single(message, self.response_processors.clone());
-                    } else if message.is_event() {
+                    } else if message.payload.is_event() {
                         Self::handle_vec_stream(message, self.event_processors.clone());
                     } else {
                         let current_cap = self.sender.get_cap();
@@ -201,7 +202,7 @@ impl ExtnClient {
                     _ => {}
                 },
             }
-            if index % 200 == 0 {
+            if index % 1000 == 0 {
                 index = 0;
                 debug!("Receiver still running");
             }
@@ -259,30 +260,35 @@ impl ExtnClient {
         processor: Arc<RwLock<HashMap<String, Vec<MSender<ExtnMessage>>>>>,
     ) {
         let id_c = msg.clone().target.to_string();
-        let read_processor = processor.clone();
-        let processors = read_processor.read().unwrap();
-        let v = processors.get(&id_c).cloned();
         let mut gc_sender_indexes: Vec<usize> = Vec::new();
-        if v.is_some() {
-            let v = v.clone().unwrap();
-            for (index, s) in v.iter().enumerate() {
-                let sender = s.clone();
-                let msg_c = msg.clone();
-                if sender.is_closed() {
-                    gc_sender_indexes.push(index);
-                } else {
-                    tokio::spawn(async move {
-                        if let Err(e) = sender.try_send(msg_c) {
-                            error!("Error sending the response back {:?}", e);
-                        }
-                    });
+        let mut sender: Option<MSender<ExtnMessage>> = None;
+        {
+            let read_processor = processor.clone();
+            let processors = read_processor.read().unwrap();
+            let v = processors.get(&id_c).cloned();
+            if v.is_some() {
+                let v = v.clone().unwrap();
+                for (index, s) in v.iter().enumerate() {
+                    if !s.is_closed() {
+                        let _ = sender.insert(s.clone());
+                        break;
+                    } else {
+                        gc_sender_indexes.push(index);
+                    }
                 }
             }
+        };
+        if sender.is_some() {
+            tokio::spawn(async move {
+                if let Err(e) = sender.unwrap().clone().try_send(msg) {
+                    error!("Error sending the response back {:?}", e);
+                }
+            });
         } else {
             error!("No Event Processor for {:?}", msg);
         }
 
-        Self::cleanup_vec_stream(id_c, Some(gc_sender_indexes), processor);
+        Self::cleanup_vec_stream(id_c, None, processor);
     }
 
     fn cleanup_vec_stream(
@@ -324,8 +330,25 @@ impl ExtnClient {
 
     /// Critical method used by request processors to send response message back to the requestor
     /// # Arguments
-    /// `msg` - [ExtnMessage] response object
-    pub async fn respond(&mut self, msg: ExtnMessage) -> Result<(), RippleError> {
+    /// `req` - [ExtnMessage] request object
+    /// `response` - [ExtnResponse] object
+    pub async fn respond(
+        &mut self,
+        req: ExtnMessage,
+        response: ExtnResponse,
+    ) -> Result<(), RippleError> {
+        if !req.payload.is_request() {
+            return Err(RippleError::InvalidInput);
+        } else {
+            let msg = req.get_response(response).unwrap();
+            self.send_message(msg).await
+        }
+    }
+
+    /// Method used for sending a fully build [ExtnMessage]
+    /// # Arguments
+    /// `msg` - [ExtnMessage]
+    pub async fn send_message(&mut self, msg: ExtnMessage) -> RippleResponse {
         self.sender
             .respond(msg.clone().into(), self.get_extn_sender(msg.clone().target))
     }
@@ -334,7 +357,8 @@ impl ExtnClient {
     /// # Arguments
     /// `msg` - [ExtnMessage] event object
     pub async fn event(&mut self, event: impl ExtnPayloadProvider) -> Result<(), RippleError> {
-        self.sender.send_event(event).await
+        let other_sender = self.get_extn_sender(event.get_capability());
+        self.sender.send_event(event, other_sender).await
     }
 
     /// Request method which accepts a impl [ExtnPayloadProvider] and uses the capability provided by the trait to send the request.

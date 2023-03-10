@@ -4,8 +4,8 @@ use crate::state::bootstrap_state::BootstrapState;
 
 use super::{
     extn::{
-        load_extn_metadata_step::LoadExtensionMetadataStep, load_extn_step::LoadExtensionsStep,
-        start_device_channel_step::StartDeviceChannel,
+        check_launcher_step::CheckLauncherStep, load_extn_metadata_step::LoadExtensionMetadataStep,
+        load_extn_step::LoadExtensionsStep, start_device_channel_step::StartDeviceChannel,
     },
     setup_extn_client_step::SetupExtnClientStep,
     start_app_manager_step::StartAppManagerStep,
@@ -48,6 +48,9 @@ pub async fn boot(state: BootstrapState) {
         .step(StartAppManagerStep)
         .await
         .expect("App Manager start")
+        .step(CheckLauncherStep)
+        .await
+        .expect("if Launcher exists start")
         .step(StartWsStep)
         .await
         .expect("Websocket startup failure")

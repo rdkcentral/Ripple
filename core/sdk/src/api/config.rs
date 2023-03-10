@@ -5,7 +5,12 @@ use serde_json::Value;
 
 use crate::extn::{
     extn_capability::ExtnCapability,
-    extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
+    extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
+};
+
+use super::manifest::{
+    app_library::AppLibraryState,
+    device_manifest::{LifecyclePolicy, RetentionPolicy},
 };
 
 use super::manifest::device_manifest::AppLibraryEntry;
@@ -39,6 +44,7 @@ pub enum Config {
     CapsRequiringGrant,
     Exclusory,
     DefaultScanTimeout,
+    LauncherConfig,
 }
 
 impl ExtnPayloadProvider for Config {
@@ -71,4 +77,38 @@ pub enum ConfigResponse {
     StringMap(HashMap<String, String>),
     List(Vec<String>),
     AllApps(Vec<AppLibraryEntry>),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LauncherConfig {
+    pub retention_policy: RetentionPolicy,
+    pub lifecycle_policy: LifecyclePolicy,
+    pub app_library_state: AppLibraryState,
+}
+
+impl ExtnPayloadProvider for LauncherConfig {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Response(ExtnResponse::Value(
+            serde_json::to_value(self.clone()).unwrap(),
+        ))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        match payload {
+            ExtnPayload::Response(response) => match response {
+                ExtnResponse::Value(value) => {
+                    if let Ok(v) = serde_json::from_value(value) {
+                        return Some(v);
+                    }
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+        None
+    }
+
+    fn cap() -> ExtnCapability {
+        ExtnCapability::get_main_target("config".into())
+    }
 }

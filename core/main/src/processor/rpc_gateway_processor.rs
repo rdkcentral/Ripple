@@ -7,35 +7,34 @@ use ripple_sdk::{
         },
         extn_client_message::ExtnMessage,
     },
-    log::error,
     tokio::sync::mpsc::Sender,
 };
 
 use crate::{
-    firebolt::firebolt_gateway::FireboltGatewayCommand, state::bootstrap_state::ChannelsState,
+    firebolt::firebolt_gateway::FireboltGatewayCommand, service::extn::ripple_client::RippleClient,
 };
 
 /// Processor to service incoming RPC Requests used by extensions and other local rpc handlers for aliasing.
 #[derive(Debug)]
 pub struct RpcGatewayProcessor {
-    sender: Sender<FireboltGatewayCommand>,
+    client: RippleClient,
     streamer: DefaultExtnStreamer,
 }
 
 impl RpcGatewayProcessor {
-    pub fn new(state: ChannelsState) -> RpcGatewayProcessor {
+    pub fn new(client: RippleClient) -> RpcGatewayProcessor {
         RpcGatewayProcessor {
-            sender: state.get_gateway_sender(),
+            client,
             streamer: DefaultExtnStreamer::new(),
         }
     }
 }
 
 impl ExtnStreamProcessor for RpcGatewayProcessor {
-    type STATE = Sender<FireboltGatewayCommand>;
+    type STATE = RippleClient;
     type VALUE = RpcRequest;
     fn get_state(&self) -> Self::STATE {
-        self.sender.clone()
+        self.client.clone()
     }
 
     fn sender(&self) -> Sender<ExtnMessage> {
@@ -49,26 +48,21 @@ impl ExtnStreamProcessor for RpcGatewayProcessor {
 
 #[async_trait]
 impl ExtnRequestProcessor for RpcGatewayProcessor {
-    async fn process_error(
-        _state: Self::STATE,
-        _msg: ExtnMessage,
-        _error: ripple_sdk::utils::error::RippleError,
-    ) -> Option<bool> {
-        error!("parsing the request");
-        None
+    fn get_client(&self) -> ripple_sdk::extn::client::extn_client::ExtnClient {
+        self.client.get_extn_client()
     }
 
-    async fn process_request(
-        state: Self::STATE,
-        msg: ExtnMessage,
-        _request: Self::VALUE,
-    ) -> Option<bool> {
+    async fn process_request(state: Self::STATE, msg: ExtnMessage, _request: Self::VALUE) -> bool {
+        // Notice how this processor is different from others where it doesnt respond to
+        // Self::respond this processor delegates the request down
+        // to the gateway which does more complex inter connected operations. The design for
+        // Extn Processor is built in such a way to support transient processors which do not
+        // necessarily need to provide response
         if let Err(e) = state
-            .send(FireboltGatewayCommand::HandleRpcForExtn { msg })
-            .await
+            .send_gateway_command(FireboltGatewayCommand::HandleRpcForExtn { msg: msg.clone() })
         {
-            error!("error trying to send {:?}", e);
+            return Self::handle_error(state.get_extn_client(), msg, e).await;
         }
-        None
+        true
     }
 }

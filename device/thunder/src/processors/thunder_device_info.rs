@@ -14,6 +14,7 @@ use ripple_sdk::{
     log::{error, info},
     utils::error::RippleError,
 };
+use serde_json::json;
 
 #[derive(Debug)]
 pub struct ThunderDeviceInfoRequestProcessor {
@@ -29,7 +30,7 @@ impl ThunderDeviceInfoRequestProcessor {
         }
     }
 
-    pub async fn make(state: ThunderState, req: ExtnMessage) {
+    async fn make(state: ThunderState, req: ExtnMessage) -> bool {
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -43,12 +44,12 @@ impl ThunderDeviceInfoRequestProcessor {
             None => ExtnResponse::Error(RippleError::InvalidOutput),
         };
 
-        if let Err(_e) = Self::respond(state.get_client(), req, response).await {
-            error!("Sending back response for device.make ");
-        }
+        Self::respond(state.get_client(), req, response)
+            .await
+            .is_ok()
     }
 
-    async fn model(state: ThunderState, req: ExtnMessage) {
+    async fn model(state: ThunderState, req: ExtnMessage) -> bool {
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -64,9 +65,31 @@ impl ThunderDeviceInfoRequestProcessor {
             }
             None => ExtnResponse::Error(RippleError::InvalidOutput),
         };
-        if let Err(_e) = Self::respond(state.get_client(), req, response).await {
-            error!("Sending back response for device.model ");
+        Self::respond(state.get_client(), req, response)
+            .await
+            .is_ok()
+    }
+
+    async fn available_memory(state: ThunderState, req: ExtnMessage) -> bool {
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::RDKShell.method("getSystemMemory"),
+                params: None,
+            })
+            .await;
+        info!("{}", response.message);
+        if response.message.get("success").is_some()
+            && response.message["success"].as_bool().unwrap() == true
+        {
+            if let Some(v) = response.message["freeRam"].as_u64() {
+                return Self::respond(state.get_client(), req, ExtnResponse::Value(json!(v)))
+                    .await
+                    .is_ok();
+            }
         }
+        error!("{}", response.message);
+        Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
     }
 }
 
@@ -89,25 +112,20 @@ impl ExtnStreamProcessor for ThunderDeviceInfoRequestProcessor {
 
 #[async_trait]
 impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
-    async fn process_error(
-        _state: Self::STATE,
-        _msg: ExtnMessage,
-        _error: ripple_sdk::utils::error::RippleError,
-    ) -> Option<bool> {
-        error!("Invalid message");
-        None
+    fn get_client(&self) -> ripple_sdk::extn::client::extn_client::ExtnClient {
+        self.state.get_client()
     }
 
     async fn process_request(
         state: Self::STATE,
         msg: ExtnMessage,
         extracted_message: Self::VALUE,
-    ) -> Option<bool> {
+    ) -> bool {
         match extracted_message {
             DeviceInfoRequest::Make => Self::make(state.clone(), msg).await,
             DeviceInfoRequest::Model => Self::model(state.clone(), msg).await,
-            _ => {}
+            DeviceInfoRequest::AvailableMemory => Self::available_memory(state.clone(), msg).await,
+            _ => false,
         }
-        None
     }
 }
