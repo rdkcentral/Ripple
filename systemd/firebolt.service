@@ -1,0 +1,16 @@
+[Unit]
+Description=Firebolt Service
+Requires=wpeframework.service
+After=wpeframework.service
+
+[Service]
+PIDFile=/var/run/firebolt_service.pid
+Environment="RUST_LOG=trace"
+ExecStart=-/usr/bin/firebolt_service
+ExecStop=/bin/kill $MAINPID
+Restart=always
+RestartSec=10
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target
