@@ -33,7 +33,7 @@ default_library": [
         {
           "app_id": "refui",
           ....
-          "start_page": "https://firecertapp.firecert.comcast.com/prod/index.html?systemui=true&__firebolt_endpoint=ws%3A%2F%2F10.0.0.107%3A3473%3FappId%3Drefui%26session%3Drefui&systemui=true",
+          "start_page": "https://firecertapp.firecert.comcast.com/prod/index.html?systemui=true&__firebolt_endpoint=ws%3A%2F%2F10.0.0.107%3A3474%3FappId%3Drefui%26session%3Drefui&systemui=true",
 ```
 
 6. Find the ip address of the device which is connected to the same network router as the machine running Ripple.
