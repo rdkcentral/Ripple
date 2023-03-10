@@ -7,7 +7,7 @@
               "app_key": "xrn:firebolt:application:refui",
               "name": "refui",
               "content_catalog": "refui_some_content_catalog",
-              "start_page": "https://firecertapp.firecert.comcast.com/prod/index.html?systemui=true",
+              "start_page": "https://firecertapp.firecert.comcast.com/prod/index.html?systemui=true&__firebolt_endpoint=ws%3A%2F%2F127.0.0.1%3A3473%3FappId%3Drefui%26session%3Drefui",
               "runtime": "lightning",
               "capabilities": {
                 "used": {
@@ -38,7 +38,7 @@
               "app_key": "xrn:firebolt:application:certapp",
               "name": "comcast_firebolt_reference",
               "content_catalog": "comcast_firebolt_some_content_catalog",
-              "start_page": "https://firecertapp.firecert.comcast.com/prod/index.html",
+              "start_page": "https://firecertapp.firecert.comcast.com/prod/index.html?__firebolt_endpoint=ws%3A%2F%2F127.0.0.1%3A3473%3FappId%3Dcomcast_firebolt_reference%26session%3Dcomcast_firebolt_reference",
               "runtime": "web",
               "capabilities": {
                 "used": {
@@ -67,7 +67,7 @@
               "app_key": "xrn:firebolt:application:test",
               "name": "test",
               "content_catalog": "test_some_content_catalog",
-              "start_page": "https://firecertapp.firecert.comcast.com/prod/index.html",
+              "start_page": "https://firecertapp.firecert.comcast.com/prod/index.html?__firebolt_endpoint=ws%3A%2F%2F127.0.0.1%3A3473%3FappId%3Dtest%26session%3Dtest",
               "runtime": "web",
               "capabilities": {
                 "used": {

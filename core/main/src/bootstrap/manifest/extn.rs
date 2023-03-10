@@ -1,17 +1,12 @@
 use ripple_sdk::{
-    api::manifest::extn_manifest::ExtnManifest, log::info, serde_json, utils::error::RippleError,
+    api::manifest::extn_manifest::ExtnManifest, log::info, utils::error::RippleError,
 };
 
 pub struct LoadExtnManifestStep;
 
 impl LoadExtnManifestStep {
     pub fn get_manifest() -> ExtnManifest {
-        let r = try_manifest_files();
-        if r.is_ok() {
-            return r.unwrap();
-        }
-
-        load_default_manifest()
+       try_manifest_files().expect("Need valid extn manifest") 
     }
 }
 
@@ -30,14 +25,6 @@ fn try_manifest_files() -> Result<ExtnManifest, RippleError> {
         }
     }
     Err(RippleError::BootstrapError)
-}
-
-fn load_default_manifest() -> ExtnManifest {
-    info!("loading default extn manifest");
-    let v = std::include_str!("./default-extn-manifest.json");
-    info!("loaded_extn_manifest_file_content={}", v);
-    let r: serde_json::Result<ExtnManifest> = serde_json::from_str(&v);
-    r.unwrap()
 }
 
 fn load_from_env() -> Result<(String, ExtnManifest), RippleError> {

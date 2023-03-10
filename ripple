@@ -19,9 +19,9 @@ case ${1} in
     "init")
         cp -f ./ripple ~/.cargo/bin
         mkdir -p ~/.ripple
-        cp ./core/main/src/bootstrap/manifest/default-device-manifest.json ~/.ripple/firebolt-device-manifest.json
-        cp ./core/main/src/bootstrap/manifest/default-extn-manifest.json ~/.ripple/firebolt-extn-manifest.json
-        cp ./core/main/src/bootstrap/manifest/default-app-library.json ~/.ripple/firebolt-app-library.json
+        cp ./examples/manifest/device-manifest-example.json ~/.ripple/firebolt-device-manifest.json
+        cp ./examples/manifest/extn-manifest-example.json ~/.ripple/firebolt-extn-manifest.json
+        cp ./examples/manifest/app-library-example.json ~/.ripple/firebolt-app-library.json
     ;;
     "run")
         cargo build

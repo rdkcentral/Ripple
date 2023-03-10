@@ -1,5 +1,5 @@
 use ripple_sdk::{
-    api::manifest::device_manifest::DeviceManifest, log::info, serde_json,
+    api::manifest::device_manifest::DeviceManifest, log::info,
     utils::error::RippleError,
 };
 
@@ -12,7 +12,7 @@ impl LoadDeviceManifestStep {
             return r.unwrap();
         }
 
-        load_default_manifest()
+        r.expect("Need valid Device Manifest")
     }
 }
 
@@ -31,14 +31,6 @@ fn try_manifest_files() -> Result<DeviceManifest, RippleError> {
         }
     }
     Err(RippleError::BootstrapError)
-}
-
-fn load_default_manifest() -> DeviceManifest {
-    info!("loading default manifest");
-    let v = std::include_str!("./default-device-manifest.json");
-    info!("loaded_default_manifest_file_content={}", v);
-    let r: serde_json::Result<DeviceManifest> = serde_json::from_str(&v);
-    r.unwrap()
 }
 
 fn load_from_env() -> Result<(String, DeviceManifest), RippleError> {

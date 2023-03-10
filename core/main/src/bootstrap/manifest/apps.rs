@@ -2,7 +2,7 @@ use std::fs;
 
 use ripple_sdk::{
     api::manifest::{app_library::DefaultLibrary, device_manifest::AppLibraryEntry},
-    log::{error, info, warn},
+    log::{info, warn},
     serde_json,
     utils::error::RippleError,
 };
@@ -25,17 +25,6 @@ impl LoadAppLibraryStep {
             }
         };
 
-        if let Ok(library) = result {
-            return Ok(library);
-        }
-
-        info!("loading default app library");
-        let contents = std::include_str!("./default-app-library.json");
-        info!("loaded_default_app_library_file_content={}", contents);
-        match serde_json::from_str::<DefaultLibrary>(&contents) {
-            Ok(al) => return Ok(al.default_library),
-            Err(_) => error!("Invalid Default app library file"),
-        }
-        Err(RippleError::BootstrapError)
+        Ok(result.expect("Need valid App Library"))
     }
 }
