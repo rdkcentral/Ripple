@@ -151,7 +151,7 @@ impl ViewState {
 
 impl ViewManager {
     pub async fn acquire_view(
-        state: LauncherState,
+        state: &LauncherState,
         params: LaunchParams,
     ) -> Result<ViewId, ViewError> {
         let view_id = Uuid::new_v4();
@@ -187,7 +187,7 @@ impl ViewManager {
         result
     }
 
-    pub async fn release_view(state: LauncherState, id: ViewId) -> Result<ViewId, ViewError> {
+    pub async fn release_view(state: &LauncherState, id: ViewId) -> Result<ViewId, ViewError> {
         let mut result = Err(ViewError::NotFound);
         if let Some(name) = state.view_state.get_name(id) {
             let dab_resp = state
@@ -207,7 +207,7 @@ impl ViewManager {
     }
 
     pub async fn set_position(
-        state: LauncherState,
+        state: &LauncherState,
         id: ViewId,
         position: Position,
     ) -> Result<ViewId, ViewError> {
@@ -238,7 +238,7 @@ impl ViewManager {
         result
     }
 
-    pub async fn set_focus(state: LauncherState, id: ViewId) -> Result<ViewId, ViewError> {
+    pub async fn set_focus(state: &LauncherState, id: ViewId) -> Result<ViewId, ViewError> {
         let result;
         match state.view_state.get_name(id) {
             Some(name) => {
@@ -263,7 +263,7 @@ impl ViewManager {
     }
 
     pub async fn set_visibility(
-        state: LauncherState,
+        state: &LauncherState,
         id: ViewId,
         visible: bool,
     ) -> Result<ViewId, ViewError> {

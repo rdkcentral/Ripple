@@ -61,12 +61,11 @@ fn start_launcher(sender: ExtnSender, receiver: Receiver<CExtnMessage>) {
 
             // Lets Main know that the launcher is ready
             let _ = client_for_processor.event(ExtnStatus::Ready).await;
-
             // Launches default app from library
             if let Some(default_app) = state_c.config.app_library_state.get_default_app() {
                 let request =
                     LaunchRequest::new(default_app.app_id, "boot".into(), None, "boot".into());
-                if let Err(e) = AppLauncher::launch(state_c, request).await {
+                if let Err(e) = AppLauncher::launch(&state_c, request).await {
                     error!("default launch app failed {:?}", e);
                 }
             }
