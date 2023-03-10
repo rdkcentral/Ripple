@@ -12,6 +12,7 @@ use ripple_sdk::{
         ffi::{
             ffi_channel::ExtnChannel,
             ffi_device::{DeviceChannel, DeviceExtn},
+            ffi_distributor::DistributorChannel,
             ffi_library::ExtnMetadata,
             ffi_message::CExtnMessage,
         },
@@ -59,6 +60,7 @@ pub struct ExtnState {
     pub loaded_libraries: Arc<RwLock<Vec<LoadedLibrary>>>,
     pub device_channel: Arc<RwLock<Option<Box<DeviceChannel>>>>,
     pub launcher_channel: Arc<RwLock<Option<Box<ExtnChannel>>>>,
+    pub distributor_channel: Arc<RwLock<Option<Box<DistributorChannel>>>>,
     pub extn_sender_map:
         Arc<RwLock<HashMap<String, (CSender<CExtnMessage>, CReceiver<CExtnMessage>)>>>,
     pub extn_state_map: Arc<RwLock<HashMap<String, ExtnStatus>>>,
@@ -72,6 +74,7 @@ impl ExtnState {
             loaded_libraries: Arc::new(RwLock::new(Vec::new())),
             device_channel: Arc::new(RwLock::new(None)),
             launcher_channel: Arc::new(RwLock::new(None)),
+            distributor_channel: Arc::new(RwLock::new(None)),
             extn_sender_map: Arc::new(RwLock::new(HashMap::new())),
             extn_state_map: Arc::new(RwLock::new(HashMap::new())),
             device_extns: Arc::new(RwLock::new(None)),
@@ -122,6 +125,16 @@ impl ExtnState {
             };
             tokio::spawn(async move {
                 (channel.start)(extn_sender, extn_rx);
+            });
+            client.add_extn_sender(capability, extn_tx);
+            return Ok(());
+        } else if capability.is_distributor_channel() {
+            let channel = {
+                let mut channel = self.distributor_channel.write().unwrap();
+                channel.take().unwrap()
+            };
+            tokio::spawn(async move {
+                (channel.start)(extn_sender, extn_rx, Vec::new());
             });
             client.add_extn_sender(capability, extn_tx);
             return Ok(());

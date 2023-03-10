@@ -4,7 +4,11 @@ use std::{
 };
 
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::ApiMessage, tokio::sync::mpsc::Sender, utils::error::RippleError,
+    api::{
+        distributor::distributor_session::DistributorSession, gateway::rpc_gateway_api::ApiMessage,
+    },
+    tokio::sync::mpsc::Sender,
+    utils::error::RippleError,
 };
 
 #[derive(Debug, Clone)]
@@ -52,10 +56,25 @@ impl Session {
 
 #[derive(Debug, Clone, Default)]
 pub struct SessionState {
+    distributor_session: Arc<RwLock<Option<DistributorSession>>>,
     session_map: Arc<RwLock<HashMap<String, Session>>>,
 }
 
 impl SessionState {
+    pub fn insert_distributor_session(&self, distributor_session: DistributorSession) {
+        let mut session_state = self.distributor_session.write().unwrap();
+        let _ = session_state.insert(distributor_session);
+    }
+
+    pub fn get_distributor_session(&self) -> Option<DistributorSession> {
+        let session_state = self.distributor_session.read().unwrap();
+        if let Some(session) = session_state.clone() {
+            return Some(session);
+        }
+
+        None
+    }
+
     pub fn get_app_id(&self, session_id: String) -> Option<String> {
         let session_map = self.session_map.read().unwrap();
         if let Some(session) = session_map.get(&session_id) {

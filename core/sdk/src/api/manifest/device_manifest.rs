@@ -29,6 +29,8 @@ pub struct RippleConfiguration {
     #[serde(default = "default_ripple_features")]
     pub features: RippleFeatures,
     pub internal_app_id: Option<String>,
+    #[serde(default = "default_saved_dir")]
+    pub saved_dir: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -326,6 +328,10 @@ fn default_ripple_features() -> RippleFeatures {
     RippleFeatures {
         app_scoped_device_tokens: false,
     }
+}
+
+fn default_saved_dir() -> String {
+    String::from("/opt/persistent/ripple")
 }
 
 impl DeviceManifest {

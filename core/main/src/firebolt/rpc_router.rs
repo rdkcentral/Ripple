@@ -1,3 +1,5 @@
+use std::sync::{Arc, RwLock};
+
 use futures::{future::join_all, StreamExt};
 use jsonrpsee::{
     core::{
@@ -15,15 +17,36 @@ use ripple_sdk::{
     extn::extn_client_message::{ExtnMessage, ExtnResponse},
     log::{error, info, trace},
     serde_json::{self, Result as SResult},
-    tokio,
+    tokio::{self},
     utils::error::RippleError,
 };
 
 use crate::state::session_state::Session;
 
-pub struct RpcRouter {
-    methods: Methods,
+pub struct RpcRouter;
+
+#[derive(Debug, Clone)]
+pub struct RouterState {
+    methods: Arc<RwLock<Methods>>,
     resources: Resources,
+}
+
+impl RouterState {
+    pub fn new() -> RouterState {
+        RouterState {
+            methods: Arc::new(RwLock::new(Methods::new())),
+            resources: Resources::default(),
+        }
+    }
+
+    pub fn update_methods(&self, methods: Methods) {
+        let mut methods_state = self.methods.write().unwrap();
+        let _ = methods_state.merge(methods);
+    }
+
+    fn get_methods(&self) -> Methods {
+        self.methods.read().unwrap().clone()
+    }
 }
 
 async fn resolve_route(
@@ -79,18 +102,9 @@ async fn resolve_route(
 }
 
 impl RpcRouter {
-    pub fn new(methods: Methods) -> RpcRouter {
-        let resources = Resources::default();
-        let init_methods = methods.initialize_resources(&resources).unwrap();
-        RpcRouter {
-            methods: init_methods,
-            resources,
-        }
-    }
-
-    pub async fn route(&self, req: RpcRequest, session: Session) {
-        let methods = self.methods.clone();
-        let resources = self.resources.clone();
+    pub async fn route(state: RouterState, req: RpcRequest, session: Session) {
+        let methods = state.get_methods();
+        let resources = state.resources.clone();
         tokio::spawn(async move {
             let session_id = req.ctx.session_id.clone();
             if let Ok(msg) = resolve_route(methods, resources, req).await {
@@ -102,14 +116,14 @@ impl RpcRouter {
         });
     }
 
-    pub async fn route_extn_protocol(&self, req: RpcRequest, extn_msg: ExtnMessage) {
+    pub async fn route_extn_protocol(state: RouterState, req: RpcRequest, extn_msg: ExtnMessage) {
         if extn_msg.callback.is_none() {
             // The caller of this function already checks this adding it here none the less.
             error!("No valid callbacks")
         }
         let callback = extn_msg.clone().callback.unwrap();
-        let methods = self.methods.clone();
-        let resources = self.resources.clone();
+        let methods = state.get_methods();
+        let resources = state.resources.clone();
         tokio::spawn(async move {
             if let Ok(msg) = resolve_route(methods, resources, req).await {
                 let r: SResult<JsonRpcApiResponse> = serde_json::from_str(&msg.jsonrpc_msg);

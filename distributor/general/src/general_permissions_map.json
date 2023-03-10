@@ -1,0 +1,12 @@
+{
+    "refui" : [
+        "xrn:firebolt:capability:input:keyboard[provide]",
+        "xrn:firebolt:capability:usergrant:pinchallenge[provide]"
+    ],
+    "comcast_firebolt_reference" : [
+        "xrn:firebolt:capability:input:keyboard"
+    ],
+    "test" : [
+        "xrn:firebolt:capability:input:keyboard"
+    ]
+}

@@ -5,7 +5,9 @@ use crate::state::bootstrap_state::BootstrapState;
 use super::{
     extn::{
         check_launcher_step::CheckLauncherStep, load_extn_metadata_step::LoadExtensionMetadataStep,
-        load_extn_step::LoadExtensionsStep, start_device_channel_step::StartDeviceChannel,
+        load_extn_step::LoadExtensionsStep, load_session_step::LoadDistributorValuesStep,
+        start_device_channel_step::StartDeviceChannel,
+        start_distributor_channel_step::StartDistributorChannel,
     },
     setup_extn_client_step::SetupExtnClientStep,
     start_app_manager_step::StartAppManagerStep,
@@ -48,6 +50,12 @@ pub async fn boot(state: BootstrapState) {
         .step(StartAppManagerStep)
         .await
         .expect("App Manager start")
+        .step(StartDistributorChannel)
+        .await
+        .expect("Distributor channel to start")
+        .step(LoadDistributorValuesStep)
+        .await
+        .expect("Distributor values needs to be loaded")
         .step(CheckLauncherStep)
         .await
         .expect("if Launcher exists start")

@@ -169,9 +169,9 @@ pub enum AppError {
     AppNotReady,
 }
 
-impl From<AppError> for jsonrpsee::core::error::Error {
+impl From<AppError> for jsonrpsee::core::Error {
     fn from(err: AppError) -> Self {
-        jsonrpsee::core::error::Error::Custom(format!("Internal failure: {:?}", err))
+        jsonrpsee::core::Error::Custom(format!("Internal failure: {:?}", err))
     }
 }
 

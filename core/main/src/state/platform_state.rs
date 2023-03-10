@@ -8,15 +8,22 @@ use ripple_sdk::{
     utils::error::RippleError,
 };
 
-use crate::service::{
-    apps::{
-        app_events::AppEventsState, delegated_launcher_handler::AppManagerState,
-        provider_broker::ProviderBrokerState,
+use crate::{
+    firebolt::rpc_router::RouterState,
+    service::{
+        apps::{
+            app_events::AppEventsState, delegated_launcher_handler::AppManagerState,
+            provider_broker::ProviderBrokerState,
+        },
+        extn::ripple_client::RippleClient,
     },
-    extn::ripple_client::RippleClient,
 };
 
-use super::{cap::cap_state::CapState, session_state::SessionState};
+use super::{
+    cap::{cap_state::GenericCapState, permitted_state::PermittedState},
+    openrpc_state::OpenRpcState,
+    session_state::SessionState,
+};
 
 /// Platform state encapsulates the internal state of the Ripple Main application.
 ///
@@ -35,10 +42,13 @@ pub struct PlatformState {
     ripple_client: RippleClient,
     pub app_library_state: AppLibraryState,
     pub session_state: SessionState,
-    pub cap_state: CapState,
+    pub cap_state: GenericCapState,
+    pub permitted_state: PermittedState,
     pub app_events_state: AppEventsState,
     pub provider_broker_state: ProviderBrokerState,
     pub app_manager_state: AppManagerState,
+    pub open_rpc_state: OpenRpcState,
+    pub router_state: RouterState,
 }
 
 impl PlatformState {
@@ -50,14 +60,17 @@ impl PlatformState {
     ) -> PlatformState {
         Self {
             extn_manifest,
-            cap_state: CapState::default(),
+            cap_state: GenericCapState::default(),
             session_state: SessionState::default(),
-            device_manifest: manifest,
+            device_manifest: manifest.clone(),
             ripple_client: client,
             app_library_state: AppLibraryState::new(app_library),
             app_events_state: AppEventsState::default(),
             provider_broker_state: ProviderBrokerState::default(),
             app_manager_state: AppManagerState::default(),
+            open_rpc_state: OpenRpcState::new(manifest.clone().configuration.exclusory),
+            permitted_state: PermittedState::new(manifest.clone()),
+            router_state: RouterState::new(),
         }
     }
 

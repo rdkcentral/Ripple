@@ -9,6 +9,10 @@ use crate::{
     api::{
         config::{Config, ConfigResponse},
         device::device_request::DeviceRequest,
+        distributor::{
+            distributor_permissions::PermissionRequest, distributor_request::DistributorRequest,
+            distributor_session::DistributorSession,
+        },
         firebolt::fb_lifecycle_management::LifecycleManagementRequest,
         gateway::rpc_gateway_api::RpcRequest,
         status_update::ExtnStatus,
@@ -181,6 +185,8 @@ pub enum ExtnRequest {
     Device(DeviceRequest),
     Extn(Value),
     LifecycleManagement(LifecycleManagementRequest),
+    Permission(PermissionRequest),
+    Distributor(DistributorRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -194,6 +200,7 @@ pub enum ExtnResponse {
     List(Vec<String>),
     Error(RippleError),
     Config(ConfigResponse),
+    Session(DistributorSession),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {

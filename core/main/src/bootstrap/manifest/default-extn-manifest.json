@@ -23,6 +23,17 @@
                     ]
                 }
             ]
+        },
+        {
+            "path": "libdistributor_general",
+            "symbols": [
+                {
+                    "capability": "ripple:channel:distributor:general",
+                    "permissions": [
+                        "ripple:main:internal:config"
+                    ]
+                }
+            ]
         }
     ]
 }

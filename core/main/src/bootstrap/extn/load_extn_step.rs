@@ -7,6 +7,7 @@ use ripple_sdk::{
             ffi_device::{
                 load_device_channel, load_device_extn_builder, DeviceChannel, DeviceExtn,
             },
+            ffi_distributor::{load_distributor_channel, DistributorChannel},
         },
     },
     framework::bootstrap::Bootstep,
@@ -32,6 +33,7 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
         let mut device_extns: Vec<DeviceExtn> = Vec::new();
         let mut launcher_channel: Option<Box<ExtnChannel>> = None;
         let mut device_channel: Option<Box<DeviceChannel>> = None;
+        let mut dist_channel: Option<Box<DistributorChannel>> = None;
         for extn in loaded_extensions.iter() {
             unsafe {
                 let library = &extn.library;
@@ -53,6 +55,13 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                                 Ok(channel) => {
                                     info!("Adding launcher to channel map {}", cap_string.clone());
                                     let _ = launcher_channel.insert(channel);
+                                }
+                                Err(e) => return Err(e),
+                            },
+                            ExtnClass::Distributor => match load_distributor_channel(library) {
+                                Ok(channel) => {
+                                    info!("Adding Distributor channel {}", cap_string.clone());
+                                    let _ = dist_channel.insert(channel);
                                 }
                                 Err(e) => return Err(e),
                             },
@@ -83,6 +92,13 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
             let mut launcher_channel_state = state.extn_state.launcher_channel.write().unwrap();
             let _ = launcher_channel_state.insert(launcher_channel.unwrap());
             info!("Launcher channel extension loaded");
+        }
+
+        if dist_channel.is_some() {
+            let mut distributor_channel_state =
+                state.extn_state.distributor_channel.write().unwrap();
+            let _ = distributor_channel_state.insert(dist_channel.unwrap());
+            info!("Distributor channel extension loaded");
         }
 
         {
