@@ -26,7 +26,7 @@ fn init_library() -> CExtnMetadata {
     let _ = init_logger("launcher".into());
 
     let launcher_meta = ExtnMetaEntry::get(
-        ExtnCapability::new_channel(ExtnClass::Launcher, "thunder".into()),
+        ExtnCapability::new_channel(ExtnClass::Launcher, "internal".into()),
         Version::new(1, 1, 0),
     );
 
