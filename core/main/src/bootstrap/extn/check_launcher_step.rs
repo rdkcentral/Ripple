@@ -20,7 +20,7 @@ pub struct CheckLauncherStep;
 #[async_trait]
 impl Bootstep<BootstrapState> for CheckLauncherStep {
     fn get_name(&self) -> String {
-        "StartDeviceChannel".into()
+        "CheckLauncherStep".into()
     }
     async fn setup(&self, mut state: BootstrapState) -> RippleResponse {
         if state.platform_state.has_internal_launcher() {
