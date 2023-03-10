@@ -6,7 +6,7 @@ pub struct LoadExtnManifestStep;
 
 impl LoadExtnManifestStep {
     pub fn get_manifest() -> ExtnManifest {
-       try_manifest_files().expect("Need valid extn manifest") 
+        try_manifest_files().expect("Need valid extn manifest")
     }
 }
 
