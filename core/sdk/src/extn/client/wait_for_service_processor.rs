@@ -1,4 +1,4 @@
-use ripple_sdk::{
+use crate::{
     api::status_update::ExtnStatus,
     async_trait::async_trait,
     extn::{

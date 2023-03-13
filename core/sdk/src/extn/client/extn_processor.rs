@@ -3,6 +3,7 @@ use crate::{
         extn_capability::ExtnCapability,
         extn_client_message::{ExtnMessage, ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     },
+    framework::RippleResponse,
     utils::error::RippleError,
 };
 use async_trait::async_trait;
@@ -85,9 +86,10 @@ macro_rules! start_rx_stream {
                         continue;
                     }
                     if let Some(v) =
-                        <$get_type>::$process(state_c, msg, extracted_message.unwrap()).await
+                        <$get_type>::$process(state_c, msg.clone(), extracted_message.unwrap())
+                            .await
                     {
-                        if v {
+                        if msg.payload.is_event() && v {
                             // trigger closure processor is dropped
                             trace!("dropping rx to trigger cleanup");
                             rx.close();
@@ -133,39 +135,30 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     /// # Returns
     ///
     /// `Option<bool>` -> Used by [ExtnClient] to handle post processing
+    /// None - means not processed
+    /// Some(true) - Successful processing with status success
+    /// Some(false) - Successful processing with status error
     async fn process_request(
         state: Self::STATE,
         msg: ExtnMessage,
         extracted_message: Self::VALUE,
-    ) -> Option<bool>;
+    ) -> bool;
 
-    /// This method is called when there was an error during  processing this incoming request
-    /// Erros Could be related to
-    ///
-    /// 1. Security and Permissions
-    ///
-    /// 2. Decoding Failures
-    ///
-    /// 3. Type validity Failures
-    ///
-    /// Processor should implement the response for such failures.
-    async fn process_error(
-        state: Self::STATE,
-        msg: ExtnMessage,
-        error: RippleError,
-    ) -> Option<bool>;
+    /// For [ExtnRequestProcessor] each implementor should return an instance of [ExtnClient]
+    /// This is necessary for the processor to intenally log and delegate errors.
+    fn get_client(&self) -> ExtnClient;
 
     fn check_message_type(message: &ExtnMessage) -> bool {
-        message.is_request()
+        message.payload.is_request()
     }
 
     async fn respond(
         mut extn_client: ExtnClient,
         request: ExtnMessage,
         response: ExtnResponse,
-    ) -> Result<(), RippleError> {
+    ) -> RippleResponse {
         if let Ok(msg) = request.get_response(response) {
-            return extn_client.respond(msg).await;
+            return extn_client.send_message(msg).await;
         }
         Err(RippleError::ExtnError)
     }
@@ -175,15 +168,39 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
             "starting request processor for {}",
             self.capability().to_string()
         );
-        start_rx_stream!(
-            Self,
-            self,
-            receiver,
-            get_state,
-            process_request,
-            process_error,
-            Self::check_message_type
-        );
+        let extn_client = self.get_client();
+        let mut receiver = self.receiver();
+        let state = self.get_state();
+        tokio::spawn(async move {
+            while let Some(msg) = receiver.recv().await {
+                let extracted_message = Self::get(msg.clone().payload);
+                if extracted_message.is_none() {
+                    Self::handle_error(extn_client.clone(), msg, RippleError::ParseError).await;
+                } else {
+                    if !Self::process_request(
+                        state.clone(),
+                        msg.clone(),
+                        extracted_message.unwrap(),
+                    )
+                    .await
+                    {
+                        debug!("Error processing request {:?}", msg);
+                    }
+                }
+            }
+        });
+    }
+
+    async fn handle_error(extn_client: ExtnClient, req: ExtnMessage, error: RippleError) -> bool {
+        if let Err(e) = extn_client
+            .clone()
+            .respond(req, ExtnResponse::Error(error))
+            .await
+        {
+            error!("Error during responding {:?}", e);
+        }
+        // to support return chaining in processors
+        false
     }
 }
 
@@ -218,7 +235,7 @@ pub trait ExtnEventProcessor: ExtnStreamProcessor + Send + Sync + 'static {
         extracted_message: Self::VALUE,
     ) -> Option<bool>;
 
-    async fn process_error(
+    async fn handle_error(
         _state: Self::STATE,
         msg: ExtnMessage,
         error: RippleError,
@@ -238,12 +255,12 @@ pub trait ExtnEventProcessor: ExtnStreamProcessor + Send + Sync + 'static {
             receiver,
             get_state,
             process_event,
-            process_error,
+            handle_error,
             Self::check_message_type
         );
     }
 
     fn check_message_type(message: &ExtnMessage) -> bool {
-        message.is_event()
+        message.payload.is_event()
     }
 }

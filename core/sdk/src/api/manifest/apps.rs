@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::api::device::browser_props::BrowserProps;
+use crate::api::device::device_browser::BrowserProps;
 
 const X_DEFAULT: u32 = 0;
 const Y_DEFAULT: u32 = 0;

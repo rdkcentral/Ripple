@@ -82,10 +82,14 @@ impl BootstrapState {
         let app_manifest_result =
             LoadAppLibraryStep::load_app_library(device_manifest.clone().get_app_library_path())
                 .expect("Valid app manifest");
-        let platform_state =
-            PlatformState::new(device_manifest.clone(), client, app_manifest_result);
-        let extn_state =
-            ExtnState::new(channels_state.clone(), LoadExtnManifestStep::get_manifest());
+        let extn_state = ExtnState::new(channels_state.clone());
+        let platform_state = PlatformState::new(
+            LoadExtnManifestStep::get_manifest(),
+            device_manifest.clone(),
+            client,
+            app_manifest_result,
+        );
+
         Ok(BootstrapState {
             platform_state,
             channels_state,

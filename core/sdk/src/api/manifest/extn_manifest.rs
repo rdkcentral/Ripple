@@ -3,7 +3,7 @@ use std::{fs, path::Path};
 use log::{info, warn};
 use serde::Deserialize;
 
-use crate::utils::error::RippleError;
+use crate::{extn::extn_capability::ExtnCapability, utils::error::RippleError};
 
 /// Contains the default path for the manifest
 /// file extension type based on platform
@@ -25,7 +25,25 @@ pub struct ExtnResolutionEntry {
 #[derive(Deserialize, Debug, Clone)]
 pub struct ExtnEntry {
     pub path: String,
+    pub symbols: Vec<ExtnSymbol>,
     pub resolution: Option<Vec<ExtnResolutionEntry>>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct ExtnSymbol {
+    pub capability: String,
+    pub permissions: Vec<String>,
+}
+
+impl ExtnSymbol {
+    fn get_launcher_capability(&self) -> Option<ExtnCapability> {
+        if let Ok(cap) = ExtnCapability::try_from(self.capability.clone()) {
+            if cap.is_launcher_channel() {
+                return Some(cap);
+            }
+        }
+        None
+    }
 }
 
 impl ExtnEntry {
@@ -65,5 +83,16 @@ impl ExtnManifest {
                 Err(RippleError::InvalidInput)
             }
         }
+    }
+
+    pub fn get_launcher_capability(&self) -> Option<ExtnCapability> {
+        for extn in self.extns.clone() {
+            for symbol in extn.symbols {
+                if let Some(cap) = symbol.get_launcher_capability() {
+                    return Some(cap);
+                }
+            }
+        }
+        return None;
     }
 }

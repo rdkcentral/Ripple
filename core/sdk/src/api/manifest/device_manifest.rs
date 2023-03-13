@@ -150,7 +150,7 @@ pub struct WsConfiguration {
     pub gateway: String,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RetentionPolicy {
     pub max_retained: u64,
@@ -168,7 +168,7 @@ pub const DEFAULT_RETENTION_POLICY: RetentionPolicy = RetentionPolicy {
     always_retained: Vec::new(),
 };
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LifecyclePolicy {
     pub app_ready_timeout_ms: u64,
@@ -390,6 +390,14 @@ impl DeviceManifest {
         LifecyclePolicy {
             app_ready_timeout_ms: self.lifecycle.app_ready_timeout_ms,
             app_finished_timeout_ms: self.lifecycle.app_finished_timeout_ms,
+        }
+    }
+
+    pub fn get_retention_policy(&self) -> RetentionPolicy {
+        RetentionPolicy {
+            max_retained: self.lifecycle.max_loaded_apps,
+            min_available_mem_kb: self.lifecycle.min_available_memory_kb,
+            always_retained: self.lifecycle.prioritized.clone(),
         }
     }
 }

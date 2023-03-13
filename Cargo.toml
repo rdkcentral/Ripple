@@ -3,6 +3,7 @@
 members = [
     "core/sdk",
     "core/main",
+    "core/launcher",
     "device/thunder",
     "examples/rpc_extn",
     "examples/thunder_extn"

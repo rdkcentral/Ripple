@@ -1,12 +1,12 @@
 use super::{
     apps::AppManifest,
-    device_manifest::{AppLibraryEntry, AppManifestLoad},
+    device_manifest::{AppLibraryEntry, AppManifestLoad, BootState},
 };
 use log::{error, warn};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct AppLibraryState {
     default_apps: Vec<AppLibraryEntry>,
     providers: HashMap<String, String>,
@@ -36,6 +36,17 @@ impl AppLibraryState {
 
     pub fn get_all_apps(&self) -> Vec<AppLibraryEntry> {
         self.default_apps.clone()
+    }
+
+    pub fn get_default_app(&self) -> Option<AppLibraryEntry> {
+        if let Some(default_app) = self
+            .default_apps
+            .iter()
+            .find(|a| a.boot_state == BootState::Foreground)
+        {
+            return Some(default_app.clone());
+        }
+        None
     }
 }
 

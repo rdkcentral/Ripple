@@ -61,20 +61,15 @@ impl ExtnStreamProcessor for ThunderExtnProcessor {
 
 #[async_trait]
 impl ExtnRequestProcessor for ThunderExtnProcessor {
-    async fn process_error(
-        _state: Self::STATE,
-        _msg: ExtnMessage,
-        _error: ripple_sdk::utils::error::RippleError,
-    ) -> Option<bool> {
-        error!("Invalid message");
-        None
+    fn get_client(&self) -> ripple_sdk::extn::client::extn_client::ExtnClient {
+        self.state.state.get_client()
     }
 
     async fn process_request(
         state: ThunderExtnState,
         msg: ExtnMessage,
         extracted_message: BaseDeviceRequest,
-    ) -> Option<bool> {
+    ) -> bool {
         let extracted_c = extracted_message.clone();
         let request = if extracted_c.params.is_none() {
             Value::Null
@@ -91,15 +86,23 @@ impl ExtnRequestProcessor for ThunderExtnProcessor {
                     if let Err(_e) = state
                         .state
                         .get_client()
-                        .respond(msg.get_response(ExtnResponse::Value(r)).unwrap())
+                        .send_message(msg.get_response(ExtnResponse::Value(r)).unwrap())
                         .await
                     {
-                        error!("Sending back response for device.make ");
+                        error!("Sending back response for extn.processor ");
+                        return false;
                     }
                 }
             }
-            _ => {}
+            _ => {
+                return Self::handle_error(
+                    state.state.get_client(),
+                    msg,
+                    ripple_sdk::utils::error::RippleError::InvalidInput,
+                )
+                .await
+            }
         }
-        None
+        true
     }
 }
