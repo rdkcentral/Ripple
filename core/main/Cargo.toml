@@ -2,7 +2,7 @@
 name = "main"
 version = "0.1.0"
 edition = "2021"
-repository = "https://github.comcast.com/sdeena200/ripple-opensource"
+repository = "https://github.com/rdkcentral/Ripple"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
