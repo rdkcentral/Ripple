@@ -1,6 +1,5 @@
 use jsonrpsee::{proc_macros::rpc, core::RpcResult};
-use ripple_sdk::api::{gateway::rpc_gateway_api::CallContext, firebolt::{fb_capabilities::{RoleInfo, CapInfoRpcRequest, CapabilityInfo, CapRequestRpcRequest, CapListenRPCRequest, FireboltCap}, fb_general::ListenerResponse}};
-use ripple_sdk::async_trait::async_trait;
+use ripple_sdk::api::{gateway::rpc_gateway_api::CallContext, firebolt::{fb_capabilities::{RoleInfo, CapInfoRpcRequest, CapabilityInfo, CapRequestRpcRequest, CapListenRPCRequest}, fb_general::ListenerResponse}};
 
 use crate::state::platform_state::PlatformState;
 

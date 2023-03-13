@@ -7,7 +7,7 @@ use ripple_sdk::{
     api::{
         distributor::distributor_permissions::PermissionRequest,
         firebolt::{
-            fb_capabilities::{DenyReasonWithCap, FireboltPermission, CapabilityRole, RoleInfo},
+            fb_capabilities::{DenyReasonWithCap, FireboltPermission, RoleInfo},
             fb_openrpc::CapabilitySet,
         },
         manifest::device_manifest::DeviceManifest,

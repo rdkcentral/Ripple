@@ -60,22 +60,17 @@ impl ExtnEventProcessor for LauncherLifecycleEventProcessor {
     ) -> Option<bool> {
         let result = match extracted_message {
             LifecycleManagementEventRequest::Ready(ready) => {
-                AppLauncher::ready(state.clone(), &ready.parameters.app_id).await
+                AppLauncher::ready(&state, &ready.parameters.app_id).await
             }
             LifecycleManagementEventRequest::Close(close) => {
-                AppLauncher::close(
-                    state.clone(),
-                    &close.parameters.app_id,
-                    close.parameters.reason,
-                )
-                .await
+                AppLauncher::close(&state, &close.parameters.app_id, close.parameters.reason).await
             }
             LifecycleManagementEventRequest::Finished(finished) => {
-                AppLauncher::destroy(state.clone(), &finished.parameters.app_id).await
+                AppLauncher::destroy(&state, &finished.parameters.app_id).await
             }
             LifecycleManagementEventRequest::Launch(launch) => {
                 AppLauncher::launch(
-                    state.clone(),
+                    &state,
                     LaunchRequest {
                         app_id: launch.parameters.app_id,
                         intent: launch.parameters.intent,

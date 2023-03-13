@@ -116,7 +116,7 @@ pub struct ContainerManager;
 
 impl ContainerManager {
     pub async fn add(
-        state: LauncherState,
+        state: &LauncherState,
         props: ContainerProperties,
     ) -> Result<ResultType, ContainerError> {
         let name = props.name.clone();
@@ -137,17 +137,14 @@ impl ContainerManager {
         state
             .container_state
             .add_container(name.clone(), props.clone());
-        AppLauncher::on_container_event(state.clone(), ContainerEvent::Added(props.clone())).await;
-        Self::bring_to_front(state.clone(), &name).await.ok();
-        AppLauncher::on_container_event(
-            state.clone(),
-            ContainerEvent::Focused(prev_props, Some(props)),
-        )
-        .await;
-        Self::set_visible(state.clone(), &name, true).await
+        AppLauncher::on_container_event(state, ContainerEvent::Added(props.clone())).await;
+        Self::bring_to_front(&state, &name).await.ok();
+        AppLauncher::on_container_event(state, ContainerEvent::Focused(prev_props, Some(props)))
+            .await;
+        Self::set_visible(&state, &name, true).await
     }
 
-    pub async fn remove(state: LauncherState, name: &str) -> Result<ResultType, ContainerError> {
+    pub async fn remove(state: &LauncherState, name: &str) -> Result<ResultType, ContainerError> {
         let mut result = Ok(ResultType::None);
         if state
             .container_state
@@ -164,18 +161,18 @@ impl ContainerManager {
                     next_props = Some(np.clone());
                 }
                 let next_container = nc.clone();
-                if let Err(e) = Self::bring_to_front(state.clone(), &next_container).await {
+                if let Err(e) = Self::bring_to_front(&state, &next_container).await {
                     println!("remove: Failed to focus top container: e={:?}", e);
                     result = Err(ContainerError::General);
                 }
             }
             AppLauncher::on_container_event(
-                state.clone(),
+                state,
                 ContainerEvent::Focused(prev_props.clone(), next_props),
             )
             .await;
             if let Some(p) = prev_props {
-                AppLauncher::on_container_event(state.clone(), ContainerEvent::Removed(p)).await;
+                AppLauncher::on_container_event(state, ContainerEvent::Removed(p)).await;
             }
         } else {
             result = Err(ContainerError::NotFound);
@@ -187,7 +184,7 @@ impl ContainerManager {
     }
 
     async fn bring_to_front(
-        state: LauncherState,
+        state: &LauncherState,
         name: &str,
     ) -> Result<ResultType, ContainerError> {
         if !state
@@ -207,18 +204,18 @@ impl ContainerManager {
         state.container_state.bring_stack_to_front(name);
 
         let props = item.unwrap().clone();
-        let resp = ViewManager::set_position(state.clone(), props.view_id, Position::Front).await;
+        let resp = ViewManager::set_position(&state, props.view_id, Position::Front).await;
         if let Err(e) = resp {
             println!("bring_to_front: error: req_id={:?}", e);
             return Err(ContainerError::General);
         }
-        match Self::focus_top_container(state.clone()).await {
+        match Self::focus_top_container(&state).await {
             Ok(v) => Ok(ResultType::Uuid(v)),
             Err(e) => Err(e),
         }
     }
 
-    async fn focus_top_container(state: LauncherState) -> Result<ViewId, ContainerError> {
+    async fn focus_top_container(state: &LauncherState) -> Result<ViewId, ContainerError> {
         let item = state.container_state.get_prev_stack();
 
         if let None = item {
@@ -232,14 +229,14 @@ impl ContainerManager {
             .unwrap();
         let properties = p.clone();
         let view_id = properties.view_id.clone();
-        match ViewManager::set_focus(state.clone(), view_id).await {
+        match ViewManager::set_focus(&state, view_id).await {
             Ok(v) => Ok(v),
             Err(_e) => Err(ContainerError::General),
         }
     }
 
     pub async fn send_to_back(
-        state: LauncherState,
+        state: &LauncherState,
         name: &str,
     ) -> Result<ResultType, ContainerError> {
         if !state
@@ -267,28 +264,25 @@ impl ContainerManager {
         state.container_state.send_stack_to_back(name);
         let view_id = props.view_id.clone();
         let mut result = Ok(ResultType::None);
-        let resp = ViewManager::set_position(state.clone(), view_id, Position::Back).await;
+        let resp = ViewManager::set_position(&state, view_id, Position::Back).await;
         if let Err(_) = resp {
             println!("send_to_back: error: req_id={:?}", resp);
             result = Err(ContainerError::General);
         }
 
-        Self::focus_top_container(state.clone()).await.ok();
+        Self::focus_top_container(&state).await.ok();
         let mut next_props = None;
         let name = state.container_state.get_prev_stack().clone().unwrap();
         if let Some(n) = state.container_state.get_container_by_name(&name) {
             next_props = Some(n.clone());
         }
-        AppLauncher::on_container_event(
-            state.clone(),
-            ContainerEvent::Focused(Some(props), next_props),
-        )
-        .await;
+        AppLauncher::on_container_event(state, ContainerEvent::Focused(Some(props), next_props))
+            .await;
         result
     }
 
     async fn set_visible(
-        state: LauncherState,
+        state: &LauncherState,
         name: &str,
         visible: bool,
     ) -> Result<ResultType, ContainerError> {
@@ -310,7 +304,7 @@ impl ContainerManager {
 
         let props = item.unwrap();
         let view_id = props.view_id.clone();
-        let resp = ViewManager::set_visibility(state.clone(), view_id, visible).await;
+        let resp = ViewManager::set_visibility(&state, view_id, visible).await;
         match resp {
             Ok(_) => {
                 result = Ok(ResultType::None);
@@ -324,7 +318,7 @@ impl ContainerManager {
         result
     }
 
-    pub fn on_state_changed(state: LauncherState, state_change: StateChangeInternal) {
+    pub fn on_state_changed(state: &LauncherState, state_change: StateChangeInternal) {
         debug!("on_app_state_change: state_change={:?}", state_change);
         let app_id = state_change.container_props.name.clone();
         if (state_change.states.previous != LifecycleState::Initializing

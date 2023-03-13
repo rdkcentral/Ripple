@@ -183,21 +183,21 @@ impl AppLauncher {
                 container_id, state
             );
             let mut final_resp = Ok(AppManagerResponse::None);
-            let mut item = state.app_launcher_state.get_app_by_id(&container_id);
+            let mut item = state
+                .clone()
+                .app_launcher_state
+                .get_app_by_id(&container_id);
             if let None = item {
                 // Container ID for app not found, check registered providers to
                 // see if it's a provider container ID.
-
-                let resp = AppLibrary::get_provider(
-                    &state.config.app_library_state,
-                    container_id.to_string(),
-                );
+                let app_library_state = state.clone().config.app_library_state;
+                let resp = AppLibrary::get_provider(&app_library_state, container_id.to_string());
                 if let None = resp {
                     warn!("set_state: Not found {:?}", container_id);
                     final_resp = Err(AppError::NotFound);
                 }
                 let provider = resp.unwrap();
-                item = state.app_launcher_state.get_app_by_id(&provider);
+                item = state.clone().app_launcher_state.get_app_by_id(&provider);
                 if let None = item {
                     warn!("set_state: Not found {:?}", container_id);
                     final_resp = Err(AppError::NotFound);
@@ -213,6 +213,7 @@ impl AppLauncher {
                     final_resp = Err(AppError::UnexpectedState);
                 } else {
                     state
+                        .clone()
                         .app_launcher_state
                         .set_app_state(&container_id, lc_state.clone());
 
@@ -238,7 +239,7 @@ impl AppLauncher {
                         },
                         container_props: app.container_props.clone(),
                     };
-                    Self::on_state_changed(state, state_change).await;
+                    Self::on_state_changed(&state, state_change).await;
                 }
             }
 
@@ -247,7 +248,7 @@ impl AppLauncher {
         .boxed()
     }
 
-    pub async fn on_state_changed(state: LauncherState, state_change: StateChangeInternal) {
+    pub async fn on_state_changed(state: &LauncherState, state_change: StateChangeInternal) {
         debug!("on_app_state_change: state_change={:?}", state_change);
         let entry = state
             .app_launcher_state
@@ -262,7 +263,7 @@ impl AppLauncher {
         let app = entry.unwrap();
         let app_id = app.container_props.name.clone();
 
-        ContainerManager::on_state_changed(state.clone(), state_change.clone());
+        ContainerManager::on_state_changed(&state, state_change.clone());
 
         if state_change.states.previous == LifecycleState::Initializing
             && state_change.states.state == LifecycleState::Inactive
@@ -276,17 +277,17 @@ impl AppLauncher {
                     .eq(NAVIGATION_INTENT_PROVIDER_REQUEST)
             {
                 let props = app.container_props.clone();
-                ContainerManager::add(state.clone(), props).await.ok();
+                ContainerManager::add(&state, props).await.ok();
             }
-            Self::check_retention_policy(state.clone()).await;
+            Self::check_retention_policy(state).await;
         } else if state_change.states.state == LifecycleState::Inactive {
-            Self::on_inactive(state.clone(), &app_id).await.ok();
+            Self::on_inactive(state, &app_id).await.ok();
         } else if state_change.states.state == LifecycleState::Unloading {
-            Self::on_unloading(state.clone(), &app_id).await.ok();
+            Self::on_unloading(state, &app_id).await.ok();
         }
     }
 
-    async fn check_retention_policy(state: LauncherState) {
+    async fn check_retention_policy(state: &LauncherState) {
         let policy = state.clone().config.retention_policy;
         let mut app_count_exceeded = false;
         let app_count = state.app_launcher_state.get_app_len() as u64;
@@ -299,14 +300,14 @@ impl AppLauncher {
         }
 
         if app_count_exceeded {
-            Self::remove_oldest_app(state.clone()).await;
+            Self::remove_oldest_app(state).await;
         }
 
         loop {
-            match Self::get_available_mem_kb(state.clone()).await {
+            match Self::get_available_mem_kb(state).await {
                 Ok(avail_mem_kb) => {
                     if avail_mem_kb < policy.min_available_mem_kb {
-                        if !Self::remove_oldest_app(state.clone()).await {
+                        if !Self::remove_oldest_app(state).await {
                             warn!("check_retention_policy: No more apps to remove");
                             break;
                         }
@@ -325,7 +326,7 @@ impl AppLauncher {
         }
     }
 
-    async fn get_available_mem_kb(state: LauncherState) -> Result<u64, AppError> {
+    async fn get_available_mem_kb(state: &LauncherState) -> Result<u64, AppError> {
         match state
             .send_extn_request(DeviceInfoRequest::AvailableMemory)
             .await
@@ -343,7 +344,7 @@ impl AppLauncher {
         Err(AppError::OsError)
     }
 
-    fn get_oldest_removeable_app(state: LauncherState) -> Option<String> {
+    fn get_oldest_removeable_app(state: &LauncherState) -> Option<String> {
         let policy = state.clone().config.retention_policy;
         let mut candidates = state.app_launcher_state.always_retained_apps(policy);
 
@@ -361,13 +362,13 @@ impl AppLauncher {
         return None;
     }
 
-    async fn remove_oldest_app(state: LauncherState) -> bool {
-        match Self::get_oldest_removeable_app(state.clone()) {
+    async fn remove_oldest_app(state: &LauncherState) -> bool {
+        match Self::get_oldest_removeable_app(state) {
             Some(name) => {
-                Self::close(state.clone(), &name, CloseReason::ResourceContention)
+                Self::close(state, &name, CloseReason::ResourceContention)
                     .await
                     .ok();
-                ContainerManager::remove(state.clone(), &name).await.ok();
+                ContainerManager::remove(&state, &name).await.ok();
                 return true;
             }
             None => {
@@ -377,7 +378,7 @@ impl AppLauncher {
     }
 
     async fn on_inactive(
-        _state: LauncherState,
+        _state: &LauncherState,
         app_id: &str,
     ) -> Result<AppManagerResponse, AppError> {
         // TODO: This function will be responsibile for determining exactly what to do with application resources
@@ -388,7 +389,7 @@ impl AppLauncher {
     }
 
     async fn check_finished(
-        state: LauncherState,
+        state: &LauncherState,
         app_id: &str,
     ) -> Result<AppManagerResponse, AppError> {
         debug!("check_finished: app_id={}", app_id);
@@ -399,7 +400,7 @@ impl AppLauncher {
                     "check_finished={} App not finished unloading, forcing",
                     app_id
                 );
-                return Self::destroy(state.clone(), app_id).await;
+                return Self::destroy(state, app_id).await;
             }
             None => {
                 return Ok(AppManagerResponse::None);
@@ -408,7 +409,7 @@ impl AppLauncher {
     }
 
     async fn on_unloading(
-        state: LauncherState,
+        state: &LauncherState,
         app_id: &str,
     ) -> Result<AppManagerResponse, AppError> {
         debug!("on_unloading: entry: app_id={}", app_id);
@@ -422,7 +423,7 @@ impl AppLauncher {
         let state_c = state.clone();
         tokio::spawn(async move {
             sleep(Duration::from_millis(timeout)).await;
-            if let Err(e) = Self::check_finished(state_c, &id).await {
+            if let Err(e) = Self::check_finished(&state_c, &id).await {
                 error!("Error checking finished {:?}", e);
             }
         });
@@ -430,7 +431,7 @@ impl AppLauncher {
         Ok(AppManagerResponse::None)
     }
 
-    pub async fn on_container_event(state: LauncherState, event: ContainerEvent) {
+    pub async fn on_container_event(state: &LauncherState, event: ContainerEvent) {
         match event {
             ContainerEvent::Focused(previous, next) => {
                 if let Some(p) = &previous {
@@ -484,7 +485,7 @@ impl AppLauncher {
     }
 
     pub async fn pre_launch(
-        state: LauncherState,
+        state: &LauncherState,
         manifest: AppManifest,
         callsign: String,
     ) -> RippleResponse {
@@ -523,7 +524,7 @@ impl AppLauncher {
     }
 
     pub async fn launch(
-        state: LauncherState,
+        state: &LauncherState,
         request: LaunchRequest,
     ) -> Result<AppManagerResponse, AppError> {
         let resp = AppLibrary::get_manifest(&state.config.app_library_state, &request.app_id);
@@ -561,9 +562,7 @@ impl AppLauncher {
                 return Err(AppError::NotSupported);
             };
 
-        if let Err(_) =
-            Self::pre_launch(state.clone(), app_manifest.clone(), callsign.clone()).await
-        {
+        if let Err(_) = Self::pre_launch(&state, app_manifest.clone(), callsign.clone()).await {
             return Err(AppError::IoError);
         }
 
@@ -630,7 +629,7 @@ impl AppLauncher {
             state
                 .app_launcher_state
                 .add_app(request.app_id.clone(), app);
-            match ContainerManager::add(state.clone(), container_props).await {
+            match ContainerManager::add(&state, container_props).await {
                 Ok(_) => return Ok(AppManagerResponse::None),
                 Err(_) => return Err(AppError::IoError),
             }
@@ -641,7 +640,7 @@ impl AppLauncher {
             let launch_time = app.launch_time;
             tokio::spawn(async move {
                 sleep(Duration::from_millis(timeout)).await;
-                let _ = Self::check_ready(state_c, &app_id, launch_time).await;
+                let _ = Self::check_ready(&state_c, &app_id, launch_time).await;
             });
         }
 
@@ -650,7 +649,7 @@ impl AppLauncher {
             .add_app(request.app_id.clone(), app);
         // TODO move logic for permission store to Delegated app launcher
 
-        match ViewManager::acquire_view(state.clone(), launch_params.clone()).await {
+        match ViewManager::acquire_view(&state, launch_params.clone()).await {
             Ok(view_id) => {
                 state
                     .app_launcher_state
@@ -665,7 +664,10 @@ impl AppLauncher {
         }
     }
 
-    pub async fn ready(state: LauncherState, app_id: &str) -> Result<AppManagerResponse, AppError> {
+    pub async fn ready(
+        state: &LauncherState,
+        app_id: &str,
+    ) -> Result<AppManagerResponse, AppError> {
         let entry = state.app_launcher_state.get_app_by_id(app_id);
         match entry {
             Some(app) => match app.state {
@@ -680,7 +682,7 @@ impl AppLauncher {
     }
 
     pub async fn check_ready(
-        state: LauncherState,
+        state: &LauncherState,
         app_id: &str,
         launch_time: u128,
     ) -> Result<AppManagerResponse, AppError> {
@@ -689,7 +691,7 @@ impl AppLauncher {
             Some(app) => {
                 if launch_time == app.launch_time && !app.ready {
                     warn!("check_ready: App={} not ready, unloading", app_id);
-                    Self::close(state.clone(), app_id, CloseReason::AppNotReady)
+                    Self::close(state, app_id, CloseReason::AppNotReady)
                         .await
                         .ok();
                     return Err(AppError::AppNotReady);
@@ -704,7 +706,7 @@ impl AppLauncher {
     }
 
     pub async fn close(
-        state: LauncherState,
+        state: &LauncherState,
         app_id: &str,
         reason: CloseReason,
     ) -> Result<AppManagerResponse, AppError> {
@@ -716,7 +718,7 @@ impl AppLauncher {
                 // content to continue. In the future this may result in the app being "minimized"
                 // in the UI, TBD.
                 // TODO: I'm not positive what we really want to do here, let's discuss.
-                match ContainerManager::send_to_back(state.clone(), app_id.into()).await {
+                match ContainerManager::send_to_back(&state, app_id.into()).await {
                     Ok(_) => Ok(AppManagerResponse::None),
                     Err(_) => Err(AppError::IoError),
                 }
@@ -737,7 +739,7 @@ impl AppLauncher {
     }
 
     pub async fn destroy(
-        state: LauncherState,
+        state: &LauncherState,
         app_id: &str,
     ) -> Result<AppManagerResponse, AppError> {
         debug!("destroy: entry: app_id={}", app_id);
@@ -750,11 +752,11 @@ impl AppLauncher {
         let app = state.app_launcher_state.remove_app(app_id).unwrap();
         let view_id = app.container_props.view_id;
 
-        let resp = ViewManager::release_view(state.clone(), view_id).await;
+        let resp = ViewManager::release_view(&state, view_id).await;
         if let Some(action) = app.on_destroyed_action {
             match action {
                 OnDestroyedAction::Launch(request) => {
-                    Self::launch(state.clone(), request).await.ok();
+                    Self::launch(&state, request).await.ok();
                 }
             }
         }
