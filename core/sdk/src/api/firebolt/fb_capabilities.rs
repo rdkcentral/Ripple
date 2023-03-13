@@ -63,6 +63,14 @@ impl FireboltCap {
 
         None
     }
+
+    pub fn from_vec_string(cap_strings: Vec<String>) -> Vec<FireboltCap> {
+        cap_strings
+            .into_iter()
+            .filter(|x| FireboltCap::parse(x.clone()).is_some())
+            .map(|x| FireboltCap::Full(x.clone()))
+            .collect()
+    }
 }
 
 #[derive(Eq, Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -163,7 +171,7 @@ pub struct CapabilityInfo {
 }
 
 impl CapabilityInfo {
-    fn get(cap: String, reason: Option<DenyReason>) -> CapabilityInfo {
+    pub fn get(cap: String, reason: Option<DenyReason>) -> CapabilityInfo {
         let (mut supported, mut available, mut permitted, mut granted) = (true, true, true, true);
         let mut details = None;
         if let Some(r) = reason.clone() {
@@ -283,4 +291,19 @@ pub struct CapListenRPCRequest {
     pub capability: String,
     pub listen: bool,
     pub role: Option<CapabilityRole>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CapEvent {
+    OnAvailable,
+    OnUnavailable,
+    OnGranted,
+    OnRevoked,
+}
+
+impl CapEvent {
+    pub fn as_str(self) -> String {
+        serde_json::to_string(&self).unwrap()
+    }
 }

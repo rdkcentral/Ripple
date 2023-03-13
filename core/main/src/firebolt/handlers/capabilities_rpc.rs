@@ -1,7 +1,15 @@
-use jsonrpsee::{proc_macros::rpc, core::RpcResult};
-use ripple_sdk::api::{gateway::rpc_gateway_api::CallContext, firebolt::{fb_capabilities::{RoleInfo, CapInfoRpcRequest, CapabilityInfo, CapRequestRpcRequest, CapListenRPCRequest}, fb_general::ListenerResponse}};
-
-use crate::state::platform_state::PlatformState;
+use crate::state::{cap::cap_state::CapState, platform_state::PlatformState};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use ripple_sdk::api::{
+    firebolt::{
+        fb_capabilities::{
+            CapEvent, CapInfoRpcRequest, CapListenRPCRequest, CapabilityInfo, FireboltCap, RoleInfo,
+        },
+        fb_general::ListenerResponse,
+    },
+    gateway::rpc_gateway_api::CallContext,
+};
+use ripple_sdk::async_trait::async_trait;
 
 #[rpc(server)]
 pub trait Capability {
@@ -11,19 +19,11 @@ pub trait Capability {
     async fn available(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool>;
     #[method(name = "capabilities.permitted")]
     async fn permitted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool>;
-    #[method(name = "capabilities.granted")]
-    async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool>;
     #[method(name = "capabilities.info")]
     async fn info(
         &self,
         ctx: CallContext,
         capabilities: CapInfoRpcRequest,
-    ) -> RpcResult<Vec<CapabilityInfo>>;
-    #[method(name = "capabilities.request")]
-    async fn request(
-        &self,
-        ctx: CallContext,
-        grants: CapRequestRpcRequest,
     ) -> RpcResult<Vec<CapabilityInfo>>;
     #[method(name = "capabilities.onAvailable")]
     async fn on_available(
@@ -51,38 +51,101 @@ pub trait Capability {
     ) -> RpcResult<ListenerResponse>;
 }
 
-pub struct CapabilityImpl{
-    state: PlatformState
+pub struct CapabilityImpl {
+    state: PlatformState,
 }
 
-// #[async_trait]
-// impl CapabilityServer for CapabilityImpl {
-//     async fn supported(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
-//         Ok(self.state.cap_state.check_supported(vec![FireboltCap::Full(
-//             cap.capability,
-//         )]).is_ok())
-//     }
+impl CapabilityImpl {
+    pub async fn on_request_cap_event(
+        &self,
+        ctx: CallContext,
+        request: CapListenRPCRequest,
+        event: CapEvent,
+    ) -> RpcResult<ListenerResponse> {
+        let listen = request.listen;
+        CapState::setup_listener(&self.state.clone(), ctx, event.clone(), request).await;
+        Ok(ListenerResponse {
+            listening: listen,
+            event: format!("capabilities.{}", event.as_str()),
+        })
+    }
+}
 
-//     async fn available(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
-//         Ok(self.state.cap_state.check_available(vec![FireboltCap::Full(
-//             cap.capability,
-//         )]).is_ok())
-//     }
+#[async_trait]
+impl CapabilityServer for CapabilityImpl {
+    async fn supported(&self, _ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
+        Ok(self
+            .state
+            .cap_state
+            .generic
+            .check_supported(&vec![FireboltCap::Full(cap.capability)])
+            .is_ok())
+    }
 
-//     async fn permitted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
-//         Ok(self.state.permitted_state.check_cap_role(&ctx.app_id, cap))
-//     }
+    async fn available(&self, _ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
+        Ok(self
+            .state
+            .cap_state
+            .generic
+            .check_available(&vec![FireboltCap::Full(cap.capability)])
+            .is_ok())
+    }
 
-//     async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
-//         // TODO implement along with user grants
-//         Ok(true)
-//     }
+    async fn permitted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
+        Ok(self
+            .state
+            .cap_state
+            .permitted_state
+            .check_cap_role(&ctx.app_id, cap))
+    }
 
-//     async fn info(
-//         &self,
-//         ctx: CallContext,
-//         capabilities: CapInfoRpcRequest,
-//     ) -> RpcResult<Vec<CapabilityInfo>> {
+    async fn info(
+        &self,
+        ctx: CallContext,
+        request: CapInfoRpcRequest,
+    ) -> RpcResult<Vec<CapabilityInfo>> {
+        if let Ok(a) = CapState::get_cap_info(&self.state, ctx, request.capabilities).await {
+            Ok(a)
+        } else {
+            Err(jsonrpsee::core::Error::Custom(String::from(
+                "Error retreiving Capability Info TBD",
+            )))
+        }
+    }
 
-//     }
-// }
+    async fn on_available(
+        &self,
+        ctx: CallContext,
+        cap: CapListenRPCRequest,
+    ) -> RpcResult<ListenerResponse> {
+        self.on_request_cap_event(ctx, cap, CapEvent::OnAvailable)
+            .await
+    }
+
+    async fn on_unavailable(
+        &self,
+        ctx: CallContext,
+        cap: CapListenRPCRequest,
+    ) -> RpcResult<ListenerResponse> {
+        self.on_request_cap_event(ctx, cap, CapEvent::OnUnavailable)
+            .await
+    }
+
+    async fn on_granted(
+        &self,
+        ctx: CallContext,
+        cap: CapListenRPCRequest,
+    ) -> RpcResult<ListenerResponse> {
+        self.on_request_cap_event(ctx, cap, CapEvent::OnGranted)
+            .await
+    }
+
+    async fn on_revoked(
+        &self,
+        ctx: CallContext,
+        cap: CapListenRPCRequest,
+    ) -> RpcResult<ListenerResponse> {
+        self.on_request_cap_event(ctx, cap, CapEvent::OnRevoked)
+            .await
+    }
+}

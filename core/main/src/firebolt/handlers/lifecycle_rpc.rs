@@ -87,7 +87,7 @@ impl LifecycleImpl {
         );
         Ok(ListenerResponse {
             listening: listen,
-            event: event_name,
+            event: event_name.into(),
         })
     }
 }

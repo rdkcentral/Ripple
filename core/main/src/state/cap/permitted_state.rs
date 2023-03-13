@@ -38,7 +38,7 @@ impl PermittedState {
             permitted: Arc::new(RwLock::new(HashMap::new())),
         }
     }
-    
+
     fn ingest(&mut self, extend_perms: HashMap<String, Vec<FireboltPermission>>) {
         {
             self.permitted.write().unwrap().extend(extend_perms.clone());
@@ -57,7 +57,7 @@ impl PermittedState {
         self.permitted.read().unwrap().get(app_id).cloned()
     }
 
-    pub fn check_cap_role(&self, app_id: &str, role_info:RoleInfo) -> bool {
+    pub fn check_cap_role(&self, app_id: &str, role_info: RoleInfo) -> bool {
         if let Some(perms) = self.get_app_permissions(app_id) {
             for perm in perms {
                 return perm.cap.as_str() == role_info.capability && perm.role == role_info.role;
@@ -87,7 +87,7 @@ impl PermissionHandler {
                 if let Some(permission_response) = extn_response.payload.extract() {
                     let mut map = HashMap::new();
                     map.insert(app_id.clone(), permission_response);
-                    let mut permitted_state = state.permitted_state.clone();
+                    let mut permitted_state = state.cap_state.permitted_state.clone();
                     permitted_state.ingest(map);
                 }
             }
@@ -97,18 +97,20 @@ impl PermissionHandler {
     }
 
     pub async fn check_permitted(
-        state: PlatformState,
+        state: &PlatformState,
         app_id: String,
         request: CapabilitySet,
     ) -> Result<(), DenyReasonWithCap> {
-        if let Some(permitted) = state.permitted_state.get_app_permissions(&app_id) {
+        if let Some(permitted) = state.cap_state.permitted_state.get_app_permissions(&app_id) {
             let permission_set: CapabilitySet = permitted.clone().into();
             return permission_set.check(request);
         } else {
             // check to retrieve it one more time
             if let Ok(_) = Self::fetch_and_store(state.clone(), app_id.clone()).await {
                 // cache primed try again
-                if let Some(permitted) = state.permitted_state.get_app_permissions(&app_id) {
+                if let Some(permitted) =
+                    state.cap_state.permitted_state.get_app_permissions(&app_id)
+                {
                     let permission_set: CapabilitySet = permitted.clone().into();
                     return permission_set.check(request);
                 }

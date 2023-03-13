@@ -13,12 +13,17 @@ impl FireboltGatekeeper {
             .get_caps_for_method(request.clone().method)
         {
             // Supported and Availability checks
-            if let Err(e) = state.clone().cap_state.check_all(caps.clone()) {
+            if let Err(e) = state
+                .clone()
+                .cap_state
+                .generic
+                .check_all(&caps.clone().get_caps())
+            {
                 return Err(RippleError::Permission(e.reason));
             } else {
                 // permission checks
                 if let Err(e) = PermissionHandler::check_permitted(
-                    state.clone(),
+                    &state,
                     request.clone().ctx.app_id,
                     caps.clone(),
                 )

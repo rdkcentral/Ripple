@@ -19,11 +19,7 @@ use crate::{
     },
 };
 
-use super::{
-    cap::{cap_state::GenericCapState, permitted_state::PermittedState},
-    openrpc_state::OpenRpcState,
-    session_state::SessionState,
-};
+use super::{cap::cap_state::CapState, openrpc_state::OpenRpcState, session_state::SessionState};
 
 /// Platform state encapsulates the internal state of the Ripple Main application.
 ///
@@ -42,8 +38,7 @@ pub struct PlatformState {
     ripple_client: RippleClient,
     pub app_library_state: AppLibraryState,
     pub session_state: SessionState,
-    pub cap_state: GenericCapState,
-    pub permitted_state: PermittedState,
+    pub cap_state: CapState,
     pub app_events_state: AppEventsState,
     pub provider_broker_state: ProviderBrokerState,
     pub app_manager_state: AppManagerState,
@@ -60,7 +55,7 @@ impl PlatformState {
     ) -> PlatformState {
         Self {
             extn_manifest,
-            cap_state: GenericCapState::default(),
+            cap_state: CapState::new(manifest.clone()),
             session_state: SessionState::default(),
             device_manifest: manifest.clone(),
             ripple_client: client,
@@ -69,7 +64,6 @@ impl PlatformState {
             provider_broker_state: ProviderBrokerState::default(),
             app_manager_state: AppManagerState::default(),
             open_rpc_state: OpenRpcState::new(manifest.clone().configuration.exclusory),
-            permitted_state: PermittedState::new(manifest.clone()),
             router_state: RouterState::new(),
         }
     }

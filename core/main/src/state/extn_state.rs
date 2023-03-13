@@ -4,7 +4,10 @@ use std::{
 };
 
 use ripple_sdk::{
-    api::{manifest::extn_manifest::ExtnResolutionEntry, status_update::ExtnStatus},
+    api::{
+        manifest::extn_manifest::{ExtnManifest, ExtnResolutionEntry},
+        status_update::ExtnStatus,
+    },
     crossbeam::channel::{Receiver as CReceiver, Sender as CSender},
     extn::{
         client::extn_sender::ExtnSender,
@@ -57,6 +60,7 @@ impl LoadedLibrary {
 #[derive(Debug, Clone)]
 pub struct ExtnState {
     sender: CSender<CExtnMessage>,
+    pub permission_map: HashMap<String, Vec<String>>,
     pub loaded_libraries: Arc<RwLock<Vec<LoadedLibrary>>>,
     pub device_channel: Arc<RwLock<Option<Box<DeviceChannel>>>>,
     pub launcher_channel: Arc<RwLock<Option<Box<ExtnChannel>>>>,
@@ -68,9 +72,10 @@ pub struct ExtnState {
 }
 
 impl ExtnState {
-    pub fn new(channels_state: ChannelsState) -> ExtnState {
+    pub fn new(channels_state: ChannelsState, manifest: ExtnManifest) -> ExtnState {
         ExtnState {
             sender: channels_state.get_extn_sender(),
+            permission_map: manifest.get_extn_permissions(),
             loaded_libraries: Arc::new(RwLock::new(Vec::new())),
             device_channel: Arc::new(RwLock::new(None)),
             launcher_channel: Arc::new(RwLock::new(None)),
@@ -101,7 +106,11 @@ impl ExtnState {
         client: RippleClient,
     ) -> Result<(), RippleError> {
         let sender = self.clone().get_sender();
-        let extn_sender = ExtnSender::new(sender, capability.clone());
+        let mut permissions = Vec::new();
+        if let Some(perms) = self.permission_map.get(&capability.to_string()).cloned() {
+            permissions.extend(perms);
+        }
+        let extn_sender = ExtnSender::new(sender, capability.clone(), permissions);
         let (extn_tx, extn_rx) = channel;
 
         if capability.is_device_channel() {

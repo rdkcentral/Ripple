@@ -48,7 +48,7 @@ pub struct RippleClient {
 impl RippleClient {
     pub fn new(state: ChannelsState) -> RippleClient {
         let capability = ExtnCapability::get_main_target("main".into());
-        let extn_sender = ExtnSender::new(state.get_extn_sender(), capability);
+        let extn_sender = ExtnSender::new(state.get_extn_sender(), capability, Vec::new());
         let extn_client = ExtnClient::new(state.get_extn_receiver(), extn_sender);
         RippleClient {
             gateway_sender: state.get_gateway_sender(),

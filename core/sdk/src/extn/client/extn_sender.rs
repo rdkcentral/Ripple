@@ -25,6 +25,7 @@ use crate::{
 pub struct ExtnSender {
     tx: CSender<CExtnMessage>,
     cap: ExtnCapability,
+    permissions: Vec<String>,
 }
 
 impl ExtnSender {
@@ -32,8 +33,12 @@ impl ExtnSender {
         self.cap.clone()
     }
 
-    pub fn new(tx: CSender<CExtnMessage>, cap: ExtnCapability) -> Self {
-        ExtnSender { tx, cap }
+    pub fn new(tx: CSender<CExtnMessage>, cap: ExtnCapability, permissions: Vec<String>) -> Self {
+        ExtnSender {
+            tx,
+            cap,
+            permissions,
+        }
     }
 
     pub fn send_request(
@@ -43,6 +48,13 @@ impl ExtnSender {
         other_sender: Option<CSender<CExtnMessage>>,
         callback: Option<CSender<CExtnMessage>>,
     ) -> Result<(), RippleError> {
+        // Extns can only send request to which it has permissions through Extn manifest
+        if !self
+            .permissions
+            .contains(&payload.get_capability().to_string())
+        {
+            return Err(RippleError::InvalidAccess);
+        }
         let p = payload.get_extn_payload();
         let c_request = p.into();
         let msg = CExtnMessage {

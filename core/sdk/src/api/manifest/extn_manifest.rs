@@ -1,4 +1,4 @@
-use std::{fs, path::Path};
+use std::{collections::HashMap, fs, path::Path};
 
 use log::{info, warn};
 use serde::Deserialize;
@@ -62,6 +62,15 @@ impl ExtnEntry {
 
         path
     }
+
+    pub fn get_symbol(&self, capability: ExtnCapability) -> Option<ExtnSymbol> {
+        let ref_cap = capability.to_string();
+        self.symbols
+            .clone()
+            .into_iter()
+            .find(|x| x.capability.eq(&ref_cap))
+            .clone()
+    }
 }
 
 impl ExtnManifest {
@@ -94,5 +103,17 @@ impl ExtnManifest {
             }
         }
         return None;
+    }
+
+    pub fn get_extn_permissions(&self) -> HashMap<String, Vec<String>> {
+        let mut map = HashMap::new();
+        self.extns.clone().into_iter().for_each(|x| {
+            x.symbols.into_iter().for_each(|y| {
+                if let Ok(cap) = ExtnCapability::try_from(y.capability) {
+                    map.insert(cap.to_string(), y.permissions.clone());
+                }
+            })
+        });
+        map
     }
 }
