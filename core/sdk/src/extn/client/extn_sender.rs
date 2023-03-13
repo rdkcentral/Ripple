@@ -41,6 +41,14 @@ impl ExtnSender {
         }
     }
 
+    fn check_permissions(&self, capabilty: ExtnCapability) -> bool {
+        if self.cap.is_main() {
+            true
+        } else {
+            self.permissions.contains(&capabilty.to_string())
+        }
+    }
+
     pub fn send_request(
         &self,
         id: String,
@@ -49,10 +57,7 @@ impl ExtnSender {
         callback: Option<CSender<CExtnMessage>>,
     ) -> Result<(), RippleError> {
         // Extns can only send request to which it has permissions through Extn manifest
-        if !self
-            .permissions
-            .contains(&payload.get_capability().to_string())
-        {
+        if !self.check_permissions(payload.get_capability()) {
             return Err(RippleError::InvalidAccess);
         }
         let p = payload.get_extn_payload();

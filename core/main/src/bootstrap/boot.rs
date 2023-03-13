@@ -29,8 +29,10 @@ use super::{
 /// 3. [LoadExtensionsStep] - Loads the Extensions in to [crate::state::extn_state::ExtnState]
 /// 4. [StartDeviceChannel] - Starts the Device channel extension
 /// 5. [StartAppManagerStep] - Starts the App Manager and other supporting services
-/// 6. [StartWsStep] - Starts the Websocket to accept external and internal connections
-/// 7. [FireboltGatewayStep] - Starts the firebolt gateway and blocks the thread to keep it alive till interruption.
+/// 6. [StartDistributorChannel] - Starts the Distributor channel
+/// 7. [LoadDistributorValuesStep] - Loads the values from distributor like Session
+/// 8. [StartWsStep] - Starts the Websocket to accept external and internal connections
+/// 9. [FireboltGatewayStep] - Starts the firebolt gateway and blocks the thread to keep it alive till interruption.
 ///
 pub async fn boot(state: BootstrapState) {
     let bootstrap = &Bootstrap::new(state);
@@ -65,12 +67,5 @@ pub async fn boot(state: BootstrapState) {
         .step(FireboltGatewayStep)
         .await
         .expect("Firebolt Gateway failure");
-    // -- capability Manager
-    // -- App event manager
     // -- User grant manager
-    // -- permissions manager
-    // -- app manager
-    // Start Launcher
-    // Start Dpab
-    // Start Launcher
 }

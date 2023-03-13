@@ -194,6 +194,23 @@ impl ExtnCapability {
         }
     }
 
+    /// Checks if the given capability is in the main application.
+    /// # Examples
+    /// ```
+    /// use ripple_sdk::extn::extn_capability::{ExtnCapability,ExtnClass};
+    ///
+    /// let main = ExtnCapability::get_main_target( "info".into());
+    /// assert!(main.is_main());
+    /// ```
+    pub fn is_main(&self) -> bool {
+        if let ExtnType::Channel = self._type {
+            if let ExtnClass::Device = self.class {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Checks if the given capability is a device channel.
     /// # Examples
     /// ```
