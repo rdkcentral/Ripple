@@ -13,7 +13,7 @@ use ripple_sdk::{
         manifest::device_manifest::DeviceManifest,
     },
     framework::{file_store::FileStore, RippleResponse},
-    log::error,
+    log::{warn},
 };
 
 use crate::state::platform_state::PlatformState;
@@ -45,7 +45,7 @@ impl PermittedState {
         }
         let new_value = self.get_all_permissions();
         if let Err(e) = self.store.update(new_value) {
-            error!("Error during update to local file store {:?}", e);
+            warn!("Error during update to local file store {:?}", e);
         }
     }
 
