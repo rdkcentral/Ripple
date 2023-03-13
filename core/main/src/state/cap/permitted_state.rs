@@ -13,7 +13,7 @@ use ripple_sdk::{
         manifest::device_manifest::DeviceManifest,
     },
     framework::{file_store::FileStore, RippleResponse},
-    log::{warn},
+    log::warn,
 };
 
 use crate::state::platform_state::PlatformState;

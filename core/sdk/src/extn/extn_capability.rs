@@ -203,8 +203,8 @@ impl ExtnCapability {
     /// assert!(main.is_main());
     /// ```
     pub fn is_main(&self) -> bool {
-        if let ExtnType::Channel = self._type {
-            if let ExtnClass::Device = self.class {
+        if let ExtnType::Main = self._type {
+            if let ExtnClass::Internal = self.class {
                 return true;
             }
         }
