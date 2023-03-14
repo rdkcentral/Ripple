@@ -10,7 +10,8 @@ use crate::{
         config::{Config, ConfigResponse},
         device::device_request::DeviceRequest,
         distributor::{
-            distributor_permissions::{PermissionRequest, AppPermissionsResponse}, distributor_request::DistributorRequest,
+            distributor_permissions::{AppPermissionsResponse, PermissionRequest},
+            distributor_request::DistributorRequest,
             distributor_session::DistributorSession,
         },
         firebolt::fb_lifecycle_management::LifecycleManagementRequest,
@@ -201,7 +202,7 @@ pub enum ExtnResponse {
     Error(RippleError),
     Config(ConfigResponse),
     Session(DistributorSession),
-    Permission(AppPermissionsResponse)
+    Permission(AppPermissionsResponse),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {

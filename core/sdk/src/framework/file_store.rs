@@ -4,7 +4,6 @@ use std::fs::{self};
 
 use crate::utils::error::RippleError;
 
-
 #[derive(Debug, Clone)]
 pub struct FileStore<S> {
     pub value: S,

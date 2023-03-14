@@ -13,7 +13,7 @@ use ripple_sdk::{
         manifest::device_manifest::DeviceManifest,
     },
     framework::{file_store::FileStore, RippleResponse},
-    log::{info},
+    log::info,
 };
 
 use crate::state::platform_state::PlatformState;
@@ -48,16 +48,16 @@ impl PermittedState {
     }
 
     pub fn check_cap_role(&self, app_id: &str, role_info: RoleInfo) -> bool {
-        if let Some(perms) =  self.get_all_permissions().get(app_id) {
+        if let Some(perms) = self.get_all_permissions().get(app_id) {
             for perm in perms {
                 return perm.cap.as_str() == role_info.capability && perm.role == role_info.role;
             }
         }
-    false
+        false
     }
 
     pub fn get_app_permissions(&self, app_id: &str) -> Option<Vec<FireboltPermission>> {
-        if let Some(perms) =  self.get_all_permissions().get(app_id) {
+        if let Some(perms) = self.get_all_permissions().get(app_id) {
             return Some(perms.clone());
         }
         None

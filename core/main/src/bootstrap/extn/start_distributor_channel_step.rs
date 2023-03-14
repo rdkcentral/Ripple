@@ -1,9 +1,7 @@
 use ripple_sdk::{
     api::status_update::ExtnStatus,
     async_trait::async_trait,
-    extn::{
-        client::wait_for_service_processor::WaitForStatusReadyEventProcessor
-    },
+    extn::client::wait_for_service_processor::WaitForStatusReadyEventProcessor,
     framework::bootstrap::Bootstep,
     log::{debug, error},
     tokio::sync::mpsc::channel,
@@ -25,7 +23,8 @@ impl Bootstep<BootstrapState> for StartDistributorChannel {
     async fn setup(&self, mut state: BootstrapState) -> Result<(), RippleError> {
         let extn_capability = state
             .platform_state
-            .get_distributor_capability().expect("distributor capability");
+            .get_distributor_capability()
+            .expect("distributor capability");
         let client = state.platform_state.get_client();
         if let Err(e) = state.extn_state.start(
             extn_capability.clone(),

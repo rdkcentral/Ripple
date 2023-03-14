@@ -83,10 +83,7 @@ impl ExtnRequestProcessor for DistributorPermissionProcessor {
             if let Err(e) = state
                 .client
                 .clone()
-                .respond(
-                    msg,
-                    ExtnResponse::Permission(v.clone()),
-                )
+                .respond(msg, ExtnResponse::Permission(v.clone()))
                 .await
             {
                 error!("Error sending back response {:?}", e);
