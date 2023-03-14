@@ -21,6 +21,3 @@ impl ToString for DevicePlatformType {
     }
 }
 
-pub mod thunder {
-    pub mod thunder_operator;
-}

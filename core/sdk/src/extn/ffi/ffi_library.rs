@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
 use crate::{
-    api::device::thunder::thunder_operator::ThunderRequest,
     extn::extn_capability::ExtnCapability,
     extn::{client::extn_sender::ExtnSender, ffi::ffi_message::CExtnMessage},
     utils::error::RippleError,
@@ -12,7 +11,6 @@ use libloading::{Library, Symbol};
 use log::{debug, error, info};
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 #[repr(C)]
 #[derive(Debug, Clone)]
@@ -195,22 +193,3 @@ pub unsafe fn load_jsonrpsee_methods(lib: &Library) -> Option<Box<JsonRpseeExtnB
     None
 }
 
-#[repr(C)]
-#[derive(Debug)]
-pub struct CThunderRequest {
-    request: Value,
-}
-
-impl From<ThunderRequest> for CThunderRequest {
-    fn from(request: ThunderRequest) -> Self {
-        Self {
-            request: serde_json::to_value(request).unwrap(),
-        }
-    }
-}
-
-impl Into<ThunderRequest> for CThunderRequest {
-    fn into(self) -> ThunderRequest {
-        serde_json::from_value(self.request).unwrap()
-    }
-}
