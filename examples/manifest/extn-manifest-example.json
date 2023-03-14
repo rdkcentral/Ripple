@@ -23,6 +23,28 @@
                     ]
                 }
             ]
+        },
+        {
+            "path": "librpc_extn",
+            "symbols": [
+                {
+                    "capability": "ripple:extn:jsonrpsee:hdcp",
+                    "permissions": [
+                        "ripple:main:internal:config"
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "libthunder_extn",
+            "symbols": [
+                {
+                    "capability": "ripple:extn:device:other",
+                    "permissions": [
+                        "ripple:main:internal:config"
+                    ]
+                }
+            ]
         }
     ]
 }
