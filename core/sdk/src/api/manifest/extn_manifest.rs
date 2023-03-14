@@ -44,6 +44,15 @@ impl ExtnSymbol {
         }
         None
     }
+
+    fn get_distributor_capability(&self) -> Option<ExtnCapability> {
+        if let Ok(cap) = ExtnCapability::try_from(self.capability.clone()) {
+            if cap.is_distributor_channel() {
+                return Some(cap);
+            }
+        }
+        None
+    }
 }
 
 impl ExtnEntry {
@@ -98,6 +107,17 @@ impl ExtnManifest {
         for extn in self.extns.clone() {
             for symbol in extn.symbols {
                 if let Some(cap) = symbol.get_launcher_capability() {
+                    return Some(cap);
+                }
+            }
+        }
+        return None;
+    }
+
+    pub fn get_distributor_capability(&self) -> Option<ExtnCapability> {
+        for extn in self.extns.clone() {
+            for symbol in extn.symbols {
+                if let Some(cap) = symbol.get_distributor_capability() {
                     return Some(cap);
                 }
             }

@@ -2,8 +2,7 @@ use ripple_sdk::{
     api::status_update::ExtnStatus,
     async_trait::async_trait,
     extn::{
-        client::wait_for_service_processor::WaitForStatusReadyEventProcessor,
-        extn_capability::{ExtnCapability, ExtnClass},
+        client::wait_for_service_processor::WaitForStatusReadyEventProcessor
     },
     framework::bootstrap::Bootstep,
     log::{debug, error},
@@ -21,22 +20,19 @@ pub struct StartDistributorChannel;
 #[async_trait]
 impl Bootstep<BootstrapState> for StartDistributorChannel {
     fn get_name(&self) -> String {
-        "StartDeviceChannel".into()
+        "StartDistributorChannel".into()
     }
     async fn setup(&self, mut state: BootstrapState) -> Result<(), RippleError> {
-        let platform = state
+        let extn_capability = state
             .platform_state
-            .get_device_manifest()
-            .get_device_platform();
-        let extn_capability =
-            ExtnCapability::new_channel(ExtnClass::Distributor, platform.to_string());
+            .get_distributor_capability().expect("distributor capability");
         let client = state.platform_state.get_client();
         if let Err(e) = state.extn_state.start(
             extn_capability.clone(),
             ChannelsState::get_crossbeam_channel(),
             client,
         ) {
-            error!("Error during Device channel bootstrap");
+            error!("Error during distributor channel bootstrap");
             return Err(e);
         }
         let (tx, mut tr) = channel::<ExtnStatus>(1);

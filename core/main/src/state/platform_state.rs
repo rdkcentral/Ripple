@@ -76,6 +76,10 @@ impl PlatformState {
         self.extn_manifest.get_launcher_capability()
     }
 
+    pub fn get_distributor_capability(&self) -> Option<ExtnCapability> {
+        self.extn_manifest.get_distributor_capability()
+    }
+
     pub fn get_manifest(&self) -> ExtnManifest {
         self.extn_manifest.clone()
     }

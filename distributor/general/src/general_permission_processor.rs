@@ -85,7 +85,7 @@ impl ExtnRequestProcessor for DistributorPermissionProcessor {
                 .clone()
                 .respond(
                     msg,
-                    ExtnResponse::Value(serde_json::to_value(v.clone()).unwrap()),
+                    ExtnResponse::Permission(v.clone()),
                 )
                 .await
             {

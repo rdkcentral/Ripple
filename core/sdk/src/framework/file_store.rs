@@ -1,10 +1,9 @@
-use log::{error, info, warn};
+use log::{info, warn};
 use serde::{de::DeserializeOwned, Serialize};
 use std::fs::{self};
 
 use crate::utils::error::RippleError;
 
-use super::RippleResponse;
 
 #[derive(Debug, Clone)]
 pub struct FileStore<S> {
@@ -16,29 +15,19 @@ impl<S> FileStore<S>
 where
     S: Serialize + DeserializeOwned + Clone,
 {
-    pub fn new(path: String, value: S) -> Result<FileStore<S>, RippleError> {
-        let mut file_cache = FileStore {
+    pub fn new(path: String, value: S) -> FileStore<S> {
+        FileStore {
             value: value.clone(),
             path,
-        };
-        if let Err(e) = file_cache.update(value) {
-            return Err(e);
         }
-        Ok(file_cache)
     }
 
-    pub fn update(&mut self, new_value: S) -> RippleResponse {
-        if let Ok(json) = serde_json::to_string(&new_value) {
-            if let Err(_) = fs::write(self.path.clone(), json) {
-                error!("Failed to file store for {}", self.path);
-                return Err(RippleError::InvalidAccess);
-            }
-            self.value = new_value;
-        } else {
-            error!("Failed to serialize app permissions for {}", self.path);
-            return Err(RippleError::ParseError);
+    pub fn update(&mut self, new_value: S) {
+        let new_value_string = serde_json::to_string(&new_value).unwrap();
+        if let Err(_) = fs::write(self.path.clone(), new_value_string) {
+            warn!("Failed to file store for {}", self.path);
         }
-        Ok(())
+        self.value = new_value;
     }
 
     fn load_from_content(contents: String) -> Result<S, RippleError> {
