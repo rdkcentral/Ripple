@@ -192,4 +192,3 @@ pub unsafe fn load_jsonrpsee_methods(lib: &Library) -> Option<Box<JsonRpseeExtnB
     }
     None
 }
-
