@@ -34,7 +34,7 @@ impl ExtnPayloadProvider for PermissionRequest {
     }
 
     fn cap() -> ExtnCapability {
-        ExtnCapability::new_extn(ExtnClass::Distributor, "permissions".into())
+        ExtnCapability::new_channel(ExtnClass::Distributor, "permissions".into())
     }
 }
 

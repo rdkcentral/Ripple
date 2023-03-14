@@ -39,7 +39,7 @@ pub struct CapState {
 impl CapState {
     pub fn new(manifest: DeviceManifest) -> Self {
         CapState {
-            generic: GenericCapState::default(),
+            generic: GenericCapState::new(manifest.clone()),
             permitted_state: PermittedState::new(manifest),
             primed_listeners: Arc::new(RwLock::new(HashSet::new())),
         }

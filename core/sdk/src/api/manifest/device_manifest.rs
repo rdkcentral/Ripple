@@ -3,7 +3,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::HashMap, fs};
 
-use crate::{api::device::DevicePlatformType, utils::error::RippleError};
+use crate::{
+    api::{device::DevicePlatformType, firebolt::fb_capabilities::FireboltCap},
+    utils::error::RippleError,
+};
 
 use super::{apps::AppManifest, exclusory::ExclusoryImpl};
 
@@ -405,5 +408,9 @@ impl DeviceManifest {
             min_available_mem_kb: self.lifecycle.min_available_memory_kb,
             always_retained: self.lifecycle.prioritized.clone(),
         }
+    }
+
+    pub fn get_supported_caps(&self) -> Vec<FireboltCap> {
+        FireboltCap::from_vec_string(self.clone().capabilities.supported)
     }
 }

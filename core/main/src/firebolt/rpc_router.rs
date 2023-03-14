@@ -41,7 +41,7 @@ impl RouterState {
 
     pub fn update_methods(&self, methods: Methods) {
         let mut methods_state = self.methods.write().unwrap();
-        let _ = methods_state.merge(methods);
+        let _ = methods_state.merge(methods.initialize_resources(&self.resources).unwrap());
     }
 
     fn get_methods(&self) -> Methods {
@@ -84,7 +84,8 @@ async fn resolve_route(
                     };
                     method_executors.push(fut);
                 }
-                Err(_) => {
+                Err(e) => {
+                    error!("{:?}", e);
                     sink.send_error(id, ErrorCode::MethodNotFound.into());
                 }
             },
@@ -108,7 +109,7 @@ impl RpcRouter {
         tokio::spawn(async move {
             let session_id = req.ctx.session_id.clone();
             if let Ok(msg) = resolve_route(methods, resources, req).await {
-                trace!("sending back to {}", session_id);
+                trace!("sending back to {} {}", session_id, msg.jsonrpc_msg);
                 if let Err(e) = session.send(msg).await {
                     error!("Error while responding back message {:?}", e)
                 }
@@ -121,6 +122,7 @@ impl RpcRouter {
             // The caller of this function already checks this adding it here none the less.
             error!("No valid callbacks")
         }
+
         let callback = extn_msg.clone().callback.unwrap();
         let methods = state.get_methods();
         let resources = state.resources.clone();

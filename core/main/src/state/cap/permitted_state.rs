@@ -13,7 +13,7 @@ use ripple_sdk::{
         manifest::device_manifest::DeviceManifest,
     },
     framework::{file_store::FileStore, RippleResponse},
-    log::warn,
+    log::{info, warn},
 };
 
 use crate::state::platform_state::PlatformState;
@@ -21,16 +21,24 @@ use crate::state::platform_state::PlatformState;
 #[derive(Debug, Clone)]
 pub struct PermittedState {
     permitted: Arc<RwLock<HashMap<String, Vec<FireboltPermission>>>>,
-    store: FileStore<HashMap<String, Vec<FireboltPermission>>>,
+    store: Option<FileStore<HashMap<String, Vec<FireboltPermission>>>>,
 }
 
 impl PermittedState {
     pub fn new(manifest: DeviceManifest) -> PermittedState {
         let path = get_permissions_path(manifest.configuration.saved_dir);
         let store = if let Ok(v) = FileStore::load(path.clone()) {
-            v
+            Some(v)
         } else {
-            FileStore::new(path, HashMap::new()).expect("Needs permission for state")
+            if let Ok(f) = FileStore::new(path.clone(), HashMap::new()) {
+                Some(f)
+            } else {
+                warn!(
+                    "Filestore not permitted by device platform for the path {}",
+                    path
+                );
+                None
+            }
         };
 
         PermittedState {
@@ -39,14 +47,25 @@ impl PermittedState {
         }
     }
 
+    fn store(&mut self, data: HashMap<String, Vec<FireboltPermission>>) {
+        if self.store.is_some() {
+            let mut new_value = self.store.take().unwrap();
+            if let Ok(_) = new_value.update(data) {
+                let _ = self.store.insert(new_value);
+            } else {
+                warn!("Failed writing to file");
+            }
+        } else {
+            warn!("File Store not available");
+        }
+    }
+
     fn ingest(&mut self, extend_perms: HashMap<String, Vec<FireboltPermission>>) {
         {
             self.permitted.write().unwrap().extend(extend_perms.clone());
         }
         let new_value = self.get_all_permissions();
-        if let Err(e) = self.store.update(new_value) {
-            warn!("Error during update to local file store {:?}", e);
-        }
+        self.store(new_value);
     }
 
     fn get_all_permissions(&self) -> HashMap<String, Vec<FireboltPermission>> {
@@ -89,6 +108,7 @@ impl PermissionHandler {
                     map.insert(app_id.clone(), permission_response);
                     let mut permitted_state = state.cap_state.permitted_state.clone();
                     permitted_state.ingest(map);
+                    info!("Permissions fetched for {}", app_id);
                 }
             }
         }

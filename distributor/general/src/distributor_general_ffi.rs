@@ -1,4 +1,5 @@
 use ripple_sdk::{
+    api::status_update::ExtnStatus,
     crossbeam::channel::Receiver as CReceiver,
     export_distributor_channel, export_extn_metadata,
     extn::{
@@ -45,6 +46,8 @@ pub fn start(sender: ExtnSender, receiver: CReceiver<CExtnMessage>, _: Vec<Distr
     runtime.block_on(async move {
         client.add_request_processor(DistributorSessionProcessor::new(client.clone()));
         client.add_request_processor(DistributorPermissionProcessor::new(client.clone()));
+        // Lets Main know that the distributor channel is ready
+        let _ = client.event(ExtnStatus::Ready).await;
         client.initialize().await;
     });
 }

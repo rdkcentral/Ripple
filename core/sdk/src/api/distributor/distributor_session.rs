@@ -36,7 +36,7 @@ impl ExtnPayloadProvider for DistributorSessionRequest {
     }
 
     fn cap() -> ExtnCapability {
-        ExtnCapability::new_extn(ExtnClass::Distributor, "session".into())
+        ExtnCapability::new_channel(ExtnClass::Distributor, "session".into())
     }
 }
 

@@ -40,6 +40,7 @@ impl Bootstep<BootstrapState> for FireboltGatewayStep {
 
     async fn setup(&self, state: BootstrapState) -> Result<(), RippleError> {
         let methods = self.init_handlers(state.platform_state.clone(), None).await;
+
         let gateway = FireboltGateway::new(state.clone(), methods);
         // Main can now recieve RPC requests
         state

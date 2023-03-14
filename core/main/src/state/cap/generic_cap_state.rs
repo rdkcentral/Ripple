@@ -3,7 +3,10 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use ripple_sdk::api::firebolt::fb_capabilities::{DenyReason, DenyReasonWithCap, FireboltCap};
+use ripple_sdk::api::{
+    firebolt::fb_capabilities::{DenyReason, DenyReasonWithCap, FireboltCap},
+    manifest::device_manifest::DeviceManifest,
+};
 
 #[derive(Clone, Debug, Default)]
 pub struct GenericCapState {
@@ -13,6 +16,12 @@ pub struct GenericCapState {
 }
 
 impl GenericCapState {
+    pub fn new(manifest: DeviceManifest) -> GenericCapState {
+        let cap_state = GenericCapState::default();
+        cap_state.ingest_supported(manifest.get_supported_caps());
+        cap_state
+    }
+
     pub fn ingest_supported(&self, request: Vec<FireboltCap>) {
         let mut supported = self.supported.write().unwrap();
         supported.extend(

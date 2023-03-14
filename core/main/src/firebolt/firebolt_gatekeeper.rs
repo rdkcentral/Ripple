@@ -1,4 +1,6 @@
-use ripple_sdk::{api::gateway::rpc_gateway_api::RpcRequest, utils::error::RippleError};
+use ripple_sdk::api::{
+    firebolt::fb_capabilities::DenyReasonWithCap, gateway::rpc_gateway_api::RpcRequest,
+};
 
 use crate::state::{cap::permitted_state::PermissionHandler, platform_state::PlatformState};
 
@@ -6,7 +8,7 @@ pub struct FireboltGatekeeper {}
 
 impl FireboltGatekeeper {
     // TODO return Deny Reason into ripple error
-    pub async fn gate(state: PlatformState, request: RpcRequest) -> Result<(), RippleError> {
+    pub async fn gate(state: PlatformState, request: RpcRequest) -> Result<(), DenyReasonWithCap> {
         if let Some(caps) = state
             .clone()
             .open_rpc_state
@@ -19,7 +21,7 @@ impl FireboltGatekeeper {
                 .generic
                 .check_all(&caps.clone().get_caps())
             {
-                return Err(RippleError::Permission(e.reason));
+                return Err(e);
             } else {
                 // permission checks
                 if let Err(e) = PermissionHandler::check_permitted(
@@ -29,7 +31,7 @@ impl FireboltGatekeeper {
                 )
                 .await
                 {
-                    return Err(RippleError::Permission(e.reason));
+                    return Err(e);
                 }
             }
         }

@@ -1,12 +1,24 @@
 {
     "refui" : [
         "xrn:firebolt:capability:input:keyboard[provide]",
-        "xrn:firebolt:capability:usergrant:pinchallenge[provide]"
+        "xrn:firebolt:capability:usergrant:pinchallenge[provide]",
+        "xrn:firebolt:capability:lifecycle:ready",
+        "xrn:firebolt:capability:lifecycle:initialize",
+        "xrn:firebolt:capability:lifecycle:state",
+        "xrn:firebolt:capability:device:info",
+        "xrn:firebolt:capability:device:make",
+        "xrn:firebolt:capability:device:model"
     ],
     "comcast_firebolt_reference" : [
-        "xrn:firebolt:capability:input:keyboard"
+        "xrn:firebolt:capability:input:keyboard",
+        "xrn:firebolt:capability:device:info",
+        "xrn:firebolt:capability:device:make",
+        "xrn:firebolt:capability:device:model"
     ],
     "test" : [
-        "xrn:firebolt:capability:input:keyboard"
+        "xrn:firebolt:capability:input:keyboard",
+        "xrn:firebolt:capability:device:info",
+        "xrn:firebolt:capability:device:make",
+        "xrn:firebolt:capability:device:model"
     ]
 }

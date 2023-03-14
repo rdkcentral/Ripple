@@ -1,10 +1,15 @@
-use jsonrpsee::core::server::rpc_module::Methods;
+use jsonrpsee::{core::server::rpc_module::Methods, types::TwoPointZero};
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{ApiProtocol, RpcRequest},
+    api::gateway::{
+        rpc_error::RpcError,
+        rpc_gateway_api::{ApiMessage, ApiProtocol, RpcRequest},
+    },
     extn::extn_client_message::ExtnMessage,
     log::{error, info},
+    serde_json::{self, Value},
     tokio,
 };
+use serde::Serialize;
 
 use crate::{
     firebolt::firebolt_gatekeeper::FireboltGatekeeper,
@@ -14,6 +19,22 @@ use crate::{
 use super::rpc_router::RpcRouter;
 pub struct FireboltGateway {
     state: BootstrapState,
+}
+
+#[derive(Serialize)]
+pub struct JsonRpcMessage {
+    pub jsonrpc: TwoPointZero,
+    pub id: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<JsonRpcError>,
+}
+
+#[derive(Serialize)]
+pub struct JsonRpcError {
+    pub code: i32,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -35,6 +56,9 @@ pub enum FireboltGatewayCommand {
 
 impl FireboltGateway {
     pub fn new(state: BootstrapState, methods: Methods) -> FireboltGateway {
+        for method in methods.method_names() {
+            info!("Adding RPC method {}", method);
+        }
         state.platform_state.router_state.update_methods(methods);
         FireboltGateway { state }
     }
@@ -128,7 +152,7 @@ impl FireboltGateway {
                         _ => {
                             let session =
                                 platform_state.clone().session_state.get_sender(session_id);
-                            // session is already precheched before gating so it is safe to unwrap
+                            // session is already prechecked before gating so it is safe to unwrap
                             RpcRouter::route(
                                 router_state.clone(),
                                 request.clone(),
@@ -139,8 +163,29 @@ impl FireboltGateway {
                     }
                 }
                 Err(e) => {
+                    let deny_reason = e.reason;
                     // return error for Api message
-                    error!("Failed gateway present error {:?}", e);
+                    error!("Failed gateway present error {:?}", deny_reason);
+                    let caps = e.caps.iter().map(|x| x.as_str()).collect();
+                    let err = JsonRpcMessage {
+                        jsonrpc: TwoPointZero {},
+                        id: request.ctx.call_id,
+                        error: Some(JsonRpcError {
+                            code: deny_reason.get_rpc_error_code(),
+                            message: deny_reason.get_rpc_error_message(caps),
+                            data: None,
+                        }),
+                    };
+                    let msg = serde_json::to_string(&err).unwrap();
+                    let api_msg =
+                        ApiMessage::new(request.ctx.protocol, msg, request.ctx.request_id);
+                    if let Some(session) =
+                        platform_state.clone().session_state.get_sender(session_id)
+                    {
+                        if let Err(e) = session.send(api_msg).await {
+                            error!("Error while responding back message {:?}", e)
+                        }
+                    }
                 }
             }
         });
