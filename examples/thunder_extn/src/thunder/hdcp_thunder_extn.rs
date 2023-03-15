@@ -2,17 +2,17 @@ use std::{collections::HashMap, str::ParseBoolError};
 
 use ripple_sdk::{
     api::{
-        device::thunder::thunder_operator::{ThunderCallRequest, ThunderRequest},
+        api::device::device_operator::DeviceCallRequest,
         firebolt::fb_hdcp::HdcpProfile,
     },
     export_thunder_extn_builder,
-    extn::ffi::ffi_library::{CThunderRequest, ThunderExtn, ThunderExtnBuilder},
+    extn::ffi::ffi_library::{CDeviceRequest, DeviceExtn, ThunderExtnBuilder},
     utils::{error::RippleError, logger::init_logger},
 };
 use serde_json::Value;
 
-pub fn get_request(_: Value) -> CThunderRequest {
-    ThunderRequest::Call(ThunderCallRequest {
+pub fn get_request(_: Value) -> CDeviceRequest {
+    ThunderRequest::Call(DeviceCallRequest {
         method: "org.rdk.HdcpProfile.1.getSettopHDCPSupport".into(),
         params: None,
     })
@@ -36,9 +36,9 @@ pub fn process(response: Value) -> Result<Value, RippleError> {
     Err(RippleError::ParseError)
 }
 
-pub fn get_thunder_extn(cap_str: &'static str) -> Option<ThunderExtn> {
+pub fn get_thunder_extn(cap_str: &'static str) -> Option<DeviceExtn> {
     let _ = init_logger(format!("device_extn_{}", cap_str.clone()));
-    Some(ThunderExtn {
+    Some(DeviceExtn {
         service: "hdcp-support".into(),
         get_request: get_request,
         process: process,
