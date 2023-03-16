@@ -152,3 +152,6 @@ Reusable code like `ThunderClient`, `ThunderPool` and `ThunderState` bootstrap l
 
 ### Launcher will stop calling app launch on start
 Launcher will be started along with other deferred `Channels` after the Device `ExtnChannel` is started up. Current code of launcher will be updated to not start the launching of the app on startup and it will rather wait for an event from `Main` to start the launch process.
+
+Applying all the above changes Ripple architecture would look something like below.
+![Ripple 0.2.0](./images/0_2_0.png)
