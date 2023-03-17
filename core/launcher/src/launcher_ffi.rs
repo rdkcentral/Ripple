@@ -1,12 +1,12 @@
 use ripple_sdk::{
     api::{firebolt::fb_discovery::LaunchRequest, status_update::ExtnStatus},
     crossbeam::channel::Receiver,
-    export_extn_channel, export_extn_metadata,
+    export_channel_builder, export_extn_metadata,
     extn::{
         client::{extn_client::ExtnClient, extn_sender::ExtnSender},
         extn_id::{ExtnClassId, ExtnId},
         ffi::{
-            ffi_channel::ExtnChannel,
+            ffi_channel::{ExtnChannel, ExtnChannelBuilder},
             ffi_library::{CExtnMetadata, ExtnMetadata, ExtnSymbolMetadata},
             ffi_message::CExtnMessage,
         },
@@ -15,7 +15,7 @@ use ripple_sdk::{
     log::{debug, error, info},
     semver::Version,
     tokio::{self, runtime::Runtime},
-    utils::logger::init_logger,
+    utils::{error::RippleError, logger::init_logger},
 };
 
 use crate::{
@@ -76,10 +76,27 @@ fn start_launcher(sender: ExtnSender, receiver: Receiver<CExtnMessage>) {
     });
 }
 
-fn init_channel() -> ExtnChannel {
-    ExtnChannel {
-        start: start_launcher,
+fn build(extn_id: String) -> Result<Box<ExtnChannel>, RippleError> {
+    if let Ok(id) = ExtnId::try_from(extn_id.clone()) {
+        let current_id = ExtnId::new_channel(ExtnClassId::Launcher, "launcher".into());
+
+        if id.eq(&current_id) {
+            return Ok(Box::new(ExtnChannel {
+                start: start_launcher,
+            }));
+        } else {
+            Err(RippleError::ExtnError)
+        }
+    } else {
+        Err(RippleError::InvalidInput)
     }
 }
 
-export_extn_channel!(ExtnChannel, init_channel);
+fn init_extn_builder() -> ExtnChannelBuilder {
+    ExtnChannelBuilder {
+        build,
+        service: "launcher".into(),
+    }
+}
+
+export_channel_builder!(ExtnChannelBuilder, init_extn_builder);
