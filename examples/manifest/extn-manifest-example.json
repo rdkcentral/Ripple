@@ -22,7 +22,7 @@
             "path": "liblauncher",
             "symbols": [
                 {
-                    "id": "ripple:channel:launcher:thunder",
+                    "id": "ripple:channel:launcher:internal",
                     "uses": [
                         "config"
                     ],

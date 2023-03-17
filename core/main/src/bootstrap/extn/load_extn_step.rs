@@ -27,6 +27,7 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
             unsafe {
                 let path = extn.entry.clone().path;
                 let library = &extn.library;
+                info!("Number of channels {}", extn.metadata.symbols.len());
                 let channels = extn.get_channels();
                 for channel in channels {
                     debug!("loading channel builder for {}", channel.id);
@@ -61,13 +62,13 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
         {
             let mut device_channel_state = state.extn_state.device_channels.write().unwrap();
             let _ = device_channel_state.extend(device_channels);
-            info!("Device channel extension loaded");
+            info!("Device channels extension loaded");
         }
 
         {
             let mut deferred_channel_state = state.extn_state.deferred_channels.write().unwrap();
             let _ = deferred_channel_state.extend(deferred_channels);
-            info!("Device channel extension loaded");
+            info!("Deferred channels extension loaded");
         }
 
         Ok(())

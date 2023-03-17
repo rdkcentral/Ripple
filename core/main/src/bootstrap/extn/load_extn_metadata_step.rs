@@ -67,6 +67,7 @@ impl Bootstep<BootstrapState> for LoadExtensionMetadataStep {
                 let r = Self::load_extension_library(extn_path.clone(), entry);
                 match r {
                     Some(loaded_extn) => {
+                        info!("Adding {}", loaded_extn.metadata.symbols.len());
                         loaded_extns.push(loaded_extn);
                     }
                     None => warn!(

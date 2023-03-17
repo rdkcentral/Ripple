@@ -43,7 +43,7 @@ impl ExtnPayloadProvider for LifecycleManagementEventRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Main(MainContract::LifecycleManagement)
+        RippleContract::Launcher
     }
 }
 

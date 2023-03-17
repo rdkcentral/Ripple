@@ -185,12 +185,14 @@ impl ExtnClient {
                                 Self::handle_stream(message, self.request_processors.clone());
                             } else {
                                 // Forward the message to an extn sender or return error
-                                if let Some(sender) = self.get_extn_sender(target_contract) {
+                                if let Some(sender) =
+                                    self.get_extn_sender_with_contract(target_contract)
+                                {
                                     let mut new_message = message.clone();
                                     if new_message.callback.is_none() {
                                         // before forwarding check if the requestor needs to be added as callback
-                                        let req_sender = if let Some(requestor_sender) =
-                                            self.get_extn_sender(message.clone().target)
+                                        let req_sender = if let Some(requestor_sender) = self
+                                            .get_extn_sender_with_extn_id(message.clone().requestor.to_string())
                                         {
                                             Some(requestor_sender)
                                         } else {
@@ -342,7 +344,10 @@ impl ExtnClient {
         }
     }
 
-    fn get_extn_sender(&self, contract: RippleContract) -> Option<CSender<CExtnMessage>> {
+    fn get_extn_sender_with_contract(
+        &self,
+        contract: RippleContract,
+    ) -> Option<CSender<CExtnMessage>> {
         let contract_str: String = contract.into();
         let id = {
             self.contract_map
@@ -352,10 +357,14 @@ impl ExtnClient {
                 .cloned()
         };
         if let Some(extn_id) = id {
-            return self.extn_sender_map.read().unwrap().get(&extn_id).cloned();
+            return self.get_extn_sender_with_extn_id(extn_id);
         }
 
         None
+    }
+
+    fn get_extn_sender_with_extn_id(&self, id: String) -> Option<CSender<CExtnMessage>> {
+        return self.extn_sender_map.read().unwrap().get(&id).cloned();
     }
 
     /// Critical method used by request processors to send response message back to the requestor
@@ -379,15 +388,17 @@ impl ExtnClient {
     /// # Arguments
     /// `msg` - [ExtnMessage]
     pub async fn send_message(&mut self, msg: ExtnMessage) -> RippleResponse {
-        self.sender
-            .respond(msg.clone().into(), self.get_extn_sender(msg.clone().target))
+        self.sender.respond(
+            msg.clone().into(),
+            self.get_extn_sender_with_extn_id(msg.clone().requestor.to_string()),
+        )
     }
 
     /// Critical method used by event processors to emit event back to the requestor
     /// # Arguments
     /// `msg` - [ExtnMessage] event object
     pub async fn event(&mut self, event: impl ExtnPayloadProvider) -> Result<(), RippleError> {
-        let other_sender = self.get_extn_sender(event.get_contract());
+        let other_sender = self.get_extn_sender_with_contract(event.get_contract());
         self.sender.send_event(event, other_sender).await
     }
 
@@ -404,7 +415,7 @@ impl ExtnClient {
         let id = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = oneshot::channel();
         add_single_processor(id.clone(), Some(tx), self.response_processors.clone());
-        let other_sender = self.get_extn_sender(payload.get_contract());
+        let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
 
         if let Err(e) = self.sender.send_request(id, payload, other_sender, None) {
             return Err(e);

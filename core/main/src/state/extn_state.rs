@@ -16,7 +16,7 @@ use ripple_sdk::{
     },
     libloading::Library,
     tokio::{self, sync::mpsc},
-    utils::error::RippleError,
+    utils::error::RippleError, log::info,
 };
 
 use crate::service::extn::ripple_client::RippleClient;
@@ -26,7 +26,7 @@ use super::bootstrap_state::ChannelsState;
 #[derive(Debug)]
 pub struct LoadedLibrary {
     pub library: Library,
-    metadata: Box<ExtnMetadata>,
+    pub metadata: Box<ExtnMetadata>,
     pub entry: ExtnManifestEntry,
 }
 
@@ -44,6 +44,7 @@ impl LoadedLibrary {
     }
 
     pub fn get_channels(&self) -> Vec<ExtnSymbol> {
+        info!("getting channels {}", self.metadata.symbols.len());
         let extn_ids: Vec<String> = self
             .metadata
             .symbols

@@ -1,5 +1,5 @@
 use ripple_sdk::{
-    api::{firebolt::fb_discovery::LaunchRequest, status_update::ExtnStatus},
+    api::{ status_update::ExtnStatus},
     crossbeam::channel::Receiver,
     export_channel_builder, export_extn_metadata,
     extn::{
@@ -12,7 +12,7 @@ use ripple_sdk::{
         },
     },
     framework::ripple_contract::RippleContract,
-    log::{debug, error, info},
+    log::{debug, info},
     semver::Version,
     tokio::{self, runtime::Runtime},
     utils::{error::RippleError, logger::init_logger},
@@ -20,7 +20,6 @@ use ripple_sdk::{
 
 use crate::{
     launcher_lifecycle_processor::LauncherLifecycleEventProcessor, launcher_state::LauncherState,
-    manager::app_launcher::AppLauncher,
 };
 
 fn init_library() -> CExtnMetadata {
@@ -56,21 +55,13 @@ fn start_launcher(sender: ExtnSender, receiver: Receiver<CExtnMessage>) {
                 .expect("state initialization to succeed");
             // Create a client for processors
             let mut client_for_processor = client.clone();
-            let state_c = state.clone();
 
             // All Lifecyclemanagement events will come through this processor
             client_for_processor.add_event_processor(LauncherLifecycleEventProcessor::new(state));
 
             // Lets Main know that the launcher is ready
             let _ = client_for_processor.event(ExtnStatus::Ready).await;
-            // Launches default app from library
-            if let Some(default_app) = state_c.config.app_library_state.get_default_app() {
-                let request =
-                    LaunchRequest::new(default_app.app_id, "boot".into(), None, "boot".into());
-                if let Err(e) = AppLauncher::launch(&state_c, request).await {
-                    error!("default launch app failed {:?}", e);
-                }
-            }
+            
         });
         client_for_receiver.initialize().await;
     });
@@ -78,7 +69,7 @@ fn start_launcher(sender: ExtnSender, receiver: Receiver<CExtnMessage>) {
 
 fn build(extn_id: String) -> Result<Box<ExtnChannel>, RippleError> {
     if let Ok(id) = ExtnId::try_from(extn_id.clone()) {
-        let current_id = ExtnId::new_channel(ExtnClassId::Launcher, "launcher".into());
+        let current_id = ExtnId::new_channel(ExtnClassId::Launcher, "internal".into());
 
         if id.eq(&current_id) {
             return Ok(Box::new(ExtnChannel {

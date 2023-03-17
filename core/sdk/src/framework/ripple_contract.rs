@@ -52,8 +52,12 @@ impl TryFrom<String> for RippleContract {
                 }
                 _ => Err(RippleError::ParseError),
             };
+        } else {
+            match value.as_str() {
+                "launcher" => Ok(Self::Launcher),
+                _ => Err(RippleError::ParseError)
+            }
         }
-        Err(RippleError::ParseError)
     }
 }
 
@@ -61,7 +65,8 @@ impl Into<String> for RippleContract {
     fn into(self) -> String {
         match self {
             Self::Device(cap) => format!("device:{:?}", cap).to_lowercase(),
-            _ => format!("{:?}", self),
+            Self::Main(cap) => format!("main:{:?}", cap).to_lowercase(),
+            _ => format!("{:?}", self).to_lowercase(),
         }
     }
 }
