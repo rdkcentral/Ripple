@@ -92,7 +92,6 @@ pub struct ExtnState {
     pub loaded_libraries: Arc<RwLock<Vec<LoadedLibrary>>>,
     pub device_channels: Arc<RwLock<Vec<PreLoadedExtnChannel>>>,
     pub deferred_channels: Arc<RwLock<Vec<PreLoadedExtnChannel>>>,
-    pub launcher_channel: Arc<RwLock<Option<Box<ExtnChannel>>>>,
     extn_status_map: Arc<RwLock<HashMap<String, ExtnStatus>>>,
     extn_status_listeners: Arc<RwLock<HashMap<String, mpsc::Sender<ExtnStatus>>>>,
 }
@@ -104,7 +103,6 @@ impl ExtnState {
             loaded_libraries: Arc::new(RwLock::new(Vec::new())),
             device_channels: Arc::new(RwLock::new(Vec::new())),
             deferred_channels: Arc::new(RwLock::new(Vec::new())),
-            launcher_channel: Arc::new(RwLock::new(None)),
             extn_status_map: Arc::new(RwLock::new(HashMap::new())),
             extn_status_listeners: Arc::new(RwLock::new(HashMap::new())),
         }
