@@ -3,7 +3,7 @@ use crate::{
         firebolt_gateway::FireboltGateway,
         handlers::{
             device_rpc::DeviceRPCProvider, lcm_rpc::LifecycleManagementProvider,
-            lifecycle_rpc::LifecycleRippleProvider,
+            lifecycle_rpc::LifecycleRippleProvider, wifi_rpc::WifiRPCProvider,
         },
         rpc::RippleRPCProvider,
     },
@@ -20,6 +20,7 @@ impl FireboltGatewayStep {
         let mut methods = Methods::new();
         let _ = methods.merge(DeviceRPCProvider::provide(state.clone()));
         let _ = methods.merge(LifecycleRippleProvider::provide(state.clone()));
+        let _ = methods.merge(WifiRPCProvider::provide(state.clone()));        
         // LCM Api(s) not required for internal launcher
         if !state.has_internal_launcher() {
             let _ = methods.merge(LifecycleManagementProvider::provide(state.clone()));

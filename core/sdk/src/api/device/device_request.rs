@@ -8,7 +8,7 @@ use crate::extn::{
 
 use super::{
     device_browser::BrowserRequest, device_info_request::DeviceInfoRequest,
-    device_window_manager::WindowManagerRequest,
+    device_window_manager::WindowManagerRequest, device_wifi::WifiRequest,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -17,6 +17,7 @@ pub enum DeviceRequest {
     Browser(BrowserRequest),
     WindowManager(WindowManagerRequest),
     Extn(BaseDeviceRequest),
+    Wifi(WifiRequest)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
