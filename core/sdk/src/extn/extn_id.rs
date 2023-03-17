@@ -181,9 +181,9 @@ impl ExtnId {
     /// `service` - Type of String which defins the type of service
     /// # Examples
     /// ```
-    /// use ripple_sdk::extn::extn_capability::ExtnCapability;
+    /// use ripple_sdk::extn::extn_id::ExtnId;
     ///
-    /// let main_cap = ExtnCapability::get_main_target("cap".into());
+    /// let main_cap = ExtnId::get_main_target("cap".into());
     /// assert!(main_cap.to_string().eq("ripple:main:internal:cap"));
     /// ```
     pub fn get_main_target(service: String) -> ExtnId {
@@ -197,9 +197,9 @@ impl ExtnId {
     /// Checks if the given capability is a channel.
     /// # Examples
     /// ```
-    /// use ripple_sdk::extn::extn_capability::{ExtnCapability,ExtnClass};
+    /// use ripple_sdk::extn::extn_id::{ExtnId,ExtnClassId};
     ///
-    /// let device_channel = ExtnCapability::new_channel(ExtnClass::Device, "info".into());
+    /// let device_channel = ExtnId::new_channel(ExtnClassId::Device, "info".into());
     /// assert!(device_channel.is_channel());
     /// ```
     pub fn is_channel(&self) -> bool {
@@ -212,10 +212,10 @@ impl ExtnId {
     /// Checks if the given capability is a extn.
     /// # Examples
     /// ```
-    /// use ripple_sdk::extn::extn_capability::{ExtnCapability,ExtnClass};
+    /// use ripple_sdk::extn::extn_id::{ExtnId,ExtnClassId};
     ///
-    /// let device_channel = ExtnCapability::new_extn(ExtnClass::Device, "info".into());
-    /// assert!(device_channel.is_channel());
+    /// let device_channel = ExtnId::new_extn(ExtnClassId::Device, "info".into());
+    /// assert!(device_channel.is_extn());
     /// ```
     pub fn is_extn(&self) -> bool {
         if let ExtnType::Extn = self._type {
@@ -227,10 +227,10 @@ impl ExtnId {
     /// Checks if the given capability is a launcher channel.
     /// # Examples
     /// ```
-    /// use ripple_sdk::extn::extn_capability::{ExtnCapability,ExtnClass};
+    /// use ripple_sdk::extn::extn_id::{ExtnId,ExtnClassId};
     ///
-    /// let launcher_channel = ExtnCapability::get_main_target("cap".into());
-    /// assert!(launcher_channel.is_launcher_channel());
+    /// let launcher_channel = ExtnId::get_main_target("cap".into());
+    /// assert!(launcher_channel.is_main());
     /// ```
     pub fn is_main(&self) -> bool {
         if let ExtnType::Main = self._type {
@@ -242,9 +242,9 @@ impl ExtnId {
     /// Checks if the given capability is a device channel.
     /// # Examples
     /// ```
-    /// use ripple_sdk::extn::extn_capability::{ExtnCapability,ExtnClass};
+    /// use ripple_sdk::extn::extn_id::{ExtnId,ExtnClassId};
     ///
-    /// let device_channel = ExtnCapability::new_channel(ExtnClass::Device, "info".into());
+    /// let device_channel = ExtnId::new_channel(ExtnClassId::Device, "info".into());
     /// assert!(device_channel.is_device_channel());
     /// ```
     pub fn is_device_channel(&self) -> bool {
@@ -259,9 +259,9 @@ impl ExtnId {
     /// Checks if the given capability is a launcher channel.
     /// # Examples
     /// ```
-    /// use ripple_sdk::extn::extn_capability::{ExtnCapability,ExtnClass};
+    /// use ripple_sdk::extn::extn_id::{ExtnId,ExtnClassId};
     ///
-    /// let launcher_channel = ExtnCapability::new_channel(ExtnClass::Launcher, "info".into());
+    /// let launcher_channel = ExtnId::new_channel(ExtnClassId::Launcher, "info".into());
     /// assert!(launcher_channel.is_launcher_channel());
     /// ```
     pub fn is_launcher_channel(&self) -> bool {
@@ -275,13 +275,13 @@ impl ExtnId {
 
     /// Checks if the given capability has the same type and channel as the owner
     /// # Arguments
-    /// `ref_cap` - Type of ExtnCapability which will be checked against the owner.
+    /// `ref_cap` - Type of ExtnId which will be checked against the owner.
     /// # Examples
     /// ```
-    /// use ripple_sdk::extn::extn_capability::{ExtnCapability,ExtnClass};
+    /// use ripple_sdk::extn::extn_id::{ExtnId,ExtnClassId};
     ///
-    /// let info = ExtnCapability::new_channel(ExtnClass::Device, "info".into());
-    /// let remote = ExtnCapability::new_channel(ExtnClass::Device, "remote".into());
+    /// let info = ExtnId::new_channel(ExtnClassId::Device, "info".into());
+    /// let remote = ExtnId::new_channel(ExtnClassId::Device, "remote".into());
     /// assert!(info.match_layer(remote));
     /// ```
     pub fn match_layer(&self, ref_cap: ExtnId) -> bool {
@@ -307,12 +307,12 @@ impl ExtnId {
     }
 
     /// Gets a short form value of the given capability. Useful for ExtnClient to detect
-    /// other senders for a given ExtnCapability.
+    /// other senders for a given ExtnId.
     /// # Examples
     /// ```
-    /// use ripple_sdk::extn::extn_capability::{ExtnCapability,ExtnClass};
+    /// use ripple_sdk::extn::extn_id::{ExtnId,ExtnClassId};
     ///
-    /// let device_channel = ExtnCapability::new_channel(ExtnClass::Device, "info".into());
+    /// let device_channel = ExtnId::new_channel(ExtnClassId::Device, "info".into());
     /// assert!(device_channel.get_short().eq("Channel:Device"));
     /// ```
     pub fn get_short(&self) -> String {
@@ -339,9 +339,9 @@ impl ExtnId {
     /// `service` - Type of String which defines a unique service for a given Class channel
     /// # Examples
     /// ```
-    /// use ripple_sdk::extn::extn_capability::{ExtnCapability,ExtnClass};
+    /// use ripple_sdk::extn::extn_id::{ExtnId,ExtnClassId};
     ///
-    /// let device_channel = ExtnCapability::new_channel(ExtnClass::Device, "info".into());
+    /// let device_channel = ExtnId::new_channel(ExtnClassId::Device, "info".into());
     /// assert!(device_channel.get_short().eq("Channel:Device"));
     /// ```
     pub fn new_channel(class: ExtnClassId, service: String) -> Self {
@@ -358,9 +358,9 @@ impl ExtnId {
     /// `service` - Type of String which defines a unique service for a given Class channel
     /// # Examples
     /// ```
-    /// use ripple_sdk::extn::extn_capability::{ExtnCapability,ExtnClass};
+    /// use ripple_sdk::extn::extn_id::{ExtnId,ExtnClassId};
     ///
-    /// let device_channel = ExtnCapability::new_extn(ExtnClass::Device, "remote".into());
+    /// let device_channel = ExtnId::new_extn(ExtnClassId::Device, "remote".into());
     /// assert!(device_channel.get_short().eq("Device:remote"));
     /// ```
     pub fn new_extn(class: ExtnClassId, service: String) -> Self {

@@ -1,5 +1,5 @@
 use ripple_sdk::{
-    api::{ status_update::ExtnStatus},
+    api::status_update::ExtnStatus,
     crossbeam::channel::Receiver,
     export_channel_builder, export_extn_metadata,
     extn::{
@@ -61,7 +61,6 @@ fn start_launcher(sender: ExtnSender, receiver: Receiver<CExtnMessage>) {
 
             // Lets Main know that the launcher is ready
             let _ = client_for_processor.event(ExtnStatus::Ready).await;
-            
         });
         client_for_receiver.initialize().await;
     });

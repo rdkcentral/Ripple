@@ -38,23 +38,31 @@ pub unsafe fn load_channel_builder(lib: &Library) -> Result<Box<ExtnChannelBuild
 ///
 /// # Example
 /// ```
-/// use ripple_sdk::export_extn_channel;
 /// use ripple_sdk::extn::client::extn_sender::ExtnSender;
 /// use ripple_sdk::extn::ffi::ffi_message::CExtnMessage;
-/// use ripple_sdk::extn::ffi::ffi_channel::ExtnChannel;
-/// use ripple_sdk::extn::extn_capability::{ExtnClass,ExtnCapability};
+/// use ripple_sdk::extn::ffi::ffi_channel::{ExtnChannel,ExtnChannelBuilder};
+/// use ripple_sdk::extn::extn_id::{ExtnClassId};
 /// use ripple_sdk::crossbeam::channel::Receiver as CReceiver;
 /// use semver::Version;
+/// use ripple_sdk::utils::error::RippleError;
+/// use ripple_sdk::export_channel_builder;
 /// fn start(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
 ///  // snip
 /// }
-///  fn init_channel() -> ExtnChannel {
-///    ExtnChannel {
-///        start
+///  fn init_builder_channel() -> ExtnChannelBuilder {
+///    ExtnChannelBuilder {
+///        build,
+///        service: "info".into()
 ///    }
 /// }
 ///
-/// export_extn_channel!(ExtnChannel, init_channel);
+/// fn build(extn_id: String) -> Result<Box<ExtnChannel>, RippleError> {
+///     Ok(Box::new(ExtnChannel {
+///     start
+/// }))
+/// }
+///
+/// export_channel_builder!(ExtnChannelBuilder, init_builder_channel);
 /// ```
 #[macro_export]
 macro_rules! export_channel_builder {

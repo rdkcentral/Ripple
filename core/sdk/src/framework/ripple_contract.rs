@@ -55,7 +55,7 @@ impl TryFrom<String> for RippleContract {
         } else {
             match value.as_str() {
                 "launcher" => Ok(Self::Launcher),
-                _ => Err(RippleError::ParseError)
+                _ => Err(RippleError::ParseError),
             }
         }
     }

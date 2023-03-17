@@ -115,19 +115,21 @@ impl ExtnSymbolMetadata {
 /// use ripple_sdk::extn::ffi::ffi_library::CExtnMetadata;
 /// use ripple_sdk::utils::logger::init_logger;
 /// use ripple_sdk::extn::ffi::ffi_library::ExtnSymbolMetadata;
-/// use ripple_sdk::extn::extn_capability::{ExtnClassId,ExtnId};
+/// use ripple_sdk::extn::extn_id::{ExtnClassId,ExtnId};
+/// use ripple_sdk::framework::ripple_contract::{RippleContract, DeviceContract};
 /// use semver::Version;
 /// use ripple_sdk::extn::ffi::ffi_library::ExtnMetadata;
 /// fn init_library() -> CExtnMetadata {
 /// let _ = init_logger("device_channel".into());
 /// let thunder_channel_meta = ExtnSymbolMetadata::get(
 ///     ExtnId::new_channel(ExtnClassId::Device, "device_interface".into()),
+///     RippleContract::Device(DeviceContract::Info),
 ///     Version::new(1, 1, 0),
 /// );
 
 /// let extn_metadata = ExtnMetadata {
 ///     name: "device_interface".into(),
-///     metadata: vec![thunder_channel_meta],
+///     symbols: vec![thunder_channel_meta],
 /// };
 /// extn_metadata.into()
 /// }

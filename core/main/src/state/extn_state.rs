@@ -15,8 +15,9 @@ use ripple_sdk::{
         ffi::{ffi_channel::ExtnChannel, ffi_library::ExtnMetadata, ffi_message::CExtnMessage},
     },
     libloading::Library,
+    log::info,
     tokio::{self, sync::mpsc},
-    utils::error::RippleError, log::info,
+    utils::error::RippleError,
 };
 
 use crate::service::extn::ripple_client::RippleClient;

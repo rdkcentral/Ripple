@@ -126,11 +126,12 @@ impl ExtnPayload {
 ///
 /// ```
 /// use serde::{Deserialize, Serialize};
-/// use ripple_sdk::extn::extn_capability::ExtnCapability;
+/// use ripple_sdk::extn::extn_id::ExtnId;
 /// use ripple_sdk::extn::extn_client_message::ExtnPayload;
 /// use ripple_sdk::extn::extn_client_message::ExtnRequest;
 /// use ripple_sdk::extn::extn_client_message::ExtnPayloadProvider;
-/// use ripple_sdk::extn::extn_capability::ExtnClass;
+/// use ripple_sdk::extn::extn_id::ExtnClassId;
+/// use ripple_sdk::framework::ripple_contract::{RippleContract,DeviceContract};
 /// #[derive(Debug, Clone, Serialize, Deserialize)]
 /// pub enum MyCustomEnumRequestPayload {
 ///     String(String),
@@ -158,8 +159,8 @@ impl ExtnPayload {
 ///     None
 /// }
 ///
-/// fn cap() -> ExtnCapability {
-///     ExtnCapability::new_extn(ExtnClass::Device, "custom".into())
+/// fn contract() -> RippleContract {
+///     RippleContract::Device(DeviceContract::Info)
 /// }
 /// }
 /// ```

@@ -1,7 +1,12 @@
-
 use ripple_sdk::{
+    api::{
+        apps::{AppMethod, AppRequest, AppResponse},
+        firebolt::fb_discovery::{DiscoveryContext, LaunchRequest, NavigationIntent},
+    },
     async_trait::async_trait,
-    framework::{bootstrap::Bootstep, RippleResponse}, api::{apps::{AppRequest, AppMethod, AppResponse}, firebolt::fb_discovery::{LaunchRequest, NavigationIntent, DiscoveryContext}}, tokio::sync::oneshot, utils::error::RippleError,
+    framework::{bootstrap::Bootstep, RippleResponse},
+    tokio::sync::oneshot,
+    utils::error::RippleError,
 };
 
 use crate::{
@@ -24,21 +29,32 @@ impl Bootstep<BootstrapState> for CheckLauncherStep {
             state.platform_state.get_client().add_request_processor(
                 LifecycleManagementProcessor::new(state.platform_state.get_client()),
             );
-            let app = state.platform_state.app_library_state.get_default_app().expect("Default app to be available in app library");
+            let app = state
+                .platform_state
+                .app_library_state
+                .get_default_app()
+                .expect("Default app to be available in app library");
             let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
 
-            let app_request = AppRequest::new(AppMethod::Launch(LaunchRequest{
-                app_id: app.app_id,
-                intent: Some(NavigationIntent{
-                    action: "boot".into(),
-                    data: None,
-                    context: DiscoveryContext::new("device"),
-                })
-            }), app_resp_tx);
-            state.platform_state.get_client().send_app_request(app_request).expect("App Request to be sent successfully");
+            let app_request = AppRequest::new(
+                AppMethod::Launch(LaunchRequest {
+                    app_id: app.app_id,
+                    intent: Some(NavigationIntent {
+                        action: "boot".into(),
+                        data: None,
+                        context: DiscoveryContext::new("device"),
+                    }),
+                }),
+                app_resp_tx,
+            );
+            state
+                .platform_state
+                .get_client()
+                .send_app_request(app_request)
+                .expect("App Request to be sent successfully");
 
             if let Err(_) = app_resp_rx.await {
-                return Err(RippleError::BootstrapError)
+                return Err(RippleError::BootstrapError);
             }
         }
         Ok(())
