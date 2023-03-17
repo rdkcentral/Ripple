@@ -1,9 +1,6 @@
 use crate::{
-    extn::{
-        extn_capability::ExtnCapability,
-        extn_client_message::{ExtnMessage, ExtnPayload, ExtnPayloadProvider, ExtnResponse},
-    },
-    framework::RippleResponse,
+    extn::extn_client_message::{ExtnMessage, ExtnPayload, ExtnPayloadProvider, ExtnResponse},
+    framework::{ripple_contract::RippleContract, RippleResponse},
     utils::error::RippleError,
 };
 use async_trait::async_trait;
@@ -59,8 +56,8 @@ pub trait ExtnStreamProcessor: Send + Sync + 'static {
 
     fn get_state(&self) -> Self::STATE;
     fn receiver(&mut self) -> MReceiver<ExtnMessage>;
-    fn capability(&self) -> ExtnCapability {
-        Self::VALUE::cap()
+    fn contract(&self) -> RippleContract {
+        Self::VALUE::contract()
     }
     fn sender(&self) -> MSender<ExtnMessage>;
 }
@@ -164,10 +161,7 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     }
 
     async fn run(&mut self) {
-        debug!(
-            "starting request processor for {}",
-            self.capability().to_string()
-        );
+        debug!("starting request processor for {:?}", self.contract());
         let extn_client = self.get_client();
         let mut receiver = self.receiver();
         let state = self.get_state();
@@ -245,10 +239,7 @@ pub trait ExtnEventProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     }
 
     async fn run(&mut self) {
-        debug!(
-            "starting event processor for {}",
-            self.capability().to_string()
-        );
+        debug!("starting event processor for {:?}", self.contract());
         start_rx_stream!(
             Self,
             self,

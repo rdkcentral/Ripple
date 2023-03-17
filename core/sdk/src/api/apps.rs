@@ -5,10 +5,8 @@ use tokio::sync::oneshot;
 use uuid::Uuid;
 
 use crate::{
-    extn::{
-        extn_capability::ExtnCapability,
-        extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
-    },
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
+    framework::ripple_contract::{MainContract, RippleContract},
     utils::{channel_utils::oneshot_send_and_log, error::RippleError},
 };
 
@@ -113,8 +111,8 @@ impl ExtnPayloadProvider for AppResponse {
         None
     }
 
-    fn cap() -> ExtnCapability {
-        ExtnCapability::get_main_target("lifecycle-management".into())
+    fn contract() -> RippleContract {
+        RippleContract::Main(MainContract::LifecycleManagement)
     }
 }
 

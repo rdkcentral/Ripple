@@ -4,13 +4,14 @@ use ripple_sdk::{
     export_extn_channel, export_extn_metadata,
     extn::{
         client::{extn_client::ExtnClient, extn_sender::ExtnSender},
-        extn_capability::{ExtnCapability, ExtnClass},
+        extn_id::{ExtnClassId, ExtnId},
         ffi::{
             ffi_channel::ExtnChannel,
-            ffi_library::{CExtnMetadata, ExtnMetaEntry, ExtnMetadata},
+            ffi_library::{CExtnMetadata, ExtnMetadata, ExtnSymbolMetadata},
             ffi_message::CExtnMessage,
         },
     },
+    framework::ripple_contract::RippleContract,
     log::{debug, error, info},
     semver::Version,
     tokio::{self, runtime::Runtime},
@@ -25,15 +26,16 @@ use crate::{
 fn init_library() -> CExtnMetadata {
     let _ = init_logger("launcher".into());
 
-    let launcher_meta = ExtnMetaEntry::get(
-        ExtnCapability::new_channel(ExtnClass::Launcher, "internal".into()),
+    let launcher_meta = ExtnSymbolMetadata::get(
+        ExtnId::new_channel(ExtnClassId::Launcher, "internal".into()),
+        RippleContract::Launcher,
         Version::new(1, 1, 0),
     );
 
     debug!("Returning launcher builder");
     let extn_metadata = ExtnMetadata {
         name: "launcher".into(),
-        metadata: vec![launcher_meta],
+        symbols: vec![launcher_meta],
     };
     extn_metadata.into()
 }

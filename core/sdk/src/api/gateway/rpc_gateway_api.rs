@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::sync::{mpsc, oneshot};
 
-use crate::extn::{
-    extn_capability::ExtnCapability,
-    extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
+use crate::{
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
+    framework::ripple_contract::{MainContract, RippleContract},
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -162,8 +162,8 @@ impl ExtnPayloadProvider for RpcRequest {
         None
     }
 
-    fn cap() -> ExtnCapability {
-        ExtnCapability::get_main_target("rpc".into())
+    fn contract() -> RippleContract {
+        RippleContract::Main(MainContract::Rpc)
     }
 }
 

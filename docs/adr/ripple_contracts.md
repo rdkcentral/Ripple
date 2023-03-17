@@ -18,7 +18,7 @@ __**Pending**__
 Current Implementation of the Ripple Extensions have raised the following concerns.
 For easier linking and references we are going to denote the problems with a `P: [A-Z](n)` notation. 
 #### P: A 
-Better extension bundling strategies for scalability and standardization of the platform.
+Better extension bundling strategies needed for scalability and standardization of the platform.
 #### P: B
 Capabilities are not well defined and overloaded with both identification and `ExtnClass` mapping. 
 ##### P: B1 

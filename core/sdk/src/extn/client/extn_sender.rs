@@ -3,8 +3,7 @@ use log::{debug, error, trace};
 
 use crate::{
     extn::{
-        extn_capability::ExtnCapability, extn_client_message::ExtnPayloadProvider,
-        ffi::ffi_message::CExtnMessage,
+        extn_client_message::ExtnPayloadProvider, extn_id::ExtnId, ffi::ffi_message::CExtnMessage,
     },
     framework::RippleResponse,
     utils::error::RippleError,
@@ -24,16 +23,21 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct ExtnSender {
     tx: CSender<CExtnMessage>,
-    cap: ExtnCapability,
+    id: ExtnId,
+    permitted: Vec<String>,
 }
 
 impl ExtnSender {
-    pub fn get_cap(&self) -> ExtnCapability {
-        self.cap.clone()
+    pub fn get_cap(&self) -> ExtnId {
+        self.id.clone()
     }
 
-    pub fn new(tx: CSender<CExtnMessage>, cap: ExtnCapability) -> Self {
-        ExtnSender { tx, cap }
+    pub fn new(tx: CSender<CExtnMessage>, id: ExtnId, context: Vec<String>) -> Self {
+        ExtnSender {
+            tx,
+            id,
+            permitted: context,
+        }
     }
 
     pub fn send_request(
@@ -46,11 +50,11 @@ impl ExtnSender {
         let p = payload.get_extn_payload();
         let c_request = p.into();
         let msg = CExtnMessage {
-            requestor: self.cap.to_string(),
+            requestor: self.id.to_string(),
             callback,
             payload: c_request,
             id,
-            target: payload.get_capability().to_string(),
+            target: payload.get_contract().into(),
         };
         self.send(msg, other_sender)
     }
@@ -64,11 +68,11 @@ impl ExtnSender {
         let p = payload.get_extn_payload();
         let c_event = p.into();
         let msg = CExtnMessage {
-            requestor: self.cap.to_string(),
+            requestor: self.id.to_string(),
             callback: None,
             payload: c_event,
             id,
-            target: payload.get_capability().to_string(),
+            target: payload.get_contract().into(),
         };
         self.respond(msg, other_sender)
     }

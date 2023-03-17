@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::extn::{
-    extn_capability::{ExtnCapability, ExtnClass},
-    extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
+use crate::{
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
+    framework::ripple_contract::{DeviceContract, RippleContract},
 };
 
 use super::device_request::DeviceRequest;
@@ -90,7 +90,7 @@ impl ExtnPayloadProvider for BrowserRequest {
         None
     }
 
-    fn cap() -> ExtnCapability {
-        ExtnCapability::new_channel(ExtnClass::Device, "browser".into())
+    fn contract() -> RippleContract {
+        RippleContract::Device(DeviceContract::Browser)
     }
 }

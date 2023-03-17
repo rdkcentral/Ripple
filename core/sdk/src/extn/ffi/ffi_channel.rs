@@ -62,3 +62,37 @@ pub unsafe fn load_extn_channel(lib: &Library) -> Result<Box<ExtnChannel>, Rippl
     }
     Err(RippleError::ExtnError)
 }
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct ExtnChannelBuilder {
+    pub build: fn(extn_id: String) -> Result<Box<ExtnChannel>, RippleError>,
+    pub service: String,
+}
+
+pub unsafe fn load_channel_builder(lib: &Library) -> Result<Box<ExtnChannelBuilder>, RippleError> {
+    type LibraryFfi = unsafe fn() -> *mut ExtnChannelBuilder;
+    let r = lib.get(b"channel_builder_create");
+    match r {
+        Ok(r) => {
+            debug!("Device Extn Builder Symbol extracted from library");
+            let constructor: Symbol<LibraryFfi> = r;
+            return Ok(Box::from_raw(constructor()));
+        }
+        Err(e) => error!("Device Extn Builder symbol loading failed {:?}", e),
+    }
+    Err(RippleError::ExtnError)
+}
+
+#[macro_export]
+macro_rules! export_channel_builder {
+    ($plugin_type:ty, $constructor:path) => {
+        #[no_mangle]
+        pub extern "C" fn channel_builder_create() -> *mut ExtnChannelBuilder {
+            let constructor: fn() -> $plugin_type = $constructor;
+            let object = constructor();
+            let boxed = Box::new(object);
+            Box::into_raw(boxed)
+        }
+    };
+}

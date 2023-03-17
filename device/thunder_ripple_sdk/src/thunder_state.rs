@@ -2,7 +2,6 @@ use ripple_sdk::{
     extn::{
         client::extn_client::ExtnClient,
         extn_client_message::{ExtnMessage, ExtnPayloadProvider},
-        ffi::ffi_device::DeviceExtn,
     },
     utils::error::RippleError,
 };
@@ -11,14 +10,8 @@ use url::Url;
 use crate::client::thunder_client::ThunderClient;
 
 #[derive(Debug, Clone)]
-pub struct ThunderBootstrapStateInitial {
-    pub extns: Vec<DeviceExtn>,
-    pub extn_client: ExtnClient,
-}
-
-#[derive(Debug, Clone)]
 pub struct ThunderBootstrapStateWithConfig {
-    pub prev: ThunderBootstrapStateInitial,
+    pub extn_client: ExtnClient,
     pub url: Url,
     pub pool_size: u32,
 }

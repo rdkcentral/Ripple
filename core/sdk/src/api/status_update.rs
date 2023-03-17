@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::extn::{
-    extn_capability::ExtnCapability,
-    extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
+use crate::{
+    extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
+    framework::ripple_contract::{MainContract, RippleContract},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -27,7 +27,7 @@ impl ExtnPayloadProvider for ExtnStatus {
         None
     }
 
-    fn cap() -> ExtnCapability {
-        ExtnCapability::get_main_target("extn-status".into())
+    fn contract() -> RippleContract {
+        RippleContract::Main(MainContract::ExtnStatus)
     }
 }

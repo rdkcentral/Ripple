@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::extn::{
-    extn_capability::ExtnCapability,
-    extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
+use crate::{
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
+    framework::ripple_contract::{MainContract, RippleContract},
 };
 
 use super::manifest::{
@@ -63,8 +63,8 @@ impl ExtnPayloadProvider for Config {
         None
     }
 
-    fn cap() -> ExtnCapability {
-        ExtnCapability::get_main_target("config".into())
+    fn contract() -> RippleContract {
+        RippleContract::Main(MainContract::Config)
     }
 }
 
@@ -108,7 +108,7 @@ impl ExtnPayloadProvider for LauncherConfig {
         None
     }
 
-    fn cap() -> ExtnCapability {
-        ExtnCapability::get_main_target("config".into())
+    fn contract() -> RippleContract {
+        RippleContract::Main(MainContract::Config)
     }
 }

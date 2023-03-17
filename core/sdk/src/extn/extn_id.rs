@@ -1,25 +1,25 @@
 use crate::utils::error::RippleError;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ExtnClass {
+pub enum ExtnClassId {
     Gateway,
     Device,
     DataGovernance,
     Distributor,
-    Rpc,
+    Protected,
     Jsonrpsee,
     Launcher,
     Internal,
 }
 
-impl ToString for ExtnClass {
+impl ToString for ExtnClassId {
     fn to_string(&self) -> String {
         match self {
             Self::Gateway => "gateway".into(),
             Self::Device => "device".into(),
             Self::DataGovernance => "data-governance".into(),
             Self::Distributor => "distributor".into(),
-            Self::Rpc => "rpc".into(),
+            Self::Protected => "rpc".into(),
             Self::Jsonrpsee => "jsonrpsee".into(),
             Self::Launcher => "launcher".into(),
             Self::Internal => "internal".into(),
@@ -27,13 +27,13 @@ impl ToString for ExtnClass {
     }
 }
 
-impl ExtnClass {
+impl ExtnClassId {
     pub fn get(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "device" => Some(Self::Device),
             "data-governance" => Some(Self::DataGovernance),
             "distributor" => Some(Self::Distributor),
-            "rpc" => Some(Self::Rpc),
+            "protected" => Some(Self::Protected),
             "jsonrpsee" => Some(Self::Jsonrpsee),
             "launcher" => Some(Self::Launcher),
             "internal" => Some(Self::Internal),
@@ -74,16 +74,16 @@ impl ExtnType {
 #[derive(Debug, Clone)]
 pub struct ExtnClassType {
     _type: ExtnType,
-    class: ExtnClass,
+    class: ExtnClassId,
 }
 
 impl ExtnClassType {
-    pub fn new(_type: ExtnType, class: ExtnClass) -> ExtnClassType {
+    pub fn new(_type: ExtnType, class: ExtnClassId) -> ExtnClassType {
         ExtnClassType { _type, class }
     }
 
-    pub fn get_cap(&self, service: String) -> ExtnCapability {
-        ExtnCapability {
+    pub fn get_cap(&self, service: String) -> ExtnId {
+        ExtnId {
             _type: self._type.clone(),
             class: self.class.clone(),
             service,
@@ -91,7 +91,7 @@ impl ExtnClassType {
     }
 }
 
-/// Below is anatomy of a Ripple capability in a String format
+/// Below is anatomy of a ExtnId in a String format
 ///
 /// `ripple:[channel/extn]:[class]:[service]:[feature (optional)]`
 
@@ -117,13 +117,13 @@ impl ExtnClassType {
 ///
 /// `ripple:extn:jsonrpsee:bridge`
 #[derive(Debug, Clone)]
-pub struct ExtnCapability {
+pub struct ExtnId {
     _type: ExtnType,
-    class: ExtnClass,
+    class: ExtnClassId,
     service: String,
 }
 
-impl ToString for ExtnCapability {
+impl ToString for ExtnId {
     fn to_string(&self) -> String {
         let r = format!(
             "ripple:{}:{}:{}",
@@ -135,7 +135,7 @@ impl ToString for ExtnCapability {
     }
 }
 
-impl TryFrom<String> for ExtnCapability {
+impl TryFrom<String> for ExtnId {
     type Error = RippleError;
 
     fn try_from(cap: String) -> Result<Self, Self::Error> {
@@ -152,7 +152,7 @@ impl TryFrom<String> for ExtnCapability {
             }
             let _type = _type.unwrap();
 
-            let class = ExtnClass::get(c_a.get(2).unwrap());
+            let class = ExtnClassId::get(c_a.get(2).unwrap());
             if class.is_none() {
                 return Err(RippleError::ParseError);
             }
@@ -164,7 +164,7 @@ impl TryFrom<String> for ExtnCapability {
             }
             let service = String::from(*service.unwrap());
 
-            return Ok(ExtnCapability {
+            return Ok(ExtnId {
                 _type,
                 class,
                 service,
@@ -175,7 +175,7 @@ impl TryFrom<String> for ExtnCapability {
     }
 }
 
-impl ExtnCapability {
+impl ExtnId {
     /// Returns the Main target capability for a given service
     /// # Arguments
     /// `service` - Type of String which defins the type of service
@@ -186,12 +186,57 @@ impl ExtnCapability {
     /// let main_cap = ExtnCapability::get_main_target("cap".into());
     /// assert!(main_cap.to_string().eq("ripple:main:internal:cap"));
     /// ```
-    pub fn get_main_target(service: String) -> ExtnCapability {
-        ExtnCapability {
+    pub fn get_main_target(service: String) -> ExtnId {
+        ExtnId {
             _type: ExtnType::Main,
-            class: ExtnClass::Internal,
+            class: ExtnClassId::Internal,
             service,
         }
+    }
+
+    /// Checks if the given capability is a channel.
+    /// # Examples
+    /// ```
+    /// use ripple_sdk::extn::extn_capability::{ExtnCapability,ExtnClass};
+    ///
+    /// let device_channel = ExtnCapability::new_channel(ExtnClass::Device, "info".into());
+    /// assert!(device_channel.is_channel());
+    /// ```
+    pub fn is_channel(&self) -> bool {
+        if let ExtnType::Channel = self._type {
+            return true;
+        }
+        false
+    }
+
+    /// Checks if the given capability is a extn.
+    /// # Examples
+    /// ```
+    /// use ripple_sdk::extn::extn_capability::{ExtnCapability,ExtnClass};
+    ///
+    /// let device_channel = ExtnCapability::new_extn(ExtnClass::Device, "info".into());
+    /// assert!(device_channel.is_channel());
+    /// ```
+    pub fn is_extn(&self) -> bool {
+        if let ExtnType::Extn = self._type {
+            return true;
+        }
+        false
+    }
+
+    /// Checks if the given capability is a launcher channel.
+    /// # Examples
+    /// ```
+    /// use ripple_sdk::extn::extn_capability::{ExtnCapability,ExtnClass};
+    ///
+    /// let launcher_channel = ExtnCapability::get_main_target("cap".into());
+    /// assert!(launcher_channel.is_launcher_channel());
+    /// ```
+    pub fn is_main(&self) -> bool {
+        if let ExtnType::Main = self._type {
+            return true;
+        }
+        false
     }
 
     /// Checks if the given capability is a device channel.
@@ -204,7 +249,7 @@ impl ExtnCapability {
     /// ```
     pub fn is_device_channel(&self) -> bool {
         if let ExtnType::Channel = self._type {
-            if let ExtnClass::Device = self.class {
+            if let ExtnClassId::Device = self.class {
                 return true;
             }
         }
@@ -221,7 +266,7 @@ impl ExtnCapability {
     /// ```
     pub fn is_launcher_channel(&self) -> bool {
         if let ExtnType::Channel = self._type {
-            if let ExtnClass::Launcher = self.class {
+            if let ExtnClassId::Launcher = self.class {
                 return true;
             }
         }
@@ -239,7 +284,7 @@ impl ExtnCapability {
     /// let remote = ExtnCapability::new_channel(ExtnClass::Device, "remote".into());
     /// assert!(info.match_layer(remote));
     /// ```
-    pub fn match_layer(&self, ref_cap: ExtnCapability) -> bool {
+    pub fn match_layer(&self, ref_cap: ExtnId) -> bool {
         if ref_cap._type == ExtnType::Main && self._type == ExtnType::Main {
             return true;
         }
@@ -284,7 +329,7 @@ impl ExtnCapability {
     }
 
     /// Returns the `ExtnClass` for the capability
-    pub fn class(&self) -> ExtnClass {
+    pub fn class(&self) -> ExtnClassId {
         self.class.clone()
     }
 
@@ -299,7 +344,7 @@ impl ExtnCapability {
     /// let device_channel = ExtnCapability::new_channel(ExtnClass::Device, "info".into());
     /// assert!(device_channel.get_short().eq("Channel:Device"));
     /// ```
-    pub fn new_channel(class: ExtnClass, service: String) -> Self {
+    pub fn new_channel(class: ExtnClassId, service: String) -> Self {
         Self {
             _type: ExtnType::Channel,
             class,
@@ -318,7 +363,7 @@ impl ExtnCapability {
     /// let device_channel = ExtnCapability::new_extn(ExtnClass::Device, "remote".into());
     /// assert!(device_channel.get_short().eq("Device:remote"));
     /// ```
-    pub fn new_extn(class: ExtnClass, service: String) -> Self {
+    pub fn new_extn(class: ExtnClassId, service: String) -> Self {
         Self {
             _type: ExtnType::Extn,
             class,
@@ -327,8 +372,8 @@ impl ExtnCapability {
     }
 }
 
-impl PartialEq for ExtnCapability {
-    fn eq(&self, other: &ExtnCapability) -> bool {
+impl PartialEq for ExtnId {
+    fn eq(&self, other: &ExtnId) -> bool {
         self._type == other._type && self.class == other.class
     }
 }

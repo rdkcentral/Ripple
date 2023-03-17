@@ -13,10 +13,11 @@ use crate::{
         gateway::rpc_gateway_api::RpcRequest,
         status_update::ExtnStatus,
     },
+    framework::ripple_contract::RippleContract,
     utils::error::RippleError,
 };
 
-use super::{extn_capability::ExtnCapability, ffi::ffi_message::CExtnMessage};
+use super::{extn_id::ExtnId, ffi::ffi_message::CExtnMessage};
 
 /// Default Message enum for the Communication Channel
 /// Message would be either a request or response or event
@@ -36,8 +37,8 @@ use super::{extn_capability::ExtnCapability, ffi::ffi_message::CExtnMessage};
 #[derive(Debug, Clone)]
 pub struct ExtnMessage {
     pub id: String,
-    pub requestor: ExtnCapability,
-    pub target: ExtnCapability,
+    pub requestor: ExtnId,
+    pub target: RippleContract,
     pub payload: ExtnPayload,
     pub callback: Option<CSender<CExtnMessage>>,
 }
@@ -53,8 +54,8 @@ impl ExtnMessage {
                 callback: self.callback.clone(),
                 id: self.id.clone(),
                 payload: ExtnPayload::Response(response),
-                requestor: self.target.clone(),
-                target: self.requestor.clone(),
+                requestor: self.requestor.clone(),
+                target: self.target.clone(),
             }),
             _ => {
                 error!("can only respond for a request message");
@@ -168,10 +169,10 @@ where
 {
     fn get_extn_payload(&self) -> ExtnPayload;
     fn get_from_payload(payload: ExtnPayload) -> Option<Self>;
-    fn get_capability(&self) -> ExtnCapability {
-        Self::cap()
+    fn get_contract(&self) -> RippleContract {
+        Self::contract()
     }
-    fn cap() -> ExtnCapability;
+    fn contract() -> RippleContract;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -209,8 +210,8 @@ impl ExtnPayloadProvider for ExtnResponse {
         None
     }
 
-    fn cap() -> ExtnCapability {
-        ExtnCapability::get_main_target("response".into())
+    fn contract() -> RippleContract {
+        RippleContract::Internal
     }
 }
 
@@ -234,7 +235,7 @@ impl ExtnPayloadProvider for ExtnEvent {
         None
     }
 
-    fn cap() -> ExtnCapability {
-        ExtnCapability::get_main_target("event".into())
+    fn contract() -> RippleContract {
+        RippleContract::Internal
     }
 }

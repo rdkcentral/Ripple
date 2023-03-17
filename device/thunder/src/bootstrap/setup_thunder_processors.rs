@@ -1,12 +1,11 @@
-use ripple_sdk::utils::error::RippleError;
+use thunder_ripple_sdk::{
+    ripple_sdk::utils::error::RippleError, thunder_state::ThunderBootstrapStateWithClient,
+};
 
-use crate::{
-    processors::{
-        thunder_browser::ThunderBrowserRequestProcessor,
-        thunder_device_info::ThunderDeviceInfoRequestProcessor,
-        thunder_window_manager::ThunderWindowManagerRequestProcessor,
-    },
-    thunder_state::ThunderBootstrapStateWithClient,
+use crate::processors::{
+    thunder_browser::ThunderBrowserRequestProcessor,
+    thunder_device_info::ThunderDeviceInfoRequestProcessor,
+    thunder_window_manager::ThunderWindowManagerRequestProcessor,
 };
 
 pub struct SetupThunderProcessor;

@@ -32,5 +32,12 @@
                 }
             ]
         }
+    ],
+    "required_contracts": [
+        "launcher",
+        "config",
+        "device:info",
+        "device:windowmanager",
+        "device:browser"
     ]
 }

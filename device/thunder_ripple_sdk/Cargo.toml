@@ -1,15 +1,14 @@
 [package]
-name = "launcher"
+name = "thunder_ripple_sdk"
 version = "0.1.0"
 edition = "2021"
-
+repository = "https://github.com/rdkcentral/Ripple"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[lib]
-crate-type = ["cdylib"]
 
 [dependencies]
 ripple_sdk = { path = "../../core/sdk" }
-serde_json = "1.0"
+jsonrpsee = { version = "0.9.0", features = ["macros", "ws-client"]}
 serde = { version = "1.0", features = ["derive"] }
 url = "2.2.2"
+strum = "0.24"
+strum_macros = "0.24"
