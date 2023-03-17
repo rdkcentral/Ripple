@@ -65,6 +65,20 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                                 }
                                 None => info!("no device extns loaded"),
                             },
+                            ExtnClass::Jsonrpsee => match load_jsonrpsee_methods(library) {
+                                Some(builder) => {
+                                    let (tx, tr) = unbounded();
+                                    let cap = ExtnCapability::new_extn(
+                                        ExtnClass::Jsonrpsee,
+                                        builder.service.clone(),
+                                    );
+                                    let extn_sender =
+                                        ExtnSender::new(main_sender.clone(), cap.clone());
+                                    let _ = jsonrpsee_extns.merge((builder.build)(extn_sender, tr));
+                                    client.clone().add_extn_sender(cap, tx)
+                                }
+                                None => info!("no jsonrpsee extns loaded"),
+                            },
                             _ => {}
                         },
                         _ => {}
