@@ -3,7 +3,7 @@ use std::{fs, path::Path};
 use log::{info, warn};
 use serde::Deserialize;
 
-use crate::{extn::extn_capability::ExtnCapability, utils::error::RippleError};
+use crate::{extn::extn_id::ExtnId, utils::error::RippleError};
 
 /// Contains the default path for the manifest
 /// file extension type based on platform
@@ -11,7 +11,7 @@ use crate::{extn::extn_capability::ExtnCapability, utils::error::RippleError};
 pub struct ExtnManifest {
     pub default_path: String,
     pub default_extension: String,
-    pub extns: Vec<ExtnEntry>,
+    pub extns: Vec<ExtnManifestEntry>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -23,7 +23,7 @@ pub struct ExtnResolutionEntry {
 
 /// Contains Resolution strategies and path for the manifest.
 #[derive(Deserialize, Debug, Clone)]
-pub struct ExtnEntry {
+pub struct ExtnManifestEntry {
     pub path: String,
     pub symbols: Vec<ExtnSymbol>,
     pub resolution: Option<Vec<ExtnResolutionEntry>>,
@@ -31,13 +31,14 @@ pub struct ExtnEntry {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct ExtnSymbol {
-    pub capability: String,
-    pub permissions: Vec<String>,
+    pub id: String,
+    pub uses: Vec<String>,
+    pub fulfills: Vec<String>,
 }
 
 impl ExtnSymbol {
-    fn get_launcher_capability(&self) -> Option<ExtnCapability> {
-        if let Ok(cap) = ExtnCapability::try_from(self.capability.clone()) {
+    fn get_launcher_capability(&self) -> Option<ExtnId> {
+        if let Ok(cap) = ExtnId::try_from(self.id.clone()) {
             if cap.is_launcher_channel() {
                 return Some(cap);
             }
@@ -46,7 +47,7 @@ impl ExtnSymbol {
     }
 }
 
-impl ExtnEntry {
+impl ExtnManifestEntry {
     pub fn get_path(&self, default_path: &str, default_extn: &str) -> String {
         let path = self.path.clone();
         // has absolute path
@@ -85,7 +86,7 @@ impl ExtnManifest {
         }
     }
 
-    pub fn get_launcher_capability(&self) -> Option<ExtnCapability> {
+    pub fn get_launcher_capability(&self) -> Option<ExtnId> {
         for extn in self.extns.clone() {
             for symbol in extn.symbols {
                 if let Some(cap) = symbol.get_launcher_capability() {

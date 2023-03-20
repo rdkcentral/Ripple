@@ -2,10 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     api::apps::{AppSession, CloseReason},
-    extn::{
-        extn_capability::{ExtnCapability, ExtnClass},
-        extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider, ExtnRequest},
-    },
+    extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider, ExtnRequest},
+    framework::ripple_contract::{MainContract, RippleContract},
 };
 
 use super::{fb_discovery::NavigationIntent, fb_lifecycle::LifecycleState};
@@ -44,8 +42,8 @@ impl ExtnPayloadProvider for LifecycleManagementEventRequest {
         None
     }
 
-    fn cap() -> ExtnCapability {
-        ExtnCapability::new_channel(ExtnClass::Launcher, "launcher".into())
+    fn contract() -> RippleContract {
+        RippleContract::Launcher
     }
 }
 
@@ -71,8 +69,8 @@ impl ExtnPayloadProvider for LifecycleManagementRequest {
         None
     }
 
-    fn cap() -> ExtnCapability {
-        ExtnCapability::get_main_target("lifecycle-management".into())
+    fn contract() -> RippleContract {
+        RippleContract::Main(MainContract::LifecycleManagement)
     }
 }
 

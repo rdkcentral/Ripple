@@ -2,9 +2,10 @@ use crossbeam::channel::Sender as CSender;
 
 use crate::{
     extn::{
-        extn_capability::ExtnCapability,
         extn_client_message::{ExtnMessage, ExtnPayload},
+        extn_id::ExtnId,
     },
+    framework::ripple_contract::RippleContract,
     utils::error::RippleError,
 };
 
@@ -32,7 +33,7 @@ impl From<ExtnMessage> for CExtnMessage {
             id: value.id,
             payload,
             requestor: value.requestor.to_string(),
-            target: value.target.to_string(),
+            target: value.target.into(),
         }
     }
 }
@@ -41,17 +42,17 @@ impl TryInto<ExtnMessage> for CExtnMessage {
     type Error = RippleError;
 
     fn try_into(self) -> Result<ExtnMessage, Self::Error> {
-        let requestor_capability: Result<ExtnCapability, RippleError> = self.requestor.try_into();
+        let requestor_capability: Result<ExtnId, RippleError> = self.requestor.try_into();
         if requestor_capability.is_err() {
             return Err(RippleError::ParseError);
         }
         let requestor = requestor_capability.unwrap();
 
-        let target_capability: Result<ExtnCapability, RippleError> = self.target.try_into();
-        if target_capability.is_err() {
+        let target_contract: Result<RippleContract, RippleError> = self.target.try_into();
+        if target_contract.is_err() {
             return Err(RippleError::ParseError);
         }
-        let target = target_capability.unwrap();
+        let target = target_contract.unwrap();
 
         let payload: Result<ExtnPayload, RippleError> = self.payload.try_into();
         if payload.is_err() {

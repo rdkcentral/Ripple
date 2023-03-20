@@ -1,4 +1,4 @@
-use crate::{
+use ripple_sdk::{
     api::status_update::ExtnStatus,
     async_trait::async_trait,
     extn::{
@@ -6,41 +6,33 @@ use crate::{
             DefaultExtnStreamer, ExtnEventProcessor, ExtnStreamProcessor, ExtnStreamer,
         },
         extn_client_message::ExtnMessage,
-        extn_id::ExtnId,
     },
     log::error,
     tokio::sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
 };
 
-#[derive(Debug, Clone)]
-pub struct WaitForState {
-    capability: ExtnId,
-    sender: MSender<ExtnStatus>,
-}
+use crate::state::extn_state::ExtnState;
 
 #[derive(Debug)]
-pub struct WaitForStatusReadyEventProcessor {
-    state: WaitForState,
+pub struct ExtnStatusProcessor {
+    state: ExtnState,
     streamer: DefaultExtnStreamer,
 }
 
 /// Event processor used for cases where a certain Extension Capability is required to be ready.
 /// Bootstrap uses the [WaitForStatusReadyEventProcessor] to await during Device Connnection before starting the gateway.
-impl WaitForStatusReadyEventProcessor {
-    pub fn new(
-        capability: ExtnId,
-        sender: MSender<ExtnStatus>,
-    ) -> WaitForStatusReadyEventProcessor {
-        WaitForStatusReadyEventProcessor {
-            state: WaitForState { capability, sender },
+impl ExtnStatusProcessor {
+    pub fn new(state: ExtnState) -> ExtnStatusProcessor {
+        ExtnStatusProcessor {
+            state,
             streamer: DefaultExtnStreamer::new(),
         }
     }
 }
 
-impl ExtnStreamProcessor for WaitForStatusReadyEventProcessor {
+impl ExtnStreamProcessor for ExtnStatusProcessor {
     type VALUE = ExtnStatus;
-    type STATE = WaitForState;
+    type STATE = ExtnState;
 
     fn get_state(&self) -> Self::STATE {
         self.state.clone()
@@ -56,21 +48,17 @@ impl ExtnStreamProcessor for WaitForStatusReadyEventProcessor {
 }
 
 #[async_trait]
-impl ExtnEventProcessor for WaitForStatusReadyEventProcessor {
+impl ExtnEventProcessor for ExtnStatusProcessor {
     async fn process_event(
         state: Self::STATE,
         msg: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> Option<bool> {
-        if msg.requestor.to_string().eq(&state.capability.to_string()) {
-            match extracted_message {
-                ExtnStatus::Ready => {
-                    if let Err(_) = state.sender.send(ExtnStatus::Ready).await {
-                        error!("Failure to wait status message")
-                    }
-                    return Some(true);
-                }
-                _ => {}
+        let id = msg.requestor.clone();
+        state.update_extn_status(id.clone(), extracted_message.clone());
+        if let Some(v) = state.get_extn_status_listener(id.clone()) {
+            if let Err(e) = v.send(extracted_message.clone()).await {
+                error!("Error while sending status {:?}", e);
             }
         }
         None

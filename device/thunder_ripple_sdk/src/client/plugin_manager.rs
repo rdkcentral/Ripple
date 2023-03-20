@@ -4,6 +4,7 @@ use ripple_sdk::tokio;
 use ripple_sdk::{
     api::device::device_operator::{DeviceCallRequest, DeviceSubscribeRequest},
     log::error,
+    serde_json,
 };
 use ripple_sdk::{
     api::device::device_operator::{DeviceChannelParams, DeviceOperator, DeviceResponseMessage},

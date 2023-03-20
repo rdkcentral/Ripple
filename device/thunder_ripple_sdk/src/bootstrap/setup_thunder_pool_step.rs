@@ -31,8 +31,8 @@ impl ThunderPoolStep {
         let plugin_manager_tx = PluginManager::start(Box::new(controller_pool)).await;
         let client = ThunderClientPool::start(url, Some(plugin_manager_tx), pool_size - 1);
         info!("Thunder client connected successfully");
-        let _ = state.prev.extn_client.event(ExtnStatus::Ready).await;
-        let extn_client = state.prev.extn_client.clone();
+        let _ = state.extn_client.event(ExtnStatus::Ready).await;
+        let extn_client = state.extn_client.clone();
         Ok(ThunderBootstrapStateWithClient {
             prev: state,
             state: ThunderState::new(extn_client, client),

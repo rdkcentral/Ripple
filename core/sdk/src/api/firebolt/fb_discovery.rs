@@ -9,7 +9,7 @@ pub struct DiscoveryContext {
 }
 
 impl DiscoveryContext {
-    fn new(source: &str) -> DiscoveryContext {
+    pub fn new(source: &str) -> DiscoveryContext {
         return DiscoveryContext {
             source: source.to_string(),
         };

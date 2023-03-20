@@ -4,7 +4,7 @@ use ripple_sdk::{
         device_manifest::{AppLibraryEntry, DeviceManifest},
         extn_manifest::ExtnManifest,
     },
-    extn::{extn_capability::ExtnCapability, extn_client_message::ExtnMessage},
+    extn::{extn_client_message::ExtnMessage, extn_id::ExtnId},
     utils::error::RippleError,
 };
 
@@ -65,7 +65,7 @@ impl PlatformState {
         self.extn_manifest.get_launcher_capability().is_some()
     }
 
-    pub fn get_launcher_capability(&self) -> Option<ExtnCapability> {
+    pub fn get_launcher_capability(&self) -> Option<ExtnId> {
         self.extn_manifest.get_launcher_capability()
     }
 

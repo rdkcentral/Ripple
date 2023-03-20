@@ -80,15 +80,8 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
             )),
             _ => ExtnResponse::Error(ripple_sdk::utils::error::RippleError::InvalidInput),
         };
-        if let Ok(response_ext_message) = msg.get_response(response) {
-            state.respond(response_ext_message).await.is_ok()
-        } else {
-            Self::handle_error(
-                state.get_client().get_extn_client(),
-                msg,
-                ripple_sdk::utils::error::RippleError::InvalidInput,
-            )
+        Self::respond(state.get_client().get_extn_client(), msg, response)
             .await
-        }
+            .is_ok()
     }
 }
