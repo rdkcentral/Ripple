@@ -28,7 +28,7 @@ fn start_preloaded_channel(
 }
 
 /// Bootstep which starts the All Extns channels intitiating including the device interface connection channel.
-/// This step calls the start method on the all the Channels and waits for a successful 
+/// This step calls the start method on the all the Channels and waits for a successful
 /// [ExtnStatus] before proceeding to the next boot step.
 pub struct StartExtnChannelsStep;
 
