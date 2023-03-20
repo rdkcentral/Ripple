@@ -25,10 +25,11 @@ use super::{
 /// 1. [SetupExtnClientStep] - Initializes the extn client to start the Inter process communication backbone
 /// 2. [LoadExtensionMetadataStep] - Loads the Extn metadata from the So files
 /// 3. [LoadExtensionsStep] - Loads the Extensions in to [crate::state::extn_state::ExtnState]
-/// 4. [StartDeviceChannel] - Starts the Device channel extension
+/// 4. [StartExtnChannelsStep] - Starts the Device channel extension
 /// 5. [StartAppManagerStep] - Starts the App Manager and other supporting services
-/// 6. [StartWsStep] - Starts the Websocket to accept external and internal connections
-/// 7. [FireboltGatewayStep] - Starts the firebolt gateway and blocks the thread to keep it alive till interruption.
+/// 6. [CheckLauncherStep] - Checks the presence of launcher extension and starts default app
+/// 7. [StartWsStep] - Starts the Websocket to accept external and internal connections
+/// 8. [FireboltGatewayStep] - Starts the firebolt gateway and blocks the thread to keep it alive till interruption.
 ///
 pub async fn boot(state: BootstrapState) {
     let bootstrap = &Bootstrap::new(state);

@@ -27,9 +27,9 @@ fn start_preloaded_channel(
     Ok(())
 }
 
-/// Bootstep which starts the Device channel intitiating a device interface connection channel.
-/// This step calls the start method on the Device Channel and waits for a successful Device
-/// connection before proceeding to the next boot step.
+/// Bootstep which starts the All Extns channels intitiating including the device interface connection channel.
+/// This step calls the start method on the all the Channels and waits for a successful 
+/// [ExtnStatus] before proceeding to the next boot step.
 pub struct StartExtnChannelsStep;
 
 #[async_trait]
