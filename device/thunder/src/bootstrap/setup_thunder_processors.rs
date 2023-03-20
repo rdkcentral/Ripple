@@ -4,7 +4,7 @@ use crate::{
     processors::{
         thunder_browser::ThunderBrowserRequestProcessor,
         thunder_device_info::ThunderDeviceInfoRequestProcessor,
-        thunder_window_manager::ThunderWindowManagerRequestProcessor,
+        thunder_window_manager::ThunderWindowManagerRequestProcessor, thunder_wifi::ThunderWifiRequestProcessor,
     },
     thunder_state::ThunderBootstrapStateWithClient,
 };
@@ -26,6 +26,7 @@ impl SetupThunderProcessor {
         extn_client.add_request_processor(ThunderWindowManagerRequestProcessor::new(
             state.clone().state,
         ));
+        extn_client.add_request_processor(ThunderWifiRequestProcessor::new(state.clone().state));
         Ok(state)
     }
 }

@@ -1,9 +1,9 @@
 use crate::{client::thunder_plugin::ThunderPlugin, thunder_state::ThunderState};
+use jsonrpsee::types::{response, request};
 use ripple_sdk::{
     api::device::{
         device_wifi::WifiRequest,
-        device_info_request::DeviceInfoRequest,
-        device_operator::{DeviceCallRequest, DeviceOperator},
+        device_operator::{DeviceCallRequest, DeviceOperator, DeviceChannelParams},
     },
     async_trait::async_trait,
     extn::{
@@ -16,11 +16,24 @@ use ripple_sdk::{
     utils::error::RippleError,
 };
 use serde_json::json;
+use serde::{Deserialize,Serialize};
 
 #[derive(Debug)]
 pub struct ThunderWifiRequestProcessor {
     state: ThunderState,
     streamer: DefaultExtnStreamer,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct WifiRequestHeader {
+    callsign: String,
+    client: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ThunderWifiScanRequest {
+    pub incremental: bool,
 }
 
 impl ThunderWifiRequestProcessor {
@@ -31,32 +44,34 @@ impl ThunderWifiRequestProcessor {
         }
     }
 
-/*
-    async fn make(state: ThunderState, req: ExtnMessage) -> bool {
+    async fn scan(state: ThunderState, req: ExtnMessage) -> bool {
+        let start_scan: String = ThunderPlugin::Wifi.method("startScan");
+        let request: ThunderWifiScanRequest = ThunderWifiScanRequest { incremental: false };
         let response = state
             .get_thunder_client()
-            .call(DeviceCallRequest {
-                method: ThunderPlugin::System.method("getDeviceInfo"),
-                params: None,
-            })
-            .await;
-        info!("{}", response.message);
-        let response = match response.message["make"].as_str() {
+            .call(DeviceCallRequest { 
+                method: start_scan, 
+                params: Some(DeviceChannelParams::Json(serde_json::to_string(&request).unwrap(),
+            )),
+             })
+             .await;
+        info!("fasil {}",response.message);
+        let response = match response.message["success"].as_bool() {
             Some(v) => ExtnResponse::String(v.to_string()),
             None => ExtnResponse::Error(RippleError::InvalidOutput),
         };
-
+        
+        info!("fasil {:?}",response);
         Self::respond(state.get_client(), req, response)
             .await
-            .is_ok()
+            .is_ok()            
     }
-*/
 
 }
 
 impl ExtnStreamProcessor for ThunderWifiRequestProcessor {
     type STATE = ThunderState;
-    type VALUE = DeviceInfoRequest;
+    type VALUE = WifiRequest;
 
     fn get_state(&self) -> Self::STATE {
         self.state.clone()
@@ -83,10 +98,7 @@ impl ExtnRequestProcessor for ThunderWifiRequestProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         match extracted_message {
-//            WifiRequest::Scan => Self::
-//            DeviceInfoRequest::Make => Self::make(state.clone(), msg).await,
-//            DeviceInfoRequest::Model => Self::model(state.clone(), msg).await,
-//            DeviceInfoRequest::AvailableMemory => Self::available_memory(state.clone(), msg).await,
+            WifiRequest::Scan => Self::scan(state.clone(), msg).await,
             _ => false,
         }
     }

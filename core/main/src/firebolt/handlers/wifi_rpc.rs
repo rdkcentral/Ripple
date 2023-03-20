@@ -8,7 +8,7 @@ use jsonrpsee::{
     RpcModule,
 };
 use ripple_sdk::{
-    api::{device::device_info_request::DeviceInfoRequest, gateway::rpc_gateway_api::CallContext},
+    api::{device::{device_info_request::DeviceInfoRequest, device_wifi::{WifiScanRequest, WifiRequest}}, gateway::rpc_gateway_api::CallContext},
     extn::extn_client_message::ExtnResponse,
     log::{error, info, trace},
 };
@@ -27,10 +27,22 @@ pub struct WifiImpl {
 #[async_trait]
 impl WifiServer for WifiImpl {
     async fn scan(&self, _ctx: CallContext) -> RpcResult<String> {
-        trace!("Wifi.scan");
-        Ok("API called".into())
+        if let Ok(response) = self
+        .state
+        .get_client()
+        .send_extn_request(WifiRequest::Scan)
+        .await
+    {
+        if let Some(ExtnResponse::String(v)) = response.payload.clone().extract() {
+            return Ok(v);
+        }
     }
+    Err(rpc_err("FB error response TBD"))
 }
+
+//        Ok("API called".into())
+}
+
 
 
 pub struct WifiRPCProvider;
