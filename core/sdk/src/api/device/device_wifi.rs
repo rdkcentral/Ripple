@@ -1,11 +1,12 @@
 use crate::extn::{
     extn_capability::{ExtnCapability, ExtnClass},
-    extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
+    extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest}, client::extn_processor::DefaultExtnStreamer,
 };
 
 use super::device_request::DeviceRequest;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+
 
 #[derive(Debug, Serialize, Deserialize)]
 #[derive(Clone)]
@@ -27,6 +28,8 @@ pub enum WifiSecurityMode {
     Wpa3PskAes,
     Wpa3Sae,
 }
+
+
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -67,6 +70,14 @@ impl Default for WifiScanRequest {
         WifiScanRequest { timeout: Some(0) }
     }
 }
+
+
+#[async_trait]
+pub trait WifiService {
+    async fn scan(self: Box<Self>, ) -> Box<Self>;
+}
+
+
 
 impl ExtnPayloadProvider for WifiRequest {
     fn get_extn_payload(&self) -> ExtnPayload {

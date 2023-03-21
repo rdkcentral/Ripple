@@ -1,9 +1,10 @@
 use crate::{client::thunder_plugin::ThunderPlugin, thunder_state::ThunderState};
-use jsonrpsee::types::{response, request};
+use crate::processors::thunder_wifi::ThunderPlugin::Wifi;
+use jsonrpsee::{types::{response, request}, tracing::{Span, info_span}};
 use ripple_sdk::{
     api::device::{
         device_wifi::WifiRequest,
-        device_operator::{DeviceCallRequest, DeviceOperator, DeviceChannelParams},
+        device_operator::{DeviceCallRequest, DeviceOperator, DeviceChannelParams, DeviceResponseMessage, DeviceSubscribeRequest, DeviceUnsubscribeRequest},
     },
     async_trait::async_trait,
     extn::{
@@ -13,7 +14,7 @@ use ripple_sdk::{
         extn_client_message::{ExtnMessage, ExtnResponse},
     },
     log::{error, info},
-    utils::error::RippleError,
+    utils::error::RippleError, tokio::{sync::mpsc, self},
 };
 use serde_json::json;
 use serde::{Deserialize,Serialize};
@@ -67,6 +68,34 @@ impl ThunderWifiRequestProcessor {
             .is_ok()            
     }
 
+        async fn wait_for_thunder_ssids( state: ThunderState, req: ExtnMessage) {
+                
+            info!("subscribing to wifi ssid scan thunder events");
+
+        
+                let client = state.get_thunder_client();
+        
+        //        let (s, mut r) = tokio::sync::mpsc::channel::<ThunderResponseMessage>(32);
+                let (sub_tx, mut sub_rx) = mpsc::channel::<DeviceResponseMessage>(32);
+        
+                //let (resp_tx, resp_rx) = mpsc::channel::<DeviceResponseMessage>();
+        
+        //        let unsub_client = client.clone();
+                client
+                    .clone()
+                    .subscribe(
+                        DeviceSubscribeRequest {
+                            module: Wifi.callsign_and_version(),
+                            event_name: "onAvailableSSIDs".into(),
+                            params: None,
+                            sub_id: None,
+                        },
+                        sub_tx,
+                    )
+                    .await;
+                
+                }
+
 }
 
 impl ExtnStreamProcessor for ThunderWifiRequestProcessor {
@@ -92,11 +121,24 @@ impl ExtnRequestProcessor for ThunderWifiRequestProcessor {
         self.state.get_client()
     }
 
+
     async fn process_request(
         state: Self::STATE,
         msg: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
+
+        if true {
+            ThunderWifiRequestProcessor::wait_for_thunder_ssids(
+                state.clone(),
+                msg.clone(),
+            )
+            .await;
+        } else {
+            error!("Wifi scan failure")
+        };
+
+
         match extracted_message {
             WifiRequest::Scan => Self::scan(state.clone(), msg).await,
             _ => false,
