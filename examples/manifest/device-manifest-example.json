@@ -62,7 +62,6 @@
       "xrn:firebolt:capability:device:name",
       "xrn:firebolt:capability:device:sku",
       "xrn:firebolt:capability:device:uid",
-      "xrn:firebolt:capability:wifi:scan",
       "xrn:firebolt:capability:discovery:entity-info",
       "xrn:firebolt:capability:discovery:navigate-to",
       "xrn:firebolt:capability:discovery:policy",

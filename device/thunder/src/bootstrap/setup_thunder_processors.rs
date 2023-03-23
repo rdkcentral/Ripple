@@ -15,15 +15,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-<<<<<<< HEAD
-use crate::{
-    processors::{
-        thunder_browser::ThunderBrowserRequestProcessor,
-        thunder_device_info::ThunderDeviceInfoRequestProcessor,
-        thunder_window_manager::ThunderWindowManagerRequestProcessor, thunder_wifi::ThunderWifiRequestProcessor,
-    },
-    thunder_state::ThunderBootstrapStateWithClient,
-=======
 use thunder_ripple_sdk::{
     ripple_sdk::utils::error::RippleError, thunder_state::ThunderBootstrapStateWithClient,
 };
@@ -32,7 +23,6 @@ use crate::processors::{
     thunder_browser::ThunderBrowserRequestProcessor,
     thunder_device_info::ThunderDeviceInfoRequestProcessor,
     thunder_window_manager::ThunderWindowManagerRequestProcessor,
->>>>>>> main
 };
 
 pub struct SetupThunderProcessor;
@@ -52,7 +42,6 @@ impl SetupThunderProcessor {
         extn_client.add_request_processor(ThunderWindowManagerRequestProcessor::new(
             state.clone().state,
         ));
-        extn_client.add_request_processor(ThunderWifiRequestProcessor::new(state.clone().state));
         Ok(state)
     }
 }
