@@ -15,7 +15,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use ThunderPluginConfig as Cfg;
