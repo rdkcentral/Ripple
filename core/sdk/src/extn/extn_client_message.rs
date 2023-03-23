@@ -9,6 +9,7 @@ use crate::{
     api::{
         config::{Config, ConfigResponse},
         device::device_request::DeviceRequest,
+        device::device_wifi::{AccessPoint,AccessPointList},
         firebolt::fb_lifecycle_management::LifecycleManagementRequest,
         gateway::rpc_gateway_api::RpcRequest,
         status_update::ExtnStatus,
@@ -180,7 +181,7 @@ pub enum ExtnRequest {
     Rpc(RpcRequest),
     Device(DeviceRequest),
     Extn(Value),
-    LifecycleManagement(LifecycleManagementRequest),
+    LifecycleManagement(LifecycleManagementRequest),   
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -194,6 +195,8 @@ pub enum ExtnResponse {
     List(Vec<String>),
     Error(RippleError),
     Config(ConfigResponse),
+    WifiScanListResponse(AccessPointList),
+    WifiConnectSuccessResponse(AccessPoint),    
 }
 
 impl ExtnPayloadProvider for ExtnResponse {
