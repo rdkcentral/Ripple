@@ -1,3 +1,19 @@
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 use crate::{
     api::status_update::ExtnStatus,
     async_trait::async_trait,
@@ -5,8 +21,8 @@ use crate::{
         client::extn_processor::{
             DefaultExtnStreamer, ExtnEventProcessor, ExtnStreamProcessor, ExtnStreamer,
         },
-        extn_capability::ExtnCapability,
         extn_client_message::ExtnMessage,
+        extn_id::ExtnId,
     },
     log::error,
     tokio::sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
@@ -14,7 +30,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct WaitForState {
-    capability: ExtnCapability,
+    capability: ExtnId,
     sender: MSender<ExtnStatus>,
 }
 
@@ -28,7 +44,7 @@ pub struct WaitForStatusReadyEventProcessor {
 /// Bootstrap uses the [WaitForStatusReadyEventProcessor] to await during Device Connnection before starting the gateway.
 impl WaitForStatusReadyEventProcessor {
     pub fn new(
-        capability: ExtnCapability,
+        capability: ExtnId,
         sender: MSender<ExtnStatus>,
     ) -> WaitForStatusReadyEventProcessor {
         WaitForStatusReadyEventProcessor {

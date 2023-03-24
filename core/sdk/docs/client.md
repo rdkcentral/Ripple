@@ -221,11 +221,11 @@ Here is an example of how to create your own Custom Request enum payload
 
 ```
  use serde::{Deserialize, Serialize};
- use ripple_sdk::extn::extn_capability::ExtnCapability;
+ use ripple_sdk::extn::extn_idExtnCapability;
  use ripple_sdk::extn::extn_client_message::ExtnPayload;
  use ripple_sdk::extn::extn_client_message::ExtnRequest;
  use ripple_sdk::extn::extn_client_message::ExtnPayloadProvider;
- use ripple_sdk::extn::extn_capability::ExtnClass;
+ use ripple_sdk::extn::extn_idExtnClass;
 
  #[derive(Debug, Clone, Serialize, Deserialize)]
  pub enum MyCustomEnumRequestPayload {

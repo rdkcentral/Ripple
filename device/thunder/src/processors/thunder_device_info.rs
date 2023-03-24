@@ -1,5 +1,22 @@
-use crate::{client::thunder_plugin::ThunderPlugin, thunder_state::ThunderState};
-use ripple_sdk::{
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use serde_json::json;
+use thunder_ripple_sdk::ripple_sdk::{
     api::device::{
         device_info_request::DeviceInfoRequest,
         device_operator::{DeviceCallRequest, DeviceOperator},
@@ -12,9 +29,14 @@ use ripple_sdk::{
         extn_client_message::{ExtnMessage, ExtnResponse},
     },
     log::{error, info},
+    serde_json,
     utils::error::RippleError,
 };
-use serde_json::json;
+use thunder_ripple_sdk::{
+    client::thunder_plugin::ThunderPlugin,
+    ripple_sdk::{extn::client::extn_client::ExtnClient, tokio::sync::mpsc},
+    thunder_state::ThunderState,
+};
 
 #[derive(Debug)]
 pub struct ThunderDeviceInfoRequestProcessor {
@@ -101,18 +123,18 @@ impl ExtnStreamProcessor for ThunderDeviceInfoRequestProcessor {
         self.state.clone()
     }
 
-    fn receiver(&mut self) -> ripple_sdk::tokio::sync::mpsc::Receiver<ExtnMessage> {
+    fn receiver(&mut self) -> mpsc::Receiver<ExtnMessage> {
         self.streamer.receiver()
     }
 
-    fn sender(&self) -> ripple_sdk::tokio::sync::mpsc::Sender<ExtnMessage> {
+    fn sender(&self) -> mpsc::Sender<ExtnMessage> {
         self.streamer.sender()
     }
 }
 
 #[async_trait]
 impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
-    fn get_client(&self) -> ripple_sdk::extn::client::extn_client::ExtnClient {
+    fn get_client(&self) -> ExtnClient {
         self.state.get_client()
     }
 

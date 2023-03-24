@@ -1,20 +1,29 @@
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use ripple_sdk::{
     async_trait::async_trait,
-    extn::{
-        extn_capability::{ExtnClass, ExtnType},
-        ffi::{
-            ffi_channel::{load_extn_channel, ExtnChannel},
-            ffi_device::{
-                load_device_channel, load_device_extn_builder, DeviceChannel, DeviceExtn,
-            },
-        },
-    },
+    extn::{extn_id::ExtnId, ffi::ffi_channel::load_channel_builder},
     framework::bootstrap::Bootstep,
-    log::{debug, info},
+    log::{debug, error, info},
     utils::error::RippleError,
 };
 
-use crate::state::bootstrap_state::BootstrapState;
+use crate::state::{bootstrap_state::BootstrapState, extn_state::PreLoadedExtnChannel};
 
 /// Actual bootstep which loads the extensions into the ExtnState.
 /// Currently this step loads
@@ -29,80 +38,54 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
     }
     async fn setup(&self, state: BootstrapState) -> Result<(), RippleError> {
         let loaded_extensions = state.extn_state.loaded_libraries.read().unwrap();
-        let mut device_extns: Vec<DeviceExtn> = Vec::new();
-        let mut launcher_channel: Option<Box<ExtnChannel>> = None;
-        let mut device_channel: Option<Box<DeviceChannel>> = None;
+        let mut deferred_channels: Vec<PreLoadedExtnChannel> = Vec::new();
+        let mut device_channels: Vec<PreLoadedExtnChannel> = Vec::new();
         for extn in loaded_extensions.iter() {
             unsafe {
+                let path = extn.entry.clone().path;
                 let library = &extn.library;
-                debug!("loading symbols from {}", extn.get_metadata().name);
-                let extn_metadata = extn.get_metadata().metadata;
-                for metadata in extn_metadata.iter() {
-                    let cap_string = metadata.get_cap().to_string();
-                    debug!("loading extension {}", cap_string);
-                    match metadata.get_cap().get_type() {
-                        ExtnType::Channel => match metadata.get_cap().class() {
-                            ExtnClass::Device => match load_device_channel(library) {
-                                Ok(channel) => {
-                                    info!("Adding to channel map {}", cap_string.clone());
-                                    let _ = device_channel.insert(channel);
+                info!("Number of channels {}", extn.metadata.symbols.len());
+                let channels = extn.get_channels();
+                for channel in channels {
+                    debug!("loading channel builder for {}", channel.id);
+                    if let Ok(extn_id) = ExtnId::try_from(channel.id.clone()) {
+                        if let Ok(builder) = load_channel_builder(library) {
+                            debug!("building channel {}", channel.id);
+                            if let Ok(extn_channel) = (builder.build)(extn_id.to_string()) {
+                                let preloaded_channel = PreLoadedExtnChannel {
+                                    channel: extn_channel,
+                                    extn_id: extn_id.clone(),
+                                    symbol: channel.clone(),
+                                };
+                                if extn_id.is_device_channel() {
+                                    device_channels.push(preloaded_channel);
+                                } else {
+                                    deferred_channels.push(preloaded_channel);
                                 }
-                                Err(e) => return Err(e),
-                            },
-                            ExtnClass::Launcher => match load_extn_channel(library) {
-                                Ok(channel) => {
-                                    info!("Adding launcher to channel map {}", cap_string.clone());
-                                    let _ = launcher_channel.insert(channel);
-                                }
-                                Err(e) => return Err(e),
-                            },
-                            _ => {}
-                        },
-                        ExtnType::Extn => match metadata.get_cap().class() {
-                            ExtnClass::Device => match load_device_extn_builder(library) {
-                                Some(builder) => {
-                                    device_extns.extend(builder.get_all());
-                                }
-                                None => info!("no device extns loaded"),
-                            },
-                            ExtnClass::Jsonrpsee => match load_jsonrpsee_methods(library) {
-                                Some(builder) => {
-                                    let (tx, tr) = unbounded();
-                                    let cap = ExtnCapability::new_extn(
-                                        ExtnClass::Jsonrpsee,
-                                        builder.service.clone(),
-                                    );
-                                    let extn_sender =
-                                        ExtnSender::new(main_sender.clone(), cap.clone());
-                                    let _ = jsonrpsee_extns.merge((builder.build)(extn_sender, tr));
-                                    client.clone().add_extn_sender(cap, tx)
-                                }
-                                None => info!("no jsonrpsee extns loaded"),
-                            },
-                            _ => {}
-                        },
-                        _ => {}
+                            }
+                        } else {
+                            error!("invalid channel builder in {}", path);
+                            return Err(RippleError::BootstrapError);
+                        }
+                    } else {
+                        error!("invalid extn manifest entry for extn_id");
+                        return Err(RippleError::BootstrapError);
                     }
                 }
+                debug!("loading symbols from {}", extn.get_metadata().name);
             }
         }
 
         {
-            let mut device_channel_state = state.extn_state.device_channel.write().unwrap();
-            let _ = device_channel_state.insert(device_channel.unwrap());
-            info!("Device channel extension loaded");
-        }
-
-        if launcher_channel.is_some() {
-            let mut launcher_channel_state = state.extn_state.launcher_channel.write().unwrap();
-            let _ = launcher_channel_state.insert(launcher_channel.unwrap());
-            info!("Launcher channel extension loaded");
+            let mut device_channel_state = state.extn_state.device_channels.write().unwrap();
+            let _ = device_channel_state.extend(device_channels);
+            info!("Device channels extension loaded");
         }
 
         {
-            let mut device_extn = state.extn_state.device_extns.write().unwrap();
-            info!("Total device extns loaded {}", device_extns.len());
-            let _ = device_extn.insert(device_extns);
+            let mut deferred_channel_state = state.extn_state.deferred_channels.write().unwrap();
+            let _ = deferred_channel_state.extend(deferred_channels);
+            info!("Deferred channels extension loaded");
         }
 
         Ok(())

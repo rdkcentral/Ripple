@@ -1,3 +1,19 @@
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
@@ -11,12 +27,13 @@ use tokio::sync::{
 };
 
 use crate::{
+    api::manifest::extn_manifest::ExtnSymbol,
     extn::{
-        extn_capability::ExtnCapability,
         extn_client_message::{ExtnMessage, ExtnPayloadProvider, ExtnResponse},
+        extn_id::ExtnId,
         ffi::ffi_message::CExtnMessage,
     },
-    framework::RippleResponse,
+    framework::{ripple_contract::RippleContract, RippleResponse},
     utils::error::RippleError,
 };
 
@@ -43,6 +60,7 @@ pub struct ExtnClient {
     receiver: CReceiver<CExtnMessage>,
     sender: ExtnSender,
     extn_sender_map: Arc<RwLock<HashMap<String, CSender<CExtnMessage>>>>,
+    contract_map: Arc<RwLock<HashMap<String, String>>>,
     response_processors: Arc<RwLock<HashMap<String, OSender<ExtnMessage>>>>,
     request_processors: Arc<RwLock<HashMap<String, MSender<ExtnMessage>>>>,
     event_processors: Arc<RwLock<HashMap<String, Vec<MSender<ExtnMessage>>>>>,
@@ -87,6 +105,7 @@ impl ExtnClient {
             receiver,
             sender,
             extn_sender_map: Arc::new(RwLock::new(HashMap::new())),
+            contract_map: Arc::new(RwLock::new(HashMap::new())),
             response_processors: Arc::new(RwLock::new(HashMap::new())),
             request_processors: Arc::new(RwLock::new(HashMap::new())),
             event_processors: Arc::new(RwLock::new(HashMap::new())),
@@ -99,7 +118,7 @@ impl ExtnClient {
     ///
     /// Also starts the thread in the processor to accept incoming requests.
     pub fn add_request_processor(&mut self, mut processor: impl ExtnRequestProcessor) {
-        let processor_string = processor.capability().to_string();
+        let processor_string: String = processor.contract().into();
         info!("adding request processor {}", processor_string);
         add_stream_processor(
             processor_string.clone(),
@@ -113,7 +132,7 @@ impl ExtnClient {
     }
 
     /// Removes a request processor reference on the internal map of processors
-    pub fn remove_request_processor(&mut self, capability: ExtnCapability) {
+    pub fn remove_request_processor(&mut self, capability: ExtnId) {
         remove_processor(capability.to_string(), self.request_processors.clone());
     }
 
@@ -124,7 +143,7 @@ impl ExtnClient {
     /// Also starts the thread in the processor to accept incoming events.
     pub fn add_event_processor(&mut self, mut processor: impl ExtnEventProcessor) {
         add_vec_stream_processor(
-            processor.capability().to_string(),
+            processor.contract().into(),
             processor.sender(),
             self.event_processors.clone(),
         );
@@ -132,14 +151,25 @@ impl ExtnClient {
     }
 
     /// Removes an event processor reference on the internal map of processors
-    pub fn cleanup_event_stream(&mut self, capability: ExtnCapability) {
+    pub fn cleanup_event_stream(&mut self, capability: ExtnId) {
         Self::cleanup_vec_stream(capability.to_string(), None, self.event_processors.clone());
     }
 
     /// Used mainly by `Main` application to add senders of the extensions for IEC
-    pub fn add_sender(&mut self, capability: ExtnCapability, sender: CSender<CExtnMessage>) {
-        let mut sender_map = self.extn_sender_map.write().unwrap();
-        sender_map.insert(capability.get_short(), sender);
+    pub fn add_sender(&mut self, id: ExtnId, symbol: ExtnSymbol, sender: CSender<CExtnMessage>) {
+        let id = id.to_string();
+        {
+            let mut sender_map = self.extn_sender_map.write().unwrap();
+            sender_map.insert(id.clone(), sender);
+        }
+        {
+            let mut map = HashMap::new();
+            for contract in symbol.fulfills {
+                map.insert(contract, id.clone());
+            }
+            let mut contract_map = self.contract_map.write().unwrap();
+            contract_map.extend(map);
+        }
     }
 
     /// Called once per client initialization this is a blocking method. Use a spawned thread to call this method
@@ -165,35 +195,43 @@ impl ExtnClient {
                         Self::handle_vec_stream(message, self.event_processors.clone());
                     } else {
                         let current_cap = self.sender.get_cap();
-                        let message_target_cap = message.clone().target;
-                        if current_cap.match_layer(message_target_cap.clone()) {
-                            Self::handle_stream(message, self.request_processors.clone());
-                        } else {
-                            // Forward the message to an extn sender or return error
-                            if let Some(sender) = self.get_extn_sender(message_target_cap) {
-                                let mut new_message = message.clone();
-                                if new_message.callback.is_none() {
-                                    // before forwarding check if the requestor needs to be added as callback
-                                    let req_sender = if let Some(requestor_sender) =
-                                        self.get_extn_sender(message.clone().requestor)
-                                    {
-                                        Some(requestor_sender)
-                                    } else {
-                                        None
-                                    };
-                                    if req_sender.is_some() {
-                                        let _ = new_message.callback.insert(req_sender.unwrap());
-                                    }
-                                }
-
-                                tokio::spawn(async move {
-                                    if let Err(e) = sender.send(new_message.into()) {
-                                        error!("Error forwarding request {:?}", e)
-                                    }
-                                });
+                        let target_contract = message.clone().target;
+                        if current_cap.is_main() {
+                            if target_contract.is_main() {
+                                Self::handle_stream(message, self.request_processors.clone());
                             } else {
-                                error!("No Request handler for {:?}", message);
+                                // Forward the message to an extn sender or return error
+                                if let Some(sender) =
+                                    self.get_extn_sender_with_contract(target_contract)
+                                {
+                                    let mut new_message = message.clone();
+                                    if new_message.callback.is_none() {
+                                        // before forwarding check if the requestor needs to be added as callback
+                                        let req_sender = if let Some(requestor_sender) = self
+                                            .get_extn_sender_with_extn_id(
+                                                message.clone().requestor.to_string(),
+                                            ) {
+                                            Some(requestor_sender)
+                                        } else {
+                                            None
+                                        };
+                                        if req_sender.is_some() {
+                                            let _ =
+                                                new_message.callback.insert(req_sender.unwrap());
+                                        }
+                                    }
+
+                                    tokio::spawn(async move {
+                                        if let Err(e) = sender.send(new_message.into()) {
+                                            error!("Error forwarding request {:?}", e)
+                                        }
+                                    });
+                                } else {
+                                    error!("No Request handler for {:?}", message);
+                                }
                             }
+                        } else {
+                            Self::handle_stream(message, self.request_processors.clone());
                         }
                     }
                 }
@@ -237,7 +275,7 @@ impl ExtnClient {
         msg: ExtnMessage,
         processor: Arc<RwLock<HashMap<String, MSender<ExtnMessage>>>>,
     ) {
-        let id_c = msg.clone().target.to_string();
+        let id_c: String = msg.clone().target.into();
 
         let v = {
             let processors = processor.read().unwrap();
@@ -259,7 +297,7 @@ impl ExtnClient {
         msg: ExtnMessage,
         processor: Arc<RwLock<HashMap<String, Vec<MSender<ExtnMessage>>>>>,
     ) {
-        let id_c = msg.clone().target.to_string();
+        let id_c = msg.clone().target.into();
         let mut gc_sender_indexes: Vec<usize> = Vec::new();
         let mut sender: Option<MSender<ExtnMessage>> = None;
         {
@@ -323,9 +361,27 @@ impl ExtnClient {
         }
     }
 
-    fn get_extn_sender(&self, cap: ExtnCapability) -> Option<CSender<CExtnMessage>> {
-        let key = cap.get_short();
-        self.extn_sender_map.read().unwrap().get(&key).cloned()
+    fn get_extn_sender_with_contract(
+        &self,
+        contract: RippleContract,
+    ) -> Option<CSender<CExtnMessage>> {
+        let contract_str: String = contract.into();
+        let id = {
+            self.contract_map
+                .read()
+                .unwrap()
+                .get(&contract_str)
+                .cloned()
+        };
+        if let Some(extn_id) = id {
+            return self.get_extn_sender_with_extn_id(extn_id);
+        }
+
+        None
+    }
+
+    fn get_extn_sender_with_extn_id(&self, id: String) -> Option<CSender<CExtnMessage>> {
+        return self.extn_sender_map.read().unwrap().get(&id).cloned();
     }
 
     /// Critical method used by request processors to send response message back to the requestor
@@ -349,15 +405,17 @@ impl ExtnClient {
     /// # Arguments
     /// `msg` - [ExtnMessage]
     pub async fn send_message(&mut self, msg: ExtnMessage) -> RippleResponse {
-        self.sender
-            .respond(msg.clone().into(), self.get_extn_sender(msg.clone().target))
+        self.sender.respond(
+            msg.clone().into(),
+            self.get_extn_sender_with_extn_id(msg.clone().requestor.to_string()),
+        )
     }
 
     /// Critical method used by event processors to emit event back to the requestor
     /// # Arguments
     /// `msg` - [ExtnMessage] event object
     pub async fn event(&mut self, event: impl ExtnPayloadProvider) -> Result<(), RippleError> {
-        let other_sender = self.get_extn_sender(event.get_capability());
+        let other_sender = self.get_extn_sender_with_contract(event.get_contract());
         self.sender.send_event(event, other_sender).await
     }
 
@@ -374,7 +432,7 @@ impl ExtnClient {
         let id = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = oneshot::channel();
         add_single_processor(id.clone(), Some(tx), self.response_processors.clone());
-        let other_sender = self.get_extn_sender(payload.get_capability());
+        let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
 
         if let Err(e) = self.sender.send_request(id, payload, other_sender, None) {
             return Err(e);

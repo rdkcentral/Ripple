@@ -1,9 +1,22 @@
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 use crate::{
-    extn::{
-        extn_capability::ExtnCapability,
-        extn_client_message::{ExtnMessage, ExtnPayload, ExtnPayloadProvider, ExtnResponse},
-    },
-    framework::RippleResponse,
+    extn::extn_client_message::{ExtnMessage, ExtnPayload, ExtnPayloadProvider, ExtnResponse},
+    framework::{ripple_contract::RippleContract, RippleResponse},
     utils::error::RippleError,
 };
 use async_trait::async_trait;
@@ -59,8 +72,8 @@ pub trait ExtnStreamProcessor: Send + Sync + 'static {
 
     fn get_state(&self) -> Self::STATE;
     fn receiver(&mut self) -> MReceiver<ExtnMessage>;
-    fn capability(&self) -> ExtnCapability {
-        Self::VALUE::cap()
+    fn contract(&self) -> RippleContract {
+        Self::VALUE::contract()
     }
     fn sender(&self) -> MSender<ExtnMessage>;
 }
@@ -164,10 +177,7 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     }
 
     async fn run(&mut self) {
-        debug!(
-            "starting request processor for {}",
-            self.capability().to_string()
-        );
+        debug!("starting request processor for {:?}", self.contract());
         let extn_client = self.get_client();
         let mut receiver = self.receiver();
         let state = self.get_state();
@@ -245,10 +255,7 @@ pub trait ExtnEventProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     }
 
     async fn run(&mut self) {
-        debug!(
-            "starting event processor for {}",
-            self.capability().to_string()
-        );
+        debug!("starting event processor for {:?}", self.contract());
         start_rx_stream!(
             Self,
             self,

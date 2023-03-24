@@ -1,0 +1,31 @@
+# If not stated otherwise in this file or this component's license file the
+# following copyright and licenses apply:
+#
+# Copyright 2023 RDK Management
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[package]
+name = "thunder_ripple_sdk"
+version = "0.2.0"
+edition = "2021"
+repository = "https://github.com/rdkcentral/Ripple"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ripple_sdk = { path = "../../core/sdk" }
+jsonrpsee = { version = "0.9.0", features = ["macros", "ws-client"]}
+serde = { version = "1.0", features = ["derive"] }
+url = "2.2.2"
+strum = "0.24"
+strum_macros = "0.24"

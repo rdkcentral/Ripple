@@ -1,12 +1,23 @@
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 use std::str::FromStr;
-
 use crate::{
-    extn::extn_capability::ExtnCapability,
-    extn::{client::extn_sender::ExtnSender, ffi::ffi_message::CExtnMessage},
-    utils::error::RippleError,
+    extn::extn_id::ExtnId, framework::ripple_contract::RippleContract, utils::error::RippleError,
 };
-use crossbeam::channel::Receiver as CReceiver;
-use jsonrpsee::core::server::rpc_module::Methods;
 use libloading::{Library, Symbol};
 use log::{debug, error, info};
 use semver::Version;
@@ -16,19 +27,21 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone)]
 pub struct ExtnMetadata {
     pub name: String,
-    pub metadata: Vec<ExtnMetaEntry>,
+    pub symbols: Vec<ExtnSymbolMetadata>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct CExtnMetaEntry {
-    cap: String,
+pub struct CExtnSymbolMetadata {
+    fulfills: String,
+    id: String,
     required_version: String,
 }
 
 #[derive(Debug, Clone)]
-pub struct ExtnMetaEntry {
-    cap: ExtnCapability,
-    required_version: Version,
+pub struct ExtnSymbolMetadata {
+    pub id: ExtnId,
+    pub fulfills: RippleContract,
+    pub required_version: Version,
 }
 
 #[repr(C)]
@@ -42,33 +55,38 @@ impl TryInto<ExtnMetadata> for Box<CExtnMetadata> {
     type Error = RippleError;
     fn try_into(self) -> Result<ExtnMetadata, Self::Error> {
         if let Ok(r) = serde_json::from_str(&self.metadata.clone()) {
-            let cap_entries: Vec<CExtnMetaEntry> = r;
-            let mut metadata: Vec<ExtnMetaEntry> = Vec::new();
+            let cap_entries: Vec<CExtnSymbolMetadata> = r;
+            let mut metadata: Vec<ExtnSymbolMetadata> = Vec::new();
             for c_entry in cap_entries {
-                if let Ok(cap) = ExtnCapability::try_from(c_entry.cap) {
-                    if let Ok(required_version) = Version::from_str(&c_entry.required_version) {
-                        metadata.push(ExtnMetaEntry {
-                            cap,
-                            required_version,
-                        })
+                if let Ok(id) = ExtnId::try_from(c_entry.id) {
+                    if let Ok(fulfills) = RippleContract::try_from(c_entry.fulfills) {
+                        if let Ok(required_version) = Version::from_str(&c_entry.required_version) {
+                            metadata.push(ExtnSymbolMetadata {
+                                id,
+                                fulfills,
+                                required_version,
+                            })
+                        }
                     }
                 }
             }
             return Ok(ExtnMetadata {
                 name: self.name,
-                metadata,
+                symbols: metadata,
             });
         }
+
         Err(RippleError::ExtnError)
     }
 }
 
 impl From<ExtnMetadata> for CExtnMetadata {
     fn from(value: ExtnMetadata) -> Self {
-        let mut metadata: Vec<CExtnMetaEntry> = Vec::new();
-        for data in value.metadata {
-            metadata.push(CExtnMetaEntry {
-                cap: data.cap.to_string(),
+        let mut metadata: Vec<CExtnSymbolMetadata> = Vec::new();
+        for data in value.symbols {
+            metadata.push(CExtnSymbolMetadata {
+                id: data.clone().id.to_string(),
+                fulfills: data.clone().fulfills.into(),
                 required_version: data.get_version().to_string(),
             });
         }
@@ -81,16 +99,21 @@ impl From<ExtnMetadata> for CExtnMetadata {
     }
 }
 
-impl ExtnMetaEntry {
-    pub fn get(cap: ExtnCapability, required_version: Version) -> ExtnMetaEntry {
-        ExtnMetaEntry {
-            cap,
+impl ExtnSymbolMetadata {
+    pub fn get(
+        id: ExtnId,
+        contract: RippleContract,
+        required_version: Version,
+    ) -> ExtnSymbolMetadata {
+        ExtnSymbolMetadata {
+            id,
+            fulfills: contract,
             required_version,
         }
     }
 
-    pub fn get_cap(&self) -> ExtnCapability {
-        self.cap.clone()
+    pub fn get_contract(&self) -> RippleContract {
+        self.fulfills.clone()
     }
 
     pub fn get_version(&self) -> Version {
@@ -106,20 +129,22 @@ impl ExtnMetaEntry {
 /// use ripple_sdk::export_extn_metadata;
 /// use ripple_sdk::extn::ffi::ffi_library::CExtnMetadata;
 /// use ripple_sdk::utils::logger::init_logger;
-/// use ripple_sdk::extn::ffi::ffi_library::ExtnMetaEntry;
-/// use ripple_sdk::extn::extn_capability::{ExtnClass,ExtnCapability};
+/// use ripple_sdk::extn::ffi::ffi_library::ExtnSymbolMetadata;
+/// use ripple_sdk::extn::extn_id::{ExtnClassId,ExtnId};
+/// use ripple_sdk::framework::ripple_contract::{RippleContract, DeviceContract};
 /// use semver::Version;
 /// use ripple_sdk::extn::ffi::ffi_library::ExtnMetadata;
 /// fn init_library() -> CExtnMetadata {
 /// let _ = init_logger("device_channel".into());
-/// let thunder_channel_meta = ExtnMetaEntry::get(
-///     ExtnCapability::new_channel(ExtnClass::Device, "device_interface".into()),
+/// let thunder_channel_meta = ExtnSymbolMetadata::get(
+///     ExtnId::new_channel(ExtnClassId::Device, "device_interface".into()),
+///     RippleContract::Device(DeviceContract::Info),
 ///     Version::new(1, 1, 0),
 /// );
 
 /// let extn_metadata = ExtnMetadata {
 ///     name: "device_interface".into(),
-///     metadata: vec![thunder_channel_meta],
+///     symbols: vec![thunder_channel_meta],
 /// };
 /// extn_metadata.into()
 /// }
@@ -159,36 +184,4 @@ pub unsafe fn load_extn_library_metadata(lib: &Library) -> Option<Box<ExtnMetada
     None
 }
 
-#[macro_export]
-macro_rules! export_jsonrpc_extn_builder {
-    ($plugin_type:ty, $constructor:path) => {
-        #[no_mangle]
-        pub extern "C" fn jsonrpsee_extn_builder_create() -> *mut JsonRpseeExtnBuilder {
-            let constructor: fn() -> $plugin_type = $constructor;
-            let object = constructor();
-            let boxed = Box::new(object);
-            Box::into_raw(boxed)
-        }
-    };
-}
 
-#[repr(C)]
-#[derive(Debug)]
-pub struct JsonRpseeExtnBuilder {
-    pub build: fn(client: ExtnSender, receiver: CReceiver<CExtnMessage>) -> Methods,
-    pub service: String,
-}
-
-pub unsafe fn load_jsonrpsee_methods(lib: &Library) -> Option<Box<JsonRpseeExtnBuilder>> {
-    type LibraryFfi = unsafe fn() -> *mut JsonRpseeExtnBuilder;
-    let r = lib.get(b"jsonrpsee_extn_builder_create");
-    match r {
-        Ok(r) => {
-            debug!("Thunder Extn Builder Symbol extracted from library");
-            let constructor: Symbol<LibraryFfi> = r;
-            return Some(Box::from_raw(constructor()));
-        }
-        Err(e) => error!("Thunder Extn Builder symbol loading failed {:?}", e),
-    }
-    None
-}
