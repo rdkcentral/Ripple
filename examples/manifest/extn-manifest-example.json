@@ -8,7 +8,7 @@
                 {
                     "id": "ripple:channel:device:thunder",
                     "uses": [
-                        "config"
+                        "main:config"
                     ],
                     "fulfills": [
                         "device:info",
@@ -24,7 +24,10 @@
                 {
                     "id": "ripple:channel:launcher:internal",
                     "uses": [
-                        "config"
+                        "main:config",
+                        "device:info",
+                        "device:windowmanager",
+                        "device:browser"
                     ],
                     "fulfills": [
                         "launcher"
@@ -36,9 +39,13 @@
             "path": "libdistributor_general",
             "symbols": [
                 {
-                    "capability": "ripple:channel:distributor:general",
-                    "permissions": [
-                        "ripple:main:internal:config"
+                    "id": "ripple:channel:distributor:general",
+                    "uses": [
+                        "main:config"
+                    ],
+                    "fulfills": [
+                        "distributor:permissions",
+                        "session"
                     ]
                 }
             ]
@@ -46,9 +53,11 @@
     ],
     "required_contracts": [
         "launcher",
-        "config",
+        "main:config",
         "device:info",
         "device:windowmanager",
-        "device:browser"
+        "device:browser",
+        "distributor:permissions",
+        "session"
     ]
 }
