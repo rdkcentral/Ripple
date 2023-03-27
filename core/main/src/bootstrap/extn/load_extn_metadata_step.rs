@@ -1,7 +1,24 @@
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use std::ffi::OsStr;
 
 use ripple_sdk::{
-    api::manifest::extn_manifest::ExtnResolutionEntry,
+    api::manifest::extn_manifest::ExtnManifestEntry,
     async_trait::async_trait,
     extn::ffi::ffi_library::load_extn_library_metadata,
     framework::bootstrap::Bootstep,
@@ -17,7 +34,10 @@ use crate::state::{bootstrap_state::BootstrapState, extn_state::LoadedLibrary};
 pub struct LoadExtensionMetadataStep;
 
 impl LoadExtensionMetadataStep {
-    unsafe fn load_extension_library<P: AsRef<OsStr>>(filename: P) -> Option<LoadedLibrary> {
+    unsafe fn load_extension_library<P: AsRef<OsStr>>(
+        filename: P,
+        entry: ExtnManifestEntry,
+    ) -> Option<LoadedLibrary> {
         let r = Library::new(filename.as_ref());
         if r.is_err() {
             debug!("Extn not found");
@@ -27,7 +47,7 @@ impl LoadExtensionMetadataStep {
         let library = r.unwrap();
         let metadata = load_extn_library_metadata(&library);
         if metadata.is_some() {
-            return Some(LoadedLibrary::new(library, metadata.unwrap(), None));
+            return Some(LoadedLibrary::new(library, metadata.unwrap(), entry));
         }
         None
     }
@@ -44,29 +64,27 @@ impl Bootstep<BootstrapState> for LoadExtensionMetadataStep {
         let manifest = state.platform_state.get_manifest();
         let default_path = manifest.default_path.clone();
         let default_extn = manifest.default_extension.clone();
-        let extn_paths: Vec<(String, Option<Vec<ExtnResolutionEntry>>)> = manifest
+        let extn_paths: Vec<(String, ExtnManifestEntry)> = manifest
             .extns
             .into_iter()
             .map(|f| {
-                (f.get_path(&default_path, &default_extn), f.resolution)
+                (f.get_path(&default_path, &default_extn), f)
                 // TODO Add Resolution checks later on
             })
             .collect();
         unsafe {
             let mut loaded_extns = state.extn_state.loaded_libraries.write().unwrap();
-            for (extn_path, resolution) in extn_paths {
+            for (extn_path, entry) in extn_paths {
                 debug!("");
                 debug!("");
                 debug!(
                     "******************Loading {}************************",
                     extn_path
                 );
-                let r = Self::load_extension_library(extn_path.clone());
+                let r = Self::load_extension_library(extn_path.clone(), entry);
                 match r {
-                    Some(mut loaded_extn) => {
-                        if resolution.is_some() {
-                            loaded_extn.resolution = resolution;
-                        }
+                    Some(loaded_extn) => {
+                        info!("Adding {}", loaded_extn.metadata.symbols.len());
                         loaded_extns.push(loaded_extn);
                     }
                     None => warn!(

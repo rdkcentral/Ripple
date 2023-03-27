@@ -1,9 +1,25 @@
-use std::{collections::HashMap, fs, path::Path};
-
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 use log::{info, warn};
 use serde::Deserialize;
+use std::collections::HashMap;
+use std::{fs, path::Path};
 
-use crate::{extn::extn_capability::ExtnCapability, utils::error::RippleError};
+use crate::{extn::extn_id::ExtnId, utils::error::RippleError};
 
 /// Contains the default path for the manifest
 /// file extension type based on platform
@@ -11,7 +27,7 @@ use crate::{extn::extn_capability::ExtnCapability, utils::error::RippleError};
 pub struct ExtnManifest {
     pub default_path: String,
     pub default_extension: String,
-    pub extns: Vec<ExtnEntry>,
+    pub extns: Vec<ExtnManifestEntry>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -23,7 +39,7 @@ pub struct ExtnResolutionEntry {
 
 /// Contains Resolution strategies and path for the manifest.
 #[derive(Deserialize, Debug, Clone)]
-pub struct ExtnEntry {
+pub struct ExtnManifestEntry {
     pub path: String,
     pub symbols: Vec<ExtnSymbol>,
     pub resolution: Option<Vec<ExtnResolutionEntry>>,
@@ -31,13 +47,14 @@ pub struct ExtnEntry {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct ExtnSymbol {
-    pub capability: String,
-    pub permissions: Vec<String>,
+    pub id: String,
+    pub uses: Vec<String>,
+    pub fulfills: Vec<String>,
 }
 
 impl ExtnSymbol {
-    fn get_launcher_capability(&self) -> Option<ExtnCapability> {
-        if let Ok(cap) = ExtnCapability::try_from(self.capability.clone()) {
+    fn get_launcher_capability(&self) -> Option<ExtnId> {
+        if let Ok(cap) = ExtnId::try_from(self.id.clone()) {
             if cap.is_launcher_channel() {
                 return Some(cap);
             }
@@ -45,8 +62,8 @@ impl ExtnSymbol {
         None
     }
 
-    fn get_distributor_capability(&self) -> Option<ExtnCapability> {
-        if let Ok(cap) = ExtnCapability::try_from(self.capability.clone()) {
+    fn get_distributor_capability(&self) -> Option<ExtnId> {
+        if let Ok(cap) = ExtnId::try_from(self.id.clone()) {
             if cap.is_distributor_channel() {
                 return Some(cap);
             }
@@ -55,7 +72,7 @@ impl ExtnSymbol {
     }
 }
 
-impl ExtnEntry {
+impl ExtnManifestEntry {
     pub fn get_path(&self, default_path: &str, default_extn: &str) -> String {
         let path = self.path.clone();
         // has absolute path
@@ -72,12 +89,12 @@ impl ExtnEntry {
         path
     }
 
-    pub fn get_symbol(&self, capability: ExtnCapability) -> Option<ExtnSymbol> {
+    pub fn get_symbol(&self, capability: ExtnId) -> Option<ExtnSymbol> {
         let ref_cap = capability.to_string();
         self.symbols
             .clone()
             .into_iter()
-            .find(|x| x.capability.eq(&ref_cap))
+            .find(|x| x.id.eq(&ref_cap))
             .clone()
     }
 }
@@ -103,7 +120,7 @@ impl ExtnManifest {
         }
     }
 
-    pub fn get_launcher_capability(&self) -> Option<ExtnCapability> {
+    pub fn get_launcher_capability(&self) -> Option<ExtnId> {
         for extn in self.extns.clone() {
             for symbol in extn.symbols {
                 if let Some(cap) = symbol.get_launcher_capability() {
@@ -114,7 +131,7 @@ impl ExtnManifest {
         return None;
     }
 
-    pub fn get_distributor_capability(&self) -> Option<ExtnCapability> {
+    pub fn get_distributor_capability(&self) -> Option<ExtnId> {
         for extn in self.extns.clone() {
             for symbol in extn.symbols {
                 if let Some(cap) = symbol.get_distributor_capability() {
@@ -129,8 +146,8 @@ impl ExtnManifest {
         let mut map = HashMap::new();
         self.extns.clone().into_iter().for_each(|x| {
             x.symbols.into_iter().for_each(|y| {
-                if let Ok(cap) = ExtnCapability::try_from(y.capability) {
-                    map.insert(cap.to_string(), y.permissions.clone());
+                if let Ok(cap) = ExtnId::try_from(y.id) {
+                    map.insert(cap.to_string(), y.uses.clone());
                 }
             })
         });

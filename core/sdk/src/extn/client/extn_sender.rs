@@ -1,12 +1,27 @@
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 use crossbeam::channel::Sender as CSender;
 use log::{debug, error, trace};
 
 use crate::{
     extn::{
-        extn_capability::ExtnCapability, extn_client_message::ExtnPayloadProvider,
-        ffi::ffi_message::CExtnMessage,
+        extn_client_message::ExtnPayloadProvider, extn_id::ExtnId, ffi::ffi_message::CExtnMessage,
     },
-    framework::RippleResponse,
+    framework::{ripple_contract::RippleContract, RippleResponse},
     utils::error::RippleError,
 };
 
@@ -24,28 +39,27 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct ExtnSender {
     tx: CSender<CExtnMessage>,
-    cap: ExtnCapability,
-    permissions: Vec<String>,
+    id: ExtnId,
+    permitted: Vec<String>,
 }
 
 impl ExtnSender {
-    pub fn get_cap(&self) -> ExtnCapability {
-        self.cap.clone()
+    pub fn get_cap(&self) -> ExtnId {
+        self.id.clone()
     }
 
-    pub fn new(tx: CSender<CExtnMessage>, cap: ExtnCapability, permissions: Vec<String>) -> Self {
+    pub fn new(tx: CSender<CExtnMessage>, id: ExtnId, context: Vec<String>) -> Self {
         ExtnSender {
             tx,
-            cap,
-            permissions,
+            id,
+            permitted: context,
         }
     }
-
-    fn check_permissions(&self, capabilty: ExtnCapability) -> bool {
-        if self.cap.is_main() {
+    fn check_contract_permission(&self, contract: RippleContract) -> bool {
+        if self.id.is_main() {
             true
         } else {
-            self.permissions.contains(&capabilty.to_string())
+            self.permitted.contains(&contract.into())
         }
     }
 
@@ -57,17 +71,17 @@ impl ExtnSender {
         callback: Option<CSender<CExtnMessage>>,
     ) -> Result<(), RippleError> {
         // Extns can only send request to which it has permissions through Extn manifest
-        if !self.check_permissions(payload.get_capability()) {
+        if !self.check_contract_permission(payload.get_contract()) {
             return Err(RippleError::InvalidAccess);
         }
         let p = payload.get_extn_payload();
         let c_request = p.into();
         let msg = CExtnMessage {
-            requestor: self.cap.to_string(),
+            requestor: self.id.to_string(),
             callback,
             payload: c_request,
             id,
-            target: payload.get_capability().to_string(),
+            target: payload.get_contract().into(),
         };
         self.send(msg, other_sender)
     }
@@ -81,11 +95,11 @@ impl ExtnSender {
         let p = payload.get_extn_payload();
         let c_event = p.into();
         let msg = CExtnMessage {
-            requestor: self.cap.to_string(),
+            requestor: self.id.to_string(),
             callback: None,
             payload: c_event,
             id,
-            target: payload.get_capability().to_string(),
+            target: payload.get_contract().into(),
         };
         self.respond(msg, other_sender)
     }

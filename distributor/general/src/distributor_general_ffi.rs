@@ -1,20 +1,21 @@
 use ripple_sdk::{
     api::status_update::ExtnStatus,
     crossbeam::channel::Receiver as CReceiver,
-    export_distributor_channel, export_extn_metadata,
+    export_channel_builder, export_extn_metadata,
     extn::{
         client::{extn_client::ExtnClient, extn_sender::ExtnSender},
-        extn_capability::{ExtnCapability, ExtnClass},
+        extn_id::{ExtnClassId, ExtnId},
         ffi::{
-            ffi_distributor::{DistributorChannel, DistributorExtn},
-            ffi_library::{CExtnMetadata, ExtnMetaEntry, ExtnMetadata},
+            ffi_channel::{ExtnChannel, ExtnChannelBuilder},
+            ffi_library::{CExtnMetadata, ExtnMetadata, ExtnSymbolMetadata},
             ffi_message::CExtnMessage,
         },
     },
+    framework::ripple_contract::{DistributorContract, RippleContract},
     log::{debug, info},
     semver::Version,
     tokio::runtime::Runtime,
-    utils::logger::init_logger,
+    utils::{error::RippleError, logger::init_logger},
 };
 
 use crate::{
@@ -23,24 +24,27 @@ use crate::{
 };
 
 fn init_library() -> CExtnMetadata {
-    let _ = init_logger("dist_channel".into());
-    let dist_channel_meta = ExtnMetaEntry::get(
-        ExtnCapability::new_channel(ExtnClass::Distributor, "general".into()),
+    let _ = init_logger("launcher".into());
+
+    let dist_meta = ExtnSymbolMetadata::get(
+        ExtnId::new_channel(ExtnClassId::Distributor, "general".into()),
+        RippleContract::Distributor(DistributorContract::Permissions),
         Version::new(1, 1, 0),
     );
 
-    debug!("Returning thunder library entries");
+    debug!("Returning launcher builder");
     let extn_metadata = ExtnMetadata {
-        name: "general".into(),
-        metadata: vec![dist_channel_meta],
+        name: "distributor_general".into(),
+        symbols: vec![dist_meta],
     };
     extn_metadata.into()
 }
+
 export_extn_metadata!(CExtnMetadata, init_library);
 
-pub fn start(sender: ExtnSender, receiver: CReceiver<CExtnMessage>, _: Vec<DistributorExtn>) {
-    let _ = init_logger("dist_channel".into());
-    info!("Starting distributor channel");
+fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
+    let _ = init_logger("launcher_channel".into());
+    info!("Starting launcher channel");
     let runtime = Runtime::new().unwrap();
     let mut client = ExtnClient::new(receiver.clone(), sender);
     runtime.block_on(async move {
@@ -52,12 +56,27 @@ pub fn start(sender: ExtnSender, receiver: CReceiver<CExtnMessage>, _: Vec<Distr
     });
 }
 
-fn init_dist_channel() -> DistributorChannel {
-    DistributorChannel {
-        start,
-        capability: ExtnCapability::new_channel(ExtnClass::Distributor, "general".into()),
-        version: Version::new(1, 1, 0),
+fn build(extn_id: String) -> Result<Box<ExtnChannel>, RippleError> {
+    if let Ok(id) = ExtnId::try_from(extn_id.clone()) {
+        let current_id = ExtnId::new_channel(ExtnClassId::Launcher, "internal".into());
+
+        if id.eq(&current_id) {
+            return Ok(Box::new(ExtnChannel {
+                start: start_launcher,
+            }));
+        } else {
+            Err(RippleError::ExtnError)
+        }
+    } else {
+        Err(RippleError::InvalidInput)
     }
 }
 
-export_distributor_channel!(DistributorChannel, init_dist_channel);
+fn init_extn_builder() -> ExtnChannelBuilder {
+    ExtnChannelBuilder {
+        build,
+        service: "launcher".into(),
+    }
+}
+
+export_channel_builder!(ExtnChannelBuilder, init_extn_builder);

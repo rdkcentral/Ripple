@@ -1,12 +1,32 @@
-use crate::thunder_state::{ThunderBootstrapStateInitial, ThunderBootstrapStateWithConfig};
-use ripple_sdk::extn::extn_client_message::{ExtnMessage, ExtnResponse};
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use crate::thunder_state::ThunderBootstrapStateWithConfig;
+use ripple_sdk::extn::{
+    client::extn_client::ExtnClient,
+    extn_client_message::{ExtnMessage, ExtnResponse},
+};
 use ripple_sdk::{
     api::config::Config,
     log::{debug, warn},
+    serde_json::{self, Error},
     utils::error::RippleError,
 };
 use serde::Deserialize;
-use serde_json::Error;
 pub struct ThunderGetConfigStep;
 
 const GATEWAY_DEFAULT: &'static str = "ws://127.0.0.1:9998/jsonrpc";
@@ -34,10 +54,10 @@ impl ThunderGetConfigStep {
     }
 
     pub async fn setup(
-        mut state: ThunderBootstrapStateInitial,
+        mut state: ExtnClient,
     ) -> Result<ThunderBootstrapStateWithConfig, RippleError> {
         let extn_message_response: Result<ExtnMessage, RippleError> =
-            state.extn_client.request(Config::PlatformParameters).await;
+            state.request(Config::PlatformParameters).await;
         if let Ok(message) = extn_message_response {
             if let Some(ExtnResponse::Value(v)) = message.payload.clone().extract() {
                 let mut pool_size = POOL_SIZE_DEFAULT;
@@ -64,7 +84,7 @@ impl ThunderGetConfigStep {
                     gateway_url.set_host(Some(&host_override)).ok();
                 }
                 return Ok(ThunderBootstrapStateWithConfig {
-                    prev: state,
+                    extn_client: state,
                     url: gateway_url,
                     pool_size,
                 });

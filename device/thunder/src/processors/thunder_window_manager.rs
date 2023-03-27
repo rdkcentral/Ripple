@@ -1,4 +1,22 @@
-use ripple_sdk::{
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use serde::{Deserialize, Serialize};
+use thunder_ripple_sdk::ripple_sdk::{
     api::{
         apps::Dimensions,
         device::{
@@ -8,15 +26,20 @@ use ripple_sdk::{
     },
     async_trait::async_trait,
     extn::{
-        client::extn_processor::{
-            DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
+        client::{
+            extn_client::ExtnClient,
+            extn_processor::{
+                DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
+            },
         },
         extn_client_message::{ExtnMessage, ExtnResponse},
     },
+    serde_json,
+    tokio::sync::mpsc,
+    utils::error::RippleError,
 };
-use serde::{Deserialize, Serialize};
 
-use crate::{client::thunder_plugin::ThunderPlugin, thunder_state::ThunderState};
+use thunder_ripple_sdk::{client::thunder_plugin::ThunderPlugin, thunder_state::ThunderState};
 
 #[derive(Debug)]
 pub struct ThunderWindowManagerRequestProcessor {
@@ -129,18 +152,18 @@ impl ExtnStreamProcessor for ThunderWindowManagerRequestProcessor {
         self.state.clone()
     }
 
-    fn receiver(&mut self) -> ripple_sdk::tokio::sync::mpsc::Receiver<ExtnMessage> {
+    fn receiver(&mut self) -> mpsc::Receiver<ExtnMessage> {
         self.streamer.receiver()
     }
 
-    fn sender(&self) -> ripple_sdk::tokio::sync::mpsc::Sender<ExtnMessage> {
+    fn sender(&self) -> mpsc::Sender<ExtnMessage> {
         self.streamer.sender()
     }
 }
 
 #[async_trait]
 impl ExtnRequestProcessor for ThunderWindowManagerRequestProcessor {
-    fn get_client(&self) -> ripple_sdk::extn::client::extn_client::ExtnClient {
+    fn get_client(&self) -> ExtnClient {
         self.state.get_client()
     }
 
@@ -168,11 +191,6 @@ impl ExtnRequestProcessor for ThunderWindowManagerRequestProcessor {
                     .is_ok();
             }
         }
-        Self::handle_error(
-            state.get_client(),
-            msg,
-            ripple_sdk::utils::error::RippleError::ProcessorError,
-        )
-        .await
+        Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await
     }
 }

@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::extn::{
-    extn_capability::{ExtnCapability, ExtnClass},
-    extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
+use crate::{
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
+    framework::ripple_contract::RippleContract,
 };
 
 use super::distributor_request::DistributorRequest;
@@ -35,8 +35,8 @@ impl ExtnPayloadProvider for DistributorSessionRequest {
         )))
     }
 
-    fn cap() -> ExtnCapability {
-        ExtnCapability::new_channel(ExtnClass::Distributor, "session".into())
+    fn contract() -> RippleContract {
+        RippleContract::Session
     }
 }
 
@@ -66,8 +66,8 @@ impl ExtnPayloadProvider for DistributorSession {
         ExtnPayload::Response(ExtnResponse::Session(self.clone()))
     }
 
-    fn cap() -> ExtnCapability {
-        ExtnCapability::new_extn(ExtnClass::Distributor, "session".into())
+    fn contract() -> RippleContract {
+        RippleContract::Session
     }
 }
 

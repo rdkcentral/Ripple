@@ -6,9 +6,14 @@
             "path": "libthunder",
             "symbols": [
                 {
-                    "capability": "ripple:channel:device:thunder",
-                    "permissions": [
-                        "ripple:main:internal:config"
+                    "id": "ripple:channel:device:thunder",
+                    "uses": [
+                        "config"
+                    ],
+                    "fulfills": [
+                        "device:info",
+                        "device:windowmanager",
+                        "device:browser"
                     ]
                 }
             ]
@@ -17,9 +22,12 @@
             "path": "liblauncher",
             "symbols": [
                 {
-                    "capability": "ripple:channel:launcher:thunder",
-                    "permissions": [
-                        "ripple:main:internal:config"
+                    "id": "ripple:channel:launcher:internal",
+                    "uses": [
+                        "config"
+                    ],
+                    "fulfills": [
+                        "launcher"
                     ]
                 }
             ]
@@ -35,5 +43,12 @@
                 }
             ]
         }
+    ],
+    "required_contracts": [
+        "launcher",
+        "config",
+        "device:info",
+        "device:windowmanager",
+        "device:browser"
     ]
 }

@@ -2,10 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     api::firebolt::fb_capabilities::FireboltPermission,
-    extn::{
-        extn_capability::{ExtnCapability, ExtnClass},
-        extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
-    },
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
+    framework::ripple_contract::{DistributorContract, RippleContract},
 };
 
 use super::distributor_session::DistributorSession;
@@ -33,8 +31,8 @@ impl ExtnPayloadProvider for PermissionRequest {
         ExtnPayload::Request(ExtnRequest::Permission(self.clone()))
     }
 
-    fn cap() -> ExtnCapability {
-        ExtnCapability::new_channel(ExtnClass::Distributor, "permissions".into())
+    fn contract() -> crate::framework::ripple_contract::RippleContract {
+        RippleContract::Distributor(DistributorContract::Permissions)
     }
 }
 
@@ -63,7 +61,7 @@ impl ExtnPayloadProvider for AppPermissionsResponse {
         ))
     }
 
-    fn cap() -> ExtnCapability {
-        ExtnCapability::new_extn(ExtnClass::Distributor, "permissions".into())
+    fn contract() -> crate::framework::ripple_contract::RippleContract {
+        RippleContract::Distributor(DistributorContract::Permissions)
     }
 }
