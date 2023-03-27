@@ -26,6 +26,7 @@ pub enum RippleContract {
     Governance,
     Discovery,
     Launcher,
+    JsonRpsee,
 }
 
 impl RippleContract {

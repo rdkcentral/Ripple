@@ -53,7 +53,6 @@ This folder contains the workspaces for
 #### Examples folder
 This folder contains the workspaces which solves usecase with actual examples
 1. `rpc_extn` - Provides an example of how a firebolt method can be made into an extension using the sdk. This would be applicable for both Proprietary and Device specific extensions.
-2. `thunder_extn` - Provides an example of how a Thunder method which might be Proprietary or bound to a device type be made into an extension.
 
 
 ### What is Ripple magic sauce?
@@ -64,7 +63,6 @@ Load extensions(Dynamic shared libraries) during Ripple Startup
 Lets apply this to an actual Ripple 2.0 runtime which has loaded the below plugins
 1. `device/thunder`: This starts the thunder thread and accepts Device Requests. It also accepts Device extentions which assist in proprietary thunder plugins and device specific thunder extensions.
 2. `examples/rpc_extn`: This provides 2 extensions one for externalizing hdcp firebolt api and another to showcase support for legacy which can call into another rpc extension in `core/main`
-3. `examples/thunder_extn`: Provides an extn for HDCPProfile Thunder api which exists in streaming devices and not on display devices like TV.
 
 
 

@@ -72,6 +72,7 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                         return Err(RippleError::BootstrapError);
                     }
                 }
+
                 debug!("loading symbols from {}", extn.get_metadata().name);
             }
         }

@@ -450,7 +450,7 @@ impl ExtnClient {
         callback: CSender<CExtnMessage>,
     ) -> Result<(), RippleError> {
         let id = uuid::Uuid::new_v4().to_string();
-        let other_sender = self.get_extn_sender(payload.get_capability());
+        let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
 
         if let Err(e) = self
             .sender
