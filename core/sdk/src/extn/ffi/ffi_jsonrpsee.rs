@@ -31,11 +31,11 @@ pub unsafe fn load_jsonrpsee_methods(lib: &Library) -> Option<Box<JsonRpseeExtnB
     let r = lib.get(b"jsonrpsee_extn_builder_create");
     match r {
         Ok(r) => {
-            debug!("Thunder Extn Builder Symbol extracted from library");
+            debug!("Jsonrpsee Extn Builder Symbol extracted from library");
             let constructor: Symbol<LibraryFfi> = r;
             return Some(Box::from_raw(constructor()));
         }
-        Err(e) => error!("Thunder Extn Builder symbol loading failed {:?}", e),
+        Err(e) => error!("Jsonrpsee Extn Builder symbol loading failed {:?}", e),
     }
     None
 }

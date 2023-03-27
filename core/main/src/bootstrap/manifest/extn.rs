@@ -54,7 +54,7 @@ fn load_from_env() -> Result<(String, ExtnManifest), RippleError> {
 
 fn load_from_home() -> Result<(String, ExtnManifest), RippleError> {
     match std::env::var("HOME") {
-        Ok(home) => ExtnManifest::load(format!("{}/.ripple/firebolt-extn-manifest.json", home)),
+        Ok(home) => ExtnManifest::load(format!("{}\\.ripple\\firebolt-extn-manifest.json", home)),
         Err(_) => Err(RippleError::MissingInput),
     }
 }

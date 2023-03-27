@@ -78,12 +78,19 @@ impl LoadedLibrary {
             .collect()
     }
 
-    pub fn get_extns(&mut self) -> Vec<ExtnId> {
-        self.metadata
+    pub fn get_extns(&self) -> Vec<ExtnSymbol> {
+        let extn_ids: Vec<String> = self
+            .metadata
             .symbols
             .iter()
             .filter(|x| x.id.is_extn())
-            .map(|x| x.id.clone())
+            .map(|x| x.id.clone().to_string())
+            .collect();
+        self.entry
+            .clone()
+            .symbols
+            .into_iter()
+            .filter(|x| extn_ids.contains(&x.id))
             .collect()
     }
 

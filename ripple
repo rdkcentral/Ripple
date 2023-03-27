@@ -32,11 +32,11 @@ function print_help() {
 
 case ${1} in
     "init")
-        cp -f ./ripple ~/.cargo/bin
+        cp -f ./ripple C:\Users\30683\.cargo\bin
         mkdir -p ~/.ripple
-        cp ./examples/manifest/device-manifest-example.json ~/.ripple/firebolt-device-manifest.json
-        cp ./examples/manifest/extn-manifest-example.json ~/.ripple/firebolt-extn-manifest.json
-        cp ./examples/manifest/app-library-example.json ~/.ripple/firebolt-app-library.json
+        cp ./examples/manifest/device-manifest-example.json C:\Users\30683\.ripple\firebolt-device-manifest.json
+        cp ./examples/manifest/extn-manifest-example.json C:\Users\30683\.ripple\firebolt-extn-manifest.json
+        cp ./examples/manifest/app-library-example.json C:\Users\30683\.ripple\firebolt-app-library.json
     ;;
     "run")
         cargo build
