@@ -59,7 +59,7 @@ fn load_from_env() -> Result<(String, DeviceManifest), RippleError> {
 
 fn load_from_home() -> Result<(String, DeviceManifest), RippleError> {
     match std::env::var("HOME") {
-        Ok(home) => DeviceManifest::load(format!("{}\\.ripple\\firebolt-device-manifest.json", home)),
+        Ok(home) => DeviceManifest::load(format!("{}/.ripple/firebolt-device-manifest.json", home)),
         Err(_) => Err(RippleError::MissingInput),
     }
 }
