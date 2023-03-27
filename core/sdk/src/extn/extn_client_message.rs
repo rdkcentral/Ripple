@@ -26,7 +26,7 @@ use crate::{
         config::{Config, ConfigResponse},
         device::device_request::DeviceRequest,
         distributor::{
-            distributor_permissions::{PermissionResponse, PermissionRequest},
+            distributor_permissions::{PermissionRequest, PermissionResponse},
             distributor_request::DistributorRequest,
             distributor_session::DistributorSession,
         },
