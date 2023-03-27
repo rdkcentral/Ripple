@@ -1,15 +1,34 @@
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use ripple_sdk::{
-    api::status_update::ExtnStatus,
+    api::{
+        apps::{AppMethod, AppRequest, AppResponse},
+        firebolt::fb_discovery::{DiscoveryContext, LaunchRequest, NavigationIntent},
+    },
     async_trait::async_trait,
-    extn::client::wait_for_service_processor::WaitForStatusReadyEventProcessor,
     framework::{bootstrap::Bootstep, RippleResponse},
-    log::{debug, error},
-    tokio::sync::mpsc::channel,
+    tokio::sync::oneshot,
+    utils::error::RippleError,
 };
 
 use crate::{
     processor::lifecycle_management_processor::LifecycleManagementProcessor,
-    state::bootstrap_state::{BootstrapState, ChannelsState},
+    state::bootstrap_state::BootstrapState,
 };
 
 /// Bootstep which checks if the given run has the launcher channel and starts,
@@ -22,34 +41,37 @@ impl Bootstep<BootstrapState> for CheckLauncherStep {
     fn get_name(&self) -> String {
         "CheckLauncherStep".into()
     }
-    async fn setup(&self, mut state: BootstrapState) -> RippleResponse {
+    async fn setup(&self, state: BootstrapState) -> RippleResponse {
         if state.platform_state.has_internal_launcher() {
-            let extn_capability = state.platform_state.get_launcher_capability().unwrap();
-            let client = state.platform_state.get_client();
-
-            if let Err(e) = state.extn_state.start(
-                extn_capability.clone(),
-                ChannelsState::get_crossbeam_channel(),
-                client,
-            ) {
-                error!("Error during Device channel bootstrap");
-                return Err(e);
-            }
-
-            let (tx, mut tr) = channel::<ExtnStatus>(1);
-            state.platform_state.get_client().add_event_processor(
-                WaitForStatusReadyEventProcessor::new(extn_capability.clone(), tx),
-            );
             state.platform_state.get_client().add_request_processor(
                 LifecycleManagementProcessor::new(state.platform_state.get_client()),
             );
-            if let Some(_) = tr.recv().await {
-                debug!("Launcher ready");
-                state
-                    .platform_state
-                    .get_client()
-                    .cleanup_event_processor(extn_capability);
-                return Ok(());
+            let app = state
+                .platform_state
+                .app_library_state
+                .get_default_app()
+                .expect("Default app to be available in app library");
+            let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
+
+            let app_request = AppRequest::new(
+                AppMethod::Launch(LaunchRequest {
+                    app_id: app.app_id,
+                    intent: Some(NavigationIntent {
+                        action: "boot".into(),
+                        data: None,
+                        context: DiscoveryContext::new("device"),
+                    }),
+                }),
+                app_resp_tx,
+            );
+            state
+                .platform_state
+                .get_client()
+                .send_app_request(app_request)
+                .expect("App Request to be sent successfully");
+
+            if let Err(_) = app_resp_rx.await {
+                return Err(RippleError::BootstrapError);
             }
         }
         Ok(())

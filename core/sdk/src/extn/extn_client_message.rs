@@ -1,3 +1,19 @@
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 use std::collections::HashMap;
 
 use crossbeam::channel::Sender as CSender;
@@ -14,10 +30,11 @@ use crate::{
         gateway::rpc_gateway_api::RpcRequest,
         status_update::ExtnStatus,
     },
+    framework::ripple_contract::RippleContract,
     utils::error::RippleError,
 };
 
-use super::{extn_capability::ExtnCapability, ffi::ffi_message::CExtnMessage};
+use super::{extn_id::ExtnId, ffi::ffi_message::CExtnMessage};
 
 /// Default Message enum for the Communication Channel
 /// Message would be either a request or response or event
@@ -37,8 +54,8 @@ use super::{extn_capability::ExtnCapability, ffi::ffi_message::CExtnMessage};
 #[derive(Debug, Clone)]
 pub struct ExtnMessage {
     pub id: String,
-    pub requestor: ExtnCapability,
-    pub target: ExtnCapability,
+    pub requestor: ExtnId,
+    pub target: RippleContract,
     pub payload: ExtnPayload,
     pub callback: Option<CSender<CExtnMessage>>,
 }
@@ -54,8 +71,8 @@ impl ExtnMessage {
                 callback: self.callback.clone(),
                 id: self.id.clone(),
                 payload: ExtnPayload::Response(response),
-                requestor: self.target.clone(),
-                target: self.requestor.clone(),
+                requestor: self.requestor.clone(),
+                target: self.target.clone(),
             }),
             _ => {
                 error!("can only respond for a request message");
@@ -126,11 +143,12 @@ impl ExtnPayload {
 ///
 /// ```
 /// use serde::{Deserialize, Serialize};
-/// use ripple_sdk::extn::extn_capability::ExtnCapability;
+/// use ripple_sdk::extn::extn_id::ExtnId;
 /// use ripple_sdk::extn::extn_client_message::ExtnPayload;
 /// use ripple_sdk::extn::extn_client_message::ExtnRequest;
 /// use ripple_sdk::extn::extn_client_message::ExtnPayloadProvider;
-/// use ripple_sdk::extn::extn_capability::ExtnClass;
+/// use ripple_sdk::extn::extn_id::ExtnClassId;
+/// use ripple_sdk::framework::ripple_contract::{RippleContract,DeviceContract};
 /// #[derive(Debug, Clone, Serialize, Deserialize)]
 /// pub enum MyCustomEnumRequestPayload {
 ///     String(String),
@@ -158,8 +176,8 @@ impl ExtnPayload {
 ///     None
 /// }
 ///
-/// fn cap() -> ExtnCapability {
-///     ExtnCapability::new_extn(ExtnClass::Device, "custom".into())
+/// fn contract() -> RippleContract {
+///     RippleContract::Device(DeviceContract::Info)
 /// }
 /// }
 /// ```
@@ -169,10 +187,10 @@ where
 {
     fn get_extn_payload(&self) -> ExtnPayload;
     fn get_from_payload(payload: ExtnPayload) -> Option<Self>;
-    fn get_capability(&self) -> ExtnCapability {
-        Self::cap()
+    fn get_contract(&self) -> RippleContract {
+        Self::contract()
     }
-    fn cap() -> ExtnCapability;
+    fn contract() -> RippleContract;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -212,8 +230,8 @@ impl ExtnPayloadProvider for ExtnResponse {
         None
     }
 
-    fn cap() -> ExtnCapability {
-        ExtnCapability::get_main_target("response".into())
+    fn contract() -> RippleContract {
+        RippleContract::Internal
     }
 }
 
@@ -237,7 +255,7 @@ impl ExtnPayloadProvider for ExtnEvent {
         None
     }
 
-    fn cap() -> ExtnCapability {
-        ExtnCapability::get_main_target("event".into())
+    fn contract() -> RippleContract {
+        RippleContract::Internal
     }
 }

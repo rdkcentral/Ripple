@@ -89,7 +89,7 @@
   },
   "applications": {
     "distribution": {
-      "library": "/opt/default-app-library.json",
+      "library": "/etc/default-app-library.json",
       "catalog": ""
     },
     "defaults": {
