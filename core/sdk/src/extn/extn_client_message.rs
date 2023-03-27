@@ -26,7 +26,7 @@ use crate::{
         config::{Config, ConfigResponse},
         device::device_request::DeviceRequest,
         distributor::{
-            distributor_permissions::{AppPermissionsResponse, PermissionRequest},
+            distributor_permissions::{PermissionResponse, PermissionRequest},
             distributor_request::DistributorRequest,
             distributor_session::DistributorSession,
         },
@@ -220,7 +220,7 @@ pub enum ExtnResponse {
     Error(RippleError),
     Config(ConfigResponse),
     Session(DistributorSession),
-    Permission(AppPermissionsResponse),
+    Permission(PermissionResponse),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {

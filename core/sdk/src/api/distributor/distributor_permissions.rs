@@ -36,17 +36,13 @@ impl ExtnPayloadProvider for PermissionRequest {
     }
 }
 
-pub type AppPermissionsResponse = Vec<FireboltPermission>;
+pub type PermissionResponse = Vec<FireboltPermission>;
 
-impl ExtnPayloadProvider for AppPermissionsResponse {
+impl ExtnPayloadProvider for PermissionResponse {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         match payload {
             ExtnPayload::Response(r) => match r {
-                ExtnResponse::Value(v) => {
-                    if let Ok(r) = serde_json::from_value(v) {
-                        return Some(r);
-                    }
-                }
+                ExtnResponse::Permission(v) => return Some(v),
                 _ => {}
             },
             _ => {}
@@ -56,8 +52,8 @@ impl ExtnPayloadProvider for AppPermissionsResponse {
     }
 
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Response(ExtnResponse::Value(
-            serde_json::to_value(self.clone()).unwrap(),
+        ExtnPayload::Response(ExtnResponse::Permission(
+           self.clone() 
         ))
     }
 
