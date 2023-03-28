@@ -30,6 +30,7 @@ use ripple_sdk::{
     },
     framework::{file_store::FileStore, RippleResponse},
     log::info,
+    utils::error::RippleError,
 };
 
 use crate::state::platform_state::PlatformState;
@@ -63,13 +64,21 @@ impl PermittedState {
         self.permitted.read().unwrap().clone().value
     }
 
-    pub fn check_cap_role(&self, app_id: &str, role_info: RoleInfo) -> bool {
-        if let Some(perms) = self.get_all_permissions().get(app_id) {
-            for perm in perms {
-                return perm.cap.as_str() == role_info.capability && perm.role == role_info.role;
+    pub fn check_cap_role(&self, app_id: &str, role_info: RoleInfo) -> Result<bool, RippleError> {
+        if let Some(role) = role_info.role {
+            if let Some(perms) = self.get_all_permissions().get(app_id) {
+                for perm in perms {
+                    if perm.cap.as_str() == role_info.capability && perm.role == role {
+                        return Ok(true);
+                    }
+                }
+                return Ok(false);
+            } else {
+                // Not cached prior
+                return Err(RippleError::InvalidAccess);
             }
         }
-        false
+        Ok(false)
     }
 
     pub fn get_app_permissions(&self, app_id: &str) -> Option<Vec<FireboltPermission>> {
@@ -88,6 +97,14 @@ pub struct PermissionHandler;
 
 impl PermissionHandler {
     pub async fn fetch_and_store(state: PlatformState, app_id: String) -> RippleResponse {
+        if state
+            .cap_state
+            .permitted_state
+            .get_app_permissions(&app_id)
+            .is_some()
+        {
+            return Ok(());
+        }
         if let Some(session) = state.session_state.get_ripple_session() {
             if let Ok(extn_response) = state
                 .get_client()
@@ -103,6 +120,7 @@ impl PermissionHandler {
                     let mut permitted_state = state.cap_state.permitted_state.clone();
                     permitted_state.ingest(map);
                     info!("Permissions fetched for {}", app_id);
+                    return Ok(());
                 }
             }
         }

@@ -21,9 +21,7 @@ use std::{
 };
 
 use ripple_sdk::{
-    api::{
-        gateway::rpc_gateway_api::ApiMessage, session::RippleSession,
-    },
+    api::{gateway::rpc_gateway_api::ApiMessage, session::RippleSession},
     tokio::sync::mpsc::Sender,
     utils::error::RippleError,
 };
@@ -74,7 +72,7 @@ impl Session {
 #[derive(Debug, Clone, Default)]
 pub struct SessionState {
     session_map: Arc<RwLock<HashMap<String, Session>>>,
-    ripple_session: Arc<RwLock<Option<RippleSession>>>
+    ripple_session: Arc<RwLock<Option<RippleSession>>>,
 }
 
 impl SessionState {

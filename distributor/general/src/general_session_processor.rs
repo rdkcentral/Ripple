@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use ripple_sdk::{
-    api::{ session::{SessionRequest, RippleSession}},
+    api::session::{RippleSession, SessionRequest},
     async_trait::async_trait,
     extn::client::{
         extn_client::ExtnClient,

@@ -25,6 +25,7 @@
                     "id": "ripple:channel:launcher:internal",
                     "uses": [
                         "main:config",
+                        "main:lifecyclemanagement",
                         "device:info",
                         "device:windowmanager",
                         "device:browser"
@@ -53,7 +54,6 @@
     ],
     "required_contracts": [
         "launcher",
-        "main:config",
         "device:info",
         "device:windowmanager",
         "device:browser",

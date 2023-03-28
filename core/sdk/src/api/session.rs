@@ -5,10 +5,9 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum SessionRequest {
-    Session,
+    Get,
     IsProvisioned,
 }
 
@@ -26,9 +25,7 @@ impl ExtnPayloadProvider for SessionRequest {
     }
 
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::Session(
-            self.clone(),
-        ))
+        ExtnPayload::Request(ExtnRequest::Session(self.clone()))
     }
 
     fn contract() -> RippleContract {

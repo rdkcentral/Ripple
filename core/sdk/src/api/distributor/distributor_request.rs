@@ -16,9 +16,7 @@
 // limitations under the License.
 use serde::{Deserialize, Serialize};
 
-use super::{
-    distributor_permissions::PermissionRequest,
-};
+use super::distributor_permissions::PermissionRequest;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DistributorRequest {

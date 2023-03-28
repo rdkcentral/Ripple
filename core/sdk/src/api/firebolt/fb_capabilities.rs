@@ -293,7 +293,7 @@ pub struct CapRequestRpcRequest {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RoleInfo {
-    pub role: CapabilityRole,
+    pub role: Option<CapabilityRole>,
     pub capability: String,
 }
 

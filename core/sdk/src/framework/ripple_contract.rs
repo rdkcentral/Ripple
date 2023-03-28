@@ -68,11 +68,23 @@ impl TryFrom<String> for RippleContract {
                         Err(RippleError::ParseError)
                     }
                 }
+                "distributor" => {
+                    if let Ok(v) = DistributorContract::try_from(c_a.get(1).unwrap().to_lowercase())
+                    {
+                        Ok(Self::Distributor(v))
+                    } else {
+                        Err(RippleError::ParseError)
+                    }
+                }
                 _ => Err(RippleError::ParseError),
             };
         } else {
             match value.as_str() {
                 "launcher" => Ok(Self::Launcher),
+                "internal" => Ok(Self::Internal),
+                "session" => Ok(Self::Session),
+                "governance" => Ok(Self::Governance),
+                "discovery" => Ok(Self::Discovery),
                 _ => Err(RippleError::ParseError),
             }
         }
@@ -84,6 +96,7 @@ impl Into<String> for RippleContract {
         match self {
             Self::Device(cap) => format!("device:{:?}", cap).to_lowercase(),
             Self::Main(cap) => format!("main:{:?}", cap).to_lowercase(),
+            Self::Distributor(cap) => format!("distributor:{:?}", cap).to_lowercase(),
             _ => format!("{:?}", self).to_lowercase(),
         }
     }

@@ -22,7 +22,6 @@ use crate::{
     framework::ripple_contract::{DistributorContract, RippleContract},
 };
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PermissionRequest {
     pub app_id: String,

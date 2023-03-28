@@ -14,8 +14,14 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use crate::state::{cap::cap_state::CapState, platform_state::PlatformState};
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use crate::{
+    firebolt::rpc::RippleRPCProvider,
+    state::{
+        cap::{cap_state::CapState, permitted_state::PermissionHandler},
+        platform_state::PlatformState,
+    },
+};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
 use ripple_sdk::api::{
     firebolt::{
         fb_capabilities::{
@@ -108,11 +114,29 @@ impl CapabilityServer for CapabilityImpl {
     }
 
     async fn permitted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
-        Ok(self
+        if let Ok(v) = self
             .state
             .cap_state
             .permitted_state
-            .check_cap_role(&ctx.app_id, cap))
+            .check_cap_role(&ctx.app_id, cap.clone())
+        {
+            return Ok(v);
+        } else {
+            if let Ok(_) =
+                PermissionHandler::fetch_and_store(self.state.clone(), ctx.clone().app_id).await
+            {
+                //successful fetch retry
+                if let Ok(v) = self
+                    .state
+                    .cap_state
+                    .permitted_state
+                    .check_cap_role(&ctx.app_id, cap)
+                {
+                    return Ok(v);
+                }
+            }
+        }
+        Ok(false)
     }
 
     async fn info(
@@ -163,5 +187,12 @@ impl CapabilityServer for CapabilityImpl {
     ) -> RpcResult<ListenerResponse> {
         self.on_request_cap_event(ctx, cap, CapEvent::OnRevoked)
             .await
+    }
+}
+
+pub struct CapRPCProvider;
+impl RippleRPCProvider<CapabilityImpl> for CapRPCProvider {
+    fn provide(state: PlatformState) -> RpcModule<CapabilityImpl> {
+        (CapabilityImpl { state }).into_rpc()
     }
 }
