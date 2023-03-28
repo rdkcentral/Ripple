@@ -24,6 +24,22 @@ use crate::{
 
 use super::device::device_wifi::{AccessPoint, AccessPointList};
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct WifiScanRequestTimeout {
+    pub timeout: u64,
+}
+
+impl WifiScanRequestTimeout {
+    pub fn new() -> Self {
+        WifiScanRequestTimeout { timeout: 10 }
+    }
+
+    pub fn timeout(&self) -> u64 {
+        self.timeout
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WifiResponse {
     None(()),

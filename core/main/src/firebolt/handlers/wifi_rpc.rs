@@ -25,11 +25,16 @@ use jsonrpsee::{
     RpcModule,
 };
 
-use ripple_sdk::api::{
-    device::device_wifi::{AccessPointList, WifiRequest},
-    gateway::rpc_gateway_api::CallContext,
-    wifi::WifiResponse,
+use ripple_sdk::{
+    api::{
+        device::device_wifi::{AccessPointList, WifiRequest},
+        gateway::rpc_gateway_api::CallContext,
+        wifi::{WifiResponse, WifiScanRequestTimeout},
+    },
+    tokio::time::timeout,
 };
+
+use std::time::Duration;
 
 #[rpc(server)]
 pub trait Wifi {
@@ -45,18 +50,20 @@ pub struct WifiImpl {
 #[async_trait]
 impl WifiServer for WifiImpl {
     async fn scan(&self, _ctx: CallContext) -> RpcResult<AccessPointList> {
-        if let Ok(response) = self
-            .state
-            .get_client()
-            .send_extn_request(WifiRequest::Scan)
-            .await
-        {
-            if let Some(WifiResponse::WifiScanListResponse(v)) = response.payload.clone().extract()
-            {
-                return Ok(v);
-            }
-        }
-        Err(rpc_err("FB error response TBD"))
+        let scan_time = WifiScanRequestTimeout::new();
+        let client = self.state.get_client();
+        let scan_process = client.send_extn_request(WifiRequest::Scan);
+        let response = match timeout(Duration::from_secs(scan_time.timeout), scan_process).await {
+            Ok(result) => match result {
+                Ok(response) => match response.payload.clone().extract() {
+                    Some(WifiResponse::WifiScanListResponse(v)) => Ok(v),
+                    _ => Err(rpc_err("Wifi scan error response TBD")),
+                },
+                Err(_) => Err(rpc_err("Wifi scan error response TBD")),
+            },
+            Err(_) => Err(rpc_err("Wifi scan timed out")),
+        };
+        response
     }
 }
 
