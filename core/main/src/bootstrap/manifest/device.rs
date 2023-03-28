@@ -16,7 +16,7 @@
 // limitations under the License.
 
 use ripple_sdk::{
-    api::manifest::device_manifest::DeviceManifest, log::info, utils::error::RippleError,
+    api::manifest::device_manifest::DeviceManifest, log::info, utils::{error::RippleError, path_utils},
 };
 
 pub struct LoadDeviceManifestStep;
@@ -58,8 +58,9 @@ fn load_from_env() -> Result<(String, DeviceManifest), RippleError> {
 }
 
 fn load_from_home() -> Result<(String, DeviceManifest), RippleError> {
+    let converted_path  = path_utils::convert_path("/.ripple/firebolt-device-manifest.json");
     match std::env::var("HOME") {
-        Ok(home) => DeviceManifest::load(format!("{}/.ripple/firebolt-device-manifest.json", home)),
+        Ok(home) => DeviceManifest::load(format!("{}{}", home, converted_path)),
         Err(_) => Err(RippleError::MissingInput),
     }
 }

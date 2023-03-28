@@ -20,6 +20,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::{
     api::{
         manifest::extn_manifest::{ExtnManifestEntry, ExtnSymbol},
@@ -118,6 +119,7 @@ pub struct ExtnState {
     pub deferred_channels: Arc<RwLock<Vec<PreLoadedExtnChannel>>>,
     extn_status_map: Arc<RwLock<HashMap<String, ExtnStatus>>>,
     extn_status_listeners: Arc<RwLock<HashMap<String, mpsc::Sender<ExtnStatus>>>>,
+    pub extn_methods: Arc<RwLock<Methods>>,
 }
 
 impl ExtnState {
@@ -129,6 +131,7 @@ impl ExtnState {
             deferred_channels: Arc::new(RwLock::new(Vec::new())),
             extn_status_map: Arc::new(RwLock::new(HashMap::new())),
             extn_status_listeners: Arc::new(RwLock::new(HashMap::new())),
+            extn_methods:Arc::new(RwLock::new(Methods::new())),
         }
     }
 
