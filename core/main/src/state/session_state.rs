@@ -22,7 +22,7 @@ use std::{
 
 use ripple_sdk::{
     api::{
-        distributor::distributor_session::DistributorSession, gateway::rpc_gateway_api::ApiMessage,
+        gateway::rpc_gateway_api::ApiMessage, session::RippleSession,
     },
     tokio::sync::mpsc::Sender,
     utils::error::RippleError,
@@ -73,18 +73,18 @@ impl Session {
 
 #[derive(Debug, Clone, Default)]
 pub struct SessionState {
-    distributor_session: Arc<RwLock<Option<DistributorSession>>>,
     session_map: Arc<RwLock<HashMap<String, Session>>>,
+    ripple_session: Arc<RwLock<Option<RippleSession>>>
 }
 
 impl SessionState {
-    pub fn insert_distributor_session(&self, distributor_session: DistributorSession) {
-        let mut session_state = self.distributor_session.write().unwrap();
-        let _ = session_state.insert(distributor_session);
+    pub fn insert_ripple_session(&self, ripple_session: RippleSession) {
+        let mut session_state = self.ripple_session.write().unwrap();
+        let _ = session_state.insert(ripple_session);
     }
 
-    pub fn get_distributor_session(&self) -> Option<DistributorSession> {
-        let session_state = self.distributor_session.read().unwrap();
+    pub fn get_ripple_session(&self) -> Option<RippleSession> {
+        let session_state = self.ripple_session.read().unwrap();
         if let Some(session) = session_state.clone() {
             return Some(session);
         }

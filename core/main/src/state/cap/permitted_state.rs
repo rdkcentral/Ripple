@@ -88,7 +88,7 @@ pub struct PermissionHandler;
 
 impl PermissionHandler {
     pub async fn fetch_and_store(state: PlatformState, app_id: String) -> RippleResponse {
-        if let Some(session) = state.session_state.get_distributor_session() {
+        if let Some(session) = state.session_state.get_ripple_session() {
             if let Ok(extn_response) = state
                 .get_client()
                 .send_extn_request(PermissionRequest {

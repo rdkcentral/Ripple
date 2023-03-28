@@ -40,7 +40,7 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
         if let Some(session) = response.payload.extract() {
             s.platform_state
                 .session_state
-                .insert_distributor_session(session)
+                .insert_ripple_session(session)
         }
         Ok(())
     }
