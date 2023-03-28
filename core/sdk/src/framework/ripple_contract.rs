@@ -92,6 +92,7 @@ pub enum DeviceContract {
     Info,
     WindowManager,
     Browser,
+    Wifi,
 }
 
 impl TryFrom<String> for DeviceContract {
@@ -101,6 +102,7 @@ impl TryFrom<String> for DeviceContract {
             "info" => Ok(Self::Info),
             "windowmanager" => Ok(Self::WindowManager),
             "browser" => Ok(Self::Browser),
+            "wifi" => Ok(Self::Wifi),
             _ => Err(RippleError::ParseError),
         }
     }

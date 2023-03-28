@@ -17,6 +17,7 @@
 pub mod apps;
 pub mod config;
 pub mod device;
+pub mod wifi;
 pub mod lifecycle;
 pub mod manifest;
 pub mod status_update;
