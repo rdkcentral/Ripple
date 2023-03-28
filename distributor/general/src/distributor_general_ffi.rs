@@ -27,7 +27,7 @@ use ripple_sdk::{
             ffi_message::CExtnMessage,
         },
     },
-    framework::ripple_contract::{DistributorContract, RippleContract},
+    framework::ripple_contract::{ContractFulfiller, DistributorContract, RippleContract},
     log::{debug, info},
     semver::Version,
     tokio::runtime::Runtime,
@@ -40,15 +40,18 @@ use crate::{
 };
 
 fn init_library() -> CExtnMetadata {
-    let _ = init_logger("launcher".into());
+    let _ = init_logger("distributor_general".into());
 
     let dist_meta = ExtnSymbolMetadata::get(
         ExtnId::new_channel(ExtnClassId::Distributor, "general".into()),
-        RippleContract::Distributor(DistributorContract::Permissions),
+        ContractFulfiller::new(vec![
+            RippleContract::Distributor(DistributorContract::Permissions),
+            RippleContract::Session,
+        ]),
         Version::new(1, 1, 0),
     );
 
-    debug!("Returning launcher builder");
+    debug!("Returning distributor builder");
     let extn_metadata = ExtnMetadata {
         name: "distributor_general".into(),
         symbols: vec![dist_meta],
@@ -59,8 +62,8 @@ fn init_library() -> CExtnMetadata {
 export_extn_metadata!(CExtnMetadata, init_library);
 
 fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
-    let _ = init_logger("launcher_channel".into());
-    info!("Starting launcher channel");
+    let _ = init_logger("distributor_general".into());
+    info!("Starting distributor channel");
     let runtime = Runtime::new().unwrap();
     let mut client = ExtnClient::new(receiver.clone(), sender);
     runtime.block_on(async move {
@@ -74,7 +77,7 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
 
 fn build(extn_id: String) -> Result<Box<ExtnChannel>, RippleError> {
     if let Ok(id) = ExtnId::try_from(extn_id.clone()) {
-        let current_id = ExtnId::new_channel(ExtnClassId::Launcher, "internal".into());
+        let current_id = ExtnId::new_channel(ExtnClassId::Distributor, "general".into());
 
         if id.eq(&current_id) {
             return Ok(Box::new(ExtnChannel {
@@ -91,7 +94,7 @@ fn build(extn_id: String) -> Result<Box<ExtnChannel>, RippleError> {
 fn init_extn_builder() -> ExtnChannelBuilder {
     ExtnChannelBuilder {
         build,
-        service: "launcher".into(),
+        service: "distributor_general".into(),
     }
 }
 

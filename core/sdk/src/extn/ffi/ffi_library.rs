@@ -17,7 +17,7 @@
 use std::str::FromStr;
 
 use crate::{
-    extn::extn_id::ExtnId, framework::ripple_contract::RippleContract, utils::error::RippleError,
+    extn::extn_id::ExtnId, framework::ripple_contract::ContractFulfiller, utils::error::RippleError,
 };
 use libloading::{Library, Symbol};
 use log::{debug, error, info};
@@ -41,7 +41,7 @@ pub struct CExtnSymbolMetadata {
 #[derive(Debug, Clone)]
 pub struct ExtnSymbolMetadata {
     pub id: ExtnId,
-    pub fulfills: RippleContract,
+    pub fulfills: ContractFulfiller,
     pub required_version: Version,
 }
 
@@ -60,7 +60,7 @@ impl TryInto<ExtnMetadata> for Box<CExtnMetadata> {
             let mut metadata: Vec<ExtnSymbolMetadata> = Vec::new();
             for c_entry in cap_entries {
                 if let Ok(id) = ExtnId::try_from(c_entry.id) {
-                    if let Ok(fulfills) = RippleContract::try_from(c_entry.fulfills) {
+                    if let Ok(fulfills) = ContractFulfiller::try_from(c_entry.fulfills) {
                         if let Ok(required_version) = Version::from_str(&c_entry.required_version) {
                             metadata.push(ExtnSymbolMetadata {
                                 id,
@@ -103,17 +103,17 @@ impl From<ExtnMetadata> for CExtnMetadata {
 impl ExtnSymbolMetadata {
     pub fn get(
         id: ExtnId,
-        contract: RippleContract,
+        fulfills: ContractFulfiller,
         required_version: Version,
     ) -> ExtnSymbolMetadata {
         ExtnSymbolMetadata {
             id,
-            fulfills: contract,
+            fulfills,
             required_version,
         }
     }
 
-    pub fn get_contract(&self) -> RippleContract {
+    pub fn get_contract(&self) -> ContractFulfiller {
         self.fulfills.clone()
     }
 

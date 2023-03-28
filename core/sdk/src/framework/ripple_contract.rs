@@ -1,3 +1,5 @@
+use serde_json::Value;
+
 // If not stated otherwise in this file or this component's license file the
 // following copyright and licenses apply:
 //
@@ -139,6 +141,46 @@ impl TryFrom<String> for MainContract {
             "extnstatus" => Ok(Self::ExtnStatus),
             _ => Err(RippleError::ParseError),
         }
+    }
+}
+#[derive(Debug, Clone)]
+pub struct ContractFulfiller {
+    contracts: Vec<RippleContract>,
+}
+
+impl ContractFulfiller {
+    pub fn new(contracts: Vec<RippleContract>) -> ContractFulfiller {
+        ContractFulfiller { contracts }
+    }
+}
+
+impl TryFrom<String> for ContractFulfiller {
+    type Error = RippleError;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        let r = serde_json::from_str(&value);
+        let contracts_string: Vec<String>;
+        if r.is_err() {
+            Err(RippleError::ParseError)
+        } else {
+            contracts_string = r.unwrap();
+            let mut contracts = Vec::new();
+            for contract_string in contracts_string {
+                if let Ok(contract) = RippleContract::try_from(contract_string) {
+                    contracts.push(contract)
+                }
+            }
+            Ok(ContractFulfiller { contracts })
+        }
+    }
+}
+
+impl Into<String> for ContractFulfiller {
+    fn into(self) -> String {
+        let mut contracts: Vec<Value> = Vec::new();
+        for contract in self.contracts {
+            contracts.push(Value::String(contract.into()));
+        }
+        Value::Array(contracts).to_string()
     }
 }
 
