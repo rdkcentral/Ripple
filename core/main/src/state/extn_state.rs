@@ -131,7 +131,7 @@ impl ExtnState {
             deferred_channels: Arc::new(RwLock::new(Vec::new())),
             extn_status_map: Arc::new(RwLock::new(HashMap::new())),
             extn_status_listeners: Arc::new(RwLock::new(HashMap::new())),
-            extn_methods:Arc::new(RwLock::new(Methods::new())),
+            extn_methods: Arc::new(RwLock::new(Methods::new())),
         }
     }
 
@@ -196,5 +196,14 @@ impl ExtnState {
         });
         client.add_extn_sender(extn_id, symbol, extn_tx);
         return Ok(());
+    }
+
+    pub fn extend_methods(&self, methods: Methods) {
+        let mut methods_state = self.extn_methods.write().unwrap();
+        let _ = methods_state.merge(methods);
+    }
+
+    pub fn get_extn_methods(&self) -> Methods {
+        self.extn_methods.read().unwrap().clone()
     }
 }

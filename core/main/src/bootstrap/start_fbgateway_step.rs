@@ -33,7 +33,7 @@ use ripple_sdk::{framework::bootstrap::Bootstep, utils::error::RippleError};
 pub struct FireboltGatewayStep;
 
 impl FireboltGatewayStep {
-    async fn init_handlers(&self, state: PlatformState, extn_methods: Option<Methods>) -> Methods {
+    async fn init_handlers(&self, state: PlatformState, extn_methods: Methods) -> Methods {
         let mut methods = Methods::new();
         let _ = methods.merge(DeviceRPCProvider::provide(state.clone()));
         let _ = methods.merge(LifecycleRippleProvider::provide(state.clone()));
@@ -41,10 +41,7 @@ impl FireboltGatewayStep {
         if !state.has_internal_launcher() {
             let _ = methods.merge(LifecycleManagementProvider::provide(state.clone()));
         }
-        if extn_methods.is_some() {
-            let _ = methods.merge(extn_methods.unwrap());
-        }
-
+        let _ = methods.merge(extn_methods);
         methods
     }
 }
@@ -56,7 +53,12 @@ impl Bootstep<BootstrapState> for FireboltGatewayStep {
     }
 
     async fn setup(&self, state: BootstrapState) -> Result<(), RippleError> {
-        let methods = self.init_handlers(state.platform_state.clone(), None).await;
+        let methods = self
+            .init_handlers(
+                state.platform_state.clone(),
+                state.extn_state.get_extn_methods(),
+            )
+            .await;
         let gateway = FireboltGateway::new(state.clone(), methods);
         // Main can now recieve RPC requests
         state

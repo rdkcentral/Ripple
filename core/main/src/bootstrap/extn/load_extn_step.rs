@@ -114,6 +114,8 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
             info!("Deferred channels extension loaded");
         }
 
+        state.extn_state.extend_methods(jsonrpsee_extns);
+
         Ok(())
     }
 }

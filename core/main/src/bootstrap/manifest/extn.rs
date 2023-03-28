@@ -16,7 +16,9 @@
 // limitations under the License.
 
 use ripple_sdk::{
-    api::manifest::extn_manifest::ExtnManifest, log::info, utils::{error::RippleError, path_utils},
+    api::manifest::extn_manifest::ExtnManifest,
+    log::info,
+    utils::{error::RippleError, path_utils},
 };
 
 pub struct LoadExtnManifestStep;
@@ -52,8 +54,8 @@ fn load_from_env() -> Result<(String, ExtnManifest), RippleError> {
     }
 }
 
-fn load_from_home() -> Result<(String, ExtnManifest), RippleError> {  
-    let converted_path  = path_utils::convert_path("/.ripple/firebolt-extn-manifest.json");
+fn load_from_home() -> Result<(String, ExtnManifest), RippleError> {
+    let converted_path = path_utils::convert_path("/.ripple/firebolt-extn-manifest.json");
     match std::env::var("HOME") {
         Ok(home) => ExtnManifest::load(format!("{}{}", home, converted_path)),
         Err(_) => Err(RippleError::MissingInput),
