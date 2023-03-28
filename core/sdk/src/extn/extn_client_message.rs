@@ -28,11 +28,10 @@ use crate::{
         distributor::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
             distributor_request::DistributorRequest,
-            distributor_session::DistributorSession,
         },
         firebolt::fb_lifecycle_management::LifecycleManagementRequest,
         gateway::rpc_gateway_api::RpcRequest,
-        status_update::ExtnStatus,
+        status_update::ExtnStatus, session::{SessionRequest, RippleSession},
     },
     framework::ripple_contract::RippleContract,
     utils::error::RippleError,
@@ -206,6 +205,7 @@ pub enum ExtnRequest {
     LifecycleManagement(LifecycleManagementRequest),
     Permission(PermissionRequest),
     Distributor(DistributorRequest),
+    Session(SessionRequest)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -219,7 +219,7 @@ pub enum ExtnResponse {
     List(Vec<String>),
     Error(RippleError),
     Config(ConfigResponse),
-    Session(DistributorSession),
+    Session(RippleSession),
     Permission(PermissionResponse),
 }
 

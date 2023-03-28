@@ -14,9 +14,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use ripple_sdk::framework::bootstrap::Bootstep;
+use ripple_sdk::{framework::bootstrap::Bootstep, api::session::SessionRequest};
 use ripple_sdk::{
-    api::distributor::distributor_session::DistributorSessionRequest, async_trait::async_trait,
+    async_trait::async_trait,
     framework::RippleResponse,
 };
 
@@ -34,7 +34,7 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
         let response = s
             .platform_state
             .get_client()
-            .send_extn_request(DistributorSessionRequest::Session)
+            .send_extn_request(SessionRequest::Session)
             .await
             .expect("session");
         if let Some(session) = response.payload.extract() {
