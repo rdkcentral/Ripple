@@ -22,8 +22,8 @@ use thunder_ripple_sdk::{
 use crate::processors::{
     thunder_browser::ThunderBrowserRequestProcessor,
     thunder_device_info::ThunderDeviceInfoRequestProcessor,
-    thunder_window_manager::ThunderWindowManagerRequestProcessor,
     thunder_wifi::ThunderWifiRequestProcessor,
+    thunder_window_manager::ThunderWindowManagerRequestProcessor,
 };
 
 pub struct SetupThunderProcessor;

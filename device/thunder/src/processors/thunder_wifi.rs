@@ -15,31 +15,43 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use thunder_ripple_sdk::{client::thunder_plugin::ThunderPlugin::Wifi, ripple_sdk::{extn::{extn_client_message::{ExtnPayload, ExtnPayloadProvider}}, self, api::device::{device_wifi::WifiRequest, device_operator::DeviceUnsubscribeRequest}}};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use thunder_ripple_sdk::{
-        ripple_sdk::{
-            api::{device::{
-                    device_operator::{DeviceCallRequest, DeviceOperator, DeviceChannelParams, DeviceSubscribeRequest, DeviceResponseMessage},
-                    device_wifi::{WifiSecurityMode, AccessPoint, AccessPointList},
-                    }, 
-                wifi::WifiResponse},
+    client::thunder_plugin::ThunderPlugin,
+    ripple_sdk::{
+        api::{
+            device::{
+                device_operator::{
+                    DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
+                    DeviceSubscribeRequest,
+                },
+                device_wifi::{AccessPoint, AccessPointList, WifiSecurityMode},
+            },
+            wifi::WifiResponse,
+        },
         async_trait::async_trait,
         extn::{
+            client::extn_client::ExtnClient,
             client::extn_processor::{
                 DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
             },
             extn_client_message::{ExtnMessage, ExtnResponse},
-            client::extn_client::ExtnClient,
         },
-        tokio::sync::mpsc,
         log::info,
-        serde_json,
-        utils::error::RippleError, tokio,
-        },
-        client::thunder_plugin::ThunderPlugin,
-        thunder_state::ThunderState,
-    };
+        serde_json, tokio,
+        tokio::sync::mpsc,
+        utils::error::RippleError,
+    },
+    thunder_state::ThunderState,
+};
+use thunder_ripple_sdk::{
+    client::thunder_plugin::ThunderPlugin::Wifi,
+    ripple_sdk::{
+        self,
+        api::device::{device_operator::DeviceUnsubscribeRequest, device_wifi::WifiRequest},
+        extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider},
+    },
+};
 
 pub fn wifi_security_mode_to_u32(v: WifiSecurityMode) -> u32 {
     match v {
@@ -139,38 +151,40 @@ impl ThunderWifiRequestProcessor {
         let request: ThunderWifiScanRequest = ThunderWifiScanRequest { incremental: false };
         let response = state
             .get_thunder_client()
-            .call(DeviceCallRequest { 
-                method: start_scan, 
-                params: Some(DeviceChannelParams::Json(serde_json::to_string(&request).unwrap(),
-            )),
-             })
-             .await;
+            .call(DeviceCallRequest {
+                method: start_scan,
+                params: Some(DeviceChannelParams::Json(
+                    serde_json::to_string(&request).unwrap(),
+                )),
+            })
+            .await;
         let response = match response.message["success"].as_bool() {
-            Some(v) => {
-                let result_ssid =  ThunderWifiRequestProcessor::wait_for_thunder_ssids(
-                    state.clone(),
-                    req.clone(),
-                ).await;
-                info!("result wifi scan {:?}",result_ssid);
+            Some(_v) => {
+                let result_ssid =
+                    ThunderWifiRequestProcessor::wait_for_thunder_ssids(state.clone(), req.clone())
+                        .await;
+                info!("result wifi scan {:?}", result_ssid);
                 WifiResponse::WifiScanListResponse(result_ssid)
-            },
-             None => WifiResponse::Error(RippleError::InvalidOutput),
-         };
+            }
+            None => WifiResponse::Error(RippleError::InvalidOutput),
+        };
 
-        Self::respond(state.get_client(), 
-        req,
-        if let ExtnPayload::Response(r) = response.get_extn_payload() { r} 
-                    else {
-                            ExtnResponse::Error(ripple_sdk::utils::error::RippleError::ProcessorError)
-                        }
-                )
-                .await
-                .is_ok()            
+        Self::respond(
+            state.get_client(),
+            req,
+            if let ExtnPayload::Response(r) = response.get_extn_payload() {
+                r
+            } else {
+                ExtnResponse::Error(ripple_sdk::utils::error::RippleError::ProcessorError)
+            },
+        )
+        .await
+        .is_ok()
     }
 
-    async fn wait_for_thunder_ssids( state: ThunderState, req: ExtnMessage) -> AccessPointList {
+    async fn wait_for_thunder_ssids(state: ThunderState, _req: ExtnMessage) -> AccessPointList {
         let (tx, mut rx) = mpsc::channel::<AccessPointList>(32);
-        info!("subscribing to wifi ssid scan thunder events");        
+        info!("subscribing to wifi ssid scan thunder events");
         let client = state.get_thunder_client();
         let (sub_tx, mut sub_rx) = mpsc::channel::<DeviceResponseMessage>(32);
         let unsub_client = client.clone();
@@ -186,37 +200,40 @@ impl ThunderWifiRequestProcessor {
                 sub_tx,
             )
             .await;
-               // spawn a thread that handles all scan events, handle the success and error events
-    let Handle = tokio::spawn(async move {
-        if let Some(m) = sub_rx.recv().await {
-            let mut list = Vec::new();
-            let ssid_response: SSIDEventResponse = serde_json::from_value(m.message).unwrap();
-            let mut dedup = Vec::new();
-            for ssid in ssid_response.ssids {
-                let check_ssid = ssid.ssid.clone();
-                if !dedup.contains(&check_ssid) {
-                    list.push(Box::new(ssid).to_access_point());
-                    dedup.push(check_ssid);
-                 }
-             }
+        // spawn a thread that handles all scan events, handle the success and error events
+        let _handle = tokio::spawn(async move {
+            if let Some(m) = sub_rx.recv().await {
+                let mut list = Vec::new();
+                let ssid_response: SSIDEventResponse = serde_json::from_value(m.message).unwrap();
+                let mut dedup = Vec::new();
+                for ssid in ssid_response.ssids {
+                    let check_ssid = ssid.ssid.clone();
+                    if !dedup.contains(&check_ssid) {
+                        list.push(Box::new(ssid).to_access_point());
+                        dedup.push(check_ssid);
+                    }
+                }
 
-            list.sort_by(|a, b| b.signal_strength.cmp(&a.signal_strength));
-            let access_point_list = AccessPointList { list: list };
-            info!("ap_list {:#?}",access_point_list);
-            // Send the access point list to the main thread
-            tx.send(access_point_list).await.unwrap();
-            info!("unsubscribing to wifi ssid scan thunder events");        
-            unsub_client
-            .unsubscribe(DeviceUnsubscribeRequest { module: Wifi.callsign_and_version(), event_name: "onAvailableSSIDs".into() })
-            .await;
-        }
-    }).await;
+                list.sort_by(|a, b| b.signal_strength.cmp(&a.signal_strength));
+                let access_point_list = AccessPointList { list: list };
+                info!("ap_list {:#?}", access_point_list);
+                // Send the access point list to the main thread
+                tx.send(access_point_list).await.unwrap();
+                info!("unsubscribing to wifi ssid scan thunder events");
+                unsub_client
+                    .unsubscribe(DeviceUnsubscribeRequest {
+                        module: Wifi.callsign_and_version(),
+                        event_name: "onAvailableSSIDs".into(),
+                    })
+                    .await;
+            }
+        })
+        .await;
 
-    // Receive the access point list sent from the Tokio task
-    let access_point_list = rx.recv().await.unwrap();
-    access_point_list
-
-}
+        // Receive the access point list sent from the Tokio task
+        let access_point_list = rx.recv().await.unwrap();
+        access_point_list
+    }
 }
 
 impl ExtnStreamProcessor for ThunderWifiRequestProcessor {

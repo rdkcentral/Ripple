@@ -17,13 +17,12 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    extn::{
-        extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
-    },
-    utils::error::RippleError, framework::ripple_contract::{RippleContract, MainContract},
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
+    framework::ripple_contract::{MainContract, RippleContract},
+    utils::error::RippleError,
 };
 
-use super::device::device_wifi::{AccessPointList, AccessPoint};
+use super::device::device_wifi::{AccessPoint, AccessPointList};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WifiResponse {
