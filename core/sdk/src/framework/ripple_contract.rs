@@ -72,6 +72,7 @@ impl TryFrom<String> for RippleContract {
         } else {
             match value.as_str() {
                 "launcher" => Ok(Self::Launcher),
+                "jsonrpsee" => Ok(Self::JsonRpsee),
                 _ => Err(RippleError::ParseError),
             }
         }
