@@ -32,7 +32,7 @@ pub struct WifiScanRequestTimeout {
 
 impl WifiScanRequestTimeout {
     pub fn new() -> Self {
-        WifiScanRequestTimeout { timeout: 15 }
+        WifiScanRequestTimeout { timeout: 180 }
     }
 
     pub fn timeout(&self) -> u64 {

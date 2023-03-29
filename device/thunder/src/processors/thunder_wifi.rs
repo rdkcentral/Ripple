@@ -15,6 +15,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::{thread::sleep, time::Duration};
+
 use serde::{Deserialize, Serialize};
 use thunder_ripple_sdk::{
     client::thunder_plugin::ThunderPlugin,
@@ -193,6 +195,10 @@ impl ThunderWifiRequestProcessor {
         }
     }
 
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// WIFI SCAN ///
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
     async fn scan(state: ThunderState, req: ExtnMessage) -> bool {
         let start_scan: String = ThunderPlugin::Wifi.method("startScan");
         let request: ThunderWifiScanRequest = ThunderWifiScanRequest { incremental: false };
@@ -291,8 +297,45 @@ impl ThunderWifiRequestProcessor {
         req: ExtnMessage,
         access_point_request: AccessPointRequest,
     ) -> bool {
-        // subscribe onWIFIStateChanged event
-        let (tx, mut rx) = mpsc::channel::<u32>(32);
+        info!("starting wifi connect");
+        let start_scan: String = ThunderPlugin::Wifi.method("connect");
+        let request = ThunderWifiConnectRequest::from_access_point_request(access_point_request);
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: start_scan,
+                params: Some(DeviceChannelParams::Json(
+                    serde_json::to_string(&request).unwrap(),
+                )),
+            })
+            .await;
+        let response = match response.message["success"].as_bool() {
+            Some(_v) => {
+                info!("fasil : wifi connect succes");
+                let result_ssid =
+                    ThunderWifiRequestProcessor::wait_for_wifi_connect(state.clone(), req.clone())
+                        .await;
+                info!("result wifi scan {:?}", result_ssid);
+                WifiResponse::WifiConnectSuccessResponse(result_ssid)
+            }
+            None => WifiResponse::Error(RippleError::InvalidOutput),
+        };
+
+        Self::respond(
+            state.get_client(),
+            req,
+            if let ExtnPayload::Response(r) = response.get_extn_payload() {
+                r
+            } else {
+                ExtnResponse::Error(ripple_sdk::utils::error::RippleError::ProcessorError)
+            },
+        )
+        .await
+        .is_ok()
+    }
+
+    async fn wait_for_wifi_connect(state: ThunderState, _req: ExtnMessage) -> AccessPoint {
+        let (tx, mut rx) = mpsc::channel::<AccessPoint>(32);
         info!("subscribing to wifi ssid scan thunder events");
         let client = state.get_thunder_client();
         let (sub_tx, mut sub_rx) = mpsc::channel::<DeviceResponseMessage>(32);
@@ -309,50 +352,30 @@ impl ThunderWifiRequestProcessor {
                 sub_tx,
             )
             .await;
-        info!("sub completed");
 
-        // spawn a thread that handles all scan events, handle the success and error events send it connct method
-        let _handle = tokio::spawn(async move {
-            info!("inside thread");
-            loop {
-                if let Some(m) = sub_rx.recv().await {
-                    let wifi_state_changed: WifiStateChanged =
-                        serde_json::from_value(m.message).unwrap();
-                    if tx.send(wifi_state_changed.state).await.is_err() {
-                        // The receiver has been dropped, stop producing values
-                        break;
+        tokio::spawn(async move {
+            info!("fasil : inside thread");
+               loop {
+                info!("fasil : inside loop ");
+                    if let Some(m) = sub_rx.recv().await {
+                        let wifi_state_changed: WifiStateChanged = serde_json::from_value(m.message).unwrap();
+                        info!("fasil: Wifi statechanged={}", wifi_state_changed.state);
+                        match wifi_state_changed.state {
+                            5 => {
+                                let resp = ThunderWifiRequestProcessor::get_connected_ssid(state.clone()).await;
+                                info!("fasil {:?}",resp);
+                                // Send the access point list to the main thread
+                                tx.send(resp).await.unwrap();
+                                break;
+                            }
+                            6 => {
+                                break;
+                                }
+                            _ => {}
+                        }
                     }
-                }
-            }
+                };
         });
-
-        info!("stating wifi connect");
-        let start_scan: String = ThunderPlugin::Wifi.method("connect");
-        let request = ThunderWifiConnectRequest::from_access_point_request(access_point_request);
-        let response = state
-            .get_thunder_client()
-            .call(DeviceCallRequest {
-                method: start_scan,
-                params: Some(DeviceChannelParams::Json(
-                    serde_json::to_string(&request).unwrap(),
-                )),
-            })
-            .await;
-        let response = match response.message["success"].as_bool() {
-            Some(true) => loop {
-                let wifi_state_changed = rx.recv().await.unwrap();
-                match wifi_state_changed {
-                    5 => {
-                        let resp =
-                            ThunderWifiRequestProcessor::get_connected_ssid(state.clone()).await;
-                        break WifiResponse::WifiConnectSuccessResponse(resp);
-                    }
-                    6 => break WifiResponse::Error(RippleError::InvalidOutput),
-                    _ => {}
-                }
-            },
-            Some(false) | None => WifiResponse::Error(RippleError::InvalidOutput),
-        };
 
         // unsubscribing wifi events
         unsub_client
@@ -361,18 +384,14 @@ impl ThunderWifiRequestProcessor {
                 event_name: "onWIFIStateChanged".into(),
             })
             .await;
+        info!("fasil unsubscribe");
 
-        Self::respond(
-            state.get_client(),
-            req,
-            if let ExtnPayload::Response(r) = response.get_extn_payload() {
-                r
-            } else {
-                ExtnResponse::Error(ripple_sdk::utils::error::RippleError::ProcessorError)
-            },
-        )
-        .await
-        .is_ok()
+        // Receive the access point list sent from the Tokio task
+        let access_point = rx.recv().await.unwrap();
+        access_point
+
+        //let accesspoint = AccessPoint { ssid: (String::from("Test-1")), security_mode: (ripple_sdk::api::device::device_wifi::WifiSecurityMode::None), signal_strength: (0), frequency: (0.0)};
+        //accesspoint
     }
 
     async fn get_connected_ssid(state: ThunderState) -> AccessPoint {
