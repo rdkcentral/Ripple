@@ -6,16 +6,16 @@ use crate::{
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum SessionRequest {
+pub enum AccountSessionRequest {
     Get,
     IsProvisioned,
 }
 
-impl ExtnPayloadProvider for SessionRequest {
+impl ExtnPayloadProvider for AccountSessionRequest {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         match payload {
             ExtnPayload::Request(r) => match r {
-                ExtnRequest::Session(v) => return Some(v),
+                ExtnRequest::AccountSession(v) => return Some(v),
                 _ => {}
             },
             _ => {}
@@ -25,7 +25,7 @@ impl ExtnPayloadProvider for SessionRequest {
     }
 
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::Session(self.clone()))
+        ExtnPayload::Request(ExtnRequest::AccountSession(self.clone()))
     }
 
     fn contract() -> RippleContract {

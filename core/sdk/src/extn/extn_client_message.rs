@@ -31,7 +31,7 @@ use crate::{
         },
         firebolt::fb_lifecycle_management::LifecycleManagementRequest,
         gateway::rpc_gateway_api::RpcRequest,
-        session::{AccountSession, SessionRequest},
+        session::{AccountSession, AccountSessionRequest},
         status_update::ExtnStatus,
     },
     framework::ripple_contract::RippleContract,
@@ -206,7 +206,7 @@ pub enum ExtnRequest {
     LifecycleManagement(LifecycleManagementRequest),
     Permission(PermissionRequest),
     Distributor(DistributorRequest),
-    Session(SessionRequest),
+    AccountSession(AccountSessionRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

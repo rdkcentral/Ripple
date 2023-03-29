@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use ripple_sdk::{
-    api::session::{AccountSession, SessionRequest},
+    api::session::{AccountSession, AccountSessionRequest},
     async_trait::async_trait,
     extn::client::{
         extn_client::ExtnClient,
@@ -42,7 +42,7 @@ impl DistributorSessionProcessor {
 
 impl ExtnStreamProcessor for DistributorSessionProcessor {
     type STATE = ExtnClient;
-    type VALUE = SessionRequest;
+    type VALUE = AccountSessionRequest;
 
     fn get_state(&self) -> Self::STATE {
         self.client.clone()

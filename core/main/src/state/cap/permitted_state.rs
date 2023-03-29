@@ -105,7 +105,7 @@ impl PermissionHandler {
         {
             return Ok(());
         }
-        if let Some(session) = state.session_state.get_ripple_session() {
+        if let Some(session) = state.session_state.get_account_session() {
             if let Ok(extn_response) = state
                 .get_client()
                 .send_extn_request(PermissionRequest {

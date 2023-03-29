@@ -72,17 +72,17 @@ impl Session {
 #[derive(Debug, Clone, Default)]
 pub struct SessionState {
     session_map: Arc<RwLock<HashMap<String, Session>>>,
-    ripple_session: Arc<RwLock<Option<AccountSession>>>,
+    account_session: Arc<RwLock<Option<AccountSession>>>,
 }
 
 impl SessionState {
-    pub fn insert_ripple_session(&self, ripple_session: AccountSession) {
-        let mut session_state = self.ripple_session.write().unwrap();
-        let _ = session_state.insert(ripple_session);
+    pub fn insert_account_session(&self, account_session: AccountSession) {
+        let mut session_state = self.account_session.write().unwrap();
+        let _ = session_state.insert(account_session);
     }
 
-    pub fn get_ripple_session(&self) -> Option<AccountSession> {
-        let session_state = self.ripple_session.read().unwrap();
+    pub fn get_account_session(&self) -> Option<AccountSession> {
+        let session_state = self.account_session.read().unwrap();
         if let Some(session) = session_state.clone() {
             return Some(session);
         }
