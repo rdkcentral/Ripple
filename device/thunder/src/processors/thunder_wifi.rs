@@ -15,8 +15,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::{thread::sleep, time::Duration};
-
 use serde::{Deserialize, Serialize};
 use thunder_ripple_sdk::{
     client::thunder_plugin::ThunderPlugin,
@@ -39,7 +37,7 @@ use thunder_ripple_sdk::{
             },
             extn_client_message::{ExtnMessage, ExtnResponse},
         },
-        log::info,
+        log::{error, info},
         serde_json, tokio,
         tokio::sync::mpsc,
         utils::error::RippleError,
@@ -353,29 +351,36 @@ impl ThunderWifiRequestProcessor {
             )
             .await;
 
-        tokio::spawn(async move {
+        let _handle = tokio::spawn(async move {
             info!("fasil : inside thread");
-               loop {
-                info!("fasil : inside loop ");
-                    if let Some(m) = sub_rx.recv().await {
-                        let wifi_state_changed: WifiStateChanged = serde_json::from_value(m.message).unwrap();
-                        info!("fasil: Wifi statechanged={}", wifi_state_changed.state);
+            while let Some(m) = sub_rx.recv().await {
+                match serde_json::from_value::<WifiStateChanged>(m.message) {
+                    Ok(wifi_state_changed) => {
+                        info!("Wifi statechanged={}", wifi_state_changed.state);
                         match wifi_state_changed.state {
                             5 => {
-                                let resp = ThunderWifiRequestProcessor::get_connected_ssid(state.clone()).await;
-                                info!("fasil {:?}",resp);
+                                let resp =
+                                    ThunderWifiRequestProcessor::get_connected_ssid(state.clone())
+                                        .await;
+                                info!("fasil {:?}", resp);
                                 // Send the access point list to the main thread
                                 tx.send(resp).await.unwrap();
                                 break;
                             }
                             6 => {
                                 break;
-                                }
+                            }
                             _ => {}
                         }
                     }
-                };
-        });
+                    Err(e) => {
+                        // handle the error case
+                        error!("Error deserializing message: {}", e);
+                    }
+                }
+            }
+        })
+        .await;
 
         // unsubscribing wifi events
         unsub_client
@@ -387,7 +392,16 @@ impl ThunderWifiRequestProcessor {
         info!("fasil unsubscribe");
 
         // Receive the access point list sent from the Tokio task
-        let access_point = rx.recv().await.unwrap();
+        //        let access_point = rx.recv().await.unwrap();
+
+        let accesspoint = AccessPoint {
+            ssid: (String::from("Test-1")),
+            security_mode: (ripple_sdk::api::device::device_wifi::WifiSecurityMode::None),
+            signal_strength: (0),
+            frequency: (0.0),
+        };
+
+        let access_point = rx.recv().await.unwrap_or(accesspoint);
         access_point
 
         //let accesspoint = AccessPoint { ssid: (String::from("Test-1")), security_mode: (ripple_sdk::api::device::device_wifi::WifiSecurityMode::None), signal_strength: (0), frequency: (0.0)};
@@ -449,7 +463,6 @@ impl ExtnRequestProcessor for ThunderWifiRequestProcessor {
             WifiRequest::Connect(access_point) => {
                 Self::connect(state.clone(), msg, access_point).await
             }
-            _ => false,
         }
     }
 }
