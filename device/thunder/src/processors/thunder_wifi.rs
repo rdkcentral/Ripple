@@ -17,15 +17,7 @@
 
 use serde::{Deserialize, Serialize};
 use thunder_ripple_sdk::{
-    client::thunder_plugin::ThunderPlugin::Wifi,
-    ripple_sdk::{
-        self,
-        api::device::{device_operator::DeviceUnsubscribeRequest, device_wifi::WifiRequest},
-        extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider},
-    },
-};
-use thunder_ripple_sdk::{
-    client::{thunder_client::ThunderClient, thunder_plugin::ThunderPlugin},
+    client::thunder_plugin::ThunderPlugin,
     ripple_sdk::{
         api::{
             device::{
@@ -45,12 +37,20 @@ use thunder_ripple_sdk::{
             },
             extn_client_message::{ExtnMessage, ExtnResponse},
         },
-        log::{error, info},
+        log::info,
         serde_json, tokio,
         tokio::sync::mpsc,
         utils::error::RippleError,
     },
     thunder_state::ThunderState,
+};
+use thunder_ripple_sdk::{
+    client::thunder_plugin::ThunderPlugin::Wifi,
+    ripple_sdk::{
+        self,
+        api::device::{device_operator::DeviceUnsubscribeRequest, device_wifi::WifiRequest},
+        extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider},
+    },
 };
 
 pub fn wifi_security_mode_to_u32(v: WifiSecurityMode) -> u32 {
@@ -138,15 +138,6 @@ impl ThunderSSID {
             security_mode: wifi_security_mode_from_u32(self.security),
             signal_strength: self.signal_strength,
             frequency: self.frequency,
-        }
-    }
-    fn to_frequency(s: String) -> f32 {
-        match s.parse::<f32>() {
-            Ok(v) => v,
-            Err(_e) => {
-                error!("invalid frequency {}", _e);
-                0f32
-            }
         }
     }
 }
@@ -292,15 +283,15 @@ impl ThunderWifiRequestProcessor {
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// WIFI CONNECT ///
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     async fn connect(
         state: ThunderState,
         req: ExtnMessage,
         access_point_request: AccessPointRequest,
     ) -> bool {
-        info!("fasil : inside connect");
-        // subscribe wifi connect event
-
+        // subscribe onWIFIStateChanged event
         let (tx, mut rx) = mpsc::channel::<u32>(32);
         info!("subscribing to wifi ssid scan thunder events");
         let client = state.get_thunder_client();
@@ -319,17 +310,21 @@ impl ThunderWifiRequestProcessor {
             )
             .await;
         info!("sub completed");
-        // spawn a thread that handles all scan events, handle the success and error events
+
+        // spawn a thread that handles all scan events, handle the success and error events send it connct method
         let _handle = tokio::spawn(async move {
             info!("inside thread");
-            if let Some(m) = sub_rx.recv().await {
-                info!("iside recv");
-                info!("fasil {}", m.message);
-                let wifi_state_changed: WifiStateChanged =
-                    serde_json::from_value(m.message).unwrap();
-                info!("Wifi statechanged={}", wifi_state_changed.state);
-                info!("resoponse events recived");
-                tx.send(wifi_state_changed.state).await.unwrap();
+            loop {
+                if let Some(m) = sub_rx.recv().await {
+                    let wifi_state_changed: WifiStateChanged =
+                        serde_json::from_value(m.message).unwrap();
+                    info!("resoponse events recived");
+                    //                info!("fasil:send {}",wifi_state_changed);
+                    if tx.send(wifi_state_changed.state).await.is_err() {
+                        // The receiver has been dropped, stop producing values
+                        break;
+                    }
+                }
             }
         });
 
@@ -346,18 +341,19 @@ impl ThunderWifiRequestProcessor {
             })
             .await;
         let response = match response.message["success"].as_bool() {
-            Some(true) => {
+            Some(true) => loop {
                 let wifi_state_changed = rx.recv().await.unwrap();
+                info!("fasil:recived {}", wifi_state_changed);
                 match wifi_state_changed {
-                    4 => {
+                    5 => {
                         let resp =
                             ThunderWifiRequestProcessor::get_connected_ssid(state.clone()).await;
-                        WifiResponse::WifiConnectSuccessResponse(resp)
+                        break WifiResponse::WifiConnectSuccessResponse(resp);
                     }
-                    6 => WifiResponse::Error(RippleError::InvalidOutput),
-                    _ => WifiResponse::Error(RippleError::InvalidOutput),
+                    6 => break WifiResponse::Error(RippleError::InvalidOutput),
+                    _ => {}
                 }
-            }
+            },
             Some(false) | None => WifiResponse::Error(RippleError::InvalidOutput),
         };
 
@@ -432,8 +428,8 @@ impl ExtnRequestProcessor for ThunderWifiRequestProcessor {
     ) -> bool {
         match extracted_message {
             WifiRequest::Scan => Self::scan(state.clone(), msg).await,
-            WifiRequest::Connect(AccessPoint) => {
-                Self::connect(state.clone(), msg, AccessPoint).await
+            WifiRequest::Connect(access_point) => {
+                Self::connect(state.clone(), msg, access_point).await
             }
             _ => false,
         }
