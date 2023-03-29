@@ -22,7 +22,7 @@ use uuid::Uuid;
 
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
-    framework::ripple_contract::{MainContract, RippleContract},
+    framework::ripple_contract::RippleContract,
     utils::{channel_utils::oneshot_send_and_log, error::RippleError},
 };
 
@@ -128,7 +128,7 @@ impl ExtnPayloadProvider for AppResponse {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Main(MainContract::LifecycleManagement)
+        RippleContract::LifecycleManagement
     }
 }
 

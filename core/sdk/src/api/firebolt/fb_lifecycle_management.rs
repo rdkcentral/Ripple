@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     api::apps::{AppSession, CloseReason},
     extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider, ExtnRequest},
-    framework::ripple_contract::{MainContract, RippleContract},
+    framework::ripple_contract::RippleContract,
 };
 
 use super::{fb_discovery::NavigationIntent, fb_lifecycle::LifecycleState};
@@ -87,7 +87,7 @@ impl ExtnPayloadProvider for LifecycleManagementRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Main(MainContract::LifecycleManagement)
+        RippleContract::LifecycleManagement
     }
 }
 

@@ -29,24 +29,24 @@ impl ExtnPayloadProvider for SessionRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Session
+        RippleContract::AccountSession
     }
 }
 
 #[repr(C)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct RippleSession {
+pub struct AccountSession {
     pub id: String,
     pub token: String,
     pub account_id: String,
     pub device_id: String,
 }
 
-impl ExtnPayloadProvider for RippleSession {
+impl ExtnPayloadProvider for AccountSession {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         match payload {
             ExtnPayload::Response(r) => match r {
-                ExtnResponse::Session(v) => return Some(v),
+                ExtnResponse::AccountSession(v) => return Some(v),
                 _ => {}
             },
             _ => {}
@@ -56,11 +56,11 @@ impl ExtnPayloadProvider for RippleSession {
     }
 
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Response(ExtnResponse::Session(self.clone()))
+        ExtnPayload::Response(ExtnResponse::AccountSession(self.clone()))
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Session
+        RippleContract::AccountSession
     }
 }
 
@@ -71,7 +71,7 @@ pub struct OptionalRippleSession {
     pub device_id: Option<String>,
 }
 
-impl RippleSession {
+impl AccountSession {
     pub fn get_only_id(&self) -> OptionalRippleSession {
         OptionalRippleSession {
             id: Some(self.id.clone()),

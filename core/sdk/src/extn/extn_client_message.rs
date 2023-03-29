@@ -31,7 +31,7 @@ use crate::{
         },
         firebolt::fb_lifecycle_management::LifecycleManagementRequest,
         gateway::rpc_gateway_api::RpcRequest,
-        session::{RippleSession, SessionRequest},
+        session::{AccountSession, SessionRequest},
         status_update::ExtnStatus,
     },
     framework::ripple_contract::RippleContract,
@@ -152,7 +152,7 @@ impl ExtnPayload {
 /// use ripple_sdk::extn::extn_client_message::ExtnRequest;
 /// use ripple_sdk::extn::extn_client_message::ExtnPayloadProvider;
 /// use ripple_sdk::extn::extn_id::ExtnClassId;
-/// use ripple_sdk::framework::ripple_contract::{RippleContract,DeviceContract};
+/// use ripple_sdk::framework::ripple_contract::{RippleContract};
 /// #[derive(Debug, Clone, Serialize, Deserialize)]
 /// pub enum MyCustomEnumRequestPayload {
 ///     String(String),
@@ -181,7 +181,7 @@ impl ExtnPayload {
 /// }
 ///
 /// fn contract() -> RippleContract {
-///     RippleContract::Device(DeviceContract::Info)
+///     RippleContract::DeviceInfo
 /// }
 /// }
 /// ```
@@ -220,7 +220,7 @@ pub enum ExtnResponse {
     List(Vec<String>),
     Error(RippleError),
     Config(ConfigResponse),
-    Session(RippleSession),
+    AccountSession(AccountSession),
     Permission(PermissionResponse),
 }
 

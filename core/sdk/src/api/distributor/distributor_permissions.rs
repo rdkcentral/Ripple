@@ -17,15 +17,15 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::{firebolt::fb_capabilities::FireboltPermission, session::RippleSession},
+    api::{firebolt::fb_capabilities::FireboltPermission, session::AccountSession},
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
-    framework::ripple_contract::{DistributorContract, RippleContract},
+    framework::ripple_contract::RippleContract,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PermissionRequest {
     pub app_id: String,
-    pub session: RippleSession,
+    pub session: AccountSession,
 }
 
 impl ExtnPayloadProvider for PermissionRequest {
@@ -46,7 +46,7 @@ impl ExtnPayloadProvider for PermissionRequest {
     }
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
-        RippleContract::Distributor(DistributorContract::Permissions)
+        RippleContract::Permissions
     }
 }
 
@@ -70,6 +70,6 @@ impl ExtnPayloadProvider for PermissionResponse {
     }
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
-        RippleContract::Distributor(DistributorContract::Permissions)
+        RippleContract::Permissions
     }
 }

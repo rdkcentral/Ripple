@@ -27,7 +27,7 @@ use ripple_sdk::{
             ffi_message::CExtnMessage,
         },
     },
-    framework::ripple_contract::{ContractFulfiller, DistributorContract, RippleContract},
+    framework::ripple_contract::{ContractFulfiller, RippleContract},
     log::{debug, info},
     semver::Version,
     tokio::runtime::Runtime,
@@ -45,8 +45,8 @@ fn init_library() -> CExtnMetadata {
     let dist_meta = ExtnSymbolMetadata::get(
         ExtnId::new_channel(ExtnClassId::Distributor, "general".into()),
         ContractFulfiller::new(vec![
-            RippleContract::Distributor(DistributorContract::Permissions),
-            RippleContract::Session,
+            RippleContract::Permissions,
+            RippleContract::AccountSession,
         ]),
         Version::new(1, 1, 0),
     );

@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 // If not stated otherwise in this file or this component's license file the
@@ -18,144 +19,41 @@ use serde_json::Value;
 // limitations under the License.
 use crate::utils::error::RippleError;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum RippleContract {
     Internal,
-    Main(MainContract),
-    Session,
-    Device(DeviceContract),
-    Distributor(DistributorContract),
+    AccountSession,
     Governance,
     Discovery,
     Launcher,
-}
-
-impl RippleContract {
-    pub fn get_short(&self) -> Option<String> {
-        match self {
-            Self::Device(_) => Some("device".into()),
-            Self::Main(_) => Some("main".into()),
-            _ => None,
-        }
-    }
-
-    pub fn is_main(&self) -> bool {
-        match self {
-            Self::Main(_) | Self::Internal => true,
-            _ => false,
-        }
-    }
+    Config,
+    LifecycleManagement,
+    Rpc,
+    ExtnStatus,
+    DeviceInfo,
+    WindowManager,
+    Browser,
+    Permissions,
 }
 
 impl TryFrom<String> for RippleContract {
     type Error = RippleError;
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        let c_a = value.split(":");
-        if c_a.count() == 2 {
-            let c_a: Vec<&str> = value.split(":").collect();
-            return match c_a.get(0).unwrap().to_lowercase().as_str() {
-                "device" => {
-                    if let Ok(v) = DeviceContract::try_from(c_a.get(1).unwrap().to_lowercase()) {
-                        Ok(Self::Device(v))
-                    } else {
-                        Err(RippleError::ParseError)
-                    }
-                }
-                "main" => {
-                    if let Ok(v) = MainContract::try_from(c_a.get(1).unwrap().to_lowercase()) {
-                        Ok(Self::Main(v))
-                    } else {
-                        Err(RippleError::ParseError)
-                    }
-                }
-                "distributor" => {
-                    if let Ok(v) = DistributorContract::try_from(c_a.get(1).unwrap().to_lowercase())
-                    {
-                        Ok(Self::Distributor(v))
-                    } else {
-                        Err(RippleError::ParseError)
-                    }
-                }
-                _ => Err(RippleError::ParseError),
-            };
+        if let Ok(v) = serde_json::from_str(&value) {
+            Ok(v)
         } else {
-            match value.as_str() {
-                "launcher" => Ok(Self::Launcher),
-                "internal" => Ok(Self::Internal),
-                "session" => Ok(Self::Session),
-                "governance" => Ok(Self::Governance),
-                "discovery" => Ok(Self::Discovery),
-                _ => Err(RippleError::ParseError),
-            }
+            Err(RippleError::ParseError)
         }
     }
 }
 
 impl Into<String> for RippleContract {
     fn into(self) -> String {
-        match self {
-            Self::Device(cap) => format!("device:{:?}", cap).to_lowercase(),
-            Self::Main(cap) => format!("main:{:?}", cap).to_lowercase(),
-            Self::Distributor(cap) => format!("distributor:{:?}", cap).to_lowercase(),
-            _ => format!("{:?}", self).to_lowercase(),
-        }
+        serde_json::to_string(&self).unwrap()
     }
 }
 
-#[derive(Clone, Debug)]
-pub enum DeviceContract {
-    Info,
-    WindowManager,
-    Browser,
-}
-
-impl TryFrom<String> for DeviceContract {
-    type Error = RippleError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        match value.as_str() {
-            "info" => Ok(Self::Info),
-            "windowmanager" => Ok(Self::WindowManager),
-            "browser" => Ok(Self::Browser),
-            _ => Err(RippleError::ParseError),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum DistributorContract {
-    Permissions,
-}
-
-impl TryFrom<String> for DistributorContract {
-    type Error = RippleError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        match value.as_str() {
-            "permissions" => Ok(Self::Permissions),
-            _ => Err(RippleError::ParseError),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum MainContract {
-    Config,
-    LifecycleManagement,
-    Rpc,
-    ExtnStatus,
-}
-
-impl TryFrom<String> for MainContract {
-    type Error = RippleError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        match value.as_str() {
-            "config" => Ok(Self::Config),
-            "lifecyclemanagement" => Ok(Self::LifecycleManagement),
-            "rpc" => Ok(Self::Rpc),
-            "extnstatus" => Ok(Self::ExtnStatus),
-            _ => Err(RippleError::ParseError),
-        }
-    }
-}
 #[derive(Debug, Clone)]
 pub struct ContractFulfiller {
     contracts: Vec<RippleContract>,
@@ -199,22 +97,16 @@ impl Into<String> for ContractFulfiller {
 
 #[cfg(test)]
 mod tests {
-    use crate::framework::ripple_contract::{DeviceContract, RippleContract};
+    use crate::framework::ripple_contract::RippleContract;
 
     #[test]
     fn test_into() {
-        let value: String =
-            RippleContract::Device(crate::framework::ripple_contract::DeviceContract::Info).into();
-        println!("{}", value);
-        assert!(value.eq("device:info"));
+        let value: String = RippleContract::DeviceInfo.into();
+        assert!(value.eq("\"device_info\""));
         let result = RippleContract::try_from(value);
         assert!(result.is_ok());
-        assert!(if let Ok(RippleContract::Device(cap)) = result {
-            if let DeviceContract::Info = cap {
-                true
-            } else {
-                false
-            }
+        assert!(if let Ok(RippleContract::DeviceInfo) = result {
+            true
         } else {
             false
         });

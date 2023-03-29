@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use ripple_sdk::{
-    api::session::{RippleSession, SessionRequest},
+    api::session::{AccountSession, SessionRequest},
     async_trait::async_trait,
     extn::client::{
         extn_client::ExtnClient,
@@ -77,12 +77,14 @@ impl ExtnRequestProcessor for DistributorSessionProcessor {
             .clone()
             .respond(
                 msg,
-                ripple_sdk::extn::extn_client_message::ExtnResponse::Session(RippleSession {
-                    id: "general".into(),
-                    token: "general".into(),
-                    account_id: "general".into(),
-                    device_id: "general".into(),
-                }),
+                ripple_sdk::extn::extn_client_message::ExtnResponse::AccountSession(
+                    AccountSession {
+                        id: "general".into(),
+                        token: "general".into(),
+                        account_id: "general".into(),
+                        device_id: "general".into(),
+                    },
+                ),
             )
             .await
         {
