@@ -318,8 +318,6 @@ impl ThunderWifiRequestProcessor {
                 if let Some(m) = sub_rx.recv().await {
                     let wifi_state_changed: WifiStateChanged =
                         serde_json::from_value(m.message).unwrap();
-                    info!("resoponse events recived");
-                    //                info!("fasil:send {}",wifi_state_changed);
                     if tx.send(wifi_state_changed.state).await.is_err() {
                         // The receiver has been dropped, stop producing values
                         break;
@@ -328,7 +326,7 @@ impl ThunderWifiRequestProcessor {
             }
         });
 
-        info!("start connectiving");
+        info!("stating wifi connect");
         let start_scan: String = ThunderPlugin::Wifi.method("connect");
         let request = ThunderWifiConnectRequest::from_access_point_request(access_point_request);
         let response = state
@@ -343,7 +341,6 @@ impl ThunderWifiRequestProcessor {
         let response = match response.message["success"].as_bool() {
             Some(true) => loop {
                 let wifi_state_changed = rx.recv().await.unwrap();
-                info!("fasil:recived {}", wifi_state_changed);
                 match wifi_state_changed {
                     5 => {
                         let resp =
@@ -357,6 +354,7 @@ impl ThunderWifiRequestProcessor {
             Some(false) | None => WifiResponse::Error(RippleError::InvalidOutput),
         };
 
+        // unsubscribing wifi events
         unsub_client
             .unsubscribe(DeviceUnsubscribeRequest {
                 module: Wifi.callsign_and_version(),
@@ -389,13 +387,14 @@ impl ThunderWifiRequestProcessor {
                 )),
             })
             .await;
-        info!("fasil {:?}", response.message);
         let get_connected_ssid_response: ConnectedSSIDResult =
             serde_json::from_value(response.message).unwrap();
-        info!("fasil {:?}", get_connected_ssid_response);
-        let ap = get_connected_ssid_response.to_access_point();
-        info!("fasil {:?}", ap);
-        ap
+        info!(
+            "get_connected_ssid_response : {:?}",
+            get_connected_ssid_response
+        );
+        let accesspoint = get_connected_ssid_response.to_access_point();
+        accesspoint
     }
 }
 
