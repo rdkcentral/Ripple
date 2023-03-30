@@ -343,8 +343,8 @@ impl ThunderWifiRequestProcessor {
         let (tx, mut rx) = mpsc::channel::<WifiResponse>(32);
         let client = state.get_thunder_client();
         let unsub_client = client.clone();
-/*
-        info!("subscribing to wifi ssid scan thunder events");
+
+        info!("subscribing to onWIFIStateChanged events");
         let (sub_tx, mut sub_rx) = mpsc::channel::<DeviceResponseMessage>(32);
         client
             .clone()
@@ -358,7 +358,6 @@ impl ThunderWifiRequestProcessor {
                 sub_tx,
             )
             .await;
-*/
 
 info!("subscribing to wifi onError events");
 let (xyx_tx, mut xyx_rx) = mpsc::channel::<DeviceResponseMessage>(32);
@@ -374,7 +373,7 @@ client
         xyx_tx,
     )
     .await;
-
+/*
 
     let _handle = tokio::spawn(async move {
         info!("fasil : inside thread");
@@ -402,39 +401,52 @@ client
         }
     })
     .await;
+*/
 
-
-/* 
-        let _handle = tokio::spawn(async move {
-            info!("fasil : inside thread");
-            while let Some(m) = sub_rx.recv().await {
-                match serde_json::from_value::<WifiStateChanged>(m.message) {
-                    Ok(wifi_state_changed) => {
-                        info!("Wifi statechanged={}", wifi_state_changed.state);
-                        match wifi_state_changed.state {
-                            5 => {
-                                let resp =
-                                    ThunderWifiRequestProcessor::get_connected_ssid(state.clone())
-                                        .await;
-                                info!("fasil {:?}", resp);
-                                // Send the access point list to the main thread
-                                tx.send(resp).await.unwrap();
-                                break;
-                            }
-                            6 => {
-                                break;
-                            }
-                            _ => {}
-                        }
+let _handle = tokio::spawn(async move {
+    info!("fasil : inside thread");
+    loop {
+        info!("inside loop");
+        tokio::select! {
+            Some(m) = xyx_rx.recv() => {
+                let error_code_response: WifiConnectError = serde_json::from_value(m.message).unwrap();
+                print!("{:?}",error_code_response);
+                let error_string = match error_code_response.code {
+                    0 => WifiResponse::String("SSID_CHANGED".into()),
+                    1 => WifiResponse::String("CONNECTION_LOST".into()),
+                    2 => WifiResponse::String("CONNECTION_FAILED".into()),
+                    3 => WifiResponse::String("CONNECTION_INTERRUPTED".into()),
+                    4 => WifiResponse::String("INVALID_CREDENTIALS".into()),
+                    5 => WifiResponse::String("NO_SSID".into()),
+                    _ => WifiResponse::String("UNKNOWN".into()),
+                };
+                info!("inside thread {:?} ",error_string);
+                tx.send(error_string).await.unwrap();
+                info!("exited from thread");
+                break;
+            }
+            Some(m) = sub_rx.recv() => {
+                info!("inside loop wifi state");
+                let wifi_state_response: WifiStateChanged = serde_json::from_value(m.message).unwrap();
+                info!("Wifi statechanged={}", wifi_state_response.state);
+                match wifi_state_response.state {
+                    5 => {
+                        let resp =
+                            ThunderWifiRequestProcessor::get_connected_ssid(state.clone())
+                                .await;
+                        info!("fasil {:?}", resp);
+                        // Send the access point list to the main thread
+                        tx.send(WifiResponse::WifiConnectSuccessResponse(resp)).await.unwrap();
+                        break;
                     }
-                    Err(e) => {
-                        // handle the error case
-                        error!("Error deserializing message: {}", e);
+                    6 => {
+                        break;
                     }
+                    _ => {}
                 }
             }
-        })
-        .await;
+        }
+    }
 
         // unsubscribing wifi events
         unsub_client
@@ -443,11 +455,16 @@ client
                 event_name: "onWIFIStateChanged".into(),
             })
             .await;
-        info!("fasil unsubscribe");
-*/
-        // Receive the access point list sent from the Tokio task
-        //        let access_point = rx.recv().await.unwrap();
 
+    unsub_client
+    .unsubscribe(DeviceUnsubscribeRequest {
+        module: Wifi.callsign_and_version(),
+        event_name: "onError".into(),
+    })
+    .await;
+
+})
+.await;
 
 
         if let Some(msg) = rx.recv().await {
@@ -457,16 +474,17 @@ client
                     // handle string response here
                 },
                 WifiResponse::WifiConnectSuccessResponse(ap_list) => {
-                    info!("Received access point list: {:?}", ap_list);
+                    info!("out Received access point list: {:?}", ap_list);
                     // handle access point list response here
                 },
                 _ => {
-                    info!("Received unknown message type");
+                    info!("out Received unknown message type");
                     // handle unknown message type here
                 }
             }
         }
-        
+
+
         let accesspoint = AccessPoint {
             ssid: (String::from("Test-1")),
             security_mode: (ripple_sdk::api::device::device_wifi::WifiSecurityMode::None),
