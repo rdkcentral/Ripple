@@ -17,6 +17,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::fb_discovery::NavigationIntent;
+
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct SecondScreenEvent {
     #[serde(rename = "type")]
@@ -25,4 +27,20 @@ pub struct SecondScreenEvent {
     pub version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<String>,
+}
+
+
+#[derive(Serialize, Debug, Clone)]
+pub struct AppInitParameters {
+    pub us_privacy: Option<String>,
+    pub lmt: Option<u16>,
+    pub discovery: Option<DiscoveryEvent>,
+    #[serde(rename = "secondScreen", skip_serializing_if = "Option::is_none")]
+    pub second_screen: Option<SecondScreenEvent>,
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub struct DiscoveryEvent {
+    #[serde(rename = "navigateTo")]
+    pub navigate_to: NavigationIntent,
 }

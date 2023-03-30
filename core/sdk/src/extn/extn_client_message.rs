@@ -25,7 +25,7 @@ use crate::{
     api::{
         config::{Config, ConfigResponse},
         device::device_request::DeviceRequest,
-        firebolt::fb_lifecycle_management::LifecycleManagementRequest,
+        firebolt::{fb_lifecycle_management::LifecycleManagementRequest, fb_pin::{PinChallengeRequest, PinChallengeResponse}},
         gateway::rpc_gateway_api::RpcRequest,
         status_update::ExtnStatus,
     },
@@ -199,6 +199,7 @@ pub enum ExtnRequest {
     Device(DeviceRequest),
     Extn(Value),
     LifecycleManagement(LifecycleManagementRequest),
+    PinChallenge(PinChallengeRequest)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -212,6 +213,7 @@ pub enum ExtnResponse {
     List(Vec<String>),
     Error(RippleError),
     Config(ConfigResponse),
+    PinChallenge(PinChallengeResponse)
 }
 
 impl ExtnPayloadProvider for ExtnResponse {
