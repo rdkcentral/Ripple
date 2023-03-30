@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::fs;
+use std::{fs, path::Path};
 
 use ripple_sdk::{
     api::manifest::{app_library::DefaultLibrary, device_manifest::AppLibraryEntry},
@@ -28,20 +28,22 @@ pub struct LoadAppLibraryStep;
 impl LoadAppLibraryStep {
     pub fn load_app_library(path: String) -> Result<Vec<AppLibraryEntry>, RippleError> {
         info!("Trying to load app library from {}", path);
-        let result = match fs::read_to_string(&path) {
-            Ok(contents) => match serde_json::from_str::<DefaultLibrary>(&contents) {
-                Ok(al) => Ok(al.default_library),
-                Err(_) => {
-                    warn!("could not load app library from path {}", path);
-                    Err(RippleError::InvalidInput)
+        if let Some(p) = Path::new(&path).to_str() {
+            let result = match fs::read_to_string(&p) {
+                Ok(contents) => match serde_json::from_str::<DefaultLibrary>(&contents) {
+                    Ok(al) => Ok(al.default_library),
+                    Err(_) => {
+                        warn!("could not load app library from path {}", path);
+                        Err(RippleError::InvalidInput)
+                    }
+                },
+                Err(e) => {
+                    info!("Error: e={}", e);
+                    Err(RippleError::MissingInput)
                 }
-            },
-            Err(e) => {
-                info!("Error: e={}", e);
-                Err(RippleError::MissingInput)
-            }
-        };
-
-        Ok(result.expect("Need valid App Library"))
+            };
+            return Ok(result.expect("Need valid App Library"));
+        }
+        Err(RippleError::BootstrapError)
     }
 }

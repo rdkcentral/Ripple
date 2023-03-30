@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
-    framework::ripple_contract::{DeviceContract, RippleContract},
+    framework::ripple_contract::RippleContract,
 };
 
 use super::device_request::DeviceRequest;
@@ -58,6 +58,6 @@ impl ExtnPayloadProvider for DeviceInfoRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Device(DeviceContract::Info)
+        RippleContract::DeviceInfo
     }
 }

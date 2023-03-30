@@ -14,10 +14,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-pub fn convert_path(path: &str) -> String {
-    if cfg!(target_os = "windows") {
-        path.to_owned().replace("/", "\\")
-    } else {
-        path.to_owned()
-    }
+use serde::{Deserialize, Serialize};
+
+use super::distributor_permissions::PermissionRequest;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DistributorRequest {
+    Permission(PermissionRequest),
 }

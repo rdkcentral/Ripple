@@ -197,38 +197,34 @@ impl ExtnClient {
                         let current_cap = self.sender.get_cap();
                         let target_contract = message.clone().target;
                         if current_cap.is_main() {
-                            if target_contract.is_main() {
-                                Self::handle_stream(message, self.request_processors.clone());
-                            } else {
-                                // Forward the message to an extn sender or return error
-                                if let Some(sender) =
-                                    self.get_extn_sender_with_contract(target_contract)
-                                {
-                                    let mut new_message = message.clone();
-                                    if new_message.callback.is_none() {
-                                        // before forwarding check if the requestor needs to be added as callback
-                                        let req_sender = if let Some(requestor_sender) = self
-                                            .get_extn_sender_with_extn_id(
-                                                message.clone().requestor.to_string(),
-                                            ) {
-                                            Some(requestor_sender)
-                                        } else {
-                                            None
-                                        };
-                                        if req_sender.is_some() {
-                                            let _ =
-                                                new_message.callback.insert(req_sender.unwrap());
-                                        }
+                            // Forward the message to an extn sender
+                            if let Some(sender) =
+                                self.get_extn_sender_with_contract(target_contract)
+                            {
+                                let mut new_message = message.clone();
+                                if new_message.callback.is_none() {
+                                    // before forwarding check if the requestor needs to be added as callback
+                                    let req_sender = if let Some(requestor_sender) = self
+                                        .get_extn_sender_with_extn_id(
+                                            message.clone().requestor.to_string(),
+                                        ) {
+                                        Some(requestor_sender)
+                                    } else {
+                                        None
+                                    };
+                                    if req_sender.is_some() {
+                                        let _ = new_message.callback.insert(req_sender.unwrap());
                                     }
-
-                                    tokio::spawn(async move {
-                                        if let Err(e) = sender.send(new_message.into()) {
-                                            error!("Error forwarding request {:?}", e)
-                                        }
-                                    });
-                                } else {
-                                    error!("No Request handler for {:?}", message);
                                 }
+
+                                tokio::spawn(async move {
+                                    if let Err(e) = sender.send(new_message.into()) {
+                                        error!("Error forwarding request {:?}", e)
+                                    }
+                                });
+                            } else {
+                                // could be main contract
+                                Self::handle_stream(message, self.request_processors.clone());
                             }
                         } else {
                             Self::handle_stream(message, self.request_processors.clone());

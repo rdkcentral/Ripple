@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     api::apps::Dimensions,
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
-    framework::ripple_contract::{DeviceContract, RippleContract},
+    framework::ripple_contract::RippleContract,
 };
 
 use super::device_request::DeviceRequest;
@@ -82,6 +82,6 @@ impl ExtnPayloadProvider for WindowManagerRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Device(DeviceContract::WindowManager)
+        RippleContract::WindowManager
     }
 }

@@ -28,7 +28,7 @@ use ripple_sdk::{
             ffi_message::CExtnMessage,
         },
     },
-    framework::ripple_contract::RippleContract,
+    framework::ripple_contract::{ContractFulfiller, RippleContract},
     log::debug,
     semver::Version,
     utils::logger::init_logger,
@@ -44,7 +44,7 @@ fn init_library() -> CExtnMetadata {
 
     let json_rpsee_extn_meta = ExtnSymbolMetadata::get(
         ExtnId::new_extn(ExtnClassId::Jsonrpsee, "custom".into()),
-        RippleContract::JsonRpsee,
+        ContractFulfiller::new(vec![RippleContract::JsonRpsee]),
         Version::new(1, 1, 0),
     );
 

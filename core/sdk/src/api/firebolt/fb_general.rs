@@ -24,5 +24,5 @@ pub struct ListenRequest {
 #[derive(Serialize, Deserialize)]
 pub struct ListenerResponse {
     pub listening: bool,
-    pub event: &'static str,
+    pub event: String,
 }

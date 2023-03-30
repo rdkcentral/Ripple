@@ -23,7 +23,7 @@ use std::{
 use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::{
     api::{
-        manifest::extn_manifest::{ExtnManifestEntry, ExtnSymbol},
+        manifest::extn_manifest::{ExtnManifest, ExtnManifestEntry, ExtnSymbol},
         status_update::ExtnStatus,
     },
     crossbeam::channel::Sender as CSender,
@@ -114,6 +114,7 @@ pub struct PreLoadedExtnChannel {
 #[derive(Debug, Clone)]
 pub struct ExtnState {
     sender: CSender<CExtnMessage>,
+    pub permission_map: HashMap<String, Vec<String>>,
     pub loaded_libraries: Arc<RwLock<Vec<LoadedLibrary>>>,
     pub device_channels: Arc<RwLock<Vec<PreLoadedExtnChannel>>>,
     pub deferred_channels: Arc<RwLock<Vec<PreLoadedExtnChannel>>>,
@@ -123,9 +124,10 @@ pub struct ExtnState {
 }
 
 impl ExtnState {
-    pub fn new(channels_state: ChannelsState) -> ExtnState {
+    pub fn new(channels_state: ChannelsState, manifest: ExtnManifest) -> ExtnState {
         ExtnState {
             sender: channels_state.get_extn_sender(),
+            permission_map: manifest.get_extn_permissions(),
             loaded_libraries: Arc::new(RwLock::new(Vec::new())),
             device_channels: Arc::new(RwLock::new(Vec::new())),
             deferred_channels: Arc::new(RwLock::new(Vec::new())),
