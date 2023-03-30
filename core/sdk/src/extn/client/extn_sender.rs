@@ -21,7 +21,7 @@ use crate::{
     extn::{
         extn_client_message::ExtnPayloadProvider, extn_id::ExtnId, ffi::ffi_message::CExtnMessage,
     },
-    framework::RippleResponse,
+    framework::{ripple_contract::RippleContract, RippleResponse},
     utils::error::RippleError,
 };
 
@@ -55,6 +55,13 @@ impl ExtnSender {
             permitted: context,
         }
     }
+    fn check_contract_permission(&self, contract: RippleContract) -> bool {
+        if self.id.is_main() {
+            true
+        } else {
+            self.permitted.contains(&contract.into())
+        }
+    }
 
     pub fn send_request(
         &self,
@@ -63,6 +70,10 @@ impl ExtnSender {
         other_sender: Option<CSender<CExtnMessage>>,
         callback: Option<CSender<CExtnMessage>>,
     ) -> Result<(), RippleError> {
+        // Extns can only send request to which it has permissions through Extn manifest
+        if !self.check_contract_permission(payload.get_contract()) {
+            return Err(RippleError::InvalidAccess);
+        }
         let p = payload.get_extn_payload();
         let c_request = p.into();
         let msg = CExtnMessage {

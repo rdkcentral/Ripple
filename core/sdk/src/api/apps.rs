@@ -22,7 +22,7 @@ use uuid::Uuid;
 
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
-    framework::ripple_contract::{MainContract, RippleContract},
+    framework::ripple_contract::RippleContract,
     utils::{channel_utils::oneshot_send_and_log, error::RippleError},
 };
 
@@ -128,7 +128,7 @@ impl ExtnPayloadProvider for AppResponse {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Main(MainContract::LifecycleManagement)
+        RippleContract::LifecycleManagement
     }
 }
 
@@ -183,9 +183,9 @@ pub enum AppError {
     AppNotReady,
 }
 
-impl From<AppError> for jsonrpsee::core::error::Error {
+impl From<AppError> for jsonrpsee::core::Error {
     fn from(err: AppError) -> Self {
-        jsonrpsee::core::error::Error::Custom(format!("Internal failure: {:?}", err))
+        jsonrpsee::core::Error::Custom(format!("Internal failure: {:?}", err))
     }
 }
 

@@ -21,7 +21,9 @@ use std::{
 };
 
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::ApiMessage, tokio::sync::mpsc::Sender, utils::error::RippleError,
+    api::{gateway::rpc_gateway_api::ApiMessage, session::AccountSession},
+    tokio::sync::mpsc::Sender,
+    utils::error::RippleError,
 };
 
 #[derive(Debug, Clone)]
@@ -70,9 +72,24 @@ impl Session {
 #[derive(Debug, Clone, Default)]
 pub struct SessionState {
     session_map: Arc<RwLock<HashMap<String, Session>>>,
+    account_session: Arc<RwLock<Option<AccountSession>>>,
 }
 
 impl SessionState {
+    pub fn insert_account_session(&self, account_session: AccountSession) {
+        let mut session_state = self.account_session.write().unwrap();
+        let _ = session_state.insert(account_session);
+    }
+
+    pub fn get_account_session(&self) -> Option<AccountSession> {
+        let session_state = self.account_session.read().unwrap();
+        if let Some(session) = session_state.clone() {
+            return Some(session);
+        }
+
+        None
+    }
+
     pub fn get_app_id(&self, session_id: String) -> Option<String> {
         let session_map = self.session_map.read().unwrap();
         if let Some(session) = session_map.get(&session_id) {

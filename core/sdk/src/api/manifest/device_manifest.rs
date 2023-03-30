@@ -19,7 +19,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::HashMap, fs};
 
-use crate::{api::device::DevicePlatformType, utils::error::RippleError};
+use crate::{
+    api::{device::DevicePlatformType, firebolt::fb_capabilities::FireboltCap},
+    utils::error::RippleError,
+};
 
 use super::{apps::AppManifest, exclusory::ExclusoryImpl};
 
@@ -45,6 +48,8 @@ pub struct RippleConfiguration {
     #[serde(default = "default_ripple_features")]
     pub features: RippleFeatures,
     pub internal_app_id: Option<String>,
+    #[serde(default = "default_saved_dir")]
+    pub saved_dir: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -344,6 +349,10 @@ fn default_ripple_features() -> RippleFeatures {
     }
 }
 
+fn default_saved_dir() -> String {
+    String::from("/opt/persistent/ripple")
+}
+
 impl DeviceManifest {
     pub fn load(path: String) -> Result<(String, DeviceManifest), RippleError> {
         info!("Trying to load device manifest from path={}", path);
@@ -415,5 +424,9 @@ impl DeviceManifest {
             min_available_mem_kb: self.lifecycle.min_available_memory_kb,
             always_retained: self.lifecycle.prioritized.clone(),
         }
+    }
+
+    pub fn get_supported_caps(&self) -> Vec<FireboltCap> {
+        FireboltCap::from_vec_string(self.clone().capabilities.supported)
     }
 }

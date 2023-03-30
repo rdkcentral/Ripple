@@ -14,14 +14,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-pub mod bootstrap_state;
-pub mod extn_state;
-pub mod openrpc_state;
-pub mod platform_state;
-pub mod session_state;
-pub mod cap {
-    pub mod cap_state;
-    pub mod generic_cap_state;
-    pub mod permitted_state;
-}
+mod distributor_general_ffi;
+mod general_permission_processor;
+mod general_session_processor;

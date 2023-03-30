@@ -19,10 +19,11 @@ use std::net::SocketAddr;
 
 use super::firebolt_gateway::FireboltGatewayCommand;
 use crate::{
-    service::{
-        apps::delegated_launcher_handler::AppManagerState, extn::ripple_client::RippleClient,
+    service::apps::delegated_launcher_handler::AppManagerState,
+    state::{
+        cap::permitted_state::PermissionHandler, platform_state::PlatformState,
+        session_state::Session,
     },
-    state::{platform_state::PlatformState, session_state::Session},
 };
 use futures::SinkExt;
 use futures::StreamExt;
@@ -154,7 +155,7 @@ impl FireboltWs {
         let try_socket = TcpListener::bind(&server_addr).await; //create the server on the address
         let listener = try_socket.expect(format!("Failed to bind {:?}", server_addr).as_str());
         info!("Listening on: {} secure={}", server_addr, secure);
-        let client = state.get_client();
+        let state_for_connection = state.clone();
         let app_state = state.app_manager_state.clone();
         // Let's spawn the handling of each connection in a separate task.
         while let Ok((stream, client_addr)) = listener.accept().await {
@@ -171,13 +172,13 @@ impl FireboltWs {
                 }
                 Ok(ws_stream) => {
                     info!("websocket connection success");
-                    let client_c = client.clone();
+                    let state_for_connection_c = state_for_connection.clone();
                     tokio::spawn(async move {
                         FireboltWs::handle_connection(
                             client_addr,
                             ws_stream,
                             connect_rx,
-                            client_c.clone(),
+                            state_for_connection_c.clone(),
                         )
                         .await;
                     });
@@ -191,13 +192,15 @@ impl FireboltWs {
         _client_addr: SocketAddr,
         ws_stream: WebSocketStream<TcpStream>,
         connect_rx: oneshot::Receiver<ClientIdentity>,
-        client: RippleClient,
+        state: PlatformState,
     ) {
         let identity = connect_rx.await.unwrap();
+        let client = state.get_client();
+        let app_id = identity.app_id.clone();
         let (session_tx, mut resp_rx) = mpsc::channel(32);
         let ctx = ClientContext {
             session_id: identity.session_id.clone(),
-            app_id: identity.app_id.clone(),
+            app_id: app_id.clone(),
         };
         let session = Session::new(identity.app_id.clone(), session_tx.clone());
         let msg = FireboltGatewayCommand::RegisterSession {
@@ -207,6 +210,10 @@ impl FireboltWs {
         if let Err(e) = client.send_gateway_command(msg) {
             error!("Error registering the connection {:?}", e);
             return;
+        }
+
+        if let Err(_) = PermissionHandler::fetch_and_store(state.clone(), app_id.clone()).await {
+            error!("Couldnt pre cache permissions");
         }
 
         let (mut sender, mut receiver) = ws_stream.split();
