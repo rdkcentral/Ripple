@@ -37,7 +37,7 @@ use thunder_ripple_sdk::{
             },
             extn_client_message::{ExtnMessage, ExtnResponse},
         },
-        log::{error, info},
+        log::info,
         serde_json, tokio,
         tokio::sync::mpsc,
         utils::error::RippleError,
@@ -173,7 +173,6 @@ struct WifiConnectError {
     code: u32,
 }
 
-
 #[derive(Debug)]
 pub struct ThunderWifiRequestProcessor {
     state: ThunderState,
@@ -221,7 +220,7 @@ impl ThunderWifiRequestProcessor {
                 let result_ssid =
                     ThunderWifiRequestProcessor::wait_for_thunder_ssids(state.clone(), req.clone())
                         .await;
-                info!("result wifi scan {:?}", result_ssid);
+                info!("wifi scan result {:?}", result_ssid);
                 WifiResponse::WifiScanListResponse(result_ssid)
             }
             None => WifiResponse::Error(RippleError::InvalidOutput),
@@ -274,7 +273,7 @@ impl ThunderWifiRequestProcessor {
 
                 list.sort_by(|a, b| b.signal_strength.cmp(&a.signal_strength));
                 let access_point_list = AccessPointList { list: list };
-                info!("ap_list {:#?}", access_point_list);
+                info!("access point list {:#?}", access_point_list);
                 // Send the access point list to the main thread
                 tx.send(access_point_list).await.unwrap();
                 info!("unsubscribing to wifi ssid scan thunder events");
@@ -316,12 +315,12 @@ impl ThunderWifiRequestProcessor {
             .await;
         let response = match response.message["success"].as_bool() {
             Some(_v) => {
-                info!("fasil : wifi connect succes");
+                info!("wifi connect success");
                 let result_ssid =
                     ThunderWifiRequestProcessor::wait_for_wifi_connect(state.clone(), req.clone())
                         .await;
-                info!("result wifi scan {:?}", result_ssid);
-                WifiResponse::WifiConnectSuccessResponse(result_ssid)
+                info!("wifi connect response {:?}", result_ssid);
+                result_ssid
             }
             None => WifiResponse::Error(RippleError::InvalidOutput),
         };
@@ -339,7 +338,7 @@ impl ThunderWifiRequestProcessor {
         .is_ok()
     }
 
-    async fn wait_for_wifi_connect(state: ThunderState, _req: ExtnMessage) -> AccessPoint {
+    async fn wait_for_wifi_connect(state: ThunderState, _req: ExtnMessage) -> WifiResponse {
         let (tx, mut rx) = mpsc::channel::<WifiResponse>(32);
         let client = state.get_thunder_client();
         let unsub_client = client.clone();
@@ -359,54 +358,23 @@ impl ThunderWifiRequestProcessor {
             )
             .await;
 
-info!("subscribing to wifi onError events");
-let (xyx_tx, mut xyx_rx) = mpsc::channel::<DeviceResponseMessage>(32);
-client
-    .clone()
-    .subscribe(
-        DeviceSubscribeRequest {
-            module: Wifi.callsign_and_version(),
-            event_name: "onError".into(),
-            params: None,
-            sub_id: None,
-        },
-        xyx_tx,
-    )
-    .await;
-/*
-
-    let _handle = tokio::spawn(async move {
-        info!("fasil : inside thread");
-        while let Some(m) = xyx_rx.recv().await {
-            let ssid_response: WifiConnectError = serde_json::from_value(m.message).unwrap();
-            print!("fasil {:?}",ssid_response);
-            let error_string = match ssid_response.code {
-                0 => WifiResponse::String("SSID_CHANGED".into()),
-                1 => WifiResponse::String("CONNECTION_LOST".into()),
-                2 => WifiResponse::String("CONNECTION_FAILED".into()),
-                3 => WifiResponse::String("CONNECTION_INTERRUPTED".into()),
-                4 => WifiResponse::String("INVALID_CREDENTIALS".into()),
-                5 => WifiResponse::String("NO_SSID".into()),
-                _ => WifiResponse::String("UNKNOWN".into()),
-            };
-            info!("inside thread {:?} ",error_string);
-            tx.send(error_string).await.unwrap();
-            info!("unsubscribing to wifi ssid scan thunder events");
-            unsub_client
-                .unsubscribe(DeviceUnsubscribeRequest {
+        info!("subscribing to wifi onError events");
+        let (xyx_tx, mut xyx_rx) = mpsc::channel::<DeviceResponseMessage>(32);
+        client
+            .clone()
+            .subscribe(
+                DeviceSubscribeRequest {
                     module: Wifi.callsign_and_version(),
                     event_name: "onError".into(),
-                })
-                .await;
-        }
-    })
-    .await;
-*/
+                    params: None,
+                    sub_id: None,
+                },
+                xyx_tx,
+            )
+            .await;
 
-let _handle = tokio::spawn(async move {
-    info!("fasil : inside thread");
+        let _handle = tokio::spawn(async move {
     loop {
-        info!("inside loop");
         tokio::select! {
             Some(m) = xyx_rx.recv() => {
                 let error_code_response: WifiConnectError = serde_json::from_value(m.message).unwrap();
@@ -420,21 +388,19 @@ let _handle = tokio::spawn(async move {
                     5 => WifiResponse::String("NO_SSID".into()),
                     _ => WifiResponse::String("UNKNOWN".into()),
                 };
-                info!("inside thread {:?} ",error_string);
+                info!("error code response {:?} ",error_string);
                 tx.send(error_string).await.unwrap();
-                info!("exited from thread");
                 break;
             }
             Some(m) = sub_rx.recv() => {
-                info!("inside loop wifi state");
                 let wifi_state_response: WifiStateChanged = serde_json::from_value(m.message).unwrap();
-                info!("Wifi statechanged={}", wifi_state_response.state);
+                info!("Wifi statechanged = {}", wifi_state_response.state);
                 match wifi_state_response.state {
                     5 => {
                         let resp =
                             ThunderWifiRequestProcessor::get_connected_ssid(state.clone())
                                 .await;
-                        info!("fasil {:?}", resp);
+                        info!("{:?}", resp);
                         // Send the access point list to the main thread
                         tx.send(WifiResponse::WifiConnectSuccessResponse(resp)).await.unwrap();
                         break;
@@ -466,38 +432,27 @@ let _handle = tokio::spawn(async move {
 })
 .await;
 
-
         if let Some(msg) = rx.recv().await {
             match msg {
                 WifiResponse::String(s) => {
-                    info!("out Received string: {}", s);
+                    info!("Received string: {}", s);
+                    return WifiResponse::String(s);
                     // handle string response here
-                },
+                }
                 WifiResponse::WifiConnectSuccessResponse(ap_list) => {
-                    info!("out Received access point list: {:?}", ap_list);
+                    info!("Received access point list: {:?}", ap_list);
+                    return WifiResponse::WifiConnectSuccessResponse(ap_list);
                     // handle access point list response here
-                },
+                }
                 _ => {
-                    info!("out Received unknown message type");
+                    info!("Received unknown message type");
                     // handle unknown message type here
+                    return WifiResponse::String("out Received unknown message type".into());
                 }
             }
+        } else {
+            return WifiResponse::String("Unknown Error".into());
         }
-
-
-        let accesspoint = AccessPoint {
-            ssid: (String::from("Test-1")),
-            security_mode: (ripple_sdk::api::device::device_wifi::WifiSecurityMode::None),
-            signal_strength: (0),
-            frequency: (0.0),
-        };
-        
-                    
-        info!("fasil {:?}",accesspoint);
-        accesspoint
-
-        //let accesspoint = AccessPoint { ssid: (String::from("Test-1")), security_mode: (ripple_sdk::api::device::device_wifi::WifiSecurityMode::None), signal_strength: (0), frequency: (0.0)};
-        //accesspoint
     }
 
     async fn get_connected_ssid(state: ThunderState) -> AccessPoint {
@@ -515,7 +470,7 @@ let _handle = tokio::spawn(async move {
         let get_connected_ssid_response: ConnectedSSIDResult =
             serde_json::from_value(response.message).unwrap();
         info!(
-            "get_connected_ssid_response : {:?}",
+            "connected ssid response : {:?}",
             get_connected_ssid_response
         );
         let accesspoint = get_connected_ssid_response.to_access_point();
