@@ -26,7 +26,12 @@ use crate::{
         config::{Config, ConfigResponse},
         device::device_request::DeviceRequest,
         firebolt::{fb_lifecycle_management::LifecycleManagementRequest, fb_pin::{PinChallengeRequest, PinChallengeResponse}},
+        distributor::{
+            distributor_permissions::{PermissionRequest, PermissionResponse},
+            distributor_request::DistributorRequest,
+        },
         gateway::rpc_gateway_api::RpcRequest,
+        session::{AccountSession, AccountSessionRequest},
         status_update::ExtnStatus,
     },
     framework::ripple_contract::RippleContract,
@@ -147,7 +152,7 @@ impl ExtnPayload {
 /// use ripple_sdk::extn::extn_client_message::ExtnRequest;
 /// use ripple_sdk::extn::extn_client_message::ExtnPayloadProvider;
 /// use ripple_sdk::extn::extn_id::ExtnClassId;
-/// use ripple_sdk::framework::ripple_contract::{RippleContract,DeviceContract};
+/// use ripple_sdk::framework::ripple_contract::{RippleContract};
 /// #[derive(Debug, Clone, Serialize, Deserialize)]
 /// pub enum MyCustomEnumRequestPayload {
 ///     String(String),
@@ -176,7 +181,7 @@ impl ExtnPayload {
 /// }
 ///
 /// fn contract() -> RippleContract {
-///     RippleContract::Device(DeviceContract::Info)
+///     RippleContract::DeviceInfo
 /// }
 /// }
 /// ```
@@ -200,6 +205,9 @@ pub enum ExtnRequest {
     Extn(Value),
     LifecycleManagement(LifecycleManagementRequest),
     PinChallenge(PinChallengeRequest)
+    Permission(PermissionRequest),
+    Distributor(DistributorRequest),
+    AccountSession(AccountSessionRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -213,7 +221,9 @@ pub enum ExtnResponse {
     List(Vec<String>),
     Error(RippleError),
     Config(ConfigResponse),
-    PinChallenge(PinChallengeResponse)
+    PinChallenge(PinChallengeResponse),
+    AccountSession(AccountSession),
+    Permission(PermissionResponse),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {

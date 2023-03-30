@@ -37,6 +37,7 @@ use ripple_sdk::{
         },
     },
     tokio::{
+        self,
         sync::mpsc::Receiver,
         time::{sleep, Duration},
     },
@@ -58,7 +59,10 @@ use ripple_sdk::{
 
 use crate::{
     service::apps::app_events::AppEvents,
-    state::{bootstrap_state::ChannelsState, platform_state::PlatformState},
+    state::{
+        bootstrap_state::ChannelsState, cap::permitted_state::PermissionHandler,
+        platform_state::PlatformState,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -262,6 +266,18 @@ impl DelegatedLauncherHandler {
             }
         } else {
             session_id = Uuid::new_v4().to_string();
+            let platform_state_c = self.platform_state.clone();
+            let app_id_c = app_id.clone();
+
+            // Fetch permissions on separate thread
+            tokio::spawn(async move {
+                if let Err(_) =
+                    PermissionHandler::fetch_and_store(platform_state_c, app_id_c.clone()).await
+                {
+                    error!("Couldnt load permissions for app {}", app_id_c)
+                }
+            });
+
             // TODO add bridge logic for Effective Transport
             self.platform_state.app_manager_state.insert(
                 app_id,

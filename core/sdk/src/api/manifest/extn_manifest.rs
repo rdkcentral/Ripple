@@ -14,10 +14,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use std::{fs, path::Path};
-
 use log::{info, warn};
 use serde::Deserialize;
+use std::collections::HashMap;
+use std::{fs, path::Path};
 
 use crate::{extn::extn_id::ExtnId, utils::error::RippleError};
 
@@ -61,6 +61,15 @@ impl ExtnSymbol {
         }
         None
     }
+
+    fn get_distributor_capability(&self) -> Option<ExtnId> {
+        if let Ok(cap) = ExtnId::try_from(self.id.clone()) {
+            if cap.is_distributor_channel() {
+                return Some(cap);
+            }
+        }
+        None
+    }
 }
 
 impl ExtnManifestEntry {
@@ -78,6 +87,15 @@ impl ExtnManifestEntry {
         };
 
         path
+    }
+
+    pub fn get_symbol(&self, capability: ExtnId) -> Option<ExtnSymbol> {
+        let ref_cap = capability.to_string();
+        self.symbols
+            .clone()
+            .into_iter()
+            .find(|x| x.id.eq(&ref_cap))
+            .clone()
     }
 }
 
@@ -111,5 +129,28 @@ impl ExtnManifest {
             }
         }
         return None;
+    }
+
+    pub fn get_distributor_capability(&self) -> Option<ExtnId> {
+        for extn in self.extns.clone() {
+            for symbol in extn.symbols {
+                if let Some(cap) = symbol.get_distributor_capability() {
+                    return Some(cap);
+                }
+            }
+        }
+        return None;
+    }
+
+    pub fn get_extn_permissions(&self) -> HashMap<String, Vec<String>> {
+        let mut map = HashMap::new();
+        self.extns.clone().into_iter().for_each(|x| {
+            x.symbols.into_iter().for_each(|y| {
+                if let Ok(cap) = ExtnId::try_from(y.id) {
+                    map.insert(cap.to_string(), y.uses.clone());
+                }
+            })
+        });
+        map
     }
 }

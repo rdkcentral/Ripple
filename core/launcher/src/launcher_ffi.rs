@@ -11,7 +11,7 @@ use ripple_sdk::{
             ffi_message::CExtnMessage,
         },
     },
-    framework::ripple_contract::RippleContract,
+    framework::ripple_contract::{ContractFulfiller, RippleContract},
     log::{debug, info},
     semver::Version,
     tokio::{self, runtime::Runtime},
@@ -27,7 +27,7 @@ fn init_library() -> CExtnMetadata {
 
     let launcher_meta = ExtnSymbolMetadata::get(
         ExtnId::new_channel(ExtnClassId::Launcher, "internal".into()),
-        RippleContract::Launcher,
+        ContractFulfiller::new(vec![RippleContract::Launcher]),
         Version::new(1, 1, 0),
     );
 
