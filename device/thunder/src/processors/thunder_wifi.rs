@@ -167,6 +167,13 @@ struct WifiStateChanged {
     isLNF: bool,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[allow(non_camel_case_types, non_snake_case)]
+struct WifiConnectError {
+    code: u32,
+}
+
+
 #[derive(Debug)]
 pub struct ThunderWifiRequestProcessor {
     state: ThunderState,
@@ -333,11 +340,12 @@ impl ThunderWifiRequestProcessor {
     }
 
     async fn wait_for_wifi_connect(state: ThunderState, _req: ExtnMessage) -> AccessPoint {
-        let (tx, mut rx) = mpsc::channel::<AccessPoint>(32);
-        info!("subscribing to wifi ssid scan thunder events");
+        let (tx, mut rx) = mpsc::channel::<WifiResponse>(32);
         let client = state.get_thunder_client();
-        let (sub_tx, mut sub_rx) = mpsc::channel::<DeviceResponseMessage>(32);
         let unsub_client = client.clone();
+/*
+        info!("subscribing to wifi ssid scan thunder events");
+        let (sub_tx, mut sub_rx) = mpsc::channel::<DeviceResponseMessage>(32);
         client
             .clone()
             .subscribe(
@@ -350,7 +358,53 @@ impl ThunderWifiRequestProcessor {
                 sub_tx,
             )
             .await;
+*/
 
+info!("subscribing to wifi onError events");
+let (xyx_tx, mut xyx_rx) = mpsc::channel::<DeviceResponseMessage>(32);
+client
+    .clone()
+    .subscribe(
+        DeviceSubscribeRequest {
+            module: Wifi.callsign_and_version(),
+            event_name: "onError".into(),
+            params: None,
+            sub_id: None,
+        },
+        xyx_tx,
+    )
+    .await;
+
+
+    let _handle = tokio::spawn(async move {
+        info!("fasil : inside thread");
+        while let Some(m) = xyx_rx.recv().await {
+            let ssid_response: WifiConnectError = serde_json::from_value(m.message).unwrap();
+            print!("fasil {:?}",ssid_response);
+            let error_string = match ssid_response.code {
+                0 => WifiResponse::String("SSID_CHANGED".into()),
+                1 => WifiResponse::String("CONNECTION_LOST".into()),
+                2 => WifiResponse::String("CONNECTION_FAILED".into()),
+                3 => WifiResponse::String("CONNECTION_INTERRUPTED".into()),
+                4 => WifiResponse::String("INVALID_CREDENTIALS".into()),
+                5 => WifiResponse::String("NO_SSID".into()),
+                _ => WifiResponse::String("UNKNOWN".into()),
+            };
+            info!("inside thread {:?} ",error_string);
+            tx.send(error_string).await.unwrap();
+            info!("unsubscribing to wifi ssid scan thunder events");
+            unsub_client
+                .unsubscribe(DeviceUnsubscribeRequest {
+                    module: Wifi.callsign_and_version(),
+                    event_name: "onError".into(),
+                })
+                .await;
+        }
+    })
+    .await;
+
+
+/* 
         let _handle = tokio::spawn(async move {
             info!("fasil : inside thread");
             while let Some(m) = sub_rx.recv().await {
@@ -390,19 +444,39 @@ impl ThunderWifiRequestProcessor {
             })
             .await;
         info!("fasil unsubscribe");
-
+*/
         // Receive the access point list sent from the Tokio task
         //        let access_point = rx.recv().await.unwrap();
 
+
+
+        if let Some(msg) = rx.recv().await {
+            match msg {
+                WifiResponse::String(s) => {
+                    info!("out Received string: {}", s);
+                    // handle string response here
+                },
+                WifiResponse::WifiConnectSuccessResponse(ap_list) => {
+                    info!("Received access point list: {:?}", ap_list);
+                    // handle access point list response here
+                },
+                _ => {
+                    info!("Received unknown message type");
+                    // handle unknown message type here
+                }
+            }
+        }
+        
         let accesspoint = AccessPoint {
             ssid: (String::from("Test-1")),
             security_mode: (ripple_sdk::api::device::device_wifi::WifiSecurityMode::None),
             signal_strength: (0),
             frequency: (0.0),
         };
-
-        let access_point = rx.recv().await.unwrap_or(accesspoint);
-        access_point
+        
+                    
+        info!("fasil {:?}",accesspoint);
+        accesspoint
 
         //let accesspoint = AccessPoint { ssid: (String::from("Test-1")), security_mode: (ripple_sdk::api::device::device_wifi::WifiSecurityMode::None), signal_strength: (0), frequency: (0.0)};
         //accesspoint
