@@ -18,9 +18,9 @@
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
+    async_trait::async_trait,
     extn::client::extn_client::ExtnClient,
     extn::extn_client_message::ExtnResponse,
-    async_trait::async_trait
 };
 
 pub struct LegacyImpl {
@@ -76,7 +76,7 @@ impl LegacyServer for LegacyImpl {
                 if let Some(v) = v.as_str() {
                     return Ok(v.into());
                 }
-            }   
+            }
         }
         Err(jsonrpsee::core::Error::Custom("Not available".into()))
     }
