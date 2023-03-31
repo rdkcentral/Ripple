@@ -49,7 +49,7 @@ impl LegacyServer for LegacyImpl {
             method: "device.make".into(),
             params_json: RpcRequest::prepend_ctx(Some(serde_json::Value::Null), &new_ctx),
         };
-        if let Ok(ExtnResponse::Value(v)) = client.request_async(rpc_request, 5000) {
+        if let Ok(ExtnResponse::Value(v)) = client.request_sync(rpc_request, 5000) {
             if let Some(v) = v.as_str() {
                 return Ok(v.into());
             }

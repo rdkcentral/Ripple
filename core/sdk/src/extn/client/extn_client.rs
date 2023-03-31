@@ -441,7 +441,7 @@ impl ExtnClient {
         Err(RippleError::ExtnError)
     }
 
-    pub fn request_async<T: ExtnPayloadProvider>(
+    pub fn request_sync<T: ExtnPayloadProvider>(
         &mut self,
         payload: impl ExtnPayloadProvider,
         timeout_in_msecs: u64,
