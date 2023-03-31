@@ -289,6 +289,23 @@ impl ExtnId {
         false
     }
 
+    /// Checks if the given capability is a distributor channel.
+    /// # Examples
+    /// ```
+    /// use ripple_sdk::extn::extn_id::{ExtnId,ExtnClassId};
+    ///
+    /// let dist_channel = ExtnId::new_channel(ExtnClassId::Distributor, "general".into());
+    /// assert!(dist_channel.is_distributor_channel());
+    /// ```
+    pub fn is_distributor_channel(&self) -> bool {
+        if let ExtnType::Channel = self._type {
+            if let ExtnClassId::Distributor = self.class {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Checks if the given capability has the same type and channel as the owner
     /// # Arguments
     /// `ref_cap` - Type of ExtnId which will be checked against the owner.

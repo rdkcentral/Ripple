@@ -27,7 +27,7 @@ use thunder_ripple_sdk::ripple_sdk::{
             ffi_message::CExtnMessage,
         },
     },
-    framework::ripple_contract::{DeviceContract, RippleContract},
+    framework::ripple_contract::{ContractFulfiller, RippleContract},
     log::{debug, info},
     semver::Version,
     tokio::{self, runtime::Runtime},
@@ -40,7 +40,11 @@ fn init_library() -> CExtnMetadata {
     let _ = init_logger("device_channel".into());
     let thunder_channel_meta = ExtnSymbolMetadata::get(
         ExtnId::new_channel(ExtnClassId::Device, "thunder".into()),
-        RippleContract::Device(DeviceContract::Info),
+        ContractFulfiller::new(vec![
+            RippleContract::DeviceInfo,
+            RippleContract::WindowManager,
+            RippleContract::Browser,
+        ]),
         Version::new(1, 1, 0),
     );
 

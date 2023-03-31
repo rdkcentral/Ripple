@@ -17,7 +17,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::api::gateway::rpc_error::DenyReason;
+use crate::api::firebolt::fb_capabilities::DenyReason;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum RippleError {

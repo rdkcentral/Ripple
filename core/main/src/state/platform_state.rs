@@ -25,15 +25,18 @@ use ripple_sdk::{
     utils::error::RippleError,
 };
 
-use crate::service::{
-    apps::{
-        app_events::AppEventsState, delegated_launcher_handler::AppManagerState,
-        provider_broker::ProviderBrokerState,
+use crate::{
+    firebolt::rpc_router::RouterState,
+    service::{
+        apps::{
+            app_events::AppEventsState, delegated_launcher_handler::AppManagerState,
+            provider_broker::ProviderBrokerState,
+        },
+        extn::ripple_client::RippleClient,
     },
-    extn::ripple_client::RippleClient,
 };
 
-use super::{cap::cap_state::CapState, session_state::SessionState};
+use super::{cap::cap_state::CapState, openrpc_state::OpenRpcState, session_state::SessionState};
 
 /// Platform state encapsulates the internal state of the Ripple Main application.
 ///
@@ -56,6 +59,8 @@ pub struct PlatformState {
     pub app_events_state: AppEventsState,
     pub provider_broker_state: ProviderBrokerState,
     pub app_manager_state: AppManagerState,
+    pub open_rpc_state: OpenRpcState,
+    pub router_state: RouterState,
 }
 
 impl PlatformState {
@@ -67,14 +72,16 @@ impl PlatformState {
     ) -> PlatformState {
         Self {
             extn_manifest,
-            cap_state: CapState::default(),
+            cap_state: CapState::new(manifest.clone()),
             session_state: SessionState::default(),
-            device_manifest: manifest,
+            device_manifest: manifest.clone(),
             ripple_client: client,
             app_library_state: AppLibraryState::new(app_library),
             app_events_state: AppEventsState::default(),
             provider_broker_state: ProviderBrokerState::default(),
             app_manager_state: AppManagerState::default(),
+            open_rpc_state: OpenRpcState::new(manifest.clone().configuration.exclusory),
+            router_state: RouterState::new(),
         }
     }
 
@@ -84,6 +91,10 @@ impl PlatformState {
 
     pub fn get_launcher_capability(&self) -> Option<ExtnId> {
         self.extn_manifest.get_launcher_capability()
+    }
+
+    pub fn get_distributor_capability(&self) -> Option<ExtnId> {
+        self.extn_manifest.get_distributor_capability()
     }
 
     pub fn get_manifest(&self) -> ExtnManifest {

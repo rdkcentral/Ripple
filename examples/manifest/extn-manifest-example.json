@@ -11,9 +11,10 @@
                         "config"
                     ],
                     "fulfills": [
-                        "device:info",
-                        "device:windowmanager",
-                        "device:browser"
+                        "device_info",
+                        "window_manager",
+                        "browser",
+                        "wifi"
                     ]
                 }
             ]
@@ -24,21 +25,43 @@
                 {
                     "id": "ripple:channel:launcher:internal",
                     "uses": [
-                        "config"
+                        "config",
+                        "lifecycle_management",
+                        "device_info",
+                        "window_manager",
+                        "browser"
                     ],
                     "fulfills": [
                         "launcher"
                     ]
                 }
             ]
+        },
+        {
+            "path": "libdistributor_general",
+            "symbols": [
+                {
+                    "id": "ripple:channel:distributor:general",
+                    "uses": [
+                        "config"
+                    ],
+                    "fulfills": [
+                        "permissions",
+                        "account_session"
+                    ]
+                }
+            ]
         }
     ],
     "required_contracts": [
+        "rpc",
         "launcher",
-        "config",
-        "device:info",
-        "device:windowmanager",
-        "device:browser",
-        "device:wifi"        
+        "lifecycle_management",
+        "device_info",
+        "window_manager",
+        "browser",
+        "permissions",
+        "account_session",
+        "wifi"
     ]
 }

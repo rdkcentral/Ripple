@@ -17,13 +17,21 @@
 
 use ripple_sdk::{
     async_trait::async_trait,
-    extn::{extn_id::ExtnId, ffi::ffi_channel::load_channel_builder},
+    extn::{
+        client::extn_sender::ExtnSender,
+        extn_id::ExtnId,
+        ffi::{ffi_channel::load_channel_builder, ffi_jsonrpsee::load_jsonrpsee_methods},
+    },
     framework::bootstrap::Bootstep,
     log::{debug, error, info},
     utils::error::RippleError,
 };
 
-use crate::state::{bootstrap_state::BootstrapState, extn_state::PreLoadedExtnChannel};
+use crate::state::{
+    bootstrap_state::{BootstrapState, ChannelsState},
+    extn_state::PreLoadedExtnChannel,
+};
+use jsonrpsee::core::server::rpc_module::Methods;
 
 /// Actual bootstep which loads the extensions into the ExtnState.
 /// Currently this step loads
@@ -40,12 +48,15 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
         let loaded_extensions = state.extn_state.loaded_libraries.read().unwrap();
         let mut deferred_channels: Vec<PreLoadedExtnChannel> = Vec::new();
         let mut device_channels: Vec<PreLoadedExtnChannel> = Vec::new();
+        let mut jsonrpsee_extns: Methods = Methods::new();
+        let main_sender = state.clone().extn_state.get_sender();
         for extn in loaded_extensions.iter() {
             unsafe {
                 let path = extn.entry.clone().path;
                 let library = &extn.library;
                 info!("Number of channels {}", extn.metadata.symbols.len());
                 let channels = extn.get_channels();
+                let extensions = extn.get_extns();
                 for channel in channels {
                     debug!("loading channel builder for {}", channel.id);
                     if let Ok(extn_id) = ExtnId::try_from(channel.id.clone()) {
@@ -72,6 +83,21 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                         return Err(RippleError::BootstrapError);
                     }
                 }
+                for extension in extensions {
+                    debug!("loading extension {}", extension.id);
+                    if let Ok(extn_id) = ExtnId::try_from(extension.id.clone()) {
+                        let builder = load_jsonrpsee_methods(library);
+                        if let Some(builder) = builder {
+                            let (_tx, tr) = ChannelsState::get_crossbeam_channel();
+                            let extn_sender = ExtnSender::new(
+                                main_sender.clone(),
+                                extn_id,
+                                extension.clone().uses,
+                            );
+                            let _ = jsonrpsee_extns.merge((builder.build)(extn_sender, tr));
+                        }
+                    }
+                }
                 debug!("loading symbols from {}", extn.get_metadata().name);
             }
         }
@@ -87,6 +113,8 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
             let _ = deferred_channel_state.extend(deferred_channels);
             info!("Deferred channels extension loaded");
         }
+
+        state.extn_state.extend_methods(jsonrpsee_extns);
 
         Ok(())
     }

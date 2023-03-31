@@ -20,7 +20,7 @@ use tokio::sync::{mpsc, oneshot};
 
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
-    framework::ripple_contract::{MainContract, RippleContract},
+    framework::ripple_contract::RippleContract,
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -179,7 +179,7 @@ impl ExtnPayloadProvider for RpcRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Main(MainContract::Rpc)
+        RippleContract::Rpc
     }
 }
 

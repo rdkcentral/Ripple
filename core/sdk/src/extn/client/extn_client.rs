@@ -17,9 +17,10 @@
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
+    time::Duration,
 };
 
-use crossbeam::channel::{Receiver as CReceiver, Sender as CSender, TryRecvError};
+use crossbeam::channel::{bounded, Receiver as CReceiver, Sender as CSender, TryRecvError};
 use log::{debug, error, info, trace};
 use tokio::sync::{
     mpsc::Sender as MSender,
@@ -197,38 +198,34 @@ impl ExtnClient {
                         let current_cap = self.sender.get_cap();
                         let target_contract = message.clone().target;
                         if current_cap.is_main() {
-                            if target_contract.is_main() {
-                                Self::handle_stream(message, self.request_processors.clone());
-                            } else {
-                                // Forward the message to an extn sender or return error
-                                if let Some(sender) =
-                                    self.get_extn_sender_with_contract(target_contract)
-                                {
-                                    let mut new_message = message.clone();
-                                    if new_message.callback.is_none() {
-                                        // before forwarding check if the requestor needs to be added as callback
-                                        let req_sender = if let Some(requestor_sender) = self
-                                            .get_extn_sender_with_extn_id(
-                                                message.clone().requestor.to_string(),
-                                            ) {
-                                            Some(requestor_sender)
-                                        } else {
-                                            None
-                                        };
-                                        if req_sender.is_some() {
-                                            let _ =
-                                                new_message.callback.insert(req_sender.unwrap());
-                                        }
+                            // Forward the message to an extn sender
+                            if let Some(sender) =
+                                self.get_extn_sender_with_contract(target_contract)
+                            {
+                                let mut new_message = message.clone();
+                                if new_message.callback.is_none() {
+                                    // before forwarding check if the requestor needs to be added as callback
+                                    let req_sender = if let Some(requestor_sender) = self
+                                        .get_extn_sender_with_extn_id(
+                                            message.clone().requestor.to_string(),
+                                        ) {
+                                        Some(requestor_sender)
+                                    } else {
+                                        None
+                                    };
+                                    if req_sender.is_some() {
+                                        let _ = new_message.callback.insert(req_sender.unwrap());
                                     }
-
-                                    tokio::spawn(async move {
-                                        if let Err(e) = sender.send(new_message.into()) {
-                                            error!("Error forwarding request {:?}", e)
-                                        }
-                                    });
-                                } else {
-                                    error!("No Request handler for {:?}", message);
                                 }
+
+                                tokio::spawn(async move {
+                                    if let Err(e) = sender.send(new_message.into()) {
+                                        error!("Error forwarding request {:?}", e)
+                                    }
+                                });
+                            } else {
+                                // could be main contract
+                                Self::handle_stream(message, self.request_processors.clone());
                             }
                         } else {
                             Self::handle_stream(message, self.request_processors.clone());
@@ -442,5 +439,48 @@ impl ExtnClient {
         }
 
         Err(RippleError::ExtnError)
+    }
+
+    pub fn request_sync<T: ExtnPayloadProvider>(
+        &mut self,
+        payload: impl ExtnPayloadProvider,
+        timeout_in_msecs: u64,
+    ) -> Result<T, RippleError> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let (tx, tr) = bounded(2);
+        let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
+        let timeout_increments = 50;
+        if let Err(e) = self
+            .sender
+            .send_request(id, payload, other_sender, Some(tx))
+        {
+            return Err(e);
+        }
+        let mut current_timeout: u64 = 0;
+        loop {
+            match tr.try_recv() {
+                Ok(cmessage) => {
+                    let message: ExtnMessage = cmessage.try_into().unwrap();
+                    if let Some(v) = message.payload.clone().extract() {
+                        return Ok(v);
+                    } else {
+                        return Err(RippleError::ParseError);
+                    }
+                }
+                Err(e) => match e {
+                    TryRecvError::Disconnected => {
+                        error!("Channel disconnected");
+                    }
+                    _ => {}
+                },
+            }
+            current_timeout += timeout_increments;
+            if current_timeout > timeout_in_msecs {
+                break;
+            } else {
+                std::thread::sleep(Duration::from_millis(timeout_increments))
+            }
+        }
+        Err(RippleError::InvalidOutput)
     }
 }

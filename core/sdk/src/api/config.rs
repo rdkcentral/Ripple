@@ -21,7 +21,7 @@ use serde_json::Value;
 
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
-    framework::ripple_contract::{MainContract, RippleContract},
+    framework::ripple_contract::RippleContract,
 };
 
 use super::manifest::{
@@ -80,7 +80,7 @@ impl ExtnPayloadProvider for Config {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Main(MainContract::Config)
+        RippleContract::Config
     }
 }
 
@@ -125,6 +125,6 @@ impl ExtnPayloadProvider for LauncherConfig {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Main(MainContract::Config)
+        RippleContract::Config
     }
 }

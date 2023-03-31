@@ -20,9 +20,10 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::{
     api::{
-        manifest::extn_manifest::{ExtnManifestEntry, ExtnSymbol},
+        manifest::extn_manifest::{ExtnManifest, ExtnManifestEntry, ExtnSymbol},
         status_update::ExtnStatus,
     },
     crossbeam::channel::Sender as CSender,
@@ -78,12 +79,19 @@ impl LoadedLibrary {
             .collect()
     }
 
-    pub fn get_extns(&mut self) -> Vec<ExtnId> {
-        self.metadata
+    pub fn get_extns(&self) -> Vec<ExtnSymbol> {
+        let extn_ids: Vec<String> = self
+            .metadata
             .symbols
             .iter()
             .filter(|x| x.id.is_extn())
-            .map(|x| x.id.clone())
+            .map(|x| x.id.clone().to_string())
+            .collect();
+        self.entry
+            .clone()
+            .symbols
+            .into_iter()
+            .filter(|x| extn_ids.contains(&x.id))
             .collect()
     }
 
@@ -106,22 +114,26 @@ pub struct PreLoadedExtnChannel {
 #[derive(Debug, Clone)]
 pub struct ExtnState {
     sender: CSender<CExtnMessage>,
+    pub permission_map: HashMap<String, Vec<String>>,
     pub loaded_libraries: Arc<RwLock<Vec<LoadedLibrary>>>,
     pub device_channels: Arc<RwLock<Vec<PreLoadedExtnChannel>>>,
     pub deferred_channels: Arc<RwLock<Vec<PreLoadedExtnChannel>>>,
     extn_status_map: Arc<RwLock<HashMap<String, ExtnStatus>>>,
     extn_status_listeners: Arc<RwLock<HashMap<String, mpsc::Sender<ExtnStatus>>>>,
+    pub extn_methods: Arc<RwLock<Methods>>,
 }
 
 impl ExtnState {
-    pub fn new(channels_state: ChannelsState) -> ExtnState {
+    pub fn new(channels_state: ChannelsState, manifest: ExtnManifest) -> ExtnState {
         ExtnState {
             sender: channels_state.get_extn_sender(),
+            permission_map: manifest.get_extn_permissions(),
             loaded_libraries: Arc::new(RwLock::new(Vec::new())),
             device_channels: Arc::new(RwLock::new(Vec::new())),
             deferred_channels: Arc::new(RwLock::new(Vec::new())),
             extn_status_map: Arc::new(RwLock::new(HashMap::new())),
             extn_status_listeners: Arc::new(RwLock::new(HashMap::new())),
+            extn_methods: Arc::new(RwLock::new(Methods::new())),
         }
     }
 
@@ -186,5 +198,14 @@ impl ExtnState {
         });
         client.add_extn_sender(extn_id, symbol, extn_tx);
         return Ok(());
+    }
+
+    pub fn extend_methods(&self, methods: Methods) {
+        let mut methods_state = self.extn_methods.write().unwrap();
+        let _ = methods_state.merge(methods);
+    }
+
+    pub fn get_extn_methods(&self) -> Methods {
+        self.extn_methods.read().unwrap().clone()
     }
 }

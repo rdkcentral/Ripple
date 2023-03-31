@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
-    framework::ripple_contract::{MainContract, RippleContract},
+    framework::ripple_contract::RippleContract,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -44,6 +44,6 @@ impl ExtnPayloadProvider for ExtnStatus {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Main(MainContract::ExtnStatus)
+        RippleContract::ExtnStatus
     }
 }

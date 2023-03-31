@@ -18,8 +18,10 @@
 
 members = [
     "core/sdk",
+    "device/thunder_ripple_sdk",
     "core/main",
     "core/launcher",
     "device/thunder",
-    "device/thunder_ripple_sdk"
+    "distributor/general",
+    "examples/rpc_extn"
 ]
