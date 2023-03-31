@@ -20,6 +20,7 @@ use ripple_sdk::{
     api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
     extn::client::extn_client::ExtnClient,
     extn::extn_client_message::ExtnResponse,
+    async_trait::async_trait
 };
 
 pub struct LegacyImpl {
@@ -36,8 +37,11 @@ impl LegacyImpl {
 pub trait Legacy {
     #[method(name = "legacy.make")]
     fn make(&self, ctx: CallContext) -> RpcResult<String>;
+    #[method(name = "legacy.model")]
+    async fn model(&self, ctx: CallContext) -> RpcResult<String>;
 }
 
+#[async_trait]
 impl LegacyServer for LegacyImpl {
     fn make(&self, ctx: CallContext) -> RpcResult<String> {
         let mut client = self.client.clone();
@@ -53,6 +57,26 @@ impl LegacyServer for LegacyImpl {
             if let Some(v) = v.as_str() {
                 return Ok(v.into());
             }
+        }
+        Err(jsonrpsee::core::Error::Custom("Not available".into()))
+    }
+
+    async fn model(&self, ctx: CallContext) -> RpcResult<String> {
+        let mut client = self.client.clone();
+        let mut new_ctx = ctx.clone();
+        new_ctx.protocol = ApiProtocol::Extn;
+
+        let rpc_request = RpcRequest {
+            ctx: new_ctx.clone(),
+            method: "device.model".into(),
+            params_json: RpcRequest::prepend_ctx(Some(serde_json::Value::Null), &new_ctx),
+        };
+        if let Ok(msg) = client.request(rpc_request).await {
+            if let Some(ExtnResponse::Value(v)) = msg.payload.clone().extract() {
+                if let Some(v) = v.as_str() {
+                    return Ok(v.into());
+                }
+            }   
         }
         Err(jsonrpsee::core::Error::Custom("Not available".into()))
     }
