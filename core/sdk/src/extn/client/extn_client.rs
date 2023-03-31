@@ -17,9 +17,10 @@
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
+    time::Duration,
 };
 
-use crossbeam::channel::{Receiver as CReceiver, Sender as CSender, TryRecvError};
+use crossbeam::channel::{bounded, Receiver as CReceiver, Sender as CSender, TryRecvError};
 use log::{debug, error, info, trace};
 use tokio::sync::{
     mpsc::Sender as MSender,
@@ -440,20 +441,46 @@ impl ExtnClient {
         Err(RippleError::ExtnError)
     }
 
-    pub fn request_async(
+    pub fn request_async<T: ExtnPayloadProvider>(
         &mut self,
         payload: impl ExtnPayloadProvider,
-        callback: CSender<CExtnMessage>,
-    ) -> Result<(), RippleError> {
+        timeout_in_msecs: u64,
+    ) -> Result<T, RippleError> {
         let id = uuid::Uuid::new_v4().to_string();
+        let (tx, tr) = bounded(2);
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
-
+        let timeout_increments = 50;
         if let Err(e) = self
             .sender
-            .send_request(id, payload, other_sender, Some(callback))
+            .send_request(id, payload, other_sender, Some(tx))
         {
             return Err(e);
         }
-        Ok(())
+        let mut current_timeout: u64 = 0;
+        loop {
+            match tr.try_recv() {
+                Ok(cmessage) => {
+                    let message: ExtnMessage = cmessage.try_into().unwrap();
+                    if let Some(v) = message.payload.clone().extract() {
+                        return Ok(v);
+                    } else {
+                        return Err(RippleError::ParseError);
+                    }
+                }
+                Err(e) => match e {
+                    TryRecvError::Disconnected => {
+                        error!("Channel disconnected");
+                    }
+                    _ => {}
+                },
+            }
+            current_timeout += timeout_increments;
+            if current_timeout > timeout_in_msecs {
+                break;
+            } else {
+                std::thread::sleep(Duration::from_millis(timeout_increments))
+            }
+        }
+        Err(RippleError::InvalidOutput)
     }
 }
