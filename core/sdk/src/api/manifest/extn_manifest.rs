@@ -102,12 +102,13 @@ impl ExtnManifestEntry {
 impl ExtnManifest {
     pub fn load(path: String) -> Result<(String, ExtnManifest), RippleError> {
         info!("Trying to load device manifest from path={}", path);
-        if let Ok(contents) = fs::read_to_string(&path) {
-            Self::load_from_content(contents)
-        } else {
-            info!("No device manifest found in {}", path);
-            Err(RippleError::MissingInput)
+        if let Some(p) = Path::new(&path).to_str() {
+            if let Ok(contents) = fs::read_to_string(p) {
+                return Self::load_from_content(contents);
+            }
         }
+        info!("No device manifest found in {}", path);
+        Err(RippleError::MissingInput)
     }
 
     pub fn load_from_content(contents: String) -> Result<(String, ExtnManifest), RippleError> {

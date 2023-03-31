@@ -14,8 +14,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use std::str::FromStr;
-
 use crate::{
     extn::extn_id::ExtnId, framework::ripple_contract::ContractFulfiller, utils::error::RippleError,
 };
@@ -23,6 +21,7 @@ use libloading::{Library, Symbol};
 use log::{debug, error, info};
 use semver::Version;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 #[repr(C)]
 #[derive(Debug, Clone)]

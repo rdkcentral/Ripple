@@ -17,7 +17,7 @@
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{collections::HashMap, fs};
+use std::{collections::HashMap, fs, path::Path};
 
 use crate::{
     api::{device::DevicePlatformType, firebolt::fb_capabilities::FireboltCap},
@@ -356,12 +356,13 @@ fn default_saved_dir() -> String {
 impl DeviceManifest {
     pub fn load(path: String) -> Result<(String, DeviceManifest), RippleError> {
         info!("Trying to load device manifest from path={}", path);
-        if let Ok(contents) = fs::read_to_string(&path) {
-            Self::load_from_content(contents)
-        } else {
-            info!("No device manifest found in {}", path);
-            Err(RippleError::MissingInput)
+        if let Some(p) = Path::new(&path).to_str() {
+            if let Ok(contents) = fs::read_to_string(&p) {
+                return Self::load_from_content(contents);
+            }
         }
+        info!("No device manifest found in {}", path);
+        Err(RippleError::MissingInput)
     }
 
     pub fn load_from_content(contents: String) -> Result<(String, DeviceManifest), RippleError> {

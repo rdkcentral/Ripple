@@ -14,7 +14,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-pub mod ffi_channel;
-pub mod ffi_jsonrpsee;
-pub mod ffi_library;
-pub mod ffi_message;
+pub mod rpc_example_ffi;
+pub mod rpc {
+    pub mod custom_jsonrpsee_extn;
+    pub mod legacy_jsonrpsee_extn;
+}
