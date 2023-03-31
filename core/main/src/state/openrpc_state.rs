@@ -44,7 +44,7 @@ impl OpenRpcState {
         }
     }
 
-    pub fn is_excluded(&self, method:String) -> bool {
+    pub fn is_excluded(&self, method: String) -> bool {
         if let Some(e) = &self.exclusory {
             if !e.can_resolve(method.clone()) {
                 return true;

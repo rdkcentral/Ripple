@@ -28,9 +28,7 @@ impl FireboltGatekeeper {
         if open_rpc_state.is_excluded(request.clone().method) {
             return Ok(());
         }
-        if let Some(caps) = open_rpc_state
-            .get_caps_for_method(request.clone().method)
-        {
+        if let Some(caps) = open_rpc_state.get_caps_for_method(request.clone().method) {
             // Supported and Availability checks
             if let Err(e) = state
                 .clone()

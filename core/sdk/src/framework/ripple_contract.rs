@@ -61,8 +61,8 @@ impl RippleContract {
     /// This method gets the clear string of the contract without the quotes added
     /// by serde deserializer.
     pub fn as_clear_string(self) -> String {
-        let s:String = self.into();
-        s[1..s.len()-1].into()
+        let s: String = self.into();
+        s[1..s.len() - 1].into()
     }
 }
 
