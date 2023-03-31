@@ -33,6 +33,7 @@ pub enum RippleContract {
     Rpc,
     ExtnStatus,
     DeviceInfo,
+    Wifi,
     WindowManager,
     Browser,
     Permissions,

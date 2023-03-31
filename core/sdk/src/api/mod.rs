@@ -21,6 +21,7 @@ pub mod lifecycle;
 pub mod manifest;
 pub mod session;
 pub mod status_update;
+pub mod wifi;
 pub mod gateway {
     pub mod rpc_error;
     pub mod rpc_gateway_api;
