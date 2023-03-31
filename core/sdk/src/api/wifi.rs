@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
-    framework::ripple_contract::{MainContract, RippleContract},
+    framework::ripple_contract::{RippleContract},
     utils::error::RippleError,
 };
 
@@ -74,6 +74,6 @@ impl ExtnPayloadProvider for WifiResponse {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Main(MainContract::Rpc)
+        RippleContract::Wifi
     }
 }
