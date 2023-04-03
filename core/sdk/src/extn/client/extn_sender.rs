@@ -59,7 +59,7 @@ impl ExtnSender {
         if self.id.is_main() {
             true
         } else {
-            self.permitted.contains(&contract.into())
+            self.permitted.contains(&contract.as_clear_string())
         }
     }
 

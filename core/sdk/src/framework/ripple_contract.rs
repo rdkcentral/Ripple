@@ -50,8 +50,19 @@ impl TryFrom<String> for RippleContract {
 }
 
 impl Into<String> for RippleContract {
+    /// Mainly used for [ExtnMessage] passing between Extensions
+    /// Use `as_clear_string` method for plain string for references
     fn into(self) -> String {
         serde_json::to_string(&self).unwrap()
+    }
+}
+
+impl RippleContract {
+    /// This method gets the clear string of the contract without the quotes added
+    /// by serde deserializer.
+    pub fn as_clear_string(self) -> String {
+        let s: String = self.into();
+        s[1..s.len() - 1].into()
     }
 }
 

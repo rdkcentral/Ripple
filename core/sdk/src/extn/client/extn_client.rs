@@ -362,7 +362,7 @@ impl ExtnClient {
         &self,
         contract: RippleContract,
     ) -> Option<CSender<CExtnMessage>> {
-        let contract_str: String = contract.into();
+        let contract_str: String = contract.as_clear_string();
         let id = {
             self.contract_map
                 .read()
