@@ -1,23 +1,41 @@
+use crate::{
+    service::apps::provider_broker::{ProviderBroker, ProviderBrokerRequest},
+    state::platform_state::PlatformState,
+};
+use ripple_sdk::serde_json;
+use ripple_sdk::{
+    api::{
+        apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
+        firebolt::{
+            fb_capabilities::{DenyReason, FireboltCap, FireboltPermission},
+            fb_pin::{PinChallengeConfiguration, PinChallengeRequest},
+            provider::{
+                Challenge, ChallengeRequestor, ProviderRequestPayload, ProviderResponsePayload,
+            },
+        },
+        gateway::rpc_gateway_api::CallContext,
+        manifest::device_manifest::GrantStep,
+    },
+    log::debug,
+    serde_json::Value,
+    tokio::sync::oneshot,
+};
 use serde::Deserialize;
-use ripple_sdk::{serde_json::Value, api::gateway::{rpc_gateway_api::CallContext, rpc_error::DenyReason}, log::debug};
-
-use crate::state::platform_state::PlatformState;
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct GrantStep {
-    pub capability: String,
-    pub configuration: Option<Value>,
+pub struct GrantStepExecutor {
+    step: GrantStep,
 }
 
-impl GrantStep {
+impl GrantStepExecutor {
     pub async fn execute(
         &self,
         platform_state: &PlatformState,
         call_ctx: &CallContext,
         permission: &FireboltPermission,
     ) -> Result<(), DenyReason> {
-        let capability = &self.capability;
-        let configuration = &self.configuration;
+        let capability = self.step.capability.clone();
+        let configuration = self.step.configuration.clone();
         debug!(
             "Reached execute phase of step for capability: {}",
             capability
@@ -25,32 +43,41 @@ impl GrantStep {
         // 1. Check if the capability is supported and available.
         // 2. Call the capability,
         // 3. Get the user response and return
-        let firebolt_cap = FireboltCa::Full(capability.to_owned());
-        if !platform_state
-            .services
-            .is_cap_supported(firebolt_cap.clone())
-            .await
+        let firebolt_cap = FireboltCap::Full(capability.to_owned());
+        if let Err(e) = platform_state
+            .cap_state
+            .generic
+            .check_all(&vec![firebolt_cap.clone()])
         {
-            debug!("Cap is neither supported nor available");
-            return Err(DenyReason::Unsupported);
+            return Err(e.reason);
         }
-        debug!("Cap is supported. Now have to check if it is available");
-        if !platform_state
-            .services
-            .is_cap_available(firebolt_cap.clone())
-            .await
-        {
-            debug!("cap is supported but not available");
-            return Err(DenyReason::Unavailable);
-        }
+
         self.invoke_capability(
             platform_state,
             call_ctx,
             &firebolt_cap,
-            configuration,
+            &configuration,
             permission,
         )
         .await
+    }
+
+    async fn get_app_name(&self, platform_state: &PlatformState, app_id: String) -> String {
+        let mut app_name: String = Default::default();
+        let (tx, rx) = oneshot::channel::<AppResponse>();
+        let app_request = AppRequest::new(AppMethod::GetAppName(app_id), tx);
+        let send_result = platform_state.get_client().send_app_request(app_request);
+        if send_result.is_err() {
+            return app_name;
+        }
+        if let Ok(app_response_res) = rx.await {
+            if let Ok(app_response) = app_response_res {
+                if let AppManagerResponse::AppName(name) = app_response {
+                    app_name = name.unwrap_or_default();
+                }
+            }
+        }
+        app_name
     }
 
     pub async fn invoke_capability(
@@ -73,7 +100,9 @@ impl GrantStep {
          * this might be weird looking as_str().as_str(), FireboltCap returns String but has a function named as_str.
          * We call as_str on String to convert String to str to perform our match
          */
-        let app_name = get_app_name(platform_state, call_ctx.app_id.clone()).await;
+        let app_name = self
+            .get_app_name(platform_state, call_ctx.app_id.clone())
+            .await;
         let pr_msg_opt = match p_cap.as_str().as_str() {
             "xrn:firebolt:capability:usergrant:acknowledgechallenge" => {
                 let challenge = Challenge {
@@ -83,7 +112,7 @@ impl GrantStep {
                         name: app_name,
                     },
                 };
-                Some(provider_broker::Request {
+                Some(ProviderBrokerRequest {
                     capability: p_cap.as_str(),
                     method: String::from("challenge"),
                     caller: call_ctx.clone(),
@@ -97,16 +126,13 @@ impl GrantStep {
                     param.as_ref().unwrap_or(&Value::Null).clone(),
                 );
                 pin_space_res.map_or(None, |pin_conf| {
-                    Some(provider_broker::Request {
+                    Some(ProviderBrokerRequest {
                         capability: p_cap.as_str(),
                         method: "challenge".to_owned(),
                         caller: call_ctx.clone(),
                         request: ProviderRequestPayload::PinChallenge(PinChallengeRequest {
                             pin_space: pin_conf.pin_space,
-                            requestor: ChallengeRequestor {
-                                id: call_ctx.app_id.clone(),
-                                name: app_name,
-                            },
+                            requestor: call_ctx.clone(),
                             capability: Some(call_ctx.app_id.clone()),
                         }),
                         tx: session_tx,
@@ -123,7 +149,7 @@ impl GrantStep {
                     None => "".to_owned(),
                     Some(val) => val.to_string(),
                 };
-                Some(provider_broker::Request {
+                Some(ProviderBrokerRequest {
                     capability: p_cap.as_str(),
                     method: String::from("challenge"),
                     caller: call_ctx.clone(),

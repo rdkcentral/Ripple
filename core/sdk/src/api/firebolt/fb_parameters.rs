@@ -29,7 +29,6 @@ pub struct SecondScreenEvent {
     pub data: Option<String>,
 }
 
-
 #[derive(Serialize, Debug, Clone)]
 pub struct AppInitParameters {
     pub us_privacy: Option<String>,

@@ -1,5 +1,10 @@
-use jsonrpsee::{proc_macros::rpc, core::RpcResult};
-use ripple_sdk::api::{gateway::rpc_gateway_api::CallContext, firebolt::fb_user_grants::{GetUserGrantsByAppRequest, GetUserGrantsByCapabilityRequest, GrantInfo}};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use ripple_sdk::api::{
+    firebolt::fb_user_grants::{
+        GetUserGrantsByAppRequest, GetUserGrantsByCapabilityRequest, GrantInfo,
+    },
+    gateway::rpc_gateway_api::CallContext,
+};
 
 #[rpc(server)]
 pub trait UserGrants {

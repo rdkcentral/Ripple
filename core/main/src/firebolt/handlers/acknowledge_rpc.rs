@@ -14,10 +14,25 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use jsonrpsee::{proc_macros::rpc, core::RpcResult, RpcModule};
-use ripple_sdk::{api::{gateway::rpc_gateway_api::CallContext, firebolt::{fb_general::{ListenRequest, ListenerResponse}, provider::{ExternalProviderResponse, ChallengeResponse, ACK_CHALLENGE_CAPABILITY, CHALLENGE_EVENT, ProviderResponse, ProviderResponsePayload, FocusRequest}}}, log::debug};
+use crate::{
+    firebolt::rpc::RippleRPCProvider, service::apps::provider_broker::ProviderBroker,
+    state::platform_state::PlatformState,
+};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
 use ripple_sdk::async_trait::async_trait;
-use crate::{service::apps::provider_broker::{ ProviderBroker}, state::platform_state::PlatformState, firebolt::rpc::RippleRPCProvider};
+use ripple_sdk::{
+    api::{
+        firebolt::{
+            fb_general::{ListenRequest, ListenerResponse},
+            provider::{
+                ChallengeResponse, ExternalProviderResponse, FocusRequest, ProviderResponse,
+                ProviderResponsePayload, ACK_CHALLENGE_CAPABILITY, ACK_CHALLENGE_EVENT,
+            },
+        },
+        gateway::rpc_gateway_api::CallContext,
+    },
+    log::debug,
+};
 
 #[rpc(server)]
 pub trait AcknowledgeChallenge {
@@ -42,7 +57,7 @@ pub trait AcknowledgeChallenge {
 }
 
 pub struct AcknowledgeChallengeImpl {
-    pub platform_state: PlatformState
+    pub platform_state: PlatformState,
 }
 
 #[async_trait]
@@ -58,7 +73,7 @@ impl AcknowledgeChallengeServer for AcknowledgeChallengeImpl {
             &self.platform_state,
             String::from(ACK_CHALLENGE_CAPABILITY),
             String::from("challenge"),
-            CHALLENGE_EVENT,
+            ACK_CHALLENGE_EVENT,
             ctx,
             request,
         )
@@ -66,7 +81,7 @@ impl AcknowledgeChallengeServer for AcknowledgeChallengeImpl {
 
         Ok(ListenerResponse {
             listening: listen,
-            event: CHALLENGE_EVENT,
+            event: ACK_CHALLENGE_EVENT.into(),
         })
     }
 
@@ -106,6 +121,9 @@ pub struct AckRPCProvider;
 
 impl RippleRPCProvider<AcknowledgeChallengeImpl> for AckRPCProvider {
     fn provide(state: PlatformState) -> RpcModule<AcknowledgeChallengeImpl> {
-        (AcknowledgeChallengeImpl { platform_state: state }).into_rpc()
+        (AcknowledgeChallengeImpl {
+            platform_state: state,
+        })
+        .into_rpc()
     }
 }

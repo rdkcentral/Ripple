@@ -17,7 +17,16 @@
 
 use arrayvec::ArrayVec;
 use ripple_sdk::{
-    api::{firebolt::{fb_general::ListenRequest, provider::{ProviderRequestPayload, ProviderResponsePayload, ProviderRequest, ProviderResponse, FocusRequest}}, gateway::rpc_gateway_api::CallContext},
+    api::{
+        firebolt::{
+            fb_general::ListenRequest,
+            provider::{
+                FocusRequest, ProviderRequest, ProviderRequestPayload, ProviderResponse,
+                ProviderResponsePayload,
+            },
+        },
+        gateway::rpc_gateway_api::CallContext,
+    },
     log::{debug, error, info, warn},
     serde_json,
     tokio::sync::oneshot,
@@ -31,10 +40,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::{
-    service::{apps::app_events::AppEvents},
-    state::platform_state::PlatformState,
-};
+use crate::{service::apps::app_events::AppEvents, state::platform_state::PlatformState};
 
 const REQUEST_QUEUE_CAPACITY: usize = 3;
 

@@ -35,13 +35,13 @@ pub mod firebolt {
     pub mod fb_capabilities;
     pub mod fb_discovery;
     pub mod fb_general;
+    pub mod fb_keyboard;
     pub mod fb_lifecycle;
     pub mod fb_lifecycle_management;
     pub mod fb_openrpc;
     pub mod fb_parameters;
-    pub mod fb_secondscreen;
-    pub mod fb_keyboard;
-    pub mod provider;
     pub mod fb_pin;
+    pub mod fb_secondscreen;
     pub mod fb_user_grants;
+    pub mod provider;
 }

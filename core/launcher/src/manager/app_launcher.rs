@@ -491,7 +491,8 @@ impl AppLauncher {
     ) -> RippleResponse {
         let session = AppSession {
             app: AppBasicInfo {
-                id: manifest.name,
+                id: manifest.name.clone(),
+                title: Some(manifest.name.clone()),
                 catalog: manifest.content_catalog.clone(),
                 url: Some(manifest.start_page),
             },

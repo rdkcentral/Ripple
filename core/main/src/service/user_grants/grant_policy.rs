@@ -17,8 +17,8 @@
 
 use std::hash::{Hash, Hasher};
 
+use ripple_sdk::api::manifest::device_manifest::GrantStep;
 use serde::{Deserialize, Serialize};
-use ripple_sdk::serde_json::Value;
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -77,8 +77,6 @@ impl Hash for GrantLifespan {
         });
     }
 }
-
-
 
 #[derive(Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]

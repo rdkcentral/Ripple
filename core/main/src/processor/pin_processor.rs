@@ -16,7 +16,11 @@
 // limitations under the License.
 
 use ripple_sdk::{
-    api::{ firebolt::{fb_pin::{PinChallengeRequest, PIN_CHALLENGE_CAPABILITY}, provider::{ProviderResponsePayload, ProviderRequestPayload}}},
+    api::firebolt::{
+        fb_capabilities::DenyReason,
+        fb_pin::{PinChallengeRequest, PIN_CHALLENGE_CAPABILITY},
+        provider::{ProviderRequestPayload, ProviderResponsePayload},
+    },
     async_trait::async_trait,
     extn::{
         client::extn_processor::{
@@ -24,10 +28,16 @@ use ripple_sdk::{
         },
         extn_client_message::{ExtnMessage, ExtnResponse},
     },
-    tokio::sync::{mpsc::{Receiver as MReceiver, Sender as MSender}, oneshot},
+    tokio::sync::{
+        mpsc::{Receiver as MReceiver, Sender as MSender},
+        oneshot,
+    },
 };
 
-use crate::{state::platform_state::PlatformState, service::apps::provider_broker::{ProviderBrokerRequest, ProviderBroker}};
+use crate::{
+    service::apps::provider_broker::{ProviderBroker, ProviderBrokerRequest},
+    state::platform_state::PlatformState,
+};
 
 /// Supports processing of [Config] request from extensions and also
 /// internal services.
@@ -87,15 +97,25 @@ impl ExtnRequestProcessor for PinProcessor {
         match session_rx.await {
             Ok(result) => match result.as_pin_challenge_response() {
                 Some(res) => {
-                    if let Ok(_) = Self::respond(state.get_client().get_extn_client(), msg.clone(), ExtnResponse::PinChallenge(res))
-                    .await {
+                    if let Ok(_) = Self::respond(
+                        state.get_client().get_extn_client(),
+                        msg.clone(),
+                        ExtnResponse::PinChallenge(res),
+                    )
+                    .await
+                    {
                         return true;
                     }
-                },
-                None => {},
+                }
+                None => {}
             },
-            Err(_) => {},
+            Err(_) => {}
         }
-        Self::handle_error(state.get_client().get_extn_client(), msg, ripple_sdk::utils::error::RippleError::Permission(ripple_sdk::api::gateway::rpc_error::DenyReason::Unpermitted)).await
+        Self::handle_error(
+            state.get_client().get_extn_client(),
+            msg,
+            ripple_sdk::utils::error::RippleError::Permission(DenyReason::Unpermitted),
+        )
+        .await
     }
 }

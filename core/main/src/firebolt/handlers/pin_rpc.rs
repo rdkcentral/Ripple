@@ -1,7 +1,19 @@
-use jsonrpsee::{proc_macros::rpc, core::RpcResult, RpcModule};
-use ripple_sdk::api::{gateway::rpc_gateway_api::CallContext, firebolt::{fb_general::{ListenRequest, ListenerResponse}, provider::{FocusRequest, ExternalProviderResponse, ProviderResponse, ProviderResponsePayload}, fb_pin::{PinChallengeResponse, PIN_CHALLENGE_CAPABILITY, PIN_CHALLENGE_EVENT}}};
+use crate::{
+    firebolt::rpc::RippleRPCProvider, service::apps::provider_broker::ProviderBroker,
+    state::platform_state::PlatformState,
+};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
+use ripple_sdk::api::{
+    firebolt::{
+        fb_general::{ListenRequest, ListenerResponse},
+        fb_pin::{PinChallengeResponse, PIN_CHALLENGE_CAPABILITY, PIN_CHALLENGE_EVENT},
+        provider::{
+            ExternalProviderResponse, FocusRequest, ProviderResponse, ProviderResponsePayload,
+        },
+    },
+    gateway::rpc_gateway_api::CallContext,
+};
 use ripple_sdk::async_trait::async_trait;
-use crate::{state::platform_state::PlatformState, service::apps::provider_broker::ProviderBroker, firebolt::rpc::RippleRPCProvider};
 
 #[rpc(server)]
 pub trait PinChallenge {
@@ -28,7 +40,7 @@ pub trait PinChallenge {
 }
 
 pub struct PinChallengeImpl {
-    pub platform_state: PlatformState
+    pub platform_state: PlatformState,
 }
 
 #[async_trait]
@@ -50,7 +62,7 @@ impl PinChallengeServer for PinChallengeImpl {
         .await;
         Ok(ListenerResponse {
             listening: listen,
-            event: PIN_CHALLENGE_EVENT,
+            event: PIN_CHALLENGE_EVENT.into(),
         })
     }
 
@@ -87,6 +99,9 @@ pub struct PinRPCProvider;
 
 impl RippleRPCProvider<PinChallengeImpl> for PinRPCProvider {
     fn provide(state: PlatformState) -> RpcModule<PinChallengeImpl> {
-        (PinChallengeImpl { platform_state: state }).into_rpc()
+        (PinChallengeImpl {
+            platform_state: state,
+        })
+        .into_rpc()
     }
 }

@@ -1,7 +1,10 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use crate::{extn::extn_client_message::{ExtnPayloadProvider, ExtnPayload, ExtnRequest, ExtnResponse}, framework::ripple_contract::RippleContract, api::gateway::rpc_gateway_api::CallContext};
-
+use crate::{
+    api::gateway::rpc_gateway_api::CallContext,
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
+    framework::ripple_contract::RippleContract,
+};
 
 pub const PIN_CHALLENGE_EVENT: &'static str = "pinchallenge.onRequestChallenge";
 pub const PIN_CHALLENGE_CAPABILITY: &'static str = "xrn:firebolt:capability:usergrant:pinchallenge";
@@ -15,7 +18,6 @@ pub struct PinChallengeRequest {
 }
 
 impl ExtnPayloadProvider for PinChallengeRequest {
-
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Request(ExtnRequest::PinChallenge(self.clone()))
     }
@@ -59,9 +61,13 @@ pub enum PinSpace {
     Content,
 }
 
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PinChallengeConfiguration {
+    pub pin_space: PinSpace,
+}
 
 impl ExtnPayloadProvider for PinChallengeResponse {
-
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Response(ExtnResponse::PinChallenge(self.clone()))
     }

@@ -14,11 +14,14 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use super::{fb_keyboard::{KeyboardResult, KeyboardSession}, fb_pin::{PinChallengeRequest, PinChallengeResponse}};
+use super::{
+    fb_keyboard::{KeyboardResult, KeyboardSession},
+    fb_pin::{PinChallengeRequest, PinChallengeResponse},
+};
 
-pub const CHALLENGE_EVENT: &'static str = "acknowledgechallenge.onRequestChallenge";
+pub const ACK_CHALLENGE_EVENT: &'static str = "acknowledgechallenge.onRequestChallenge";
 pub const ACK_CHALLENGE_CAPABILITY: &'static str =
     "xrn:firebolt:capability:usergrant:acknowledgechallenge";
 
@@ -27,6 +30,7 @@ pub const ACK_CHALLENGE_CAPABILITY: &'static str =
 pub enum ProviderRequestPayload {
     KeyboardSession(KeyboardSession),
     PinChallenge(PinChallengeRequest),
+    AckChallenge(Challenge),
     Generic(String),
 }
 
@@ -35,7 +39,7 @@ pub enum ProviderRequestPayload {
 pub enum ProviderResponsePayload {
     ChallengeResponse(ChallengeResponse),
     PinChallengeResponse(PinChallengeResponse),
-    KeyboardResult(KeyboardResult)
+    KeyboardResult(KeyboardResult),
 }
 
 impl ProviderResponsePayload {
@@ -49,6 +53,13 @@ impl ProviderResponsePayload {
     pub fn as_pin_challenge_response(&self) -> Option<PinChallengeResponse> {
         match self {
             ProviderResponsePayload::PinChallengeResponse(res) => Some(res.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn as_challenge_response(&self) -> Option<ChallengeResponse> {
+        match self {
+            ProviderResponsePayload::ChallengeResponse(res) => Some(res.clone()),
             _ => None,
         }
     }
@@ -97,4 +108,10 @@ pub struct ChallengeRequestor {
 #[serde(rename_all = "camelCase")]
 pub struct FocusRequest {
     pub correlation_id: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Challenge {
+    pub capability: String,
+    pub requestor: ChallengeRequestor,
 }

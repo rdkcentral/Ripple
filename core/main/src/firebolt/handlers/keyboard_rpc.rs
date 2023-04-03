@@ -1,7 +1,29 @@
-use jsonrpsee::{proc_macros::rpc, core::{RpcResult, Error}, RpcModule};
-use ripple_sdk::{api::{gateway::rpc_gateway_api::CallContext, firebolt::{fb_general::{ListenRequest, ListenerResponse}, fb_keyboard::{KeyboardProviderResponse, KeyboardRequest, KeyboardRequestOption, KeyboardType, EMAIL_EVENT_PREFIX, PASSWORD_EVENT_PREFIX, KEYBOARD_PROVIDER_CAPABILITY, KeyboardResult, KeyboardSession, STANDARD_EVENT_PREFIX}, provider::{ProviderResponsePayload, ProviderRequestPayload, FocusRequest}}}, tokio::sync::oneshot};
+use crate::{
+    firebolt::rpc::RippleRPCProvider,
+    service::apps::provider_broker::{ProviderBroker, ProviderBrokerRequest},
+    state::platform_state::PlatformState,
+};
+use jsonrpsee::{
+    core::{Error, RpcResult},
+    proc_macros::rpc,
+    RpcModule,
+};
 use ripple_sdk::async_trait::async_trait;
-use crate::{service::apps::provider_broker::{ ProviderBroker, ProviderBrokerRequest}, state::platform_state::PlatformState, firebolt::rpc::RippleRPCProvider};
+use ripple_sdk::{
+    api::{
+        firebolt::{
+            fb_general::{ListenRequest, ListenerResponse},
+            fb_keyboard::{
+                KeyboardProviderResponse, KeyboardRequest, KeyboardRequestOption, KeyboardResult,
+                KeyboardSession, KeyboardType, EMAIL_EVENT_PREFIX, KEYBOARD_PROVIDER_CAPABILITY,
+                PASSWORD_EVENT_PREFIX, STANDARD_EVENT_PREFIX,
+            },
+            provider::{FocusRequest, ProviderRequestPayload, ProviderResponsePayload},
+        },
+        gateway::rpc_gateway_api::CallContext,
+    },
+    tokio::sync::oneshot,
+};
 
 #[rpc(server)]
 pub trait Keyboard {
@@ -76,7 +98,7 @@ pub trait Keyboard {
 }
 
 pub struct KeyboardImpl {
-    pub platform_state: PlatformState
+    pub platform_state: PlatformState,
 }
 
 #[async_trait]
@@ -121,7 +143,13 @@ impl KeyboardServer for KeyboardImpl {
         ctx: CallContext,
         request: FocusRequest,
     ) -> RpcResult<Option<()>> {
-        ProviderBroker::focus(&self.platform_state, ctx, KEYBOARD_PROVIDER_CAPABILITY.to_string(), request).await;
+        ProviderBroker::focus(
+            &self.platform_state,
+            ctx,
+            KEYBOARD_PROVIDER_CAPABILITY.to_string(),
+            request,
+        )
+        .await;
         Ok(None)
     }
 
@@ -136,7 +164,13 @@ impl KeyboardServer for KeyboardImpl {
     }
 
     async fn email_focus(&self, ctx: CallContext, request: FocusRequest) -> RpcResult<Option<()>> {
-        ProviderBroker::focus(&self.platform_state, ctx, KEYBOARD_PROVIDER_CAPABILITY.to_string(), request).await;
+        ProviderBroker::focus(
+            &self.platform_state,
+            ctx,
+            KEYBOARD_PROVIDER_CAPABILITY.to_string(),
+            request,
+        )
+        .await;
         Ok(None)
     }
 
@@ -155,7 +189,13 @@ impl KeyboardServer for KeyboardImpl {
         ctx: CallContext,
         request: FocusRequest,
     ) -> RpcResult<Option<()>> {
-        ProviderBroker::focus(&self.platform_state, ctx, KEYBOARD_PROVIDER_CAPABILITY.to_string(), request).await;
+        ProviderBroker::focus(
+            &self.platform_state,
+            ctx,
+            KEYBOARD_PROVIDER_CAPABILITY.to_string(),
+            request,
+        )
+        .await;
         Ok(None)
     }
 
@@ -248,7 +288,7 @@ impl KeyboardImpl {
         .await;
         Ok(ListenerResponse {
             listening: listen,
-            event: event_name,
+            event: event_name.into(),
         })
     }
 }
@@ -257,6 +297,9 @@ pub struct KeyboardRPCProvider;
 
 impl RippleRPCProvider<KeyboardImpl> for KeyboardRPCProvider {
     fn provide(state: PlatformState) -> RpcModule<KeyboardImpl> {
-        (KeyboardImpl { platform_state: state }).into_rpc()
+        (KeyboardImpl {
+            platform_state: state,
+        })
+        .into_rpc()
     }
 }
