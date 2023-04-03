@@ -16,6 +16,7 @@
 // limitations under the License.
 
 use serde::{Deserialize, Serialize};
+use tokio::time::{self, Duration};
 use thunder_ripple_sdk::{
     client::thunder_plugin::ThunderPlugin,
     ripple_sdk::{
@@ -374,6 +375,8 @@ impl ThunderWifiRequestProcessor {
             .await;
 
         let _handle = tokio::spawn(async move {
+            let sleep = time::sleep(Duration::from_secs(120));
+            tokio::pin!(sleep);
     loop {
         tokio::select! {
             Some(m) = xyx_rx.recv() => {
@@ -386,7 +389,7 @@ impl ThunderWifiRequestProcessor {
                     3 => WifiResponse::String("CONNECTION_INTERRUPTED".into()),
                     4 => WifiResponse::String("INVALID_CREDENTIALS".into()),
                     5 => WifiResponse::String("NO_SSID".into()),
-                    _ => WifiResponse::String("UNKNOWN".into()),
+                    _ => WifiResponse::String("UNKNOWN ERROR".into()),
                 };
                 info!("error code response {:?} ",error_string);
                 tx.send(error_string).await.unwrap();
@@ -406,11 +409,18 @@ impl ThunderWifiRequestProcessor {
                         break;
                     }
                     6 => {
+                        let error_string = WifiResponse::String("Unknown error...".into());
+                        tx.send(error_string).await.unwrap();
                         break;
                     }
                     _ => {}
                 }
             }
+            () = &mut sleep => {
+                let error_string = WifiResponse::String("Timed out while waiting for response".into());
+                tx.send(error_string).await.unwrap();
+                break;
+            },
         }
     }
 
