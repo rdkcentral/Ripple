@@ -18,8 +18,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
-    utils::error::RippleError, 
     framework::ripple_contract::RippleContract,
+    utils::error::RippleError,
 };
 
 use super::device::device_wifi::{AccessPoint, AccessPointList};
@@ -32,7 +32,7 @@ pub struct WifiScanRequestTimeout {
 
 impl WifiScanRequestTimeout {
     pub fn new() -> Self {
-        WifiScanRequestTimeout { timeout: 180 }
+        WifiScanRequestTimeout { timeout: 60 }
     }
 
     pub fn timeout(&self) -> u64 {
@@ -76,5 +76,4 @@ impl ExtnPayloadProvider for WifiResponse {
     fn contract() -> RippleContract {
         RippleContract::Wifi
     }
-
 }

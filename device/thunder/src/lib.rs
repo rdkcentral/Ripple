@@ -25,6 +25,6 @@ pub mod bootstrap {
 pub mod processors {
     pub mod thunder_browser;
     pub mod thunder_device_info;
-    pub mod thunder_window_manager;
     pub mod thunder_wifi;
+    pub mod thunder_window_manager;
 }

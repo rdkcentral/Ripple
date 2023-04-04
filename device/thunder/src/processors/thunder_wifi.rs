@@ -16,7 +16,6 @@
 // limitations under the License.
 
 use serde::{Deserialize, Serialize};
-use tokio::time::{self, Duration};
 use thunder_ripple_sdk::{
     client::thunder_plugin::ThunderPlugin,
     ripple_sdk::{
@@ -53,6 +52,7 @@ use thunder_ripple_sdk::{
         extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider},
     },
 };
+use tokio::time::{self, Duration};
 
 pub fn wifi_security_mode_to_u32(v: WifiSecurityMode) -> u32 {
     match v {
@@ -320,7 +320,7 @@ impl ThunderWifiRequestProcessor {
                 let result_ssid =
                     ThunderWifiRequestProcessor::wait_for_wifi_connect(state.clone(), req.clone())
                         .await;
-                info!("wifi connect response {:?}", result_ssid);
+                info!("wifi connect response :{:?}", result_ssid);
                 result_ssid
             }
             None => WifiResponse::Error(RippleError::InvalidOutput),
@@ -344,7 +344,6 @@ impl ThunderWifiRequestProcessor {
         let client = state.get_thunder_client();
         let unsub_client = client.clone();
 
-        info!("subscribing to onWIFIStateChanged events");
         let (sub_tx, mut sub_rx) = mpsc::channel::<DeviceResponseMessage>(32);
         client
             .clone()
@@ -358,9 +357,9 @@ impl ThunderWifiRequestProcessor {
                 sub_tx,
             )
             .await;
+        info!("subscribed to onWIFIStateChanged events");
 
-        info!("subscribing to wifi onError events");
-        let (xyx_tx, mut xyx_rx) = mpsc::channel::<DeviceResponseMessage>(32);
+        let (err_tx, mut err_rx) = mpsc::channel::<DeviceResponseMessage>(32);
         client
             .clone()
             .subscribe(
@@ -370,16 +369,17 @@ impl ThunderWifiRequestProcessor {
                     params: None,
                     sub_id: None,
                 },
-                xyx_tx,
+                err_tx,
             )
             .await;
+        info!("subscribed to wifi onError events");
 
         let _handle = tokio::spawn(async move {
-            let sleep = time::sleep(Duration::from_secs(120));
+            let sleep = time::sleep(Duration::from_secs(60));
             tokio::pin!(sleep);
     loop {
         tokio::select! {
-            Some(m) = xyx_rx.recv() => {
+            Some(m) = err_rx.recv() => {
                 let error_code_response: WifiConnectError = serde_json::from_value(m.message).unwrap();
                 print!("{:?}",error_code_response);
                 let error_string = match error_code_response.code {
@@ -391,13 +391,13 @@ impl ThunderWifiRequestProcessor {
                     5 => WifiResponse::String("NO_SSID".into()),
                     _ => WifiResponse::String("UNKNOWN ERROR".into()),
                 };
-                info!("error code response {:?} ",error_string);
+                info!("error code response: {:?} ",error_string);
                 tx.send(error_string).await.unwrap();
                 break;
             }
             Some(m) = sub_rx.recv() => {
                 let wifi_state_response: WifiStateChanged = serde_json::from_value(m.message).unwrap();
-                info!("Wifi statechanged = {}", wifi_state_response.state);
+                info!("Wifi statechanged: {}", wifi_state_response.state);
                 match wifi_state_response.state {
                     5 => {
                         let resp =
@@ -431,6 +431,7 @@ impl ThunderWifiRequestProcessor {
                 event_name: "onWIFIStateChanged".into(),
             })
             .await;
+        info!("Unsubscribing to onWIFIStateChanged events");
 
     unsub_client
     .unsubscribe(DeviceUnsubscribeRequest {
@@ -438,6 +439,7 @@ impl ThunderWifiRequestProcessor {
         event_name: "onError".into(),
     })
     .await;
+info!("Unsubscribing to onError events");
 
 })
 .await;
