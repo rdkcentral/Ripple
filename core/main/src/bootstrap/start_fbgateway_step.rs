@@ -19,8 +19,10 @@ use crate::{
     firebolt::{
         firebolt_gateway::FireboltGateway,
         handlers::{
-            capabilities_rpc::CapRPCProvider, device_rpc::DeviceRPCProvider,
-            lcm_rpc::LifecycleManagementProvider, lifecycle_rpc::LifecycleRippleProvider, keyboard_rpc::KeyboardRPCProvider, acknowledge_rpc::AckRPCProvider, pin_rpc::PinRPCProvider,
+            acknowledge_rpc::AckRPCProvider, capabilities_rpc::CapRPCProvider,
+            device_rpc::DeviceRPCProvider, keyboard_rpc::KeyboardRPCProvider,
+            lcm_rpc::LifecycleManagementProvider, lifecycle_rpc::LifecycleRippleProvider,
+            pin_rpc::PinRPCProvider,
         },
         rpc::RippleRPCProvider,
     },
