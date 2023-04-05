@@ -16,6 +16,8 @@
 // limitations under the License.
 use serde::{Deserialize, Serialize};
 
+use super::fb_capabilities::CapabilityRole;
+
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GetUserGrantsByCapabilityRequest {
@@ -31,20 +33,33 @@ pub struct GetUserGrantsByAppRequest {
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AppInfo {
-    id: String,
+    pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    title: Option<String>,
+    pub title: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GrantInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
-    app: Option<AppInfo>, //None in case of device
-    state: String,
-    capability: String,
-    role: String,
-    lifespan: String,
+    pub app: Option<AppInfo>, //None in case of device
+    pub state: String,
+    pub capability: String,
+    pub role: String,
+    pub lifespan: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    expires: Option<String>, // Option<u64>,
+    pub expires: Option<String>, // Option<u64>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GrantModificationOptions {
+    pub app_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct GrantRequest {
+    pub role: CapabilityRole,
+    pub capability: String,
+    pub options: Option<GrantModificationOptions>,
 }

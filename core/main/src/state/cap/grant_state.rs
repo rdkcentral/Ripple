@@ -24,7 +24,9 @@ use std::{
 use ripple_sdk::{
     api::{
         firebolt::{
-            fb_capabilities::{CapabilityRole, DenyReason, DenyReasonWithCap, FireboltPermission},
+            fb_capabilities::{
+                CapabilityRole, DenyReason, DenyReasonWithCap, FireboltCap, FireboltPermission,
+            },
             fb_openrpc::CapabilitySet,
         },
         gateway::rpc_gateway_api::CallContext,
@@ -273,6 +275,113 @@ impl GrantState {
             )
         }
     }
+
+    // Returns all active and denied user grant entries for the given `app_id`.
+    // Pass None for device scope
+    pub fn get_grant_entries_for_app_id(&self, app_id: String) -> HashSet<GrantEntry> {
+        self.delete_expired_entries_for_app(app_id.clone());
+        match self.grant_app_map.read().unwrap().get(&app_id) {
+            Some(x) => x.iter().cloned().collect(),
+            None => HashSet::new(),
+        }
+    }
+
+    // Returns all active and denied user grant entries for the given `app_id`.
+    // Pass None for device scope
+    pub fn get_device_entries(&self) -> HashSet<GrantEntry> {
+        self.device_grants.read().unwrap().clone()
+    }
+
+    // Returns all active and denied user grant entries for the given `capability`
+    pub fn get_grant_entries_for_capability(
+        &self,
+        capability: &str,
+    ) -> HashMap<String, HashSet<GrantEntry>> {
+        self.delete_all_expired_entries();
+        let grant_state = self.grant_app_map.read().unwrap();
+        let mut grant_entry_map: HashMap<String, HashSet<GrantEntry>> = HashMap::new();
+        for (app_id, app_entries) in grant_state.iter() {
+            for item in app_entries {
+                if item.capability == capability {
+                    grant_entry_map
+                        .entry(app_id.clone())
+                        .or_default()
+                        .insert(item.clone());
+                }
+            }
+        }
+        grant_entry_map
+    }
+
+    pub fn grant_modify(
+        platform_state: &PlatformState,
+        modify_operation: GrantStateModify,
+        app_id: Option<String>,
+        role: CapabilityRole,
+        capability: String,
+    ) -> bool {
+        // Get the GrantEntry from UserGrantState matching app_id, role & capability
+        let mut entry_modified = false;
+
+        // retrieve the grant policy for the given cap and role.
+        let permission = FireboltPermission {
+            cap: FireboltCap::Full(capability.clone()),
+            role: role.clone(),
+        };
+
+        if let Some(grant_policy_map) = platform_state.get_device_manifest().get_grant_policies() {
+            let result = grant_policy_map.get(&permission.cap.as_str());
+            if let Some(policies) = result {
+                if let Some(grant_policy) = policies.get_policy(&permission) {
+                    // Do the scope validation here and return false, if there is any scope mismatch.
+                    if app_id.is_some() && grant_policy.scope != GrantScope::App {
+                        return false;
+                    }
+
+                    let mut new_entry = GrantEntry {
+                        role,
+                        capability,
+                        status: None, // status will be updated later based on the modify operation.
+                        lifespan: Some(grant_policy.lifespan),
+                        lifespan_ttl_in_secs: grant_policy.lifespan_ttl,
+                        last_modified_time: SystemTime::now()
+                            .duration_since(SystemTime::UNIX_EPOCH)
+                            .unwrap(),
+                    };
+
+                    match modify_operation {
+                        GrantStateModify::Grant => {
+                            // insert the allowed GrantEntry
+                            new_entry.status = Some(GrantStatus::Allowed);
+                            entry_modified = true;
+                        }
+                        GrantStateModify::Deny => {
+                            // insert the denied GrantEntry
+                            new_entry.status = Some(GrantStatus::Denied);
+                            entry_modified = true;
+                        }
+                        GrantStateModify::Clear => {
+                            // No op as the entry is already removed.
+                            entry_modified = true;
+                        }
+                    }
+
+                    platform_state
+                        .cap_state
+                        .grant_state
+                        .update_grant_entry(app_id, new_entry);
+                }
+            }
+        }
+        entry_modified
+    }
+}
+
+#[derive(Eq, Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum GrantStateModify {
+    Grant,
+    Deny,
+    Clear,
 }
 
 #[derive(Eq, Clone, Debug, Serialize, Deserialize)]
