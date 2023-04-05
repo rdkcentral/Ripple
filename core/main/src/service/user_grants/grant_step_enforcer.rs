@@ -2,7 +2,7 @@ use crate::{
     service::apps::provider_broker::{ProviderBroker, ProviderBrokerRequest},
     state::platform_state::PlatformState,
 };
-use ripple_sdk::serde_json;
+use ripple_sdk::{api::firebolt::fb_capabilities::DenyReasonWithCap, serde_json};
 use ripple_sdk::{
     api::{
         apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
@@ -23,19 +23,17 @@ use ripple_sdk::{
 use serde::Deserialize;
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct GrantStepExecutor {
-    step: GrantStep,
-}
+pub struct GrantStepExecutor;
 
 impl GrantStepExecutor {
     pub async fn execute(
-        &self,
+        step: &GrantStep,
         platform_state: &PlatformState,
         call_ctx: &CallContext,
         permission: &FireboltPermission,
-    ) -> Result<(), DenyReason> {
-        let capability = self.step.capability.clone();
-        let configuration = self.step.configuration.clone();
+    ) -> Result<(), DenyReasonWithCap> {
+        let capability = step.capability.clone();
+        let configuration = step.configuration.clone();
         debug!(
             "Reached execute phase of step for capability: {}",
             capability
@@ -49,10 +47,13 @@ impl GrantStepExecutor {
             .generic
             .check_all(&vec![firebolt_cap.clone()])
         {
-            return Err(e.reason);
+            return Err(DenyReasonWithCap {
+                reason: DenyReason::GrantDenied,
+                caps: e.caps,
+            });
         }
 
-        self.invoke_capability(
+        Self::invoke_capability(
             platform_state,
             call_ctx,
             &firebolt_cap,
@@ -62,7 +63,7 @@ impl GrantStepExecutor {
         .await
     }
 
-    async fn get_app_name(&self, platform_state: &PlatformState, app_id: String) -> String {
+    async fn get_app_name(platform_state: &PlatformState, app_id: String) -> String {
         let mut app_name: String = Default::default();
         let (tx, rx) = oneshot::channel::<AppResponse>();
         let app_request = AppRequest::new(AppMethod::GetAppName(app_id), tx);
@@ -81,13 +82,12 @@ impl GrantStepExecutor {
     }
 
     pub async fn invoke_capability(
-        &self,
         platform_state: &PlatformState,
         call_ctx: &CallContext,
         cap: &FireboltCap,
         param: &Option<Value>,
         permission: &FireboltPermission,
-    ) -> Result<(), DenyReason> {
+    ) -> Result<(), DenyReasonWithCap> {
         let (session_tx, session_rx) = oneshot::channel::<ProviderResponsePayload>();
         let p_cap = cap.clone();
         /*
@@ -100,9 +100,7 @@ impl GrantStepExecutor {
          * this might be weird looking as_str().as_str(), FireboltCap returns String but has a function named as_str.
          * We call as_str on String to convert String to str to perform our match
          */
-        let app_name = self
-            .get_app_name(platform_state, call_ctx.app_id.clone())
-            .await;
+        let app_name = Self::get_app_name(platform_state, call_ctx.app_id.clone()).await;
         let pr_msg_opt = match p_cap.as_str().as_str() {
             "xrn:firebolt:capability:usergrant:acknowledgechallenge" => {
                 let challenge = Challenge {
@@ -159,28 +157,28 @@ impl GrantStepExecutor {
                 })
             }
         };
-        if let Some(pr_msg) = pr_msg_opt {
+        let result = if let Some(pr_msg) = pr_msg_opt {
             ProviderBroker::invoke_method(&platform_state.clone(), pr_msg).await;
             match session_rx.await {
                 Ok(result) => match result.as_challenge_response() {
                     Some(res) => match res.granted {
                         true => {
                             debug!("returning ok from invoke_capability");
-                            return Ok(());
+                            Ok(())
                         }
                         false => {
                             debug!("returning err from invoke_capability");
-                            return Err(DenyReason::GrantDenied);
+                            Err(DenyReason::GrantDenied)
                         }
                     },
                     None => {
                         debug!("Received reponse that is not convertable to challenge response");
-                        return Err(DenyReason::Ungranted);
+                        Err(DenyReason::Ungranted)
                     }
                 },
                 Err(_) => {
                     debug!("Receive error in channel");
-                    return Err(DenyReason::Ungranted);
+                    Err(DenyReason::Ungranted)
                 }
             }
         } else {
@@ -189,7 +187,16 @@ impl GrantStepExecutor {
              * and we are not able to parse the configuration in the manifest
              * as pinchallenge or ackchallenge.
              */
-            return Err(DenyReason::Ungranted);
+            Err(DenyReason::Ungranted)
+        };
+
+        if let Err(reason) = result {
+            Err(DenyReasonWithCap {
+                reason,
+                caps: vec![cap.clone()],
+            })
+        } else {
+            Ok(())
         }
     }
 }

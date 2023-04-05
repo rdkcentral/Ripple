@@ -42,6 +42,7 @@ use ripple_sdk::{
 
 use super::{
     generic_cap_state::GenericCapState,
+    grant_state::GrantState,
     permitted_state::{PermissionHandler, PermittedState},
 };
 
@@ -50,15 +51,16 @@ pub struct CapState {
     pub generic: GenericCapState,
     pub permitted_state: PermittedState,
     primed_listeners: Arc<RwLock<HashSet<CapEventEntry>>>,
-    // add user grant state here
+    pub grant_state: GrantState, // add user grant state here
 }
 
 impl CapState {
     pub fn new(manifest: DeviceManifest) -> Self {
         CapState {
             generic: GenericCapState::new(manifest.clone()),
-            permitted_state: PermittedState::new(manifest),
+            permitted_state: PermittedState::new(manifest.clone()),
             primed_listeners: Arc::new(RwLock::new(HashSet::new())),
+            grant_state: GrantState::new(manifest),
         }
     }
 

@@ -18,6 +18,6 @@
 pub mod apps;
 pub mod extn;
 pub mod user_grants {
-    pub mod grant_policy;
-    pub mod grant_step;
+    pub mod grant_policy_enforcer;
+    pub mod grant_step_enforcer;
 }
