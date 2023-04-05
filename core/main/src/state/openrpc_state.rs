@@ -48,13 +48,16 @@ impl OpenRpcState {
         }
     }
 
-    pub fn get_caps_for_method(self, method: String) -> Option<CapabilitySet> {
+    pub fn is_excluded(&self, method: String) -> bool {
         if let Some(e) = &self.exclusory {
             if !e.can_resolve(method.clone()) {
-                return None;
+                return true;
             }
         }
+        false
+    }
 
+    pub fn get_caps_for_method(&self, method: String) -> Option<CapabilitySet> {
         let c = { self.cap_map.read().unwrap().get(&method).cloned() };
         if let Some(caps) = c {
             Some(CapabilitySet {

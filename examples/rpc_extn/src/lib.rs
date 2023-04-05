@@ -14,22 +14,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-pub fn init_logger(name: String) -> Result<(), fern::InitError> {
-    fern::Dispatch::new()
-        .format(move |out, message, record| {
-            out.finish(format_args!(
-                "{}[{}][{}][{}][{}]-{}",
-                chrono::Local::now().format("%Y-%m-%d-%H:%M:%S.%3f"),
-                std::thread::current().name().unwrap_or("none"),
-                record.level(),
-                record.target(),
-                name,
-                message
-            ))
-        })
-        .level(log::LevelFilter::Debug)
-        .chain(std::io::stdout())
-        .apply()?;
-    Ok(())
+pub mod rpc_example_ffi;
+pub mod rpc {
+    pub mod custom_jsonrpsee_extn;
+    pub mod legacy_jsonrpsee_extn;
 }

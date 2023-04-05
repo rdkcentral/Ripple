@@ -15,21 +15,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub fn init_logger(name: String) -> Result<(), fern::InitError> {
-    fern::Dispatch::new()
-        .format(move |out, message, record| {
-            out.finish(format_args!(
-                "{}[{}][{}][{}][{}]-{}",
-                chrono::Local::now().format("%Y-%m-%d-%H:%M:%S.%3f"),
-                std::thread::current().name().unwrap_or("none"),
-                record.level(),
-                record.target(),
-                name,
-                message
-            ))
-        })
-        .level(log::LevelFilter::Debug)
-        .chain(std::io::stdout())
-        .apply()?;
-    Ok(())
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use ripple_sdk::{
+    api::gateway::rpc_gateway_api::CallContext, extn::client::extn_client::ExtnClient,
+};
+
+pub struct CustomImpl {
+    _client: ExtnClient,
+}
+
+impl CustomImpl {
+    pub fn new(_client: ExtnClient) -> CustomImpl {
+        CustomImpl { _client }
+    }
+}
+
+#[rpc(server)]
+pub trait Custom {
+    #[method(name = "custom.info")]
+    fn info(&self, ctx: CallContext) -> RpcResult<String>;
+}
+
+impl CustomServer for CustomImpl {
+    fn info(&self, _ctx: CallContext) -> RpcResult<String> {
+        Ok("Custom".into())
+    }
 }
