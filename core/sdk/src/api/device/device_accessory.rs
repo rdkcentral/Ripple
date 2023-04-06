@@ -182,7 +182,7 @@ impl Default for RemoteAccessoryListRequest {
 /// # More info
 ///
 /// ```
-/// use thunder_ripple_sdk::ripple_sdk::api::device::device_accessory::AccessoryProtocol
+/// use thunder_ripple_sdk::ripple_sdk::api::device::device_accessory::AccessoryProtocol;
 /// AccessoryProtocol::BluetoothLE; // List of Devices connected via BluetoothLe
 /// AccessoryProtocol::RF4CE; // List of Devices connected via RF4CE(Radio Frequency).
 /// ```
