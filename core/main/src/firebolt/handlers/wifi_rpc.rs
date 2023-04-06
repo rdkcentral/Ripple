@@ -79,19 +79,16 @@ impl WifiServer for WifiImpl {
         connect_request: AccessPointRequest,
     ) -> RpcResult<AccessPoint> {
         info!("network.connect");
-        let scan_time = WifiScanRequestTimeout::new();
         let client = self.state.get_client();
         let scan_process = client.send_extn_request(WifiRequest::Connect(connect_request));
 
-        let response = match timeout(Duration::from_secs(scan_time.timeout), scan_process).await {
-            Ok(result) => match result {
-                Ok(response) => match response.payload.clone().extract() {
-                    Some(WifiResponse::WifiConnectSuccessResponse(v)) => Ok(v),
-                    _ => Err(rpc_err("Wifi scan error response TBD")),
-                },
-                Err(_) => Err(rpc_err("Wifi scan error response TBD")),
+        let response = match scan_process.await {
+            Ok(response) => match response.payload.clone().extract() {
+                Some(WifiResponse::WifiConnectSuccessResponse(v)) => Ok(v),
+                Some(WifiResponse::CustomError(s)) => Err(rpc_err(s)),
+                _ => Err(rpc_err("Wifi scan response unknown format")),
             },
-            Err(_) => Err(rpc_err("Wifi scan timed out")),
+            Err(_) => Err(rpc_err("Wifi scan error response TBD")),
         };
         response
     }

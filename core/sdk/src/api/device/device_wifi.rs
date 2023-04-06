@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
-    framework::ripple_contract::{ RippleContract},
+    framework::ripple_contract::RippleContract,
 };
 
 use super::device_request::DeviceRequest;

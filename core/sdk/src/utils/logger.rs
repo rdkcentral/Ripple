@@ -28,7 +28,7 @@ pub fn init_logger(name: String) -> Result<(), fern::InitError> {
                 message
             ))
         })
-        .level(log::LevelFilter::Trace)
+        .level(log::LevelFilter::Debug)
         .chain(std::io::stdout())
         .apply()?;
     Ok(())

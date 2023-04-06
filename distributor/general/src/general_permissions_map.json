@@ -7,18 +7,21 @@
         "xrn:firebolt:capability:lifecycle:state",
         "xrn:firebolt:capability:device:info",
         "xrn:firebolt:capability:device:make",
-        "xrn:firebolt:capability:device:model"
+        "xrn:firebolt:capability:device:model",
+        "xrn:firebolt:capability:protocol:wifi"
     ],
     "comcast_firebolt_reference" : [
         "xrn:firebolt:capability:input:keyboard",
         "xrn:firebolt:capability:device:info",
         "xrn:firebolt:capability:device:make",
-        "xrn:firebolt:capability:device:model"
+        "xrn:firebolt:capability:device:model",
+        "xrn:firebolt:capability:protocol:wifi"
     ],
     "test" : [
         "xrn:firebolt:capability:input:keyboard",
         "xrn:firebolt:capability:device:info",
         "xrn:firebolt:capability:device:make",
-        "xrn:firebolt:capability:device:model"
+        "xrn:firebolt:capability:device:model",
+        "xrn:firebolt:capability:protocol:wifi"
     ]
 }

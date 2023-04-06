@@ -40,7 +40,6 @@ use thunder_ripple_sdk::{
         log::info,
         serde_json, tokio,
         tokio::sync::mpsc,
-        utils::error::RippleError,
     },
     thunder_state::ThunderState,
 };
@@ -52,6 +51,7 @@ use thunder_ripple_sdk::{
         extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider},
     },
 };
+use tokio::time::{self, Duration};
 
 pub fn wifi_security_mode_to_u32(v: WifiSecurityMode) -> u32 {
     match v {
@@ -223,7 +223,7 @@ impl ThunderWifiRequestProcessor {
                 info!("wifi scan result {:?}", result_ssid);
                 WifiResponse::WifiScanListResponse(result_ssid)
             }
-            None => WifiResponse::Error(RippleError::InvalidOutput),
+            None => WifiResponse::CustomError("UNKNOWN ERROR".into()),
         };
 
         Self::respond(
@@ -319,10 +319,10 @@ impl ThunderWifiRequestProcessor {
                 let result_ssid =
                     ThunderWifiRequestProcessor::wait_for_wifi_connect(state.clone(), req.clone())
                         .await;
-                info!("wifi connect response {:?}", result_ssid);
+                info!("wifi connect response :{:?}", result_ssid);
                 result_ssid
             }
-            None => WifiResponse::Error(RippleError::InvalidOutput),
+            None => WifiResponse::CustomError("UNKNOWN ERROR".into()),
         };
 
         Self::respond(
@@ -343,7 +343,6 @@ impl ThunderWifiRequestProcessor {
         let client = state.get_thunder_client();
         let unsub_client = client.clone();
 
-        info!("subscribing to onWIFIStateChanged events");
         let (sub_tx, mut sub_rx) = mpsc::channel::<DeviceResponseMessage>(32);
         client
             .clone()
@@ -357,9 +356,9 @@ impl ThunderWifiRequestProcessor {
                 sub_tx,
             )
             .await;
+        info!("subscribed to onWIFIStateChanged events");
 
-        info!("subscribing to wifi onError events");
-        let (xyx_tx, mut xyx_rx) = mpsc::channel::<DeviceResponseMessage>(32);
+        let (err_tx, mut err_rx) = mpsc::channel::<DeviceResponseMessage>(32);
         client
             .clone()
             .subscribe(
@@ -369,32 +368,35 @@ impl ThunderWifiRequestProcessor {
                     params: None,
                     sub_id: None,
                 },
-                xyx_tx,
+                err_tx,
             )
             .await;
+        info!("subscribed to wifi onError events");
 
         let _handle = tokio::spawn(async move {
+            let sleep = time::sleep(Duration::from_secs(60));
+            tokio::pin!(sleep);
     loop {
         tokio::select! {
-            Some(m) = xyx_rx.recv() => {
+            Some(m) = err_rx.recv() => {
                 let error_code_response: WifiConnectError = serde_json::from_value(m.message).unwrap();
                 print!("{:?}",error_code_response);
                 let error_string = match error_code_response.code {
-                    0 => WifiResponse::String("SSID_CHANGED".into()),
-                    1 => WifiResponse::String("CONNECTION_LOST".into()),
-                    2 => WifiResponse::String("CONNECTION_FAILED".into()),
-                    3 => WifiResponse::String("CONNECTION_INTERRUPTED".into()),
-                    4 => WifiResponse::String("INVALID_CREDENTIALS".into()),
-                    5 => WifiResponse::String("NO_SSID".into()),
-                    _ => WifiResponse::String("UNKNOWN".into()),
+                    0 => WifiResponse::CustomError("SSID_CHANGED".into()),
+                    1 => WifiResponse::CustomError("CONNECTION_LOST".into()),
+                    2 => WifiResponse::CustomError("CONNECTION_FAILED".into()),
+                    3 => WifiResponse::CustomError("CONNECTION_INTERRUPTED".into()),
+                    4 => WifiResponse::CustomError("INVALID_CREDENTIALS".into()),
+                    5 => WifiResponse::CustomError("NO_SSID".into()),
+                    _ => WifiResponse::CustomError("UNKNOWN ERROR".into()),
                 };
-                info!("error code response {:?} ",error_string);
+                info!("error code response: {:?} ",error_string);
                 tx.send(error_string).await.unwrap();
                 break;
             }
             Some(m) = sub_rx.recv() => {
                 let wifi_state_response: WifiStateChanged = serde_json::from_value(m.message).unwrap();
-                info!("Wifi statechanged = {}", wifi_state_response.state);
+                info!("Wifi statechanged: {}", wifi_state_response.state);
                 match wifi_state_response.state {
                     5 => {
                         let resp =
@@ -406,11 +408,18 @@ impl ThunderWifiRequestProcessor {
                         break;
                     }
                     6 => {
+                        let error_string = WifiResponse::CustomError("Unknown error...".into());
+                        tx.send(error_string).await.unwrap();
                         break;
                     }
                     _ => {}
                 }
             }
+            () = &mut sleep => {
+                let error_string = WifiResponse::CustomError("Timed out while waiting for response".into());
+                tx.send(error_string).await.unwrap();
+                break;
+            },
         }
     }
 
@@ -421,6 +430,7 @@ impl ThunderWifiRequestProcessor {
                 event_name: "onWIFIStateChanged".into(),
             })
             .await;
+        info!("Unsubscribing to onWIFIStateChanged events");
 
     unsub_client
     .unsubscribe(DeviceUnsubscribeRequest {
@@ -428,15 +438,16 @@ impl ThunderWifiRequestProcessor {
         event_name: "onError".into(),
     })
     .await;
+info!("Unsubscribing to onError events");
 
 })
 .await;
 
         if let Some(msg) = rx.recv().await {
             match msg {
-                WifiResponse::String(s) => {
+                WifiResponse::CustomError(s) => {
                     info!("Received string: {}", s);
-                    return WifiResponse::String(s);
+                    return WifiResponse::CustomError(s);
                     // handle string response here
                 }
                 WifiResponse::WifiConnectSuccessResponse(ap_list) => {
@@ -447,11 +458,11 @@ impl ThunderWifiRequestProcessor {
                 _ => {
                     info!("Received unknown message type");
                     // handle unknown message type here
-                    return WifiResponse::String("out Received unknown message type".into());
+                    return WifiResponse::CustomError("out Received unknown message type".into());
                 }
             }
         } else {
-            return WifiResponse::String("Unknown Error".into());
+            return WifiResponse::CustomError("Unknown Error".into());
         }
     }
 

@@ -39,6 +39,7 @@ impl FireboltGatewayStep {
         let _ = methods.merge(DeviceRPCProvider::provide(state.clone()));
         let _ = methods.merge(WifiRPCProvider::provide(state.clone()));
         let _ = methods.merge(LifecycleRippleProvider::provide(state.clone()));
+        let _ = methods.merge(WifiRPCProvider::provide(state.clone()));
         let _ = methods.merge(CapRPCProvider::provide(state.clone()));
         // LCM Api(s) not required for internal launcher
         if !state.has_internal_launcher() {
