@@ -97,7 +97,7 @@ impl LifecycleImpl {
         let listen = request.listen;
 
         AppEvents::add_listener(
-            &&self.platform_state.app_events_state,
+            &&self.platform_state,
             event_name.to_string(),
             ctx,
             request,

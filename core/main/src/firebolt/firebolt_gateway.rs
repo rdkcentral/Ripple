@@ -104,7 +104,7 @@ impl FireboltGateway {
                     .state
                     .platform_state
                     .session_state
-                    .clear_session(session_id),
+                    .clear_session(&session_id),
                 HandleRpc { request } => self.handle(request, None).await,
                 HandleRpcForExtn { msg } => {
                     if let Some(request) = msg.payload.clone().extract() {

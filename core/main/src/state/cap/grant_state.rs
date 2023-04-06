@@ -187,7 +187,6 @@ impl GrantState {
         capability: &str,
     ) -> Option<GrantStatus> {
         let grant_state = self.device_grants.read().unwrap();
-        debug!("grant state: {:?}", grant_state);
 
         for entry in grant_state.iter() {
             if !entry.has_expired() && (entry.role == role) && (entry.capability == capability) {
@@ -195,7 +194,7 @@ impl GrantState {
                 return entry.status.clone();
             }
         }
-        debug!("No stored grant status found");
+        debug!("No stored device grant status found");
         None
     }
 

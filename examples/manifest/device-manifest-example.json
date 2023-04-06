@@ -76,7 +76,10 @@
       "xrn:firebolt:capability:power:state",
       "xrn:firebolt:capability:privacy:advertising",
       "xrn:firebolt:capability:privacy:content",
-      "xrn:firebolt:capability:profile:flags"
+      "xrn:firebolt:capability:profile:flags",
+      "xrn:firebolt:capability:usergrant:pinchallenge",
+      "xrn:firebolt:capability:usergrant:acknowledgechallenge",
+      "xrn:firebolt:capability:input:keyboard"
     ]
   },
   "lifecycle": {

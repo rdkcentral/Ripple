@@ -169,7 +169,7 @@ impl ProviderBroker {
         let cap_method = format!("{}:{}", capability, method);
         let provider_app_id = provider.app_id.clone();
         AppEvents::add_listener(
-            &pst.app_events_state,
+            &pst,
             event_name.to_string(),
             provider.clone(),
             listen_request,

@@ -96,7 +96,7 @@ impl CapState {
             );
             debug!("setup event listener {}", event_name);
             AppEvents::add_listener(
-                &ps.app_events_state,
+                &ps,
                 event_name,
                 call_context.clone(),
                 ListenRequest {
