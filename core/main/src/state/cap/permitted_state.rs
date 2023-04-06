@@ -43,9 +43,7 @@ pub struct PermittedState {
 impl PermittedState {
     pub fn new(manifest: DeviceManifest) -> PermittedState {
         let path = get_permissions_path(manifest.configuration.saved_dir);
-        let mut map = HashMap::new();
         let store = if let Ok(v) = FileStore::load(path.clone()) {
-            map.extend(v.clone().value);
             v
         } else {
             FileStore::new(path.clone(), HashMap::new())
@@ -57,7 +55,9 @@ impl PermittedState {
     }
 
     fn ingest(&mut self, extend_perms: HashMap<String, Vec<FireboltPermission>>) {
-        self.permitted.write().unwrap().update(extend_perms.clone());
+        let mut perms = self.permitted.write().unwrap();
+        perms.value.extend(extend_perms);
+        perms.sync();
     }
 
     fn get_all_permissions(&self) -> HashMap<String, Vec<FireboltPermission>> {

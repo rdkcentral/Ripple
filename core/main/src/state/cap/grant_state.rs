@@ -32,6 +32,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::CallContext,
         manifest::device_manifest::{DeviceManifest, GrantLifespan, GrantPolicy, GrantScope},
     },
+    framework::file_store::FileStore,
     log::debug,
 };
 use serde::{Deserialize, Serialize};
@@ -43,8 +44,8 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct GrantState {
-    device_grants: Arc<RwLock<HashSet<GrantEntry>>>,
-    grant_app_map: Arc<RwLock<HashMap<String, HashSet<GrantEntry>>>>,
+    device_grants: Arc<RwLock<FileStore<HashSet<GrantEntry>>>>,
+    grant_app_map: Arc<RwLock<FileStore<HashMap<String, HashSet<GrantEntry>>>>>,
     caps_needing_grants: Vec<String>,
 }
 
@@ -56,16 +57,31 @@ pub enum GrantActiveState {
 
 impl GrantState {
     pub fn new(manifest: DeviceManifest) -> GrantState {
+        let saved_dir = manifest.clone().configuration.saved_dir;
+        let device_grant_path = format!("{}/device_grants", saved_dir);
+        let dev_grant_store = if let Ok(v) = FileStore::load(device_grant_path.clone()) {
+            v
+        } else {
+            FileStore::new(device_grant_path.clone(), HashSet::new())
+        };
+
+        let app_grant_path = format!("{}/app_grants", saved_dir);
+        let app_grant_store = if let Ok(v) = FileStore::load(app_grant_path.clone()) {
+            v
+        } else {
+            FileStore::new(app_grant_path.clone(), HashMap::new())
+        };
+
         GrantState {
-            grant_app_map: Arc::new(RwLock::new(HashMap::new())),
+            grant_app_map: Arc::new(RwLock::new(app_grant_store)),
             caps_needing_grants: manifest.get_caps_requiring_grant(),
-            device_grants: Arc::new(RwLock::new(HashSet::new())),
+            device_grants: Arc::new(RwLock::new(dev_grant_store)),
         }
     }
 
     fn check_device_grants(&self, grant_entry: &GrantEntry) -> Option<GrantStatus> {
         let device_grants = self.device_grants.read().unwrap();
-        if let Some(v) = device_grants.get(grant_entry) {
+        if let Some(v) = device_grants.value.get(grant_entry) {
             return v.status.clone();
         }
         None
@@ -73,7 +89,7 @@ impl GrantState {
 
     fn check_app_grants(&self, grant_entry: &GrantEntry, app_id: &str) -> Option<GrantStatus> {
         let grant_app_map = self.grant_app_map.read().unwrap();
-        if let Some(app_map) = grant_app_map.get(app_id) {
+        if let Some(app_map) = grant_app_map.value.get(app_id) {
             if let Some(v) = app_map.get(grant_entry) {
                 return v.status.clone();
             }
@@ -90,12 +106,13 @@ impl GrantState {
             let app_id = app_id.unwrap();
             let mut grant_state = self.grant_app_map.write().unwrap();
             //Get a mutable reference to the value associated with a key, create it if it doesn't exist,
-            let entries = grant_state.entry(app_id).or_insert(HashSet::new());
+            let entries = grant_state.value.entry(app_id).or_insert(HashSet::new());
 
             if entries.contains(&new_entry) {
                 entries.remove(&new_entry);
             }
             entries.insert(new_entry);
+            grant_state.sync();
         } else {
             self.add_device_entry(new_entry)
         }
@@ -107,7 +124,7 @@ impl GrantState {
     {
         let mut deleted = false;
         let mut grant_state = self.grant_app_map.write().unwrap();
-        let entries = match grant_state.get_mut(&app_id) {
+        let entries = match grant_state.value.get_mut(&app_id) {
             Some(entries) => entries,
             None => return false,
         };
@@ -116,6 +133,7 @@ impl GrantState {
         if entries.len() < prev_len {
             deleted = true;
         }
+        grant_state.sync();
         deleted
     }
 
@@ -125,7 +143,7 @@ impl GrantState {
     ) -> bool {
         let mut deleted = false;
         let mut grant_state = self.grant_app_map.write().unwrap();
-        let entries = match grant_state.get_mut(&app_id) {
+        let entries = match grant_state.value.get_mut(&app_id) {
             Some(entries) => entries,
             None => return false,
         };
@@ -134,25 +152,28 @@ impl GrantState {
         if entries.len() < prev_len {
             deleted = true;
         }
+        grant_state.sync();
         deleted
     }
 
     pub fn delete_all_expired_entries(&self) -> bool {
         let mut deleted = false;
         let mut grant_state = self.grant_app_map.write().unwrap();
-        for (_, entries) in grant_state.iter_mut() {
+        for (_, entries) in grant_state.value.iter_mut() {
             let prev_len = entries.len();
             entries.retain(|entry| !entry.has_expired());
             if entries.len() < prev_len {
                 deleted = true;
             }
         }
+        grant_state.sync();
         deleted
     }
 
     fn add_device_entry(&self, entry: GrantEntry) {
         let mut device_grants = self.device_grants.write().unwrap();
-        device_grants.insert(entry);
+        device_grants.value.insert(entry);
+        device_grants.sync();
     }
 
     pub fn get_grant_status(
@@ -169,7 +190,7 @@ impl GrantState {
 
         let grant_state = self.grant_app_map.read().unwrap();
         debug!("grant state: {:?}", grant_state);
-        let entries = grant_state.get(app_id)?;
+        let entries = grant_state.value.get(app_id)?;
 
         for entry in entries {
             if !entry.has_expired() && (entry.role == role) && (entry.capability == capability) {
@@ -188,7 +209,7 @@ impl GrantState {
     ) -> Option<GrantStatus> {
         let grant_state = self.device_grants.read().unwrap();
 
-        for entry in grant_state.iter() {
+        for entry in grant_state.value.iter() {
             if !entry.has_expired() && (entry.role == role) && (entry.capability == capability) {
                 debug!("Stored grant status: {:?}", entry.status);
                 return entry.status.clone();
@@ -286,7 +307,7 @@ impl GrantState {
     // Pass None for device scope
     pub fn get_grant_entries_for_app_id(&self, app_id: String) -> HashSet<GrantEntry> {
         self.delete_expired_entries_for_app(app_id.clone());
-        match self.grant_app_map.read().unwrap().get(&app_id) {
+        match self.grant_app_map.read().unwrap().value.get(&app_id) {
             Some(x) => x.iter().cloned().collect(),
             None => HashSet::new(),
         }
@@ -295,7 +316,7 @@ impl GrantState {
     // Returns all active and denied user grant entries for the given `app_id`.
     // Pass None for device scope
     pub fn get_device_entries(&self) -> HashSet<GrantEntry> {
-        self.device_grants.read().unwrap().clone()
+        self.device_grants.read().unwrap().value.clone()
     }
 
     // Returns all active and denied user grant entries for the given `capability`
@@ -306,7 +327,7 @@ impl GrantState {
         self.delete_all_expired_entries();
         let grant_state = self.grant_app_map.read().unwrap();
         let mut grant_entry_map: HashMap<String, HashSet<GrantEntry>> = HashMap::new();
-        for (app_id, app_entries) in grant_state.iter() {
+        for (app_id, app_entries) in grant_state.value.iter() {
             for item in app_entries {
                 if item.capability == capability {
                     grant_entry_map

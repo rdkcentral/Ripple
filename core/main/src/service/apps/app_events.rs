@@ -235,29 +235,26 @@ impl AppEvents {
             let session_tx = session.get_transport();
             let app_events_state = &state.app_events_state;
             let mut listeners = app_events_state.listeners.write().unwrap();
-                let event_ctx_string = event_context.map(|x| x.to_string());
+            let event_ctx_string = event_context.map(|x| x.to_string());
 
-                if listen_request.listen {
-                    let event_listeners = AppEvents::get_or_create_listener_vec(
-                        &mut listeners,
-                        event_name,
-                        event_ctx_string.clone(),
-                    );
-                    //The last listener wins if there is already a listener exists with same session id
+            if listen_request.listen {
+                let event_listeners = AppEvents::get_or_create_listener_vec(
+                    &mut listeners,
+                    event_name,
+                    event_ctx_string.clone(),
+                );
+                //The last listener wins if there is already a listener exists with same session id
+                AppEvents::remove_session_from_events(event_listeners, &call_ctx.session_id);
+                event_listeners.push(EventListener {
+                    call_ctx: call_ctx,
+                    session_tx: session_tx.clone(),
+                    decorator: decorator,
+                });
+            } else if let Some(entry) = listeners.get_mut(&event_name) {
+                if let Some(event_listeners) = entry.get_mut(&event_ctx_string) {
                     AppEvents::remove_session_from_events(event_listeners, &call_ctx.session_id);
-                    event_listeners.push(EventListener {
-                        call_ctx: call_ctx,
-                        session_tx: session_tx.clone(),
-                        decorator: decorator,
-                    });
-                } else if let Some(entry) = listeners.get_mut(&event_name) {
-                    if let Some(event_listeners) = entry.get_mut(&event_ctx_string) {
-                        AppEvents::remove_session_from_events(
-                            event_listeners,
-                            &call_ctx.session_id,
-                        );
-                    }
                 }
+            }
         }
     }
 

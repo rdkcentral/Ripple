@@ -45,7 +45,7 @@ impl Session {
         }
     }
 
-    pub fn get_transport(&self) -> Sender<ApiMessage>{
+    pub fn get_transport(&self) -> Sender<ApiMessage> {
         self.transport.clone()
     }
 
