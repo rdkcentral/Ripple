@@ -39,7 +39,6 @@ impl SetupThunderProcessor {
         let mut extn_client = state.state.get_client();
         extn_client
             .add_request_processor(ThunderDeviceInfoRequestProcessor::new(state.clone().state));
-        extn_client.add_request_processor(ThunderWifiRequestProcessor::new(state.clone().state));
         extn_client.add_request_processor(ThunderBrowserRequestProcessor::new(state.clone().state));
         extn_client.add_request_processor(ThunderWifiRequestProcessor::new(state.clone().state));
         extn_client.add_request_processor(ThunderWindowManagerRequestProcessor::new(

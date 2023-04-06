@@ -37,7 +37,7 @@ pub struct AccessPointRequest {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum WifiRequest {
-    Scan,
+    Scan(u64),
     Connect(AccessPointRequest),
 }
 

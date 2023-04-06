@@ -37,7 +37,7 @@ use thunder_ripple_sdk::{
             },
             extn_client_message::{ExtnMessage, ExtnResponse},
         },
-        log::info,
+        log::{debug, info},
         serde_json, tokio,
         tokio::sync::mpsc,
     },
@@ -51,7 +51,7 @@ use thunder_ripple_sdk::{
         extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider},
     },
 };
-use tokio::time::{self, Duration};
+use tokio::time::{self, timeout, Duration};
 
 pub fn wifi_security_mode_to_u32(v: WifiSecurityMode) -> u32 {
     match v {
@@ -203,7 +203,7 @@ impl ThunderWifiRequestProcessor {
     /// WIFI SCAN ///
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    async fn scan(state: ThunderState, req: ExtnMessage) -> bool {
+    async fn scan(state: ThunderState, req: ExtnMessage, timeout: u64) -> bool {
         let start_scan: String = ThunderPlugin::Wifi.method("startScan");
         let request: ThunderWifiScanRequest = ThunderWifiScanRequest { incremental: false };
         let response = state
@@ -217,9 +217,12 @@ impl ThunderWifiRequestProcessor {
             .await;
         let response = match response.message["success"].as_bool() {
             Some(_v) => {
-                let result_ssid =
-                    ThunderWifiRequestProcessor::wait_for_thunder_ssids(state.clone(), req.clone())
-                        .await;
+                let result_ssid = ThunderWifiRequestProcessor::wait_for_thunder_ssids(
+                    state.clone(),
+                    req.clone(),
+                    timeout,
+                )
+                .await;
                 info!("wifi scan result {:?}", result_ssid);
                 WifiResponse::WifiScanListResponse(result_ssid)
             }
@@ -239,7 +242,11 @@ impl ThunderWifiRequestProcessor {
         .is_ok()
     }
 
-    async fn wait_for_thunder_ssids(state: ThunderState, _req: ExtnMessage) -> AccessPointList {
+    async fn wait_for_thunder_ssids(
+        state: ThunderState,
+        _req: ExtnMessage,
+        timeout_value: u64,
+    ) -> AccessPointList {
         let (tx, mut rx) = mpsc::channel::<AccessPointList>(32);
         info!("subscribing to wifi ssid scan thunder events");
         let client = state.get_thunder_client();
@@ -258,8 +265,8 @@ impl ThunderWifiRequestProcessor {
             )
             .await;
         // spawn a thread that handles all scan events, handle the success and error events
-        let _handle = tokio::spawn(async move {
-            if let Some(m) = sub_rx.recv().await {
+        tokio::spawn(async move {
+            if let Ok(Some(m)) = timeout(Duration::from_secs(timeout_value), sub_rx.recv()).await {
                 let mut list = Vec::new();
                 let ssid_response: SSIDEventResponse = serde_json::from_value(m.message).unwrap();
                 let mut dedup = Vec::new();
@@ -277,15 +284,20 @@ impl ThunderWifiRequestProcessor {
                 // Send the access point list to the main thread
                 tx.send(access_point_list).await.unwrap();
                 info!("unsubscribing to wifi ssid scan thunder events");
-                unsub_client
-                    .unsubscribe(DeviceUnsubscribeRequest {
-                        module: Wifi.callsign_and_version(),
-                        event_name: "onAvailableSSIDs".into(),
-                    })
-                    .await;
+            } else {
+                let access_point_list = AccessPointList { list: Vec::new() };
+                info!("access point list {:#?}", access_point_list);
+                // Send the access point list to the main thread
+                tx.send(access_point_list).await.unwrap();
             }
-        })
-        .await;
+
+            unsub_client
+                .unsubscribe(DeviceUnsubscribeRequest {
+                    module: Wifi.callsign_and_version(),
+                    event_name: "onAvailableSSIDs".into(),
+                })
+                .await;
+        });
 
         // Receive the access point list sent from the Tokio task
         let access_point_list = rx.recv().await.unwrap();
@@ -380,7 +392,7 @@ impl ThunderWifiRequestProcessor {
         tokio::select! {
             Some(m) = err_rx.recv() => {
                 let error_code_response: WifiConnectError = serde_json::from_value(m.message).unwrap();
-                print!("{:?}",error_code_response);
+                debug!("{:?}",error_code_response);
                 let error_string = match error_code_response.code {
                     0 => WifiResponse::CustomError("SSID_CHANGED".into()),
                     1 => WifiResponse::CustomError("CONNECTION_LOST".into()),
@@ -517,7 +529,7 @@ impl ExtnRequestProcessor for ThunderWifiRequestProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         match extracted_message {
-            WifiRequest::Scan => Self::scan(state.clone(), msg).await,
+            WifiRequest::Scan(timeout) => Self::scan(state.clone(), msg, timeout).await,
             WifiRequest::Connect(access_point) => {
                 Self::connect(state.clone(), msg, access_point).await
             }
