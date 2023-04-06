@@ -66,7 +66,7 @@ pub trait AccessoryService {
 /// # Examples
 /// Note the device needs to support the AccessoryType and Pairing Protocol.
 /// ```
-/// use thunder_ripple_sdk::ripple_sdk::api::device::device_accessory::{AccessoryType,AccessoryProtocol,RemoteAccessoryPairRequest};
+/// use ripple_sdk::api::device::device_accessory::{AccessoryType,AccessoryProtocol,RemoteAccessoryPairRequest};
 /// RemoteAccessoryPairRequest{_type: AccessoryType::Remote, protocol: AccessoryProtocol::BluetoothLE , timeout: 180};
 ///
 
@@ -93,7 +93,7 @@ impl Default for RemoteAccessoryPairRequest {
 /// # More info
 ///
 /// ```
-/// use thunder_ripple_sdk::ripple_sdk::api::device::device_accessory::AccessoryType;
+/// use ripple_sdk::api::device::device_accessory::AccessoryType;
 /// AccessoryType::Remote; // Remote device used to send keypress events to the device
 /// AccessoryType::Speaker; // Audio output device which recieves sound signals from device.
 /// AccessoryType::Other; // Placeholder for other types of supported devices. Subjected to platform support.
@@ -111,7 +111,7 @@ pub enum AccessoryType {
 /// # More info
 ///
 /// ```
-/// use thunder_ripple_sdk::ripple_sdk::api::device::device_accessory::AccessoryListType;
+/// use ripple_sdk::api::device::device_accessory::AccessoryListType;
 /// AccessoryListType::Remote; // List of remotes connected to the Device
 /// AccessoryListType::Speaker; // List of Speakers connected to the Device.
 /// AccessoryListType::All; // All Paired accesories connected to the Device.
@@ -128,7 +128,7 @@ pub enum AccessoryListType {
 /// # More info
 ///
 /// ```
-/// use thunder_ripple_sdk::ripple_sdk::api::device::device_accessory::AccessoryProtocolListType;
+/// use ripple_sdk::api::device::device_accessory::AccessoryProtocolListType;
 /// AccessoryProtocolListType::BluetoothLE; // List of Devices connected via BluetoothLe
 /// AccessoryProtocolListType::RF4CE; // List of Devices connected via RF4CE(Radio Frequency).
 /// AccessoryProtocolListType::All; // All Paired accesories connected to the Device.
@@ -148,17 +148,17 @@ pub enum AccessoryProtocolListType {
 ///
 /// List all Bluetooth remotes
 /// ```
-/// use thunder_ripple_sdk::ripple_sdk::api::device::device_accessory::{AccessoryListType,AccessoryProtocolListType,RemoteAccessoryListRequest};
+/// use ripple_sdk::api::device::device_accessory::{AccessoryListType,AccessoryProtocolListType,RemoteAccessoryListRequest};
 /// RemoteAccessoryListRequest{_type: Some(AccessoryListType::Remote), protocol: Some(AccessoryProtocolListType::BluetoothLE)};
 /// ```
 /// List all RF4CE remotes
 /// ```
-/// use thunder_ripple_sdk::ripple_sdk::api::device::device_accessory::{AccessoryListType,AccessoryProtocolListType,RemoteAccessoryListRequest};
+/// use ripple_sdk::api::device::device_accessory::{AccessoryListType,AccessoryProtocolListType,RemoteAccessoryListRequest};
 /// RemoteAccessoryListRequest{_type: Some(AccessoryListType::Remote), protocol: Some(AccessoryProtocolListType::RF4CE)};
 /// ```
 /// List all All devices
 /// ```
-/// use thunder_ripple_sdk::ripple_sdk::api::device::device_accessory::{AccessoryListType,AccessoryProtocolListType,RemoteAccessoryListRequest};
+/// use ripple_sdk::api::device::device_accessory::{AccessoryListType,AccessoryProtocolListType,RemoteAccessoryListRequest};
 /// RemoteAccessoryListRequest{_type: Some(AccessoryListType::All), protocol: Some(AccessoryProtocolListType::All)};
 /// ```
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -182,7 +182,7 @@ impl Default for RemoteAccessoryListRequest {
 /// # More info
 ///
 /// ```
-/// use thunder_ripple_sdk::ripple_sdk::api::device::device_accessory::AccessoryProtocol;
+/// use ripple_sdk::api::device::device_accessory::AccessoryProtocol;
 /// AccessoryProtocol::BluetoothLE; // List of Devices connected via BluetoothLe
 /// AccessoryProtocol::RF4CE; // List of Devices connected via RF4CE(Radio Frequency).
 /// ```
@@ -209,7 +209,7 @@ impl From<DeviceManifest> for AccessoryProtocol {
 /// # Examples
 /// Response object for BluetoothLE Remote paired made by "Some company" with "Some model".
 /// ```
-/// use thunder_ripple_sdk::ripple_sdk::api::device::device_accessory::{AccessoryType,AccessoryProtocol,RemoteAccessoryDevice};
+/// use ripple_sdk::api::device::device_accessory::{AccessoryType,AccessoryProtocol,RemoteAccessoryDevice};
 /// let response = RemoteAccessoryDevice{_type: AccessoryType::Remote, protocol: AccessoryProtocol::BluetoothLE , make: "Some Company".into(), model: "Some model".into()};
 /// ```
 ///
