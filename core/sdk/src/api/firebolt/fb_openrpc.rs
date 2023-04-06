@@ -443,4 +443,32 @@ impl CapabilitySet {
 
         Ok(())
     }
+
+    pub fn get_from_role(caps: Vec<FireboltCap>, role: Option<CapabilityRole>) -> CapabilitySet {
+        if role.is_none() {
+            CapabilitySet {
+                use_caps: Some(caps),
+                provide_cap: None,
+                manage_caps: None,
+            }
+        } else {
+            match role.unwrap() {
+                CapabilityRole::Use => CapabilitySet {
+                    use_caps: Some(caps),
+                    provide_cap: None,
+                    manage_caps: None,
+                },
+                CapabilityRole::Manage => CapabilitySet {
+                    use_caps: None,
+                    provide_cap: Some(caps.get(0).cloned().unwrap()),
+                    manage_caps: None,
+                },
+                CapabilityRole::Provide => CapabilitySet {
+                    use_caps: None,
+                    provide_cap: None,
+                    manage_caps: Some(caps),
+                },
+            }
+        }
+    }
 }

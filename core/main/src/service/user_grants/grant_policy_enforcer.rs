@@ -18,7 +18,7 @@
 use ripple_sdk::{
     api::{
         firebolt::fb_capabilities::{
-            DenyReason, DenyReasonWithCap, FireboltCap, FireboltPermission,
+            CapEvent, DenyReason, DenyReasonWithCap, FireboltCap, FireboltPermission,
         },
         gateway::rpc_gateway_api::CallContext,
         manifest::device_manifest::{GrantPolicy, GrantPrivacySetting},
@@ -28,7 +28,7 @@ use ripple_sdk::{
 
 use crate::{
     service::user_grants::grant_step_enforcer::GrantStepExecutor,
-    state::platform_state::PlatformState,
+    state::{cap::cap_state::CapState, platform_state::PlatformState},
 };
 
 pub struct GrantPolicyEnforcer;
@@ -110,7 +110,8 @@ impl GrantPolicyEnforcer {
         let generic_cap_state = platform_state.clone().cap_state.generic;
         for grant_requirements in &policy.options {
             for step in &grant_requirements.steps {
-                let firebolt_cap = vec![FireboltCap::Full(step.capability.to_owned())];
+                let cap = FireboltCap::Full(step.capability.to_owned());
+                let firebolt_cap = vec![cap.clone()];
                 debug!(
                     "checking if the cap is supported & available: {:?}",
                     firebolt_cap
@@ -121,8 +122,30 @@ impl GrantPolicyEnforcer {
                         reason: DenyReason::GrantDenied,
                     });
                 } else {
-                    return GrantStepExecutor::execute(step, platform_state, call_ctx, permission)
-                        .await;
+                    match GrantStepExecutor::execute(step, platform_state, call_ctx, permission)
+                        .await
+                    {
+                        Ok(_) => {
+                            CapState::emit(
+                                platform_state,
+                                CapEvent::OnGranted,
+                                cap,
+                                Some(permission.role.clone()),
+                            )
+                            .await;
+                            return Ok(());
+                        }
+                        Err(e) => {
+                            CapState::emit(
+                                platform_state,
+                                CapEvent::OnRevoked,
+                                cap,
+                                Some(permission.role.clone()),
+                            )
+                            .await;
+                            return Err(e);
+                        }
+                    }
                 }
             }
         }

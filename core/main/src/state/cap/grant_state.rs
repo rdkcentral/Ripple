@@ -217,12 +217,19 @@ impl GrantState {
         r: CapabilitySet,
     ) -> Result<(), DenyReasonWithCap> {
         /*
-         * Instead of just checking for grants perviously, if the user grants are not present,
+         * Instead of just checking for grants previously, if the user grants are not present,
          * we are taking necessary steps to get the user grant and send back the result.
          */
         let grant_state = state.clone().cap_state.grant_state;
         let app_id = call_ctx.app_id.clone();
-        for permission in r.into_firebolt_permissions_vec() {
+        let caps_needing_grants = grant_state.caps_needing_grants.clone();
+        let caps_needing_grant_in_request: Vec<FireboltPermission> = r
+            .into_firebolt_permissions_vec()
+            .clone()
+            .into_iter()
+            .filter(|x| caps_needing_grants.contains(&x.cap.as_str()))
+            .collect();
+        for permission in caps_needing_grant_in_request {
             let result = grant_state.get_grant_state(&app_id, &permission);
             match result {
                 GrantActiveState::ActiveGrant(grant) => {
@@ -477,7 +484,7 @@ impl Hash for GrantStatus {
 pub struct GrantHandler;
 
 impl GrantHandler {
-    pub async fn check_granted(
+    pub async fn grant_info(
         state: &PlatformState,
         app_id: String,
         request: CapabilitySet,

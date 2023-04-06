@@ -130,7 +130,25 @@ impl CapState {
         false
     }
 
-    pub async fn emit(ps: &PlatformState, event: CapEvent, cap: FireboltCap) {
+    pub async fn emit(
+        ps: &PlatformState,
+        event: CapEvent,
+        cap: FireboltCap,
+        role: Option<CapabilityRole>,
+    ) {
+        match event.clone() {
+            CapEvent::OnAvailable => ps
+                .clone()
+                .cap_state
+                .generic
+                .ingest_availability(vec![cap.clone()], true),
+            CapEvent::OnUnavailable => ps
+                .clone()
+                .cap_state
+                .generic
+                .ingest_availability(vec![cap.clone()], true),
+            _ => {}
+        }
         // check if given event and capability needs emitting
         if Self::check_primed(ps, event.clone(), cap.clone(), None) {
             let f = cap.clone().as_str();
@@ -165,7 +183,7 @@ impl CapState {
                     }
                 }
                 // Step 3: Get Capability info for each app based on context available in listener
-                if let Ok(r) = Self::get_cap_info(ps, cc, vec![f.clone()]).await {
+                if let Ok(r) = Self::get_cap_info(ps, cc, vec![f.clone()], role.clone()).await {
                     if let Some(cap_info) = r.get(0) {
                         if let Ok(data) = serde_json::to_value(cap_info) {
                             // Step 4: Send exclusive cap info data for each listener
@@ -181,6 +199,7 @@ impl CapState {
         state: &PlatformState,
         call_context: CallContext,
         caps: Vec<String>,
+        role: Option<CapabilityRole>,
     ) -> Result<Vec<CapabilityInfo>, RippleError> {
         let mut unsupported_caps = Vec::new();
         let generic_caps = FireboltCap::from_vec_string(caps.clone());
@@ -194,11 +213,7 @@ impl CapState {
         }
 
         let mut unpermitted_caps = Vec::new();
-        let cap_set = CapabilitySet {
-            use_caps: Some(generic_caps.clone()),
-            manage_caps: None,
-            provide_cap: None,
-        };
+        let cap_set = CapabilitySet::get_from_role(generic_caps.clone(), role);
         if let Err(e) =
             PermissionHandler::check_permitted(state, call_context.app_id, cap_set).await
         {

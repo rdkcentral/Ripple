@@ -19,6 +19,7 @@ use arrayvec::ArrayVec;
 use ripple_sdk::{
     api::{
         firebolt::{
+            fb_capabilities::{CapEvent, FireboltCap},
             fb_general::ListenRequest,
             provider::{
                 FocusRequest, ProviderRequest, ProviderRequestPayload, ProviderResponse,
@@ -40,7 +41,10 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::{service::apps::app_events::AppEvents, state::platform_state::PlatformState};
+use crate::{
+    service::apps::app_events::AppEvents,
+    state::{cap::cap_state::CapState, platform_state::PlatformState},
+};
 
 const REQUEST_QUEUE_CAPACITY: usize = 3;
 
@@ -186,7 +190,13 @@ impl ProviderBroker {
             ProviderBroker::invoke_method(&pst, request).await;
         }
 
-        // TODO add Firebolt capabilities
+        CapState::emit(
+            pst,
+            CapEvent::OnAvailable,
+            FireboltCap::Full(capability),
+            None,
+        )
+        .await
     }
 
     pub fn get_provider_methods(pst: &PlatformState) -> ProviderResult {
@@ -339,8 +349,14 @@ impl ProviderBroker {
     }
 
     pub async fn unregister_session(pst: &PlatformState, session_id: String) {
-        let _ = Self::cleanup_caps_for_unregister(&pst.clone(), session_id);
-        // TODO: Add permissions
+        let cleaned_caps = Self::cleanup_caps_for_unregister(&pst.clone(), session_id);
+        let caps: Vec<FireboltCap> = cleaned_caps
+            .iter()
+            .map(|x| FireboltCap::Full(x.clone()))
+            .collect();
+        for cap in caps {
+            CapState::emit(pst, CapEvent::OnUnavailable, cap, None).await
+        }
     }
 
     fn remove_request(
