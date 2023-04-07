@@ -23,6 +23,5 @@ pub mod session_state;
 pub mod cap {
     pub mod cap_state;
     pub mod generic_cap_state;
-    pub mod grant_state;
     pub mod permitted_state;
 }

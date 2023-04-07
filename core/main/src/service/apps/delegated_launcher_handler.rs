@@ -35,7 +35,6 @@ use ripple_sdk::{
                 LCM_EVENT_ON_REQUEST_READY,
             },
         },
-        manifest::device_manifest::GrantLifespan,
     },
     tokio::{
         self,
@@ -345,12 +344,6 @@ impl DelegatedLauncherHandler {
                 app_id, state
             );
             return Err(AppError::UnexpectedState);
-        }
-
-        if state == LifecycleState::Inactive || state == LifecycleState::Unloading {
-            self.platform_state.clone().cap_state.grant_state.custom_delete_entries(app_id.into(), |grant_entry| -> bool {
-                !(matches!(&grant_entry.lifespan, Some(entry_lifespan) if entry_lifespan == &GrantLifespan::AppActive))
-            });
         }
 
         self.platform_state

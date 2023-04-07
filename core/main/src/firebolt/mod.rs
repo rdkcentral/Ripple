@@ -25,7 +25,6 @@ pub mod handlers {
     pub mod lcm_rpc;
     pub mod lifecycle_rpc;
     pub mod pin_rpc;
-    pub mod user_grants_rpc;
 }
 pub mod firebolt_gatekeeper;
 pub mod firebolt_gateway;
