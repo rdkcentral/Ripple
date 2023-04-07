@@ -17,10 +17,7 @@
 use ripple_sdk::api::firebolt::fb_capabilities::{DenyReason, DenyReasonWithCap};
 use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
 
-use crate::state::{
-    cap::{permitted_state::PermissionHandler},
-    platform_state::PlatformState,
-};
+use crate::state::{cap::permitted_state::PermissionHandler, platform_state::PlatformState};
 
 pub struct FireboltGatekeeper {}
 

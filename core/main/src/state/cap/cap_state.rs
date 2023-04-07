@@ -128,7 +128,12 @@ impl CapState {
         false
     }
 
-    pub async fn emit(ps: &PlatformState, event: CapEvent, cap: FireboltCap,  role: Option<CapabilityRole>) {
+    pub async fn emit(
+        ps: &PlatformState,
+        event: CapEvent,
+        cap: FireboltCap,
+        role: Option<CapabilityRole>,
+    ) {
         match event.clone() {
             CapEvent::OnAvailable => ps
                 .clone()
@@ -192,7 +197,7 @@ impl CapState {
         state: &PlatformState,
         call_context: CallContext,
         caps: Vec<String>,
-        role: Option<CapabilityRole>
+        role: Option<CapabilityRole>,
     ) -> Result<Vec<CapabilityInfo>, RippleError> {
         let mut unsupported_caps = Vec::new();
         let generic_caps = FireboltCap::from_vec_string(caps.clone());
