@@ -16,7 +16,11 @@
 // limitations under the License.
 use log::{info, warn};
 use serde::{de::DeserializeOwned, Serialize};
-use std::fs::{self};
+use std::{
+    fs::{self, OpenOptions},
+    io::Write,
+    path::Path,
+};
 
 use crate::utils::error::RippleError;
 
@@ -33,16 +37,30 @@ where
     pub fn new(path: String, value: S) -> FileStore<S> {
         FileStore {
             value: value.clone(),
-            path,
+            path: Path::new(&path).to_str().unwrap().into(),
         }
     }
 
-    pub fn update(&mut self, new_value: S) {
-        let new_value_string = serde_json::to_string(&new_value).unwrap();
-        if let Err(_) = fs::write(self.path.clone(), new_value_string) {
-            warn!("Failed to file store for {}", self.path);
+    fn write_to_disk(&self, value: String) {
+        match OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(self.path.clone())
+        {
+            Ok(mut file) => {
+                if let Err(e) = file.write_all(value.as_bytes()) {
+                    warn!("Failed to write file store for {:?} {}", e, self.path);
+                }
+            }
+            Err(e) => {
+                warn!("Failed to open file store for {} {:?}", self.path, e);
+            }
         }
-        self.value = new_value;
+    }
+
+    pub fn sync(&mut self) {
+        let new_value_string = serde_json::to_string(&self.value).unwrap();
+        self.write_to_disk(new_value_string);
     }
 
     fn load_from_content(contents: String) -> Result<S, RippleError> {

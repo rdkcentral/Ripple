@@ -17,10 +17,18 @@
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{collections::HashMap, fs, path::Path};
+use std::{
+    collections::HashMap,
+    fs,
+    hash::{Hash, Hasher},
+    path::Path,
+};
 
 use crate::{
-    api::{device::DevicePlatformType, firebolt::fb_capabilities::FireboltCap},
+    api::{
+        device::DevicePlatformType,
+        firebolt::fb_capabilities::{CapabilityRole, FireboltCap, FireboltPermission},
+    },
     utils::error::RippleError,
 };
 
@@ -61,13 +69,51 @@ pub struct GrantStep {
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct GrantRequirements {
-    pub steps: Vec<GrantStep>,
+pub struct GrantPolicy {
+    pub options: Vec<GrantRequirements>,
+    pub scope: GrantScope,
+    pub lifespan: GrantLifespan,
+    pub overridable: bool,
+    pub lifespan_ttl: Option<u64>,
+    pub privacy_setting: Option<GrantPrivacySetting>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+impl GrantPolicy {
+    pub fn get_steps_without_grant(&self) -> Option<Vec<GrantStep>> {
+        let mut grant_steps = Vec::new();
+        for grant_requirements in &self.options {
+            for step in &grant_requirements.steps {
+                if !step
+                    .capability
+                    .starts_with("xrn:firebolt:capability:usergrant:")
+                {
+                    grant_steps.push(step.clone());
+                }
+            }
+        }
+        if grant_steps.len() > 0 {
+            return Some(grant_steps);
+        }
+        None
+    }
+}
+
+impl Default for GrantPolicy {
+    fn default() -> Self {
+        GrantPolicy {
+            options: Default::default(),
+            scope: GrantScope::Device,
+            lifespan: GrantLifespan::Once,
+            overridable: true,
+            lifespan_ttl: None,
+            privacy_setting: None,
+        }
+    }
+}
+
+#[derive(Eq, Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub enum Lifespan {
+pub enum GrantLifespan {
     Once,
     Forever,
     AppActive,
@@ -75,7 +121,61 @@ pub enum Lifespan {
     Seconds,
 }
 
+impl GrantLifespan {
+    pub fn as_string(&self) -> &'static str {
+        match self {
+            GrantLifespan::Once => "once",
+            GrantLifespan::Forever => "forever",
+            GrantLifespan::AppActive => "appActive",
+            GrantLifespan::PowerActive => "powerActive",
+            GrantLifespan::Seconds => "seconds",
+        }
+    }
+}
+
+impl Hash for GrantLifespan {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u8(match self {
+            GrantLifespan::Once => 0,
+            GrantLifespan::Forever => 1,
+            GrantLifespan::AppActive => 2,
+            GrantLifespan::PowerActive => 3,
+            GrantLifespan::Seconds => 4,
+        });
+    }
+}
+
+#[derive(Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct GrantRequirements {
+    pub steps: Vec<GrantStep>,
+}
+
+#[derive(Eq, PartialEq, Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub enum GrantScope {
+    App,
+    Device,
+}
+
+impl Hash for GrantScope {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u8(match self {
+            GrantScope::App => 0,
+            GrantScope::Device => 1,
+        });
+    }
+}
+
 #[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GrantPrivacySetting {
+    pub property: String,
+    pub auto_apply_policy: AutoApplyPolicy,
+    pub update_property: bool,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum AutoApplyPolicy {
     Always,
@@ -85,42 +185,39 @@ pub enum AutoApplyPolicy {
 }
 
 #[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct PrivacySetting {
-    pub property: String,
-    pub auto_apply_policy: AutoApplyPolicy,
-    pub update_property: bool,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub enum Scope {
-    App,
-    Device,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct GrantPolicy {
-    pub options: GrantRequirements,
-    pub scope: Scope,
-    pub lifespan: Lifespan,
-    pub overridable: bool,
-    pub lifespan_ttl: Option<u32>,
-    pub privacy_setting: Option<PrivacySetting>,
-}
-
-#[derive(Deserialize, Debug, Clone)]
 pub struct GrantPolicies {
     #[serde(rename = "use")]
-    pub _use: GrantPolicy,
-    pub manage: GrantPolicy,
-    pub provide: GrantPolicy,
+    pub _use: Option<GrantPolicy>,
+    pub manage: Option<GrantPolicy>,
+    pub provide: Option<GrantPolicy>,
+}
+
+impl GrantPolicies {
+    pub fn get_policy(&self, permission: &FireboltPermission) -> Option<GrantPolicy> {
+        match permission.role {
+            CapabilityRole::Use => {
+                if self._use.is_some() {
+                    return Some(self._use.clone().unwrap());
+                }
+            }
+            CapabilityRole::Manage => {
+                if self.manage.is_some() {
+                    return Some(self.manage.clone().unwrap());
+                }
+            }
+            CapabilityRole::Provide => {
+                if self.manage.is_some() {
+                    return Some(self.manage.clone().unwrap());
+                }
+            }
+        }
+        None
+    }
 }
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct CapabilityConifguration {
+pub struct CapabilityConfiguration {
     pub supported: Vec<String>,
     pub grant_policies: Option<HashMap<String, GrantPolicies>>,
 }
@@ -140,7 +237,7 @@ pub struct LifecycleConfiguration {
 #[derive(Deserialize, Debug, Clone)]
 pub struct DeviceManifest {
     pub configuration: RippleConfiguration,
-    pub capabilities: CapabilityConifguration,
+    pub capabilities: CapabilityConfiguration,
     pub lifecycle: LifecycleConfiguration,
     pub applications: ApplicationsConfiguration,
 }
@@ -429,5 +526,16 @@ impl DeviceManifest {
 
     pub fn get_supported_caps(&self) -> Vec<FireboltCap> {
         FireboltCap::from_vec_string(self.clone().capabilities.supported)
+    }
+
+    pub fn get_caps_requiring_grant(&self) -> Vec<String> {
+        if let Some(policies) = self.clone().capabilities.grant_policies {
+            return policies.clone().into_keys().collect();
+        }
+        Vec::new()
+    }
+
+    pub fn get_grant_policies(&self) -> Option<HashMap<String, GrantPolicies>> {
+        self.clone().capabilities.grant_policies
     }
 }

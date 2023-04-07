@@ -27,6 +27,7 @@ pub enum RippleContract {
     Governance,
     Discovery,
     Launcher,
+    PinChallenge,
     JsonRpsee,
     Config,
     LifecycleManagement,

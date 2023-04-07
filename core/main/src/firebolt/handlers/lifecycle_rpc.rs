@@ -96,12 +96,7 @@ impl LifecycleImpl {
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
 
-        AppEvents::add_listener(
-            &&self.platform_state.app_events_state,
-            event_name.to_string(),
-            ctx,
-            request,
-        );
+        AppEvents::add_listener(&&self.platform_state, event_name.to_string(), ctx, request);
         Ok(ListenerResponse {
             listening: listen,
             event: event_name.into(),

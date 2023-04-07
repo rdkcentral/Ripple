@@ -17,7 +17,10 @@
 use ripple_sdk::api::firebolt::fb_capabilities::{DenyReason, DenyReasonWithCap};
 use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
 
-use crate::state::{cap::permitted_state::PermissionHandler, platform_state::PlatformState};
+use crate::state::{
+    cap::{grant_state::GrantState, permitted_state::PermissionHandler},
+    platform_state::PlatformState,
+};
 
 pub struct FireboltGatekeeper {}
 
@@ -40,9 +43,13 @@ impl FireboltGatekeeper {
             }
             // permission checks
             if let Err(e) =
-                PermissionHandler::check_permitted(&state, request.clone().ctx.app_id, caps.clone())
-                    .await
+                PermissionHandler::check_permitted(&state, &request.ctx.app_id, caps.clone()).await
             {
+                return Err(e);
+            }
+
+            // grant checks
+            if let Err(e) = GrantState::check_with_roles(&state, &request.ctx, caps.clone()).await {
                 return Err(e);
             }
         } else {

@@ -17,7 +17,17 @@
 
 use arrayvec::ArrayVec;
 use ripple_sdk::{
-    api::{firebolt::fb_general::ListenRequest, gateway::rpc_gateway_api::CallContext},
+    api::{
+        firebolt::{
+            fb_capabilities::{CapEvent, FireboltCap},
+            fb_general::ListenRequest,
+            provider::{
+                FocusRequest, ProviderRequest, ProviderRequestPayload, ProviderResponse,
+                ProviderResponsePayload,
+            },
+        },
+        gateway::rpc_gateway_api::CallContext,
+    },
     log::{debug, error, info, warn},
     serde_json,
     tokio::sync::oneshot,
@@ -32,8 +42,8 @@ use std::{
 };
 
 use crate::{
-    service::{apps::app_events::AppEvents, user_grants::ChallengeResponse},
-    state::platform_state::PlatformState,
+    service::apps::app_events::AppEvents,
+    state::{cap::cap_state::CapState, platform_state::PlatformState},
 };
 
 const REQUEST_QUEUE_CAPACITY: usize = 3;
@@ -50,7 +60,7 @@ pub enum ProviderError {
 pub struct ProviderBrokerState {
     provider_methods: Arc<RwLock<HashMap<String, ProviderMethod>>>,
     active_sessions: Arc<RwLock<HashMap<String, ProviderSession>>>,
-    request_queue: Arc<RwLock<ArrayVec<Request, REQUEST_QUEUE_CAPACITY>>>,
+    request_queue: Arc<RwLock<ArrayVec<ProviderBrokerRequest, REQUEST_QUEUE_CAPACITY>>>,
 }
 
 impl std::fmt::Debug for ProviderBrokerState {
@@ -74,58 +84,13 @@ struct ProviderSession {
     focused: bool,
 }
 
-pub struct Request {
+pub struct ProviderBrokerRequest {
     pub capability: String,
     pub method: String,
     pub caller: CallContext,
     pub request: ProviderRequestPayload,
     pub tx: oneshot::Sender<ProviderResponsePayload>,
     pub app_id: Option<String>,
-}
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(untagged)]
-pub enum ProviderRequestPayload {
-    Generic(String),
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(untagged)]
-pub enum ProviderResponsePayload {
-    ChallengeResponse(ChallengeResponse),
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProviderRequest {
-    pub correlation_id: String,
-    pub parameters: ProviderRequestPayload,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct ProviderResponse {
-    pub correlation_id: String,
-    pub result: ProviderResponsePayload,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct ExternalProviderRequest<T> {
-    pub correlation_id: String,
-    pub parameters: T,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ExternalProviderResponse<T> {
-    pub correlation_id: String,
-    pub result: T,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct FocusRequest {
-    pub correlation_id: String,
 }
 
 struct ProviderCaller {
@@ -204,7 +169,7 @@ impl ProviderBroker {
         let cap_method = format!("{}:{}", capability, method);
         let provider_app_id = provider.app_id.clone();
         AppEvents::add_listener(
-            &pst.app_events_state,
+            &pst,
             event_name.to_string(),
             provider.clone(),
             listen_request,
@@ -225,7 +190,13 @@ impl ProviderBroker {
             ProviderBroker::invoke_method(&pst, request).await;
         }
 
-        // TODO add Firebolt capabilities
+        CapState::emit(
+            pst,
+            CapEvent::OnAvailable,
+            FireboltCap::Full(capability),
+            None,
+        )
+        .await
     }
 
     pub fn get_provider_methods(pst: &PlatformState) -> ProviderResult {
@@ -248,7 +219,7 @@ impl ProviderBroker {
         ProviderResult::new(result)
     }
 
-    pub async fn invoke_method(pst: &PlatformState, request: Request) {
+    pub async fn invoke_method(pst: &PlatformState, request: ProviderBrokerRequest) {
         let cap_method = format!("{}:{}", request.capability, request.method);
         debug!("invoking provider for {}", cap_method);
 
@@ -294,7 +265,7 @@ impl ProviderBroker {
 
     fn start_provider_session(
         pst: &PlatformState,
-        request: Request,
+        request: ProviderBrokerRequest,
         provider: ProviderMethod,
     ) -> String {
         let c_id = Uuid::new_v4().to_string();
@@ -314,7 +285,7 @@ impl ProviderBroker {
         c_id
     }
 
-    fn queue_provider_request(pst: &PlatformState, request: Request) {
+    fn queue_provider_request(pst: &PlatformState, request: ProviderBrokerRequest) {
         // Remove any duplicate requests.
         ProviderBroker::remove_request(pst, &request.caller.app_id, &request.capability);
 
@@ -378,15 +349,21 @@ impl ProviderBroker {
     }
 
     pub async fn unregister_session(pst: &PlatformState, session_id: String) {
-        let _ = Self::cleanup_caps_for_unregister(&pst.clone(), session_id);
-        // TODO: Add permissions
+        let cleaned_caps = Self::cleanup_caps_for_unregister(&pst.clone(), session_id);
+        let caps: Vec<FireboltCap> = cleaned_caps
+            .iter()
+            .map(|x| FireboltCap::Full(x.clone()))
+            .collect();
+        for cap in caps {
+            CapState::emit(pst, CapEvent::OnUnavailable, cap, None).await
+        }
     }
 
     fn remove_request(
         pst: &PlatformState,
         provider_id: &String,
         capability: &String,
-    ) -> Option<Request> {
+    ) -> Option<ProviderBrokerRequest> {
         info!("Remove request {}", provider_id);
         let mut request_queue = pst.provider_broker_state.request_queue.write().unwrap();
         let mut iter = request_queue.iter();
