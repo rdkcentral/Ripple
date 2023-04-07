@@ -642,6 +642,21 @@ impl CapEventState {
     }
 
     pub async fn emit(ps: PlatformState, event: CapEvent, cap: FireboltCap) {
+        // In R2 we are using the emit method for ingestion avoiding duplicate calls
+        match event.clone() {
+            CapEvent::OnAvailable => ps
+                .clone()
+                .cap_state
+                .generic
+                .ingest_availability(vec![cap.clone()], true),
+            CapEvent::OnUnavailable => ps
+                .clone()
+                .cap_state
+                .generic
+                .ingest_availability(vec![cap.clone()], true),
+            _ => {}
+        }
+        
         // check if given event and capability needs emitting
         if Self::check_primed(ps.clone(), event.clone(), cap.clone(), None) {
             let f = cap.clone().as_str();
@@ -680,7 +695,8 @@ impl CapEventState {
                     }
                 }
                 // Step 3: Get Capability info for each app based on context available in listener
-                if let Ok(r) = ps.clone().services.get_cap_info(cc, vec![f.clone()]).await {
+                // defaults to use instead of letting the request drive the role
+                if let Ok(r) = ps.clone().services.get_cap_info(cc, vec![f.clone()], role.clone()).await {
                     if let Some(cap_info) = r.get(0) {
                         if let Ok(data) = serde_json::to_value(cap_info) {
                             // Step 4: Send exclusive cap info data for each listener
@@ -978,41 +994,42 @@ impl CamActor {
                             self.ps.clone().cap_state.not_available,
                             caps.clone(),
                         );
-                        let (pr, pcm) = self.permitted_cm.check_all(cc.clone(), caps.clone()).await;
-                        self.permitted_cm = pcm;
-                        let (gr, gcm) = self.granted_cm.check_all(cc.app_id, caps.clone());
-                        self.granted_cm = gcm;
-                        let cap_infos: Vec<CapabilityInfo> = caps
+                        let mut unpermitted_caps = Vec::new();
+                        let cap_set = CapabilitySet::get_from_role(generic_caps.clone(), role);
+                        if let Err(e) =
+                            PermissionHandler::get_permitted_info(state, &call_context.app_id, cap_set.clone())
+                        {
+                            unpermitted_caps.extend(e.caps);
+                        }
+
+                        let mut grant_errors: Option<GrantErrors> = None;
+                        if let Err(e) = GrantState::get_info(state, &call_context, cap_set) {
+                            let _ = grant_errors.insert(e);
+                        }
+
+                        let cap_infos: Vec<CapabilityInfo> = generic_caps
                             .into_iter()
                             .map(|x| {
-                                let reason = if !sr.contains_key(&x) || !sr.get(&x).unwrap() {
+                                let reason = if unsupported_caps.contains(&x) {
                                     // Un supported
                                     Some(DenyReason::Unsupported)
-                                } else if !ar.contains_key(&x) || !ar.get(&x).unwrap() {
+                                } else if unavailable_caps.contains(&x) {
                                     // Un Available
                                     Some(DenyReason::Unavailable)
-                                } else if !pr.contains_key(&x) || !pr.get(&x).unwrap() {
+                                } else if unpermitted_caps.contains(&x) {
                                     // Un Permitted
                                     Some(DenyReason::Unpermitted)
-                                } else if let Some(r) = gr.get(&x) {
-                                    if let Err(e) = r {
-                                        let c_reason = e.clone();
-                                        Some(c_reason)
-                                    } else {
-                                        None
-                                    }
+                                } else if let Some(grant_error) = &grant_errors {
+                                    grant_error.get_reason(&x)
                                 } else {
                                     None
                                 };
 
-                                CapabilityInfo::get(x.clone(), reason)
+                                CapabilityInfo::get(x.as_str(), reason)
                             })
                             .collect();
-                        oneshot_send_and_log(
-                            cb.callback,
-                            Ok(cap_infos),
-                            "cap_manager_info_callback",
-                        );
+
+                        return Ok(cap_infos);
                     }
                 }
             } else {

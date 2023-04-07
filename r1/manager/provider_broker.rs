@@ -88,7 +88,7 @@ struct ProviderSession {
 }
 
 #[derive(Debug)]
-pub struct Request {
+pub struct ProviderBrokerRequest {
     pub capability: String,
     pub method: String,
     pub caller: CallContext,
@@ -285,16 +285,13 @@ impl ProviderBroker {
             ProviderBroker::invoke_method(&pst, request).await;
         }
 
-        if let Err(e) = pst_c
-            .services
-            .update_cam(
-                FireboltCap::Full(capability),
-                crate::managers::capability_manager::Availability::Ready,
-            )
-            .await
-        {
-            error!("error updating cam {:?}", e);
-        }
+        CapState::emit(
+            pst,
+            CapEvent::OnAvailable,
+            FireboltCap::Full(capability),
+            None,
+        )
+        .await
     }
 
     #[instrument]
@@ -318,7 +315,7 @@ impl ProviderBroker {
         ProviderResult::new(result)
     }
 
-    pub async fn invoke_method(pst: &PlatformState, request: Request) {
+    pub async fn invoke_method(pst: &PlatformState, request: ProviderBrokerRequest) {
         let cap_method = format!("{}:{}", request.capability, request.method);
         debug!("invoking provider for {}", cap_method);
 
@@ -369,7 +366,7 @@ impl ProviderBroker {
 
     fn start_provider_session(
         pst: &PlatformState,
-        request: Request,
+        request: ProviderBrokerRequest,
         provider: ProviderMethod,
     ) -> String {
         let c_id = Uuid::new_v4().to_string();
@@ -389,7 +386,7 @@ impl ProviderBroker {
         c_id
     }
 
-    fn queue_provider_request(pst: &PlatformState, request: Request) {
+    fn queue_provider_request(pst: &PlatformState, request: ProviderBrokerRequest) {
         // Remove any duplicate requests.
         ProviderBroker::remove_request(pst, &request.caller.app_id, &request.capability);
 
@@ -468,26 +465,12 @@ impl ProviderBroker {
     #[instrument]
     pub async fn unregister_session(pst: &PlatformState, session_id: String) {
         let cleaned_caps = Self::cleanup_caps_for_unregister(&pst.clone(), session_id);
-        let mut caps = HashSet::<FireboltCap>::new();
-        for cap in cleaned_caps {
-            if let Some(f) = FireboltCap::parse(cap.clone()) {
-                caps.insert(f);
-            }
-        }
-
-        for f in caps {
-            let cap_str = f.as_str();
-            if let Err(e) = pst
-                .clone()
-                .services
-                .update_cam(
-                    f,
-                    crate::managers::capability_manager::Availability::NotReady,
-                )
-                .await
-            {
-                error!("{} provider not unregistered {:?}", cap_str, e);
-            }
+        let caps: Vec<FireboltCap> = cleaned_caps
+            .iter()
+            .map(|x| FireboltCap::Full(x.clone()))
+            .collect();
+        for cap in caps {
+            CapState::emit(pst, CapEvent::OnUnavailable, cap, None).await
         }
     }
 
@@ -615,7 +598,7 @@ impl ProviderBroker {
         pst: &PlatformState,
         provider_id: &String,
         capability: &String,
-    ) -> Option<Request> {
+    ) -> Option<ProviderBrokerRequest> {
         let mut request_queue = pst.provider_broker_state.request_queue.write().unwrap();
         let mut iter = request_queue.iter();
         let cap = iter.position(|request| request.capability.eq(capability));

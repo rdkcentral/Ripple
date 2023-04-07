@@ -29,39 +29,41 @@ impl GrantCapManager {
     }
 
     pub async fn check_with_roles(
-        &self,
+        state: &PlatformState,
         call_ctx: &CallContext,
-        r: Vec<FireboltPermission>,
+        r: CapabilitySet,
     ) -> Result<(), DenyReasonWithCap> {
         /*
-         * Instead of just checking for grants perviously, if the user grants are not present,
+         * Instead of just checking for grants previously, if the user grants are not present,
          * we are taking necessary steps to get the user grant and send back the result.
          */
-
-        for permission in r {
-            let result = UserGrants::get_stored_grants_for_permission(
-                &self.ps.clone(),
-                call_ctx,
-                &permission,
-            )
-            .await;
+        let grant_state = state.clone().cap_state.grant_state;
+        let app_id = call_ctx.app_id.clone();
+        let caps_needing_grants = grant_state.caps_needing_grants.clone();
+        let caps_needing_grant_in_request: Vec<FireboltPermission> = r
+            .into_firebolt_permissions_vec()
+            .clone()
+            .into_iter()
+            .filter(|x| caps_needing_grants.contains(&x.cap.as_str()))
+            .collect();
+        for permission in caps_needing_grant_in_request {
+            let result = grant_state.get_grant_state(&app_id, &permission);
             match result {
                 GrantActiveState::ActiveGrant(grant) => {
                     if grant.is_err() {
-                        return deny_perm(grant.err().unwrap(), permission);
+                        return Err(DenyReasonWithCap {
+                            reason: DenyReason::Ungranted,
+                            caps: vec![permission.cap.clone()],
+                        });
                     }
                 }
                 GrantActiveState::PendingGrant => {
-                    let result = UserGrants::determine_grant_policies_for_permission(
-                        &self.ps.clone(),
-                        call_ctx,
+                    let _result = GrantPolicyEnforcer::determine_grant_policies_for_permission(
+                        &state,
+                        &call_ctx,
                         &permission,
                     )
-                    .await;
-
-                    if result.is_err() {
-                        return deny_perm(result.err().unwrap(), permission);
-                    }
+                    .await?;
                 }
             }
         }
@@ -71,38 +73,44 @@ impl GrantCapManager {
         // UserGrants::determine_grant_policies(&self.ps.clone(), call_ctx, &r).await
     }
 
-    pub fn check(self, app_id: String, capability: FireboltCap) -> (Result<(), DenyReason>, Self) {
-        if !self
-            .caps_needing_grants
-            .contains(&capability.clone().as_str())
-        {
-            return (Ok(()), self);
-        }
-        (
-            UserGrants::check(&self.ps.clone(), app_id, capability),
-            self,
-        )
-    }
-
-    pub fn check_all(
-        self,
-        app_id: String,
-        caps: Vec<String>,
-    ) -> (HashMap<String, Result<(), DenyReason>>, Self) {
-        let caps_hash: HashSet<String> = caps.into_iter().collect();
-        let filtered_caps: HashSet<String> = caps_hash
+    pub fn get_info(
+        state: &PlatformState,
+        call_ctx: &CallContext,
+        r: CapabilitySet,
+    ) -> Result<(), GrantErrors> {
+        /*
+         * Instead of just checking for grants previously, if the user grants are not present,
+         * we are taking necessary steps to get the user grant and send back the result.
+         */
+        let grant_state = state.clone().cap_state.grant_state;
+        let app_id = call_ctx.app_id.clone();
+        let caps_needing_grants = grant_state.caps_needing_grants.clone();
+        let caps_needing_grant_in_request: Vec<FireboltPermission> = r
+            .into_firebolt_permissions_vec()
             .clone()
             .into_iter()
-            .filter(|x| !self.caps_needing_grants.contains(&x))
+            .filter(|x| caps_needing_grants.contains(&x.cap.as_str()))
             .collect();
-        let delta_caps = &caps_hash - &filtered_caps;
-        let mut map = HashMap::new();
-        filtered_caps.into_iter().for_each(|x| {
-            map.insert(x.clone(), Ok(()));
-        });
-        let delta_list: Vec<String> = delta_caps.into_iter().collect();
-        map.extend(UserGrants::check_all(&self.ps.clone(), app_id, delta_list));
-        (map, self)
+        let mut grant_errors = GrantErrors::default();
+        for permission in caps_needing_grant_in_request {
+            let result = grant_state.get_grant_state(&app_id, &permission);
+            match result {
+                GrantActiveState::ActiveGrant(grant) => {
+                    if grant.is_err() {
+                        grant_errors.add_denied(permission.cap.clone())
+                    }
+                }
+                GrantActiveState::PendingGrant => {
+                    grant_errors.add_ungranted(permission.cap.clone())
+                }
+            }
+        }
+        if grant_errors.has_errors() {
+            Err(grant_errors)
+        } else {
+            Ok(())
+        }
+        // UserGrants::determine_grant_policies(&self.ps.clone(), call_ctx, &r).await
     }
 }
 #[cfg(test)]
