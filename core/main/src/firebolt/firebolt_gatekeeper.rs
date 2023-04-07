@@ -43,8 +43,7 @@ impl FireboltGatekeeper {
             }
             // permission checks
             if let Err(e) =
-                PermissionHandler::check_permitted(&state, request.clone().ctx.app_id, caps.clone())
-                    .await
+                PermissionHandler::check_permitted(&state, &request.ctx.app_id, caps.clone()).await
             {
                 return Err(e);
             }

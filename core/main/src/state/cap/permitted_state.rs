@@ -128,9 +128,25 @@ impl PermissionHandler {
         Err(ripple_sdk::utils::error::RippleError::InvalidOutput)
     }
 
+    pub fn get_permitted_info(
+        state: &PlatformState,
+        app_id: &str,
+        request: CapabilitySet,
+    ) -> Result<(), DenyReasonWithCap> {
+        if let Some(permitted) = state.cap_state.permitted_state.get_app_permissions(&app_id) {
+            let permission_set: CapabilitySet = permitted.clone().into();
+            return permission_set.check(request);
+        } else {
+            Err(DenyReasonWithCap {
+                reason: ripple_sdk::api::firebolt::fb_capabilities::DenyReason::Unpermitted,
+                caps: request.get_caps(),
+            })
+        }
+    }
+
     pub async fn check_permitted(
         state: &PlatformState,
-        app_id: String,
+        app_id: &str,
         request: CapabilitySet,
     ) -> Result<(), DenyReasonWithCap> {
         if let Some(permitted) = state.cap_state.permitted_state.get_app_permissions(&app_id) {
@@ -138,7 +154,7 @@ impl PermissionHandler {
             return permission_set.check(request);
         } else {
             // check to retrieve it one more time
-            if let Ok(_) = Self::fetch_and_store(state.clone(), app_id.clone()).await {
+            if let Ok(_) = Self::fetch_and_store(state.clone(), app_id.into()).await {
                 // cache primed try again
                 if let Some(permitted) =
                     state.cap_state.permitted_state.get_app_permissions(&app_id)

@@ -42,7 +42,7 @@ use ripple_sdk::{
 
 use super::{
     generic_cap_state::GenericCapState,
-    grant_state::GrantState,
+    grant_state::{GrantErrors, GrantState},
     permitted_state::{PermissionHandler, PermittedState},
 };
 
@@ -215,9 +215,14 @@ impl CapState {
         let mut unpermitted_caps = Vec::new();
         let cap_set = CapabilitySet::get_from_role(generic_caps.clone(), role);
         if let Err(e) =
-            PermissionHandler::check_permitted(state, call_context.app_id, cap_set).await
+            PermissionHandler::get_permitted_info(state, &call_context.app_id, cap_set.clone())
         {
             unpermitted_caps.extend(e.caps);
+        }
+
+        let mut grant_errors: Option<GrantErrors> = None;
+        if let Err(e) = GrantState::get_info(state, &call_context, cap_set) {
+            let _ = grant_errors.insert(e);
         }
 
         let cap_infos: Vec<CapabilityInfo> = generic_caps
@@ -232,6 +237,8 @@ impl CapState {
                 } else if unpermitted_caps.contains(&x) {
                     // Un Permitted
                     Some(DenyReason::Unpermitted)
+                } else if let Some(grant_error) = &grant_errors {
+                    grant_error.get_reason(&x)
                 } else {
                     None
                 };

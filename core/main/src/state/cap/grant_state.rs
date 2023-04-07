@@ -55,6 +55,36 @@ pub enum GrantActiveState {
     PendingGrant,
 }
 
+#[derive(Debug, Default)]
+pub struct GrantErrors {
+    pub ungranted: HashSet<FireboltCap>,
+    pub denied: HashSet<FireboltCap>,
+}
+
+impl GrantErrors {
+    fn add_ungranted(&mut self, cap: FireboltCap) {
+        self.ungranted.insert(cap);
+    }
+
+    fn add_denied(&mut self, cap: FireboltCap) {
+        self.denied.insert(cap);
+    }
+
+    fn has_errors(&self) -> bool {
+        self.ungranted.len() > 0 || self.denied.len() > 0
+    }
+
+    pub fn get_reason(&self, cap: &FireboltCap) -> Option<DenyReason> {
+        if self.ungranted.contains(cap) {
+            Some(DenyReason::Ungranted)
+        } else if self.denied.contains(cap) {
+            Some(DenyReason::GrantDenied)
+        } else {
+            None
+        }
+    }
+}
+
 impl GrantState {
     pub fn new(manifest: DeviceManifest) -> GrantState {
         let saved_dir = manifest.clone().configuration.saved_dir;
@@ -231,6 +261,46 @@ impl GrantState {
         }
     }
 
+    pub fn get_info(
+        state: &PlatformState,
+        call_ctx: &CallContext,
+        r: CapabilitySet,
+    ) -> Result<(), GrantErrors> {
+        /*
+         * Instead of just checking for grants previously, if the user grants are not present,
+         * we are taking necessary steps to get the user grant and send back the result.
+         */
+        let grant_state = state.clone().cap_state.grant_state;
+        let app_id = call_ctx.app_id.clone();
+        let caps_needing_grants = grant_state.caps_needing_grants.clone();
+        let caps_needing_grant_in_request: Vec<FireboltPermission> = r
+            .into_firebolt_permissions_vec()
+            .clone()
+            .into_iter()
+            .filter(|x| caps_needing_grants.contains(&x.cap.as_str()))
+            .collect();
+        let mut grant_errors = GrantErrors::default();
+        for permission in caps_needing_grant_in_request {
+            let result = grant_state.get_grant_state(&app_id, &permission);
+            match result {
+                GrantActiveState::ActiveGrant(grant) => {
+                    if grant.is_err() {
+                        grant_errors.add_denied(permission.cap.clone())
+                    }
+                }
+                GrantActiveState::PendingGrant => {
+                    grant_errors.add_ungranted(permission.cap.clone())
+                }
+            }
+        }
+        if grant_errors.has_errors() {
+            Err(grant_errors)
+        } else {
+            Ok(())
+        }
+        // UserGrants::determine_grant_policies(&self.ps.clone(), call_ctx, &r).await
+    }
+
     pub async fn check_with_roles(
         state: &PlatformState,
         call_ctx: &CallContext,
@@ -254,7 +324,10 @@ impl GrantState {
             match result {
                 GrantActiveState::ActiveGrant(grant) => {
                     if grant.is_err() {
-                        return Ok(());
+                        return Err(DenyReasonWithCap {
+                            reason: DenyReason::Ungranted,
+                            caps: vec![permission.cap.clone()],
+                        });
                     }
                 }
                 GrantActiveState::PendingGrant => {
