@@ -50,14 +50,12 @@ pub trait AcknowledgeChallenge {
     ) -> RpcResult<Option<()>>;
 }
 
-pub struct AcknowledgeChallengeImpl<IRippleHelper> {
-    pub helper: Box<IRippleHelper>,
+pub struct AcknowledgeChallengeImpl {
     pub platform_state: PlatformState,
 }
 
 #[async_trait]
-impl AcknowledgeChallengeServer for AcknowledgeChallengeImpl<RippleHelper> {
-    #[instrument(skip(self))]
+impl AcknowledgeChallengeServer for AcknowledgeChallengeImpl {
     async fn on_request_challenge(
         &self,
         ctx: CallContext,
@@ -69,7 +67,7 @@ impl AcknowledgeChallengeServer for AcknowledgeChallengeImpl<RippleHelper> {
             &self.platform_state,
             String::from(ACK_CHALLENGE_CAPABILITY),
             String::from("challenge"),
-            CHALLENGE_EVENT,
+            ACK_CHALLENGE_EVENT,
             ctx,
             request,
         )
@@ -77,11 +75,10 @@ impl AcknowledgeChallengeServer for AcknowledgeChallengeImpl<RippleHelper> {
 
         Ok(ListenerResponse {
             listening: listen,
-            event: CHALLENGE_EVENT,
+            event: ACK_CHALLENGE_EVENT.into(),
         })
     }
 
-    #[instrument(skip(self))]
     async fn challenge_response(
         &self,
         _ctx: CallContext,
@@ -98,7 +95,6 @@ impl AcknowledgeChallengeServer for AcknowledgeChallengeImpl<RippleHelper> {
         Ok(None)
     }
 
-    #[instrument(skip(self))]
     async fn challenge_focus(
         &self,
         ctx: CallContext,
@@ -115,45 +111,17 @@ impl AcknowledgeChallengeServer for AcknowledgeChallengeImpl<RippleHelper> {
     }
 }
 
-pub struct AckProvider;
+pub struct AckRPCProvider;
 
-pub struct AckCapHandler;
-
-impl IGetLoadedCaps for AckCapHandler {
-    fn get_loaded_caps(&self) -> RippleHandlerCaps {
-        RippleHandlerCaps {
-            caps: Some(vec![
-                CapClassifiedRequest::Supported(vec![FireboltCap::Short(
-                    "usergrant:acknowledgechallenge".into(),
-                )]),
-                CapClassifiedRequest::NotAvailable(vec![FireboltCap::Short(
-                    "usergrant:acknowledgechallenge".into(),
-                )]),
-            ]),
-        }
+impl RippleRPCProvider<AcknowledgeChallengeImpl> for AckRPCProvider {
+    fn provide(state: PlatformState) -> RpcModule<AcknowledgeChallengeImpl> {
+        (AcknowledgeChallengeImpl {
+            platform_state: state,
+        })
+        .into_rpc()
     }
 }
 
-impl RPCProvider<AcknowledgeChallengeImpl<RippleHelper>, AckCapHandler> for AckProvider {
-    fn provide(
-        self,
-        rhf: Box<RippleHelperFactory>,
-        platform_state: PlatformState,
-    ) -> (
-        RpcModule<AcknowledgeChallengeImpl<RippleHelper>>,
-        AckCapHandler,
-    ) {
-        let a = AcknowledgeChallengeImpl {
-            helper: rhf.get(self.get_helper_variant()),
-            platform_state,
-        };
-        (a.into_rpc(), AckCapHandler)
-    }
-
-    fn get_helper_variant(self) -> Vec<RippleHelperType> {
-        vec![]
-    }
-}
 
 #[cfg(test)]
 mod tests {

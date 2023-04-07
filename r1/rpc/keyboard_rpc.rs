@@ -211,13 +211,12 @@ pub trait Keyboard {
     ) -> RpcResult<String>;
 }
 
-pub struct KeyboardImpl<IRippleHelper> {
-    pub helper: Box<IRippleHelper>,
+pub struct KeyboardImpl {
     pub platform_state: PlatformState,
 }
 
 #[async_trait]
-impl KeyboardServer for KeyboardImpl<RippleHelper> {
+impl KeyboardServer for KeyboardImpl {
     async fn on_request_standard(
         &self,
         ctx: CallContext,
@@ -258,7 +257,13 @@ impl KeyboardServer for KeyboardImpl<RippleHelper> {
         ctx: CallContext,
         request: FocusRequest,
     ) -> RpcResult<Option<()>> {
-        ProviderBroker::focus(&self.platform_state, ctx, CAPABILITY.to_string(), request).await;
+        ProviderBroker::focus(
+            &self.platform_state,
+            ctx,
+            KEYBOARD_PROVIDER_CAPABILITY.to_string(),
+            request,
+        )
+        .await;
         Ok(None)
     }
 
@@ -273,7 +278,13 @@ impl KeyboardServer for KeyboardImpl<RippleHelper> {
     }
 
     async fn email_focus(&self, ctx: CallContext, request: FocusRequest) -> RpcResult<Option<()>> {
-        ProviderBroker::focus(&self.platform_state, ctx, CAPABILITY.to_string(), request).await;
+        ProviderBroker::focus(
+            &self.platform_state,
+            ctx,
+            KEYBOARD_PROVIDER_CAPABILITY.to_string(),
+            request,
+        )
+        .await;
         Ok(None)
     }
 
@@ -292,7 +303,13 @@ impl KeyboardServer for KeyboardImpl<RippleHelper> {
         ctx: CallContext,
         request: FocusRequest,
     ) -> RpcResult<Option<()>> {
-        ProviderBroker::focus(&self.platform_state, ctx, CAPABILITY.to_string(), request).await;
+        ProviderBroker::focus(
+            &self.platform_state,
+            ctx,
+            KEYBOARD_PROVIDER_CAPABILITY.to_string(),
+            request,
+        )
+        .await;
         Ok(None)
     }
 
@@ -303,7 +320,7 @@ impl KeyboardServer for KeyboardImpl<RippleHelper> {
             .text)
     }
 
-    async fn email(&self, ctx: CallContext, request: KeyboardRequestEmail) -> RpcResult<String> {
+    async fn email(&self, ctx: CallContext, request: KeyboardRequestOption) -> RpcResult<String> {
         let req = KeyboardRequest {
             message: request.message.unwrap_or_default(),
         };
@@ -316,7 +333,7 @@ impl KeyboardServer for KeyboardImpl<RippleHelper> {
     async fn password(
         &self,
         ctx: CallContext,
-        request: KeyboardRequestPassword,
+        request: KeyboardRequestOption,
     ) -> RpcResult<String> {
         let req = KeyboardRequest {
             message: request.message.unwrap_or_default(),
@@ -325,30 +342,6 @@ impl KeyboardServer for KeyboardImpl<RippleHelper> {
             .call_keyboard_provider(ctx, req, KeyboardType::Password)
             .await?
             .text)
-    }
-
-    async fn prompt_email(
-        &self,
-        ctx: CallContext,
-        request: PromptEmailRequest,
-    ) -> RpcResult<PromptEmailResult> {
-        let keyboard_req = KeyboardRequest {
-            message: match request.prefill_type {
-                PrefillType::SignIn => "Sign in".to_string(),
-                PrefillType::SignUp => "Sign up".to_string(),
-            },
-        };
-        let result = self
-            .call_keyboard_provider(ctx, keyboard_req, KeyboardType::Email)
-            .await?;
-        let status = match result.canceled {
-            true => PromptEmailStatus::Dismiss,
-            false => PromptEmailStatus::Success,
-        };
-        Ok(PromptEmailResult {
-            status,
-            data: PromptEmailData { email: result.text },
-        })
     }
 }
 

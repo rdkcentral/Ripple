@@ -88,28 +88,29 @@ pub trait UserGrants {
         request: GetUserGrantsByCapabilityRequest,
     ) -> RpcResult<Vec<GrantInfo>>;
     #[method(name = "usergrants.grant")]
-    async fn usergrants_grant(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()>;
+    fn usergrants_grant(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()>;
     #[method(name = "usergrants.deny")]
-    async fn usergrants_deny(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()>;
+    fn usergrants_deny(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()>;
     #[method(name = "usergrants.clear")]
-    async fn usergrants_clear(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()>;
+    fn usergrants_clear(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()>;
 }
 
-#[derive(Debug)]
-pub struct UserGrantsImpl<IRippleHelper> {
-    pub helper: Box<IRippleHelper>,
-    pub platform_state: PlatformState,
-}
-impl UserGrantsImpl<RippleHelper> {
+impl UserGrantsImpl {
     async fn get_app_title(&self, app_id: &str) -> RpcResult<Option<String>> {
-        let (app_resp_tx, app_resp_rx) = oneshot::channel::<Result<AppManagerResponse, AppError>>();
+        let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
 
-        let app_request = AppRequest {
-            method: AppMethod::GetAppName(app_id.into()),
-            resp_tx: Some(app_resp_tx),
-        };
+        let app_request = AppRequest::new(AppMethod::GetAppName(app_id.into()), app_resp_tx);
 
-        self.helper.send_app_request(app_request).await?;
+        if let Err(_) = self
+            .platform_state
+            .get_client()
+            .send_app_request(app_request)
+        {
+            return Err(rpc_err(format!(
+                "Failed to get App Name for {}",
+                app_id.to_owned()
+            )));
+        }
         let resp = rpc_await_oneshot(app_resp_rx).await?;
 
         if let AppManagerResponse::AppName(app_title) = resp? {
@@ -125,7 +126,7 @@ impl UserGrantsImpl<RippleHelper> {
     async fn create_grantinfo_from_grant_entry_list(
         &self,
         app_id: Option<String>,
-        grant_entries: &Vec<GrantEntry>,
+        grant_entries: &HashSet<GrantEntry>,
     ) -> Vec<GrantInfo> {
         let app_name = match app_id.clone() {
             Some(id) => self.get_app_title(&id).await.ok().flatten(),
@@ -166,62 +167,62 @@ impl UserGrantsImpl<RippleHelper> {
 }
 
 #[async_trait]
-impl UserGrantsServer for UserGrantsImpl<RippleHelper> {
-    #[instrument(skip(self))]
+impl UserGrantsServer for UserGrantsImpl {
     async fn usergrants_app(
         &self,
         _ctx: CallContext,
         request: GetUserGrantsByAppRequest,
     ) -> RpcResult<Vec<GrantInfo>> {
-        let grant_enrties = UserGrantStateUtils::get_grant_entries_for_app_id(
-            &self.platform_state.grant_state,
-            Some(request.app_id.clone()),
-        );
-
+        let grant_entries = self
+            .platform_state
+            .cap_state
+            .grant_state
+            .get_grant_entries_for_app_id(request.app_id.clone());
         Ok(self
-            .create_grantinfo_from_grant_entry_list(Some(request.app_id), &grant_enrties)
+            .create_grantinfo_from_grant_entry_list(Some(request.app_id), &grant_entries)
             .await)
     }
-    #[instrument(skip(self))]
-    async fn usergrants_device(&self, _ctx: CallContext) -> RpcResult<Vec<GrantInfo>> {
-        let grant_enrties = UserGrantStateUtils::get_grant_entries_for_app_id(
-            &self.platform_state.grant_state,
-            None,
-        );
 
+    async fn usergrants_device(&self, _ctx: CallContext) -> RpcResult<Vec<GrantInfo>> {
+        let grant_enrties = self
+            .platform_state
+            .cap_state
+            .grant_state
+            .get_device_entries();
         Ok(self
             .create_grantinfo_from_grant_entry_list(None, &grant_enrties)
             .await)
     }
-    #[instrument(skip(self))]
+
     async fn usergrants_capability(
         &self,
         _ctx: CallContext,
         request: GetUserGrantsByCapabilityRequest,
     ) -> RpcResult<Vec<GrantInfo>> {
-        let grant_enrtry_map = UserGrantStateUtils::get_grant_entries_for_capability(
-            &self.platform_state.grant_state,
-            &request.capability,
-        );
+        let grant_enrtry_map = self
+            .platform_state
+            .cap_state
+            .grant_state
+            .get_grant_entries_for_capability(&request.capability);
+
         let mut combined_grant_entries: Vec<GrantInfo> = Vec::new();
         for (app_id, app_entries) in grant_enrtry_map.iter() {
             combined_grant_entries.extend(
-                self.create_grantinfo_from_grant_entry_list(app_id.clone(), app_entries)
+                self.create_grantinfo_from_grant_entry_list(Some(app_id.clone()), app_entries)
                     .await,
             );
         }
         Ok(combined_grant_entries)
     }
-    #[instrument(skip(self))]
-    async fn usergrants_grant(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
-        let result = UserGrantStateUtils::grant_modify(
+
+    fn usergrants_grant(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
+        let result = GrantState::grant_modify(
             &self.platform_state,
             GrantStateModify::Grant,
             request.options.and_then(|x| x.app_id),
             request.role,
             request.capability,
-        )
-        .await;
+        );
 
         if result {
             Ok(())
@@ -229,16 +230,15 @@ impl UserGrantsServer for UserGrantsImpl<RippleHelper> {
             Err(rpc_err("Unable to grant the capability"))
         }
     }
-    #[instrument(skip(self))]
-    async fn usergrants_deny(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
-        let result = UserGrantStateUtils::grant_modify(
+
+    fn usergrants_deny(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
+        let result = GrantState::grant_modify(
             &self.platform_state,
             GrantStateModify::Deny,
             request.options.and_then(|x| x.app_id),
             request.role,
             request.capability,
-        )
-        .await;
+        );
 
         if result {
             Ok(())
@@ -246,16 +246,15 @@ impl UserGrantsServer for UserGrantsImpl<RippleHelper> {
             Err(rpc_err("Unable to deny the capability"))
         }
     }
-    #[instrument(skip(self))]
-    async fn usergrants_clear(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
-        let result = UserGrantStateUtils::grant_modify(
+
+    fn usergrants_clear(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
+        let result = GrantState::grant_modify(
             &self.platform_state,
             GrantStateModify::Clear,
             request.options.and_then(|x| x.app_id),
             request.role,
             request.capability,
-        )
-        .await;
+        );
 
         if result {
             Ok(())
@@ -265,35 +264,14 @@ impl UserGrantsServer for UserGrantsImpl<RippleHelper> {
     }
 }
 
-pub struct UserGrantsRippleProvider;
-pub struct UserGrantsCapHandler;
+pub struct UserGrantsRPCProvider;
 
-impl IGetLoadedCaps for UserGrantsCapHandler {
-    fn get_loaded_caps(&self) -> RippleHandlerCaps {
-        RippleHandlerCaps {
-            caps: Some(vec![CapClassifiedRequest::Supported(vec![])]),
-        }
-    }
-}
-
-impl RPCProvider<UserGrantsImpl<RippleHelper>, UserGrantsCapHandler> for UserGrantsRippleProvider {
-    fn provide(
-        self,
-        rhf: Box<RippleHelperFactory>,
-        platform_state: PlatformState,
-    ) -> (
-        RpcModule<UserGrantsImpl<RippleHelper>>,
-        UserGrantsCapHandler,
-    ) {
-        let a = UserGrantsImpl {
-            helper: rhf.clone().get(self.get_helper_variant()),
-            platform_state,
-        };
-        (a.into_rpc(), UserGrantsCapHandler)
-    }
-
-    fn get_helper_variant(self) -> Vec<RippleHelperType> {
-        vec![RippleHelperType::Dab, RippleHelperType::AppManager]
+impl RippleRPCProvider<UserGrantsImpl> for UserGrantsRPCProvider {
+    fn provide(state: PlatformState) -> RpcModule<UserGrantsImpl> {
+        (UserGrantsImpl {
+            platform_state: state,
+        })
+        .into_rpc()
     }
 }
 

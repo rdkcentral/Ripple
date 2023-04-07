@@ -118,28 +118,14 @@ pub trait PinChallenge {
         ctx: CallContext,
         resp: ExternalProviderResponse<PinChallengeResponse>,
     ) -> RpcResult<Option<()>>;
-
-    #[method(name = "profile.approvePurchase")]
-    async fn approve_purchase(&self, ctx: CallContext) -> RpcResult<bool>;
-
-    #[method(name = "profile.approveContentRating")]
-    async fn approve_content_rating(&self, ctx: CallContext) -> RpcResult<bool>;
-    /*
-    https://ccp.sys.comcast.net/browse/RPPL-161
-    this is a little awkward here , but least bad home for it:
-    */
-    #[method(name = "profile.flags")]
-    async fn profile_flags(&self, ctx: CallContext) -> RpcResult<HashMap<String, String>>;
 }
 
-pub struct PinChallengeImpl<IRippleHelper> {
-    pub helper: Box<IRippleHelper>,
+pub struct PinChallengeImpl {
     pub platform_state: PlatformState,
 }
 
 #[async_trait]
-impl PinChallengeServer for PinChallengeImpl<RippleHelper> {
-    #[instrument(skip(self))]
+impl PinChallengeServer for PinChallengeImpl {
     async fn on_request_challenge(
         &self,
         ctx: CallContext,
@@ -150,17 +136,17 @@ impl PinChallengeServer for PinChallengeImpl<RippleHelper> {
             &self.platform_state,
             String::from(PIN_CHALLENGE_CAPABILITY),
             String::from("challenge"),
-            CHALLENGE_EVENT,
+            PIN_CHALLENGE_EVENT,
             ctx,
             request,
         )
         .await;
         Ok(ListenerResponse {
             listening: listen,
-            event: CHALLENGE_EVENT,
+            event: PIN_CHALLENGE_EVENT.into(),
         })
     }
-    #[instrument(skip(self))]
+
     async fn challenge_response(
         &self,
         _ctx: CallContext,
@@ -174,7 +160,6 @@ impl PinChallengeServer for PinChallengeImpl<RippleHelper> {
         Ok(None)
     }
 
-    #[instrument(skip(self))]
     async fn challenge_focus(
         &self,
         ctx: CallContext,
@@ -189,105 +174,16 @@ impl PinChallengeServer for PinChallengeImpl<RippleHelper> {
         .await;
         Ok(None)
     }
-
-    async fn approve_content_rating(&self, ctx: CallContext) -> RpcResult<bool> {
-        let resp = self.approve_by_pin(ctx, PinSpace::Content).await;
-        match resp {
-            Ok(r) => Ok(r.granted),
-            Err(e) => Err(e),
-        }
-    }
-
-    async fn approve_purchase(&self, ctx: CallContext) -> RpcResult<bool> {
-        let resp = self.approve_by_pin(ctx, PinSpace::Purchase).await;
-        match resp {
-            Ok(r) => Ok(r.granted),
-            Err(e) => Err(e),
-        }
-    }
-    async fn profile_flags(&self, _ctx: CallContext) -> RpcResult<HashMap<String, String>> {
-        let config_manager = ConfigManager::get();
-        let distributor_experience_id = ConfigManager::get().distributor_experience_id();
-        let mut result = HashMap::new();
-        result.insert("userExperience".to_string(), distributor_experience_id);
-        Ok(result)
-    }
 }
 
-impl PinChallengeImpl<RippleHelper> {
-    async fn approve_by_pin(
-        &self,
-        ctx: CallContext,
-        pin_space: PinSpace,
-    ) -> RpcResult<PinChallengeResponse> {
-        let req = PinChallengeRequest {
-            pin_space,
-            requestor: ChallengeRequestor {
-                id: ctx.app_id.clone(),
-                name: ctx.app_id.clone(),
-            },
-            capability: None,
-        };
-        let (session_tx, session_rx) = oneshot::channel::<ProviderResponsePayload>();
-        let pr_msg = provider_broker::Request {
-            capability: String::from(PIN_CHALLENGE_CAPABILITY),
-            method: String::from("challenge"),
-            caller: ctx,
-            request: ProviderRequestPayload::PinChallenge(req),
-            tx: session_tx,
-            app_id: None,
-        };
-        ProviderBroker::invoke_method(&self.platform_state, pr_msg).await;
-        match session_rx.await {
-            Ok(result) => match result.as_pin_challenge_response() {
-                Some(res) => Ok(res),
-                None => Err(Error::Custom(String::from(
-                    "Invalid response back from provider",
-                ))),
-            },
-            Err(_) => Err(Error::Custom(String::from(
-                "Error returning back from pin challenge provider",
-            ))),
-        }
-    }
-}
+pub struct PinRPCProvider;
 
-pub struct PinProvider;
-
-pub struct PinCapHandler;
-
-impl IGetLoadedCaps for PinCapHandler {
-    fn get_loaded_caps(&self) -> RippleHandlerCaps {
-        RippleHandlerCaps {
-            caps: Some(vec![
-                CapClassifiedRequest::Supported(vec![
-                    FireboltCap::Short("approve:purchase".into()),
-                    FireboltCap::Short("approve:content".into()),
-                    FireboltCap::Short("usergrant:pinchallenge".into()),
-                ]),
-                CapClassifiedRequest::NotAvailable(vec![FireboltCap::Short(
-                    "usergrant:pinchallenge".into(),
-                )]),
-            ]),
-        }
-    }
-}
-
-impl RPCProvider<PinChallengeImpl<RippleHelper>, PinCapHandler> for PinProvider {
-    fn provide(
-        self,
-        rhf: Box<RippleHelperFactory>,
-        platform_state: PlatformState,
-    ) -> (RpcModule<PinChallengeImpl<RippleHelper>>, PinCapHandler) {
-        let a = PinChallengeImpl {
-            helper: rhf.get(self.get_helper_variant()),
-            platform_state,
-        };
-        (a.into_rpc(), PinCapHandler)
-    }
-
-    fn get_helper_variant(self) -> Vec<RippleHelperType> {
-        vec![]
+impl RippleRPCProvider<PinChallengeImpl> for PinRPCProvider {
+    fn provide(state: PlatformState) -> RpcModule<PinChallengeImpl> {
+        (PinChallengeImpl {
+            platform_state: state,
+        })
+        .into_rpc()
     }
 }
 

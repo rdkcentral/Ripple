@@ -214,41 +214,51 @@ impl PinChallengeServer for PinChallengeImpl<RippleHelper> {
     }
 }
 
-impl PinChallengeImpl<RippleHelper> {
-    async fn approve_by_pin(
-        &self,
-        ctx: CallContext,
-        pin_space: PinSpace,
-    ) -> RpcResult<PinChallengeResponse> {
-        let req = PinChallengeRequest {
-            pin_space,
-            requestor: ChallengeRequestor {
-                id: ctx.app_id.clone(),
-                name: ctx.app_id.clone(),
-            },
-            capability: None,
-        };
+#[async_trait]
+impl ExtnRequestProcessor for PinProcessor {
+    fn get_client(&self) -> ripple_sdk::extn::client::extn_client::ExtnClient {
+        self.state.get_client().get_extn_client()
+    }
+
+    async fn process_request(
+        state: Self::STATE,
+        msg: ExtnMessage,
+        extracted_message: Self::VALUE,
+    ) -> bool {
+        let pin_request = extracted_message;
         let (session_tx, session_rx) = oneshot::channel::<ProviderResponsePayload>();
-        let pr_msg = provider_broker::Request {
+        let pr_msg = ProviderBrokerRequest {
             capability: String::from(PIN_CHALLENGE_CAPABILITY),
             method: String::from("challenge"),
-            caller: ctx,
-            request: ProviderRequestPayload::PinChallenge(req),
+            caller: pin_request.clone().requestor,
+            request: ProviderRequestPayload::PinChallenge(pin_request),
             tx: session_tx,
             app_id: None,
         };
-        ProviderBroker::invoke_method(&self.platform_state, pr_msg).await;
+        ProviderBroker::invoke_method(&state, pr_msg).await;
         match session_rx.await {
             Ok(result) => match result.as_pin_challenge_response() {
-                Some(res) => Ok(res),
-                None => Err(Error::Custom(String::from(
-                    "Invalid response back from provider",
-                ))),
+                Some(res) => {
+                    if let Ok(_) = Self::respond(
+                        state.get_client().get_extn_client(),
+                        msg.clone(),
+                        ExtnResponse::PinChallenge(res),
+                    )
+                    .await
+                    {
+                        return true;
+                    }
+                }
+                None => {}
             },
-            Err(_) => Err(Error::Custom(String::from(
-                "Error returning back from pin challenge provider",
-            ))),
+            Err(_) => {}
         }
+        Self::handle_error(
+            state.get_client().get_extn_client(),
+            msg,
+            ripple_sdk::utils::error::RippleError::Permission(DenyReason::Unpermitted),
+        )
+        .await
     }
 }
 
