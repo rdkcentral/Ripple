@@ -14,7 +14,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
 use ripple_sdk::{
     api::{
         apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
@@ -33,7 +33,7 @@ use crate::{
         cap::grant_state::{GrantEntry, GrantState, GrantStateModify},
         platform_state::PlatformState,
     },
-    utils::rpc_utils::{rpc_await_oneshot, rpc_err},
+    utils::rpc_utils::{rpc_await_oneshot, rpc_err}, firebolt::rpc::RippleRPCProvider,
 };
 use ripple_sdk::async_trait::async_trait;
 use std::{
@@ -235,5 +235,16 @@ impl UserGrantsServer for UserGrantsImpl {
         } else {
             Err(rpc_err("Unable to clear the capability"))
         }
+    }
+}
+
+pub struct UserGrantsRPCProvider;
+
+impl RippleRPCProvider<UserGrantsImpl> for UserGrantsRPCProvider {
+    fn provide(state: PlatformState) -> RpcModule<UserGrantsImpl> {
+        (UserGrantsImpl {
+            platform_state: state,
+        })
+        .into_rpc()
     }
 }
