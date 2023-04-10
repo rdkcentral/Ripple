@@ -98,12 +98,6 @@ pub struct KeyboardResult {
     pub canceled: bool,
 }
 
-#[derive(Serialize, Clone, Debug)]
-pub struct PromptEmailResult {
-    status: PromptEmailStatus,
-    data: PromptEmailData,
-}
-
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct PromptEmailRequest {
@@ -115,16 +109,4 @@ pub struct PromptEmailRequest {
 pub enum PrefillType {
     SignIn,
     SignUp,
-}
-
-#[derive(Serialize, Debug, Clone)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum PromptEmailStatus {
-    Success,
-    Dismiss,
-}
-
-#[derive(Serialize, Debug, Clone)]
-pub struct PromptEmailData {
-    email: String,
 }
