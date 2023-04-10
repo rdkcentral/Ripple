@@ -16,6 +16,7 @@
 // limitations under the License.
 use serde::Deserialize;
 
+pub mod device_accessibility_data;
 pub mod device_browser;
 pub mod device_info_request;
 pub mod device_operator;
