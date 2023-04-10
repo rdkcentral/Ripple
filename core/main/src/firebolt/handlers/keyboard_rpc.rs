@@ -24,7 +24,7 @@ use jsonrpsee::{
     proc_macros::rpc,
     RpcModule,
 };
-use ripple_sdk::{async_trait::async_trait, api::firebolt::fb_keyboard::KeyboardRequestEmail};
+use ripple_sdk::{api::firebolt::fb_keyboard::KeyboardRequestEmail, async_trait::async_trait};
 use ripple_sdk::{
     api::{
         firebolt::{
@@ -109,8 +109,11 @@ pub trait Keyboard {
     async fn email(&self, ctx: CallContext, request: KeyboardRequestEmail) -> RpcResult<String>;
 
     #[method(name = "keyboard.password")]
-    async fn password(&self, ctx: CallContext, request: KeyboardRequestPassword)
-        -> RpcResult<String>;
+    async fn password(
+        &self,
+        ctx: CallContext,
+        request: KeyboardRequestPassword,
+    ) -> RpcResult<String>;
 }
 
 pub struct KeyboardImpl {
