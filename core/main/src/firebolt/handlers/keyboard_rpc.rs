@@ -24,13 +24,13 @@ use jsonrpsee::{
     proc_macros::rpc,
     RpcModule,
 };
-use ripple_sdk::async_trait::async_trait;
+use ripple_sdk::{async_trait::async_trait, api::firebolt::fb_keyboard::KeyboardRequestEmail};
 use ripple_sdk::{
     api::{
         firebolt::{
             fb_general::{ListenRequest, ListenerResponse},
             fb_keyboard::{
-                KeyboardProviderResponse, KeyboardRequest, KeyboardRequestOption, KeyboardResult,
+                KeyboardProviderResponse, KeyboardRequest, KeyboardRequestPassword, KeyboardResult,
                 KeyboardSession, KeyboardType, EMAIL_EVENT_PREFIX, KEYBOARD_PROVIDER_CAPABILITY,
                 PASSWORD_EVENT_PREFIX, STANDARD_EVENT_PREFIX,
             },
@@ -106,10 +106,10 @@ pub trait Keyboard {
     async fn standard(&self, ctx: CallContext, request: KeyboardRequest) -> RpcResult<String>;
 
     #[method(name = "keyboard.email")]
-    async fn email(&self, ctx: CallContext, request: KeyboardRequestOption) -> RpcResult<String>;
+    async fn email(&self, ctx: CallContext, request: KeyboardRequestEmail) -> RpcResult<String>;
 
     #[method(name = "keyboard.password")]
-    async fn password(&self, ctx: CallContext, request: KeyboardRequestOption)
+    async fn password(&self, ctx: CallContext, request: KeyboardRequestPassword)
         -> RpcResult<String>;
 }
 
@@ -222,7 +222,7 @@ impl KeyboardServer for KeyboardImpl {
             .text)
     }
 
-    async fn email(&self, ctx: CallContext, request: KeyboardRequestOption) -> RpcResult<String> {
+    async fn email(&self, ctx: CallContext, request: KeyboardRequestEmail) -> RpcResult<String> {
         let req = KeyboardRequest {
             message: request.message.unwrap_or_default(),
         };
@@ -235,7 +235,7 @@ impl KeyboardServer for KeyboardImpl {
     async fn password(
         &self,
         ctx: CallContext,
-        request: KeyboardRequestOption,
+        request: KeyboardRequestPassword,
     ) -> RpcResult<String> {
         let req = KeyboardRequest {
             message: request.message.unwrap_or_default(),

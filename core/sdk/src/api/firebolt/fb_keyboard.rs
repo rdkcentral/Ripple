@@ -44,9 +44,24 @@ impl KeyboardType {
 }
 
 #[derive(Deserialize)]
-pub struct KeyboardRequestOption {
+pub struct KeyboardRequestPassword {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct KeyboardRequestEmail {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    #[serde(rename = "type")]
+    pub _type: EmailUsage
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum EmailUsage {
+    SignIn,
+    SignUp,
 }
 
 #[derive(Deserialize)]
