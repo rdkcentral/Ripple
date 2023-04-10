@@ -29,7 +29,10 @@ use crate::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
             distributor_request::DistributorRequest,
         },
-        firebolt::fb_lifecycle_management::LifecycleManagementRequest,
+        firebolt::{
+            fb_lifecycle_management::LifecycleManagementRequest,
+            fb_pin::{PinChallengeRequest, PinChallengeResponse},
+        },
         gateway::rpc_gateway_api::RpcRequest,
         session::{AccountSession, AccountSessionRequest},
         status_update::ExtnStatus,
@@ -204,6 +207,7 @@ pub enum ExtnRequest {
     Device(DeviceRequest),
     Extn(Value),
     LifecycleManagement(LifecycleManagementRequest),
+    PinChallenge(PinChallengeRequest),
     Permission(PermissionRequest),
     Distributor(DistributorRequest),
     AccountSession(AccountSessionRequest),
@@ -220,6 +224,7 @@ pub enum ExtnResponse {
     List(Vec<String>),
     Error(RippleError),
     Config(ConfigResponse),
+    PinChallenge(PinChallengeResponse),
     AccountSession(AccountSession),
     Permission(PermissionResponse),
 }

@@ -43,9 +43,7 @@ pub struct PermittedState {
 impl PermittedState {
     pub fn new(manifest: DeviceManifest) -> PermittedState {
         let path = get_permissions_path(manifest.configuration.saved_dir);
-        let mut map = HashMap::new();
         let store = if let Ok(v) = FileStore::load(path.clone()) {
-            map.extend(v.clone().value);
             v
         } else {
             FileStore::new(path.clone(), HashMap::new())
@@ -57,7 +55,9 @@ impl PermittedState {
     }
 
     fn ingest(&mut self, extend_perms: HashMap<String, Vec<FireboltPermission>>) {
-        self.permitted.write().unwrap().update(extend_perms.clone());
+        let mut perms = self.permitted.write().unwrap();
+        perms.value.extend(extend_perms);
+        perms.sync();
     }
 
     fn get_all_permissions(&self) -> HashMap<String, Vec<FireboltPermission>> {
@@ -128,9 +128,25 @@ impl PermissionHandler {
         Err(ripple_sdk::utils::error::RippleError::InvalidOutput)
     }
 
+    pub fn get_permitted_info(
+        state: &PlatformState,
+        app_id: &str,
+        request: CapabilitySet,
+    ) -> Result<(), DenyReasonWithCap> {
+        if let Some(permitted) = state.cap_state.permitted_state.get_app_permissions(&app_id) {
+            let permission_set: CapabilitySet = permitted.clone().into();
+            return permission_set.check(request);
+        } else {
+            Err(DenyReasonWithCap {
+                reason: ripple_sdk::api::firebolt::fb_capabilities::DenyReason::Unpermitted,
+                caps: request.get_caps(),
+            })
+        }
+    }
+
     pub async fn check_permitted(
         state: &PlatformState,
-        app_id: String,
+        app_id: &str,
         request: CapabilitySet,
     ) -> Result<(), DenyReasonWithCap> {
         if let Some(permitted) = state.cap_state.permitted_state.get_app_permissions(&app_id) {
@@ -138,7 +154,7 @@ impl PermissionHandler {
             return permission_set.check(request);
         } else {
             // check to retrieve it one more time
-            if let Ok(_) = Self::fetch_and_store(state.clone(), app_id.clone()).await {
+            if let Ok(_) = Self::fetch_and_store(state.clone(), app_id.into()).await {
                 // cache primed try again
                 if let Some(permitted) =
                     state.cap_state.permitted_state.get_app_permissions(&app_id)

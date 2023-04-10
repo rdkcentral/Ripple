@@ -144,7 +144,7 @@ impl CapabilityServer for CapabilityImpl {
         ctx: CallContext,
         request: CapInfoRpcRequest,
     ) -> RpcResult<Vec<CapabilityInfo>> {
-        if let Ok(a) = CapState::get_cap_info(&self.state, ctx, request.capabilities).await {
+        if let Ok(a) = CapState::get_cap_info(&self.state, ctx, request.capabilities, None).await {
             Ok(a)
         } else {
             Err(jsonrpsee::core::Error::Custom(String::from(
