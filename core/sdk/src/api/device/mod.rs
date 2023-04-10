@@ -20,6 +20,7 @@ pub mod device_browser;
 pub mod device_info_request;
 pub mod device_operator;
 pub mod device_request;
+pub mod device_wifi;
 pub mod device_window_manager;
 
 /// Contains a list of available Platformtypes supported by Ripple.
