@@ -80,7 +80,10 @@
       "xrn:firebolt:capability:profile:flags",
       "xrn:firebolt:capability:usergrant:pinchallenge",
       "xrn:firebolt:capability:usergrant:acknowledgechallenge",
-      "xrn:firebolt:capability:input:keyboard"
+      "xrn:firebolt:capability:input:keyboard",
+      "xrn:firebolt:capability:accessory:pair",
+      "xrn:firebolt:capability:accessory:list",
+      "xrn:firebolt:capability:remote:ble"
     ]
   },
   "lifecycle": {
