@@ -26,9 +26,9 @@ use thunder_ripple_sdk::{
             accessory::RemoteAccessoryResponse,
             device::{
                 device_accessory::{
-                    AccessoryProtocol, AccessoryProtocolListType, AccessoryType,
-                    RemoteAccessoryDevice, RemoteAccessoryDeviceList, RemoteAccessoryListRequest,
-                    RemoteAccessoryPairRequest, RemoteAccessoryRequest,
+                    AccessoryDevice, AccessoryDeviceList, AccessoryListRequest,
+                    AccessoryPairRequest, AccessoryProtocol, AccessoryProtocolListType,
+                    AccessoryType, RemoteAccessoryRequest,
                 },
                 device_operator::{
                     DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
@@ -97,7 +97,7 @@ struct RemoteStatusEvent {
 }
 
 impl RemoteStatusEvent {
-    pub fn get_list_response(self: Box<Self>) -> RemoteAccessoryDeviceList {
+    pub fn get_list_response(self: Box<Self>) -> AccessoryDeviceList {
         let mut remote_list = Vec::new();
         let (new_self, opt_protocol) = self.get_protocol();
         let protocol = opt_protocol.unwrap();
@@ -108,7 +108,7 @@ impl RemoteStatusEvent {
                 protocol.clone(),
             ))
         }
-        RemoteAccessoryDeviceList { list: remote_list }
+        AccessoryDeviceList { list: remote_list }
     }
 
     pub fn get_protocol(self: Box<Self>) -> (Box<Self>, Option<AccessoryProtocol>) {
@@ -126,8 +126,8 @@ impl RemoteStatusEvent {
     pub fn get_accessory_device_response(
         remote_data: RemoteData,
         protocol: AccessoryProtocol,
-    ) -> RemoteAccessoryDevice {
-        RemoteAccessoryDevice {
+    ) -> AccessoryDevice {
+        AccessoryDevice {
             _type: AccessoryType::Remote,
             make: remote_data.make,
             model: remote_data.model,
@@ -151,7 +151,7 @@ impl ThunderRemoteAccessoryRequestProcessor {
 
     async fn pair(
         state: ThunderState,
-        pair_request_opt: RemoteAccessoryPairRequest,
+        pair_request_opt: AccessoryPairRequest,
         req: ExtnMessage,
     ) -> bool {
         // let pair_request = pair_request_opt.unwrap();
@@ -202,7 +202,7 @@ impl ThunderRemoteAccessoryRequestProcessor {
 
     async fn wait_for_remote_pair(
         state: ThunderState,
-        pair_request_opt: RemoteAccessoryPairRequest,
+        pair_request_opt: AccessoryPairRequest,
         _req: ExtnMessage,
     ) -> RemoteAccessoryResponse {
         let (tx, mut rx) = mpsc::channel::<RemoteAccessoryResponse>(32);
@@ -237,7 +237,7 @@ impl ThunderRemoteAccessoryRequestProcessor {
                     match pairing_status.as_str() {
                         "CONFIGURATION_COMPLETE" => {
                             info!("successfully paired");
-                            let success_accessory_response: RemoteAccessoryDevice;
+                            let success_accessory_response: AccessoryDevice;
                             if remote_status_event.status.remote_data.len() > 0 {
                                 let remote = remote_status_event.status.remote_data.get(0).unwrap();
                                 success_accessory_response =
@@ -285,7 +285,7 @@ impl ThunderRemoteAccessoryRequestProcessor {
 
     pub async fn list(
         state: ThunderState,
-        list_request_opt: Option<RemoteAccessoryListRequest>,
+        list_request_opt: Option<AccessoryListRequest>,
         req: ExtnMessage,
     ) -> bool {
         let list_request = list_request_opt.unwrap_or_default();
@@ -344,8 +344,8 @@ impl ThunderRemoteAccessoryRequestProcessor {
         protocol: AccessoryProtocol,
         make: String,
         model: String,
-    ) -> RemoteAccessoryDevice {
-        let accessory_response = RemoteAccessoryDevice {
+    ) -> AccessoryDevice {
+        let accessory_response = AccessoryDevice {
             _type: AccessoryType::Remote,
             make,
             model,

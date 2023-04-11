@@ -28,8 +28,8 @@ use jsonrpsee::{
 use ripple_sdk::api::{
     accessory::RemoteAccessoryResponse,
     device::device_accessory::{
-        RemoteAccessoryDevice, RemoteAccessoryDeviceList, RemoteAccessoryListRequest,
-        RemoteAccessoryPairRequest, RemoteAccessoryRequest,
+        AccessoryDevice, AccessoryDeviceList, AccessoryListRequest, AccessoryPairRequest,
+        RemoteAccessoryRequest,
     },
     gateway::rpc_gateway_api::CallContext,
 };
@@ -40,14 +40,14 @@ pub trait Accessory {
     async fn list(
         &self,
         ctx: CallContext,
-        list_request: Option<RemoteAccessoryListRequest>,
-    ) -> RpcResult<RemoteAccessoryDeviceList>;
+        list_request: Option<AccessoryListRequest>,
+    ) -> RpcResult<AccessoryDeviceList>;
     #[method(name = "accessory.pair")]
     async fn pair(
         &self,
         ctx: CallContext,
-        pair_request: Option<RemoteAccessoryPairRequest>,
-    ) -> RpcResult<RemoteAccessoryDevice>;
+        pair_request: Option<AccessoryPairRequest>,
+    ) -> RpcResult<AccessoryDevice>;
 }
 pub struct AccessoryImpl {
     pub state: PlatformState,
@@ -58,8 +58,8 @@ impl AccessoryServer for AccessoryImpl {
     async fn list(
         &self,
         _ctx: CallContext,
-        list_request_opt: Option<RemoteAccessoryListRequest>,
-    ) -> RpcResult<RemoteAccessoryDeviceList> {
+        list_request_opt: Option<AccessoryListRequest>,
+    ) -> RpcResult<AccessoryDeviceList> {
         let list_request = list_request_opt.unwrap_or_default();
         if let Ok(response) = self
             .state
@@ -79,8 +79,8 @@ impl AccessoryServer for AccessoryImpl {
     async fn pair(
         &self,
         _ctx: CallContext,
-        pair_request_opt: Option<RemoteAccessoryPairRequest>,
-    ) -> RpcResult<RemoteAccessoryDevice> {
+        pair_request_opt: Option<AccessoryPairRequest>,
+    ) -> RpcResult<AccessoryDevice> {
         let pair_request = pair_request_opt.unwrap_or_default();
         if pair_request.protocol != self.state.get_device_manifest().into() {
             return Err(rpc_err("Capability Not Supported"));

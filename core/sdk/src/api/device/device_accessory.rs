@@ -26,8 +26,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum RemoteAccessoryRequest {
-    Pair(RemoteAccessoryPairRequest),
-    List(RemoteAccessoryListRequest),
+    Pair(AccessoryPairRequest),
+    List(AccessoryListRequest),
 }
 
 impl ExtnPayloadProvider for RemoteAccessoryRequest {
@@ -56,9 +56,9 @@ impl ExtnPayloadProvider for RemoteAccessoryRequest {
 
 #[async_trait]
 pub trait AccessoryService {
-    async fn pair(self: Box<Self>, pair_request: Option<RemoteAccessoryPairRequest>) -> Box<Self>;
+    async fn pair(self: Box<Self>, pair_request: Option<AccessoryPairRequest>) -> Box<Self>;
 
-    async fn list(self: Box<Self>, list_request: Option<RemoteAccessoryListRequest>) -> Box<Self>;
+    async fn list(self: Box<Self>, list_request: Option<AccessoryListRequest>) -> Box<Self>;
 }
 
 /// Constructs a request to pair an accessory.
@@ -71,16 +71,16 @@ pub trait AccessoryService {
 ///
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct RemoteAccessoryPairRequest {
+pub struct AccessoryPairRequest {
     #[serde(rename = "type")]
     pub _type: AccessoryType,
     pub protocol: AccessoryProtocol,
     pub timeout: u64,
 }
 
-impl Default for RemoteAccessoryPairRequest {
+impl Default for AccessoryPairRequest {
     fn default() -> Self {
-        RemoteAccessoryPairRequest {
+        AccessoryPairRequest {
             _type: AccessoryType::Other,
             protocol: AccessoryProtocol::BluetoothLE,
             timeout: 60,
@@ -162,15 +162,15 @@ pub enum AccessoryProtocolListType {
 /// RemoteAccessoryListRequest{_type: Some(AccessoryListType::All), protocol: Some(AccessoryProtocolListType::All)};
 /// ```
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct RemoteAccessoryListRequest {
+pub struct AccessoryListRequest {
     #[serde(rename = "type")]
     pub _type: Option<AccessoryListType>,
     pub protocol: Option<AccessoryProtocolListType>,
 }
 
-impl Default for RemoteAccessoryListRequest {
+impl Default for AccessoryListRequest {
     fn default() -> Self {
-        RemoteAccessoryListRequest {
+        AccessoryListRequest {
             _type: Some(AccessoryListType::All),
             protocol: Some(AccessoryProtocolListType::All),
         }
@@ -214,7 +214,7 @@ impl From<DeviceManifest> for AccessoryProtocol {
 /// ```
 ///
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct RemoteAccessoryDevice {
+pub struct AccessoryDevice {
     #[serde(rename = "type")]
     pub _type: AccessoryType,
     pub make: String,
@@ -223,6 +223,6 @@ pub struct RemoteAccessoryDevice {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct RemoteAccessoryDeviceList {
-    pub list: Vec<RemoteAccessoryDevice>,
+pub struct AccessoryDeviceList {
+    pub list: Vec<AccessoryDevice>,
 }
