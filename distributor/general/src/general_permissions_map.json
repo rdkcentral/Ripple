@@ -32,7 +32,7 @@
         "xrn:firebolt:capability:accessibility:closedcaptions",
         "xrn:firebolt:capability:accessibility:closedcaptions[manage]",
         "xrn:firebolt:capability:accessibility:voiceguidance",
-        "xrn:firebolt:capability:accessibility:voiceguidance[manage]"
+        "xrn:firebolt:capability:accessibility:voiceguidance[manage]",
         "xrn:firebolt:capability:usergrant:pinchallenge"
     ]
 }
