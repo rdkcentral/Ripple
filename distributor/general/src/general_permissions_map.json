@@ -9,7 +9,9 @@
         "xrn:firebolt:capability:device:make",
         "xrn:firebolt:capability:device:model",
         "xrn:firebolt:capability:accessibility:closedcaptions",
-        "xrn:firebolt:capability:accessibility:closedcaptions[manage]"
+        "xrn:firebolt:capability:accessibility:closedcaptions[manage]",
+        "xrn:firebolt:capability:accessibility:voiceguidance",
+        "xrn:firebolt:capability:accessibility:voiceguidance[manage]"
     ],
     "comcast_firebolt_reference" : [
         "xrn:firebolt:capability:input:keyboard",
@@ -17,7 +19,9 @@
         "xrn:firebolt:capability:device:make",
         "xrn:firebolt:capability:device:model",
         "xrn:firebolt:capability:accessibility:closedcaptions",
-        "xrn:firebolt:capability:accessibility:closedcaptions[manage]"
+        "xrn:firebolt:capability:accessibility:closedcaptions[manage]",
+        "xrn:firebolt:capability:accessibility:voiceguidance",
+        "xrn:firebolt:capability:accessibility:voiceguidance[manage]"
     ],
     "test" : [
         "xrn:firebolt:capability:input:keyboard",
@@ -25,6 +29,8 @@
         "xrn:firebolt:capability:device:make",
         "xrn:firebolt:capability:device:model",
         "xrn:firebolt:capability:accessibility:closedcaptions",
-        "xrn:firebolt:capability:accessibility:closedcaptions[manage]"
+        "xrn:firebolt:capability:accessibility:closedcaptions[manage]",
+        "xrn:firebolt:capability:accessibility:voiceguidance",
+        "xrn:firebolt:capability:accessibility:voiceguidance[manage]"
     ]
 }

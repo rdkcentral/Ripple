@@ -21,7 +21,7 @@ use crate::{
         handlers::{
             capabilities_rpc::CapRPCProvider, closed_captions_rpc::ClosedcaptionsRPCProvider,
             device_rpc::DeviceRPCProvider, lcm_rpc::LifecycleManagementProvider,
-            lifecycle_rpc::LifecycleRippleProvider,
+            lifecycle_rpc::LifecycleRippleProvider, voice_guidance_rpc::VoiceguidanceRPCProvider,
         },
         rpc::RippleRPCProvider,
     },
@@ -45,6 +45,7 @@ impl FireboltGatewayStep {
         }
         let _ = methods.merge(extn_methods);
         let _ = methods.merge(ClosedcaptionsRPCProvider::provide(state.clone()));
+        let _ = methods.merge(VoiceguidanceRPCProvider::provide(state.clone()));
         methods
     }
 }
