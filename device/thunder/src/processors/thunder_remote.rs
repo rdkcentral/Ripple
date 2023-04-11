@@ -26,7 +26,7 @@ use thunder_ripple_sdk::{
             accessory::RemoteAccessoryResponse,
             device::{
                 device_accessory::{
-                    AccessoryDevice, AccessoryDeviceList, AccessoryListRequest,
+                    AccessoryDeviceResponse, AccessoryDeviceListResponse, AccessoryListRequest,
                     AccessoryPairRequest, AccessoryProtocol, AccessoryProtocolListType,
                     AccessoryType, RemoteAccessoryRequest,
                 },
@@ -97,7 +97,7 @@ struct RemoteStatusEvent {
 }
 
 impl RemoteStatusEvent {
-    pub fn get_list_response(self: Box<Self>) -> AccessoryDeviceList {
+    pub fn get_list_response(self: Box<Self>) -> AccessoryDeviceListResponse {
         let mut remote_list = Vec::new();
         let (new_self, opt_protocol) = self.get_protocol();
         let protocol = opt_protocol.unwrap();
@@ -108,7 +108,7 @@ impl RemoteStatusEvent {
                 protocol.clone(),
             ))
         }
-        AccessoryDeviceList { list: remote_list }
+        AccessoryDeviceListResponse { list: remote_list }
     }
 
     pub fn get_protocol(self: Box<Self>) -> (Box<Self>, Option<AccessoryProtocol>) {
@@ -126,8 +126,8 @@ impl RemoteStatusEvent {
     pub fn get_accessory_device_response(
         remote_data: RemoteData,
         protocol: AccessoryProtocol,
-    ) -> AccessoryDevice {
-        AccessoryDevice {
+    ) -> AccessoryDeviceResponse {
+        AccessoryDeviceResponse {
             _type: AccessoryType::Remote,
             make: remote_data.make,
             model: remote_data.model,
@@ -237,7 +237,7 @@ impl ThunderRemoteAccessoryRequestProcessor {
                     match pairing_status.as_str() {
                         "CONFIGURATION_COMPLETE" => {
                             info!("successfully paired");
-                            let success_accessory_response: AccessoryDevice;
+                            let success_accessory_response: AccessoryDeviceResponse;
                             if remote_status_event.status.remote_data.len() > 0 {
                                 let remote = remote_status_event.status.remote_data.get(0).unwrap();
                                 success_accessory_response =
@@ -344,8 +344,8 @@ impl ThunderRemoteAccessoryRequestProcessor {
         protocol: AccessoryProtocol,
         make: String,
         model: String,
-    ) -> AccessoryDevice {
-        let accessory_response = AccessoryDevice {
+    ) -> AccessoryDeviceResponse {
+        let accessory_response = AccessoryDeviceResponse {
             _type: AccessoryType::Remote,
             make,
             model,

@@ -28,7 +28,7 @@ use jsonrpsee::{
 use ripple_sdk::api::{
     accessory::RemoteAccessoryResponse,
     device::device_accessory::{
-        AccessoryDevice, AccessoryDeviceList, AccessoryListRequest, AccessoryPairRequest,
+        AccessoryDeviceResponse, AccessoryDeviceListResponse, AccessoryListRequest, AccessoryPairRequest,
         RemoteAccessoryRequest,
     },
     gateway::rpc_gateway_api::CallContext,
@@ -41,13 +41,13 @@ pub trait Accessory {
         &self,
         ctx: CallContext,
         list_request: Option<AccessoryListRequest>,
-    ) -> RpcResult<AccessoryDeviceList>;
+    ) -> RpcResult<AccessoryDeviceListResponse>;
     #[method(name = "accessory.pair")]
     async fn pair(
         &self,
         ctx: CallContext,
         pair_request: Option<AccessoryPairRequest>,
-    ) -> RpcResult<AccessoryDevice>;
+    ) -> RpcResult<AccessoryDeviceResponse>;
 }
 pub struct AccessoryImpl {
     pub state: PlatformState,
@@ -59,7 +59,7 @@ impl AccessoryServer for AccessoryImpl {
         &self,
         _ctx: CallContext,
         list_request_opt: Option<AccessoryListRequest>,
-    ) -> RpcResult<AccessoryDeviceList> {
+    ) -> RpcResult<AccessoryDeviceListResponse> {
         let list_request = list_request_opt.unwrap_or_default();
         if let Ok(response) = self
             .state
@@ -80,7 +80,7 @@ impl AccessoryServer for AccessoryImpl {
         &self,
         _ctx: CallContext,
         pair_request_opt: Option<AccessoryPairRequest>,
-    ) -> RpcResult<AccessoryDevice> {
+    ) -> RpcResult<AccessoryDeviceResponse> {
         let pair_request = pair_request_opt.unwrap_or_default();
         if pair_request.protocol != self.state.get_device_manifest().into() {
             return Err(rpc_err("Capability Not Supported"));

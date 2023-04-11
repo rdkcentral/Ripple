@@ -214,7 +214,7 @@ impl From<DeviceManifest> for AccessoryProtocol {
 /// ```
 ///
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AccessoryDevice {
+pub struct AccessoryDeviceResponse {
     #[serde(rename = "type")]
     pub _type: AccessoryType,
     pub make: String,
@@ -223,6 +223,6 @@ pub struct AccessoryDevice {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AccessoryDeviceList {
-    pub list: Vec<AccessoryDevice>,
+pub struct AccessoryDeviceListResponse {
+    pub list: Vec<AccessoryDeviceResponse>,
 }

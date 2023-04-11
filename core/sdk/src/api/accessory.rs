@@ -23,7 +23,7 @@ use crate::{
     utils::error::RippleError,
 };
 
-use super::device::device_accessory::{AccessoryDevice, AccessoryDeviceList};
+use super::device::device_accessory::{AccessoryDeviceResponse, AccessoryDeviceListResponse};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -33,8 +33,8 @@ pub enum RemoteAccessoryResponse {
     Boolean(bool),
     Number(u32),
     Error(RippleError),
-    RemoteAccessoryListResponse(AccessoryDeviceList),
-    AccessoryPairResponse(AccessoryDevice),
+    RemoteAccessoryListResponse(AccessoryDeviceListResponse),
+    AccessoryPairResponse(AccessoryDeviceResponse),
 }
 
 impl ExtnPayloadProvider for RemoteAccessoryResponse {
