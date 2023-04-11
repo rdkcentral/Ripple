@@ -45,6 +45,10 @@ impl Session {
         }
     }
 
+    pub fn get_transport(&self) -> Sender<ApiMessage> {
+        self.transport.clone()
+    }
+
     pub async fn send(&self, msg: ApiMessage) -> Result<(), RippleError> {
         if let Ok(_) = self.transport.send(msg).await {
             return Ok(());
@@ -112,9 +116,14 @@ impl SessionState {
         session_state.insert(session_id, session);
     }
 
-    pub fn clear_session(&self, session_id: String) {
+    pub fn clear_session(&self, session_id: &str) {
         let mut session_state = self.session_map.write().unwrap();
-        session_state.remove(&session_id);
+        session_state.remove(session_id);
+    }
+
+    pub fn get_session(&self, session_id: &str) -> Option<Session> {
+        let session_state = self.session_map.read().unwrap();
+        session_state.get(session_id).cloned()
     }
 
     pub async fn send_message(

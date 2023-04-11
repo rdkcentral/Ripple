@@ -15,7 +15,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use ripple_sdk::api::{
-    firebolt::fb_openrpc::{CapabilitySet, FireboltOpenRpc, FireboltVersionManifest},
+    firebolt::fb_openrpc::{
+        CapabilitySet, FireboltOpenRpc, FireboltOpenRpcMethod, FireboltVersionManifest,
+    },
     manifest::exclusory::{Exclusory, ExclusoryImpl},
 };
 use ripple_sdk::{api::firebolt::fb_openrpc::CapabilityPolicy, serde_json};
@@ -26,6 +28,7 @@ use std::{
 
 #[derive(Debug, Clone)]
 pub struct OpenRpcState {
+    open_rpc: FireboltOpenRpc,
     exclusory: Option<ExclusoryImpl>,
     cap_map: Arc<RwLock<HashMap<String, CapabilitySet>>>,
     cap_policies: Arc<RwLock<HashMap<String, CapabilityPolicy>>>,
@@ -38,9 +41,10 @@ impl OpenRpcState {
         let open_rpc: FireboltOpenRpc = version_manifest.clone().into();
 
         OpenRpcState {
-            cap_map: Arc::new(RwLock::new(open_rpc.get_methods_caps())),
+            cap_map: Arc::new(RwLock::new(open_rpc.clone().get_methods_caps())),
             exclusory,
             cap_policies: Arc::new(RwLock::new(version_manifest.capabilities)),
+            open_rpc,
         }
     }
 
@@ -78,5 +82,38 @@ impl OpenRpcState {
     pub fn extend_policies(&self, policies: HashMap<String, CapabilityPolicy>) {
         let mut cap_policies = self.cap_policies.write().unwrap();
         cap_policies.extend(policies);
+    }
+
+    pub fn check_privacy_property(&self, property: &str) -> bool {
+        if let Some(method) = self.open_rpc.methods.iter().find(|x| x.name == property) {
+            // Checking if the property tag is havin x-allow-value extension.
+            if let Some(tags) = &method.tags {
+                return tags
+                    .iter()
+                    .find(|x| x.name == "property" && x.allow_value.is_some())
+                    .map_or(false, |_| true);
+            }
+        }
+        false
+    }
+
+    pub fn get_method_with_allow_value_property(
+        &self,
+        method_name: String,
+    ) -> Option<FireboltOpenRpcMethod> {
+        self.open_rpc
+            .methods
+            .iter()
+            .find(|x| {
+                x.name == method_name
+                    && x.tags.is_some()
+                    && x.tags
+                        .as_ref()
+                        .unwrap()
+                        .iter()
+                        .find(|tag| tag.name == "property" && tag.allow_value.is_some())
+                        .is_some()
+            })
+            .cloned()
     }
 }

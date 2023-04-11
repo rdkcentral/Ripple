@@ -62,6 +62,7 @@ pub struct AppBasicInfo {
     pub id: String,
     pub catalog: Option<String>,
     pub url: Option<String>,
+    pub title: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -168,6 +169,7 @@ pub enum AppManagerResponse {
     LaunchRequest(LaunchRequest),
     SessionId(String),
     SecondScreenPayload(String),
+    AppName(Option<String>),
 }
 
 #[derive(Debug, Serialize, Deserialize, Copy, Clone)]
@@ -205,6 +207,7 @@ pub enum AppMethod {
     SetState(String, LifecycleState),
     BrowserSession(AppSession),
     GetSecondScreenPayload(String),
+    GetAppName(String),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

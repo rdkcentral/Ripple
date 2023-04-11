@@ -210,6 +210,9 @@ impl DelegatedLauncherHandler {
                     resp = self.get_second_screen_payload(&app_id);
                 }
                 AppMethod::State(app_id) => resp = self.get_state(&app_id),
+                AppMethod::GetAppName(app_id) => {
+                    resp = self.get_app_name(app_id);
+                }
                 _ => resp = Err(AppError::NotSupported),
             }
             if let Err(e) = resp {
@@ -342,6 +345,7 @@ impl DelegatedLauncherHandler {
             );
             return Err(AppError::UnexpectedState);
         }
+
         self.platform_state
             .app_manager_state
             .set_state(app_id, state);
@@ -458,6 +462,15 @@ impl DelegatedLauncherHandler {
         match self.platform_state.app_manager_state.get(&app_id) {
             Some(app) => Ok(AppManagerResponse::AppContentCatalog(
                 app.initial_session.app.catalog.clone(),
+            )),
+            None => Err(AppError::NotFound),
+        }
+    }
+
+    fn get_app_name(&mut self, app_id: String) -> Result<AppManagerResponse, AppError> {
+        match self.platform_state.app_manager_state.get(&app_id) {
+            Some(app) => Ok(AppManagerResponse::AppName(
+                app.initial_session.app.title.clone(),
             )),
             None => Err(AppError::NotFound),
         }

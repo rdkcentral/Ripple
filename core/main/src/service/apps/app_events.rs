@@ -71,7 +71,6 @@ pub struct AppEvents {}
 #[derive(Clone, Default)]
 pub struct AppEventsState {
     pub listeners: Arc<RwLock<HashMap<String, HashMap<Option<String>, Vec<EventListener>>>>>,
-    pub sessions: Arc<RwLock<HashMap<String, mpsc::Sender<ApiMessage>>>>,
 }
 
 impl std::fmt::Debug for AppEventsState {
@@ -113,7 +112,6 @@ impl std::fmt::Debug for AppEventsState {
         }
         f.debug_struct("AppEventsState")
             .field("listeners", &listeners_debug)
-            .field("sessions", &self.sessions.read().unwrap().keys())
             .finish()
     }
 }
@@ -172,7 +170,7 @@ impl AppEvents {
     }
 
     pub fn add_listener(
-        state: &AppEventsState,
+        state: &PlatformState,
         event_name: String,
         call_ctx: CallContext,
         listen_request: ListenRequest,
@@ -188,7 +186,7 @@ impl AppEvents {
     }
 
     pub fn add_listener_with_decorator(
-        state: &AppEventsState,
+        state: &PlatformState,
         event_name: String,
         call_ctx: CallContext,
         listen_request: ListenRequest,
@@ -205,7 +203,7 @@ impl AppEvents {
     }
 
     pub fn add_listener_with_context(
-        state: &AppEventsState,
+        state: &PlatformState,
         event_name: String,
         call_ctx: CallContext,
         listen_request: ListenRequest,
@@ -222,43 +220,41 @@ impl AppEvents {
     }
 
     pub fn add_listener_with_context_and_decorator(
-        state: &AppEventsState,
+        state: &PlatformState,
         event_name: String,
         call_ctx: CallContext,
         listen_request: ListenRequest,
         event_context: Option<Value>,
         decorator: Option<Box<dyn AppEventDecorator + Send + Sync>>,
     ) {
-        let sessions = state.sessions.read().unwrap();
-        let session = sessions.get(&call_ctx.session_id);
-        match session {
-            Some(session_tx) => {
-                let mut listeners = state.listeners.write().unwrap();
-                let event_ctx_string = event_context.map(|x| x.to_string());
+        let session = state.session_state.get_session(&call_ctx.session_id);
+        if session.is_none() {
+            error!("No open sessions for id '{:?}'", call_ctx.session_id);
+        } else {
+            let session = session.unwrap();
+            let session_tx = session.get_transport();
+            let app_events_state = &state.app_events_state;
+            let mut listeners = app_events_state.listeners.write().unwrap();
+            let event_ctx_string = event_context.map(|x| x.to_string());
 
-                if listen_request.listen {
-                    let event_listeners = AppEvents::get_or_create_listener_vec(
-                        &mut listeners,
-                        event_name,
-                        event_ctx_string.clone(),
-                    );
-                    //The last listener wins if there is already a listener exists with same session id
+            if listen_request.listen {
+                let event_listeners = AppEvents::get_or_create_listener_vec(
+                    &mut listeners,
+                    event_name,
+                    event_ctx_string.clone(),
+                );
+                //The last listener wins if there is already a listener exists with same session id
+                AppEvents::remove_session_from_events(event_listeners, &call_ctx.session_id);
+                event_listeners.push(EventListener {
+                    call_ctx: call_ctx,
+                    session_tx: session_tx.clone(),
+                    decorator: decorator,
+                });
+            } else if let Some(entry) = listeners.get_mut(&event_name) {
+                if let Some(event_listeners) = entry.get_mut(&event_ctx_string) {
                     AppEvents::remove_session_from_events(event_listeners, &call_ctx.session_id);
-                    event_listeners.push(EventListener {
-                        call_ctx: call_ctx,
-                        session_tx: session_tx.clone(),
-                        decorator: decorator,
-                    });
-                } else if let Some(entry) = listeners.get_mut(&event_name) {
-                    if let Some(event_listeners) = entry.get_mut(&event_ctx_string) {
-                        AppEvents::remove_session_from_events(
-                            event_listeners,
-                            &call_ctx.session_id,
-                        );
-                    }
                 }
             }
-            None => error!("No open sessions for id '{:?}'", call_ctx.session_id),
         }
     }
 
@@ -375,10 +371,9 @@ impl AppEvents {
         }
     }
 
-    pub fn remove_session(state: &AppEventsState, session_id: String) {
-        let mut sessions = state.sessions.write().unwrap();
-        sessions.remove(&session_id);
-        let mut listeners = state.listeners.write().unwrap();
+    pub fn remove_session(state: &PlatformState, session_id: String) {
+        state.session_state.clear_session(&session_id);
+        let mut listeners = state.app_events_state.listeners.write().unwrap();
         let all_events = listeners.keys().cloned().collect::<Vec<String>>();
         for event_name in all_events {
             if let Some(ctx_map) = listeners.get_mut(&event_name) {
@@ -390,14 +385,5 @@ impl AppEvents {
                 }
             }
         }
-    }
-
-    pub fn register_session(
-        state: &AppEventsState,
-        session_id: String,
-        session_tx: mpsc::Sender<ApiMessage>,
-    ) {
-        let mut sessions = state.sessions.write().unwrap();
-        sessions.insert(session_id, session_tx);
     }
 }
