@@ -193,8 +193,8 @@ pub enum AccessoryProtocol {
     RF4CE,
 }
 
-impl From<DeviceManifest> for AccessoryProtocol {
-    fn from(value: DeviceManifest) -> Self {
+impl AccessoryProtocol {
+    pub fn get_supported_protocol(value: DeviceManifest) -> Self {
         let supported_caps = value.get_supported_caps();
         if supported_caps.contains(&FireboltCap::short("remote:rf4ce")) {
             AccessoryProtocol::RF4CE

@@ -29,7 +29,7 @@ use ripple_sdk::api::{
     accessory::RemoteAccessoryResponse,
     device::device_accessory::{
         AccessoryDeviceListResponse, AccessoryDeviceResponse, AccessoryListRequest,
-        AccessoryPairRequest, RemoteAccessoryRequest,
+        AccessoryPairRequest, AccessoryProtocol, RemoteAccessoryRequest,
     },
     gateway::rpc_gateway_api::CallContext,
 };
@@ -82,7 +82,9 @@ impl AccessoryServer for AccessoryImpl {
         pair_request_opt: Option<AccessoryPairRequest>,
     ) -> RpcResult<AccessoryDeviceResponse> {
         let pair_request = pair_request_opt.unwrap_or_default();
-        if pair_request.protocol != self.state.get_device_manifest().into() {
+        if pair_request.protocol
+            != AccessoryProtocol::get_supported_protocol(self.state.get_device_manifest())
+        {
             return Err(rpc_err("Capability Not Supported"));
         }
 
