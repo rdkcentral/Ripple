@@ -435,14 +435,14 @@ impl ThunderWifiRequestProcessor {
         }
     }
 
-        // unsubscribing wifi events
-        unsub_client
-            .unsubscribe(DeviceUnsubscribeRequest {
-                module: Wifi.callsign_and_version(),
-                event_name: "onWIFIStateChanged".into(),
-            })
-            .await;
-        info!("Unsubscribing to onWIFIStateChanged events");
+    // unsubscribing wifi events
+    unsub_client
+        .unsubscribe(DeviceUnsubscribeRequest {
+            module: Wifi.callsign_and_version(),
+            event_name: "onWIFIStateChanged".into(),
+        })
+        .await;
+    info!("Unsubscribing to onWIFIStateChanged events");
 
     unsub_client
     .unsubscribe(DeviceUnsubscribeRequest {

@@ -26,7 +26,7 @@ use thunder_ripple_sdk::{
             accessory::RemoteAccessoryResponse,
             device::{
                 device_accessory::{
-                    AccessoryDeviceResponse, AccessoryDeviceListResponse, AccessoryListRequest,
+                    AccessoryDeviceListResponse, AccessoryDeviceResponse, AccessoryListRequest,
                     AccessoryPairRequest, AccessoryProtocol, AccessoryProtocolListType,
                     AccessoryType, RemoteAccessoryRequest,
                 },
@@ -151,12 +151,12 @@ impl ThunderRemoteAccessoryRequestProcessor {
 
     async fn pair(
         state: ThunderState,
-        pair_request_opt: AccessoryPairRequest,
+        pair_request: AccessoryPairRequest,
         req: ExtnMessage,
     ) -> bool {
         // let pair_request = pair_request_opt.unwrap();
-        let pair_request = pair_request_opt.clone();
-        let protocol = pair_request.protocol;
+        let pair_request = pair_request.clone();
+        let protocol = pair_request.clone().protocol;
         let remote_pair_request = RemotePairRequest {
             net_type: ThunderRemoteAccessoryRequestProcessor::get_net_type(protocol.clone()),
             timeout: pair_request.timeout,
@@ -177,7 +177,7 @@ impl ThunderRemoteAccessoryRequestProcessor {
             Some(_v) => {
                 let result = ThunderRemoteAccessoryRequestProcessor::wait_for_remote_pair(
                     state.clone(),
-                    pair_request_opt,
+                    pair_request,
                     req.clone(),
                 )
                 .await;

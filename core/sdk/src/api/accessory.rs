@@ -23,7 +23,7 @@ use crate::{
     utils::error::RippleError,
 };
 
-use super::device::device_accessory::{AccessoryDeviceResponse, AccessoryDeviceListResponse};
+use super::device::device_accessory::{AccessoryDeviceListResponse, AccessoryDeviceResponse};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

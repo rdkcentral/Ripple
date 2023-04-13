@@ -28,8 +28,8 @@ use jsonrpsee::{
 use ripple_sdk::api::{
     accessory::RemoteAccessoryResponse,
     device::device_accessory::{
-        AccessoryDeviceResponse, AccessoryDeviceListResponse, AccessoryListRequest, AccessoryPairRequest,
-        RemoteAccessoryRequest,
+        AccessoryDeviceListResponse, AccessoryDeviceResponse, AccessoryListRequest,
+        AccessoryPairRequest, RemoteAccessoryRequest,
     },
     gateway::rpc_gateway_api::CallContext,
 };
