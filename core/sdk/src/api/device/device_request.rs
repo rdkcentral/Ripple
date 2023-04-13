@@ -17,7 +17,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    device_accessory::RemoteAccessoryRequest, device_browser::BrowserRequest,
+   device_browser::BrowserRequest,
     device_info_request::DeviceInfoRequest, device_wifi::WifiRequest,
     device_window_manager::WindowManagerRequest,
 };
@@ -28,5 +28,4 @@ pub enum DeviceRequest {
     Browser(BrowserRequest),
     WindowManager(WindowManagerRequest),
     Wifi(WifiRequest),
-    Accessory(RemoteAccessoryRequest),
 }
