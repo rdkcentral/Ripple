@@ -38,6 +38,7 @@ pub enum RippleContract {
     WindowManager,
     Browser,
     Permissions,
+    RemoteAccessory,
 }
 
 impl TryFrom<String> for RippleContract {
