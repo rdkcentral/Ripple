@@ -254,7 +254,7 @@ impl ClosedcaptionsImpl {
         StorageManager::get_bool(state, StorageProperty::ClosedCaptionsEnabled).await
     }
 
-    pub async fn on_request_app_event(
+    pub async fn on_request_cc_event(
         &self,
         ctx: CallContext,
         request: ListenRequest,
@@ -327,7 +327,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
+        self.on_request_cc_event(
             ctx,
             request,
             "ClosedCaptionsSettingsChanged",
@@ -359,7 +359,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
+        self.on_request_cc_event(
             ctx,
             request,
             "ClosedCaptionsSettingsEnabledChanged",
@@ -400,7 +400,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
+        self.on_request_cc_event(
             ctx,
             request,
             "ClosedCaptionsSettingsFontFamilyChanged",
@@ -440,7 +440,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
+        self.on_request_cc_event(
             ctx,
             request,
             "ClosedCaptionsSettingsFontSizeChanged",
@@ -472,7 +472,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
+        self.on_request_cc_event(
             ctx,
             request,
             "ClosedCaptionsSettingsFontColorChanged",
@@ -504,7 +504,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
+        self.on_request_cc_event(
             ctx,
             request,
             "ClosedCaptionsSettingsFontEdgeChanged",
@@ -539,7 +539,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
+        self.on_request_cc_event(
             ctx,
             request,
             "ClosedCaptionsSettingsFontEdgeColorChanged",
@@ -573,7 +573,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
+        self.on_request_cc_event(
             ctx,
             request,
             "ClosedCaptionsSettingsFontOpacityChanged",
@@ -609,7 +609,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
+        self.on_request_cc_event(
             ctx,
             request,
             "ClosedCaptionsSettingsBackgroundColorChanged",
@@ -649,7 +649,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
+        self.on_request_cc_event(
             ctx,
             request,
             "ClosedCaptionsSettingsBackgroundOpacityChanged",
@@ -681,7 +681,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
+        self.on_request_cc_event(
             ctx,
             request,
             "ClosedCaptionsSettingsTextAlignChanged",
@@ -720,7 +720,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
+        self.on_request_cc_event(
             ctx,
             request,
             "ClosedCaptionsSettingsTextAlignVerticalChanged",

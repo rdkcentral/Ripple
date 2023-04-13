@@ -27,7 +27,7 @@ use crate::{
             lcm_rpc::LifecycleManagementProvider,
             lifecycle_rpc::LifecycleRippleProvider,
             pin_rpc::PinRPCProvider,
-            //            voice_guidance_rpc::VoiceguidanceRPCProvider,
+            voice_guidance_rpc::VoiceguidanceRPCProvider,
         },
         rpc::RippleRPCProvider,
     },
@@ -49,7 +49,7 @@ impl FireboltGatewayStep {
         let _ = methods.merge(AckRPCProvider::provide(state.clone()));
         let _ = methods.merge(PinRPCProvider::provide(state.clone()));
         let _ = methods.merge(ClosedcaptionsRPCProvider::provide(state.clone()));
-        //        let _ = methods.merge(VoiceguidanceRPCProvider::provide(state.clone()));
+        let _ = methods.merge(VoiceguidanceRPCProvider::provide(state.clone()));
         // LCM Api(s) not required for internal launcher
         if !state.has_internal_launcher() {
             let _ = methods.merge(LifecycleManagementProvider::provide(state.clone()));

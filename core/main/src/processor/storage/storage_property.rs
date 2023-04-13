@@ -2,10 +2,14 @@ use dpab::core::model::privacy::PrivacySetting;
 use serde::{Deserialize, Serialize};
 
 pub const NAMESPACE_CLOSED_CAPTIONS: &'static str = "ClosedCaptions";
+<<<<<<< HEAD
 pub const NAMESPACE_PRIVACY: &'static str = "Privacy";
 pub const NAMESPACE_DEVICE_NAME: &'static str = "DeviceName";
 pub const NAMESPACE_LOCALIZATION: &'static str = "Localization";
 pub const NAMESPACE_USER_GRANT: &'static str = "UserGrant";
+=======
+pub const NAMESPACE_VOICE_GUIDANCE: &'static str = "Voiceguidance";
+>>>>>>> 8c2e11b (voice guidance added.)
 
 pub const KEY_ENABLED: &'static str = "enabled";
 pub const KEY_FONT_FAMILY: &'static str = "fontFamily";
@@ -99,6 +103,17 @@ pub const EVENT_DEVICE_DEVICE_NAME_CHANGED: &'static str = "device.onDeviceNameC
 pub const EVENT_SECOND_SCREEN_FRIENDLY_NAME_CHANGED: &'static str =
     "secondscreen.onFriendlyNameChanged";
 pub const EVENT_ADVERTISING_POLICY_CHANGED: &'static str = "advertising.onPolicyChanged";
+
+pub const EVENT_VOICE_GUIDANCE_SETTINGS_CHANGED: &'static str =
+    "accessibility.onVoiceGuidanceSettingsChanged";
+pub const EVENT_VOICE_GUIDANCE_ENABLED_CHANGED: &'static str = "voiceguidance.onEnabledChanged";
+pub const EVENT_VOICE_GUIDANCE_SPEED_CHANGED: &'static str = "voiceguidance.onSpeedChanged";
+
+
+
+
+
+
 
 const PROPERTY_DATA_CLOSED_CAPTIONS_ENABLED: PropertyData = PropertyData {
     key: KEY_ENABLED,
@@ -486,6 +501,21 @@ impl StorageProperty {
             }
             StorageProperty::AllowWatchHistory => Some(PrivacySetting::WatchHistory),
             _ => None,
+        }
+    }
+}
+
+
+pub enum VoiceguidanceProperty {
+    VoiceguidanceEnabled,
+    VoiceguidanceSpeed,
+}
+
+impl VoiceguidanceProperty {
+    pub fn as_data(&self) -> PropertyData {
+        match self {
+            VoiceguidanceProperty::VoiceguidanceEnabled => PROPERTY_DATA_CLOSED_CAPTIONS_ENABLED,
+            VoiceguidanceProperty::VoiceguidanceSpeed => PROPERTY_DATA_CLOSED_CAPTIONS_FONT_FAMILY,
         }
     }
 }

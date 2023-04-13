@@ -92,8 +92,8 @@ pub struct ClosedCaptionStyle {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VoiceGuidanceSettings {
-    enabled: bool,
-    speed: f32,
+    pub enabled: bool,
+    pub speed: f32,
 }
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]

@@ -16,7 +16,8 @@
 // limitations under the License.
 use crate::{
     firebolt::rpc::RippleRPCProvider, service::apps::provider_broker::ProviderBroker,
-    state::platform_state::PlatformState, utils::rpc_utils::rpc_err,
+    state::platform_state::PlatformState, utils::rpc_utils::rpc_err, 
+    processor::storage::{storage_property::{EVENT_VOICE_GUIDANCE_SETTINGS_CHANGED, EVENT_VOICE_GUIDANCE_ENABLED_CHANGED, EVENT_VOICE_GUIDANCE_SPEED_CHANGED}},
 };
 
 use jsonrpsee::{
@@ -29,9 +30,8 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         device::device_accessibility_data::{
-            GetStorageProperty, SetBoolProperty, SetStorageProperty, SetU32Property,
-            StorageRequest, VOICE_GUIDANCE_ENABLED_CHANGED_EVENT,
-            VOICE_GUIDANCE_SETTINGS_CHANGED_EVENT, VOICE_GUIDANCE_SPEED_CHANGED_EVENT,
+            GetStorageProperty, SetBoolProperty, SetStorageProperty,
+            StorageRequest, VoiceGuidanceSettings, SetF32Property, StorageData,
         },
         firebolt::fb_general::{ListenRequest, ListenerResponse},
         gateway::rpc_gateway_api::CallContext,
@@ -42,16 +42,18 @@ use ripple_sdk::{
 
 #[rpc(server)]
 pub trait Voiceguidance {
-    #[method(name = "accessibility.voiceGuidanceSettings")]
-    async fn voice_guidance_settings(&self, ctx: CallContext) -> RpcResult<(bool, u32)>;
+
+    #[method(name = "accessibility.voiceGuidanceSettings", aliases = ["accessibility.voiceGuidance"])]
+    async fn voice_guidance_settings(&self, ctx: CallContext) -> RpcResult<VoiceGuidanceSettings>;
     #[method(name = "accessibility.onVoiceGuidanceSettingsChanged")]
     async fn on_voice_guidance_settings_changed(
         &self,
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
+
     #[method(name = "voiceguidance.enabled")]
-    async fn voice_guidance_settings_enabled(&self, ctx: CallContext) -> RpcResult<bool>;
+    async fn voice_guidance_settings_enabled_rpc(&self, ctx: CallContext) -> RpcResult<bool>;
     #[method(name = "voiceguidance.setEnabled")]
     async fn voice_guidance_settings_enabled_set(
         &self,
@@ -66,12 +68,12 @@ pub trait Voiceguidance {
     ) -> RpcResult<ListenerResponse>;
 
     #[method(name = "voiceguidance.speed")]
-    async fn voice_guidance_settings_speed(&self, ctx: CallContext) -> RpcResult<u32>;
+    async fn voice_guidance_settings_speed_rpc(&self, ctx: CallContext) -> RpcResult<f32>;
     #[method(name = "voiceguidance.setSpeed")]
     async fn voice_guidance_settings_speed_set(
         &self,
         ctx: CallContext,
-        set_request: SetU32Property,
+        set_request: SetF32Property,
     ) -> RpcResult<()>;
     #[method(name = "voiceguidance.onSpeedChanged")]
     async fn voice_guidance_settings_speed_changed(
@@ -87,6 +89,47 @@ pub struct VoiceguidanceImpl {
 }
 
 impl VoiceguidanceImpl {
+
+    // pub async fn voice_guidance_settings_enabled(state: &PlatformState) -> RpcResult<bool> {
+    //     StorageManager::get_bool(state, StorageProperty::ClosedCaptionsEnabled).await
+    // }
+
+    pub async fn voice_guidance_settings_enabled(state: &PlatformState) -> RpcResult<bool> {
+        info!("VoiceGuidance.enabled");
+        let data = GetStorageProperty {
+            namespace: "VoiceGuidance".to_string(),
+            key: "enabled".to_string(),
+        };
+        if let Ok(response) = state
+            .get_client()
+            .send_extn_request(StorageRequest::Get(data))
+            .await
+        {
+            if let Some(ExtnResponse::String(v)) = response.payload.clone().extract() {
+                return Ok(v.parse::<bool>().unwrap());
+            }
+        }
+        Err(rpc_err("VoiceGuidance.enabled is not available"))
+    }
+
+    pub async fn voice_guidance_settings_speed(state: &PlatformState) -> RpcResult<f32> {
+        let data = GetStorageProperty {
+            namespace: "VoiceGuidance".to_string(),
+            key: "speed".to_string(),
+        };
+        if let Ok(response) = state
+            .get_client()
+            .send_extn_request(StorageRequest::Get(data))
+            .await
+            {
+                if let Some(ExtnResponse::String(v)) = response.payload.clone().extract() {
+                    return Ok(v.parse::<f32>().unwrap());
+                }
+            }
+            Err(rpc_err("VoiceGuidance.speed is not available"))
+        }
+
+
     pub async fn on_request_app_event(
         &self,
         ctx: CallContext,
@@ -115,12 +158,13 @@ impl VoiceguidanceImpl {
 
 #[async_trait]
 impl VoiceguidanceServer for VoiceguidanceImpl {
-    async fn voice_guidance_settings(&self, ctx: CallContext) -> RpcResult<(bool, u32)> {
-        info!("Accessibility.voiceGuidanceSettings");
-        Ok((
-            self.voice_guidance_settings_enabled(ctx.clone()).await?,
-            self.voice_guidance_settings_speed(ctx.clone()).await?,
-        ))
+    async fn voice_guidance_settings(&self, ctx: CallContext) -> RpcResult<VoiceGuidanceSettings> {
+        Ok(VoiceGuidanceSettings {
+            enabled: self
+                .voice_guidance_settings_enabled_rpc(ctx.clone())
+                .await?,
+            speed: self.voice_guidance_settings_speed_rpc(ctx.clone()).await?,
+        })
     }
 
     async fn on_voice_guidance_settings_changed(
@@ -132,28 +176,13 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
             ctx,
             request,
             "VoiceGuidanceSettingsChanged",
-            VOICE_GUIDANCE_SETTINGS_CHANGED_EVENT,
+            EVENT_VOICE_GUIDANCE_SETTINGS_CHANGED,
         )
         .await
     }
 
-    async fn voice_guidance_settings_enabled(&self, _ctx: CallContext) -> RpcResult<bool> {
-        info!("VoiceGuidance.enabled");
-        let data = GetStorageProperty {
-            namespace: "VoiceGuidance".to_string(),
-            key: "enabled".to_string(),
-        };
-        if let Ok(response) = self
-            .state
-            .get_client()
-            .send_extn_request(StorageRequest::Get(data))
-            .await
-        {
-            if let Some(ExtnResponse::String(v)) = response.payload.clone().extract() {
-                return Ok(v.parse::<bool>().unwrap());
-            }
-        }
-        Err(rpc_err("VoiceGuidance.enabled is not available"))
+    async fn voice_guidance_settings_enabled_rpc(&self, _ctx: CallContext) -> RpcResult<bool> {
+        VoiceguidanceImpl::voice_guidance_settings_enabled(&self.state).await
     }
 
     async fn voice_guidance_settings_enabled_set(
@@ -165,7 +194,7 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
         let data = SetStorageProperty {
             namespace: "VoiceGuidance".to_string(),
             key: "enabled".to_string(),
-            data: json!(set_request.value),
+            data: StorageData::new(json!(set_request.value)),
         };
         if let Ok(response) = self
             .state
@@ -189,40 +218,25 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
             ctx,
             request,
             "VoiceGuidanceEnabledChanged",
-            VOICE_GUIDANCE_ENABLED_CHANGED_EVENT,
+            EVENT_VOICE_GUIDANCE_ENABLED_CHANGED,
         )
         .await
     }
 
-    async fn voice_guidance_settings_speed(&self, _ctx: CallContext) -> RpcResult<u32> {
-        info!("VoiceGuidance.speed");
-        let data = GetStorageProperty {
-            namespace: "VoiceGuidance".to_string(),
-            key: "speed".to_string(),
-        };
-        if let Ok(response) = self
-            .state
-            .get_client()
-            .send_extn_request(StorageRequest::Get(data))
-            .await
-        {
-            if let Some(ExtnResponse::String(v)) = response.payload.clone().extract() {
-                return Ok(v.parse::<u32>().unwrap());
-            }
-        }
-        Err(rpc_err("VoiceGuidance.speed is not available"))
+    async fn voice_guidance_settings_speed_rpc(&self, _ctx: CallContext) -> RpcResult<f32> {
+        VoiceguidanceImpl::voice_guidance_settings_speed(&self.state).await
     }
 
     async fn voice_guidance_settings_speed_set(
         &self,
         _ctx: CallContext,
-        set_request: SetU32Property,
+        set_request: SetF32Property,
     ) -> RpcResult<()> {
         info!("VoiceGuidance.setSpeed");
         let data = SetStorageProperty {
             namespace: "VoiceGuidance".to_string(),
-            key: "speed".to_string(),
-            data: json!(set_request.value),
+            key: "enabled".to_string(),
+            data: StorageData::new(json!(set_request.value)),
         };
         if let Ok(response) = self
             .state
@@ -237,6 +251,7 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
         Err(rpc_err("FB error response TBD"))
     }
 
+
     async fn voice_guidance_settings_speed_changed(
         &self,
         ctx: CallContext,
@@ -246,7 +261,7 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
             ctx,
             request,
             "VoiceGuidanceSpeedChanged",
-            VOICE_GUIDANCE_SPEED_CHANGED_EVENT,
+            EVENT_VOICE_GUIDANCE_SPEED_CHANGED,
         )
         .await
     }
