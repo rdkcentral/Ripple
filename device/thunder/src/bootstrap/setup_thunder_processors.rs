@@ -22,6 +22,7 @@ use thunder_ripple_sdk::{
 use crate::processors::{
     thunder_browser::ThunderBrowserRequestProcessor,
     thunder_device_info::ThunderDeviceInfoRequestProcessor,
+    thunder_persistent_store::ThunderStorageRequestProcessor,
     thunder_window_manager::ThunderWindowManagerRequestProcessor,
 };
 
@@ -42,6 +43,7 @@ impl SetupThunderProcessor {
         extn_client.add_request_processor(ThunderWindowManagerRequestProcessor::new(
             state.clone().state,
         ));
+        extn_client.add_request_processor(ThunderStorageRequestProcessor::new(state.clone().state));
         Ok(state)
     }
 }

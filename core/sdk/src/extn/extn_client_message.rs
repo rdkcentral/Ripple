@@ -24,7 +24,7 @@ use serde_json::Value;
 use crate::{
     api::{
         config::{Config, ConfigResponse},
-        device::device_request::DeviceRequest,
+        device::{device_accessibility_data::StorageData, device_request::DeviceRequest},
         distributor::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
             distributor_request::DistributorRequest,
@@ -227,6 +227,7 @@ pub enum ExtnResponse {
     PinChallenge(PinChallengeResponse),
     AccountSession(AccountSession),
     Permission(PermissionResponse),
+    StorageData(StorageData),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {

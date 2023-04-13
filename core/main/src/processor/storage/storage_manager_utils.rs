@@ -1,41 +1,49 @@
-use crate::helpers::error_util::RippleError;
-use dab::core::{message::DabResponsePayload, model::persistent_store::StorageData};
 use jsonrpsee::core::{Error, RpcResult};
-use serde_json::Value;
+use ripple_sdk::{
+    api::device::device_accessibility_data::StorageData,
+    extn::extn_client_message::ExtnResponse,
+    serde_json::{self, Value},
+    utils::error::RippleError,
+};
 
 fn storage_error() -> jsonrpsee::core::Error {
     Error::Custom(String::from("error parsing response"))
 }
 
-fn get_storage_data(
-    resp: Result<DabResponsePayload, RippleError>,
-) -> Result<Option<StorageData>, Error> {
+fn get_storage_data(resp: Result<ExtnResponse, RippleError>) -> Result<Option<StorageData>, Error> {
     if let Err(_) = resp {
         return Err(storage_error());
     }
     match resp.unwrap() {
-        DabResponsePayload::StorageData(storage_data) => Ok(Some(storage_data)),
+        ExtnResponse::StorageData(storage_data) => Ok(Some(storage_data)),
         _ => Ok(None),
     }
 }
 
-fn get_value(resp: Result<DabResponsePayload, RippleError>) -> Result<Value, Error> {
+fn get_value(resp: Result<ExtnResponse, RippleError>) -> Result<Value, Error> {
     let has_storage_data = get_storage_data(resp.clone())?;
 
     if let Some(storage_data) = has_storage_data {
         return Ok(storage_data.value);
     }
 
-    // K/V stored prior to StorageData implementation.
-    match resp.unwrap().as_value() {
-        Some(value) => Ok(value),
-        None => Err(storage_error()),
+    // // K/V stored prior to StorageData implementation.
+    // match resp.unwrap().as_value() {
+    //     Some(value) => Ok(value),
+    //     None => Err(storage_error()),
+    // }
+
+    match resp.unwrap() {
+        ExtnResponse::Value(value) => Ok(value.clone()),
+        ExtnResponse::String(str_val) => match serde_json::from_str(&str_val) {
+            Ok(value) => Ok(value),
+            Err(_) => Err(storage_error()),
+        },
+        ExtnResponse::None(()) | _ => Err(storage_error()),
     }
 }
 
-pub fn storage_to_string_rpc_result(
-    resp: Result<DabResponsePayload, RippleError>,
-) -> RpcResult<String> {
+pub fn storage_to_string_rpc_result(resp: Result<ExtnResponse, RippleError>) -> RpcResult<String> {
     let value = get_value(resp.clone())?;
 
     if let Some(s) = value.as_str() {
@@ -45,9 +53,7 @@ pub fn storage_to_string_rpc_result(
     Err(storage_error())
 }
 
-pub fn storage_to_bool_rpc_result(
-    resp: Result<DabResponsePayload, RippleError>,
-) -> RpcResult<bool> {
+pub fn storage_to_bool_rpc_result(resp: Result<ExtnResponse, RippleError>) -> RpcResult<bool> {
     let value = get_value(resp)?;
 
     if let Some(b) = value.as_bool() {
@@ -60,7 +66,7 @@ pub fn storage_to_bool_rpc_result(
     Err(storage_error())
 }
 
-pub fn storage_to_u32_rpc_result(resp: Result<DabResponsePayload, RippleError>) -> RpcResult<u32> {
+pub fn storage_to_u32_rpc_result(resp: Result<ExtnResponse, RippleError>) -> RpcResult<u32> {
     let value = get_value(resp)?;
     if let Some(n) = value.as_u64() {
         return Ok(n as u32);
@@ -72,7 +78,7 @@ pub fn storage_to_u32_rpc_result(resp: Result<DabResponsePayload, RippleError>) 
     Err(storage_error())
 }
 
-pub fn storage_to_f32_rpc_result(resp: Result<DabResponsePayload, RippleError>) -> RpcResult<f32> {
+pub fn storage_to_f32_rpc_result(resp: Result<ExtnResponse, RippleError>) -> RpcResult<f32> {
     let value = get_value(resp)?;
 
     if let Some(n) = value.as_f64() {
@@ -87,7 +93,7 @@ pub fn storage_to_f32_rpc_result(resp: Result<DabResponsePayload, RippleError>) 
     Err(storage_error())
 }
 
-pub fn storage_to_void_rpc_result(resp: Result<DabResponsePayload, RippleError>) -> RpcResult<()> {
+pub fn storage_to_void_rpc_result(resp: Result<ExtnResponse, RippleError>) -> RpcResult<()> {
     match resp {
         Ok(_) => Ok(()),
         Err(_) => Err(storage_error()),
