@@ -66,8 +66,8 @@ pub trait AccessoryService {
 /// # Examples
 /// Note the device needs to support the AccessoryType and Pairing Protocol.
 /// ```
-/// use ripple_sdk::api::device::device_accessory::{AccessoryType,AccessoryProtocol,RemoteAccessoryPairRequest};
-/// RemoteAccessoryPairRequest{_type: AccessoryType::Remote, protocol: AccessoryProtocol::BluetoothLE , timeout: 180};
+/// use ripple_sdk::api::device::device_accessory::{AccessoryType,AccessoryProtocol,AccessoryPairRequest};
+/// AccessoryPairRequest{_type: AccessoryType::Remote, protocol: AccessoryProtocol::BluetoothLE , timeout: 180};
 ///
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -148,18 +148,18 @@ pub enum AccessoryProtocolListType {
 ///
 /// List all Bluetooth remotes
 /// ```
-/// use ripple_sdk::api::device::device_accessory::{AccessoryListType,AccessoryProtocolListType,RemoteAccessoryListRequest};
-/// RemoteAccessoryListRequest{_type: Some(AccessoryListType::Remote), protocol: Some(AccessoryProtocolListType::BluetoothLE)};
+/// use ripple_sdk::api::device::device_accessory::{AccessoryListType,AccessoryProtocolListType,AccessoryListRequest};
+/// AccessoryListRequest{_type: Some(AccessoryListType::Remote), protocol: Some(AccessoryProtocolListType::BluetoothLE)};
 /// ```
 /// List all RF4CE remotes
 /// ```
-/// use ripple_sdk::api::device::device_accessory::{AccessoryListType,AccessoryProtocolListType,RemoteAccessoryListRequest};
-/// RemoteAccessoryListRequest{_type: Some(AccessoryListType::Remote), protocol: Some(AccessoryProtocolListType::RF4CE)};
+/// use ripple_sdk::api::device::device_accessory::{AccessoryListType,AccessoryProtocolListType,AccessoryListRequest};
+/// AccessoryListRequest{_type: Some(AccessoryListType::Remote), protocol: Some(AccessoryProtocolListType::RF4CE)};
 /// ```
 /// List all All devices
 /// ```
-/// use ripple_sdk::api::device::device_accessory::{AccessoryListType,AccessoryProtocolListType,RemoteAccessoryListRequest};
-/// RemoteAccessoryListRequest{_type: Some(AccessoryListType::All), protocol: Some(AccessoryProtocolListType::All)};
+/// use ripple_sdk::api::device::device_accessory::{AccessoryListType,AccessoryProtocolListType,AccessoryListRequest};
+/// AccessoryListRequest{_type: Some(AccessoryListType::All), protocol: Some(AccessoryProtocolListType::All)};
 /// ```
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AccessoryListRequest {
@@ -209,8 +209,8 @@ impl AccessoryProtocol {
 /// # Examples
 /// Response object for BluetoothLE Remote paired made by "Some company" with "Some model".
 /// ```
-/// use ripple_sdk::api::device::device_accessory::{AccessoryType,AccessoryProtocol,RemoteAccessoryDevice};
-/// let response = RemoteAccessoryDevice{_type: AccessoryType::Remote, protocol: AccessoryProtocol::BluetoothLE , make: "Some Company".into(), model: "Some model".into()};
+/// use ripple_sdk::api::device::device_accessory::{AccessoryType,AccessoryProtocol,AccessoryDeviceResponse};
+/// let response = AccessoryDeviceResponse{_type: AccessoryType::Remote, protocol: AccessoryProtocol::BluetoothLE , make: "Some Company".into(), model: "Some model".into()};
 /// ```
 ///
 #[derive(Debug, Serialize, Deserialize, Clone)]
