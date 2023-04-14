@@ -30,7 +30,7 @@ use crate::{
         },
     },
     state::platform_state::PlatformState,
-    utils::rpc_utils::event_listener,
+    utils::rpc_utils::rpc_add_event_listener,
 };
 
 use jsonrpsee::{
@@ -298,7 +298,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        event_listener(
+        rpc_add_event_listener(
             &self.state,
             ctx,
             request,
@@ -330,7 +330,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        event_listener(&self.state, ctx, request, EVENT_CLOSED_CAPTIONS_ENABLED).await
+        rpc_add_event_listener(&self.state, ctx, request, EVENT_CLOSED_CAPTIONS_ENABLED).await
     }
 
     async fn closed_captions_settings_font_family(&self, _ctx: CallContext) -> RpcResult<String> {
@@ -365,7 +365,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        event_listener(&self.state, ctx, request, EVENT_CLOSED_CAPTIONS_FONT_FAMILY).await
+        rpc_add_event_listener(&self.state, ctx, request, EVENT_CLOSED_CAPTIONS_FONT_FAMILY).await
     }
 
     async fn closed_captions_settings_font_size(&self, _ctx: CallContext) -> RpcResult<f32> {
@@ -399,7 +399,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        event_listener(&self.state, ctx, request, EVENT_CLOSED_CAPTIONS_FONT_SIZE).await
+        rpc_add_event_listener(&self.state, ctx, request, EVENT_CLOSED_CAPTIONS_FONT_SIZE).await
     }
 
     async fn closed_captions_settings_font_color(&self, _ctx: CallContext) -> RpcResult<String> {
@@ -425,7 +425,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        event_listener(&self.state, ctx, request, EVENT_CLOSED_CAPTIONS_FONT_COLOR).await
+        rpc_add_event_listener(&self.state, ctx, request, EVENT_CLOSED_CAPTIONS_FONT_COLOR).await
     }
 
     async fn closed_captions_settings_font_edge(&self, _ctx: CallContext) -> RpcResult<String> {
@@ -451,7 +451,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        event_listener(&self.state, ctx, request, EVENT_CLOSED_CAPTIONS_FONT_EDGE).await
+        rpc_add_event_listener(&self.state, ctx, request, EVENT_CLOSED_CAPTIONS_FONT_EDGE).await
     }
 
     async fn closed_captions_settings_font_edge_color(
@@ -480,7 +480,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        event_listener(
+        rpc_add_event_listener(
             &self.state,
             ctx,
             request,
@@ -514,7 +514,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        event_listener(
+        rpc_add_event_listener(
             &self.state,
             ctx,
             request,
@@ -550,7 +550,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        event_listener(
+        rpc_add_event_listener(
             &self.state,
             ctx,
             request,
@@ -590,7 +590,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        event_listener(
+        rpc_add_event_listener(
             &self.state,
             ctx,
             request,
@@ -622,7 +622,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        event_listener(&self.state, ctx, request, EVENT_CLOSED_CAPTIONS_TEXT_ALIGN).await
+        rpc_add_event_listener(&self.state, ctx, request, EVENT_CLOSED_CAPTIONS_TEXT_ALIGN).await
     }
 
     async fn closed_captions_settings_text_align_vertical(
@@ -655,7 +655,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        event_listener(
+        rpc_add_event_listener(
             &self.state,
             ctx,
             request,

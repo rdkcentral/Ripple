@@ -24,7 +24,7 @@ use crate::{
         },
     },
     state::platform_state::PlatformState,
-    utils::rpc_utils::{event_listener, rpc_err},
+    utils::rpc_utils::{rpc_add_event_listener, rpc_err},
 };
 
 use jsonrpsee::{
@@ -102,7 +102,7 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        event_listener(
+        rpc_add_event_listener(
             &self.state,
             ctx,
             request,
@@ -134,7 +134,7 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        event_listener(
+        rpc_add_event_listener(
             &self.state,
             ctx,
             request,
@@ -171,7 +171,7 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        event_listener(
+        rpc_add_event_listener(
             &self.state,
             ctx,
             request,

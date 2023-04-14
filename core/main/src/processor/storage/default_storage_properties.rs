@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use jsonrpsee::tracing::debug;
+use ripple_sdk::log::debug;
 
 use crate::{
     processor::storage::storage_property::{

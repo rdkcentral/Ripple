@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use jsonrpsee::{core::RpcResult, tracing::debug, types::error::CallError};
+use jsonrpsee::{core::RpcResult, types::error::CallError};
 use ripple_sdk::{
     api::{
         device::device_accessibility_data::{
@@ -24,6 +24,7 @@ use ripple_sdk::{
         firebolt::fb_capabilities::CAPABILITY_NOT_AVAILABLE,
     },
     extn::extn_client_message::ExtnResponse,
+    log::debug,
     serde_json::{json, Value},
     tokio,
     utils::error::RippleError,
