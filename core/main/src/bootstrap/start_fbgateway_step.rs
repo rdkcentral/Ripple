@@ -19,14 +19,10 @@ use crate::{
     firebolt::{
         firebolt_gateway::FireboltGateway,
         handlers::{
-            acknowledge_rpc::AckRPCProvider,
-            capabilities_rpc::CapRPCProvider,
-            closed_captions_rpc::ClosedcaptionsRPCProvider,
-            device_rpc::DeviceRPCProvider,
-            keyboard_rpc::KeyboardRPCProvider,
-            lcm_rpc::LifecycleManagementProvider,
-            lifecycle_rpc::LifecycleRippleProvider,
-            pin_rpc::PinRPCProvider,
+            acknowledge_rpc::AckRPCProvider, capabilities_rpc::CapRPCProvider,
+            closed_captions_rpc::ClosedcaptionsRPCProvider, device_rpc::DeviceRPCProvider,
+            keyboard_rpc::KeyboardRPCProvider, lcm_rpc::LifecycleManagementProvider,
+            lifecycle_rpc::LifecycleRippleProvider, pin_rpc::PinRPCProvider,
             voice_guidance_rpc::VoiceguidanceRPCProvider,
         },
         rpc::RippleRPCProvider,

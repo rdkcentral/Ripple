@@ -33,7 +33,7 @@ use thunder_ripple_sdk::{
             },
             extn_client_message::{ExtnMessage, ExtnRequest, ExtnResponse},
         },
-        log::{info, debug},
+        log::{debug, info},
         serde_json::{self, json, Value},
         tokio::sync::mpsc,
         utils::error::RippleError,
@@ -44,7 +44,7 @@ use thunder_ripple_sdk::{
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ThunderGetValueResponse {
     success: bool,
-    value: Value,
+    value: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -101,23 +101,36 @@ impl ThunderStorageRequestProcessor {
         info!("{}", response.message);
 
         if let Some(status) = response.message["success"].as_bool() {
-            debug!("fasil4 {:?}", status);
-
             if status {
+                let value_resp_res = serde_json::from_value(response.message);
+                if let Err(_) = value_resp_res {
+                    debug!("{:?}", value_resp_res);
+                    return false;
+                }
+                let value_resp: ThunderGetValueResponse = value_resp_res.unwrap();
+                if !value_resp.success {
+                    debug!("{:?}", value_resp);
+                    return false;
+                }
+                let parsed_res: Result<Value, serde_json::Error> =
+                    serde_json::from_str(&value_resp.value);
+                if let Err(_) = parsed_res {
+                    debug!(
+                        "Invalid json {} stored at key {}",
+                        value_resp.value, data.key
+                    );
+                    debug!("{:?}", parsed_res);
+                    return false;
+                }
 
-               let value_resp_res = serde_json::from_value(response.message);
-               debug!("fasil5 {:?}", value_resp_res);    
-               let value_resp: ThunderGetValueResponse = value_resp_res.unwrap();
-               debug!("fasi6 {:?}", value_resp);    
-    
-               let data = StorageData::new(value_resp.value);
-               debug!("fasil7 {:?}", data);    
-    
-    
+                let value = parsed_res.unwrap();
+                let has_storage_data: Result<StorageData, serde_json::Error> =
+                    serde_json::from_value(value.clone());
+
                 return Self::respond(
                     state.get_client(),
                     req.clone(),
-                    ExtnResponse::StorageData(data),
+                    ExtnResponse::StorageData(has_storage_data.unwrap()),
                 )
                 .await
                 .is_ok();

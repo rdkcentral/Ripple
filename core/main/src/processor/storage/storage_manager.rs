@@ -1,4 +1,21 @@
-use jsonrpsee::{core::RpcResult, tracing::{debug, info}, types::error::CallError};
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use jsonrpsee::{core::RpcResult, tracing::debug, types::error::CallError};
 use ripple_sdk::{
     api::{
         device::device_accessibility_data::{
@@ -58,10 +75,7 @@ impl StorageManager {
         match StorageManager::get_bool_from_namespace(state, data.namespace.to_string(), data.key)
             .await
         {
-            Ok(resp) => {
-                debug!("fasil : {:?}", resp);
-                Ok(resp.as_value())
-            }
+            Ok(resp) => Ok(resp.as_value()),
             Err(_) => Err(StorageManager::get_firebolt_error(&property)),
         }
     }
@@ -334,9 +348,6 @@ impl StorageManager {
         );
         let resp = StorageManager::get(state, &namespace, &key.to_string()).await;
 
-        debug!("fasil : {:?}",resp);
-        info!("fasil : {:?}",resp);
-        
         storage_to_f32_rpc_result(resp).map_or_else(
             |_| {
                 DefaultStorageProperties::get_number_as_f32(state, &namespace, &key)
