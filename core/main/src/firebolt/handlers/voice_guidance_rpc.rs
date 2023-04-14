@@ -23,9 +23,8 @@ use crate::{
             EVENT_VOICE_GUIDANCE_SETTINGS_CHANGED, EVENT_VOICE_GUIDANCE_SPEED_CHANGED,
         },
     },
-    service::apps::provider_broker::ProviderBroker,
     state::platform_state::PlatformState,
-    utils::rpc_utils::rpc_err,
+    utils::rpc_utils::{event_listener, rpc_err},
 };
 
 use jsonrpsee::{
@@ -87,33 +86,6 @@ pub struct VoiceguidanceImpl {
     pub state: PlatformState,
 }
 
-impl VoiceguidanceImpl {
-    pub async fn on_request_app_event(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-        method: &'static str,
-        event_name: &'static str,
-    ) -> RpcResult<ListenerResponse> {
-        let listen = request.listen;
-        ProviderBroker::register_or_unregister_provider(
-            &self.state,
-            // TODO update with Firebolt Cap in later effort
-            "xrn:firebolt:capability:accessibility:closedcaptions".into(),
-            method.into(),
-            event_name,
-            ctx,
-            request,
-        )
-        .await;
-
-        Ok(ListenerResponse {
-            listening: listen,
-            event: event_name.into(),
-        })
-    }
-}
-
 #[async_trait]
 impl VoiceguidanceServer for VoiceguidanceImpl {
     async fn voice_guidance_settings(&self, ctx: CallContext) -> RpcResult<VoiceGuidanceSettings> {
@@ -130,10 +102,10 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
+        event_listener(
+            &self.state,
             ctx,
             request,
-            "VoiceGuidanceSettingsChanged",
             EVENT_VOICE_GUIDANCE_SETTINGS_CHANGED,
         )
         .await
@@ -162,10 +134,10 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
+        event_listener(
+            &self.state,
             ctx,
             request,
-            "VoiceGuidanceEnabledChanged",
             EVENT_VOICE_GUIDANCE_ENABLED_CHANGED,
         )
         .await
@@ -199,10 +171,10 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
+        event_listener(
+            &self.state,
             ctx,
             request,
-            "VoiceGuidanceSpeedChanged",
             EVENT_VOICE_GUIDANCE_SPEED_CHANGED,
         )
         .await
