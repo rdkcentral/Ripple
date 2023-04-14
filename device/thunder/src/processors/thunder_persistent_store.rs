@@ -33,7 +33,7 @@ use thunder_ripple_sdk::{
             },
             extn_client_message::{ExtnMessage, ExtnRequest, ExtnResponse},
         },
-        log::{debug, info},
+        log::{debug, error, info},
         serde_json::{self, json, Value},
         tokio::sync::mpsc,
         utils::error::RippleError,
@@ -79,6 +79,80 @@ impl ThunderStorageRequestProcessor {
         }
     }
 
+    #[allow(dead_code)]
+    async fn delete_key(self, namespace: String, key: String) -> bool {
+        let thunder_method = ThunderPlugin::PersistentStorage.method("deleteKey");
+        let client = self.state.clone();
+        let params = Some(DeviceChannelParams::Json(
+            json!({
+                "namespace": namespace,
+                "key": key,
+            })
+            .to_string(),
+        ));
+        let response = client
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: thunder_method,
+                params: params,
+            })
+            .await;
+        if response.message.get("success").is_none()
+            || response.message["success"].as_bool().unwrap() == false
+        {
+            error!("{}", response.message);
+            return false;
+        }
+        true
+    }
+
+    #[allow(dead_code)]
+    async fn delete_namespace(self, namespace: String) -> bool {
+        let thunder_method = ThunderPlugin::PersistentStorage.method("deleteNamespace");
+        let client = self.state.clone();
+        let params = Some(DeviceChannelParams::Json(
+            json!({
+                "namespace": namespace,
+            })
+            .to_string(),
+        ));
+        let response = client
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: thunder_method,
+                params: params,
+            })
+            .await;
+        if response.message.get("success").is_none()
+            || response.message["success"].as_bool().unwrap() == false
+        {
+            error!("{}", response.message);
+            return false;
+        }
+        true
+    }
+
+    #[allow(dead_code)]
+    async fn flush_cache(self) -> bool {
+        let thunder_method = ThunderPlugin::PersistentStorage.method("flushCache");
+        let client = self.state.clone();
+        let response = client
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: thunder_method,
+                params: None,
+            })
+            .await;
+
+        if response.message.get("success").is_none()
+            || response.message["success"].as_bool().unwrap() == false
+        {
+            error!("{}", response.message);
+            return false;
+        }
+        true
+    }
+
     async fn get_value(state: ThunderState, req: ExtnMessage, data: GetStorageProperty) -> bool {
         let params = Some(DeviceChannelParams::Json(
             serde_json::to_string(&json!({
@@ -87,8 +161,6 @@ impl ThunderStorageRequestProcessor {
             }))
             .unwrap(),
         ));
-
-        debug!("fasil3 {:?}", params);
 
         let thunder_method = ThunderPlugin::PersistentStorage.method("getValue");
         let response = state
