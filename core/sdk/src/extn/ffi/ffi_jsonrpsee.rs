@@ -15,7 +15,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::extn::client::extn_sender::ExtnSender;
+use crate::{
+    api::firebolt::fb_openrpc::FireboltVersionManifest, extn::client::extn_sender::ExtnSender,
+};
 use crossbeam::channel::Receiver as CReceiver;
 use jsonrpsee::core::server::rpc_module::Methods;
 use libloading::{Library, Symbol};
@@ -39,6 +41,7 @@ macro_rules! export_jsonrpc_extn_builder {
 #[repr(C)]
 #[derive(Debug)]
 pub struct JsonRpseeExtnBuilder {
+    pub get_extended_capabilities: fn() -> Option<FireboltVersionManifest>,
     pub build: fn(client: ExtnSender, receiver: CReceiver<CExtnMessage>) -> Methods,
     pub service: String,
 }

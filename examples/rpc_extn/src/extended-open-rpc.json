@@ -1,0 +1,75 @@
+{
+    "openrpc": "1.2.4",
+    "info": {
+        "title": "custom",
+        "version": "0.1.0"
+    },
+    "methods": [
+        {
+            "name": "legacy.make",
+            "summary": "Get the App's Bundle ID",
+            "params": [],
+            "tags": [
+                {
+                  "name": "property:immutable"
+                },
+                {
+                  "name": "capabilities",
+                  "x-uses": [
+                    "xrn:firebolt:capability:device:make"
+                  ]
+                }
+              ],
+              "result": {
+                "name": "make",
+                "summary": "the device make",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "examples": [
+                {
+                  "name": "Getting the device make",
+                  "params": [],
+                  "result": {
+                    "name": "Default Result",
+                    "value": "Arris"
+                  }
+                }
+              ]
+          },
+          {
+            "name": "legacy.model",
+            "summary": "Get the device model",
+            "params": [],
+            "tags": [
+              {
+                "name": "property:immutable"
+              },
+              {
+                "name": "capabilities",
+                "x-uses": [
+                  "xrn:firebolt:capability:device:model"
+                ]
+              }
+            ],
+            "result": {
+              "name": "model",
+              "summary": "the device model",
+              "schema": {
+                "type": "string"
+              }
+            },
+            "examples": [
+              {
+                "name": "Getting the device model",
+                "params": [],
+                "result": {
+                  "name": "Default Result",
+                  "value": "xi6"
+                }
+              }
+            ]
+          }
+    ]
+}
