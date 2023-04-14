@@ -61,5 +61,8 @@
         "browser",
         "permissions",
         "account_session"
-    ]
+    ],
+    "rpc_aliases": {
+        "device.model": ["custom.model"]
+    }
 }
