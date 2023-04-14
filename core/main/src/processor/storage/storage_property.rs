@@ -22,7 +22,7 @@ pub const NAMESPACE_PRIVACY: &'static str = "Privacy";
 pub const NAMESPACE_DEVICE_NAME: &'static str = "DeviceName";
 pub const NAMESPACE_LOCALIZATION: &'static str = "Localization";
 pub const NAMESPACE_USER_GRANT: &'static str = "UserGrant";
-pub const NAMESPACE_VOICE_GUIDANCE: &'static str = "Voiceguidance";
+pub const NAMESPACE_VOICE_GUIDANCE: &'static str = "VoiceGuidance";
 
 pub const KEY_ENABLED: &'static str = "enabled";
 pub const KEY_FONT_FAMILY: &'static str = "fontFamily";
@@ -441,8 +441,6 @@ pub enum StorageProperty {
     VoiceguidanceEnabled,
     VoiceguidanceSpeed,
 }
-
-
 
 impl StorageProperty {
     pub fn as_data(&self) -> PropertyData {

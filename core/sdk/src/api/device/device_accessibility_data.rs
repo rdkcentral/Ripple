@@ -15,7 +15,7 @@ use chrono::Utc;
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use log::info;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -122,7 +122,6 @@ pub enum StorageRequest {
 
 impl ExtnPayloadProvider for StorageRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
-        info!("inside etn paylod");
         ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Storage(self.clone())))
     }
 

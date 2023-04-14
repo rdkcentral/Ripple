@@ -19,9 +19,11 @@ use jsonrpsee::tracing::debug;
 
 use crate::{
     processor::storage::storage_property::{
-        KEY_BACKGROUND_COLOR, KEY_BACKGROUND_OPACITY, KEY_ENABLED, KEY_FONT_COLOR, KEY_FONT_EDGE,
-        KEY_FONT_EDGE_COLOR, KEY_FONT_FAMILY, KEY_FONT_OPACITY, KEY_FONT_SIZE, KEY_TEXT_ALIGN,
-        KEY_TEXT_ALIGN_VERTICAL, NAMESPACE_CLOSED_CAPTIONS,
+        KEY_BACKGROUND_COLOR, KEY_BACKGROUND_OPACITY, KEY_COUNTRY_CODE, KEY_ENABLED,
+        KEY_FONT_COLOR, KEY_FONT_EDGE, KEY_FONT_EDGE_COLOR, KEY_FONT_FAMILY, KEY_FONT_OPACITY,
+        KEY_FONT_SIZE, KEY_LANGUAGE, KEY_LOCALE, KEY_NAME, KEY_TEXT_ALIGN, KEY_TEXT_ALIGN_VERTICAL,
+        KEY_VOICE_GUIDANCE_SPEED, NAMESPACE_CLOSED_CAPTIONS, NAMESPACE_DEVICE_NAME,
+        NAMESPACE_LOCALIZATION, NAMESPACE_VOICE_GUIDANCE,
     },
     state::platform_state::PlatformState,
 };
@@ -44,6 +46,17 @@ impl DefaultStorageProperties {
                     .configuration
                     .default_values
                     .captions
+                    .enabled),
+                _ => Err(()),
+            }
+        } else if namespace.eq(NAMESPACE_VOICE_GUIDANCE) {
+            match key {
+                KEY_ENABLED => Ok(state
+                    .get_device_manifest()
+                    .clone()
+                    .configuration
+                    .default_values
+                    .voice
                     .enabled),
                 _ => Err(()),
             }
@@ -110,7 +123,50 @@ impl DefaultStorageProperties {
                     .text_align_vertical),
                 _ => Err(()),
             }
-        } else {
+        } else if namespace.eq(NAMESPACE_DEVICE_NAME) {
+            match key {
+                KEY_NAME => Ok(state
+                    .get_device_manifest()
+                    .clone()
+                    .configuration
+                    .default_values
+                    .name),
+                _ => Err(()),
+            }
+        } else if namespace.eq(NAMESPACE_LOCALIZATION) {
+            match key {
+                KEY_COUNTRY_CODE => Ok(state
+                    .get_device_manifest()
+                    .clone()
+                    .configuration
+                    .default_values
+                    .country_code),
+                KEY_LANGUAGE => Ok(state
+                    .get_device_manifest()
+                    .clone()
+                    .configuration
+                    .default_values
+                    .language),
+                KEY_LOCALE => Ok(state
+                    .get_device_manifest()
+                    .clone()
+                    .configuration
+                    .default_values
+                    .locale),
+
+                // need to implement //
+                // KEY_ADDITIONAL_INFO => {
+                //     let a_info_map: HashMap<String, String> = state.get_device_manifest().clone().configuration.default_values.additional_info;
+                //     Ok(serde_json::to_string(&a_info_map).unwrap())
+                // }
+                _ => Err(()),
+            }
+        }
+        //  else if let Some(defaults) = state.services.cm.clone().get_settings_defaults_per_app().get(namespace)
+        // {
+        //     Ok(defaults.postal_code.clone())
+        // }
+        else {
             Err(())
         }
     }
@@ -159,6 +215,17 @@ impl DefaultStorageProperties {
                     .default_values
                     .captions
                     .font_size as f32),
+                _ => Err(()),
+            }
+        } else if namespace.eq(NAMESPACE_VOICE_GUIDANCE) {
+            match key {
+                KEY_VOICE_GUIDANCE_SPEED => Ok(state
+                    .get_device_manifest()
+                    .clone()
+                    .configuration
+                    .default_values
+                    .voice
+                    .speed as f32),
                 _ => Err(()),
             }
         } else {
