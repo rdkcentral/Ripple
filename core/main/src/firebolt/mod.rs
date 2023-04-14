@@ -18,6 +18,7 @@
 //pub mod rpc_gateway;
 //pub mod firebolt_gateway;
 pub mod handlers {
+    pub mod accessory_rpc;
     pub mod acknowledge_rpc;
     pub mod capabilities_rpc;
     pub mod device_rpc;
@@ -25,6 +26,7 @@ pub mod handlers {
     pub mod lcm_rpc;
     pub mod lifecycle_rpc;
     pub mod pin_rpc;
+    pub mod wifi_rpc;
 }
 pub mod firebolt_gatekeeper;
 pub mod firebolt_gateway;
