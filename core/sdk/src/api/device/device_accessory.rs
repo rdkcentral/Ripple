@@ -1,0 +1,228 @@
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use super::device_request::DeviceRequest;
+use crate::{
+    api::{firebolt::fb_capabilities::FireboltCap, manifest::device_manifest::DeviceManifest},
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
+    framework::ripple_contract::RippleContract,
+};
+use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum RemoteAccessoryRequest {
+    Pair(AccessoryPairRequest),
+    List(AccessoryListRequest),
+}
+
+impl ExtnPayloadProvider for RemoteAccessoryRequest {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Accessory(self.clone())))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        match payload {
+            ExtnPayload::Request(request) => match request {
+                ExtnRequest::Device(r) => match r {
+                    DeviceRequest::Accessory(d) => return Some(d),
+                    _ => {}
+                },
+                _ => {}
+            },
+            _ => {}
+        }
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::RemoteAccessory
+    }
+}
+
+#[async_trait]
+pub trait AccessoryService {
+    async fn pair(self: Box<Self>, pair_request: Option<AccessoryPairRequest>) -> Box<Self>;
+
+    async fn list(self: Box<Self>, list_request: Option<AccessoryListRequest>) -> Box<Self>;
+}
+
+/// Constructs a request to pair an accessory.
+///
+/// # Examples
+/// Note the device needs to support the AccessoryType and Pairing Protocol.
+/// ```
+/// use ripple_sdk::api::device::device_accessory::{AccessoryType,AccessoryProtocol,AccessoryPairRequest};
+/// AccessoryPairRequest{_type: AccessoryType::Remote, protocol: AccessoryProtocol::BluetoothLE , timeout: 180};
+///
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AccessoryPairRequest {
+    #[serde(rename = "type")]
+    pub _type: AccessoryType,
+    pub protocol: AccessoryProtocol,
+    pub timeout: u64,
+}
+
+impl Default for AccessoryPairRequest {
+    fn default() -> Self {
+        AccessoryPairRequest {
+            _type: AccessoryType::Other,
+            protocol: AccessoryProtocol::BluetoothLE,
+            timeout: 60,
+        }
+    }
+}
+
+/// Enumeration to support various Accessories which can be paired to the device.
+///
+/// # More info
+///
+/// ```
+/// use ripple_sdk::api::device::device_accessory::AccessoryType;
+/// AccessoryType::Remote; // Remote device used to send keypress events to the device
+/// AccessoryType::Speaker; // Audio output device which recieves sound signals from device.
+/// AccessoryType::Other; // Placeholder for other types of supported devices. Subjected to platform support.
+/// ```
+///
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Hash, Eq)]
+pub enum AccessoryType {
+    Remote,
+    Speaker,
+    Other,
+}
+
+/// Enumeration to enlist the different query params for a given device supported on a Accessory List request.
+///
+/// # More info
+///
+/// ```
+/// use ripple_sdk::api::device::device_accessory::AccessoryListType;
+/// AccessoryListType::Remote; // List of remotes connected to the Device
+/// AccessoryListType::Speaker; // List of Speakers connected to the Device.
+/// AccessoryListType::All; // All Paired accesories connected to the Device.
+/// ```
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum AccessoryListType {
+    Remote,
+    Speaker,
+    All,
+}
+
+/// Enumeration to enlist the different query params based on the connected protocol on a Accessory List request.
+///
+/// # More info
+///
+/// ```
+/// use ripple_sdk::api::device::device_accessory::AccessoryProtocolListType;
+/// AccessoryProtocolListType::BluetoothLE; // List of Devices connected via BluetoothLe
+/// AccessoryProtocolListType::RF4CE; // List of Devices connected via RF4CE(Radio Frequency).
+/// AccessoryProtocolListType::All; // All Paired accesories connected to the Device.
+/// ```
+///
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum AccessoryProtocolListType {
+    BluetoothLE,
+    RF4CE,
+    All,
+}
+
+/// Constructs a request to list accessories.
+///
+/// # Examples
+/// Note the device needs to support the AccessoryType and Pairing Protocol.
+///
+/// List all Bluetooth remotes
+/// ```
+/// use ripple_sdk::api::device::device_accessory::{AccessoryListType,AccessoryProtocolListType,AccessoryListRequest};
+/// AccessoryListRequest{_type: Some(AccessoryListType::Remote), protocol: Some(AccessoryProtocolListType::BluetoothLE)};
+/// ```
+/// List all RF4CE remotes
+/// ```
+/// use ripple_sdk::api::device::device_accessory::{AccessoryListType,AccessoryProtocolListType,AccessoryListRequest};
+/// AccessoryListRequest{_type: Some(AccessoryListType::Remote), protocol: Some(AccessoryProtocolListType::RF4CE)};
+/// ```
+/// List all All devices
+/// ```
+/// use ripple_sdk::api::device::device_accessory::{AccessoryListType,AccessoryProtocolListType,AccessoryListRequest};
+/// AccessoryListRequest{_type: Some(AccessoryListType::All), protocol: Some(AccessoryProtocolListType::All)};
+/// ```
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AccessoryListRequest {
+    #[serde(rename = "type")]
+    pub _type: Option<AccessoryListType>,
+    pub protocol: Option<AccessoryProtocolListType>,
+}
+
+impl Default for AccessoryListRequest {
+    fn default() -> Self {
+        AccessoryListRequest {
+            _type: Some(AccessoryListType::All),
+            protocol: Some(AccessoryProtocolListType::All),
+        }
+    }
+}
+
+/// Enumeration to enlist the different query params based on the connected protocol on a Accessory List request.
+///
+/// # More info
+///
+/// ```
+/// use ripple_sdk::api::device::device_accessory::AccessoryProtocol;
+/// AccessoryProtocol::BluetoothLE; // List of Devices connected via BluetoothLe
+/// AccessoryProtocol::RF4CE; // List of Devices connected via RF4CE(Radio Frequency).
+/// ```
+///
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Hash, Eq)]
+pub enum AccessoryProtocol {
+    BluetoothLE,
+    RF4CE,
+}
+
+impl AccessoryProtocol {
+    pub fn get_supported_protocol(value: DeviceManifest) -> Self {
+        let supported_caps = value.get_supported_caps();
+        if supported_caps.contains(&FireboltCap::short("remote:rf4ce")) {
+            AccessoryProtocol::RF4CE
+        } else {
+            AccessoryProtocol::BluetoothLE
+        }
+    }
+}
+
+/// Constructs a response for a paired device response.
+///
+/// # Examples
+/// Response object for BluetoothLE Remote paired made by "Some company" with "Some model".
+/// ```
+/// use ripple_sdk::api::device::device_accessory::{AccessoryType,AccessoryProtocol,AccessoryDeviceResponse};
+/// let response = AccessoryDeviceResponse{_type: AccessoryType::Remote, protocol: AccessoryProtocol::BluetoothLE , make: "Some Company".into(), model: "Some model".into()};
+/// ```
+///
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AccessoryDeviceResponse {
+    #[serde(rename = "type")]
+    pub _type: AccessoryType,
+    pub make: String,
+    pub model: String,
+    pub protocol: AccessoryProtocol,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AccessoryDeviceListResponse {
+    pub list: Vec<AccessoryDeviceResponse>,
+}
