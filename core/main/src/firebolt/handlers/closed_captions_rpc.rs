@@ -250,9 +250,9 @@ impl ClosedcaptionsImpl {
         FONT_FAMILY_LIST.contains(&font_family)
     }
 
-    pub async fn closed_captions_settings_enabled(state: &PlatformState) -> RpcResult<bool> {
-        StorageManager::get_bool(state, StorageProperty::ClosedCaptionsEnabled).await
-    }
+    // pub async fn closed_captions_settings_enabled(state: &PlatformState) -> RpcResult<bool> {
+    //     StorageManager::get_bool(state, StorageProperty::ClosedCaptionsEnabled).await
+    // }
 
     pub async fn on_request_cc_event(
         &self,
@@ -336,8 +336,12 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         .await
     }
 
+    // async fn closed_captions_settings_enabled_rpc(&self, _ctx: CallContext) -> RpcResult<bool> {
+    //     ClosedcaptionsImpl::closed_captions_settings_enabled(&self.state).await
+    // }
+
     async fn closed_captions_settings_enabled_rpc(&self, _ctx: CallContext) -> RpcResult<bool> {
-        ClosedcaptionsImpl::closed_captions_settings_enabled(&self.state).await
+        StorageManager::get_bool(&self.state, StorageProperty::ClosedCaptionsEnabled).await
     }
 
     async fn closed_captions_settings_enabled_set(

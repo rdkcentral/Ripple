@@ -1,4 +1,4 @@
-use jsonrpsee::{core::RpcResult, tracing::debug, types::error::CallError};
+use jsonrpsee::{core::RpcResult, tracing::{debug, info}, types::error::CallError};
 use ripple_sdk::{
     api::{
         device::device_accessibility_data::{
@@ -334,6 +334,9 @@ impl StorageManager {
         );
         let resp = StorageManager::get(state, &namespace, &key.to_string()).await;
 
+        debug!("fasil : {:?}",resp);
+        info!("fasil : {:?}",resp);
+        
         storage_to_f32_rpc_result(resp).map_or_else(
             |_| {
                 DefaultStorageProperties::get_number_as_f32(state, &namespace, &key)
@@ -355,6 +358,7 @@ impl StorageManager {
             namespace: namespace.clone(),
             key: key.clone(),
         };
+        debug!("fasil1 {:?}", data);
         let result = state
             .get_client()
             .send_extn_request(StorageRequest::Get(data))
@@ -363,6 +367,7 @@ impl StorageManager {
         match result {
             Ok(msg) => {
                 if let Some(m) = msg.payload.clone().extract() {
+                    debug!("fasil2 {:?}", m);
                     return Ok(m);
                 } else {
                     return Err(RippleError::ParseError);

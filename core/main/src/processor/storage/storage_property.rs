@@ -22,6 +22,7 @@ pub const KEY_BACKGROUND_COLOR: &'static str = "backgroundColor";
 pub const KEY_BACKGROUND_OPACITY: &'static str = "backgroundOpacity";
 pub const KEY_TEXT_ALIGN: &'static str = "textAlign";
 pub const KEY_TEXT_ALIGN_VERTICAL: &'static str = "textAlignVertical";
+<<<<<<< HEAD
 pub const KEY_LIMIT_AD_TRACKING: &'static str = "limitAdTracking";
 pub const KEY_NAME: &'static str = "name";
 pub const KEY_POSTAL_CODE: &'static str = "postalCode";
@@ -47,6 +48,9 @@ pub const KEY_ALLOW_RESUME_POINTS: &'static str = "allowResumePoints";
 pub const KEY_ALLOW_UNENTITLED_PERSONALIZATION: &'static str = "allowUnentitledPersonalization";
 pub const KEY_ALLOW_UNENTITLED_RESUME_POINTS: &'static str = "allowUnentitledResumePoints";
 pub const KEY_ALLOW_WATCH_HISTORY: &'static str = "allowWatchHistory";
+=======
+pub const KEY_VOICE_GUIDANCE_SPEED: &'static str = "speed";
+>>>>>>> 3e29104 (voice guidance bug.)
 
 pub const EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED: &'static str =
     "accessibility.onClosedCaptionsSettingsChanged";
@@ -111,7 +115,23 @@ pub const EVENT_VOICE_GUIDANCE_SPEED_CHANGED: &'static str = "voiceguidance.onSp
 
 
 
+const PROPERTY_DATA_VOICE_GUIDANCE_ENABLED: PropertyData = PropertyData {
+    key: KEY_ENABLED,
+    namespace: NAMESPACE_VOICE_GUIDANCE,
+    event_names: Some(&[
+        EVENT_VOICE_GUIDANCE_ENABLED_CHANGED,
+        EVENT_VOICE_GUIDANCE_SETTINGS_CHANGED,
+    ]),
+};
 
+const PROPERTY_DATA_VOICE_GUIDANCE_SPEED: PropertyData = PropertyData {
+    key: KEY_VOICE_GUIDANCE_SPEED,
+    namespace: NAMESPACE_VOICE_GUIDANCE,
+    event_names: Some(&[
+        EVENT_VOICE_GUIDANCE_ENABLED_CHANGED,
+        EVENT_VOICE_GUIDANCE_SPEED_CHANGED,
+    ]),
+};
 
 
 
@@ -387,6 +407,7 @@ pub enum StorageProperty {
     ClosedCaptionsBackgroundOpacity,
     ClosedCaptionsTextAlign,
     ClosedCaptionsTextAlignVertical,
+<<<<<<< HEAD
     Locality,
     CountryCode,
     Language,
@@ -412,6 +433,10 @@ pub enum StorageProperty {
     AllowUnentitledPersonalization,
     AllowUnentitledResumePoints,
     AllowWatchHistory,
+=======
+    VoiceguidanceEnabled,
+    VoiceguidanceSpeed,
+>>>>>>> 3e29104 (voice guidance bug.)
 }
 
 impl StorageProperty {
@@ -437,6 +462,7 @@ impl StorageProperty {
             StorageProperty::ClosedCaptionsTextAlign => PROPERTY_DATA_CLOSED_CAPTIONS_TEXT_ALIGN,
             StorageProperty::ClosedCaptionsTextAlignVertical => {
                 PROPERTY_DATA_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL
+<<<<<<< HEAD
             }
             StorageProperty::Locality => PROPERTY_DATA_LOCALITY,
             StorageProperty::CountryCode => PROPERTY_DATA_COUNTRY_CODE,
@@ -501,21 +527,26 @@ impl StorageProperty {
             }
             StorageProperty::AllowWatchHistory => Some(PrivacySetting::WatchHistory),
             _ => None,
+=======
+            },
+            StorageProperty::VoiceguidanceEnabled => PROPERTY_DATA_VOICE_GUIDANCE_ENABLED,
+            StorageProperty::VoiceguidanceSpeed => PROPERTY_DATA_VOICE_GUIDANCE_SPEED,
+>>>>>>> 3e29104 (voice guidance bug.)
         }
     }
 }
 
 
-pub enum VoiceguidanceProperty {
-    VoiceguidanceEnabled,
-    VoiceguidanceSpeed,
-}
+// pub enum VoiceguidanceProperty {
+//     VoiceguidanceEnabled,
+//     VoiceguidanceSpeed,
+// }
 
-impl VoiceguidanceProperty {
-    pub fn as_data(&self) -> PropertyData {
-        match self {
-            VoiceguidanceProperty::VoiceguidanceEnabled => PROPERTY_DATA_CLOSED_CAPTIONS_ENABLED,
-            VoiceguidanceProperty::VoiceguidanceSpeed => PROPERTY_DATA_CLOSED_CAPTIONS_FONT_FAMILY,
-        }
-    }
-}
+// impl VoiceguidanceProperty {
+//     pub fn as_data(&self) -> PropertyData {
+//         match self {
+//             VoiceguidanceProperty::VoiceguidanceEnabled => PROPERTY_DATA_CLOSED_CAPTIONS_ENABLED,
+//             VoiceguidanceProperty::VoiceguidanceSpeed => PROPERTY_DATA_CLOSED_CAPTIONS_FONT_FAMILY,
+//         }
+//     }
+// }

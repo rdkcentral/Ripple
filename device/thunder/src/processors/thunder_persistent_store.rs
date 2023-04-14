@@ -33,7 +33,7 @@ use thunder_ripple_sdk::{
             },
             extn_client_message::{ExtnMessage, ExtnRequest, ExtnResponse},
         },
-        log::info,
+        log::{info, debug},
         serde_json::{self, json, Value},
         tokio::sync::mpsc,
         utils::error::RippleError,
@@ -88,6 +88,8 @@ impl ThunderStorageRequestProcessor {
             .unwrap(),
         ));
 
+        debug!("fasil3 {:?}", params);
+
         let thunder_method = ThunderPlugin::PersistentStorage.method("getValue");
         let response = state
             .get_thunder_client()
@@ -99,10 +101,19 @@ impl ThunderStorageRequestProcessor {
         info!("{}", response.message);
 
         if let Some(status) = response.message["success"].as_bool() {
+            debug!("fasil4 {:?}", status);
+
             if status {
-                let value_resp_res = serde_json::from_value(response.message);
-                let value_resp: ThunderGetValueResponse = value_resp_res.unwrap();
-                let data = StorageData::new(value_resp.value);
+
+               let value_resp_res = serde_json::from_value(response.message);
+               debug!("fasil5 {:?}", value_resp_res);    
+               let value_resp: ThunderGetValueResponse = value_resp_res.unwrap();
+               debug!("fasi6 {:?}", value_resp);    
+    
+               let data = StorageData::new(value_resp.value);
+               debug!("fasil7 {:?}", data);    
+    
+    
                 return Self::respond(
                     state.get_client(),
                     req.clone(),
