@@ -14,6 +14,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+pub mod accessory;
 pub mod apps;
 pub mod config;
 pub mod device;
@@ -21,6 +22,7 @@ pub mod lifecycle;
 pub mod manifest;
 pub mod session;
 pub mod status_update;
+pub mod wifi;
 pub mod gateway {
     pub mod rpc_error;
     pub mod rpc_gateway_api;

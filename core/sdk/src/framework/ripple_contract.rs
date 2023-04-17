@@ -1,6 +1,3 @@
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-
 // If not stated otherwise in this file or this component's license file the
 // following copyright and licenses apply:
 //
@@ -17,7 +14,10 @@ use serde_json::Value;
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 use crate::utils::error::RippleError;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -34,10 +34,12 @@ pub enum RippleContract {
     Rpc,
     ExtnStatus,
     DeviceInfo,
+    Wifi,
     WindowManager,
     Browser,
     Permissions,
     Storage,
+    RemoteAccessory,
 }
 
 impl TryFrom<String> for RippleContract {

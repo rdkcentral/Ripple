@@ -26,6 +26,7 @@ pub enum ThunderPlugin {
     LocationSync,
     Network,
     RDKShell,
+    RemoteControl,
     PersistentStorage,
     System,
     Wifi,
@@ -36,6 +37,7 @@ const DISPLAY_SETTINGS_CFG: Cfg = Cfg::new("org.rdk.DisplaySettings", true, fals
 const NETWORK_CFG: Cfg = Cfg::new("org.rdk.Network", true, false);
 const PERSISTENT_STORAGE_CFG: Cfg = Cfg::new("org.rdk.PersistentStore", false, false);
 const RDKSHELL_CFG: Cfg = Cfg::new("org.rdk.RDKShell", false, true);
+const REMOTE_CONTROL_CFG: Cfg = Cfg::new("org.rdk.RemoteControl", false, false);
 const SYSTEM_CFG: Cfg = Cfg::new("org.rdk.System", true, false);
 const WIFI_CFG: Cfg = Cfg::new("org.rdk.Wifi", false, false);
 const LOCATION_SYNC: Cfg = Cfg::new("LocationSync", false, false);
@@ -50,6 +52,7 @@ impl ThunderPlugin {
             Network => NETWORK_CFG,
             PersistentStorage => PERSISTENT_STORAGE_CFG,
             RDKShell => RDKSHELL_CFG,
+            RemoteControl => REMOTE_CONTROL_CFG,
             System => SYSTEM_CFG,
             Wifi => WIFI_CFG,
             LocationSync => LOCATION_SYNC,

@@ -19,11 +19,12 @@ use crate::{
     firebolt::{
         firebolt_gateway::FireboltGateway,
         handlers::{
-            acknowledge_rpc::AckRPCProvider, capabilities_rpc::CapRPCProvider,
-            closed_captions_rpc::ClosedcaptionsRPCProvider, device_rpc::DeviceRPCProvider,
-            keyboard_rpc::KeyboardRPCProvider, lcm_rpc::LifecycleManagementProvider,
-            lifecycle_rpc::LifecycleRippleProvider, localization_rpc::LocalizationRPCProvider,
-            pin_rpc::PinRPCProvider, voice_guidance_rpc::VoiceguidanceRPCProvider,
+            accessory_rpc::AccessoryRippleProvider, acknowledge_rpc::AckRPCProvider,
+            capabilities_rpc::CapRPCProvider, closed_captions_rpc::ClosedcaptionsRPCProvider,
+            device_rpc::DeviceRPCProvider, keyboard_rpc::KeyboardRPCProvider,
+            lcm_rpc::LifecycleManagementProvider, lifecycle_rpc::LifecycleRippleProvider,
+            localization_rpc::LocalizationRPCProvider, pin_rpc::PinRPCProvider,
+            voice_guidance_rpc::VoiceguidanceRPCProvider, wifi_rpc::WifiRPCProvider,
         },
         rpc::RippleRPCProvider,
     },
@@ -39,6 +40,7 @@ impl FireboltGatewayStep {
     async fn init_handlers(&self, state: PlatformState, extn_methods: Methods) -> Methods {
         let mut methods = Methods::new();
         let _ = methods.merge(DeviceRPCProvider::provide(state.clone()));
+        let _ = methods.merge(WifiRPCProvider::provide(state.clone()));
         let _ = methods.merge(LifecycleRippleProvider::provide(state.clone()));
         let _ = methods.merge(CapRPCProvider::provide(state.clone()));
         let _ = methods.merge(KeyboardRPCProvider::provide(state.clone()));
@@ -47,6 +49,7 @@ impl FireboltGatewayStep {
         let _ = methods.merge(ClosedcaptionsRPCProvider::provide(state.clone()));
         let _ = methods.merge(VoiceguidanceRPCProvider::provide(state.clone()));
         let _ = methods.merge(LocalizationRPCProvider::provide(state.clone()));
+        let _ = methods.merge(AccessoryRippleProvider::provide(state.clone()));
         // LCM Api(s) not required for internal launcher
         if !state.has_internal_launcher() {
             let _ = methods.merge(LifecycleManagementProvider::provide(state.clone()));
