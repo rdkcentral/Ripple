@@ -370,7 +370,6 @@ impl StorageManager {
             namespace: namespace.clone(),
             key: key.clone(),
         };
-        debug!("fasil1 {:?}", data);
         let result = state
             .get_client()
             .send_extn_request(StorageRequest::Get(data))
@@ -379,7 +378,6 @@ impl StorageManager {
         match result {
             Ok(msg) => {
                 if let Some(m) = msg.payload.clone().extract() {
-                    debug!("fasil2 {:?}", m);
                     return Ok(m);
                 } else {
                     return Err(RippleError::ParseError);
