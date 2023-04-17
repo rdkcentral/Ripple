@@ -9,14 +9,17 @@
         "xrn:firebolt:capability:device:info",
         "xrn:firebolt:capability:device:make",
         "xrn:firebolt:capability:device:model",
-        "xrn:firebolt:capability:protocol:wifi"
+        "xrn:firebolt:capability:protocol:wifi",
+        "xrn:firebolt:capability:privacy:settings",
+        "xrn:firebolt:capability:privacy:settings[manage]"
     ],
     "comcast_firebolt_reference" : [
         "xrn:firebolt:capability:input:keyboard",
         "xrn:firebolt:capability:device:info",
         "xrn:firebolt:capability:device:make",
         "xrn:firebolt:capability:device:model",
-        "xrn:firebolt:capability:protocol:wifi"
+        "xrn:firebolt:capability:protocol:wifi",
+        "xrn:firebolt:capability:privacy:settings"
     ],
     "test" : [
         "xrn:firebolt:capability:input:keyboard",
@@ -24,6 +27,7 @@
         "xrn:firebolt:capability:device:make",
         "xrn:firebolt:capability:device:model",
         "xrn:firebolt:capability:usergrant:pinchallenge",
-        "xrn:firebolt:capability:protocol:wifi"
+        "xrn:firebolt:capability:protocol:wifi",
+        "xrn:firebolt:capability:privacy:settings"
     ]
 }

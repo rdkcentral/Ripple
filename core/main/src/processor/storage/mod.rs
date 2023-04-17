@@ -15,22 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//pub mod rpc_gateway;
-//pub mod firebolt_gateway;
-pub mod handlers {
-    pub mod accessory_rpc;
-    pub mod acknowledge_rpc;
-    pub mod capabilities_rpc;
-    pub mod device_rpc;
-    pub mod keyboard_rpc;
-    pub mod lcm_rpc;
-    pub mod lifecycle_rpc;
-    pub mod pin_rpc;
-    pub mod privacy_rpc;
-    pub mod wifi_rpc;
-}
-pub mod firebolt_gatekeeper;
-pub mod firebolt_gateway;
-pub mod firebolt_ws;
-pub mod rpc;
-pub mod rpc_router;
+pub mod default_storage_properties;
+pub mod storage_manager;
+pub mod storage_manager_utils;
+pub mod storage_property;

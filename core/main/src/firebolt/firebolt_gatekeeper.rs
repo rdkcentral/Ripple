@@ -16,6 +16,7 @@
 // limitations under the License.
 use ripple_sdk::api::firebolt::fb_capabilities::{DenyReason, DenyReasonWithCap};
 use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
+use ripple_sdk::log::debug;
 
 use crate::state::{cap::permitted_state::PermissionHandler, platform_state::PlatformState};
 
@@ -30,22 +31,32 @@ impl FireboltGatekeeper {
         }
         if let Some(caps) = open_rpc_state.get_caps_for_method(request.clone().method) {
             // Supported and Availability checks
+            debug!(
+                "Required caps for method:{} Caps: [{:?}]",
+                request.method, caps
+            );
             if let Err(e) = state
                 .clone()
                 .cap_state
                 .generic
                 .check_all(&caps.clone().get_caps())
             {
+                debug!("check_all for caps[{:?}] failed", caps);
                 return Err(e);
             }
             // permission checks
             if let Err(e) =
                 PermissionHandler::check_permitted(&state, &request.ctx.app_id, caps.clone()).await
             {
+                debug!("check_permitted for method ({}) failed", request.method);
                 return Err(e);
             }
         } else {
             // Couldnt find any capabilities for the method
+            debug!(
+                "Unable to find any caps for the method ({})",
+                request.method
+            );
             return Err(DenyReasonWithCap {
                 reason: DenyReason::Unsupported,
                 caps: Vec::new(),

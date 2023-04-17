@@ -61,6 +61,7 @@ pub enum Config {
     Exclusory,
     DefaultScanTimeout,
     LauncherConfig,
+    RippleFeatures,
 }
 
 impl ExtnPayloadProvider for Config {
