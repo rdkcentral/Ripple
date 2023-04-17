@@ -16,3 +16,4 @@
 // limitations under the License.
 
 pub mod rpc_utils;
+pub mod serde_utils;

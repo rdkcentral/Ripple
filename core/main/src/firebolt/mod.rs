@@ -21,11 +21,14 @@ pub mod handlers {
     pub mod accessory_rpc;
     pub mod acknowledge_rpc;
     pub mod capabilities_rpc;
+    pub mod closed_captions_rpc;
     pub mod device_rpc;
     pub mod keyboard_rpc;
     pub mod lcm_rpc;
     pub mod lifecycle_rpc;
+    pub mod localization_rpc;
     pub mod pin_rpc;
+    pub mod voice_guidance_rpc;
     pub mod wifi_rpc;
 }
 pub mod firebolt_gatekeeper;

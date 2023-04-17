@@ -38,6 +38,7 @@ pub enum RippleContract {
     WindowManager,
     Browser,
     Permissions,
+    Storage,
     RemoteAccessory,
 }
 
