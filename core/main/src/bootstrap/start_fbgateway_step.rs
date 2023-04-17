@@ -20,9 +20,10 @@ use crate::{
         firebolt_gateway::FireboltGateway,
         handlers::{
             acknowledge_rpc::AckRPCProvider, capabilities_rpc::CapRPCProvider,
-            device_rpc::DeviceRPCProvider, keyboard_rpc::KeyboardRPCProvider,
-            lcm_rpc::LifecycleManagementProvider, lifecycle_rpc::LifecycleRippleProvider,
-            pin_rpc::PinRPCProvider,
+            closed_captions_rpc::ClosedcaptionsRPCProvider, device_rpc::DeviceRPCProvider,
+            keyboard_rpc::KeyboardRPCProvider, lcm_rpc::LifecycleManagementProvider,
+            lifecycle_rpc::LifecycleRippleProvider, localization_rpc::LocalizationRPCProvider,
+            pin_rpc::PinRPCProvider, voice_guidance_rpc::VoiceguidanceRPCProvider,
         },
         rpc::RippleRPCProvider,
     },
@@ -43,6 +44,9 @@ impl FireboltGatewayStep {
         let _ = methods.merge(KeyboardRPCProvider::provide(state.clone()));
         let _ = methods.merge(AckRPCProvider::provide(state.clone()));
         let _ = methods.merge(PinRPCProvider::provide(state.clone()));
+        let _ = methods.merge(ClosedcaptionsRPCProvider::provide(state.clone()));
+        let _ = methods.merge(VoiceguidanceRPCProvider::provide(state.clone()));
+        let _ = methods.merge(LocalizationRPCProvider::provide(state.clone()));
         // LCM Api(s) not required for internal launcher
         if !state.has_internal_launcher() {
             let _ = methods.merge(LifecycleManagementProvider::provide(state.clone()));

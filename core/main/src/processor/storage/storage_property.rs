@@ -1,4 +1,20 @@
-use dpab::core::model::privacy::PrivacySetting;
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use serde::{Deserialize, Serialize};
 
 pub const NAMESPACE_CLOSED_CAPTIONS: &'static str = "ClosedCaptions";
@@ -6,6 +22,7 @@ pub const NAMESPACE_PRIVACY: &'static str = "Privacy";
 pub const NAMESPACE_DEVICE_NAME: &'static str = "DeviceName";
 pub const NAMESPACE_LOCALIZATION: &'static str = "Localization";
 pub const NAMESPACE_USER_GRANT: &'static str = "UserGrant";
+pub const NAMESPACE_VOICE_GUIDANCE: &'static str = "VoiceGuidance";
 
 pub const KEY_ENABLED: &'static str = "enabled";
 pub const KEY_FONT_FAMILY: &'static str = "fontFamily";
@@ -43,6 +60,7 @@ pub const KEY_ALLOW_RESUME_POINTS: &'static str = "allowResumePoints";
 pub const KEY_ALLOW_UNENTITLED_PERSONALIZATION: &'static str = "allowUnentitledPersonalization";
 pub const KEY_ALLOW_UNENTITLED_RESUME_POINTS: &'static str = "allowUnentitledResumePoints";
 pub const KEY_ALLOW_WATCH_HISTORY: &'static str = "allowWatchHistory";
+pub const KEY_VOICE_GUIDANCE_SPEED: &'static str = "speed";
 
 pub const EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED: &'static str =
     "accessibility.onClosedCaptionsSettingsChanged";
@@ -99,6 +117,29 @@ pub const EVENT_DEVICE_DEVICE_NAME_CHANGED: &'static str = "device.onDeviceNameC
 pub const EVENT_SECOND_SCREEN_FRIENDLY_NAME_CHANGED: &'static str =
     "secondscreen.onFriendlyNameChanged";
 pub const EVENT_ADVERTISING_POLICY_CHANGED: &'static str = "advertising.onPolicyChanged";
+
+pub const EVENT_VOICE_GUIDANCE_SETTINGS_CHANGED: &'static str =
+    "accessibility.onVoiceGuidanceSettingsChanged";
+pub const EVENT_VOICE_GUIDANCE_ENABLED_CHANGED: &'static str = "voiceguidance.onEnabledChanged";
+pub const EVENT_VOICE_GUIDANCE_SPEED_CHANGED: &'static str = "voiceguidance.onSpeedChanged";
+
+const PROPERTY_DATA_VOICE_GUIDANCE_ENABLED: PropertyData = PropertyData {
+    key: KEY_ENABLED,
+    namespace: NAMESPACE_VOICE_GUIDANCE,
+    event_names: Some(&[
+        EVENT_VOICE_GUIDANCE_ENABLED_CHANGED,
+        EVENT_VOICE_GUIDANCE_SETTINGS_CHANGED,
+    ]),
+};
+
+const PROPERTY_DATA_VOICE_GUIDANCE_SPEED: PropertyData = PropertyData {
+    key: KEY_VOICE_GUIDANCE_SPEED,
+    namespace: NAMESPACE_VOICE_GUIDANCE,
+    event_names: Some(&[
+        EVENT_VOICE_GUIDANCE_ENABLED_CHANGED,
+        EVENT_VOICE_GUIDANCE_SPEED_CHANGED,
+    ]),
+};
 
 const PROPERTY_DATA_CLOSED_CAPTIONS_ENABLED: PropertyData = PropertyData {
     key: KEY_ENABLED,
@@ -397,6 +438,8 @@ pub enum StorageProperty {
     AllowUnentitledPersonalization,
     AllowUnentitledResumePoints,
     AllowWatchHistory,
+    VoiceguidanceEnabled,
+    VoiceguidanceSpeed,
 }
 
 impl StorageProperty {
@@ -423,6 +466,8 @@ impl StorageProperty {
             StorageProperty::ClosedCaptionsTextAlignVertical => {
                 PROPERTY_DATA_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL
             }
+            StorageProperty::VoiceguidanceEnabled => PROPERTY_DATA_VOICE_GUIDANCE_ENABLED,
+            StorageProperty::VoiceguidanceSpeed => PROPERTY_DATA_VOICE_GUIDANCE_SPEED,
             StorageProperty::Locality => PROPERTY_DATA_LOCALITY,
             StorageProperty::CountryCode => PROPERTY_DATA_COUNTRY_CODE,
             StorageProperty::Language => PROPERTY_DATA_LANGUAGE,
@@ -458,34 +503,6 @@ impl StorageProperty {
                 PROPERTY_DATA_ALLOW_UNENTITLED_RESUME_POINTS
             }
             StorageProperty::AllowWatchHistory => PROPERTY_DATA_ALLOW_WATCH_HISTORY,
-        }
-    }
-
-    pub fn as_privacy_setting(&self) -> Option<PrivacySetting> {
-        match self {
-            StorageProperty::AllowAcrCollection => Some(PrivacySetting::Acr),
-            StorageProperty::AllowAppContentAdTargeting => {
-                Some(PrivacySetting::AppContentAdTargeting)
-            }
-            StorageProperty::AllowCameraAnalytics => Some(PrivacySetting::CameraAnalytics),
-            StorageProperty::AllowPersonalization => Some(PrivacySetting::Personalization),
-            StorageProperty::AllowPrimaryBrowseAdTargeting => {
-                Some(PrivacySetting::PrimaryBrowseAdTargeting)
-            }
-            StorageProperty::AllowPrimaryContentAdTargeting => {
-                Some(PrivacySetting::PrimaryContentAdTargeting)
-            }
-            StorageProperty::AllowProductAnalytics => Some(PrivacySetting::ProductAnalytics),
-            StorageProperty::AllowRemoteDiagnostics => Some(PrivacySetting::RemoteDiagnostics),
-            StorageProperty::AllowResumePoints => Some(PrivacySetting::ContinueWatching),
-            StorageProperty::AllowUnentitledPersonalization => {
-                Some(PrivacySetting::UnentitledPersonalization)
-            }
-            StorageProperty::AllowUnentitledResumePoints => {
-                Some(PrivacySetting::UnentitledContinueWatching)
-            }
-            StorageProperty::AllowWatchHistory => Some(PrivacySetting::WatchHistory),
-            _ => None,
         }
     }
 }

@@ -1,26 +1,42 @@
-use dab::core::{
-    message::{DabRequestPayload, DabResponsePayload},
-    model::persistent_store::{
-        GetStorageProperty, SetStorageProperty, StorageData, StorageRequest,
-    },
-};
-use jsonrpsee::{core::RpcResult, types::error::CallError};
-use serde_json::{json, Value};
-use tracing::{debug, log::warn};
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
-use chrono::Utc;
+use jsonrpsee::{core::RpcResult, types::error::CallError};
+use ripple_sdk::{
+    api::{
+        device::device_accessibility_data::{
+            GetStorageProperty, SetStorageProperty, StorageData, StorageRequest,
+        },
+        firebolt::fb_capabilities::CAPABILITY_NOT_AVAILABLE,
+    },
+    extn::extn_client_message::ExtnResponse,
+    log::debug,
+    serde_json::{json, Value},
+    tokio,
+    utils::error::RippleError,
+};
 
 use crate::{
-    apps::app_events::AppEvents,
-    helpers::{
-        error_util::{RippleError, CAPABILITY_NOT_AVAILABLE},
-        ripple_helper::IRippleHelper,
-    },
-    managers::storage::storage_manager_utils::{
+    processor::storage::storage_manager_utils::{
         storage_to_bool_rpc_result, storage_to_f32_rpc_result, storage_to_string_rpc_result,
         storage_to_u32_rpc_result,
     },
-    platform_state::PlatformState,
+    service::apps::app_events::AppEvents,
+    state::platform_state::PlatformState,
 };
 
 use super::{
@@ -229,7 +245,7 @@ impl StorageManager {
         context: Option<Value>,
     ) -> Result<StorageManagerResponse<()>, StorageManagerError> {
         if let Ok(payload) = StorageManager::get(state, &namespace, &key).await {
-            if let DabResponsePayload::StorageData(storage_data) = payload {
+            if let ExtnResponse::StorageData(storage_data) = payload {
                 if storage_data.value.eq(&value) {
                     return Ok(StorageManagerResponse::NoChange(()));
                 }
@@ -247,8 +263,12 @@ impl StorageManager {
         };
 
         match state
-            .services
-            .send_dab(DabRequestPayload::Storage(StorageRequest::Set(ssp)))
+            // .services
+            // .send_dab(ExtnResponse::Storage(StorageRequest::Set(ssp)))
+            // .await
+            //.state
+            .get_client()
+            .send_extn_request(StorageRequest::Set(ssp))
             .await
         {
             Ok(_) => {
@@ -344,16 +364,27 @@ impl StorageManager {
         state: &PlatformState,
         namespace: &String,
         key: &String,
-    ) -> Result<DabResponsePayload, RippleError> {
+    ) -> Result<ExtnResponse, RippleError> {
         debug!("get: namespace={}, key={}", namespace, key);
         let data = GetStorageProperty {
             namespace: namespace.clone(),
             key: key.clone(),
         };
-        state
-            .services
-            .send_dab(DabRequestPayload::Storage(StorageRequest::Get(data)))
-            .await
+        let result = state
+            .get_client()
+            .send_extn_request(StorageRequest::Get(data))
+            .await;
+
+        match result {
+            Ok(msg) => {
+                if let Some(m) = msg.payload.clone().extract() {
+                    return Ok(m);
+                } else {
+                    return Err(RippleError::ParseError);
+                }
+            }
+            Err(e) => return Err(e),
+        }
     }
 
     pub fn get_firebolt_error(property: &StorageProperty) -> jsonrpsee::core::Error {
@@ -365,4 +396,3 @@ impl StorageManager {
         })
     }
 }
-
