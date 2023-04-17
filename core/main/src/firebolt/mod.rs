@@ -25,6 +25,7 @@ pub mod handlers {
     pub mod keyboard_rpc;
     pub mod lcm_rpc;
     pub mod lifecycle_rpc;
+    pub mod localization_rpc;
     pub mod pin_rpc;
     pub mod voice_guidance_rpc;
 }
