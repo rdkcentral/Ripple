@@ -20,15 +20,23 @@ use jsonrpsee::{
     proc_macros::rpc,
     RpcModule,
 };
-use ripple_sdk::{api::{
-    device::{device_accessibility_data::SetStringProperty, device_info_request::DeviceInfoRequest},
-    firebolt::fb_general::{ListenRequest, ListenerResponse},
-    gateway::rpc_gateway_api::CallContext,
-}, extn::extn_client_message::ExtnResponse};
+use ripple_sdk::{
+    api::{
+        device::{
+            device_accessibility_data::SetStringProperty, device_info_request::DeviceInfoRequest,
+        },
+        firebolt::fb_general::{ListenRequest, ListenerResponse},
+        gateway::rpc_gateway_api::CallContext,
+    },
+    extn::extn_client_message::ExtnResponse,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::utils::{serde_utils::*, rpc_utils::{rpc_err, rpc_add_event_listener}};
+use crate::utils::{
+    rpc_utils::{rpc_add_event_listener, rpc_err},
+    serde_utils::*,
+};
 use crate::{
     firebolt::rpc::RippleRPCProvider,
     processor::storage::{
@@ -442,11 +450,11 @@ impl LocalizationServer for LocalizationImpl {
             .send_extn_request(DeviceInfoRequest::SetTimezone(set_request.value.clone()))
             .await
         {
-                return Ok(());
+            return Ok(());
         }
-            Err(rpc_err("timezone: error response TBD"))
+        Err(rpc_err("timezone: error response TBD"))
     }
-   
+
     async fn timezone(&self, _ctx: CallContext) -> RpcResult<String> {
         if let Ok(response) = self
             .platform_state
@@ -466,13 +474,7 @@ impl LocalizationServer for LocalizationImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(
-            &self.platform_state,
-            ctx,
-            request,
-            EVENT_TIMEZONE_CHANGED,
-        )
-        .await
+        rpc_add_event_listener(&self.platform_state, ctx, request, EVENT_TIMEZONE_CHANGED).await
     }
 }
 

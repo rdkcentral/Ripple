@@ -15,12 +15,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use serde::{Deserialize, Serialize};
 use serde_json::json;
-use serde::{Serialize, Deserialize};
 use thunder_ripple_sdk::ripple_sdk::{
     api::device::{
         device_info_request::DeviceInfoRequest,
-        device_operator::{DeviceCallRequest, DeviceOperator, DeviceChannelParams},
+        device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
     },
     async_trait::async_trait,
     extn::{
@@ -133,7 +133,7 @@ impl ThunderDeviceInfoRequestProcessor {
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::System.method("setTimeZoneDST"),
-                params: params
+                params: params,
             })
             .await;
         info!("{}", response.message);
@@ -141,13 +141,11 @@ impl ThunderDeviceInfoRequestProcessor {
         if response.message.get("success").is_none()
             || response.message["success"].as_bool().unwrap() == true
         {
-                return Self::respond(state.get_client(), request, ExtnResponse::None(()))
-                    .await
-                    .is_ok();
-
+            return Self::respond(state.get_client(), request, ExtnResponse::None(()))
+                .await
+                .is_ok();
         }
         Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
-
     }
 
     async fn get_timezone(state: ThunderState, req: ExtnMessage) -> bool {
@@ -163,10 +161,14 @@ impl ThunderDeviceInfoRequestProcessor {
         if response.message.get("success").is_none()
             || response.message["success"].as_bool().unwrap() == true
         {
-            if let Ok(v) =  serde_json::from_value::<ThunderTimezoneResponse>(response.message) {
-                return Self::respond(state.get_client(), req, ExtnResponse::String(v.time_zone.to_owned()))
-                    .await
-                    .is_ok();
+            if let Ok(v) = serde_json::from_value::<ThunderTimezoneResponse>(response.message) {
+                return Self::respond(
+                    state.get_client(),
+                    req,
+                    ExtnResponse::String(v.time_zone.to_owned()),
+                )
+                .await
+                .is_ok();
             }
         }
         Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
@@ -206,7 +208,9 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             DeviceInfoRequest::Model => Self::model(state.clone(), msg).await,
             DeviceInfoRequest::AvailableMemory => Self::available_memory(state.clone(), msg).await,
             DeviceInfoRequest::GetTimezone => Self::get_timezone(state.clone(), msg).await,
-            DeviceInfoRequest::SetTimezone(timezone_params) => Self::set_timezone(state.clone(), timezone_params, msg).await,
+            DeviceInfoRequest::SetTimezone(timezone_params) => {
+                Self::set_timezone(state.clone(), timezone_params, msg).await
+            }
             _ => false,
         }
     }
