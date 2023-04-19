@@ -122,6 +122,7 @@ pub const EVENT_VOICE_GUIDANCE_SETTINGS_CHANGED: &'static str =
     "accessibility.onVoiceGuidanceSettingsChanged";
 pub const EVENT_VOICE_GUIDANCE_ENABLED_CHANGED: &'static str = "voiceguidance.onEnabledChanged";
 pub const EVENT_VOICE_GUIDANCE_SPEED_CHANGED: &'static str = "voiceguidance.onSpeedChanged";
+pub const EVENT_TIMEZONE_CHANGED: &'static str = "localization.onTimeZoneChanged";
 
 const PROPERTY_DATA_VOICE_GUIDANCE_ENABLED: PropertyData = PropertyData {
     key: KEY_ENABLED,

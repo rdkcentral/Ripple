@@ -38,6 +38,7 @@ pub enum DeviceInfoRequest {
     AvailableMemory,
     SetTimezone(String),
     GetTimezone,
+    GetAvailableTimezones,
 }
 
 impl ExtnPayloadProvider for DeviceInfoRequest {
