@@ -24,13 +24,19 @@ use serde_json::Value;
 use crate::{
     api::{
         config::{Config, ConfigResponse},
-        device::{device_accessibility_data::StorageData, device_request::DeviceRequest},
+        device::{
+            device_accessibility_data::StorageData,
+            device_request::{
+                AudioProfile, DeviceRequest, HdcpProfile, HdrProfile, NetworkResponse,
+            },
+        },
         distributor::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
             distributor_request::DistributorRequest,
         },
         firebolt::{
             fb_lifecycle_management::LifecycleManagementRequest,
+            fb_openrpc::FireboltSemanticVersion,
             fb_pin::{PinChallengeRequest, PinChallengeResponse},
         },
         gateway::rpc_gateway_api::RpcRequest,
@@ -228,6 +234,13 @@ pub enum ExtnResponse {
     AccountSession(AccountSession),
     Permission(PermissionResponse),
     StorageData(StorageData),
+    AudioProfileResponse(HashMap<AudioProfile, bool>),
+    HdcpSupportResponse(HashMap<HdcpProfile, bool>),
+    HdrResponse(HashMap<HdrProfile, bool>),
+    FirmwareInfo(FireboltSemanticVersion),
+    ScreenResolutionResponse(Vec<i32>),
+    VideoResolutionResponse(Vec<i32>),
+    NetworkResponse(NetworkResponse),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {

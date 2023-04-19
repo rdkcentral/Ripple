@@ -37,6 +37,7 @@ pub enum DeviceInfoRequest {
     ScreenResolution,
     VideoResolution,
     AvailableMemory,
+    Network,
 }
 
 impl ExtnPayloadProvider for DeviceInfoRequest {

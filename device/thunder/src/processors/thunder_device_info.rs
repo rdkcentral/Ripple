@@ -167,13 +167,8 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
         match extracted_message {
             DeviceInfoRequest::Make => Self::make(state.clone(), msg).await,
             DeviceInfoRequest::Model => Self::model(state.clone(), msg).await,
-<<<<<<< HEAD
             DeviceInfoRequest::AvailableMemory => Self::available_memory(state.clone(), msg).await,
             _ => false,
-=======
-            DeviceInfoRequest::Name => Self::name(state.clone(), msg).await,
-            _ => {}
->>>>>>> 7955d7e (Device is module for querying about the device and it's capabilities.)
         }
     }
 }
