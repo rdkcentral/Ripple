@@ -24,6 +24,7 @@
         "xrn:firebolt:capability:localization:locality",
         "xrn:firebolt:capability:localization:locality[manage]",
         "xrn:firebolt:capability:localization:time-zone",
+        "xrn:firebolt:capability:localization:time-zone[manage]",
         "xrn:firebolt:capability:localization:location",
         "xrn:firebolt:capability:localization:location[manage]",
         "xrn:firebolt:capability:protocol:wifi"
@@ -56,6 +57,7 @@
         "xrn:firebolt:capability:localization:locality",
         "xrn:firebolt:capability:localization:locality[manage]",
         "xrn:firebolt:capability:localization:time-zone",
+        "xrn:firebolt:capability:localization:time-zone[manage]",
         "xrn:firebolt:capability:localization:location",
         "xrn:firebolt:capability:localization:location[manage]",
         "xrn:firebolt:capability:protocol:wifi"

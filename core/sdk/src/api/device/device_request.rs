@@ -31,3 +31,15 @@ pub enum DeviceRequest {
     Wifi(WifiRequest),
     Accessory(RemoteAccessoryRequest),
 }
+
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct LanguageProperty {
+    //#[serde(with = "language_code_serde")]
+    pub value: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct TimezoneProperty {
+    //#[serde(with = "timezone_serde")]
+    pub value: String,
+}

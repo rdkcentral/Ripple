@@ -228,6 +228,7 @@ pub enum ExtnResponse {
     AccountSession(AccountSession),
     Permission(PermissionResponse),
     StorageData(StorageData),
+    AvailableTimezones(Vec<String>),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {

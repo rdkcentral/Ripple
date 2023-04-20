@@ -36,6 +36,9 @@ pub enum DeviceInfoRequest {
     ScreenResolution,
     VideoResolution,
     AvailableMemory,
+    SetTimezone(String),
+    GetTimezone,
+    GetAvailableTimezones,
 }
 
 impl ExtnPayloadProvider for DeviceInfoRequest {
