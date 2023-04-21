@@ -21,8 +21,10 @@ use jsonrpsee::{
 };
 use ripple_sdk::{
     api::{
+        apps::EffectiveTransport,
         firebolt::fb_general::ListenRequest,
-        gateway::rpc_gateway_api::{ApiMessage, CallContext},
+        gateway::rpc_gateway_api::{ApiMessage, ApiProtocol, CallContext},
+        protocol::BridgeProtocolRequest,
     },
     log::error,
     serde_json::{json, Value},
@@ -120,7 +122,8 @@ impl std::fmt::Debug for AppEventsState {
 pub struct EventListener {
     pub call_ctx: CallContext,
     // Keep the session_tx package private
-    session_tx: mpsc::Sender<ApiMessage>,
+    session_tx: Option<mpsc::Sender<ApiMessage>>,
+    transport: EffectiveTransport,
     decorator: Option<Box<dyn AppEventDecorator + Send + Sync>>,
 }
 
@@ -230,47 +233,67 @@ impl AppEvents {
         let session = state.session_state.get_session(&call_ctx.session_id);
         if session.is_none() {
             error!("No open sessions for id '{:?}'", call_ctx.session_id);
-        } else {
-            let session = session.unwrap();
-            let session_tx = session.get_transport();
-            let app_events_state = &state.app_events_state;
-            let mut listeners = app_events_state.listeners.write().unwrap();
-            let event_ctx_string = event_context.map(|x| x.to_string());
+            return;
+        }
+        let session = session.unwrap();
+        let app_events_state = &state.app_events_state;
+        let mut listeners = app_events_state.listeners.write().unwrap();
+        let event_ctx_string = event_context.map(|x| x.to_string());
 
-            if listen_request.listen {
-                let event_listeners = AppEvents::get_or_create_listener_vec(
-                    &mut listeners,
-                    event_name,
-                    event_ctx_string.clone(),
-                );
-                //The last listener wins if there is already a listener exists with same session id
+        if listen_request.listen {
+            let event_listeners = AppEvents::get_or_create_listener_vec(
+                &mut listeners,
+                event_name,
+                event_ctx_string.clone(),
+            );
+            //The last listener wins if there is already a listener exists with same session id
+            AppEvents::remove_session_from_events(event_listeners, &call_ctx.session_id);
+            event_listeners.push(EventListener {
+                call_ctx: call_ctx,
+                session_tx: session.get_sender(),
+                transport: session.get_transport(),
+                decorator: decorator,
+            });
+        } else if let Some(entry) = listeners.get_mut(&event_name) {
+            if let Some(event_listeners) = entry.get_mut(&event_ctx_string) {
                 AppEvents::remove_session_from_events(event_listeners, &call_ctx.session_id);
-                event_listeners.push(EventListener {
-                    call_ctx: call_ctx,
-                    session_tx: session_tx.clone(),
-                    decorator: decorator,
-                });
-            } else if let Some(entry) = listeners.get_mut(&event_name) {
-                if let Some(event_listeners) = entry.get_mut(&event_ctx_string) {
-                    AppEvents::remove_session_from_events(event_listeners, &call_ctx.session_id);
-                }
             }
         }
     }
 
-    pub async fn send_event(listener: &EventListener, data: &Value) {
-        let proto = listener.call_ctx.protocol.clone();
-        let event = Response {
-            jsonrpc: TwoPointZero,
-            result: data,
-            id: Id::Number(listener.call_ctx.call_id),
-        };
-        let api_message = ApiMessage::new(
-            proto,
-            json!(event).to_string(),
-            listener.call_ctx.request_id.clone(),
-        );
-        mpsc_send_and_log(&listener.session_tx, api_message, "GatewayResponse").await;
+    pub async fn send_event(state: &PlatformState, listener: &EventListener, data: &Value) {
+        let protocol = listener.call_ctx.protocol.clone();
+        match protocol {
+            ApiProtocol::JsonRpc => {
+                if let Some(session_tx) = listener.session_tx.clone() {
+                    let event = Response {
+                        jsonrpc: TwoPointZero,
+                        result: data,
+                        id: Id::Number(listener.call_ctx.call_id),
+                    };
+                    let api_message = ApiMessage::new(
+                        protocol,
+                        json!(event).to_string(),
+                        listener.call_ctx.request_id.clone(),
+                    );
+                    mpsc_send_and_log(&session_tx, api_message, "GatewayResponse").await;
+                } else {
+                    error!("JsonRPC sender missing");
+                }
+            }
+            ApiProtocol::Bridge => {
+                if state.supports_bridge() {
+                    let client = state.get_client();
+                    if let EffectiveTransport::Bridge(container_id) = listener.transport.clone() {
+                        let request = BridgeProtocolRequest::Send(container_id, data.clone());
+                        if let Err(e) = client.send_extn_request(request).await {
+                            error!("Error sending event to bridge {:?}", e);
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 
     pub fn get_listeners(
@@ -316,6 +339,7 @@ impl AppEvents {
             }
             if context.is_some() {
                 AppEvents::send_event(
+                    state,
                     &i,
                     &json!({
                         "context": context.clone(),
@@ -324,7 +348,7 @@ impl AppEvents {
                 )
                 .await;
             } else {
-                AppEvents::send_event(&i, &decorated_res.unwrap()).await;
+                AppEvents::send_event(state, &i, &decorated_res.unwrap()).await;
             }
         }
 
@@ -337,7 +361,7 @@ impl AppEvents {
                 event_ctx_string.clone(),
             );
             for i in listeners {
-                AppEvents::send_event(&i, result).await;
+                AppEvents::send_event(state, &i, result).await;
             }
         }
     }
@@ -358,7 +382,7 @@ impl AppEvents {
             if decorated_res.is_err() {
                 error!("could not generate event for '{}'", event_name);
             } else {
-                AppEvents::send_event(&i, &decorated_res.unwrap()).await;
+                AppEvents::send_event(state, &i, &decorated_res.unwrap()).await;
             }
         }
     }

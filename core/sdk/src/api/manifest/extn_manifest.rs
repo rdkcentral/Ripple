@@ -29,7 +29,7 @@ pub struct ExtnManifest {
     pub default_extension: String,
     pub extns: Vec<ExtnManifestEntry>,
     pub required_contracts: Vec<String>,
-    pub rpc_aliases: HashMap<String, Vec<String>>
+    pub rpc_aliases: HashMap<String, Vec<String>>,
 }
 
 #[derive(Deserialize, Debug, Clone)]

@@ -34,6 +34,7 @@ use crate::{
             fb_pin::{PinChallengeRequest, PinChallengeResponse},
         },
         gateway::rpc_gateway_api::RpcRequest,
+        protocol::BridgeProtocolRequest,
         session::{AccountSession, AccountSessionRequest},
         status_update::ExtnStatus,
     },
@@ -211,6 +212,7 @@ pub enum ExtnRequest {
     Permission(PermissionRequest),
     Distributor(DistributorRequest),
     AccountSession(AccountSessionRequest),
+    BridgeProtocolRequest(BridgeProtocolRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

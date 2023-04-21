@@ -19,7 +19,7 @@ use crate::{
     api::firebolt::fb_openrpc::FireboltVersionManifest, extn::client::extn_sender::ExtnSender,
 };
 use crossbeam::channel::Receiver as CReceiver;
-use jsonrpsee::core::server::rpc_module::Methods;
+use jsonrpsee_core::server::rpc_module::Methods;
 use libloading::{Library, Symbol};
 use log::{debug, error};
 

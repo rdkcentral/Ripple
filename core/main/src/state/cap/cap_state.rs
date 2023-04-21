@@ -185,7 +185,7 @@ impl CapState {
                     if let Some(cap_info) = r.get(0) {
                         if let Ok(data) = serde_json::to_value(cap_info) {
                             // Step 4: Send exclusive cap info data for each listener
-                            AppEvents::send_event(&listener, &data).await;
+                            AppEvents::send_event(ps, &listener, &data).await;
                         }
                     }
                 }

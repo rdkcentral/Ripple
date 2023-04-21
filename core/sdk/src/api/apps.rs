@@ -90,6 +90,7 @@ pub struct AppLaunchInfo {
     pub second_screen: Option<SecondScreenEvent>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum EffectiveTransport {
     Bridge(String),
     Websocket,
@@ -185,9 +186,9 @@ pub enum AppError {
     AppNotReady,
 }
 
-impl From<AppError> for jsonrpsee::core::Error {
+impl From<AppError> for jsonrpsee_core::Error {
     fn from(err: AppError) -> Self {
-        jsonrpsee::core::Error::Custom(format!("Internal failure: {:?}", err))
+        jsonrpsee_core::Error::Custom(format!("Internal failure: {:?}", err))
     }
 }
 

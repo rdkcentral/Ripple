@@ -22,6 +22,7 @@ use ripple_sdk::{
 use crate::{
     processor::{
         config_processor::ConfigRequestProcessor, exn_status_processor::ExtnStatusProcessor,
+        pin_processor::PinProcessor,
     },
     state::bootstrap_state::BootstrapState,
 };
@@ -39,6 +40,7 @@ impl Bootstep<BootstrapState> for SetupExtnClientStep {
         client.init().await;
         // Main is now ready to take in config requests from extensions
         client.add_request_processor(ConfigRequestProcessor::new(state.platform_state.clone()));
+        client.add_request_processor(PinProcessor::new(state.platform_state.clone()));
         client.add_event_processor(ExtnStatusProcessor::new(state.clone().extn_state));
         Ok(())
     }

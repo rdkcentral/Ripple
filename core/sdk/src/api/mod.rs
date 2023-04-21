@@ -17,8 +17,8 @@
 pub mod apps;
 pub mod config;
 pub mod device;
-pub mod lifecycle;
 pub mod manifest;
+pub mod protocol;
 pub mod session;
 pub mod status_update;
 pub mod gateway {

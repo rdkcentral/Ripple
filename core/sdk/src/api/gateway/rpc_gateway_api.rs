@@ -79,40 +79,6 @@ impl ApiMessage {
             request_id,
         }
     }
-
-    /// Converts this jsonrpc formatted message into bridge message
-    /// Handles the different protocols and the conversion between them.
-    /// If the protocol is bridge then it is first converted to a bridgeApiResponse message
-    /// If the protocol is jsonrpc, then it is simply wrapped in a bridge object wrapper
-    /// For bridge protocol, handle jsonrpc errors when converting to the bridge protocol.
-    /// bridge seems to handle errors strangely when JSON is returned, adding a prefix to the error
-    /// allowed the error to be seen in the bridge reference app.
-    pub fn as_bridge_msg(&self) -> String {
-        match self.protocol {
-            ApiProtocol::Bridge => {
-                let resp: JsonRpcApiResponse = serde_json::from_str(&self.jsonrpc_msg).unwrap();
-                let bridge_resp = BridgeApiResponse {
-                    pid: resp.id,
-                    success: match resp.error {
-                        Some(_) => false,
-                        None => true,
-                    },
-                    json: match resp.error {
-                        // If the error has data then use data as the bridge payload in the error repsonse
-                        Some(err) => match err.get("data") {
-                            Some(data) => Some(data.clone()),
-                            None => Some(err),
-                        },
-                        None => resp.result,
-                    },
-                };
-
-                serde_json::to_string(&bridge_resp).unwrap()
-            }
-            ApiProtocol::JsonRpc => format!("{{\"json\":{}}}", self.jsonrpc_msg),
-            ApiProtocol::Extn => self.jsonrpc_msg.clone(),
-        }
-    }
 }
 
 #[derive(Deserialize)]
