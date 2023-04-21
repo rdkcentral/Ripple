@@ -62,6 +62,7 @@
       "xrn:firebolt:capability:device:name",
       "xrn:firebolt:capability:device:sku",
       "xrn:firebolt:capability:device:uid",
+      "xrn:firebolt:capability:protocol:wifi",
       "xrn:firebolt:capability:discovery:entity-info",
       "xrn:firebolt:capability:discovery:navigate-to",
       "xrn:firebolt:capability:discovery:policy",
@@ -79,7 +80,10 @@
       "xrn:firebolt:capability:profile:flags",
       "xrn:firebolt:capability:usergrant:pinchallenge",
       "xrn:firebolt:capability:usergrant:acknowledgechallenge",
-      "xrn:firebolt:capability:input:keyboard"
+      "xrn:firebolt:capability:input:keyboard",
+      "xrn:firebolt:capability:accessory:pair",
+      "xrn:firebolt:capability:accessory:list",
+      "xrn:firebolt:capability:remote:ble"
     ]
   },
   "lifecycle": {

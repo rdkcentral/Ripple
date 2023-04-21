@@ -14,36 +14,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-pub mod accessory;
-pub mod apps;
-pub mod config;
-pub mod device;
-pub mod manifest;
-pub mod protocol;
-pub mod session;
-pub mod status_update;
-pub mod wifi;
-pub mod gateway {
-    pub mod rpc_error;
-    pub mod rpc_gateway_api;
-}
 
-pub mod distributor {
-    pub mod distributor_permissions;
-    pub mod distributor_request;
-}
-
-pub mod firebolt {
-    pub mod fb_capabilities;
-    pub mod fb_discovery;
-    pub mod fb_general;
-    pub mod fb_keyboard;
-    pub mod fb_lifecycle;
-    pub mod fb_lifecycle_management;
-    pub mod fb_openrpc;
-    pub mod fb_parameters;
-    pub mod fb_pin;
-    pub mod fb_secondscreen;
-    pub mod fb_user_grants;
-    pub mod provider;
-}
+pub mod default_storage_properties;
+pub mod storage_manager;
+pub mod storage_manager_utils;
+pub mod storage_property;

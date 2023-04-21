@@ -13,7 +13,8 @@
                     "fulfills": [
                         "device_info",
                         "window_manager",
-                        "browser"
+                        "browser",
+                        "wifi"
                     ]
                 }
             ]
@@ -60,7 +61,8 @@
         "window_manager",
         "browser",
         "permissions",
-        "account_session"
+        "account_session",
+        "wifi"
     ],
     "rpc_aliases": {
         "device.model": ["custom.model"]

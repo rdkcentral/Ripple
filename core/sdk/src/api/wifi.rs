@@ -17,42 +17,50 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
 
-use super::device_request::DeviceRequest;
+use super::device::device_wifi::{AccessPoint, AccessPointList};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum DeviceInfoRequest {
-    MacAddress,
-    Model,
-    Make,
-    Version,
-    HdcpSupport,
-    HdcpStatus,
-    Hdr,
-    Audio,
-    ScreenResolution,
-    VideoResolution,
-    AvailableMemory,
-    SetTimezone(String),
-    GetTimezone,
-    GetAvailableTimezones,
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct WifiScanRequestTimeout {
+    pub timeout: u64,
 }
 
-impl ExtnPayloadProvider for DeviceInfoRequest {
+impl WifiScanRequestTimeout {
+    pub fn new() -> Self {
+        WifiScanRequestTimeout { timeout: 60 }
+    }
+
+    pub fn timeout(&self) -> u64 {
+        self.timeout
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum WifiResponse {
+    CustomError(String),
+    WifiScanListResponse(AccessPointList),
+    WifiConnectSuccessResponse(AccessPoint),
+}
+
+impl ExtnPayloadProvider for WifiResponse {
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(self.clone())))
+        ExtnPayload::Response(ExtnResponse::Value(
+            serde_json::to_value(self.clone()).unwrap(),
+        ))
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::Device(r) => match r {
-                    DeviceRequest::DeviceInfo(d) => return Some(d),
-                    _ => {}
-                },
+            ExtnPayload::Response(response) => match response {
+                ExtnResponse::Value(value) => {
+                    if let Ok(v) = serde_json::from_value(value) {
+                        return Some(v);
+                    }
+                }
                 _ => {}
             },
             _ => {}
@@ -61,6 +69,6 @@ impl ExtnPayloadProvider for DeviceInfoRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::DeviceInfo
+        RippleContract::Wifi
     }
 }

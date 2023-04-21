@@ -17,8 +17,9 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
+    device_accessibility_data::StorageRequest, device_accessory::RemoteAccessoryRequest,
     device_browser::BrowserRequest, device_info_request::DeviceInfoRequest,
-    device_window_manager::WindowManagerRequest,
+    device_wifi::WifiRequest, device_window_manager::WindowManagerRequest,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,4 +27,19 @@ pub enum DeviceRequest {
     DeviceInfo(DeviceInfoRequest),
     Browser(BrowserRequest),
     WindowManager(WindowManagerRequest),
+    Storage(StorageRequest),
+    Wifi(WifiRequest),
+    Accessory(RemoteAccessoryRequest),
+}
+
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct LanguageProperty {
+    //#[serde(with = "language_code_serde")]
+    pub value: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct TimezoneProperty {
+    //#[serde(with = "timezone_serde")]
+    pub value: String,
 }

@@ -16,7 +16,15 @@
 // limitations under the License.
 
 use jsonrpsee::core::{Error, RpcResult};
-use ripple_sdk::tokio::sync::oneshot;
+use ripple_sdk::{
+    api::{
+        firebolt::fb_general::{ListenRequest, ListenerResponse},
+        gateway::rpc_gateway_api::CallContext,
+    },
+    tokio::sync::oneshot,
+};
+
+use crate::{service::apps::app_events::AppEvents, state::platform_state::PlatformState};
 
 pub fn rpc_err(msg: impl Into<String>) -> Error {
     Error::Custom(msg.into())
@@ -32,4 +40,20 @@ pub async fn rpc_await_oneshot<T>(rx: oneshot::Receiver<T>) -> RpcResult<T> {
             e
         ))),
     }
+}
+
+/// listener for events any events.
+pub async fn rpc_add_event_listener(
+    state: &PlatformState,
+    ctx: CallContext,
+    request: ListenRequest,
+    event_name: &'static str,
+) -> RpcResult<ListenerResponse> {
+    let listen = request.listen;
+
+    AppEvents::add_listener(&&state, event_name.to_string(), ctx, request);
+    Ok(ListenerResponse {
+        listening: listen,
+        event: event_name.into(),
+    })
 }
