@@ -42,6 +42,7 @@ pub enum RippleContract {
     DeviceAuth,
     Storage,
     RemoteAccessory,
+    Keyboard,
 }
 
 impl TryFrom<String> for RippleContract {

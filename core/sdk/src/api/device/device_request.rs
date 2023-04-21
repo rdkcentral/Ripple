@@ -17,8 +17,8 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    device_accessibility_data::StorageRequest, device_accessory::RemoteAccessoryRequest,
-    device_browser::BrowserRequest, device_info_request::DeviceInfoRequest,
+    device_accessory::RemoteAccessoryRequest, device_browser::BrowserRequest,
+    device_info_request::DeviceInfoRequest, device_storage::StorageRequest,
     device_wifi::WifiRequest, device_window_manager::WindowManagerRequest,
 };
 
