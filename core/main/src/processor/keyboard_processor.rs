@@ -39,7 +39,7 @@ use crate::{
     state::platform_state::PlatformState,
 };
 
-/// Supports processing of [Config] request from extensions and also
+/// Supports processing of Keyboard request from extensions and also
 /// internal services.
 #[derive(Debug)]
 pub struct KeyboardProcessor {
