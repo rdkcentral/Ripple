@@ -16,7 +16,7 @@
 // limitations under the License.
 use std::collections::{HashMap, HashSet};
 
-use log::warn;
+use log::{debug, warn};
 use serde::{Deserialize, Serialize};
 
 use super::fb_capabilities::{
@@ -398,6 +398,61 @@ impl CapabilitySet {
             });
         }
         return None;
+    }
+
+    pub fn has_permissions(
+        &self,
+        permissions: &Vec<FireboltPermission>,
+    ) -> Result<(), DenyReasonWithCap> {
+        let mut result = true;
+        let mut caps_not_permitted: Vec<FireboltCap> = Default::default();
+        if let Some(use_caps) = &self.use_caps {
+            use_caps.iter().for_each(|cap| {
+                let perm = FireboltPermission {
+                    cap: cap.to_owned(),
+                    role: CapabilityRole::Use,
+                };
+                if !permissions.contains(&perm) {
+                    result = false;
+                    debug!("use caps not present: {:?}", perm);
+                    caps_not_permitted.push(cap.to_owned());
+                }
+            });
+        }
+        if result && self.provide_cap.is_some() {
+            let provided = self.provide_cap.as_ref().unwrap();
+            let perm = FireboltPermission {
+                cap: provided.to_owned(),
+                role: CapabilityRole::Provide,
+            };
+            result = permissions.contains(&perm);
+            if !result {
+                debug!("provide caps not present: {:?}", perm);
+                caps_not_permitted.push(provided.to_owned());
+            }
+        }
+        if result && self.manage_caps.is_some() {
+            let manage_caps = self.manage_caps.as_ref().unwrap();
+            manage_caps.iter().for_each(|cap| {
+                let perm = FireboltPermission {
+                    cap: cap.to_owned(),
+                    role: CapabilityRole::Use,
+                };
+                if !permissions.contains(&perm) {
+                    result = false;
+                    debug!("manage caps not present: {:?}", perm);
+                    caps_not_permitted.push(cap.to_owned());
+                }
+            });
+        }
+        if result {
+            Ok(())
+        } else {
+            Err(DenyReasonWithCap::new(
+                DenyReason::Unpermitted,
+                caps_not_permitted,
+            ))
+        }
     }
 
     pub fn check(&self, cap_set: CapabilitySet) -> Result<(), DenyReasonWithCap> {
