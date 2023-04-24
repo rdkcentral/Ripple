@@ -39,20 +39,22 @@ pub struct FireboltGatewayStep;
 impl FireboltGatewayStep {
     async fn init_handlers(&self, state: PlatformState, extn_methods: Methods) -> Methods {
         let mut methods = Methods::new();
-        let _ = methods.merge(DeviceRPCProvider::provide(state.clone()));
-        let _ = methods.merge(WifiRPCProvider::provide(state.clone()));
-        let _ = methods.merge(LifecycleRippleProvider::provide(state.clone()));
-        let _ = methods.merge(CapRPCProvider::provide(state.clone()));
-        let _ = methods.merge(KeyboardRPCProvider::provide(state.clone()));
-        let _ = methods.merge(AckRPCProvider::provide(state.clone()));
-        let _ = methods.merge(PinRPCProvider::provide(state.clone()));
-        let _ = methods.merge(ClosedcaptionsRPCProvider::provide(state.clone()));
-        let _ = methods.merge(VoiceguidanceRPCProvider::provide(state.clone()));
-        let _ = methods.merge(LocalizationRPCProvider::provide(state.clone()));
-        let _ = methods.merge(AccessoryRippleProvider::provide(state.clone()));
+        let _ = methods.merge(DeviceRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(WifiRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(LifecycleRippleProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(CapRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(KeyboardRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(AckRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(PinRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(ClosedcaptionsRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(VoiceguidanceRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(LocalizationRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(AccessoryRippleProvider::provide_with_alias(state.clone()));
         // LCM Api(s) not required for internal launcher
         if !state.has_internal_launcher() {
-            let _ = methods.merge(LifecycleManagementProvider::provide(state.clone()));
+            let _ = methods.merge(LifecycleManagementProvider::provide_with_alias(
+                state.clone(),
+            ));
         }
         let _ = methods.merge(extn_methods);
         methods

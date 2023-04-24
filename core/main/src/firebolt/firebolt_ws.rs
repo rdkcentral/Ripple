@@ -202,7 +202,11 @@ impl FireboltWs {
             session_id: identity.session_id.clone(),
             app_id: app_id.clone(),
         };
-        let session = Session::new(identity.app_id.clone(), session_tx.clone());
+        let session = Session::new(
+            identity.app_id.clone(),
+            Some(session_tx.clone()),
+            ripple_sdk::api::apps::EffectiveTransport::Websocket,
+        );
         let msg = FireboltGatewayCommand::RegisterSession {
             session_id: identity.session_id.clone(),
             session,

@@ -17,7 +17,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    fb_keyboard::{KeyboardResult, KeyboardSession},
+    fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
     fb_pin::{PinChallengeRequest, PinChallengeResponse},
 };
 
@@ -28,7 +28,7 @@ pub const ACK_CHALLENGE_CAPABILITY: &'static str =
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum ProviderRequestPayload {
-    KeyboardSession(KeyboardSession),
+    KeyboardSession(KeyboardSessionRequest),
     PinChallenge(PinChallengeRequest),
     AckChallenge(Challenge),
     Generic(String),
@@ -39,11 +39,11 @@ pub enum ProviderRequestPayload {
 pub enum ProviderResponsePayload {
     ChallengeResponse(ChallengeResponse),
     PinChallengeResponse(PinChallengeResponse),
-    KeyboardResult(KeyboardResult),
+    KeyboardResult(KeyboardSessionResponse),
 }
 
 impl ProviderResponsePayload {
-    pub fn as_keyboard_result(&self) -> Option<KeyboardResult> {
+    pub fn as_keyboard_result(&self) -> Option<KeyboardSessionResponse> {
         match self {
             ProviderResponsePayload::KeyboardResult(res) => Some(res.clone()),
             _ => None,

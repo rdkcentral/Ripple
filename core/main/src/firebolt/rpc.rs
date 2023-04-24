@@ -16,9 +16,47 @@
 // limitations under the License.
 
 use jsonrpsee::RpcModule;
+use ripple_sdk::log::error;
 
 use crate::state::platform_state::PlatformState;
 
-pub trait RippleRPCProvider<I> {
+struct RegisteredAlias {
+    method: String,
+    aliases: Vec<String>,
+}
+
+pub trait RippleRPCProvider<I>
+where
+    I: Send + Sync + 'static,
+{
+    fn provide_with_alias(state: PlatformState) -> RpcModule<I> {
+        let mut r = Self::provide(state.clone());
+        let rpc_aliases = state.get_rpc_aliases();
+        let mut aliases = Vec::new();
+        for method in r.method_names() {
+            if let Some(a) = rpc_aliases.get(method) {
+                aliases.push(RegisteredAlias {
+                    method: String::from(method),
+                    aliases: a.clone(),
+                });
+            }
+        }
+        for alias in aliases {
+            // JSONRpsee requires aliases to be static string so in order to make the string static
+            // we need to leak it so it exists for the lifetime of the running application
+            let existing_method = Box::leak(alias.method.into_boxed_str());
+            for a in alias.aliases {
+                if let Err(_) =
+                    r.register_alias(Box::leak(a.clone().into_boxed_str()), existing_method)
+                {
+                    error!(
+                        "Error registering alias {} for method {}",
+                        a, existing_method
+                    );
+                }
+            }
+        }
+        r
+    }
     fn provide(state: PlatformState) -> RpcModule<I>;
 }

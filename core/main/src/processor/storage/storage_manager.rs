@@ -18,7 +18,7 @@
 use jsonrpsee::{core::RpcResult, types::error::CallError};
 use ripple_sdk::{
     api::{
-        device::device_accessibility_data::{
+        device::device_storage::{
             GetStorageProperty, SetStorageProperty, StorageData, StorageRequest,
         },
         firebolt::fb_capabilities::CAPABILITY_NOT_AVAILABLE,

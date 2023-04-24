@@ -24,16 +24,18 @@ use serde_json::Value;
 use crate::{
     api::{
         config::{Config, ConfigResponse},
-        device::{device_accessibility_data::StorageData, device_request::DeviceRequest},
+        device::{device_request::DeviceRequest, device_storage::StorageData},
         distributor::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
             distributor_request::DistributorRequest,
         },
         firebolt::{
+            fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
             fb_lifecycle_management::LifecycleManagementRequest,
             fb_pin::{PinChallengeRequest, PinChallengeResponse},
         },
         gateway::rpc_gateway_api::RpcRequest,
+        protocol::BridgeProtocolRequest,
         session::{AccountSession, AccountSessionRequest},
         status_update::ExtnStatus,
     },
@@ -208,9 +210,11 @@ pub enum ExtnRequest {
     Extn(Value),
     LifecycleManagement(LifecycleManagementRequest),
     PinChallenge(PinChallengeRequest),
+    Keyboard(KeyboardSessionRequest),
     Permission(PermissionRequest),
     Distributor(DistributorRequest),
     AccountSession(AccountSessionRequest),
+    BridgeProtocolRequest(BridgeProtocolRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -225,6 +229,7 @@ pub enum ExtnResponse {
     Error(RippleError),
     Config(ConfigResponse),
     PinChallenge(PinChallengeResponse),
+    Keyboard(KeyboardSessionResponse),
     AccountSession(AccountSession),
     Permission(PermissionResponse),
     StorageData(StorageData),

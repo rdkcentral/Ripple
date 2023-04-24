@@ -180,11 +180,11 @@ impl Cap {
 }
 
 impl FireboltOpenRpc {
-    pub fn get_methods_caps(self) -> HashMap<String, CapabilitySet> {
+    pub fn get_methods_caps(&self) -> HashMap<String, CapabilitySet> {
         let mut r = HashMap::default();
-        for method in self.methods {
-            let method_name = method.name;
-            let method_tags = method.tags;
+        for method in &self.methods {
+            let method_name = &method.name;
+            let method_tags = &method.tags;
             if let Some(tags) = method_tags {
                 for tag in tags {
                     if tag.name == "capabilities" {
