@@ -116,4 +116,8 @@ impl OpenRpcState {
             })
             .cloned()
     }
+
+    pub fn get_open_rpc(&self) -> FireboltOpenRpc {
+        self.open_rpc.clone()
+    }
 }

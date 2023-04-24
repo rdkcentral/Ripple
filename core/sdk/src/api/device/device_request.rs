@@ -127,3 +127,32 @@ impl FromStr for NetworkType {
         }
     }
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Hash, Eq)]
+#[serde(rename_all = "lowercase")]
+
+pub enum Resolution {
+    Resolution480,
+    Resolution576,
+    Resolution540,
+    Resolution720,
+    Resolution1080,
+    Resolution2160,
+    Resolution4k,
+    ResolutionDefault,
+}
+
+impl Resolution {
+    pub fn dimension(&self) -> Vec<i32> {
+        match self {
+            Resolution::Resolution480 => vec![720, 480],
+            Resolution::Resolution576 => vec![720, 576],
+            Resolution::Resolution540 => vec![960, 540],
+            Resolution::Resolution720 => vec![1280, 720],
+            Resolution::Resolution1080 => vec![1920, 1080],
+            Resolution::Resolution2160 => vec![3840, 2160],
+            Resolution::Resolution4k => vec![3840, 2160],
+            Resolution::ResolutionDefault => vec![1920, 1080],
+        }
+    }
+}

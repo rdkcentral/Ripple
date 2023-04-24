@@ -35,10 +35,9 @@ use jsonrpsee::{
 };
 use ripple_sdk::{
     api::{
-        apps::StateChange,
         device::{
             device_accessibility_data::SetStringProperty,
-            device_info_request::DeviceInfoRequest,
+            device_info_request::{DeviceInfoRequest, DeviceResponse},
             device_request::{
                 AudioProfile, DeviceVersionResponse, HdcpProfile, HdrProfile, NetworkResponse,
             },
@@ -240,7 +239,7 @@ impl DeviceImpl {
 
         match resp {
             Ok(dab_payload) => match dab_payload.payload.extract().unwrap() {
-                ExtnResponse::FirmwareInfo(value) => Ok(value),
+                DeviceResponse::FirmwareInfo(value) => Ok(value),
                 _ => Err(jsonrpsee::core::Error::Custom(String::from(
                     "Firmware Info error response TBD",
                 ))),
@@ -294,25 +293,25 @@ impl DeviceServer for DeviceImpl {
         Ok("WPE".into())
     }
 
-    async fn version(&self, _ctx: CallContext) -> RpcResult<DeviceVersionResponse> {
-        // let mut os = FireboltSemanticVersion::new(
-        //     env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap(),
-        //     env!("CARGO_PKG_VERSION_MINOR").parse().unwrap(),
-        //     env!("CARGO_PKG_VERSION_PATCH").parse().unwrap(),
-        //     "".to_string(),
-        // );
-        // os.readable = format!("Firebolt OS v{}", env!("CARGO_PKG_VERSION"));
+    async fn version(&self, ctx: CallContext) -> RpcResult<DeviceVersionResponse> {
+        let mut os = FireboltSemanticVersion::new(
+            env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap(),
+            env!("CARGO_PKG_VERSION_MINOR").parse().unwrap(),
+            env!("CARGO_PKG_VERSION_PATCH").parse().unwrap(),
+            "".to_string(),
+        );
+        os.readable = format!("Firebolt OS v{}", env!("CARGO_PKG_VERSION"));
 
-        // let firmware = self.firmware_info(ctx.clone()).await?;
-        // let api = self.state.open_rpc_state.get_manifest;
+        let firmware = self.firmware_info(ctx.clone()).await?;
 
-        // Ok(DeviceVersionResponse {
-        //     api,
-        //     firmware,
-        //     os,
-        //     debug: format!("{} ({})", env!("CARGO_PKG_VERSION"), SHA_SHORT),
-        // })
-        todo!();
+        let open_rpc_state = self.state.clone().open_rpc_state;
+        let api = open_rpc_state.get_open_rpc().info.clone();
+        Ok(DeviceVersionResponse {
+            api,
+            firmware,
+            os,
+            debug: format!("{} ({})", env!("CARGO_PKG_VERSION"), SHA_SHORT),
+        })
     }
 
     async fn model(&self, _ctx: CallContext) -> RpcResult<String> {
@@ -352,7 +351,7 @@ impl DeviceServer for DeviceImpl {
 
         match resp {
             Ok(payload) => match payload.payload.extract().unwrap() {
-                ExtnResponse::HdcpSupportResponse(value) => Ok(value),
+                DeviceResponse::HdcpSupportResponse(value) => Ok(value),
                 _ => Err(jsonrpsee::core::Error::Custom(String::from(
                     "Hdcp capabilities error response TBD",
                 ))),
@@ -381,7 +380,7 @@ impl DeviceServer for DeviceImpl {
 
         match resp {
             Ok(response) => match response.payload.extract().unwrap() {
-                ExtnResponse::HdrResponse(value) => Ok(value),
+                DeviceResponse::HdrResponse(value) => Ok(value),
                 _ => Err(jsonrpsee::core::Error::Custom(String::from(
                     "Hdr capabilities error response TBD",
                 ))),
@@ -410,7 +409,7 @@ impl DeviceServer for DeviceImpl {
 
         match resp {
             Ok(response) => match response.payload.extract().unwrap() {
-                ExtnResponse::ScreenResolutionResponse(value) => Ok(value),
+                DeviceResponse::ScreenResolutionResponse(value) => Ok(value),
                 _ => Err(jsonrpsee::core::Error::Custom(String::from(
                     "screen_resolution error response TBD",
                 ))),
@@ -439,7 +438,7 @@ impl DeviceServer for DeviceImpl {
 
         match resp {
             Ok(response) => match response.payload.extract().unwrap() {
-                ExtnResponse::VideoResolutionResponse(value) => Ok(value),
+                DeviceResponse::VideoResolutionResponse(value) => Ok(value),
                 _ => Err(jsonrpsee::core::Error::Custom(String::from(
                     "video_resolution cap error response TBD",
                 ))),
@@ -486,7 +485,7 @@ impl DeviceServer for DeviceImpl {
 
         match resp {
             Ok(response) => match response.payload.extract().unwrap() {
-                ExtnResponse::AudioProfileResponse(audio) => Ok(audio),
+                DeviceResponse::AudioProfileResponse(audio) => Ok(audio),
                 _ => Err(jsonrpsee::core::Error::Custom(String::from(
                     "Audio error response TBD",
                 ))),
