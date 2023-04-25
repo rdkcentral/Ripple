@@ -85,17 +85,19 @@ impl ExtnRequestProcessor for RpcGatewayProcessor {
                     return Self::handle_error(state.get_extn_client(), msg, e).await;
                 }
             }
-            _ => 
+            _ =>
             // Notice how this processor is different from others where it doesnt respond to
             // Self::respond this processor delegates the request down
             // to the gateway which does more complex inter connected operations. The design for
             // Extn Processor is built in such a way to support transient processors which do not
             // necessarily need to provide response
-            if let Err(e) =
-                state.send_gateway_command(FireboltGatewayCommand::HandleRpc { request })
             {
-                return Self::handle_error(state.get_extn_client(), msg, e).await;
-            },
+                if let Err(e) =
+                    state.send_gateway_command(FireboltGatewayCommand::HandleRpc { request })
+                {
+                    return Self::handle_error(state.get_extn_client(), msg, e).await;
+                }
+            }
         }
 
         true

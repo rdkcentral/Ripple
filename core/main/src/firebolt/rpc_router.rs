@@ -136,10 +136,7 @@ impl RpcRouter {
                         }
                     }
                     EffectiveTransport::Bridge(container_id) => {
-                        if let Err(e) = state
-                            .send_to_bridge(container_id, msg)
-                            .await
-                        {
+                        if let Err(e) = state.send_to_bridge(container_id, msg).await {
                             error!("Error sending event to bridge {:?}", e);
                         }
                     }

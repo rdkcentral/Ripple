@@ -28,7 +28,7 @@ use super::gateway::rpc_gateway_api::ApiMessage;
 pub enum BridgeProtocolRequest {
     StartSession(BridgeSessionParams),
     EndSession(String),
-    Send(String,ApiMessage),
+    Send(String, ApiMessage),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

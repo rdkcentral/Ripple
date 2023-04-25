@@ -289,7 +289,6 @@ impl AppEvents {
                     if let Err(e) = client.send_extn_request(request).await {
                         error!("Error sending event to bridge {:?}", e);
                     }
-                    
                 } else {
                     error!("Bridge not supported");
                 }
