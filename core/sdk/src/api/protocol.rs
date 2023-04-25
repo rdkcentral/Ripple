@@ -16,18 +16,19 @@
 // limitations under the License.
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
 };
 
+use super::gateway::rpc_gateway_api::ApiMessage;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BridgeProtocolRequest {
     StartSession(BridgeSessionParams),
     EndSession(String),
-    Send(String, Value),
+    Send(String,ApiMessage),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

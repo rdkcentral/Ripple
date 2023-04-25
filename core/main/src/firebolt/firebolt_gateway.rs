@@ -209,7 +209,7 @@ impl FireboltGateway {
                             }
                             EffectiveTransport::Bridge(id) => {
                                 if let Err(e) = platform_state
-                                    .send_to_bridge(id, Value::String(api_msg.jsonrpc_msg))
+                                    .send_to_bridge(id, api_msg)
                                     .await
                                 {
                                     error!("Error while responding back message {:?}", e)

@@ -89,6 +89,16 @@ impl ExtnMessage {
             }
         }
     }
+
+    pub fn ack(&self) -> ExtnMessage {
+        ExtnMessage {
+            id: self.id.clone(),
+            requestor: self.requestor.clone(),
+            target: self.target.clone(),
+            payload: ExtnPayload::Response(ExtnResponse::None(())),
+            callback: self.callback.clone(),
+        }
+    }
 }
 
 impl TryFrom<String> for ExtnPayload {

@@ -23,7 +23,7 @@ use ripple_sdk::{
     api::{
         apps::EffectiveTransport,
         firebolt::fb_general::ListenRequest,
-        gateway::rpc_gateway_api::{ApiMessage, ApiProtocol, CallContext},
+        gateway::rpc_gateway_api::{ApiMessage, CallContext},
         protocol::BridgeProtocolRequest,
     },
     log::error,
@@ -263,36 +263,37 @@ impl AppEvents {
 
     pub async fn send_event(state: &PlatformState, listener: &EventListener, data: &Value) {
         let protocol = listener.call_ctx.protocol.clone();
-        match protocol {
-            ApiProtocol::JsonRpc => {
+        let event = Response {
+            jsonrpc: TwoPointZero,
+            result: data,
+            id: Id::Number(listener.call_ctx.call_id),
+        };
+        let api_message = ApiMessage::new(
+            protocol,
+            json!(event).to_string(),
+            listener.call_ctx.request_id.clone(),
+        );
+
+        match listener.transport.clone() {
+            EffectiveTransport::Websocket => {
                 if let Some(session_tx) = listener.session_tx.clone() {
-                    let event = Response {
-                        jsonrpc: TwoPointZero,
-                        result: data,
-                        id: Id::Number(listener.call_ctx.call_id),
-                    };
-                    let api_message = ApiMessage::new(
-                        protocol,
-                        json!(event).to_string(),
-                        listener.call_ctx.request_id.clone(),
-                    );
                     mpsc_send_and_log(&session_tx, api_message, "GatewayResponse").await;
                 } else {
                     error!("JsonRPC sender missing");
                 }
             }
-            ApiProtocol::Bridge => {
+            EffectiveTransport::Bridge(id) => {
                 if state.supports_bridge() {
                     let client = state.get_client();
-                    if let EffectiveTransport::Bridge(container_id) = listener.transport.clone() {
-                        let request = BridgeProtocolRequest::Send(container_id, data.clone());
-                        if let Err(e) = client.send_extn_request(request).await {
-                            error!("Error sending event to bridge {:?}", e);
-                        }
+                    let request = BridgeProtocolRequest::Send(id, api_message);
+                    if let Err(e) = client.send_extn_request(request).await {
+                        error!("Error sending event to bridge {:?}", e);
                     }
+                    
+                } else {
+                    error!("Bridge not supported");
                 }
             }
-            _ => {}
         }
     }
 
