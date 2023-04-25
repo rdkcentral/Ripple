@@ -16,7 +16,7 @@
 // limitations under the License.
 
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::RpcRequest,
+    api::gateway::rpc_gateway_api::{ApiProtocol, RpcRequest},
     async_trait::async_trait,
     extn::{
         client::extn_processor::{
@@ -69,17 +69,37 @@ impl ExtnRequestProcessor for RpcGatewayProcessor {
         self.client.get_extn_client()
     }
 
-    async fn process_request(state: Self::STATE, msg: ExtnMessage, _request: Self::VALUE) -> bool {
-        // Notice how this processor is different from others where it doesnt respond to
-        // Self::respond this processor delegates the request down
-        // to the gateway which does more complex inter connected operations. The design for
-        // Extn Processor is built in such a way to support transient processors which do not
-        // necessarily need to provide response
-        if let Err(e) = state
-            .send_gateway_command(FireboltGatewayCommand::HandleRpcForExtn { msg: msg.clone() })
-        {
-            return Self::handle_error(state.get_extn_client(), msg, e).await;
+    async fn process_request(state: Self::STATE, msg: ExtnMessage, request: Self::VALUE) -> bool {
+        match request.ctx.protocol {
+            ApiProtocol::Extn => {
+                // Notice how this processor is different from others where it doesnt respond to
+                // Self::respond this processor delegates the request down
+                // to the gateway which does more complex inter connected operations. The design for
+                // Extn Processor is built in such a way to support transient processors which do not
+                // necessarily need to provide response
+                if let Err(e) =
+                    state.send_gateway_command(FireboltGatewayCommand::HandleRpcForExtn {
+                        msg: msg.clone(),
+                    })
+                {
+                    return Self::handle_error(state.get_extn_client(), msg, e).await;
+                }
+            }
+            ApiProtocol::Bridge => {
+                // Notice how this processor is different from others where it doesnt respond to
+                // Self::respond this processor delegates the request down
+                // to the gateway which does more complex inter connected operations. The design for
+                // Extn Processor is built in such a way to support transient processors which do not
+                // necessarily need to provide response
+                if let Err(e) =
+                    state.send_gateway_command(FireboltGatewayCommand::HandleRpc { request })
+                {
+                    return Self::handle_error(state.get_extn_client(), msg, e).await;
+                }
+            }
+            _ => return false,
         }
+
         true
     }
 }
