@@ -24,9 +24,9 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         device::{
-            device_accessibility_data::SetStringProperty,
             device_info_request::DeviceInfoRequest,
             device_request::{LanguageProperty, TimezoneProperty},
+            device_storage::SetStringProperty,
         },
         firebolt::fb_general::{ListenRequest, ListenerResponse},
         gateway::rpc_gateway_api::CallContext,

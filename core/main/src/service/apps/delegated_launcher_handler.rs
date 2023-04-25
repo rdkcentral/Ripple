@@ -35,6 +35,7 @@ use ripple_sdk::{
                 LCM_EVENT_ON_REQUEST_READY,
             },
         },
+        protocol::{BridgeProtocolRequest, BridgeSessionParams},
     },
     tokio::{
         self,
@@ -61,7 +62,7 @@ use crate::{
     service::apps::app_events::AppEvents,
     state::{
         bootstrap_state::ChannelsState, cap::permitted_state::PermissionHandler,
-        platform_state::PlatformState,
+        platform_state::PlatformState, session_state::Session,
     },
 };
 
@@ -235,6 +236,16 @@ impl DelegatedLauncherHandler {
 
     async fn start_session(&mut self, session: AppSession) -> Result<AppManagerResponse, AppError> {
         let app_id = session.app.id.clone();
+        let transport = session.get_transport();
+        match transport.clone() {
+            EffectiveTransport::Bridge(_) => {
+                if !self.platform_state.supports_bridge() {
+                    error!("Bridge is not a supported contract");
+                    return Err(AppError::NotSupported);
+                }
+            }
+            _ => {}
+        }
         debug!("start_session: entry: app_id={}", app_id);
         let exists = self.platform_state.app_manager_state.exists(&app_id);
         let session_id;
@@ -242,16 +253,18 @@ impl DelegatedLauncherHandler {
             self.platform_state
                 .app_manager_state
                 .set_session(&app_id, session.clone());
-            AppEvents::emit(
+            AppEvents::emit_to_app(
                 &self.platform_state,
+                app_id.clone(),
                 DISCOVERY_EVENT_ON_NAVIGATE_TO,
                 &serde_json::to_value(session.launch.intent).unwrap(),
             )
             .await;
 
             if let Some(ss) = session.launch.second_screen {
-                AppEvents::emit(
+                AppEvents::emit_to_app(
                     &self.platform_state,
+                    app_id.clone(),
                     SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST,
                     &serde_json::to_value(ss).unwrap(),
                 )
@@ -272,6 +285,34 @@ impl DelegatedLauncherHandler {
             let platform_state_c = self.platform_state.clone();
             let app_id_c = app_id.clone();
 
+            match transport.clone() {
+                EffectiveTransport::Bridge(container_id) => {
+                    if !self.platform_state.supports_bridge() {
+                        // Step 1: Add the session of the app to the state if bridge
+                        let session_state = Session::new(app_id.clone(), None, transport);
+                        self.platform_state
+                            .session_state
+                            .add_session(session_id.clone(), session_state);
+
+                        // Step 2: Start the session using contract
+                        let request = BridgeSessionParams {
+                            container_id,
+                            session_id: session_id.clone(),
+                        };
+                        let request = BridgeProtocolRequest::StartSession(request);
+                        if let Err(e) = self
+                            .platform_state
+                            .get_client()
+                            .send_extn_request(request)
+                            .await
+                        {
+                            error!("Error sending event to bridge {:?}", e);
+                        }
+                    }
+                }
+                _ => {}
+            }
+
             // Fetch permissions on separate thread
             tokio::spawn(async move {
                 if let Err(_) =
@@ -280,8 +321,6 @@ impl DelegatedLauncherHandler {
                     error!("Couldnt load permissions for app {}", app_id_c)
                 }
             });
-
-            // TODO add bridge logic for Effective Transport
             self.platform_state.app_manager_state.insert(
                 app_id,
                 App {
@@ -300,8 +339,16 @@ impl DelegatedLauncherHandler {
         let app = self.platform_state.app_manager_state.remove(app_id);
         if let Some(app) = app {
             let transport = app.initial_session.get_transport();
-            if let EffectiveTransport::Bridge(_browser_name) = transport {
-                // TODO add support for bridge sesssion closure
+            if let EffectiveTransport::Bridge(container_id) = transport {
+                let request = BridgeProtocolRequest::EndSession(container_id);
+                if let Err(e) = self
+                    .platform_state
+                    .get_client()
+                    .send_extn_request(request)
+                    .await
+                {
+                    error!("Error sending event to bridge {:?}", e);
+                }
             }
         } else {
             error!("end_session app_id={} Not found", app_id);

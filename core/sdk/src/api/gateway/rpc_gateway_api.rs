@@ -79,40 +79,6 @@ impl ApiMessage {
             request_id,
         }
     }
-
-    /// Converts this jsonrpc formatted message into bridge message
-    /// Handles the different protocols and the conversion between them.
-    /// If the protocol is bridge then it is first converted to a bridgeApiResponse message
-    /// If the protocol is jsonrpc, then it is simply wrapped in a bridge object wrapper
-    /// For bridge protocol, handle jsonrpc errors when converting to the bridge protocol.
-    /// bridge seems to handle errors strangely when JSON is returned, adding a prefix to the error
-    /// allowed the error to be seen in the bridge reference app.
-    pub fn as_bridge_msg(&self) -> String {
-        match self.protocol {
-            ApiProtocol::Bridge => {
-                let resp: JsonRpcApiResponse = serde_json::from_str(&self.jsonrpc_msg).unwrap();
-                let bridge_resp = BridgeApiResponse {
-                    pid: resp.id,
-                    success: match resp.error {
-                        Some(_) => false,
-                        None => true,
-                    },
-                    json: match resp.error {
-                        // If the error has data then use data as the bridge payload in the error repsonse
-                        Some(err) => match err.get("data") {
-                            Some(data) => Some(data.clone()),
-                            None => Some(err),
-                        },
-                        None => resp.result,
-                    },
-                };
-
-                serde_json::to_string(&bridge_resp).unwrap()
-            }
-            ApiProtocol::JsonRpc => format!("{{\"json\":{}}}", self.jsonrpc_msg),
-            ApiProtocol::Extn => self.jsonrpc_msg.clone(),
-        }
-    }
 }
 
 #[derive(Deserialize)]
@@ -127,20 +93,6 @@ impl ApiBaseRequest {
             None => false,
         }
     }
-}
-
-#[derive(Deserialize)]
-pub struct BridgeApiRequest {
-    pub pid: Option<u64>,
-    pub action: String,
-    pub args: Option<Value>,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct BridgeApiResponse {
-    pub pid: u64,
-    pub success: bool,
-    pub json: Option<Value>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -236,52 +188,28 @@ impl RpcRequest {
             return Err(RequestParseError {});
         }
         let base: ApiBaseRequest = base_res.unwrap();
-        match base.is_jsonrpc() {
-            true => {
-                let jsonrpc_req_res = serde_json::from_value(parsed);
-                if jsonrpc_req_res.is_err() {
-                    return Err(RequestParseError {});
-                }
-                let jsonrpc_req: JsonRpcApiRequest = jsonrpc_req_res.unwrap();
-                let id = match jsonrpc_req.id {
-                    Some(n) => n,
-                    None => 0,
-                };
-                let ctx = CallContext::new(
-                    session_id,
-                    request_id,
-                    app_id,
-                    id,
-                    ApiProtocol::JsonRpc,
-                    jsonrpc_req.method.clone(),
-                );
-                let ps = RpcRequest::prepend_ctx(jsonrpc_req.params, &ctx);
-                Ok(RpcRequest::new(jsonrpc_req.method, ps, ctx))
-            }
-            false => {
-                let badger_req_resp = serde_json::from_value(parsed);
-                if badger_req_resp.is_err() {
-                    return Err(RequestParseError {});
-                }
-                let badger_req: BridgeApiRequest = badger_req_resp.unwrap();
-                let id = match badger_req.pid {
-                    Some(n) => n,
-                    None => 0,
-                };
-                let method = format!("bridge.{}", badger_req.action);
-                let ctx = CallContext::new(
-                    session_id,
-                    request_id,
-                    app_id,
-                    id,
-                    ApiProtocol::Bridge,
-                    method,
-                );
-                let method = format!("bridge.{}", badger_req.action);
-                let ps = RpcRequest::prepend_ctx(badger_req.args, &ctx);
-                Ok(RpcRequest::new(method, ps, ctx))
-            }
+        if !base.is_jsonrpc() {
+            return Err(RequestParseError {});
         }
+        let jsonrpc_req_res = serde_json::from_value(parsed);
+        if jsonrpc_req_res.is_err() {
+            return Err(RequestParseError {});
+        }
+        let jsonrpc_req: JsonRpcApiRequest = jsonrpc_req_res.unwrap();
+        let id = match jsonrpc_req.id {
+            Some(n) => n,
+            None => 0,
+        };
+        let ctx = CallContext::new(
+            session_id,
+            request_id,
+            app_id,
+            id,
+            ApiProtocol::JsonRpc,
+            jsonrpc_req.method.clone(),
+        );
+        let ps = RpcRequest::prepend_ctx(jsonrpc_req.params, &ctx);
+        Ok(RpcRequest::new(jsonrpc_req.method, ps, ctx))
     }
 }
 
