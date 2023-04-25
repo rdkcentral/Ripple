@@ -441,6 +441,12 @@ impl ExtnClient {
         Err(RippleError::ExtnError)
     }
 
+    /// Request method which accepts a impl [ExtnPayloadProvider] and uses the capability provided by the trait to send the request.
+    /// As part of the send process it adds a callback to asynchronously respond back to the caller when the response does get
+    /// received. This method can be called synchrnously with a timeout
+    ///
+    /// # Arguments
+    /// `payload` - impl [ExtnPayloadProvider]
     pub fn request_sync<T: ExtnPayloadProvider>(
         &mut self,
         payload: impl ExtnPayloadProvider,
@@ -482,5 +488,17 @@ impl ExtnClient {
             }
         }
         Err(RippleError::InvalidOutput)
+    }
+
+    /// Request method which accepts a impl [ExtnPayloadProvider] and uses the capability provided by the trait to send the request.
+    /// This method doesnt provide a response it just provides a result after a successful send. Useful for transient requests from
+    /// protocols which do not need a single point of request and response.
+    ///
+    /// # Arguments
+    /// `payload` - impl [ExtnPayloadProvider]
+    pub fn request_transient(&mut self, payload: impl ExtnPayloadProvider) -> RippleResponse {
+        let id = uuid::Uuid::new_v4().to_string();
+        let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
+        self.sender.send_request(id, payload, other_sender, None)
     }
 }
