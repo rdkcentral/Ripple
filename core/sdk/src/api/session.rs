@@ -1,3 +1,20 @@
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -5,10 +22,42 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
+pub fn deserialize_expiry<'de, D>(deserializer: D) -> Result<Expiry, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = u32::deserialize(deserializer)?;
+    if value < 1 {
+        Err(serde::de::Error::custom(
+            "Invalid value for expiresIn. Minimum value should be 1",
+        ))
+    } else {
+        Ok(value)
+    }
+}
+
+type Expiry = u32;
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountSessionTokenRequest {
+    pub token: String,
+    #[serde(default, deserialize_with = "deserialize_expiry")]
+    pub expires_in: Expiry,
+}
+
+#[derive(Serialize, Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProvisionRequest {
+    pub account_id: String,
+    pub device_id: String,
+    pub distributor_id: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum AccountSessionRequest {
     Get,
-    IsProvisioned,
+    Provision(ProvisionRequest),
+    SetAccessToken(AccountSessionTokenRequest),
 }
 
 impl ExtnPayloadProvider for AccountSessionRequest {
@@ -20,7 +69,6 @@ impl ExtnPayloadProvider for AccountSessionRequest {
             },
             _ => {}
         }
-
         None
     }
 
@@ -64,7 +112,7 @@ impl ExtnPayloadProvider for AccountSession {
     }
 }
 
-pub struct OptionalRippleSession {
+pub struct OptionalAccountSession {
     pub id: Option<String>,
     pub token: Option<String>,
     pub account_id: Option<String>,
@@ -72,12 +120,70 @@ pub struct OptionalRippleSession {
 }
 
 impl AccountSession {
-    pub fn get_only_id(&self) -> OptionalRippleSession {
-        OptionalRippleSession {
+    pub fn get_only_id(&self) -> OptionalAccountSession {
+        OptionalAccountSession {
             id: Some(self.id.clone()),
             token: None,
             account_id: None,
             device_id: None,
         }
+    }
+}
+
+/**
+ * https://developer.comcast.com/firebolt/core/sdk/latest/api/authentication
+ */
+/*TokenType and Token are Firebolt spec types */
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+pub enum TokenType {
+    #[serde(rename = "platform")]
+    Platform,
+    #[serde(rename = "device")]
+    Device,
+    #[serde(rename = "distributor")]
+    Distributor,
+    #[serde(rename = "root")]
+    Root,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenContext {
+    pub distributor_id: String,
+    pub app_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SessionTokenRequest {
+    pub token_type: TokenType,
+    pub options: Vec<String>,
+    pub context: Option<TokenContext>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct TokenContainer {
+    pub token_type: TokenType,
+    pub native_token_type: String,
+    pub token_data: String,
+    pub expires: i64,
+}
+
+impl ExtnPayloadProvider for SessionTokenRequest {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(ExtnRequest::SessionToken(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<SessionTokenRequest> {
+        match payload {
+            ExtnPayload::Request(request) => match request {
+                ExtnRequest::SessionToken(r) => return Some(r),
+                _ => {}
+            },
+            _ => {}
+        }
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::SessionToken
     }
 }
