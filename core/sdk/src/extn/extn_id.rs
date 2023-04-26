@@ -129,7 +129,7 @@ impl ExtnClassType {
 ///
 /// `ripple:extn:distributor:permissions:fireboltpermissions`
 ///
-/// Below capability means the given plugin offers a JsonRpsee rpc extension for a service named badger
+/// Below capability means the given plugin offers a JsonRpsee rpc extension for a service named bridge
 ///
 /// `ripple:extn:jsonrpsee:bridge`
 #[derive(Debug, Clone)]

@@ -56,7 +56,7 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
             unsafe {
                 let path = extn.entry.clone().path;
                 let library = &extn.library;
-                info!("Number of channels {}", extn.metadata.symbols.len());
+                info!("path {} with # of symbols {}", path, extn.metadata.symbols.len());
                 let channels = extn.get_channels();
                 let extensions = extn.get_extns();
                 for channel in channels {

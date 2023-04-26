@@ -182,7 +182,7 @@ impl ExtnClient {
             index = index + 1;
             match receiver.try_recv() {
                 Ok(c_message) => {
-                    trace!("** receiving message {:?}", c_message);
+                    debug!("** receiving message {:?}", c_message);
                     let message_result: Result<ExtnMessage, RippleError> =
                         c_message.clone().try_into();
                     if message_result.is_err() {

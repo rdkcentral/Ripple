@@ -484,7 +484,7 @@ impl AppLauncher {
         }
     }
 
-    fn get_transport(url:String) -> AppRuntimeTransport {
+    fn get_transport(url: String) -> AppRuntimeTransport {
         if url.as_str().find("__firebolt_endpoint").is_none() {
             AppRuntimeTransport::Bridge
         } else {

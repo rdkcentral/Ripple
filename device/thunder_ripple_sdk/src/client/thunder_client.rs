@@ -284,7 +284,7 @@ impl ThunderClient {
         let handler_channel = thunder_message.handler.clone();
         let resub_message = ThunderMessage::ThunderSubscribeMessage(thunder_message.resubscribe());
         let handle = ripple_sdk::tokio::spawn(async move {
-            println!("Starting thread to listen for thunder events");
+            trace!("Starting thread to listen for thunder events");
             while let Some(ev_res) = subscription.next().await {
                 if let Ok(ev) = ev_res {
                     let msg = DeviceResponseMessage::call(ev);
