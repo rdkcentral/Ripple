@@ -24,7 +24,9 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
-use super::device_request::{AudioProfile, DeviceRequest, HdcpProfile, HdrProfile};
+use super::device_request::{
+    AudioProfile, DeviceRequest, HDCPStatus, HdcpProfile, HdrProfile, OnInternetConnectedRequest,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DeviceInfoRequest {
@@ -37,10 +39,12 @@ pub enum DeviceInfoRequest {
     HdcpStatus,
     Hdr,
     Audio,
+    Sku,
     ScreenResolution,
     VideoResolution,
     AvailableMemory,
     Network,
+    OnInternetConnected(OnInternetConnectedRequest),
 }
 
 impl ExtnPayloadProvider for DeviceInfoRequest {
@@ -72,6 +76,7 @@ pub enum DeviceResponse {
     CustomError(String),
     AudioProfileResponse(HashMap<AudioProfile, bool>),
     HdcpSupportResponse(HashMap<HdcpProfile, bool>),
+    HdcpStatusResponse(HDCPStatus),
     HdrResponse(HashMap<HdrProfile, bool>),
     FirmwareInfo(FireboltSemanticVersion),
     ScreenResolutionResponse(Vec<i32>),

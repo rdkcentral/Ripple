@@ -49,6 +49,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::CallContext,
     },
     extn::extn_client_message::ExtnResponse,
+    log::debug,
     uuid::Uuid,
 };
 
@@ -105,10 +106,10 @@ pub trait Device {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
-    #[method(name = "device.model")]
+    #[method(name = "device.model", aliases = ["device.sku"])]
     async fn model(&self, ctx: CallContext) -> RpcResult<String>;
-    #[method(name = "device.sku")]
-    async fn sku(&self, ctx: CallContext) -> RpcResult<String>;
+    //    #[method(name = "device.sku")]
+    //    async fn sku(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "device.hdcp")]
     async fn hdcp(&self, ctx: CallContext) -> RpcResult<HashMap<HdcpProfile, bool>>;
     #[method(name = "device.onHdcpChanged")]
@@ -188,9 +189,11 @@ pub async fn get_device_id(state: &PlatformState) -> RpcResult<String> {
 
 pub async fn get_uid(state: &PlatformState) -> RpcResult<String> {
     //TODO: uid details
-
+    //TODO:ERROR
     let mac_id = get_ll_mac_addr(state.clone()).await.unwrap();
+    debug!("{:?}", mac_id);
     let uuid = Uuid::parse_str(&mac_id);
+    debug!("{}", mac_id);
 
     match uuid {
         Ok(uid) => Ok(uid.to_string()),
@@ -328,19 +331,19 @@ impl DeviceServer for DeviceImpl {
         Err(rpc_err("FB error response TBD"))
     }
 
-    async fn sku(&self, _ctx: CallContext) -> RpcResult<String> {
-        if let Ok(response) = self
-            .state
-            .get_client()
-            .send_extn_request(DeviceInfoRequest::Model)
-            .await
-        {
-            if let Some(ExtnResponse::String(v)) = response.payload.clone().extract() {
-                return Ok(v);
-            }
-        }
-        Err(rpc_err("FB error response TBD"))
-    }
+    // async fn sku(&self, _ctx: CallContext) -> RpcResult<String> {
+    //     if let Ok(response) = self
+    //         .state
+    //         .get_client()
+    //         .send_extn_request(DeviceInfoRequest::Model)
+    //         .await
+    //     {
+    //         if let Some(ExtnResponse::String(v)) = response.payload.clone().extract() {
+    //             return Ok(v);
+    //         }
+    //     }
+    //     Err(rpc_err("FB error response TBD"))
+    // }
 
     async fn hdcp(&self, _ctx: CallContext) -> RpcResult<HashMap<HdcpProfile, bool>> {
         let resp = self

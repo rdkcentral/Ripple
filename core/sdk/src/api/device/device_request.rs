@@ -128,6 +128,23 @@ impl FromStr for NetworkType {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct HDCPStatus {
+    pub is_connected: bool,
+    #[serde(rename = "isHDCPCompliant")]
+    pub is_hdcp_compliant: bool,
+    #[serde(rename = "isHDCPEnabled")]
+    pub is_hdcp_enabled: bool,
+    pub hdcp_reason: u32,
+    #[serde(rename = "supportedHDCPVersion")]
+    pub supported_hdcp_version: String,
+    #[serde(rename = "receiverHDCPVersion")]
+    pub receiver_hdcp_version: String,
+    #[serde(rename = "currentHDCPVersion")]
+    pub current_hdcp_version: String,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Hash, Eq)]
 #[serde(rename_all = "lowercase")]
 
@@ -155,4 +172,9 @@ impl Resolution {
             Resolution::ResolutionDefault => vec![1920, 1080],
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OnInternetConnectedRequest {
+    pub timeout: u64,
 }
