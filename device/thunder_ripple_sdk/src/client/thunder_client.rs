@@ -167,7 +167,7 @@ impl ThunderClient {
     /// Sends a message to thunder. If this client is pooled
     /// then it will wrap the message in a pool command before sending
     pub async fn send_message(&self, message: ThunderMessage) {
-        trace!("Thunder client {} is sending a message", self.id);
+        debug!("Client {} sending thunder message {:?}", self.id, message);
         if let Some(s) = &self.pooled_sender {
             mpsc_send_and_log(
                 s,
@@ -190,7 +190,6 @@ impl DeviceOperator for ThunderClient {
             params: request.params,
             callback: tx,
         });
-        debug!("sending thunder message {:?}", message);
         self.send_message(message).await;
         let result = rx.await.unwrap();
         debug!("received thunder message {:?}", result);
