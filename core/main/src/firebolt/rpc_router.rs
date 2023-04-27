@@ -28,16 +28,19 @@ use jsonrpsee::{
     types::{error::ErrorCode, Id, Params},
 };
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
+    api::{
+        apps::EffectiveTransport,
+        gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
+    },
     extn::extn_client_message::{ExtnMessage, ExtnResponse},
     log::{error, info, trace},
-    serde_json::{self, Result as SResult},
+    serde_json::{self, Result as SResult, Value},
     tokio::{self},
     utils::error::RippleError,
 };
 use std::sync::{Arc, RwLock};
 
-use crate::state::session_state::Session;
+use crate::state::{platform_state::PlatformState, session_state::Session};
 
 pub struct RpcRouter;
 
@@ -119,29 +122,45 @@ async fn resolve_route(
 }
 
 impl RpcRouter {
-    pub async fn route(state: RouterState, req: RpcRequest, session: Session) {
-        let methods = state.get_methods();
-        let resources = state.resources.clone();
+    pub async fn route(state: PlatformState, req: RpcRequest, session: Session) {
+        let methods = state.router_state.get_methods();
+        let resources = state.router_state.resources.clone();
         tokio::spawn(async move {
             let session_id = req.ctx.session_id.clone();
             if let Ok(msg) = resolve_route(methods, resources, req).await {
                 trace!("sending back to {} {}", session_id, msg.jsonrpc_msg);
-                if let Err(e) = session.send(msg).await {
-                    error!("Error while responding back message {:?}", e)
+                match session.get_transport() {
+                    EffectiveTransport::Websocket => {
+                        if let Err(e) = session.send_json_rpc(msg).await {
+                            error!("Error while responding back message {:?}", e)
+                        }
+                    }
+                    EffectiveTransport::Bridge(container_id) => {
+                        if let Err(e) = state
+                            .send_to_bridge(container_id, Value::String(msg.jsonrpc_msg))
+                            .await
+                        {
+                            error!("Error sending event to bridge {:?}", e);
+                        }
+                    }
                 }
             }
         });
     }
 
-    pub async fn route_extn_protocol(state: RouterState, req: RpcRequest, extn_msg: ExtnMessage) {
+    pub async fn route_extn_protocol(
+        state: &PlatformState,
+        req: RpcRequest,
+        extn_msg: ExtnMessage,
+    ) {
         if extn_msg.callback.is_none() {
             // The caller of this function already checks this adding it here none the less.
             error!("No valid callbacks")
         }
 
         let callback = extn_msg.clone().callback.unwrap();
-        let methods = state.get_methods();
-        let resources = state.resources.clone();
+        let methods = state.router_state.get_methods();
+        let resources = state.router_state.resources.clone();
         tokio::spawn(async move {
             if let Ok(msg) = resolve_route(methods, resources, req).await {
                 let r: SResult<JsonRpcApiResponse> = serde_json::from_str(&msg.jsonrpc_msg);

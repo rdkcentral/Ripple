@@ -30,9 +30,9 @@ use ripple_sdk::{
         firebolt::{
             fb_general::{ListenRequest, ListenerResponse},
             fb_keyboard::{
-                KeyboardProviderResponse, KeyboardRequest, KeyboardRequestPassword, KeyboardResult,
-                KeyboardSession, KeyboardType, EMAIL_EVENT_PREFIX, KEYBOARD_PROVIDER_CAPABILITY,
-                PASSWORD_EVENT_PREFIX, STANDARD_EVENT_PREFIX,
+                KeyboardProviderResponse, KeyboardRequest, KeyboardRequestPassword,
+                KeyboardSessionRequest, KeyboardSessionResponse, KeyboardType, EMAIL_EVENT_PREFIX,
+                KEYBOARD_PROVIDER_CAPABILITY, PASSWORD_EVENT_PREFIX, STANDARD_EVENT_PREFIX,
             },
             provider::{FocusRequest, ProviderRequestPayload, ProviderResponsePayload},
         },
@@ -256,10 +256,11 @@ impl KeyboardImpl {
         ctx: CallContext,
         request: KeyboardRequest,
         typ: KeyboardType,
-    ) -> RpcResult<KeyboardResult> {
+    ) -> RpcResult<KeyboardSessionResponse> {
         let method = String::from(typ.to_provider_method());
-        let session = KeyboardSession {
+        let session = KeyboardSessionRequest {
             _type: typ,
+            ctx: ctx.clone(),
             message: request.message,
         };
         let (session_tx, session_rx) = oneshot::channel::<ProviderResponsePayload>();

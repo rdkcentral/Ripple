@@ -21,7 +21,9 @@ use std::{
 };
 
 use ripple_sdk::{
-    api::{gateway::rpc_gateway_api::ApiMessage, session::AccountSession},
+    api::{
+        apps::EffectiveTransport, gateway::rpc_gateway_api::ApiMessage, session::AccountSession,
+    },
     tokio::sync::mpsc::Sender,
     utils::error::RippleError,
 };
@@ -29,36 +31,46 @@ use ripple_sdk::{
 #[derive(Debug, Clone)]
 pub struct SessionData {
     app_id: String,
+    transport: EffectiveTransport,
 }
 
 #[derive(Debug, Clone)]
 pub struct Session {
-    transport: Sender<ApiMessage>,
+    sender: Option<Sender<ApiMessage>>,
     data: SessionData,
 }
 
 impl Session {
-    pub fn new(app_id: String, transport: Sender<ApiMessage>) -> Session {
+    pub fn new(
+        app_id: String,
+        sender: Option<Sender<ApiMessage>>,
+        transport: EffectiveTransport,
+    ) -> Session {
         Session {
-            transport,
-            data: SessionData { app_id },
+            sender,
+            data: SessionData { app_id, transport },
         }
     }
 
-    pub fn get_transport(&self) -> Sender<ApiMessage> {
-        self.transport.clone()
+    pub fn get_sender(&self) -> Option<Sender<ApiMessage>> {
+        self.sender.clone()
     }
 
-    pub async fn send(&self, msg: ApiMessage) -> Result<(), RippleError> {
-        if let Ok(_) = self.transport.send(msg).await {
-            return Ok(());
-        } else {
-            return Err(RippleError::SendFailure);
+    pub async fn send_json_rpc(&self, msg: ApiMessage) -> Result<(), RippleError> {
+        if let Some(sender) = self.get_sender() {
+            if let Ok(_) = sender.send(msg).await {
+                return Ok(());
+            }
         }
+        Err(RippleError::SendFailure)
     }
 
     fn get_app_id(&self) -> String {
         self.data.app_id.clone()
+    }
+
+    pub fn get_transport(&self) -> EffectiveTransport {
+        self.data.clone().transport
     }
 }
 
@@ -106,11 +118,6 @@ impl SessionState {
         self.session_map.read().unwrap().contains_key(&session_id)
     }
 
-    pub fn get_sender(&self, session_id: String) -> Option<Session> {
-        let session_map = self.session_map.read().unwrap();
-        session_map.get(&session_id).cloned()
-    }
-
     pub fn add_session(&self, session_id: String, session: Session) {
         let mut session_state = self.session_map.write().unwrap();
         session_state.insert(session_id, session);
@@ -124,17 +131,5 @@ impl SessionState {
     pub fn get_session(&self, session_id: &str) -> Option<Session> {
         let session_state = self.session_map.read().unwrap();
         session_state.get(session_id).cloned()
-    }
-
-    pub async fn send_message(
-        &self,
-        session_id: String,
-        msg: ApiMessage,
-    ) -> Result<(), RippleError> {
-        let session_state = self.session_map.read().unwrap();
-        if let Some(session) = session_state.get(&session_id) {
-            return session.send(msg).await;
-        }
-        Err(RippleError::SenderMissing)
     }
 }
