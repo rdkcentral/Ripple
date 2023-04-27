@@ -188,12 +188,10 @@ pub async fn get_device_id(state: &PlatformState) -> RpcResult<String> {
 }
 
 pub async fn get_uid(state: &PlatformState) -> RpcResult<String> {
-    //TODO: uid details
-    //TODO:ERROR
     let mac_id = get_ll_mac_addr(state.clone()).await.unwrap();
-    debug!("{:?}", mac_id);
-    let uuid = Uuid::parse_str(&mac_id);
-    debug!("{}", mac_id);
+    let prefix = "00000000000000000000";
+    let uuid_string = format!("{}{}", prefix, mac_id);
+    let uuid = Uuid::parse_str(&uuid_string);
 
     match uuid {
         Ok(uid) => Ok(uid.to_string()),

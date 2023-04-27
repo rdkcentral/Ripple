@@ -46,6 +46,7 @@
         "xrn:firebolt:capability:device:id",
         "xrn:firebolt:capability:device:uid",
         "xrn:firebolt:capability:device:sku",
+        "xrn:firebolt:capability:network:status",
         "xrn:firebolt:capability:usergrant:pinchallenge",
         "xrn:firebolt:capability:accessibility:closedcaptions",
         "xrn:firebolt:capability:accessibility:closedcaptions[manage]",

@@ -336,66 +336,66 @@ impl ThunderDeviceInfoRequestProcessor {
         .is_ok()
     }
 
-    // async fn hdcp_support(state: ThunderState, req: ExtnMessage) -> bool {
-    //     let response = state
-    //     .get_thunder_client()
-    //     .call(DeviceCallRequest {
-    //         method: ThunderPlugin::Hdcp.method("getSettopHDCPSupport"),
-    //         params: None,
-    //     })
-    //     .await;
-    // info!("{}", response.message);
-    //     let hdcp_version = response.message["supportedHDCPVersion"].to_string();
-    //     let is_hdcp_supported: bool = response.message["isHDCPSupported"]
-    //         .to_string()
-    //         .parse()
-    //         .unwrap();
-    //     let mut hdcp_response = HashMap::new();
-    //     if hdcp_version.contains("1.4") {
-    //         hdcp_response.insert(HdcpProfile::Hdcp1_4, is_hdcp_supported);
-    //     }
-    //     if hdcp_version.contains("2.2") {
-    //         hdcp_response.insert(HdcpProfile::Hdcp2_2, is_hdcp_supported);
-    //     }
-    //     Self::respond(
-    //         state.get_client(),
-    //         req,
-    //         if let ExtnPayload::Response(r) =
-    //             DeviceResponse::HdcpSupportResponse(hdcp_response.clone()).get_extn_payload()
-    //         {
-    //             r
-    //         } else {
-    //             ExtnResponse::Error(RippleError::ProcessorError)
-    //         },
-    //     )
-    //     .await
-    //     .is_ok()
-    // }
+    async fn hdcp_support(state: ThunderState, req: ExtnMessage) -> bool {
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::Hdcp.method("getSettopHDCPSupport"),
+                params: None,
+            })
+            .await;
+        info!("{}", response.message);
+        let hdcp_version = response.message["supportedHDCPVersion"].to_string();
+        let is_hdcp_supported: bool = response.message["isHDCPSupported"]
+            .to_string()
+            .parse()
+            .unwrap();
+        let mut hdcp_response = HashMap::new();
+        if hdcp_version.contains("1.4") {
+            hdcp_response.insert(HdcpProfile::Hdcp1_4, is_hdcp_supported);
+        }
+        if hdcp_version.contains("2.2") {
+            hdcp_response.insert(HdcpProfile::Hdcp2_2, is_hdcp_supported);
+        }
+        Self::respond(
+            state.get_client(),
+            req,
+            if let ExtnPayload::Response(r) =
+                DeviceResponse::HdcpSupportResponse(hdcp_response.clone()).get_extn_payload()
+            {
+                r
+            } else {
+                ExtnResponse::Error(RippleError::ProcessorError)
+            },
+        )
+        .await
+        .is_ok()
+    }
 
-    // async fn hdcp_status(state: ThunderState, req: ExtnMessage) -> bool {
-    //     let response = state
-    //     .get_thunder_client()
-    //     .call(DeviceCallRequest {
-    //         method: ThunderPlugin::Hdcp.method("getHDCPStatus"),
-    //         params: None,
-    //     })
-    //     .await;
-    // info!("{}", response.message);
-    //     let thdcp: ThunderHDCPStatus = serde_json::from_value(response.message).unwrap();
-    //     Self::respond(
-    //         state.get_client(),
-    //         req,
-    //         if let ExtnPayload::Response(r) =
-    //             DeviceResponse::HdcpStatusResponse(thdcp).get_extn_payload()
-    //         {
-    //             r
-    //         } else {
-    //             ExtnResponse::Error(RippleError::ProcessorError)
-    //         },
-    //     )
-    //     .await
-    //     .is_ok()
-    // }
+    async fn hdcp_status(state: ThunderState, req: ExtnMessage) -> bool {
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::Hdcp.method("getHDCPStatus"),
+                params: None,
+            })
+            .await;
+        info!("{}", response.message);
+        let thdcp: ThunderHDCPStatus = serde_json::from_value(response.message).unwrap();
+        Self::respond(
+            state.get_client(),
+            req,
+            if let ExtnPayload::Response(r) =
+                DeviceResponse::HdcpStatusResponse(thdcp.hdcp_status).get_extn_payload()
+            {
+                r
+            } else {
+                ExtnResponse::Error(RippleError::ProcessorError)
+            },
+        )
+        .await
+        .is_ok()
+    }
 
     async fn hdr(state: ThunderState, req: ExtnMessage) -> bool {
         let response = state
@@ -730,8 +730,8 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             DeviceInfoRequest::MacAddress => Self::mac_address(state.clone(), msg).await,
             DeviceInfoRequest::Model => Self::model(state.clone(), msg).await,
             DeviceInfoRequest::Audio => Self::audio(state.clone(), msg).await,
-            //            DeviceInfoRequest::HdcpSupport => Self::hdcp_support(state.clone(),msg).await,
-            //            DeviceInfoRequest::HdcpStatus => Self::hdcp_status(state.clone(),msg).await,
+            DeviceInfoRequest::HdcpSupport => Self::hdcp_support(state.clone(), msg).await,
+            DeviceInfoRequest::HdcpStatus => Self::hdcp_status(state.clone(), msg).await,
             DeviceInfoRequest::Hdr => Self::hdr(state.clone(), msg).await,
             DeviceInfoRequest::ScreenResolution => {
                 Self::screen_resolution(state.clone(), msg).await
