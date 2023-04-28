@@ -39,10 +39,10 @@ pub enum RippleContract {
     Browser,
     Permissions,
     BridgeProtocol,
-    DeviceAuth,
     Storage,
     RemoteAccessory,
     Keyboard,
+    SessionToken,
 }
 
 impl TryFrom<String> for RippleContract {

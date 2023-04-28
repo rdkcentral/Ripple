@@ -34,7 +34,7 @@ use ripple_sdk::{
     },
     extn::extn_client_message::{ExtnMessage, ExtnResponse},
     log::{error, info, trace},
-    serde_json::{self, Result as SResult, Value},
+    serde_json::{self, Result as SResult},
     tokio::{self},
     utils::error::RippleError,
 };
@@ -136,10 +136,7 @@ impl RpcRouter {
                         }
                     }
                     EffectiveTransport::Bridge(container_id) => {
-                        if let Err(e) = state
-                            .send_to_bridge(container_id, Value::String(msg.jsonrpc_msg))
-                            .await
-                        {
+                        if let Err(e) = state.send_to_bridge(container_id, msg).await {
                             error!("Error sending event to bridge {:?}", e);
                         }
                     }

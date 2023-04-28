@@ -34,6 +34,7 @@ pub mod distributor {
 }
 
 pub mod firebolt {
+    pub mod fb_authentication;
     pub mod fb_capabilities;
     pub mod fb_discovery;
     pub mod fb_general;

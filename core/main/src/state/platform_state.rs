@@ -19,6 +19,7 @@ use std::collections::HashMap;
 
 use ripple_sdk::{
     api::{
+        gateway::rpc_gateway_api::ApiMessage,
         manifest::{
             app_library::AppLibraryState,
             device_manifest::{AppLibraryEntry, DeviceManifest},
@@ -28,7 +29,6 @@ use ripple_sdk::{
     },
     extn::{extn_client_message::ExtnMessage, extn_id::ExtnId},
     framework::{ripple_contract::RippleContract, RippleResponse},
-    serde_json::Value,
     utils::error::RippleError,
 };
 
@@ -129,8 +129,8 @@ impl PlatformState {
         self.extn_manifest.required_contracts.contains(&contract)
     }
 
-    pub async fn send_to_bridge(&self, id: String, value: Value) -> RippleResponse {
-        let request = BridgeProtocolRequest::Send(id, value);
+    pub async fn send_to_bridge(&self, id: String, msg: ApiMessage) -> RippleResponse {
+        let request = BridgeProtocolRequest::Send(id, msg);
         if let Err(e) = self.get_client().send_extn_request(request).await {
             return Err(e);
         }

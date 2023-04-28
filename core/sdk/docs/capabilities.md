@@ -28,6 +28,6 @@ Below capability means the given plugin offers an extension for the Device Thund
 Below capability means the given plugin offers a permission extension for the distributor. Name of the service is called `fireboltpermissions`.
 >ripple:extn:distributor:permissions:fireboltpermissions
 
-Below capability means the given plugin offers a JsonRpsee rpc extension for a service named badger
+Below capability means the given plugin offers a JsonRpsee rpc extension for a service named bridge
 >ripple:extn:jsonrpsee:bridge
 

@@ -176,6 +176,10 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
         Err(RippleError::ExtnError)
     }
 
+    async fn ack(mut extn_client: ExtnClient, request: ExtnMessage) -> RippleResponse {
+        return extn_client.send_message(request.ack()).await;
+    }
+
     async fn run(&mut self) {
         debug!("starting request processor for {:?}", self.contract());
         let extn_client = self.get_client();
