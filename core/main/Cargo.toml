@@ -16,7 +16,7 @@
 # limitations under the License.
 [package]
 name = "main"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 repository = "https://github.com/rdkcentral/Ripple"
 
@@ -35,3 +35,5 @@ tokio-tungstenite = "0.17.1"
 querystring = "1.1.0"
 serde = { version = "1.0", features = ["derive"] }
 arrayvec = "0.7.2"
+regex = "1.7.3"
+serde_json = "1.0"

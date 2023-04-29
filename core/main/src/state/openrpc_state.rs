@@ -32,6 +32,7 @@ pub struct OpenRpcState {
     exclusory: Option<ExclusoryImpl>,
     cap_map: Arc<RwLock<HashMap<String, CapabilitySet>>>,
     cap_policies: Arc<RwLock<HashMap<String, CapabilityPolicy>>>,
+    extended_rpc: Arc<RwLock<Vec<FireboltOpenRpc>>>,
 }
 
 impl OpenRpcState {
@@ -45,6 +46,25 @@ impl OpenRpcState {
             exclusory,
             cap_policies: Arc::new(RwLock::new(version_manifest.capabilities)),
             open_rpc,
+            extended_rpc: Arc::new(RwLock::new(Vec::new())),
+        }
+    }
+
+    pub fn add_open_rpc(&self, version_manifest: FireboltVersionManifest) {
+        let open_rpc: FireboltOpenRpc = version_manifest.clone().into();
+        let cap_policies = version_manifest.capabilities;
+        let cap_map = open_rpc.clone().get_methods_caps();
+
+        {
+            self.cap_map.write().unwrap().extend(cap_map);
+        }
+
+        {
+            self.cap_policies.write().unwrap().extend(cap_policies);
+        }
+
+        {
+            self.extended_rpc.write().unwrap().push(open_rpc);
         }
     }
 
@@ -88,10 +108,30 @@ impl OpenRpcState {
         if let Some(method) = self.open_rpc.methods.iter().find(|x| x.name == property) {
             // Checking if the property tag is havin x-allow-value extension.
             if let Some(tags) = &method.tags {
-                return tags
+                if tags
                     .iter()
                     .find(|x| x.name == "property" && x.allow_value.is_some())
-                    .map_or(false, |_| true);
+                    .map_or(false, |_| true)
+                {
+                    return true;
+                }
+            }
+        }
+        {
+            let ext_rpcs = self.extended_rpc.read().unwrap();
+            for ext_rpc in ext_rpcs.iter() {
+                if let Some(method) = ext_rpc.methods.iter().find(|x| x.name == property) {
+                    // Checking if the property tag is havin x-allow-value extension.
+                    if let Some(tags) = &method.tags {
+                        if tags
+                            .iter()
+                            .find(|x| x.name == "property" && x.allow_value.is_some())
+                            .map_or(false, |_| true)
+                        {
+                            return true;
+                        }
+                    }
+                }
             }
         }
         false
@@ -101,7 +141,8 @@ impl OpenRpcState {
         &self,
         method_name: String,
     ) -> Option<FireboltOpenRpcMethod> {
-        self.open_rpc
+        if let Some(v) = self
+            .open_rpc
             .methods
             .iter()
             .find(|x| {
@@ -115,5 +156,32 @@ impl OpenRpcState {
                         .is_some()
             })
             .cloned()
+        {
+            return Some(v);
+        }
+        {
+            let ext_rpcs = self.extended_rpc.read().unwrap();
+            for ext_rpc in ext_rpcs.iter() {
+                if let Some(v) = ext_rpc
+                    .methods
+                    .iter()
+                    .find(|x| {
+                        x.name == method_name
+                            && x.tags.is_some()
+                            && x.tags
+                                .as_ref()
+                                .unwrap()
+                                .iter()
+                                .find(|tag| tag.name == "property" && tag.allow_value.is_some())
+                                .is_some()
+                    })
+                    .cloned()
+                {
+                    return Some(v);
+                }
+            }
+        }
+
+        None
     }
 }

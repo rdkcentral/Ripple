@@ -18,8 +18,8 @@ pub mod accessory;
 pub mod apps;
 pub mod config;
 pub mod device;
-pub mod lifecycle;
 pub mod manifest;
+pub mod protocol;
 pub mod session;
 pub mod status_update;
 pub mod wifi;
@@ -34,6 +34,7 @@ pub mod distributor {
 }
 
 pub mod firebolt {
+    pub mod fb_authentication;
     pub mod fb_capabilities;
     pub mod fb_discovery;
     pub mod fb_general;

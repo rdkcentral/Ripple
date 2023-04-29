@@ -14,45 +14,40 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use serde::{Deserialize, Serialize};
+use jsonrpsee_core::Serialize;
+use serde::Deserialize;
 
 use crate::{
-    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
+    api::session::TokenType,
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
 
-use super::device_request::DeviceRequest;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum DeviceInfoRequest {
-    MacAddress,
-    Model,
-    Make,
-    Version,
-    HdcpSupport,
-    HdcpStatus,
-    Hdr,
-    Audio,
-    ScreenResolution,
-    VideoResolution,
-    AvailableMemory,
-    SetTimezone(String),
-    GetTimezone,
-    GetAvailableTimezones,
+#[serde(rename_all = "camelCase")]
+pub struct TokenResult {
+    pub value: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires: Option<String>,
+    #[serde(rename = "type")]
+    pub _type: TokenType,
 }
 
-impl ExtnPayloadProvider for DeviceInfoRequest {
+#[derive(Deserialize, Debug)]
+pub struct TokenRequest {
+    #[serde(rename = "type")]
+    pub _type: TokenType,
+}
+
+impl ExtnPayloadProvider for TokenResult {
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(self.clone())))
+        ExtnPayload::Response(ExtnResponse::Token(self.clone()))
     }
 
-    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+    fn get_from_payload(payload: ExtnPayload) -> Option<TokenResult> {
         match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::Device(r) => match r {
-                    DeviceRequest::DeviceInfo(d) => return Some(d),
-                    _ => {}
-                },
+            ExtnPayload::Response(response) => match response {
+                ExtnResponse::Token(r) => return Some(r),
                 _ => {}
             },
             _ => {}
@@ -61,6 +56,6 @@ impl ExtnPayloadProvider for DeviceInfoRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::DeviceInfo
+        RippleContract::SessionToken
     }
 }

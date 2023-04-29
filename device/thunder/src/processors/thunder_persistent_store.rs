@@ -20,10 +20,8 @@ use thunder_ripple_sdk::{
     client::thunder_plugin::ThunderPlugin,
     ripple_sdk::{
         api::device::{
-            device_accessibility_data::{
-                GetStorageProperty, SetStorageProperty, StorageData, StorageRequest,
-            },
             device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
+            device_storage::{GetStorageProperty, SetStorageProperty, StorageData, StorageRequest},
         },
         async_trait::async_trait,
         extn::{
@@ -226,10 +224,6 @@ impl ThunderStorageRequestProcessor {
         ));
 
         let thunder_method = ThunderPlugin::PersistentStorage.method("setValue");
-        debug!(
-            "Calling thunder_method: {}, with params: {:?}",
-            thunder_method, params
-        );
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -237,7 +231,7 @@ impl ThunderStorageRequestProcessor {
                 params: params,
             })
             .await;
-        info!("Thunder response: {}", response.message);
+        info!("{}", response.message);
         let response = match response.message["success"].as_bool() {
             Some(v) => ExtnResponse::Boolean(v),
             None => ExtnResponse::Error(RippleError::InvalidOutput),
@@ -282,7 +276,6 @@ impl ExtnRequestProcessor for ThunderStorageRequestProcessor {
                 Self::get_value(state.clone(), msg, get_params).await
             }
             StorageRequest::Set(set_params) => {
-                debug!("Received set request: {:?}", set_params);
                 Self::set_value(state.clone(), msg, set_params).await
             }
         }

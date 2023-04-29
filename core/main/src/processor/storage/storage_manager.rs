@@ -18,7 +18,7 @@
 use jsonrpsee::{core::RpcResult, types::error::CallError};
 use ripple_sdk::{
     api::{
-        device::device_accessibility_data::{
+        device::device_storage::{
             GetStorageProperty, SetStorageProperty, StorageData, StorageRequest,
         },
         firebolt::fb_capabilities::CAPABILITY_NOT_AVAILABLE,
@@ -245,7 +245,6 @@ impl StorageManager {
         context: Option<Value>,
     ) -> Result<StorageManagerResponse<()>, StorageManagerError> {
         if let Ok(payload) = StorageManager::get(state, &namespace, &key).await {
-            debug!("Unable to get key for comparing ");
             if let ExtnResponse::StorageData(storage_data) = payload {
                 if storage_data.value.eq(&value) {
                     return Ok(StorageManagerResponse::NoChange(()));
@@ -256,13 +255,13 @@ impl StorageManager {
             // allow the set to occur regardless of whether the values match or not in
             // order to update peristent storage with the new StorageData format.
         }
+
         let ssp = SetStorageProperty {
             namespace,
             key,
             data: StorageData::new(value.clone()),
         };
 
-        debug!("Sending set request {:?}", ssp);
         match state
             // .services
             // .send_dab(ExtnResponse::Storage(StorageRequest::Set(ssp)))
@@ -371,7 +370,6 @@ impl StorageManager {
             namespace: namespace.clone(),
             key: key.clone(),
         };
-        debug!("fasil1 {:?}", data);
         let result = state
             .get_client()
             .send_extn_request(StorageRequest::Get(data))
@@ -380,7 +378,6 @@ impl StorageManager {
         match result {
             Ok(msg) => {
                 if let Some(m) = msg.payload.clone().extract() {
-                    debug!("fasil2 {:?}", m);
                     return Ok(m);
                 } else {
                     return Err(RippleError::ParseError);

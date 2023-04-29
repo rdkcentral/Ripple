@@ -14,6 +14,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -21,38 +22,30 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
-use super::device_request::DeviceRequest;
+use super::gateway::rpc_gateway_api::ApiMessage;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum DeviceInfoRequest {
-    MacAddress,
-    Model,
-    Make,
-    Version,
-    HdcpSupport,
-    HdcpStatus,
-    Hdr,
-    Audio,
-    ScreenResolution,
-    VideoResolution,
-    AvailableMemory,
-    SetTimezone(String),
-    GetTimezone,
-    GetAvailableTimezones,
+pub enum BridgeProtocolRequest {
+    StartSession(BridgeSessionParams),
+    EndSession(String),
+    Send(String, ApiMessage),
 }
 
-impl ExtnPayloadProvider for DeviceInfoRequest {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BridgeSessionParams {
+    pub container_id: String,
+    pub session_id: String,
+}
+
+impl ExtnPayloadProvider for BridgeProtocolRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(self.clone())))
+        ExtnPayload::Request(ExtnRequest::BridgeProtocolRequest(self.clone()))
     }
 
-    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+    fn get_from_payload(payload: ExtnPayload) -> Option<BridgeProtocolRequest> {
         match payload {
             ExtnPayload::Request(request) => match request {
-                ExtnRequest::Device(r) => match r {
-                    DeviceRequest::DeviceInfo(d) => return Some(d),
-                    _ => {}
-                },
+                ExtnRequest::BridgeProtocolRequest(r) => return Some(r),
                 _ => {}
             },
             _ => {}
@@ -61,6 +54,6 @@ impl ExtnPayloadProvider for DeviceInfoRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::DeviceInfo
+        RippleContract::BridgeProtocol
     }
 }

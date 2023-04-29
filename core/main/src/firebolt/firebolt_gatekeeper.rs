@@ -19,6 +19,7 @@ use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
 use ripple_sdk::log::debug;
 
 use crate::state::{cap::permitted_state::PermissionHandler, platform_state::PlatformState};
+use ripple_sdk::log::debug;
 
 pub struct FireboltGatekeeper {}
 
@@ -48,8 +49,13 @@ impl FireboltGatekeeper {
             if let Err(e) =
                 PermissionHandler::check_permitted(&state, &request.ctx.app_id, caps.clone()).await
             {
-                debug!("check_permitted for method ({}) failed", request.method);
+                debug!(
+                    "check_permitted for method ({}) failed. Error: {:?}",
+                    request.method, e
+                );
                 return Err(e);
+            } else {
+                debug!("check_permitted for method ({}) succeded", request.method);
             }
         } else {
             // Couldnt find any capabilities for the method

@@ -20,10 +20,12 @@ use crate::{
         firebolt_gateway::FireboltGateway,
         handlers::{
             accessory_rpc::AccessoryRippleProvider, acknowledge_rpc::AckRPCProvider,
-            capabilities_rpc::CapRPCProvider, device_rpc::DeviceRPCProvider,
-            keyboard_rpc::KeyboardRPCProvider, lcm_rpc::LifecycleManagementProvider,
-            lifecycle_rpc::LifecycleRippleProvider, pin_rpc::PinRPCProvider,
-            privacy_rpc::PrivacyProvider, wifi_rpc::WifiRPCProvider,
+            capabilities_rpc::CapRPCProvider, closed_captions_rpc::ClosedcaptionsRPCProvider,
+            device_rpc::DeviceRPCProvider, keyboard_rpc::KeyboardRPCProvider,
+            lcm_rpc::LifecycleManagementProvider, lifecycle_rpc::LifecycleRippleProvider,
+            localization_rpc::LocalizationRPCProvider, pin_rpc::PinRPCProvider,
+            privacy_rpc::PrivacyProvider, voice_guidance_rpc::VoiceguidanceRPCProvider,
+            wifi_rpc::WifiRPCProvider, wifi_rpc::WifiRPCProvider,
         },
         rpc::RippleRPCProvider,
     },
@@ -38,18 +40,23 @@ pub struct FireboltGatewayStep;
 impl FireboltGatewayStep {
     async fn init_handlers(&self, state: PlatformState, extn_methods: Methods) -> Methods {
         let mut methods = Methods::new();
-        let _ = methods.merge(DeviceRPCProvider::provide(state.clone()));
-        let _ = methods.merge(WifiRPCProvider::provide(state.clone()));
-        let _ = methods.merge(LifecycleRippleProvider::provide(state.clone()));
-        let _ = methods.merge(CapRPCProvider::provide(state.clone()));
-        let _ = methods.merge(KeyboardRPCProvider::provide(state.clone()));
-        let _ = methods.merge(AckRPCProvider::provide(state.clone()));
-        let _ = methods.merge(PinRPCProvider::provide(state.clone()));
-        let _ = methods.merge(AccessoryRippleProvider::provide(state.clone()));
+        let _ = methods.merge(DeviceRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(WifiRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(LifecycleRippleProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(CapRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(KeyboardRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(AckRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(PinRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(ClosedcaptionsRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(VoiceguidanceRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(LocalizationRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(AccessoryRippleProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(PrivacyProvider::provide(state.clone()));
         // LCM Api(s) not required for internal launcher
         if !state.has_internal_launcher() {
-            let _ = methods.merge(LifecycleManagementProvider::provide(state.clone()));
+            let _ = methods.merge(LifecycleManagementProvider::provide_with_alias(
+                state.clone(),
+            ));
         }
         let _ = methods.merge(extn_methods);
         methods
