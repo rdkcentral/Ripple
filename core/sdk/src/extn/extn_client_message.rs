@@ -25,8 +25,8 @@ use crate::{
     api::{
         config::{Config, ConfigResponse},
         device::{
-            device_storage::StorageData,
             device_request::{DeviceRequest, NetworkResponse},
+            device_storage::StorageData,
         },
         distributor::{
             distributor_permissions::{PermissionRequest, PermissionResponse},

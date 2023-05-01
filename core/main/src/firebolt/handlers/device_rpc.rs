@@ -36,11 +36,11 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         device::{
-            device_storage::SetStringProperty,
             device_info_request::{DeviceInfoRequest, DeviceResponse},
             device_request::{
                 AudioProfile, DeviceVersionResponse, HdcpProfile, HdrProfile, NetworkResponse,
             },
+            device_storage::SetStringProperty,
         },
         firebolt::{
             fb_general::{ListenRequest, ListenerResponse},

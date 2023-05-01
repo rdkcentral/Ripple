@@ -30,8 +30,8 @@ use thunder_ripple_sdk::ripple_sdk::{
         device::{
             device_info_request::{DeviceInfoRequest, DeviceResponse},
             device_operator::{
-                DeviceCallRequest, DeviceChannelParams, DeviceOperator,
-                DeviceResponseMessage, DeviceSubscribeRequest, DeviceUnsubscribeRequest,
+                DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
+                DeviceSubscribeRequest, DeviceUnsubscribeRequest,
             },
             device_request::{
                 AudioProfile, HDCPStatus, HdcpProfile, HdrProfile, NetworkResponse, NetworkState,
@@ -796,14 +796,12 @@ pub fn get_dimension_from_resolution(resolution: &str) -> Vec<i32> {
         val if val.starts_with("720") => Resolution::Resolution720.dimension(),
         val if val.starts_with("1080") => Resolution::Resolution1080.dimension(),
         val if val.starts_with("2160") => Resolution::Resolution2160.dimension(),
-        val if val.starts_with("4K") || val.starts_with("4k") => Resolution::Resolution4k.dimension(),
+        val if val.starts_with("4K") || val.starts_with("4k") => {
+            Resolution::Resolution4k.dimension()
+        }
         _ => Resolution::ResolutionDefault.dimension(),
     }
 }
-
-    
-
-    
 
 impl ExtnStreamProcessor for ThunderDeviceInfoRequestProcessor {
     type STATE = ThunderState;
