@@ -19,7 +19,6 @@ use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
 use ripple_sdk::log::debug;
 
 use crate::state::{cap::permitted_state::PermissionHandler, platform_state::PlatformState};
-use ripple_sdk::log::debug;
 
 pub struct FireboltGatekeeper {}
 
