@@ -694,17 +694,17 @@ impl ThunderDeviceInfoRequestProcessor {
         Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
     }
 
-    async fn on_active_input_changed(state: ThunderState, req: ExtnMessage) -> bool {
+    async fn _on_active_input_changed(_state: ThunderState, _req: ExtnMessage) -> bool {
         //TODO: thunder event handler
         todo!();
     }
 
-    async fn on_resolution_changed(state: ThunderState, req: ExtnMessage) -> bool {
+    async fn _on_resolution_changed(_state: ThunderState, _req: ExtnMessage) -> bool {
         //TODO: thunder event handler
         todo!();
     }
 
-    async fn on_network_changed(state: ThunderState, req: ExtnMessage) -> bool {
+    async fn _on_network_changed(_state: ThunderState, _req: ExtnMessage) -> bool {
         //TODO: thunder event handler
         todo!();
     }

@@ -359,7 +359,7 @@ impl DeviceServer for DeviceImpl {
     async fn on_hdcp_changed(
         &self,
         _ctx: CallContext,
-        request: ListenRequest,
+        _request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         //TODO
         todo!();
@@ -388,7 +388,7 @@ impl DeviceServer for DeviceImpl {
     async fn on_hdr_changed(
         &self,
         _ctx: CallContext,
-        request: ListenRequest,
+        _request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         //TODO
         todo!();
@@ -417,7 +417,7 @@ impl DeviceServer for DeviceImpl {
     async fn on_screen_resolution_changed(
         &self,
         _ctx: CallContext,
-        request: ListenRequest,
+        _request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         //TODO
         todo!();
@@ -446,7 +446,7 @@ impl DeviceServer for DeviceImpl {
     async fn on_video_resolution_changed(
         &self,
         _ctx: CallContext,
-        request: ListenRequest,
+        _request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         //TODO
         todo!();
@@ -496,7 +496,7 @@ impl DeviceServer for DeviceImpl {
     async fn on_audio_changed(
         &self,
         _ctx: CallContext,
-        request: ListenRequest,
+        _request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         //TODO
         todo!();
@@ -525,7 +525,7 @@ impl DeviceServer for DeviceImpl {
     async fn on_network_changed(
         &self,
         _ctx: CallContext,
-        request: ListenRequest,
+        _request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         //TODO
         todo!();
