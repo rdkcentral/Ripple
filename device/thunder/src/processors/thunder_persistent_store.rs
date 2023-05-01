@@ -20,10 +20,8 @@ use thunder_ripple_sdk::{
     client::thunder_plugin::ThunderPlugin,
     ripple_sdk::{
         api::device::{
-            device_accessibility_data::{
-                GetStorageProperty, SetStorageProperty, StorageData, StorageRequest,
-            },
             device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
+            device_storage::{GetStorageProperty, SetStorageProperty, StorageData, StorageRequest},
         },
         async_trait::async_trait,
         extn::{

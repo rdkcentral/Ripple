@@ -34,7 +34,10 @@ use jsonrpsee::{
 };
 
 use ripple_sdk::api::{
-    device::device_accessibility_data::{SetBoolProperty, SetF32Property, VoiceGuidanceSettings},
+    device::{
+        device_accessibility_data::VoiceGuidanceSettings,
+        device_storage::{SetBoolProperty, SetF32Property},
+    },
     firebolt::fb_general::{ListenRequest, ListenerResponse},
     gateway::rpc_gateway_api::CallContext,
 };

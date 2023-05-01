@@ -17,9 +17,12 @@
 
 use jsonrpsee::{core::server::rpc_module::Methods, types::TwoPointZero};
 use ripple_sdk::{
-    api::gateway::{
-        rpc_error::RpcError,
-        rpc_gateway_api::{ApiMessage, ApiProtocol, RpcRequest},
+    api::{
+        apps::EffectiveTransport,
+        gateway::{
+            rpc_error::RpcError,
+            rpc_gateway_api::{ApiMessage, ApiProtocol, RpcRequest},
+        },
     },
     extn::extn_client_message::ExtnMessage,
     log::{error, info},
@@ -145,7 +148,6 @@ impl FireboltGateway {
             }
         }
         let platform_state = self.state.platform_state.clone();
-        let router_state = self.state.platform_state.router_state.clone();
         /*
          * The reason for spawning a new thread is that when request-1 comes, and it waits for
          * user grant. The response from user grant, (eg ChallengeResponse) comes as rpc which
@@ -160,22 +162,20 @@ impl FireboltGateway {
                     match request.clone().ctx.protocol {
                         ApiProtocol::Extn => {
                             RpcRouter::route_extn_protocol(
-                                router_state.clone(),
+                                &platform_state,
                                 request.clone(),
                                 extn_msg.unwrap(),
                             )
                             .await
                         }
                         _ => {
-                            let session =
-                                platform_state.clone().session_state.get_sender(session_id);
+                            let session = platform_state
+                                .clone()
+                                .session_state
+                                .get_session(&session_id);
                             // session is already prechecked before gating so it is safe to unwrap
-                            RpcRouter::route(
-                                router_state.clone(),
-                                request.clone(),
-                                session.unwrap(),
-                            )
-                            .await;
+                            RpcRouter::route(platform_state, request.clone(), session.unwrap())
+                                .await;
                         }
                     }
                 }
@@ -196,11 +196,22 @@ impl FireboltGateway {
                     let msg = serde_json::to_string(&err).unwrap();
                     let api_msg =
                         ApiMessage::new(request.ctx.protocol, msg, request.ctx.request_id);
-                    if let Some(session) =
-                        platform_state.clone().session_state.get_sender(session_id)
+                    if let Some(session) = platform_state
+                        .clone()
+                        .session_state
+                        .get_session(&session_id)
                     {
-                        if let Err(e) = session.send(api_msg).await {
-                            error!("Error while responding back message {:?}", e)
+                        match session.get_transport() {
+                            EffectiveTransport::Websocket => {
+                                if let Err(e) = session.send_json_rpc(api_msg).await {
+                                    error!("Error while responding back message {:?}", e)
+                                }
+                            }
+                            EffectiveTransport::Bridge(id) => {
+                                if let Err(e) = platform_state.send_to_bridge(id, api_msg).await {
+                                    error!("Error while responding back message {:?}", e)
+                                }
+                            }
                         }
                     }
                 }

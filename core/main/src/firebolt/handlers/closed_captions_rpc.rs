@@ -40,9 +40,9 @@ use jsonrpsee::{
 };
 
 use ripple_sdk::api::{
-    device::device_accessibility_data::{
-        ClosedCaptionStyle, ClosedCaptionsSettings, OpacityProperty, SetBoolProperty,
-        SetF32Property, SetStringProperty, FONT_FAMILY_LIST,
+    device::{
+        device_accessibility_data::{ClosedCaptionStyle, ClosedCaptionsSettings, FONT_FAMILY_LIST},
+        device_storage::{SetBoolProperty, SetF32Property, SetStringProperty, SetU32Property},
     },
     firebolt::fb_general::{ListenRequest, ListenerResponse},
     gateway::rpc_gateway_api::CallContext,
@@ -161,7 +161,7 @@ pub trait Closedcaptions {
     async fn closed_captions_settings_font_opacity_set(
         &self,
         _ctx: CallContext,
-        set_request: OpacityProperty,
+        set_request: SetU32Property,
     ) -> RpcResult<()>;
     #[method(name = "closedcaptions.onFontOpacityChanged")]
     async fn closed_captions_settings_font_opacity_changed(
@@ -197,7 +197,7 @@ pub trait Closedcaptions {
     async fn closed_captions_settings_background_opacity_set(
         &self,
         _ctx: CallContext,
-        set_request: OpacityProperty,
+        set_request: SetU32Property,
     ) -> RpcResult<()>;
     #[method(name = "closedcaptions.onBackgroundOpacityChanged")]
     async fn closed_captions_settings_background_opacity_changed(
@@ -497,7 +497,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
     async fn closed_captions_settings_font_opacity_set(
         &self,
         _ctx: CallContext,
-        set_request: OpacityProperty,
+        set_request: SetU32Property,
     ) -> RpcResult<()> {
         StorageManager::set_number_as_u32(
             &self.state,
@@ -573,7 +573,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
     async fn closed_captions_settings_background_opacity_set(
         &self,
         _ctx: CallContext,
-        set_request: OpacityProperty,
+        set_request: SetU32Property,
     ) -> RpcResult<()> {
         StorageManager::set_number_as_u32(
             &self.state,

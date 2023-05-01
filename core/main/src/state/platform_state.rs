@@ -15,13 +15,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
+
 use ripple_sdk::{
-    api::manifest::{
-        app_library::AppLibraryState,
-        device_manifest::{AppLibraryEntry, DeviceManifest},
-        extn_manifest::ExtnManifest,
+    api::{
+        gateway::rpc_gateway_api::ApiMessage,
+        manifest::{
+            app_library::AppLibraryState,
+            device_manifest::{AppLibraryEntry, DeviceManifest},
+            extn_manifest::ExtnManifest,
+        },
+        protocol::BridgeProtocolRequest,
     },
     extn::{extn_client_message::ExtnMessage, extn_id::ExtnId},
+    framework::{ripple_contract::RippleContract, RippleResponse},
     utils::error::RippleError,
 };
 
@@ -101,6 +108,10 @@ impl PlatformState {
         self.extn_manifest.clone()
     }
 
+    pub fn get_rpc_aliases(&self) -> HashMap<String, Vec<String>> {
+        self.extn_manifest.clone().rpc_aliases
+    }
+
     pub fn get_device_manifest(&self) -> DeviceManifest {
         self.device_manifest.clone()
     }
@@ -111,5 +122,18 @@ impl PlatformState {
 
     pub async fn respond(&self, msg: ExtnMessage) -> Result<(), RippleError> {
         self.get_client().respond(msg).await
+    }
+
+    pub fn supports_bridge(&self) -> bool {
+        let contract = RippleContract::BridgeProtocol.as_clear_string();
+        self.extn_manifest.required_contracts.contains(&contract)
+    }
+
+    pub async fn send_to_bridge(&self, id: String, msg: ApiMessage) -> RippleResponse {
+        let request = BridgeProtocolRequest::Send(id, msg);
+        if let Err(e) = self.get_client().send_extn_request(request).await {
+            return Err(e);
+        }
+        Ok(())
     }
 }

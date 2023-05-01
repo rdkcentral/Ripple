@@ -36,7 +36,7 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         device::{
-            device_accessibility_data::SetStringProperty,
+            device_storage::SetStringProperty,
             device_info_request::{DeviceInfoRequest, DeviceResponse},
             device_request::{
                 AudioProfile, DeviceVersionResponse, HdcpProfile, HdrProfile, NetworkResponse,
@@ -49,15 +49,8 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::CallContext,
     },
     extn::extn_client_message::ExtnResponse,
-    log::debug,
     uuid::Uuid,
 };
-
-const HDCP_CHANGED_EVENT: &'static str = "device.onHdcpChanged";
-const HDR_CHANGED_EVENT: &'static str = "device.onHdrChanged";
-const SCREEN_RESOLUTION_CHANGED_EVENT: &'static str = "device.onScreenResolutionChanged";
-const VIDEO_RESOLUTION_CHANGED_EVENT: &'static str = "device.onVideoResolutionChanged";
-const NETWORK_CHANGED_EVENT: &'static str = "device.onNetworkChanged";
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 

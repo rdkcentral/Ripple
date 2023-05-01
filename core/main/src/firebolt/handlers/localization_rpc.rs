@@ -18,17 +18,23 @@
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
+    tracing::error,
     RpcModule,
 };
-use ripple_sdk::api::{
-    device::device_accessibility_data::SetStringProperty,
-    firebolt::fb_general::{ListenRequest, ListenerResponse},
-    gateway::rpc_gateway_api::CallContext,
+use ripple_sdk::{
+    api::{
+        device::{
+            device_info_request::DeviceInfoRequest,
+            device_request::{LanguageProperty, TimezoneProperty},
+            device_storage::SetStringProperty,
+        },
+        firebolt::fb_general::{ListenRequest, ListenerResponse},
+        gateway::rpc_gateway_api::CallContext,
+    },
+    extn::extn_client_message::ExtnResponse,
 };
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::utils::serde_utils::*;
 use crate::{
     firebolt::rpc::RippleRPCProvider,
     processor::storage::{
@@ -38,25 +44,10 @@ use crate::{
     service::apps::provider_broker::ProviderBroker,
     state::platform_state::PlatformState,
 };
-
-//const EVENT_TIMEZONE_CHANGED: &'static str = "localization.onTimeZoneChanged";
-
-// #[derive(Deserialize, Debug)]
-// pub struct SetStringProperty {
-//     pub value: String,
-// }
-
-#[derive(Debug, Serialize, Deserialize, Default, Clone)]
-pub struct LanguageProperty {
-    #[serde(with = "language_code_serde")]
-    pub value: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Default, Clone)]
-pub struct TimezoneProperty {
-    #[serde(with = "timezone_serde")]
-    pub value: String,
-}
+use crate::{
+    processor::storage::storage_property::EVENT_TIMEZONE_CHANGED,
+    utils::rpc_utils::{rpc_add_event_listener, rpc_err},
+};
 
 #[rpc(server)]
 pub trait Localization {
@@ -143,19 +134,16 @@ pub trait Localization {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
-    //TODO: timezone_set
-    // #[method(name = "localization.setTimeZone")]
-    // async fn timezone_set(&self, ctx: CallContext, set_request: TimezoneProperty) -> RpcResult<()>;
-    // TODO: timezone
-    // #[method(name = "localization.timeZone")]
-    // async fn timezone(&self, ctx: CallContext) -> RpcResult<String>;
-    // TODO: on_timezone_changed
-    // #[method(name = "localization.onTimeZoneChanged")]
-    // async fn on_timezone_changed(
-    //     &self,
-    //     ctx: CallContext,
-    //     request: ListenRequest,
-    // ) -> RpcResult<ListenerResponse>;
+    #[method(name = "localization.setTimeZone")]
+    async fn timezone_set(&self, ctx: CallContext, set_request: TimezoneProperty) -> RpcResult<()>;
+    #[method(name = "localization.timeZone")]
+    async fn timezone(&self, ctx: CallContext) -> RpcResult<String>;
+    #[method(name = "localization.onTimeZoneChanged")]
+    async fn on_timezone_changed(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
 }
 
 #[derive(Debug)]
@@ -439,96 +427,74 @@ impl LocalizationServer for LocalizationImpl {
         .await
     }
 
-    //TODO: timezone_set
-    // async fn timezone_set(
-    //     &self,
-    //     _ctx: CallContext,
-    //     set_request: TimezoneProperty,
-    // ) -> RpcResult<()> {
-    //     if let Err(_e) = resp {
-    //         return Err(jsonrpsee::core::Error::Custom(String::from(
-    //             "timezone_set: error response TBD",
-    //         )));
-    //     }
+    async fn timezone_set(&self, ctx: CallContext, set_request: TimezoneProperty) -> RpcResult<()> {
+        let resp = self
+            .platform_state
+            .get_client()
+            .send_extn_request(DeviceInfoRequest::GetAvailableTimezones)
+            .await;
 
-    //     if let DabResponsePayload::AvailableTimezones(timezones) = resp.unwrap() {
-    //         if !timezones.contains(&set_request.value) {
-    //             error!(
-    //                 "timezone_set: Unsupported timezone: tz={}",
-    //                 set_request.value
-    //             );
-    //             return Err(jsonrpsee::core::Error::Custom(String::from(
-    //                 "timezone_set: error response TBD",
-    //             )));
-    //         }
-    //     } else {
-    //         return Err(jsonrpsee::core::Error::Custom(String::from(
-    //             "timezone_set: error response TBD",
-    //         )));
-    //     }
+        if let Err(_e) = resp {
+            return Err(jsonrpsee::core::Error::Custom(String::from(
+                "timezone_set: error response TBD",
+            )));
+        }
+        if let Some(ExtnResponse::AvailableTimezones(timezones)) = resp.unwrap().payload.extract() {
+            if !timezones.contains(&set_request.value) {
+                error!(
+                    "timezone_set: Unsupported timezone: tz={}",
+                    set_request.value
+                );
+                return Err(jsonrpsee::core::Error::Custom(String::from(
+                    "timezone_set: error response TBD",
+                )));
+            }
+        } else {
+            return Err(jsonrpsee::core::Error::Custom(String::from(
+                "timezone_set: error response TBD",
+            )));
+        }
 
-    //     let resp = self
-    //         .helper
-    //         .send_dab(DabRequestPayload::Device(DeviceRequest::SetTimezone(
-    //             set_request.value.clone(),
-    //         )))
-    //         .await;
-    //     match resp {
-    //         Ok(_) => {
-    //             AppEvents::emit(
-    //                 &self.platform_state,
-    //                 &EVENT_TIMEZONE_CHANGED.to_string(),
-    //                 &serde_json::to_value(set_request.value).unwrap(),
-    //             )
-    //             .await;
-    //             Ok(())
-    //         }
-    //         Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-    //             "timezone_set: error response TBD",
-    //         ))),
-    //     }
-    // }
+        if let Ok(_response) = self
+            .platform_state
+            .get_client()
+            .send_extn_request(DeviceInfoRequest::SetTimezone(set_request.value.clone()))
+            .await
+        {
+            rpc_add_event_listener(
+                &self.platform_state,
+                ctx,
+                ListenRequest { listen: true },
+                EVENT_TIMEZONE_CHANGED,
+            )
+            .await
+            .ok();
+            return Ok(());
+        }
+        Err(rpc_err("timezone: error response TBD"))
+    }
 
-    //TODO: timezone
-    // async fn timezone(&self, _ctx: CallContext) -> RpcResult<String> {
-    //     let resp = self
-    //         .helper
-    //         .send_dab(DabRequestPayload::Device(DeviceRequest::GetTimezone))
-    //         .await;
+    async fn timezone(&self, _ctx: CallContext) -> RpcResult<String> {
+        if let Ok(response) = self
+            .platform_state
+            .get_client()
+            .send_extn_request(DeviceInfoRequest::GetTimezone)
+            .await
+        {
+            if let Some(ExtnResponse::String(v)) = response.payload.clone().extract() {
+                return Ok(v);
+            }
+        }
+        Err(rpc_err("timezone: error response TBD"))
+    }
 
-    //     if let Err(_e) = resp {
-    //         return Err(jsonrpsee::core::Error::Custom(String::from(
-    //             "timezone: error response TBD",
-    //         )));
-    //     }
-
-    //     if let DabResponsePayload::Timezone(timezone) = resp.unwrap() {
-    //         Ok(timezone)
-    //     } else {
-    //         Err(jsonrpsee::core::Error::Custom(String::from(
-    //             "timezone: error response TBD",
-    //         )))
-    //     }
-    // }
-
-    //TODO: on_timezone_changed
-    // async fn on_timezone_changed(
-    //     &self,
-    //     ctx: CallContext,
-    //     request: ListenRequest,
-    // ) -> RpcResult<ListenerResponse> {
-    //     let listen = request.listen;
-    //     AppEvents::add_listener(
-    //         &&self.platform_state.app_events_state,
-    //         EVENT_TIMEZONE_CHANGED.to_string(),
-    //         ctx,
-    //         request,
-    //     );
-    //     Ok(ListenerResponse {
-    //         listening: listen,
-    //         event: EVENT_TIMEZONE_CHANGED,
-    //     })
-    // }
+    async fn on_timezone_changed(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        rpc_add_event_listener(&self.platform_state, ctx, request, EVENT_TIMEZONE_CHANGED).await
+    }
 }
 
 pub struct LocalizationRPCProvider;

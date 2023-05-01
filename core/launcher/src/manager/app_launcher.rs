@@ -484,6 +484,14 @@ impl AppLauncher {
         }
     }
 
+    fn get_transport(url: String) -> AppRuntimeTransport {
+        if url.as_str().find("__firebolt_endpoint").is_none() {
+            AppRuntimeTransport::Bridge
+        } else {
+            AppRuntimeTransport::Websocket
+        }
+    }
+
     pub async fn pre_launch(
         state: &LauncherState,
         manifest: AppManifest,
@@ -494,11 +502,11 @@ impl AppLauncher {
                 id: manifest.name.clone(),
                 title: Some(manifest.name.clone()),
                 catalog: manifest.content_catalog.clone(),
-                url: Some(manifest.start_page),
+                url: Some(manifest.start_page.clone()),
             },
             runtime: Some(AppRuntime {
                 id: Some(callsign),
-                transport: AppRuntimeTransport::Websocket,
+                transport: Self::get_transport(manifest.start_page),
             }),
             launch: AppLaunchInfo {
                 intent: NavigationIntent {

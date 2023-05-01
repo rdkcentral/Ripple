@@ -1,0 +1,61 @@
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+use jsonrpsee_core::Serialize;
+use serde::Deserialize;
+
+use crate::{
+    api::session::TokenType,
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
+    framework::ripple_contract::RippleContract,
+};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenResult {
+    pub value: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires: Option<String>,
+    #[serde(rename = "type")]
+    pub _type: TokenType,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct TokenRequest {
+    #[serde(rename = "type")]
+    pub _type: TokenType,
+}
+
+impl ExtnPayloadProvider for TokenResult {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Response(ExtnResponse::Token(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<TokenResult> {
+        match payload {
+            ExtnPayload::Response(response) => match response {
+                ExtnResponse::Token(r) => return Some(r),
+                _ => {}
+            },
+            _ => {}
+        }
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::SessionToken
+    }
+}

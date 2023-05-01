@@ -17,7 +17,7 @@
 
 use jsonrpsee::core::{Error, RpcResult};
 use ripple_sdk::{
-    api::device::device_accessibility_data::StorageData,
+    api::device::device_storage::StorageData,
     extn::extn_client_message::ExtnResponse,
     serde_json::{self, Value},
     utils::error::RippleError,

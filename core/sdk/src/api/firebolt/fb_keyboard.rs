@@ -17,6 +17,12 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::{
+    api::gateway::rpc_gateway_api::CallContext,
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
+    framework::ripple_contract::RippleContract,
+};
+
 use super::provider::{ProviderResponse, ProviderResponsePayload};
 
 pub const EMAIL_EVENT_PREFIX: &'static str = "keyboard.onRequestEmail";
@@ -73,7 +79,7 @@ pub struct KeyboardRequest {
 #[serde(rename_all = "camelCase")]
 pub struct KeyboardProviderResponse {
     correlation_id: String,
-    result: KeyboardResult,
+    result: KeyboardSessionResponse,
 }
 
 impl KeyboardProviderResponse {
@@ -86,16 +92,59 @@ impl KeyboardProviderResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct KeyboardSession {
+pub struct KeyboardSessionRequest {
     #[serde(rename = "type")]
     pub _type: KeyboardType,
+    pub ctx: CallContext,
     pub message: String,
 }
 
+impl ExtnPayloadProvider for KeyboardSessionRequest {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(ExtnRequest::Keyboard(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        match payload {
+            ExtnPayload::Request(request) => match request {
+                ExtnRequest::Keyboard(r) => return Some(r),
+                _ => {}
+            },
+            _ => {}
+        }
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::Keyboard
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct KeyboardResult {
+pub struct KeyboardSessionResponse {
     pub text: String,
     pub canceled: bool,
+}
+
+impl ExtnPayloadProvider for KeyboardSessionResponse {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Response(ExtnResponse::Keyboard(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        match payload {
+            ExtnPayload::Response(r) => match r {
+                ExtnResponse::Keyboard(r) => return Some(r),
+                _ => {}
+            },
+            _ => {}
+        }
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::Keyboard
+    }
 }
 
 #[derive(Deserialize, Clone, Debug)]

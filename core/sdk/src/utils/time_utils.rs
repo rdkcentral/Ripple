@@ -14,3 +14,19 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+use chrono::{DateTime, NaiveDateTime, Utc};
+
+/*
+Handle various types of timestamp conversion from magnitude -> String
+for ISO8601 format, e.g: 2022-06-23T16:16:10Z
+
+*/
+
+pub fn timestamp_2_iso8601(timestamp: i64) -> String {
+    if let Some(t) = NaiveDateTime::from_timestamp_opt(timestamp, 0) {
+        DateTime::<Utc>::from_utc(t, Utc).to_rfc3339().to_string()
+    } else {
+        timestamp.to_string()
+    }
+}

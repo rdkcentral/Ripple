@@ -150,8 +150,7 @@ impl PermissionHandler {
         request: CapabilitySet,
     ) -> Result<(), DenyReasonWithCap> {
         if let Some(permitted) = state.cap_state.permitted_state.get_app_permissions(&app_id) {
-            let permission_set: CapabilitySet = permitted.clone().into();
-            return permission_set.check(request);
+            return request.has_permissions(&permitted);
         } else {
             // check to retrieve it one more time
             if let Ok(_) = Self::fetch_and_store(state.clone(), app_id.into()).await {
@@ -159,8 +158,7 @@ impl PermissionHandler {
                 if let Some(permitted) =
                     state.cap_state.permitted_state.get_app_permissions(&app_id)
                 {
-                    let permission_set: CapabilitySet = permitted.clone().into();
-                    return permission_set.check(request);
+                    return request.has_permissions(&permitted);
                 }
             }
         }

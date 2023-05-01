@@ -26,12 +26,11 @@ use crate::processors::thunder_device_info::ThunderPlugin::LocationSync;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thunder_ripple_sdk::ripple_sdk::{
-    self,
     api::{
         device::{
             device_info_request::{DeviceInfoRequest, DeviceResponse},
             device_operator::{
-                DeviceCallRequest, DeviceChannelParams, DeviceChannelRequest, DeviceOperator,
+                DeviceCallRequest, DeviceChannelParams, DeviceOperator,
                 DeviceResponseMessage, DeviceSubscribeRequest, DeviceUnsubscribeRequest,
             },
             device_request::{
@@ -166,11 +165,39 @@ impl ThunderNetworkService {
         return false;
     }
 }
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ThunderTimezoneResponse {
+    #[serde(rename = "timeZone")]
+    pub time_zone: String,
+}
 
 #[derive(Debug)]
 pub struct ThunderDeviceInfoRequestProcessor {
     state: ThunderState,
     streamer: DefaultExtnStreamer,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ThunderAvailableTimezonesResponse {
+    pub zoneinfo: HashMap<String, HashMap<String, String>>,
+}
+
+impl ThunderAvailableTimezonesResponse {
+    pub fn as_array(&self) -> Vec<String> {
+        let mut timezones = Vec::default();
+        for (area, locations) in &self.zoneinfo {
+            let mut found_location = false;
+            for (location, _local_time) in locations {
+                timezones.push(format!("{}/{}", area, location));
+                found_location = true;
+            }
+            if !found_location {
+                // If there weren't any specific locations within the area, just add the area itself as a timezone.
+                timezones.push(area.to_string());
+            }
+        }
+        timezones
+    }
 }
 
 impl ThunderDeviceInfoRequestProcessor {
@@ -681,6 +708,84 @@ impl ThunderDeviceInfoRequestProcessor {
         //TODO: thunder event handler
         todo!();
     }
+
+    async fn get_timezone(state: ThunderState, req: ExtnMessage) -> bool {
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::System.method("getTimeZoneDST"),
+                params: None,
+            })
+            .await;
+
+        info!("{}", response.message);
+        if response.message.get("success").is_none()
+            || response.message["success"].as_bool().unwrap() == true
+        {
+            if let Ok(v) = serde_json::from_value::<ThunderTimezoneResponse>(response.message) {
+                return Self::respond(
+                    state.get_client(),
+                    req,
+                    ExtnResponse::String(v.time_zone.to_owned()),
+                )
+                .await
+                .is_ok();
+            }
+        }
+        Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
+    }
+
+    async fn get_available_timezones(state: ThunderState, req: ExtnMessage) -> bool {
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::System.method("getTimeZones"),
+                params: None,
+            })
+            .await;
+        info!("{}", response.message);
+        if response.message.get("success").is_none()
+            || response.message["success"].as_bool().unwrap() == false
+        {
+            return Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await;
+        }
+        let timezones =
+            serde_json::from_value::<ThunderAvailableTimezonesResponse>(response.message).unwrap();
+        return Self::respond(
+            state.get_client(),
+            req,
+            ExtnResponse::AvailableTimezones(timezones.as_array()),
+        )
+        .await
+        .is_ok();
+    }
+
+    async fn set_timezone(state: ThunderState, timezone: String, request: ExtnMessage) -> bool {
+        let params = Some(DeviceChannelParams::Json(
+            json!({
+                "timeZone": timezone,
+            })
+            .to_string(),
+        ));
+
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::System.method("setTimeZoneDST"),
+                params: params,
+            })
+            .await;
+        info!("{}", response.message);
+
+        if response.message.get("success").is_none()
+            || response.message["success"].as_bool().unwrap() == true
+        {
+            return Self::respond(state.get_client(), request, ExtnResponse::None(()))
+                .await
+                .is_ok();
+        }
+        Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
+    }
 }
 
 pub fn get_dimension_from_resolution(resolution: &str) -> Vec<i32> {
@@ -691,12 +796,14 @@ pub fn get_dimension_from_resolution(resolution: &str) -> Vec<i32> {
         val if val.starts_with("720") => Resolution::Resolution720.dimension(),
         val if val.starts_with("1080") => Resolution::Resolution1080.dimension(),
         val if val.starts_with("2160") => Resolution::Resolution2160.dimension(),
-        val if val.starts_with("4K") || val.starts_with("4k") => {
-            Resolution::Resolution4k.dimension()
-        }
+        val if val.starts_with("4K") || val.starts_with("4k") => Resolution::Resolution4k.dimension(),
         _ => Resolution::ResolutionDefault.dimension(),
     }
 }
+
+    
+
+    
 
 impl ExtnStreamProcessor for ThunderDeviceInfoRequestProcessor {
     type STATE = ThunderState;
@@ -745,6 +852,13 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
                 Self::on_internet_connected(state.clone(), msg, time_out.timeout).await
             }
             DeviceInfoRequest::Sku => todo!(),
+            DeviceInfoRequest::GetTimezone => Self::get_timezone(state.clone(), msg).await,
+            DeviceInfoRequest::GetAvailableTimezones => {
+                Self::get_available_timezones(state.clone(), msg).await
+            }
+            DeviceInfoRequest::SetTimezone(timezone_params) => {
+                Self::set_timezone(state.clone(), timezone_params, msg).await
+            }
             _ => false,
         }
     }

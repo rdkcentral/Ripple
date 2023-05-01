@@ -25,7 +25,7 @@ use crate::{
     api::{
         config::{Config, ConfigResponse},
         device::{
-            device_accessibility_data::StorageData,
+            device_storage::StorageData,
             device_request::{DeviceRequest, NetworkResponse},
         },
         distributor::{
@@ -33,11 +33,14 @@ use crate::{
             distributor_request::DistributorRequest,
         },
         firebolt::{
+            fb_authentication::TokenResult,
+            fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
             fb_lifecycle_management::LifecycleManagementRequest,
             fb_pin::{PinChallengeRequest, PinChallengeResponse},
         },
         gateway::rpc_gateway_api::RpcRequest,
-        session::{AccountSession, AccountSessionRequest},
+        protocol::BridgeProtocolRequest,
+        session::{AccountSession, AccountSessionRequest, SessionTokenRequest},
         status_update::ExtnStatus,
     },
     framework::ripple_contract::RippleContract,
@@ -88,6 +91,16 @@ impl ExtnMessage {
                 error!("can only respond for a request message");
                 Err(RippleError::InvalidInput)
             }
+        }
+    }
+
+    pub fn ack(&self) -> ExtnMessage {
+        ExtnMessage {
+            id: self.id.clone(),
+            requestor: self.requestor.clone(),
+            target: self.target.clone(),
+            payload: ExtnPayload::Response(ExtnResponse::None(())),
+            callback: self.callback.clone(),
         }
     }
 }
@@ -211,9 +224,12 @@ pub enum ExtnRequest {
     Extn(Value),
     LifecycleManagement(LifecycleManagementRequest),
     PinChallenge(PinChallengeRequest),
+    Keyboard(KeyboardSessionRequest),
     Permission(PermissionRequest),
     Distributor(DistributorRequest),
     AccountSession(AccountSessionRequest),
+    BridgeProtocolRequest(BridgeProtocolRequest),
+    SessionToken(SessionTokenRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -228,10 +244,13 @@ pub enum ExtnResponse {
     Error(RippleError),
     Config(ConfigResponse),
     PinChallenge(PinChallengeResponse),
+    Keyboard(KeyboardSessionResponse),
     AccountSession(AccountSession),
     Permission(PermissionResponse),
     StorageData(StorageData),
     NetworkResponse(NetworkResponse),
+    AvailableTimezones(Vec<String>),
+    Token(TokenResult),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {

@@ -21,8 +21,8 @@ use serde::{Deserialize, Serialize};
 use crate::api::firebolt::fb_openrpc::FireboltSemanticVersion;
 
 use super::{
-    device_accessibility_data::StorageRequest, device_accessory::RemoteAccessoryRequest,
-    device_browser::BrowserRequest, device_info_request::DeviceInfoRequest,
+    device_accessory::RemoteAccessoryRequest, device_browser::BrowserRequest,
+    device_info_request::DeviceInfoRequest, device_storage::StorageRequest,
     device_wifi::WifiRequest, device_window_manager::WindowManagerRequest,
 };
 
@@ -177,4 +177,16 @@ impl Resolution {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct OnInternetConnectedRequest {
     pub timeout: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct LanguageProperty {
+    //#[serde(with = "language_code_serde")]
+    pub value: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct TimezoneProperty {
+    //#[serde(with = "timezone_serde")]
+    pub value: String,
 }

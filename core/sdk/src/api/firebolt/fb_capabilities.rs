@@ -271,6 +271,7 @@ impl RpcError for DenyReason {
     }
 }
 
+#[derive(Debug)]
 pub struct DenyReasonWithCap {
     pub reason: DenyReason,
     pub caps: Vec<FireboltCap>,

@@ -45,6 +45,9 @@ pub enum DeviceInfoRequest {
     AvailableMemory,
     Network,
     OnInternetConnected(OnInternetConnectedRequest),
+    SetTimezone(String),
+    GetTimezone,
+    GetAvailableTimezones,
 }
 
 impl ExtnPayloadProvider for DeviceInfoRequest {
