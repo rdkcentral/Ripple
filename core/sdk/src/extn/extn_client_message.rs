@@ -24,7 +24,10 @@ use serde_json::Value;
 use crate::{
     api::{
         config::{Config, ConfigResponse},
-        device::{device_accessibility_data::StorageData, device_request::DeviceRequest},
+        device::{
+            device_accessibility_data::StorageData,
+            device_request::{DeviceRequest, NetworkResponse},
+        },
         distributor::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
             distributor_request::DistributorRequest,
@@ -228,6 +231,7 @@ pub enum ExtnResponse {
     AccountSession(AccountSession),
     Permission(PermissionResponse),
     StorageData(StorageData),
+    NetworkResponse(NetworkResponse),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {

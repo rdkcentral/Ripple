@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 // If not stated otherwise in this file or this component's license file the
 // following copyright and licenses apply:
 //
@@ -17,11 +19,14 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
+    api::firebolt::fb_openrpc::FireboltSemanticVersion,
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
 
-use super::device_request::DeviceRequest;
+use super::device_request::{
+    AudioProfile, DeviceRequest, HDCPStatus, HdcpProfile, HdrProfile, OnInternetConnectedRequest,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DeviceInfoRequest {
@@ -34,9 +39,12 @@ pub enum DeviceInfoRequest {
     HdcpStatus,
     Hdr,
     Audio,
+    Sku,
     ScreenResolution,
     VideoResolution,
     AvailableMemory,
+    Network,
+    OnInternetConnected(OnInternetConnectedRequest),
 }
 
 impl ExtnPayloadProvider for DeviceInfoRequest {
@@ -51,6 +59,45 @@ impl ExtnPayloadProvider for DeviceInfoRequest {
                     DeviceRequest::DeviceInfo(d) => return Some(d),
                     _ => {}
                 },
+                _ => {}
+            },
+            _ => {}
+        }
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::DeviceInfo
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DeviceResponse {
+    CustomError(String),
+    AudioProfileResponse(HashMap<AudioProfile, bool>),
+    HdcpSupportResponse(HashMap<HdcpProfile, bool>),
+    HdcpStatusResponse(HDCPStatus),
+    HdrResponse(HashMap<HdrProfile, bool>),
+    FirmwareInfo(FireboltSemanticVersion),
+    ScreenResolutionResponse(Vec<i32>),
+    VideoResolutionResponse(Vec<i32>),
+}
+
+impl ExtnPayloadProvider for DeviceResponse {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Response(ExtnResponse::Value(
+            serde_json::to_value(self.clone()).unwrap(),
+        ))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        match payload {
+            ExtnPayload::Response(response) => match response {
+                ExtnResponse::Value(value) => {
+                    if let Ok(v) = serde_json::from_value(value) {
+                        return Some(v);
+                    }
+                }
                 _ => {}
             },
             _ => {}

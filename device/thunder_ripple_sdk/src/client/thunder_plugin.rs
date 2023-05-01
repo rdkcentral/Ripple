@@ -32,10 +32,12 @@ pub enum ThunderPlugin {
     System,
     Wifi,
     TextToSpeech,
+    Hdcp,
 }
 const CONTROLLER_CFG: Cfg = Cfg::new("Controller", false, true);
 const DEVICE_INFO_CFG: Cfg = Cfg::new("DeviceInfo", true, false);
 const DISPLAY_SETTINGS_CFG: Cfg = Cfg::new("org.rdk.DisplaySettings", true, false);
+const HDCP_CFG: Cfg = Cfg::new("org.rdk.HdcpProfile", true, false);
 const NETWORK_CFG: Cfg = Cfg::new("org.rdk.Network", true, false);
 const PERSISTENT_STORAGE_CFG: Cfg = Cfg::new("org.rdk.PersistentStore", false, false);
 const RDKSHELL_CFG: Cfg = Cfg::new("org.rdk.RDKShell", false, true);
@@ -52,6 +54,7 @@ impl ThunderPlugin {
             Controller => CONTROLLER_CFG,
             DeviceInfo => DEVICE_INFO_CFG,
             DisplaySettings => DISPLAY_SETTINGS_CFG,
+            Hdcp => HDCP_CFG,
             Network => NETWORK_CFG,
             PersistentStorage => PERSISTENT_STORAGE_CFG,
             RDKShell => RDKSHELL_CFG,
