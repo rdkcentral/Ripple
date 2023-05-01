@@ -820,7 +820,6 @@ impl PrivacyServer for PrivacyImpl {
         )
         .await
     }
-
     async fn privacy_remember_watched_programs(
         &self,
         _ctx: CallContext,
@@ -837,7 +836,6 @@ impl PrivacyServer for PrivacyImpl {
             Err(_) => Ok(false),
         }
     }
-
     async fn privacy_remember_watched_programs_set(
         &self,
         ctx: CallContext,
@@ -894,7 +892,6 @@ impl PrivacyServer for PrivacyImpl {
             Err(_) => Ok(false),
         }
     }
-
     async fn privacy_share_watch_history_set(
         &self,
         ctx: CallContext,
