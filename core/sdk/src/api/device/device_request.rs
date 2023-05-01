@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 // If not stated otherwise in this file or this component's license file the
 // following copyright and licenses apply:
 //
@@ -16,6 +18,8 @@
 // limitations under the License.
 use serde::{Deserialize, Serialize};
 
+use crate::api::firebolt::fb_openrpc::FireboltSemanticVersion;
+
 use super::{
     device_accessory::RemoteAccessoryRequest, device_browser::BrowserRequest,
     device_info_request::DeviceInfoRequest, device_storage::StorageRequest,
@@ -30,6 +34,149 @@ pub enum DeviceRequest {
     Storage(StorageRequest),
     Wifi(WifiRequest),
     Accessory(RemoteAccessoryRequest),
+}
+
+#[derive(Hash, Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]
+pub enum HdcpProfile {
+    #[serde(rename = "hdcp1.4")]
+    Hdcp1_4,
+    #[serde(rename = "hdcp2.2")]
+    Hdcp2_2,
+}
+
+#[derive(Hash, Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]
+pub enum HdrProfile {
+    #[serde(rename = "HDR10")]
+    Hdr10,
+    #[serde(rename = "HDR10+")]
+    Hdr10plus,
+    #[serde(rename = "HLG")]
+    Hlg,
+    #[serde(rename = "Dolby Vision")]
+    DolbyVision,
+    #[serde(rename = "Technicolor")]
+    Technicolor,
+}
+
+#[derive(Hash, Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]
+pub enum AudioProfile {
+    #[serde(rename = "stereo")]
+    Stereo,
+    #[serde(rename = "dolbyDigital5.1")]
+    DolbyDigital5_1,
+    #[serde(rename = "dolbyDigital7.1")]
+    DolbyDigital7_1,
+    #[serde(rename = "dolbyDigital5.1+")]
+    DolbyDigital5_1Plus,
+    #[serde(rename = "dolbyDigital7.1+")]
+    DolbyDigital7_1Plus,
+    #[serde(rename = "dolbyAtmos")]
+    DolbyAtmos,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DeviceVersionResponse {
+    pub api: FireboltSemanticVersion,
+    pub firmware: FireboltSemanticVersion,
+    pub os: FireboltSemanticVersion,
+    pub debug: String,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NetworkResponse {
+    pub state: NetworkState,
+    #[serde(rename = "type")]
+    pub _type: NetworkType,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum NetworkState {
+    Connected,
+    Disconnected,
+}
+
+impl FromStr for NetworkState {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "CONNECTED" => Ok(NetworkState::Connected),
+            "DISCONNECTED" => Ok(NetworkState::Disconnected),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Hash, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum NetworkType {
+    Wifi,
+    Ethernet,
+    Hybrid,
+}
+
+impl FromStr for NetworkType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "WIFI" => Ok(NetworkType::Wifi),
+            "ETHERNET" => Ok(NetworkType::Ethernet),
+            "HYBRID" => Ok(NetworkType::Hybrid),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct HDCPStatus {
+    pub is_connected: bool,
+    #[serde(rename = "isHDCPCompliant")]
+    pub is_hdcp_compliant: bool,
+    #[serde(rename = "isHDCPEnabled")]
+    pub is_hdcp_enabled: bool,
+    pub hdcp_reason: u32,
+    #[serde(rename = "supportedHDCPVersion")]
+    pub supported_hdcp_version: String,
+    #[serde(rename = "receiverHDCPVersion")]
+    pub receiver_hdcp_version: String,
+    #[serde(rename = "currentHDCPVersion")]
+    pub current_hdcp_version: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Hash, Eq)]
+#[serde(rename_all = "lowercase")]
+
+pub enum Resolution {
+    Resolution480,
+    Resolution576,
+    Resolution540,
+    Resolution720,
+    Resolution1080,
+    Resolution2160,
+    Resolution4k,
+    ResolutionDefault,
+}
+
+impl Resolution {
+    pub fn dimension(&self) -> Vec<i32> {
+        match self {
+            Resolution::Resolution480 => vec![720, 480],
+            Resolution::Resolution576 => vec![720, 576],
+            Resolution::Resolution540 => vec![960, 540],
+            Resolution::Resolution720 => vec![1280, 720],
+            Resolution::Resolution1080 => vec![1920, 1080],
+            Resolution::Resolution2160 => vec![3840, 2160],
+            Resolution::Resolution4k => vec![3840, 2160],
+            Resolution::ResolutionDefault => vec![1920, 1080],
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OnInternetConnectedRequest {
+    pub timeout: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
