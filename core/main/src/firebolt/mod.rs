@@ -29,6 +29,7 @@ pub mod handlers {
     pub mod localization_rpc;
     pub mod pin_rpc;
     pub mod privacy_rpc;
+    pub mod profile_rpc;
     pub mod voice_guidance_rpc;
     pub mod wifi_rpc;
 }
