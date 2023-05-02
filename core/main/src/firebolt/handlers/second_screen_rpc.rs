@@ -62,7 +62,7 @@ pub struct SecondScreenImpl {
 
 #[async_trait]
 impl SecondScreenServer for SecondScreenImpl {
-    async fn device(&self, ctx: CallContext, param: SecondScreenDeviceInfo) -> RpcResult<String> {
+    async fn device(&self, _ctx: CallContext, _param: SecondScreenDeviceInfo) -> RpcResult<String> {
         get_device_id(&self.state).await
     }
 
