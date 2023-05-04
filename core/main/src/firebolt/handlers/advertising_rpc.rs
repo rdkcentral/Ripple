@@ -123,7 +123,7 @@ pub struct AdvertisingPolicy {
 
 #[rpc(server)]
 pub trait Advertising {
-    #[method(name = "advertising.advertisingId", aliases = ["badger.advertisingId","badger.xifa"])]
+    #[method(name = "advertising.advertisingId")]
     async fn advertising_id(&self, ctx: CallContext) -> RpcResult<AdvertisingId>;
     #[method(name = "advertising.appBundleId")]
     fn app_bundle_id(&self, ctx: CallContext) -> RpcResult<String>;
@@ -234,14 +234,6 @@ impl AdvertisingServer for AdvertisingImpl<RippleHelper> {
         ))
     }
 
-    #[instrument(skip(self))]
-    async fn badger_init_object(
-        &self,
-        ctx: CallContext,
-        config: AdConfig,
-    ) -> RpcResult<AdvertisingFrameworkConfig> {
-        self.config(ctx, GetAdConfig { options: config }).await
-    }
     async fn config(
         &self,
         ctx: CallContext,
