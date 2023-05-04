@@ -22,9 +22,12 @@ use thunder_ripple_sdk::{
     client::thunder_plugin::ThunderPlugin,
     events::thunder_event_processor::{ThunderEventHandler, ThunderEventHandlerProvider},
     ripple_sdk::{
-        log::{error,debug},
+        api::device::device_request::{
+            NetworkResponse, NetworkState, NetworkType, PowerState, SystemPowerState,
+        },
+        log::{debug, error},
         serde_json::{self, Value},
-        tokio, api::device::device_request::{NetworkResponse, NetworkState, NetworkType, PowerState, SystemPowerState},
+        tokio,
     },
     thunder_state::ThunderState,
 };
@@ -32,7 +35,6 @@ use thunder_ripple_sdk::{
 use super::super::thunder_device_info::{
     get_audio, get_dimension_from_resolution, ThunderDeviceInfoRequestProcessor,
 };
-
 
 // -----------------------
 // Active Input Changed
@@ -130,8 +132,6 @@ impl ThunderEventResolver for ActiveInputChangeEventResolver {
         Box::new(self.clone())
     }
 }
-
-
 
 // -----------------------
 // HDR Changed
@@ -297,7 +297,6 @@ impl ThunderEventResolver for ResolutionChangeEventResolver {
         Box::new(self.clone())
     }
 }
-
 
 // -----------------------
 // VideoResolution Changed
@@ -560,7 +559,6 @@ impl ThunderEventResolver for SystemPowerStateChangeEventResolver {
         Box::new(self.clone())
     }
 }
-
 
 // -----------------------
 // VoiceGuidance Changed

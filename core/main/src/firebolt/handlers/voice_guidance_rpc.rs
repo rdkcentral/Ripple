@@ -112,7 +112,7 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
             ctx.clone(),
             request.clone(),
         );
-    
+
         if listen {
             let _ = DabEventAdministrator::get(platform_state.clone())
                 .dab_event_subscribe(
@@ -131,7 +131,7 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
                 )
                 .await;
         }
-    
+
         Ok(ListenerResponse {
             listening: listen,
             event: VOICE_GUIDANCE_ENABLED_CHANGED_EVENT,
