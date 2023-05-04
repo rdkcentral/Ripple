@@ -23,6 +23,7 @@ use std::{
 use ripple_sdk::{
     api::{
         apps::AppRequest,
+        device::device_user_grants_data::GrantLifespan,
         firebolt::{
             fb_discovery::LaunchRequest,
             fb_lifecycle_management::{
@@ -393,6 +394,11 @@ impl DelegatedLauncherHandler {
             return Err(AppError::UnexpectedState);
         }
 
+        if state == LifecycleState::Inactive || state == LifecycleState::Unloading {
+            self.platform_state.clone().cap_state.grant_state.custom_delete_entries(app_id.into(), |grant_entry| -> bool {
+                !(matches!(&grant_entry.lifespan, Some(entry_lifespan) if entry_lifespan == &GrantLifespan::AppActive))
+            });
+        }
         self.platform_state
             .app_manager_state
             .set_state(app_id, state);

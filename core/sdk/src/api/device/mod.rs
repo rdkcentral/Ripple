@@ -23,6 +23,7 @@ pub mod device_info_request;
 pub mod device_operator;
 pub mod device_request;
 pub mod device_storage;
+pub mod device_user_grants_data;
 pub mod device_wifi;
 pub mod device_window_manager;
 

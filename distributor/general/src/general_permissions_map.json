@@ -27,7 +27,8 @@
         "xrn:firebolt:capability:localization:time-zone[manage]",
         "xrn:firebolt:capability:localization:location",
         "xrn:firebolt:capability:localization:location[manage]",
-        "xrn:firebolt:capability:protocol:wifi"
+        "xrn:firebolt:capability:protocol:wifi",
+        "xrn:firebolt:capability:grants:state"
     ],
     "comcast_firebolt_reference" : [
         "xrn:firebolt:capability:input:keyboard",
