@@ -24,7 +24,7 @@ use crate::{
         },
     },
     state::platform_state::PlatformState,
-    utils::rpc_utils::{rpc_add_event_listener, rpc_err},
+    utils::rpc_utils::{rpc_add_event_listener, rpc_err}, service::apps::app_events::AppEvents,
 };
 
 use jsonrpsee::{
@@ -36,7 +36,7 @@ use jsonrpsee::{
 use ripple_sdk::api::{
     device::{
         device_accessibility_data::VoiceGuidanceSettings,
-        device_storage::{SetBoolProperty, SetF32Property},
+        device_storage::{SetBoolProperty, SetF32Property}, device_events::VOICE_GUIDANCE_CHANGED,
     },
     firebolt::fb_general::{ListenRequest, ListenerResponse},
     gateway::rpc_gateway_api::CallContext,
@@ -89,6 +89,48 @@ pub struct VoiceguidanceImpl {
     pub state: PlatformState,
 }
 
+/*
+Free function to allow variability of event_name
+*/
+async fn voice_guidance_settings_enabled_changed(
+    platform_state: &PlatformState,
+    ctx: &CallContext,
+    request: &ListenRequest,
+    event_name: &str,
+) -> RpcResult<ListenerResponse> {
+    let listen = request.listen;
+    AppEvents::add_listener(
+        &platform_state.app_events_state,
+        String::from(event_name),
+        ctx.clone(),
+        request.clone(),
+    );
+
+    if listen {
+        let _ = DabEventAdministrator::get(platform_state.clone())
+            .dab_event_subscribe(
+                Some(ctx.clone()),
+                String::from(event_name),
+                None,
+                Some(Box::new(VoiceGuidanceEnabledChangedEventHandler {})),
+            )
+            .await;
+    } else {
+        let _ = DabEventAdministrator::get(platform_state.clone())
+            .dab_event_unsubscribe(
+                Some(ctx.clone()),
+                String::from(event_name),
+                Some(Box::new(VoiceGuidanceEnabledChangedEventHandler {})),
+            )
+            .await;
+    }
+
+    Ok(ListenerResponse {
+        listening: listen,
+        event: VOICE_GUIDANCE_ENABLED_CHANGED_EVENT,
+    })
+}
+
 #[async_trait]
 impl VoiceguidanceServer for VoiceguidanceImpl {
     async fn voice_guidance_settings(&self, ctx: CallContext) -> RpcResult<VoiceGuidanceSettings> {
@@ -106,35 +148,29 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
-        AppEvents::add_listener(
-            &platform_state.app_events_state,
-            String::from(event_name),
+
+        // Register for individual change events (no-op if already registered), handlers emit VOICE_GUIDANCE_SETTINGS_CHANGED_EVENT.
+        voice_guidance_settings_enabled_changed(
+            &self.platform_state,
+            &ctx,
+            &request,
+            VOICE_GUIDANCE_SETTINGS_CHANGED_EVENT,
+        )
+        .await
+        .ok();
+        /*
+        Add decorated listener after call to voice_guidance_settings_enabled_changed to make decorated listener current  */
+        AppEvents::add_listener_with_decorator(
+            &&self.platform_state.app_events_state,
+            VOICE_GUIDANCE_SETTINGS_CHANGED_EVENT.to_string(),
             ctx.clone(),
             request.clone(),
+            Some(Box::new(VGEventDecorator {})),
         );
-
-        if listen {
-            let _ = DabEventAdministrator::get(platform_state.clone())
-                .dab_event_subscribe(
-                    Some(ctx.clone()),
-                    String::from(event_name),
-                    None,
-                    Some(Box::new(VoiceGuidanceEnabledChangedEventHandler {})),
-                )
-                .await;
-        } else {
-            let _ = DabEventAdministrator::get(platform_state.clone())
-                .dab_event_unsubscribe(
-                    Some(ctx.clone()),
-                    String::from(event_name),
-                    Some(Box::new(VoiceGuidanceEnabledChangedEventHandler {})),
-                )
-                .await;
-        }
 
         Ok(ListenerResponse {
             listening: listen,
-            event: VOICE_GUIDANCE_ENABLED_CHANGED_EVENT,
+            event: VOICE_GUIDANCE_SETTINGS_CHANGED_EVENT,
         })
     }
 
