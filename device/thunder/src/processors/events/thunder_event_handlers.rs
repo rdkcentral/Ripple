@@ -22,8 +22,11 @@ use thunder_ripple_sdk::{
     client::thunder_plugin::ThunderPlugin,
     events::thunder_event_processor::{ThunderEventHandler, ThunderEventHandlerProvider},
     ripple_sdk::{
-        api::device::device_request::{
-            NetworkResponse, NetworkState, NetworkType, PowerState, SystemPowerState,
+        api::device::{
+            device_events::{HDCP_CHANGED_EVENT, HDR_CHANGED_EVENT, SCREEN_RESOLUTION_CHANGED_EVENT, VIDEO_RESOLUTION_CHANGED_EVENT, NETWORK_CHANGED_EVENT},
+            device_request::{
+                NetworkResponse, NetworkState, NetworkType, PowerState, SystemPowerState,
+            },
         },
         log::{debug, error},
         serde_json::{self, Value},
@@ -38,622 +41,351 @@ use super::super::thunder_device_info::{
 
 // -----------------------
 // Active Input Changed
-// Taken from Ripple
-#[derive(Clone)]
-struct HDCPEventHandler {}
+pub struct HDCPEventHandler;
 
-#[async_trait]
-impl DabEventHandler for HDCPEventHandler {
-    async fn handle_dab_event(
-        &self,
-        ps: &PlatformState,
-        cur_value: &mut Option<Value>,
-        _dab_event: &DabEvent,
-    ) {
-        let resp = ps
-            .services
-            .send_dab(DabRequestPayload::Device(DeviceRequest::HdcpSupport))
-            .await;
-
-        match resp {
-            Ok(dab_payload) => match dab_payload {
-                DabResponsePayload::HdcpSupportResponse(value) => {
-                    let new_val = json!(value.clone());
-                    if !cur_value
-                        .clone()
-                        .unwrap()
-                        .to_string()
-                        .eq(&new_val.to_string())
-                    {
-                        AppEvents::emit(&ps, &HDCP_CHANGED_EVENT.to_string(), &json!(value)).await;
-                        *cur_value = Some(new_val);
-                    }
-                }
-                _ => {}
-            },
-            Err(_e) => {}
+impl HDCPEventHandler {
+    pub fn handle(state: ThunderState, value: Value) {
+        if let Some(v) = value["activeInput"].as_bool() {
+            debug!("activeInput {}", v);
         }
-    }
-
-    fn generate_dab_event_subscribe_request(
-        &self,
-        ctx: Option<CallContext>,
-        listen: bool,
-    ) -> DabRequestPayload {
-        let subscribe_message = DabSubscribeMessage {
-            subscribe: listen,
-            context: ctx.map(|v| serde_json::to_string(&v).unwrap()),
-        };
-
-        DabRequestPayload::Device(DeviceRequest::OnActiveInputChanged(subscribe_message))
-    }
-
-    fn get_mapped_dab_event_name(&self) -> &str {
-        EVENT_ACTIVE_INPUT_CHANGED
-    }
-
-    fn dab_event_handler_clone(&self) -> Box<dyn DabEventHandler + Send + Sync> {
-        Box::new(self.clone())
+        let state_c = state.clone();
+        tokio::spawn(async move {
+            let map = ThunderDeviceInfoRequestProcessor::get_hdcp_support(state).await;
+            ThunderEventHandler::send_app_event(
+                state_c,
+                Self::get_mapped_event(),
+                serde_json::to_value(map).unwrap(),
+            )
+        });
     }
 }
 
-// Taken from DAB
-#[derive(Clone)]
-struct ActiveInputChangeEventResolver {}
-
-#[async_trait]
-impl ThunderEventResolver for ActiveInputChangeEventResolver {
-    fn resolve_dab_event(&self, resp: &ThunderResponseMessage, event_name: &str) -> DabEvent {
-        let dab_event = match event_name {
-            "activeInputChanged" => DabEvent::Device(DeviceEvent::ActiveInputChangedEvent(
-                resp.message["activeInput"].as_bool().unwrap_or(true),
-            )),
-            _ => DabEvent::None,
-        };
-        dab_event
+impl ThunderEventHandlerProvider for HDCPEventHandler {
+    fn provide(id: String) -> ThunderEventHandler {
+        ThunderEventHandler {
+            request: Self::get_device_request(),
+            handle: Self::handle,
+            listeners: vec![id],
+            id: Self::get_mapped_event(),
+        }
     }
 
-    fn parse_subscribe_params(&self, request: &DabRequest) -> DabSubscribeMessage {
-        // Parse and collect the subscribe params
-        let mut sub_message = DabSubscribeMessage {
-            subscribe: false,
-            context: None,
-        };
-
-        match request.payload {
-            DabRequestPayload::Device(DeviceRequest::OnActiveInputChanged(ref s)) => {
-                sub_message.subscribe = s.subscribe;
-            }
-            _ => {}
-        };
-        sub_message
+    fn get_mapped_event() -> String {
+        HDCP_CHANGED_EVENT.into()
     }
-    fn thunder_event_resolver_clone(&self) -> Box<dyn ThunderEventResolver + Send + Sync> {
-        Box::new(self.clone())
+
+    fn event_name() -> String {
+        "activeInputChanged".into()
+    }
+
+    fn module() -> String {
+        ThunderPlugin::DisplaySettings.callsign_string()
     }
 }
 
 // -----------------------
 // HDR Changed
 
-// Taken from Ripple
-#[derive(Clone)]
-struct HDREventHandler {}
+pub struct HDREventHandler;
 
-#[async_trait]
-impl DabEventHandler for HDREventHandler {
-    async fn handle_dab_event(
-        &self,
-        ps: &PlatformState,
-        cur_value: &mut Option<Value>,
-        _dab_event: &DabEvent,
-    ) {
-        let resp = ps
-            .services
-            .send_dab(DabRequestPayload::Device(DeviceRequest::Hdr))
-            .await;
+impl HDREventHandler {
+    pub fn handle(state: ThunderState, value: Value) {
+        if let Some(v) = value["activeInput"].as_bool() {
+            debug!("activeInput {}", v);
+        }
+        let state_c = state.clone();
+        tokio::spawn(async move {
+            let map = ThunderDeviceInfoRequestProcessor::get_hdr(state).await;
+            ThunderEventHandler::send_app_event(
+                state_c,
+                Self::get_mapped_event(),
+                serde_json::to_value(map).unwrap(),
+            )
+        });
+    }
+}
 
-        match resp {
-            Ok(dab_payload) => match dab_payload {
-                DabResponsePayload::HdrResponse(value) => {
-                    let new_val = json!(value.clone());
-                    if !cur_value
-                        .clone()
-                        .unwrap()
-                        .to_string()
-                        .eq(&new_val.to_string())
-                    {
-                        AppEvents::emit(&ps, &HDR_CHANGED_EVENT.to_string(), &json!(value)).await;
-                        *cur_value = Some(new_val);
-                    }
-                }
-                _ => {}
-            },
-            Err(_e) => {}
+impl ThunderEventHandlerProvider for HDREventHandler {
+    fn provide(id: String) -> ThunderEventHandler {
+        ThunderEventHandler {
+            request: Self::get_device_request(),
+            handle: Self::handle,
+            listeners: vec![id],
+            id: Self::get_mapped_event(),
         }
     }
 
-    fn generate_dab_event_subscribe_request(
-        &self,
-        ctx: Option<CallContext>,
-        listen: bool,
-    ) -> DabRequestPayload {
-        let subscribe_message = DabSubscribeMessage {
-            subscribe: listen,
-            context: ctx.map(|v| serde_json::to_string(&v).unwrap()),
-        };
-
-        DabRequestPayload::Device(DeviceRequest::OnActiveInputChanged(subscribe_message))
+    fn get_mapped_event() -> String {
+        HDR_CHANGED_EVENT.into()
     }
 
-    fn get_mapped_dab_event_name(&self) -> &str {
-        EVENT_ACTIVE_INPUT_CHANGED
+    fn event_name() -> String {
+        "activeInputChanged".into()
     }
 
-    fn dab_event_handler_clone(&self) -> Box<dyn DabEventHandler + Send + Sync> {
-        Box::new(self.clone())
+    fn module() -> String {
+        ThunderPlugin::DisplaySettings.callsign_string()
     }
 }
 
 // -----------------------
 // ScreenResolution Changed
 
-// Taken from Ripple
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolutionChangedEvent {
+    pub width: i32,
+    pub height: i32,
+    pub video_display_type: String,
+    pub resolution: String,
+}
 
-#[derive(Clone)]
-struct ScreenResolutionEventHandler {}
+pub struct ScreenResolutionEventHandler;
 
-#[async_trait]
-impl DabEventHandler for ScreenResolutionEventHandler {
-    async fn handle_dab_event(
-        &self,
-        ps: &PlatformState,
-        _cur_value: &mut Option<Value>,
-        dab_event: &DabEvent,
-    ) {
-        match dab_event {
-            DabEvent::Device(DeviceEvent::ResolutionChangedEvent(event_data)) => {
-                let screen_resolution = vec![event_data.width, event_data.height];
-                AppEvents::emit(
-                    &ps,
-                    &SCREEN_RESOLUTION_CHANGED_EVENT.to_string(),
-                    &serde_json::to_value(screen_resolution).unwrap(),
-                )
-                .await;
-            }
-
-            _ => {
-                error!("Invalid dab_event received");
-            }
+impl ScreenResolutionEventHandler {
+    pub fn handle(state: ThunderState, value: Value) {
+        if let Ok(v) = serde_json::from_value::<ResolutionChangedEvent>(value) {
+            let value: Vec<i32> = vec![v.width, v.height];
+            ThunderEventHandler::send_app_event(
+                state,
+                Self::get_mapped_event(),
+                serde_json::to_value(value).unwrap(),
+            )
         }
-    }
-
-    fn generate_dab_event_subscribe_request(
-        &self,
-        ctx: Option<CallContext>,
-        listen: bool,
-    ) -> DabRequestPayload {
-        let subscribe_message = DabSubscribeMessage {
-            subscribe: listen,
-            context: ctx.map(|v| serde_json::to_string(&v).unwrap()),
-        };
-
-        DabRequestPayload::Device(DeviceRequest::OnResolutionChanged(subscribe_message))
-    }
-
-    fn get_mapped_dab_event_name(&self) -> &str {
-        EVENT_RESOLUTION_CHANGED
-    }
-
-    fn dab_event_handler_clone(&self) -> Box<dyn DabEventHandler + Send + Sync> {
-        Box::new(self.clone())
     }
 }
 
-// Taken from Dab
-
-#[derive(Clone)]
-struct ResolutionChangeEventResolver {}
-
-#[async_trait]
-impl ThunderEventResolver for ResolutionChangeEventResolver {
-    fn resolve_dab_event(&self, resp: &ThunderResponseMessage, event_name: &str) -> DabEvent {
-        let dab_event = match event_name {
-            "resolutionChanged" => DabEvent::Device(DeviceEvent::ResolutionChangedEvent(
-                ResolutionChangedEventData {
-                    width: resp.message["width"].as_u64().unwrap_or_default(),
-                    height: resp.message["height"].as_u64().unwrap_or_default(),
-                    video_display_type: resp.message["videoDisplayType"]
-                        .as_str()
-                        .unwrap_or_default()
-                        .to_owned(),
-                    resolution: resp.message["resolution"]
-                        .as_str()
-                        .unwrap_or_default()
-                        .to_owned(),
-                },
-            )),
-            _ => DabEvent::None,
-        };
-        dab_event
+impl ThunderEventHandlerProvider for ScreenResolutionEventHandler {
+    fn provide(id: String) -> ThunderEventHandler {
+        ThunderEventHandler {
+            request: Self::get_device_request(),
+            handle: Self::handle,
+            listeners: vec![id],
+            id: Self::get_mapped_event(),
+        }
     }
 
-    fn parse_subscribe_params(&self, request: &DabRequest) -> DabSubscribeMessage {
-        // Parse and collect the subscribe params
-        let mut sub_message = DabSubscribeMessage {
-            subscribe: false,
-            context: None,
-        };
-
-        match request.payload {
-            DabRequestPayload::Device(DeviceRequest::OnResolutionChanged(ref s)) => {
-                sub_message.subscribe = s.subscribe;
-            }
-            _ => {}
-        };
-        sub_message
+    fn event_name() -> String {
+        "resolutionChanged".into()
     }
-    fn thunder_event_resolver_clone(&self) -> Box<dyn ThunderEventResolver + Send + Sync> {
-        Box::new(self.clone())
+
+    fn get_mapped_event() -> String {
+        SCREEN_RESOLUTION_CHANGED_EVENT.into()
+    }
+
+    fn module() -> String {
+        ThunderPlugin::DisplaySettings.callsign_string()
     }
 }
 
 // -----------------------
 // VideoResolution Changed
+pub struct VideoResolutionEventHandler;
 
-// Taken from Ripple
-#[derive(Clone)]
-struct VideoResolutionEventHandler {}
+impl VideoResolutionEventHandler {
+    pub fn handle(state: ThunderState, value: Value) {
+        if let Ok(v) = serde_json::from_value::<ResolutionChangedEvent>(value) {
+            let value = get_dimension_from_resolution(&v.resolution);
+            ThunderEventHandler::send_app_event(
+                state,
+                Self::get_mapped_event(),
+                serde_json::to_value(value).unwrap(),
+            )
+        }
+    }
+}
 
-#[async_trait]
-impl DabEventHandler for VideoResolutionEventHandler {
-    async fn handle_dab_event(
-        &self,
-        ps: &PlatformState,
-        _cur_value: &mut Option<Value>,
-        dab_event: &DabEvent,
-    ) {
-        match dab_event {
-            DabEvent::Device(DeviceEvent::ResolutionChangedEvent(event_data)) => {
-                let video_resolution = get_dimension_from_resolution(&event_data.resolution);
-                AppEvents::emit(
-                    &ps,
-                    &VIDEO_RESOLUTION_CHANGED_EVENT.to_string(),
-                    &serde_json::to_value(video_resolution).unwrap(),
-                )
-                .await;
-            }
-
-            _ => {
-                error!("Invalid dab_event received");
-            }
+impl ThunderEventHandlerProvider for VideoResolutionEventHandler {
+    fn provide(id: String) -> ThunderEventHandler {
+        ThunderEventHandler {
+            request: Self::get_device_request(),
+            handle: Self::handle,
+            listeners: vec![id],
+            id: Self::get_mapped_event(),
         }
     }
 
-    fn generate_dab_event_subscribe_request(
-        &self,
-        ctx: Option<CallContext>,
-        listen: bool,
-    ) -> DabRequestPayload {
-        let subscribe_message = DabSubscribeMessage {
-            subscribe: listen,
-            context: ctx.map(|v| serde_json::to_string(&v).unwrap()),
-        };
-
-        DabRequestPayload::Device(DeviceRequest::OnResolutionChanged(subscribe_message))
+    fn event_name() -> String {
+        "resolutionChanged".into()
     }
 
-    fn get_mapped_dab_event_name(&self) -> &str {
-        EVENT_RESOLUTION_CHANGED
+    fn get_mapped_event() -> String {
+        VIDEO_RESOLUTION_CHANGED_EVENT.into()
     }
 
-    fn dab_event_handler_clone(&self) -> Box<dyn DabEventHandler + Send + Sync> {
-        Box::new(self.clone())
+    fn module() -> String {
+        ThunderPlugin::DisplaySettings.callsign_string()
     }
 }
 
 // -----------------------
 // Network Changed
 
-// Taken from Ripple
-#[derive(Clone)]
-struct NetworkEventHandler {}
+pub struct NetworkEventHandler;
 
-#[async_trait]
-impl DabEventHandler for NetworkEventHandler {
-    async fn handle_dab_event(
-        &self,
-        ps: &PlatformState,
-        _cur_value: &mut Option<Value>,
-        dab_event: &DabEvent,
-    ) {
-        match dab_event {
-            DabEvent::Device(DeviceEvent::NetworkChangedEvent(network_response)) => {
-                AppEvents::emit(
-                    &ps,
-                    &NETWORK_CHANGED_EVENT.to_string(),
-                    &serde_json::to_value(network_response).unwrap(),
-                )
-                .await;
-            }
-            _ => {
-                error!("Invalid dab_event received");
+impl NetworkEventHandler {
+    pub fn handle(state: ThunderState, value: Value) {
+        if let Some(v) = value["interface"].as_str() {
+            if let Ok(network_type) = NetworkType::from_str(v) {
+                if let Some(v) = value["status"].as_str() {
+                    if let Ok(network_status) = NetworkState::from_str(v) {
+                        let response = NetworkResponse {
+                            _type: network_type,
+                            state: network_status,
+                        };
+                        ThunderEventHandler::send_app_event(
+                            state,
+                            Self::get_mapped_event(),
+                            serde_json::to_value(response).unwrap(),
+                        )
+                    }
+                }
             }
         }
     }
-
-    fn generate_dab_event_subscribe_request(
-        &self,
-        ctx: Option<CallContext>,
-        listen: bool,
-    ) -> DabRequestPayload {
-        let subscribe_message = DabSubscribeMessage {
-            subscribe: listen,
-            context: ctx.map(|v| serde_json::to_string(&v).unwrap()),
-        };
-
-        DabRequestPayload::Device(DeviceRequest::OnNetworkChanged(subscribe_message))
-    }
-
-    fn get_mapped_dab_event_name(&self) -> &str {
-        EVENT_NETWORK_CHANGED
-    }
-
-    fn dab_event_handler_clone(&self) -> Box<dyn DabEventHandler + Send + Sync> {
-        Box::new(self.clone())
-    }
 }
 
-// Taken from Dab
-#[derive(Clone)]
-struct NetworkChangeEventResolver {}
-
-#[async_trait]
-impl ThunderEventResolver for NetworkChangeEventResolver {
-    fn resolve_dab_event(&self, resp: &ThunderResponseMessage, event_name: &str) -> DabEvent {
-        let dab_event = match event_name {
-            "onConnectionStatusChanged" => {
-                DabEvent::Device(DeviceEvent::NetworkChangedEvent(NetworkResponse {
-                    _type: NetworkType::from_str(
-                        resp.message["interface"].as_str().unwrap_or_default(),
-                    )
-                    .unwrap(),
-                    state: NetworkState::from_str(
-                        resp.message["status"].as_str().unwrap_or_default(),
-                    )
-                    .unwrap(),
-                }))
-            }
-            _ => DabEvent::None,
-        };
-        dab_event
+impl ThunderEventHandlerProvider for NetworkEventHandler {
+    fn provide(id: String) -> ThunderEventHandler {
+        ThunderEventHandler {
+            request: Self::get_device_request(),
+            handle: Self::handle,
+            listeners: vec![id],
+            id: Self::get_mapped_event(),
+        }
     }
 
-    fn parse_subscribe_params(&self, request: &DabRequest) -> DabSubscribeMessage {
-        // Parse and collect the subscribe params
-        let mut sub_message = DabSubscribeMessage {
-            subscribe: false,
-            context: None,
-        };
-
-        match request.payload {
-            DabRequestPayload::Device(DeviceRequest::OnNetworkChanged(ref s)) => {
-                sub_message.subscribe = s.subscribe;
-            }
-            _ => {}
-        };
-        sub_message
+    fn event_name() -> String {
+        "onConnectionStatusChanged".into()
     }
-    fn thunder_event_resolver_clone(&self) -> Box<dyn ThunderEventResolver + Send + Sync> {
-        Box::new(self.clone())
+
+    fn get_mapped_event() -> String {
+        NETWORK_CHANGED_EVENT.into()
+    }
+
+    fn module() -> String {
+        ThunderPlugin::Network.callsign_string()
     }
 }
 
 // -----------------------
 // SystemPower Changed
 
-// Taken from Ripple
-#[derive(Clone)]
-struct SystemPowerStateChangeEventHandler {}
+pub struct SystemPowerStateChangeEventHandler;
 
-#[async_trait]
-impl DabEventHandler for SystemPowerStateChangeEventHandler {
-    async fn handle_dab_event(
-        &self,
-        ps: &PlatformState,
-        _cur_value: &mut Option<Value>,
-        dab_event: &DabEvent,
-    ) {
-        match dab_event {
-            DabEvent::Device(DeviceEvent::SystemPowerStateChangedEvent(
-                system_power_state_event_data,
-            )) => {
-                debug!(
-                    "SystemPowerStateChangedEvent Received {:?}",
-                    system_power_state_event_data
-                );
-                if system_power_state_event_data.power_state != PowerState::On {
-                    // clear any user Grants with LifeSpan value as PowerActive
-                    if UserGrantStateUtils::delete_all_matching_entries(&ps.grant_state, |entry| {
-                        entry
-                            .lifespan
-                            .as_ref()
-                            .map_or(false, |lifespan| *lifespan == Lifespan::PowerActive)
-                    }) {
-                        let _ =
-                            UserGrantStateUtils::check_and_update_dab_event_subscription(ps).await;
+impl SystemPowerStateChangeEventHandler {
+    pub fn handle(state: ThunderState, value: Value) {
+        if let Some(v) = value["powerState"].as_str() {
+            if let Ok(power_state) = PowerState::from_str(v) {
+                if let Some(v) = value["currentPowerState"].as_str() {
+                    if let Ok(current_power_state) = PowerState::from_str(v) {
+                        let response = SystemPowerState {
+                            power_state,
+                            current_power_state,
+                        };
+                        if let Err(_) = state.get_client().request_transient(response) {
+                            error!("Error sending system power state");
+                        }
                     }
                 }
             }
-            _ => {
-                error!("Invalid dab_event received");
-            }
         }
-    }
-
-    fn generate_dab_event_subscribe_request(
-        &self,
-        _ctx: Option<CallContext>,
-        listen: bool,
-    ) -> DabRequestPayload {
-        let subscribe_message = DabSubscribeMessage {
-            subscribe: listen,
-            context: None,
-        };
-
-        DabRequestPayload::Device(DeviceRequest::OnSystemPowerStateChanged(subscribe_message))
-    }
-
-    fn get_mapped_dab_event_name(&self) -> &str {
-        EVENT_SYSTEM_POWER_STATE_CHANGED
-    }
-
-    fn dab_event_handler_clone(&self) -> Box<dyn DabEventHandler + Send + Sync> {
-        Box::new(self.clone())
     }
 }
 
-// Taken from Dab
-#[derive(Clone)]
-struct SystemPowerStateChangeEventResolver {}
-
-#[async_trait]
-impl ThunderEventResolver for SystemPowerStateChangeEventResolver {
-    fn resolve_dab_event(&self, resp: &ThunderResponseMessage, event_name: &str) -> DabEvent {
-        let dab_event: DabEvent = match event_name {
-            "onSystemPowerStateChanged" => DabEvent::Device(
-                DeviceEvent::SystemPowerStateChangedEvent(SystemPowerStateEventData {
-                    power_state: PowerState::from_str(
-                        resp.message["powerState"].as_str().unwrap_or_default(),
-                    )
-                    .unwrap(),
-                    current_power_state: PowerState::from_str(
-                        resp.message["currentPowerState"]
-                            .as_str()
-                            .unwrap_or_default(),
-                    )
-                    .unwrap(),
-                }),
-            ),
-            _ => DabEvent::None,
-        };
-        dab_event
+impl ThunderEventHandlerProvider for SystemPowerStateChangeEventHandler {
+    fn provide(id: String) -> ThunderEventHandler {
+        ThunderEventHandler {
+            request: Self::get_device_request(),
+            handle: Self::handle,
+            listeners: vec![id],
+            id: Self::get_mapped_event(),
+        }
     }
 
-    fn parse_subscribe_params(&self, request: &DabRequest) -> DabSubscribeMessage {
-        // Parse and collect the subscribe params
-        let mut sub_message = DabSubscribeMessage {
-            subscribe: false,
-            context: None,
-        };
-
-        match request.payload {
-            DabRequestPayload::Device(DeviceRequest::OnSystemPowerStateChanged(ref s)) => {
-                sub_message.subscribe = s.subscribe;
-            }
-            _ => {}
-        };
-        sub_message
+    fn event_name() -> String {
+        "onSystemPowerStateChanged".into()
     }
-    fn thunder_event_resolver_clone(&self) -> Box<dyn ThunderEventResolver + Send + Sync> {
-        Box::new(self.clone())
+
+    fn get_mapped_event() -> String {
+        "device.onPowerStateChanged".into()
+    }
+
+    fn module() -> String {
+        ThunderPlugin::System.callsign_string()
     }
 }
 
 // -----------------------
 // VoiceGuidance Changed
 
-// Taken from Ripple
-#[derive(Clone)]
-struct VoiceGuidanceEnabledChangedEventHandler {}
+pub struct VoiceGuidanceEnabledChangedEventHandler;
 
-#[async_trait]
-impl DabEventHandler for VoiceGuidanceEnabledChangedEventHandler {
-    async fn handle_dab_event(
-        &self,
-        ps: &PlatformState,
-        _cur_value: &mut Option<Value>,
-        dab_event: &DabEvent,
-    ) {
-        match dab_event {
-            DabEvent::Device(DeviceEvent::VoiceGuidanceEnabledChangedEvent(enabled)) => {
-                AppEvents::emit(
-                    &ps,
-                    &VOICE_GUIDANCE_ENABLED_CHANGED_EVENT.to_string(),
-                    &serde_json::to_value(enabled).unwrap(),
-                )
-                .await;
-
-                AppEvents::emit(
-                    &ps,
-                    &VOICE_GUIDANCE_SETTINGS_CHANGED_EVENT.to_string(),
-                    &serde_json::to_value(enabled).unwrap(),
-                )
-                .await;
-            }
-
-            _ => {
-                error!("Invalid dab_event received");
-            }
-        }
-    }
-
-    fn generate_dab_event_subscribe_request(
-        &self,
-        ctx: Option<CallContext>,
-        listen: bool,
-    ) -> DabRequestPayload {
-        let subscribe_message = DabSubscribeMessage {
-            subscribe: listen,
-            context: ctx.map(|v| serde_json::to_string(&v).unwrap()),
-        };
-
-        DabRequestPayload::Device(DeviceRequest::OnVoiceGuidanceEnabledChanged(
-            subscribe_message,
-        ))
-    }
-
-    fn get_mapped_dab_event_name(&self) -> &str {
-        EVENT_VOICE_GUIDANCE_ENABLED_CHANGED
-    }
-
-    fn dab_event_handler_clone(&self) -> Box<dyn DabEventHandler + Send + Sync> {
-        Box::new(self.clone())
+impl VoiceGuidanceEnabledChangedEventHandler {
+    pub fn handle(state: ThunderState, value: Value) {
+        let response = Value::Bool(value["state"].as_bool().unwrap_or(false));
+        ThunderEventHandler::send_app_event(
+            state,
+            Self::get_mapped_event(),
+            serde_json::to_value(response).unwrap(),
+        )
     }
 }
 
-// Taken from Dab
-#[derive(Clone)]
-struct VoiceGuidanceChangedEventResolver {}
-
-#[async_trait]
-impl ThunderEventResolver for VoiceGuidanceChangedEventResolver {
-    fn resolve_dab_event(&self, resp: &ThunderResponseMessage, event_name: &str) -> DabEvent {
-        let dab_event = match event_name {
-            "onttsstatechanged" => DabEvent::Device(DeviceEvent::VoiceGuidanceEnabledChangedEvent(
-                resp.message["state"].as_bool().unwrap(),
-            )),
-            _ => DabEvent::None,
-        };
-        dab_event
+impl ThunderEventHandlerProvider for VoiceGuidanceEnabledChangedEventHandler {
+    fn provide(id: String) -> ThunderEventHandler {
+        ThunderEventHandler {
+            request: Self::get_device_request(),
+            handle: Self::handle,
+            listeners: vec![id],
+            id: Self::get_mapped_event(),
+        }
     }
 
-    fn parse_subscribe_params(&self, request: &DabRequest) -> DabSubscribeMessage {
-        let mut sub_message = DabSubscribeMessage {
-            subscribe: false,
-            context: None,
-        };
-
-        match request.payload {
-            DabRequestPayload::Device(DeviceRequest::OnVoiceGuidanceEnabledChanged(ref s)) => {
-                sub_message.subscribe = s.subscribe;
-            }
-            _ => {}
-        };
-        sub_message
+    fn event_name() -> String {
+        "onttsstatechanged".into()
     }
 
-    fn thunder_event_resolver_clone(&self) -> Box<dyn ThunderEventResolver + Send + Sync> {
-        Box::new(self.clone())
+    fn get_mapped_event() -> String {
+        "device.onVoiceGuidanceSettingsChanged".into()
+    }
+
+    fn module() -> String {
+        ThunderPlugin::TextToSpeech.callsign_string()
+    }
+}
+
+pub struct AudioChangedEvent;
+
+impl AudioChangedEvent {
+    pub fn handle(state: ThunderState, value: Value) {
+        let value = get_audio(value);
+        ThunderEventHandler::send_app_event(
+            state,
+            Self::get_mapped_event(),
+            serde_json::to_value(value).unwrap(),
+        )
+    }
+}
+
+impl ThunderEventHandlerProvider for AudioChangedEvent {
+    fn provide(id: String) -> ThunderEventHandler {
+        ThunderEventHandler {
+            request: Self::get_device_request(),
+            handle: Self::handle,
+            listeners: vec![id],
+            id: Self::get_mapped_event(),
+        }
+    }
+
+    fn event_name() -> String {
+        "audioFormatChanged".into()
+    }
+
+    fn get_mapped_event() -> String {
+        "device.onAudioChanged".into()
+    }
+
+    fn module() -> String {
+        ThunderPlugin::DisplaySettings.callsign_string()
     }
 }

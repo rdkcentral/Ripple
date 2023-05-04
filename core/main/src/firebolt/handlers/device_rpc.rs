@@ -25,6 +25,7 @@ use crate::{
             StorageProperty, EVENT_DEVICE_DEVICE_NAME_CHANGED, EVENT_DEVICE_NAME_CHANGED,
         },
     },
+    service::apps::app_events::AppEvents,
     state::platform_state::PlatformState,
     utils::rpc_utils::{rpc_add_event_listener, rpc_err},
 };
@@ -36,6 +37,11 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         device::{
+            device_events::{
+                DeviceEvent, DeviceEventRequest, AUDIO_CHANGED_EVENT, HDCP_CHANGED_EVENT,
+                HDR_CHANGED_EVENT, NETWORK_CHANGED_EVENT, SCREEN_RESOLUTION_CHANGED_EVENT,
+                VIDEO_RESOLUTION_CHANGED_EVENT,
+            },
             device_info_request::{DeviceInfoRequest, DeviceResponse},
             device_request::{
                 AudioProfile, DeviceVersionResponse, HdcpProfile, HdrProfile, NetworkResponse,
@@ -49,6 +55,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::CallContext,
     },
     extn::extn_client_message::ExtnResponse,
+    log::error,
     uuid::Uuid,
 };
 
@@ -358,44 +365,34 @@ impl DeviceServer for DeviceImpl {
 
     async fn on_hdcp_changed(
         &self,
-        _ctx: CallContext,
-        _request: ListenRequest,
+        ctx: CallContext,
+        request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
 
         AppEvents::add_listener(
-            &&self.platform_state.app_events_state,
+            &&self.state,
             HDCP_CHANGED_EVENT.to_string(),
             ctx.clone(),
             request,
         );
-        // This requires event subscription to DAB. Using Event Administrator to do DAB subscription
-        // and DAB event notifcation.
-        let em = DabEventAdministrator::get(self.platform_state.clone());
-        if listen {
-            // Collect the current HDCP Value.
-            let hdcp_val = self.hdcp(ctx.clone()).await.unwrap_or_default();
-            let _resp = em
-                .dab_event_subscribe(
-                    Some(ctx),
-                    HDCP_CHANGED_EVENT.into(),
-                    Some(json!(hdcp_val)),
-                    Some(Box::new(HDCPEventHandler {})),
-                )
-                .await;
-        } else {
-            let _resp = em
-                .dab_event_unsubscribe(
-                    Some(ctx),
-                    HDCP_CHANGED_EVENT.into(),
-                    Some(Box::new(HDCPEventHandler {})),
-                )
-                .await;
+
+        if let Err(e) = self
+            .state
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::InputChanged,
+                id: ctx.app_id,
+                subscribe: listen,
+            })
+            .await
+        {
+            error!("Error while registration");
         }
 
         Ok(ListenerResponse {
             listening: listen,
-            event: HDCP_CHANGED_EVENT,
+            event: HDCP_CHANGED_EVENT.to_string(),
         })
     }
 
@@ -421,44 +418,33 @@ impl DeviceServer for DeviceImpl {
 
     async fn on_hdr_changed(
         &self,
-        _ctx: CallContext,
-        _request: ListenRequest,
+        ctx: CallContext,
+        request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
         AppEvents::add_listener(
-            &&self.platform_state.app_events_state,
+            &&self.state,
             HDR_CHANGED_EVENT.to_string(),
             ctx.clone(),
             request,
         );
 
-        // This requires event subscription to DAB. Using EM to do DAB subscription
-        // and Event Handling.
-        let em = DabEventAdministrator::get(self.platform_state.clone());
-        if listen {
-            // Collect the current HDR Value.
-            let hdr_val = self.hdr(ctx.clone()).await.unwrap_or_default();
-            let _resp = em
-                .dab_event_subscribe(
-                    Some(ctx),
-                    HDR_CHANGED_EVENT.into(),
-                    Some(json!(hdr_val)),
-                    Some(Box::new(HDREventHandler {})),
-                )
-                .await;
-        } else {
-            let _resp = em
-                .dab_event_unsubscribe(
-                    Some(ctx),
-                    HDR_CHANGED_EVENT.into(),
-                    Some(Box::new(HDREventHandler {})),
-                )
-                .await;
+        if let Err(e) = self
+            .state
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::HdrChanged,
+                id: ctx.app_id,
+                subscribe: listen,
+            })
+            .await
+        {
+            error!("Error while registration");
         }
 
         Ok(ListenerResponse {
             listening: listen,
-            event: HDR_CHANGED_EVENT,
+            event: HDR_CHANGED_EVENT.to_string(),
         })
     }
 
@@ -484,42 +470,33 @@ impl DeviceServer for DeviceImpl {
 
     async fn on_screen_resolution_changed(
         &self,
-        _ctx: CallContext,
-        _request: ListenRequest,
+        ctx: CallContext,
+        request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
         AppEvents::add_listener(
-            &&self.platform_state.app_events_state,
+            &&self.state,
             SCREEN_RESOLUTION_CHANGED_EVENT.to_string(),
             ctx.clone(),
             request,
         );
 
-        // This requires event subscription to DAB. Using EM to do DAB subscription
-        // and Event Handling.
-        let em = DabEventAdministrator::get(self.platform_state.clone());
-        if listen {
-            let _resp = em
-                .dab_event_subscribe(
-                    Some(ctx),
-                    SCREEN_RESOLUTION_CHANGED_EVENT.into(),
-                    None,
-                    Some(Box::new(ScreenResolutionEventHandler {})),
-                )
-                .await;
-        } else {
-            let _resp = em
-                .dab_event_unsubscribe(
-                    Some(ctx),
-                    SCREEN_RESOLUTION_CHANGED_EVENT.into(),
-                    Some(Box::new(ScreenResolutionEventHandler {})),
-                )
-                .await;
+        if let Err(e) = self
+            .state
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::ScreenResolutionChanged,
+                id: ctx.app_id,
+                subscribe: listen,
+            })
+            .await
+        {
+            error!("Error while registration");
         }
 
         Ok(ListenerResponse {
             listening: listen,
-            event: SCREEN_RESOLUTION_CHANGED_EVENT,
+            event: SCREEN_RESOLUTION_CHANGED_EVENT.to_string(),
         })
     }
 
@@ -545,42 +522,33 @@ impl DeviceServer for DeviceImpl {
 
     async fn on_video_resolution_changed(
         &self,
-        _ctx: CallContext,
-        _request: ListenRequest,
+        ctx: CallContext,
+        request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
         AppEvents::add_listener(
-            &&self.platform_state.app_events_state,
+            &&self.state,
             VIDEO_RESOLUTION_CHANGED_EVENT.to_string(),
             ctx.clone(),
             request,
         );
 
-        // This requires event subscription to DAB. Using EM to do DAB subscription
-        // and Event Handling.
-        let em = DabEventAdministrator::get(self.platform_state.clone());
-        if listen {
-            let _resp = em
-                .dab_event_subscribe(
-                    Some(ctx),
-                    VIDEO_RESOLUTION_CHANGED_EVENT.into(),
-                    None,
-                    Some(Box::new(VideoResolutionEventHandler {})),
-                )
-                .await;
-        } else {
-            let _resp = em
-                .dab_event_unsubscribe(
-                    Some(ctx),
-                    VIDEO_RESOLUTION_CHANGED_EVENT.into(),
-                    Some(Box::new(VideoResolutionEventHandler {})),
-                )
-                .await;
+        if let Err(e) = self
+            .state
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::VideoResolutionChanged,
+                id: ctx.app_id,
+                subscribe: listen,
+            })
+            .await
+        {
+            error!("Error while registration");
         }
 
         Ok(ListenerResponse {
             listening: listen,
-            event: VIDEO_RESOLUTION_CHANGED_EVENT,
+            event: VIDEO_RESOLUTION_CHANGED_EVENT.to_string(),
         })
     }
 
@@ -627,20 +595,29 @@ impl DeviceServer for DeviceImpl {
 
     async fn on_audio_changed(
         &self,
-        _ctx: CallContext,
-        _request: ListenRequest,
+        ctx: CallContext,
+        request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
 
-        AppEvents::add_listener(
-            &&self.platform_state.app_events_state,
-            "device.onAudioChanged".to_string(),
-            ctx,
-            request,
-        );
+        AppEvents::add_listener(&&self.state, AUDIO_CHANGED_EVENT.to_string(), ctx, request);
+
+        if let Err(e) = self
+            .state
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::AudioChanged,
+                id: ctx.app_id,
+                subscribe: listen,
+            })
+            .await
+        {
+            error!("Error while registration");
+        }
+
         Ok(ListenerResponse {
             listening: listen,
-            event: "device.onAudioChanged",
+            event: AUDIO_CHANGED_EVENT.to_string(),
         })
     }
 
@@ -666,42 +643,33 @@ impl DeviceServer for DeviceImpl {
 
     async fn on_network_changed(
         &self,
-        _ctx: CallContext,
-        _request: ListenRequest,
+        ctx: CallContext,
+        request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
         AppEvents::add_listener(
-            &&self.platform_state.app_events_state,
+            &&self.state,
             NETWORK_CHANGED_EVENT.to_string(),
             ctx.clone(),
             request,
         );
 
-        // This requires event subscription to DAB. Using EM to do DAB subscription
-        // and Event Handling.
-        let em = DabEventAdministrator::get(self.platform_state.clone());
-        if listen {
-            let _resp = em
-                .dab_event_subscribe(
-                    Some(ctx),
-                    NETWORK_CHANGED_EVENT.into(),
-                    None,
-                    Some(Box::new(NetworkEventHandler {})),
-                )
-                .await;
-        } else {
-            let _resp = em
-                .dab_event_unsubscribe(
-                    Some(ctx),
-                    NETWORK_CHANGED_EVENT.into(),
-                    Some(Box::new(NetworkEventHandler {})),
-                )
-                .await;
+        if let Err(e) = self
+            .state
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::NetworkChanged,
+                id: ctx.app_id,
+                subscribe: listen,
+            })
+            .await
+        {
+            error!("Error while registration");
         }
 
         Ok(ListenerResponse {
             listening: listen,
-            event: NETWORK_CHANGED_EVENT,
+            event: NETWORK_CHANGED_EVENT.to_string(),
         })
     }
 

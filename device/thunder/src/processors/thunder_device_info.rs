@@ -48,7 +48,8 @@ use thunder_ripple_sdk::ripple_sdk::{
         extn_client_message::{ExtnMessage, ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     },
     log::{error, info},
-    serde_json, tokio,
+    serde_json::{self, Value},
+    tokio,
     utils::error::RippleError,
 };
 use thunder_ripple_sdk::{
@@ -289,65 +290,7 @@ impl ThunderDeviceInfoRequestProcessor {
             return false;
         }
 
-        let mut hm: HashMap<AudioProfile, bool> = HashMap::new();
-        hm.insert(AudioProfile::Stereo, false);
-        hm.insert(AudioProfile::DolbyDigital5_1, false);
-        hm.insert(AudioProfile::DolbyDigital5_1Plus, false);
-        hm.insert(AudioProfile::DolbyDigital7_1, false);
-        hm.insert(AudioProfile::DolbyDigital7_1Plus, false);
-        hm.insert(AudioProfile::DolbyAtmos, false);
-
-        if response.message.get("supportedAudioFormat").is_none() {
-            error!("{}", response.message);
-            return false;
-        }
-        let supported_profiles = response.message["supportedAudioFormat"].as_array().unwrap();
-        for profile in supported_profiles {
-            let profile_name = profile.as_str().unwrap();
-            match profile_name {
-                "PCM" => {
-                    hm.insert(AudioProfile::Stereo, true);
-                    hm.insert(AudioProfile::DolbyDigital5_1, true);
-                }
-                "DOLBY AC3" => {
-                    hm.insert(AudioProfile::Stereo, true);
-                    hm.insert(AudioProfile::DolbyDigital5_1, true);
-                }
-                "DOLBY EAC3" => {
-                    hm.insert(AudioProfile::Stereo, true);
-                    hm.insert(AudioProfile::DolbyDigital5_1, true);
-                }
-                "DOLBY AC4" => {
-                    hm.insert(AudioProfile::Stereo, true);
-                    hm.insert(AudioProfile::DolbyDigital5_1, true);
-                    hm.insert(AudioProfile::DolbyDigital7_1, true);
-                }
-                "DOLBY TRUEHD" => {
-                    hm.insert(AudioProfile::Stereo, true);
-                    hm.insert(AudioProfile::DolbyDigital5_1, true);
-                    hm.insert(AudioProfile::DolbyDigital7_1, true);
-                }
-                "DOLBY EAC3 ATMOS" => {
-                    hm.insert(AudioProfile::Stereo, true);
-                    hm.insert(AudioProfile::DolbyDigital5_1, true);
-                    hm.insert(AudioProfile::DolbyDigital7_1, true);
-                    hm.insert(AudioProfile::DolbyAtmos, true);
-                }
-                "DOLBY TRUEHD ATMOS" => {
-                    hm.insert(AudioProfile::Stereo, true);
-                    hm.insert(AudioProfile::DolbyDigital5_1, true);
-                    hm.insert(AudioProfile::DolbyDigital7_1, true);
-                    hm.insert(AudioProfile::DolbyAtmos, true);
-                }
-                "DOLBY AC4 ATMOS" => {
-                    hm.insert(AudioProfile::Stereo, true);
-                    hm.insert(AudioProfile::DolbyDigital5_1, true);
-                    hm.insert(AudioProfile::DolbyDigital7_1, true);
-                    hm.insert(AudioProfile::DolbyAtmos, true);
-                }
-                _ => (),
-            }
-        }
+        let hm = get_audio(response.message);
         Self::respond(
             state.get_client(),
             req,
@@ -363,7 +306,7 @@ impl ThunderDeviceInfoRequestProcessor {
         .is_ok()
     }
 
-    async fn hdcp_support(state: ThunderState, req: ExtnMessage) -> bool {
+    pub async fn get_hdcp_support(state: ThunderState) -> HashMap<HdcpProfile, bool> {
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -384,6 +327,11 @@ impl ThunderDeviceInfoRequestProcessor {
         if hdcp_version.contains("2.2") {
             hdcp_response.insert(HdcpProfile::Hdcp2_2, is_hdcp_supported);
         }
+        hdcp_response
+    }
+
+    async fn hdcp_support(state: ThunderState, req: ExtnMessage) -> bool {
+        let hdcp_response = Self::get_hdcp_support(state.clone()).await;
         Self::respond(
             state.get_client(),
             req,
@@ -424,7 +372,7 @@ impl ThunderDeviceInfoRequestProcessor {
         .is_ok()
     }
 
-    async fn hdr(state: ThunderState, req: ExtnMessage) -> bool {
+    pub async fn get_hdr(state: ThunderState) -> HashMap<HdrProfile, bool> {
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -454,6 +402,11 @@ impl ThunderDeviceInfoRequestProcessor {
             HdrProfile::Technicolor,
             0 != (supported_cap & hdr_flags::HDRSTANDARD_TECHNICOLOR_PRIME),
         );
+        hm
+    }
+
+    async fn hdr(state: ThunderState, req: ExtnMessage) -> bool {
+        let hm = Self::get_hdr(state.clone()).await;
         Self::respond(
             state.get_client(),
             req,
@@ -801,6 +754,68 @@ pub fn get_dimension_from_resolution(resolution: &str) -> Vec<i32> {
         }
         _ => Resolution::ResolutionDefault.dimension(),
     }
+}
+
+pub fn get_audio(value: Value) -> HashMap<AudioProfile, bool> {
+    let mut hm: HashMap<AudioProfile, bool> = HashMap::new();
+    hm.insert(AudioProfile::Stereo, false);
+    hm.insert(AudioProfile::DolbyDigital5_1, false);
+    hm.insert(AudioProfile::DolbyDigital5_1Plus, false);
+    hm.insert(AudioProfile::DolbyDigital7_1, false);
+    hm.insert(AudioProfile::DolbyDigital7_1Plus, false);
+    hm.insert(AudioProfile::DolbyAtmos, false);
+
+    if value.get("supportedAudioFormat").is_none() {
+        return hm;
+    }
+    let supported_profiles = value["supportedAudioFormat"].as_array().unwrap();
+    for profile in supported_profiles {
+        let profile_name = profile.as_str().unwrap();
+        match profile_name {
+            "PCM" => {
+                hm.insert(AudioProfile::Stereo, true);
+                hm.insert(AudioProfile::DolbyDigital5_1, true);
+            }
+            "DOLBY AC3" => {
+                hm.insert(AudioProfile::Stereo, true);
+                hm.insert(AudioProfile::DolbyDigital5_1, true);
+            }
+            "DOLBY EAC3" => {
+                hm.insert(AudioProfile::Stereo, true);
+                hm.insert(AudioProfile::DolbyDigital5_1, true);
+            }
+            "DOLBY AC4" => {
+                hm.insert(AudioProfile::Stereo, true);
+                hm.insert(AudioProfile::DolbyDigital5_1, true);
+                hm.insert(AudioProfile::DolbyDigital7_1, true);
+            }
+            "DOLBY TRUEHD" => {
+                hm.insert(AudioProfile::Stereo, true);
+                hm.insert(AudioProfile::DolbyDigital5_1, true);
+                hm.insert(AudioProfile::DolbyDigital7_1, true);
+            }
+            "DOLBY EAC3 ATMOS" => {
+                hm.insert(AudioProfile::Stereo, true);
+                hm.insert(AudioProfile::DolbyDigital5_1, true);
+                hm.insert(AudioProfile::DolbyDigital7_1, true);
+                hm.insert(AudioProfile::DolbyAtmos, true);
+            }
+            "DOLBY TRUEHD ATMOS" => {
+                hm.insert(AudioProfile::Stereo, true);
+                hm.insert(AudioProfile::DolbyDigital5_1, true);
+                hm.insert(AudioProfile::DolbyDigital7_1, true);
+                hm.insert(AudioProfile::DolbyAtmos, true);
+            }
+            "DOLBY AC4 ATMOS" => {
+                hm.insert(AudioProfile::Stereo, true);
+                hm.insert(AudioProfile::DolbyDigital5_1, true);
+                hm.insert(AudioProfile::DolbyDigital7_1, true);
+                hm.insert(AudioProfile::DolbyAtmos, true);
+            }
+            _ => (),
+        }
+    }
+    hm
 }
 
 impl ExtnStreamProcessor for ThunderDeviceInfoRequestProcessor {

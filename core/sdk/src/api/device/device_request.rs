@@ -18,7 +18,11 @@ use std::str::FromStr;
 // limitations under the License.
 use serde::{Deserialize, Serialize};
 
-use crate::api::firebolt::fb_openrpc::FireboltSemanticVersion;
+use crate::{
+    api::firebolt::fb_openrpc::FireboltSemanticVersion,
+    extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
+    framework::ripple_contract::RippleContract,
+};
 
 use super::{
     device_accessory::RemoteAccessoryRequest, device_browser::BrowserRequest,
@@ -189,4 +193,53 @@ pub struct LanguageProperty {
 pub struct TimezoneProperty {
     //#[serde(with = "timezone_serde")]
     pub value: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub enum PowerState {
+    Standby,
+    DeepSleep,
+    LightSleep,
+    On,
+}
+impl FromStr for PowerState {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "STANDBY" => Ok(PowerState::Standby),
+            "DEEP_SLEEP" => Ok(PowerState::DeepSleep),
+            "LIGHT_SLEEP" => Ok(PowerState::LightSleep),
+            "ON" => Ok(PowerState::On),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemPowerState {
+    pub power_state: PowerState,
+    pub current_power_state: PowerState,
+}
+
+impl ExtnPayloadProvider for SystemPowerState {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Event(ExtnEvent::PowerState(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<SystemPowerState> {
+        match payload {
+            ExtnPayload::Event(request) => match request {
+                ExtnEvent::PowerState(r) => return Some(r),
+                _ => {}
+            },
+            _ => {}
+        }
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::PowerStateEvent
+    }
 }

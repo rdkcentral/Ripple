@@ -25,6 +25,10 @@ pub mod bootstrap {
 pub mod processors {
     pub mod thunder_browser;
     pub mod thunder_device_info;
+    pub mod thunder_events;
+    pub mod events {
+        pub mod thunder_event_handlers;
+    }
     pub mod thunder_persistent_store;
     pub mod thunder_remote;
     pub mod thunder_wifi;
