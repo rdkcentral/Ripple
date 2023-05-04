@@ -361,8 +361,42 @@ impl DeviceServer for DeviceImpl {
         _ctx: CallContext,
         _request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        //TODO
-        todo!();
+        let listen = request.listen;
+
+        AppEvents::add_listener(
+            &&self.platform_state.app_events_state,
+            HDCP_CHANGED_EVENT.to_string(),
+            ctx.clone(),
+            request,
+        );
+        // This requires event subscription to DAB. Using Event Administrator to do DAB subscription
+        // and DAB event notifcation.
+        let em = DabEventAdministrator::get(self.platform_state.clone());
+        if listen {
+            // Collect the current HDCP Value.
+            let hdcp_val = self.hdcp(ctx.clone()).await.unwrap_or_default();
+            let _resp = em
+                .dab_event_subscribe(
+                    Some(ctx),
+                    HDCP_CHANGED_EVENT.into(),
+                    Some(json!(hdcp_val)),
+                    Some(Box::new(HDCPEventHandler {})),
+                )
+                .await;
+        } else {
+            let _resp = em
+                .dab_event_unsubscribe(
+                    Some(ctx),
+                    HDCP_CHANGED_EVENT.into(),
+                    Some(Box::new(HDCPEventHandler {})),
+                )
+                .await;
+        }
+
+        Ok(ListenerResponse {
+            listening: listen,
+            event: HDCP_CHANGED_EVENT,
+        })
     }
 
     async fn hdr(&self, _ctx: CallContext) -> RpcResult<HashMap<HdrProfile, bool>> {
@@ -390,8 +424,42 @@ impl DeviceServer for DeviceImpl {
         _ctx: CallContext,
         _request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        //TODO
-        todo!();
+        let listen = request.listen;
+        AppEvents::add_listener(
+            &&self.platform_state.app_events_state,
+            HDR_CHANGED_EVENT.to_string(),
+            ctx.clone(),
+            request,
+        );
+
+        // This requires event subscription to DAB. Using EM to do DAB subscription
+        // and Event Handling.
+        let em = DabEventAdministrator::get(self.platform_state.clone());
+        if listen {
+            // Collect the current HDR Value.
+            let hdr_val = self.hdr(ctx.clone()).await.unwrap_or_default();
+            let _resp = em
+                .dab_event_subscribe(
+                    Some(ctx),
+                    HDR_CHANGED_EVENT.into(),
+                    Some(json!(hdr_val)),
+                    Some(Box::new(HDREventHandler {})),
+                )
+                .await;
+        } else {
+            let _resp = em
+                .dab_event_unsubscribe(
+                    Some(ctx),
+                    HDR_CHANGED_EVENT.into(),
+                    Some(Box::new(HDREventHandler {})),
+                )
+                .await;
+        }
+
+        Ok(ListenerResponse {
+            listening: listen,
+            event: HDR_CHANGED_EVENT,
+        })
     }
 
     async fn screen_resolution(&self, _ctx: CallContext) -> RpcResult<Vec<i32>> {
@@ -419,8 +487,40 @@ impl DeviceServer for DeviceImpl {
         _ctx: CallContext,
         _request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        //TODO
-        todo!();
+        let listen = request.listen;
+        AppEvents::add_listener(
+            &&self.platform_state.app_events_state,
+            SCREEN_RESOLUTION_CHANGED_EVENT.to_string(),
+            ctx.clone(),
+            request,
+        );
+
+        // This requires event subscription to DAB. Using EM to do DAB subscription
+        // and Event Handling.
+        let em = DabEventAdministrator::get(self.platform_state.clone());
+        if listen {
+            let _resp = em
+                .dab_event_subscribe(
+                    Some(ctx),
+                    SCREEN_RESOLUTION_CHANGED_EVENT.into(),
+                    None,
+                    Some(Box::new(ScreenResolutionEventHandler {})),
+                )
+                .await;
+        } else {
+            let _resp = em
+                .dab_event_unsubscribe(
+                    Some(ctx),
+                    SCREEN_RESOLUTION_CHANGED_EVENT.into(),
+                    Some(Box::new(ScreenResolutionEventHandler {})),
+                )
+                .await;
+        }
+
+        Ok(ListenerResponse {
+            listening: listen,
+            event: SCREEN_RESOLUTION_CHANGED_EVENT,
+        })
     }
 
     async fn video_resolution(&self, _ctx: CallContext) -> RpcResult<Vec<i32>> {
@@ -448,8 +548,40 @@ impl DeviceServer for DeviceImpl {
         _ctx: CallContext,
         _request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        //TODO
-        todo!();
+        let listen = request.listen;
+        AppEvents::add_listener(
+            &&self.platform_state.app_events_state,
+            VIDEO_RESOLUTION_CHANGED_EVENT.to_string(),
+            ctx.clone(),
+            request,
+        );
+
+        // This requires event subscription to DAB. Using EM to do DAB subscription
+        // and Event Handling.
+        let em = DabEventAdministrator::get(self.platform_state.clone());
+        if listen {
+            let _resp = em
+                .dab_event_subscribe(
+                    Some(ctx),
+                    VIDEO_RESOLUTION_CHANGED_EVENT.into(),
+                    None,
+                    Some(Box::new(VideoResolutionEventHandler {})),
+                )
+                .await;
+        } else {
+            let _resp = em
+                .dab_event_unsubscribe(
+                    Some(ctx),
+                    VIDEO_RESOLUTION_CHANGED_EVENT.into(),
+                    Some(Box::new(VideoResolutionEventHandler {})),
+                )
+                .await;
+        }
+
+        Ok(ListenerResponse {
+            listening: listen,
+            event: VIDEO_RESOLUTION_CHANGED_EVENT,
+        })
     }
 
     async fn make(&self, _ctx: CallContext) -> RpcResult<String> {
@@ -498,8 +630,18 @@ impl DeviceServer for DeviceImpl {
         _ctx: CallContext,
         _request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        //TODO
-        todo!();
+        let listen = request.listen;
+
+        AppEvents::add_listener(
+            &&self.platform_state.app_events_state,
+            "device.onAudioChanged".to_string(),
+            ctx,
+            request,
+        );
+        Ok(ListenerResponse {
+            listening: listen,
+            event: "device.onAudioChanged",
+        })
     }
 
     async fn network(&self, _ctx: CallContext) -> RpcResult<NetworkResponse> {
@@ -527,8 +669,40 @@ impl DeviceServer for DeviceImpl {
         _ctx: CallContext,
         _request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        //TODO
-        todo!();
+        let listen = request.listen;
+        AppEvents::add_listener(
+            &&self.platform_state.app_events_state,
+            NETWORK_CHANGED_EVENT.to_string(),
+            ctx.clone(),
+            request,
+        );
+
+        // This requires event subscription to DAB. Using EM to do DAB subscription
+        // and Event Handling.
+        let em = DabEventAdministrator::get(self.platform_state.clone());
+        if listen {
+            let _resp = em
+                .dab_event_subscribe(
+                    Some(ctx),
+                    NETWORK_CHANGED_EVENT.into(),
+                    None,
+                    Some(Box::new(NetworkEventHandler {})),
+                )
+                .await;
+        } else {
+            let _resp = em
+                .dab_event_unsubscribe(
+                    Some(ctx),
+                    NETWORK_CHANGED_EVENT.into(),
+                    Some(Box::new(NetworkEventHandler {})),
+                )
+                .await;
+        }
+
+        Ok(ListenerResponse {
+            listening: listen,
+            event: NETWORK_CHANGED_EVENT,
+        })
     }
 
     // async fn provision(

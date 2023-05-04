@@ -105,13 +105,37 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(
-            &self.state,
-            ctx,
-            request,
-            EVENT_VOICE_GUIDANCE_SETTINGS_CHANGED,
-        )
-        .await
+        let listen = request.listen;
+        AppEvents::add_listener(
+            &platform_state.app_events_state,
+            String::from(event_name),
+            ctx.clone(),
+            request.clone(),
+        );
+    
+        if listen {
+            let _ = DabEventAdministrator::get(platform_state.clone())
+                .dab_event_subscribe(
+                    Some(ctx.clone()),
+                    String::from(event_name),
+                    None,
+                    Some(Box::new(VoiceGuidanceEnabledChangedEventHandler {})),
+                )
+                .await;
+        } else {
+            let _ = DabEventAdministrator::get(platform_state.clone())
+                .dab_event_unsubscribe(
+                    Some(ctx.clone()),
+                    String::from(event_name),
+                    Some(Box::new(VoiceGuidanceEnabledChangedEventHandler {})),
+                )
+                .await;
+        }
+    
+        Ok(ListenerResponse {
+            listening: listen,
+            event: VOICE_GUIDANCE_ENABLED_CHANGED_EVENT,
+        })
     }
 
     async fn voice_guidance_settings_enabled_rpc(&self, _ctx: CallContext) -> RpcResult<bool> {
