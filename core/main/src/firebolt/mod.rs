@@ -27,7 +27,9 @@ pub mod handlers {
     pub mod lcm_rpc;
     pub mod lifecycle_rpc;
     pub mod localization_rpc;
+    pub mod parameters_rpc;
     pub mod pin_rpc;
+    pub mod privacy_rpc;
     pub mod profile_rpc;
     pub mod voice_guidance_rpc;
     pub mod wifi_rpc;

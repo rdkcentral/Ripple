@@ -740,124 +740,92 @@ impl ThunderDeviceInfoRequestProcessor {
         Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
     }
 
-    async fn voice_guidance_enabled(self: Box<Self>, request: DabRequest) {
-        let parent_span = match request.parent_span.clone() {
-            Some(s) => s,
-            None => info_span!("voice guidance enabled"),
-        };
-        let response = self
-            .client
-            .clone()
-            .call_thunder(
-                &ThunderPlugin::TextToSpeech.method("isttsenabled"),
-                None,
-                Some(parent_span.clone()),
-            )
+    async fn voice_guidance_enabled(state: ThunderState, request: ExtnMessage) -> bool {
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::TextToSpeech.method("isttsenabled"),
+                params: None,
+            })
             .await;
-        if response.message.get("success").is_none()
-            || response.message["success"].as_bool().unwrap() == false
-        {
-            error!("{}", response.message);
-            request.respond_and_log(Err(DabError::OsError));
-            return;
+        if let Some(v) = response.message["isenabled"].as_bool() {
+            return Self::respond(state.get_client(), request, ExtnResponse::Boolean(v))
+                .await
+                .is_ok();
         }
-        info!("{}", response.message);
-        let enabled = response.message["isenabled"].as_bool().unwrap();
-        request.respond_and_log(Ok(DabResponsePayload::VoiceGuidanceEnabledResponse(
-            enabled,
-        )));
+        Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
     }
-    
-    async fn voice_guidance_set_enabled(self: Box<Self>, request: DabRequest, enabled: bool) {
-        let parent_span = match request.parent_span.clone() {
-            Some(s) => s,
-            None => info_span!("set voice guidance enabled"),
-        };
-        let params = Some(ThunderParams::Json(
+
+    async fn voice_guidance_set_enabled(
+        state: ThunderState,
+        request: ExtnMessage,
+        enabled: bool,
+    ) -> bool {
+        let params = Some(DeviceChannelParams::Json(
             json!({
                 "enabletts": enabled,
             })
             .to_string(),
         ));
-        let response = self
-            .client
-            .clone()
-            .call_thunder(
-                &ThunderPlugin::TextToSpeech.method("enabletts"),
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::TextToSpeech.method("enabletts"),
                 params,
-                Some(parent_span.clone()),
-            )
+            })
             .await;
-        if response.message.get("success").is_none()
-            || response.message["success"].as_bool().unwrap() == false
-        {
-            error!("{}", response.message);
-            request.respond_and_log(Err(DabError::OsError));
-            return;
+        if response.message.get("success").is_some() {
+            if let Some(_) = response.message["success"].as_bool() {
+                return Self::ack(state.get_client(), request).await.is_ok();
+            }
         }
-        info!("{}", response.message);
-        request.respond_and_log(Ok(DabResponsePayload::VoiceGuidanceEnabledResponse(
-            enabled,
-        )));
+        Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
     }
-    
-    async fn voice_guidance_speed(self: Box<Self>, request: DabRequest) {
-        let parent_span = match request.parent_span.clone() {
-            Some(s) => s,
-            None => info_span!("voice guidance enabled"),
-        };
-        let response = self
-            .client
-            .clone()
-            .call_thunder(
-                &ThunderPlugin::TextToSpeech.method("getttsconfiguration"),
-                None,
-                Some(parent_span.clone()),
-            )
+
+    async fn voice_guidance_speed(state: ThunderState, request: ExtnMessage) -> bool {
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::TextToSpeech.method("getttsconfiguration"),
+                params: None,
+            })
             .await;
-        if response.message.get("success").is_none()
-            || response.message["success"].as_bool().unwrap() == false
-        {
-            error!("{}", response.message);
-            request.respond_and_log(Err(DabError::OsError));
-            return;
+        if let Some(rate) = response.message["rate"].as_f64() {
+            return Self::respond(
+                state.get_client(),
+                request,
+                ExtnResponse::Float(scale_voice_speed_from_thunder_to_firebolt(rate as f32)),
+            )
+            .await
+            .is_ok();
         }
-        info!("{}", response.message);
-        let rate = scale_voice_speed_from_thunder_to_firebolt(
-            response.message["rate"].as_f64().unwrap() as f32,
-        );
-        request.respond_and_log(Ok(DabResponsePayload::VoiceGuidanceSpeedResponse(rate)));
+        Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
     }
-    
-    async fn voice_guidance_set_speed(self: Box<Self>, request: DabRequest, speed: f32) {
-        let parent_span = match request.parent_span.clone() {
-            Some(s) => s,
-            None => info_span!("set voice guidance speed"),
-        };
-        let params = Some(ThunderParams::Json(
+
+    async fn voice_guidance_set_speed(
+        state: ThunderState,
+        request: ExtnMessage,
+        speed: f32,
+    ) -> bool {
+        let params = Some(DeviceChannelParams::Json(
             json!({
                 "rate": scale_voice_speed_from_firebolt_to_thunder(speed),
             })
             .to_string(),
         ));
-        let response = self
-            .client
-            .clone()
-            .call_thunder(
-                &ThunderPlugin::TextToSpeech.method("setttsconfiguration"),
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::TextToSpeech.method("setttsconfiguration"),
                 params,
-                Some(parent_span.clone()),
-            )
+            })
             .await;
-        if response.message.get("success").is_none()
-            || response.message["success"].as_bool().unwrap() == false
-        {
-            error!("{}", response.message);
-            request.respond_and_log(Err(DabError::OsError));
-            return;
+        if response.message.get("success").is_some() {
+            if let Some(_) = response.message["success"].as_bool() {
+                return Self::ack(state.get_client(), request).await.is_ok();
+            }
         }
-        info!("{}", response.message);
-        request.respond_and_log(Ok(DabResponsePayload::VoiceGuidanceSpeedResponse(speed)));
+        Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
     }
 }
 
@@ -938,6 +906,31 @@ pub fn get_audio(value: Value) -> HashMap<AudioProfile, bool> {
     hm
 }
 
+/*
+per https://ccp.sys.comcast.net/browse/RPPL-283
+Firebolt spec range for this value is 0 >= value <= 10
+but...
+Thunder is 1..100
+for
+
+*/
+fn scale_voice_speed_from_thunder_to_firebolt(thunder_voice_speed: f32) -> f32 {
+    thunder_voice_speed / 50.0
+}
+/*
+Note that this returns an f32 (when it should seemingly return i32), which is to make it compatible with
+DeviceRequest::VoiceGuidanceSetSpeed(speed).
+*/
+fn scale_voice_speed_from_firebolt_to_thunder(firebolt_voice_speed: f32) -> f32 {
+    if firebolt_voice_speed <= 1.0 {
+        firebolt_voice_speed * 50.0
+    } else if firebolt_voice_speed < 2.0 {
+        (50.0 * (firebolt_voice_speed / 10.0)) + 50.0
+    } else {
+        100.0
+    }
+}
+
 impl ExtnStreamProcessor for ThunderDeviceInfoRequestProcessor {
     type STATE = ThunderState;
     type VALUE = DeviceInfoRequest;
@@ -991,6 +984,18 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             }
             DeviceInfoRequest::SetTimezone(timezone_params) => {
                 Self::set_timezone(state.clone(), timezone_params, msg).await
+            }
+            DeviceInfoRequest::SetVoiceGuidanceEnabled(v) => {
+                Self::voice_guidance_set_enabled(state.clone(), msg, v).await
+            }
+            DeviceInfoRequest::VoiceGuidanceEnabled => {
+                Self::voice_guidance_enabled(state.clone(), msg).await
+            }
+            DeviceInfoRequest::SetVoiceGuidanceSpeed(s) => {
+                Self::voice_guidance_set_speed(state.clone(), msg, s).await
+            }
+            DeviceInfoRequest::VoiceGuidanceSpeed => {
+                Self::voice_guidance_speed(state.clone(), msg).await
             }
             _ => false,
         }
