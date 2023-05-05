@@ -35,6 +35,7 @@ use crate::{
             distributor_request::DistributorRequest,
         },
         firebolt::{
+            fb_advertising::{AdIdResponse, AdInitObjectResponse, AdvertisingRequest},
             fb_authentication::TokenResult,
             fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
             fb_lifecycle_management::LifecycleManagementRequest,
@@ -233,6 +234,7 @@ pub enum ExtnRequest {
     AccountSession(AccountSessionRequest),
     BridgeProtocolRequest(BridgeProtocolRequest),
     SessionToken(SessionTokenRequest),
+    Advertising(AdvertisingRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -255,6 +257,8 @@ pub enum ExtnResponse {
     NetworkResponse(NetworkResponse),
     AvailableTimezones(Vec<String>),
     Token(TokenResult),
+    AdInitObject(AdInitObjectResponse),
+    AdIdObject(AdIdResponse),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {
