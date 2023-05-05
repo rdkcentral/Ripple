@@ -205,31 +205,6 @@ impl ThunderEventHandler {
         }
     }
 
-    pub fn build_callback_payload(
-        callback_type: DeviceEventCallback,
-        event_name: String,
-        payload: Option<ExtnEvent>,
-        value: Option<Value>,
-    ) -> Result<ExtnEvent, RippleError> {
-        match callback_type {
-            DeviceEventCallback::FireboltAppEvent => {
-                if let Some(result) = value {
-                    return Ok(ExtnEvent::AppEvent(AppEvent {
-                        context: None,
-                        event_name,
-                        result,
-                    }));
-                }
-            }
-            DeviceEventCallback::ExtnEvent => {
-                if let Some(p) = payload {
-                    return Ok(p);
-                }
-            }
-        }
-        Err(RippleError::InvalidInput)
-    }
-
     pub fn callback_device_event(state: ThunderState, event_name: String, event: ExtnEvent) {
         if state.event_processor.check_last_event(&event_name, &event) {
             state.event_processor.add_last_event(&event_name, &event);
