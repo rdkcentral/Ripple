@@ -17,6 +17,7 @@
 use ripple_sdk::api::firebolt::fb_capabilities::{DenyReason, DenyReasonWithCap};
 use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
 
+use crate::state::cap::grant_state::GrantState;
 use crate::state::{cap::permitted_state::PermissionHandler, platform_state::PlatformState};
 use ripple_sdk::log::debug;
 
@@ -50,6 +51,16 @@ impl FireboltGatekeeper {
                 return Err(e);
             } else {
                 debug!("check_permitted for method ({}) succeded", request.method);
+                //usergrants check
+                if let Err(e) = GrantState::check_with_roles(&state, &request.ctx, caps).await {
+                    debug!(
+                        "check_with_roles for method ({}) failed. Error: {:?}",
+                        request.method, e
+                    );
+                    return Err(e);
+                } else {
+                    debug!("check_permitted for method ({}) succeded", request.method);
+                }
             }
         } else {
             // Couldnt find any capabilities for the method
