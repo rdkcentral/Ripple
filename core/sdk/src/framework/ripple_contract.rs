@@ -46,6 +46,7 @@ pub enum RippleContract {
     AppEvents,
     DeviceEvents,
     PowerStateEvent,
+    VoiceGuidance,
 }
 
 impl TryFrom<String> for RippleContract {

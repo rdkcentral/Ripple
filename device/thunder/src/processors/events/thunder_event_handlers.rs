@@ -23,7 +23,10 @@ use thunder_ripple_sdk::{
     events::thunder_event_processor::{ThunderEventHandler, ThunderEventHandlerProvider},
     ripple_sdk::{
         api::device::{
-            device_events::{HDCP_CHANGED_EVENT, HDR_CHANGED_EVENT, SCREEN_RESOLUTION_CHANGED_EVENT, VIDEO_RESOLUTION_CHANGED_EVENT, NETWORK_CHANGED_EVENT},
+            device_events::{
+                HDCP_CHANGED_EVENT, HDR_CHANGED_EVENT, NETWORK_CHANGED_EVENT,
+                SCREEN_RESOLUTION_CHANGED_EVENT, VIDEO_RESOLUTION_CHANGED_EVENT,
+            },
             device_request::{
                 NetworkResponse, NetworkState, NetworkType, PowerState, SystemPowerState,
             },

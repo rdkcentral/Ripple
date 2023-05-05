@@ -24,7 +24,10 @@ use ripple_sdk::{
     tokio::sync::oneshot,
 };
 
-use crate::{service::apps::app_events::{AppEvents, AppEventDecorator}, state::platform_state::PlatformState};
+use crate::{
+    service::apps::app_events::{AppEventDecorator, AppEvents},
+    state::platform_state::PlatformState,
+};
 
 pub fn rpc_err(msg: impl Into<String>) -> Error {
     Error::Custom(msg.into())
@@ -64,11 +67,17 @@ pub async fn rpc_add_event_listener_with_decorator(
     ctx: CallContext,
     request: ListenRequest,
     event_name: &'static str,
-    decorator: Option<Box<dyn AppEventDecorator + Send + Sync>>
+    decorator: Option<Box<dyn AppEventDecorator + Send + Sync>>,
 ) -> RpcResult<ListenerResponse> {
     let listen = request.listen;
 
-    AppEvents::add_listener_with_decorator(&&state, event_name.to_string(), ctx, request, decorator);
+    AppEvents::add_listener_with_decorator(
+        &&state,
+        event_name.to_string(),
+        ctx,
+        request,
+        decorator,
+    );
     Ok(ListenerResponse {
         listening: listen,
         event: event_name.into(),

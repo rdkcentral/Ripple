@@ -240,6 +240,7 @@ pub enum ExtnResponse {
     String(String),
     Boolean(bool),
     Number(u32),
+    Float(f32),
     Value(Value),
     StringMap(HashMap<String, String>),
     List(Vec<String>),

@@ -47,6 +47,10 @@ pub enum DeviceInfoRequest {
     SetTimezone(String),
     GetTimezone,
     GetAvailableTimezones,
+    VoiceGuidanceEnabled,
+    SetVoiceGuidanceEnabled(bool),
+    VoiceGuidanceSpeed,
+    SetVoiceGuidanceSpeed(f32),
 }
 
 impl ExtnPayloadProvider for DeviceInfoRequest {

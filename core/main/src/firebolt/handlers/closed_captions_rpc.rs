@@ -29,8 +29,9 @@ use crate::{
             EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL,
         },
     },
+    service::apps::app_events::{AppEventDecorationError, AppEventDecorator},
     state::platform_state::PlatformState,
-    utils::rpc_utils::{rpc_add_event_listener, rpc_add_event_listener_with_decorator}, service::apps::app_events::{AppEventDecorator, AppEventDecorationError},
+    utils::rpc_utils::{rpc_add_event_listener, rpc_add_event_listener_with_decorator},
 };
 
 use jsonrpsee::{
@@ -64,48 +65,6 @@ impl AppEventDecorator for CCEventDecorator {
         use crate::processor::storage::storage_manager::StorageManager as SM;
         use StorageProperty::*;
         let enabled_res = ClosedcaptionsImpl::closed_captions_settings_enabled(&ps).await;
-        if let Err(_) = enabled_res {
-            return Err(AppEventDecorationError {});
-        }
-        let styles: ClosedCaptionStyle = ClosedCaptionStyle {
-            font_family: SM::get_string(&ps, ClosedCaptionsFontFamily).await?,
-            font_size: SM::get_number_as_f32(&ps, ClosedCaptionsFontSize).await?,
-            font_color: SM::get_string(&ps, ClosedCaptionsFontColor).await?,
-            font_edge: SM::get_string(&ps, ClosedCaptionsFontEdge).await?,
-            font_edge_color: SM::get_string(&ps, ClosedCaptionsFontEdgeColor).await?,
-            font_opacity: SM::get_number_as_u32(&ps, ClosedCaptionsFontOpacity).await?,
-            background_color: SM::get_string(&ps, ClosedCaptionsBackgroundColor).await?,
-            background_opacity: SM::get_number_as_u32(&ps, ClosedCaptionsBackgroundOpacity).await?,
-            text_align: SM::get_string(&ps, ClosedCaptionsTextAlign).await?,
-            text_align_vertical: SM::get_string(&ps, ClosedCaptionsTextAlignVertical).await?,
-        };
-        Ok(serde_json::to_value(ClosedCaptionsSettings {
-            enabled: enabled_res.unwrap(),
-            styles: styles,
-        })
-        .unwrap())
-    }
-
-    fn dec_clone(&self) -> Box<dyn AppEventDecorator + Send + Sync> {
-        Box::new(self.clone())
-    }
-}
-
-#[derive(Clone)]
-struct CCEventDecorator {}
-
-#[async_trait]
-impl AppEventDecorator for CCEventDecorator {
-    async fn decorate(
-        &self,
-        ps: &PlatformState,
-        _ctx: &CallContext,
-        _event_name: &str,
-        _val_in: &Value,
-    ) -> Result<Value, AppEventDecorationError> {
-        use crate::managers::storage::storage_manager::StorageManager as SM;
-        use StorageProperty::*;
-        let enabled_res = AccessibilityImpl::closed_captions_settings_enabled(&ps).await;
         if let Err(_) = enabled_res {
             return Err(AppEventDecorationError {});
         }
@@ -392,7 +351,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
             ctx,
             request,
             EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED,
-            Some(Box::new(CCEventDecorator{}))
+            Some(Box::new(CCEventDecorator {})),
         )
         .await
     }

@@ -377,7 +377,7 @@ impl DeviceServer for DeviceImpl {
             request,
         );
 
-        if let Err(e) = self
+        if let Err(_) = self
             .state
             .get_client()
             .send_extn_request(DeviceEventRequest {
@@ -429,7 +429,7 @@ impl DeviceServer for DeviceImpl {
             request,
         );
 
-        if let Err(e) = self
+        if let Err(_) = self
             .state
             .get_client()
             .send_extn_request(DeviceEventRequest {
@@ -481,7 +481,7 @@ impl DeviceServer for DeviceImpl {
             request,
         );
 
-        if let Err(e) = self
+        if let Err(_) = self
             .state
             .get_client()
             .send_extn_request(DeviceEventRequest {
@@ -533,7 +533,7 @@ impl DeviceServer for DeviceImpl {
             request,
         );
 
-        if let Err(e) = self
+        if let Err(_) = self
             .state
             .get_client()
             .send_extn_request(DeviceEventRequest {
@@ -600,14 +600,19 @@ impl DeviceServer for DeviceImpl {
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
 
-        AppEvents::add_listener(&&self.state, AUDIO_CHANGED_EVENT.to_string(), ctx, request);
+        AppEvents::add_listener(
+            &&self.state,
+            AUDIO_CHANGED_EVENT.to_string(),
+            ctx.clone(),
+            request,
+        );
 
-        if let Err(e) = self
+        if let Err(_) = self
             .state
             .get_client()
             .send_extn_request(DeviceEventRequest {
                 event: DeviceEvent::AudioChanged,
-                id: ctx.app_id,
+                id: ctx.clone().app_id,
                 subscribe: listen,
             })
             .await
@@ -654,7 +659,7 @@ impl DeviceServer for DeviceImpl {
             request,
         );
 
-        if let Err(e) = self
+        if let Err(_) = self
             .state
             .get_client()
             .send_extn_request(DeviceEventRequest {
