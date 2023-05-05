@@ -15,6 +15,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::str::FromStr;
+
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
@@ -32,6 +34,7 @@ pub const VIDEO_RESOLUTION_CHANGED_EVENT: &'static str = "device.onVideoResoluti
 pub const NETWORK_CHANGED_EVENT: &'static str = "device.onNetworkChanged";
 pub const AUDIO_CHANGED_EVENT: &'static str = "device.onAudioChanged";
 pub const VOICE_GUIDANCE_CHANGED: &'static str = "accessibility.onVoiceGuidanceSettingsChanged";
+pub const POWER_STATE_CHANGED: &'static str = "device.onPowerStateChanged";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DeviceEvent {
@@ -45,11 +48,36 @@ pub enum DeviceEvent {
     SystemPowerStateChanged,
 }
 
+impl FromStr for DeviceEvent {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "device.onHdcpChanged" => Ok(Self::InputChanged),
+            "device.onHdrChanged" => Ok(Self::HdrChanged),
+            "device.onScreenResolutionChanged" => Ok(Self::ScreenResolutionChanged),
+            "device.onVideoResolutionChanged" => Ok(Self::VideoResolutionChanged),
+            "accessibility.onVoiceGuidanceSettingsChanged" => Ok(Self::VoiceGuidanceChanged),
+            "device.onNetworkChanged" => Ok(Self::NetworkChanged),
+            "device.onAudioChanged" => Ok(Self::AudioChanged),
+            "device.onPowerStateChanged" => Ok(Self::SystemPowerStateChanged),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DeviceEventCallback {
+    FireboltAppEvent,
+    ExtnEvent,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceEventRequest {
     pub event: DeviceEvent,
     pub subscribe: bool,
     pub id: String,
+    pub callback_type: DeviceEventCallback,
 }
 
 impl ExtnPayloadProvider for DeviceEventRequest {

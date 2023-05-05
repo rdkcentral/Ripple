@@ -86,36 +86,47 @@ impl ExtnRequestProcessor for ThunderOpenEventsProcessor {
         let event = extracted_message.clone().event;
         let id = extracted_message.clone().id;
         let listen = extracted_message.clone().subscribe;
+        let callback_type = extracted_message.clone().callback_type;
         let v = match event {
-            DeviceEvent::AudioChanged => {
-                state.handle_listener(listen, id.clone(), AudioChangedEvent::provide(id))
-            }
-            DeviceEvent::HdrChanged => {
-                state.handle_listener(listen, id.clone(), HDREventHandler::provide(id))
-            }
-            DeviceEvent::InputChanged => {
-                state.handle_listener(listen, id.clone(), HDCPEventHandler::provide(id))
-            }
-            DeviceEvent::NetworkChanged => {
-                state.handle_listener(listen, id.clone(), NetworkEventHandler::provide(id))
-            }
+            DeviceEvent::AudioChanged => state.handle_listener(
+                listen,
+                id.clone(),
+                AudioChangedEvent::provide(id, callback_type),
+            ),
+            DeviceEvent::HdrChanged => state.handle_listener(
+                listen,
+                id.clone(),
+                HDREventHandler::provide(id, callback_type),
+            ),
+            DeviceEvent::InputChanged => state.handle_listener(
+                listen,
+                id.clone(),
+                HDCPEventHandler::provide(id, callback_type),
+            ),
+            DeviceEvent::NetworkChanged => state.handle_listener(
+                listen,
+                id.clone(),
+                NetworkEventHandler::provide(id, callback_type),
+            ),
             DeviceEvent::ScreenResolutionChanged => state.handle_listener(
                 listen,
                 id.clone(),
-                ScreenResolutionEventHandler::provide(id),
+                ScreenResolutionEventHandler::provide(id, callback_type),
             ),
-            DeviceEvent::VideoResolutionChanged => {
-                state.handle_listener(listen, id.clone(), VideoResolutionEventHandler::provide(id))
-            }
+            DeviceEvent::VideoResolutionChanged => state.handle_listener(
+                listen,
+                id.clone(),
+                VideoResolutionEventHandler::provide(id, callback_type),
+            ),
             DeviceEvent::SystemPowerStateChanged => state.handle_listener(
                 listen,
                 id.clone(),
-                SystemPowerStateChangeEventHandler::provide(id),
+                SystemPowerStateChangeEventHandler::provide(id, callback_type),
             ),
             DeviceEvent::VoiceGuidanceChanged => state.handle_listener(
                 listen,
                 id.clone(),
-                VoiceGuidanceEnabledChangedEventHandler::provide(id),
+                VoiceGuidanceEnabledChangedEventHandler::provide(id, callback_type),
             ),
         };
         v.await;

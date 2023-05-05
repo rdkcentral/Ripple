@@ -23,6 +23,7 @@ use serde_json::Value;
 
 use crate::{
     api::{
+        apps::AppEvent,
         config::{Config, ConfigResponse},
         device::{
             device_events::DeviceEventRequest,
@@ -279,6 +280,7 @@ pub enum ExtnEvent {
     String(String),
     Value(Value),
     Status(ExtnStatus),
+    AppEvent(AppEvent),
     PowerState(SystemPowerState),
 }
 

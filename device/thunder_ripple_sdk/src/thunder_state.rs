@@ -127,8 +127,13 @@ impl ThunderState {
                 while let Some(request) = r.recv().await {
                     if let Some(id) = request.sub_id {
                         let value = request.message.clone();
-                        if let Some(handler) = state_c.event_processor.get_handler(id) {
-                            (handler.handle)(state_c.clone(), value)
+                        if let Some(handler) = state_c.event_processor.get_handler(&id) {
+                            handler.process(
+                                state_c.clone(),
+                                &id,
+                                value,
+                                handler.callback_type.clone(),
+                            )
                         }
                     }
                 }

@@ -38,9 +38,9 @@ use ripple_sdk::{
     api::{
         device::{
             device_events::{
-                DeviceEvent, DeviceEventRequest, AUDIO_CHANGED_EVENT, HDCP_CHANGED_EVENT,
-                HDR_CHANGED_EVENT, NETWORK_CHANGED_EVENT, SCREEN_RESOLUTION_CHANGED_EVENT,
-                VIDEO_RESOLUTION_CHANGED_EVENT,
+                DeviceEvent, DeviceEventCallback, DeviceEventRequest, AUDIO_CHANGED_EVENT,
+                HDCP_CHANGED_EVENT, HDR_CHANGED_EVENT, NETWORK_CHANGED_EVENT,
+                SCREEN_RESOLUTION_CHANGED_EVENT, VIDEO_RESOLUTION_CHANGED_EVENT,
             },
             device_info_request::{DeviceInfoRequest, DeviceResponse},
             device_request::{
@@ -384,6 +384,7 @@ impl DeviceServer for DeviceImpl {
                 event: DeviceEvent::InputChanged,
                 id: ctx.app_id,
                 subscribe: listen,
+                callback_type: DeviceEventCallback::FireboltAppEvent,
             })
             .await
         {
@@ -436,6 +437,7 @@ impl DeviceServer for DeviceImpl {
                 event: DeviceEvent::HdrChanged,
                 id: ctx.app_id,
                 subscribe: listen,
+                callback_type: DeviceEventCallback::FireboltAppEvent,
             })
             .await
         {
@@ -488,6 +490,7 @@ impl DeviceServer for DeviceImpl {
                 event: DeviceEvent::ScreenResolutionChanged,
                 id: ctx.app_id,
                 subscribe: listen,
+                callback_type: DeviceEventCallback::FireboltAppEvent,
             })
             .await
         {
@@ -540,6 +543,7 @@ impl DeviceServer for DeviceImpl {
                 event: DeviceEvent::VideoResolutionChanged,
                 id: ctx.app_id,
                 subscribe: listen,
+                callback_type: DeviceEventCallback::FireboltAppEvent,
             })
             .await
         {
@@ -614,6 +618,7 @@ impl DeviceServer for DeviceImpl {
                 event: DeviceEvent::AudioChanged,
                 id: ctx.clone().app_id,
                 subscribe: listen,
+                callback_type: DeviceEventCallback::FireboltAppEvent,
             })
             .await
         {
@@ -666,6 +671,7 @@ impl DeviceServer for DeviceImpl {
                 event: DeviceEvent::NetworkChanged,
                 id: ctx.app_id,
                 subscribe: listen,
+                callback_type: DeviceEventCallback::FireboltAppEvent,
             })
             .await
         {

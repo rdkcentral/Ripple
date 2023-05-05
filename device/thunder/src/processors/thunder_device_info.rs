@@ -25,37 +25,40 @@ use crate::processors::thunder_device_info::ThunderPlugin::LocationSync;
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use thunder_ripple_sdk::ripple_sdk::{
-    api::{
-        device::{
-            device_info_request::{DeviceInfoRequest, DeviceResponse},
-            device_operator::{
-                DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
-                DeviceSubscribeRequest, DeviceUnsubscribeRequest,
-            },
-            device_request::{
-                AudioProfile, HDCPStatus, HdcpProfile, HdrProfile, NetworkResponse, NetworkState,
-                NetworkType, Resolution,
-            },
-        },
-        firebolt::fb_openrpc::FireboltSemanticVersion,
-    },
-    async_trait::async_trait,
-    extn::{
-        client::extn_processor::{
-            DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
-        },
-        extn_client_message::{ExtnMessage, ExtnPayload, ExtnPayloadProvider, ExtnResponse},
-    },
-    log::{error, info},
-    serde_json::{self, Value},
-    tokio,
-    utils::error::RippleError,
-};
 use thunder_ripple_sdk::{
     client::thunder_plugin::ThunderPlugin,
     ripple_sdk::{extn::client::extn_client::ExtnClient, tokio::sync::mpsc},
     thunder_state::ThunderState,
+};
+use thunder_ripple_sdk::{
+    ripple_sdk::{
+        api::{
+            device::{
+                device_info_request::{DeviceInfoRequest, DeviceResponse},
+                device_operator::{
+                    DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
+                    DeviceSubscribeRequest, DeviceUnsubscribeRequest,
+                },
+                device_request::{
+                    HDCPStatus, HdcpProfile, HdrProfile, NetworkResponse, NetworkState,
+                    NetworkType, Resolution,
+                },
+            },
+            firebolt::fb_openrpc::FireboltSemanticVersion,
+        },
+        async_trait::async_trait,
+        extn::{
+            client::extn_processor::{
+                DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
+            },
+            extn_client_message::{ExtnMessage, ExtnPayload, ExtnPayloadProvider, ExtnResponse},
+        },
+        log::{error, info},
+        serde_json::{self},
+        tokio,
+        utils::error::RippleError,
+    },
+    utils::get_audio_profile_from_value,
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -290,7 +293,7 @@ impl ThunderDeviceInfoRequestProcessor {
             return false;
         }
 
-        let hm = get_audio(response.message);
+        let hm = get_audio_profile_from_value(response.message);
         Self::respond(
             state.get_client(),
             req,
@@ -842,68 +845,6 @@ pub fn get_dimension_from_resolution(resolution: &str) -> Vec<i32> {
         }
         _ => Resolution::ResolutionDefault.dimension(),
     }
-}
-
-pub fn get_audio(value: Value) -> HashMap<AudioProfile, bool> {
-    let mut hm: HashMap<AudioProfile, bool> = HashMap::new();
-    hm.insert(AudioProfile::Stereo, false);
-    hm.insert(AudioProfile::DolbyDigital5_1, false);
-    hm.insert(AudioProfile::DolbyDigital5_1Plus, false);
-    hm.insert(AudioProfile::DolbyDigital7_1, false);
-    hm.insert(AudioProfile::DolbyDigital7_1Plus, false);
-    hm.insert(AudioProfile::DolbyAtmos, false);
-
-    if value.get("supportedAudioFormat").is_none() {
-        return hm;
-    }
-    let supported_profiles = value["supportedAudioFormat"].as_array().unwrap();
-    for profile in supported_profiles {
-        let profile_name = profile.as_str().unwrap();
-        match profile_name {
-            "PCM" => {
-                hm.insert(AudioProfile::Stereo, true);
-                hm.insert(AudioProfile::DolbyDigital5_1, true);
-            }
-            "DOLBY AC3" => {
-                hm.insert(AudioProfile::Stereo, true);
-                hm.insert(AudioProfile::DolbyDigital5_1, true);
-            }
-            "DOLBY EAC3" => {
-                hm.insert(AudioProfile::Stereo, true);
-                hm.insert(AudioProfile::DolbyDigital5_1, true);
-            }
-            "DOLBY AC4" => {
-                hm.insert(AudioProfile::Stereo, true);
-                hm.insert(AudioProfile::DolbyDigital5_1, true);
-                hm.insert(AudioProfile::DolbyDigital7_1, true);
-            }
-            "DOLBY TRUEHD" => {
-                hm.insert(AudioProfile::Stereo, true);
-                hm.insert(AudioProfile::DolbyDigital5_1, true);
-                hm.insert(AudioProfile::DolbyDigital7_1, true);
-            }
-            "DOLBY EAC3 ATMOS" => {
-                hm.insert(AudioProfile::Stereo, true);
-                hm.insert(AudioProfile::DolbyDigital5_1, true);
-                hm.insert(AudioProfile::DolbyDigital7_1, true);
-                hm.insert(AudioProfile::DolbyAtmos, true);
-            }
-            "DOLBY TRUEHD ATMOS" => {
-                hm.insert(AudioProfile::Stereo, true);
-                hm.insert(AudioProfile::DolbyDigital5_1, true);
-                hm.insert(AudioProfile::DolbyDigital7_1, true);
-                hm.insert(AudioProfile::DolbyAtmos, true);
-            }
-            "DOLBY AC4 ATMOS" => {
-                hm.insert(AudioProfile::Stereo, true);
-                hm.insert(AudioProfile::DolbyDigital5_1, true);
-                hm.insert(AudioProfile::DolbyDigital7_1, true);
-                hm.insert(AudioProfile::DolbyAtmos, true);
-            }
-            _ => (),
-        }
-    }
-    hm
 }
 
 /*

@@ -35,7 +35,9 @@ use ripple_sdk::{
     api::{
         device::{
             device_accessibility_data::VoiceGuidanceSettings,
-            device_events::{DeviceEvent, DeviceEventRequest, VOICE_GUIDANCE_CHANGED},
+            device_events::{
+                DeviceEvent, DeviceEventCallback, DeviceEventRequest, VOICE_GUIDANCE_CHANGED,
+            },
             device_info_request::DeviceInfoRequest,
             device_storage::{SetBoolProperty, SetF32Property},
         },
@@ -176,6 +178,7 @@ async fn voice_guidance_settings_enabled_changed(
             event: DeviceEvent::VoiceGuidanceChanged,
             id: ctx.clone().app_id,
             subscribe: listen,
+            callback_type: DeviceEventCallback::FireboltAppEvent,
         })
         .await
     {

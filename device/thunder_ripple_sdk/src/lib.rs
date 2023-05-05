@@ -33,5 +33,7 @@ pub mod events {
     pub mod thunder_event_processor;
 }
 
+pub mod utils;
+
 pub mod thunder_state;
 pub extern crate ripple_sdk;
