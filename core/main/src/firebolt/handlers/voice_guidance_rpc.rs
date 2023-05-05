@@ -42,6 +42,28 @@ use ripple_sdk::api::{
     gateway::rpc_gateway_api::CallContext,
 };
 
+#[derive(Clone)]
+struct VGEventDecorator {}
+
+#[async_trait]
+impl AppEventDecorator for VGEventDecorator {
+    async fn decorate(
+        &self,
+        ps: &PlatformState,
+        _ctx: &CallContext,
+        _event_name: &str,
+        _val_in: &Value,
+    ) -> Result<Value, AppEventDecorationError> {
+        let enabled = AccessibilityImpl::voice_guidance_settings_enabled(&ps).await?;
+        let speed = AccessibilityImpl::voice_guidance_settings_speed(&ps).await?;
+        Ok(serde_json::to_value(VoiceGuidanceSettings { enabled, speed }).unwrap())
+    }
+
+    fn dec_clone(&self) -> Box<dyn AppEventDecorator + Send + Sync> {
+        Box::new(self.clone())
+    }
+}
+
 #[rpc(server)]
 pub trait Voiceguidance {
     #[method(name = "accessibility.voiceGuidanceSettings", aliases = ["accessibility.voiceGuidance"])]
