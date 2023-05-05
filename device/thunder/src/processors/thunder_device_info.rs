@@ -739,6 +739,126 @@ impl ThunderDeviceInfoRequestProcessor {
         }
         Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
     }
+
+    async fn voice_guidance_enabled(self: Box<Self>, request: DabRequest) {
+        let parent_span = match request.parent_span.clone() {
+            Some(s) => s,
+            None => info_span!("voice guidance enabled"),
+        };
+        let response = self
+            .client
+            .clone()
+            .call_thunder(
+                &ThunderPlugin::TextToSpeech.method("isttsenabled"),
+                None,
+                Some(parent_span.clone()),
+            )
+            .await;
+        if response.message.get("success").is_none()
+            || response.message["success"].as_bool().unwrap() == false
+        {
+            error!("{}", response.message);
+            request.respond_and_log(Err(DabError::OsError));
+            return;
+        }
+        info!("{}", response.message);
+        let enabled = response.message["isenabled"].as_bool().unwrap();
+        request.respond_and_log(Ok(DabResponsePayload::VoiceGuidanceEnabledResponse(
+            enabled,
+        )));
+    }
+    
+    async fn voice_guidance_set_enabled(self: Box<Self>, request: DabRequest, enabled: bool) {
+        let parent_span = match request.parent_span.clone() {
+            Some(s) => s,
+            None => info_span!("set voice guidance enabled"),
+        };
+        let params = Some(ThunderParams::Json(
+            json!({
+                "enabletts": enabled,
+            })
+            .to_string(),
+        ));
+        let response = self
+            .client
+            .clone()
+            .call_thunder(
+                &ThunderPlugin::TextToSpeech.method("enabletts"),
+                params,
+                Some(parent_span.clone()),
+            )
+            .await;
+        if response.message.get("success").is_none()
+            || response.message["success"].as_bool().unwrap() == false
+        {
+            error!("{}", response.message);
+            request.respond_and_log(Err(DabError::OsError));
+            return;
+        }
+        info!("{}", response.message);
+        request.respond_and_log(Ok(DabResponsePayload::VoiceGuidanceEnabledResponse(
+            enabled,
+        )));
+    }
+    
+    async fn voice_guidance_speed(self: Box<Self>, request: DabRequest) {
+        let parent_span = match request.parent_span.clone() {
+            Some(s) => s,
+            None => info_span!("voice guidance enabled"),
+        };
+        let response = self
+            .client
+            .clone()
+            .call_thunder(
+                &ThunderPlugin::TextToSpeech.method("getttsconfiguration"),
+                None,
+                Some(parent_span.clone()),
+            )
+            .await;
+        if response.message.get("success").is_none()
+            || response.message["success"].as_bool().unwrap() == false
+        {
+            error!("{}", response.message);
+            request.respond_and_log(Err(DabError::OsError));
+            return;
+        }
+        info!("{}", response.message);
+        let rate = scale_voice_speed_from_thunder_to_firebolt(
+            response.message["rate"].as_f64().unwrap() as f32,
+        );
+        request.respond_and_log(Ok(DabResponsePayload::VoiceGuidanceSpeedResponse(rate)));
+    }
+    
+    async fn voice_guidance_set_speed(self: Box<Self>, request: DabRequest, speed: f32) {
+        let parent_span = match request.parent_span.clone() {
+            Some(s) => s,
+            None => info_span!("set voice guidance speed"),
+        };
+        let params = Some(ThunderParams::Json(
+            json!({
+                "rate": scale_voice_speed_from_firebolt_to_thunder(speed),
+            })
+            .to_string(),
+        ));
+        let response = self
+            .client
+            .clone()
+            .call_thunder(
+                &ThunderPlugin::TextToSpeech.method("setttsconfiguration"),
+                params,
+                Some(parent_span.clone()),
+            )
+            .await;
+        if response.message.get("success").is_none()
+            || response.message["success"].as_bool().unwrap() == false
+        {
+            error!("{}", response.message);
+            request.respond_and_log(Err(DabError::OsError));
+            return;
+        }
+        info!("{}", response.message);
+        request.respond_and_log(Ok(DabResponsePayload::VoiceGuidanceSpeedResponse(speed)));
+    }
 }
 
 pub fn get_dimension_from_resolution(resolution: &str) -> Vec<i32> {
