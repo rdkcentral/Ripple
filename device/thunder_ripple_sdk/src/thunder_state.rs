@@ -15,16 +15,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::sync::{Arc, RwLock};
+
 use ripple_sdk::{
+    api::device::device_operator::{
+        DeviceOperator, DeviceResponseMessage, DeviceUnsubscribeRequest,
+    },
     extn::{
         client::extn_client::ExtnClient,
         extn_client_message::{ExtnMessage, ExtnPayloadProvider},
     },
+    tokio,
+    tokio::sync::mpsc,
     utils::error::RippleError,
 };
 use url::Url;
 
-use crate::client::thunder_client::ThunderClient;
+use crate::{
+    client::thunder_client::ThunderClient,
+    events::thunder_event_processor::{ThunderEventHandler, ThunderEventProcessor},
+};
 
 #[derive(Debug, Clone)]
 pub struct ThunderBootstrapStateWithConfig {
@@ -43,13 +53,20 @@ pub struct ThunderBootstrapStateWithClient {
 pub struct ThunderState {
     extn_client: ExtnClient,
     thunder_client: ThunderClient,
+    pub event_processor: ThunderEventProcessor,
+    sender: mpsc::Sender<DeviceResponseMessage>,
+    receiver: Arc<RwLock<Option<mpsc::Receiver<DeviceResponseMessage>>>>,
 }
 
 impl ThunderState {
     pub fn new(extn_client: ExtnClient, thunder_client: ThunderClient) -> ThunderState {
+        let (tx, rx) = mpsc::channel(10);
         ThunderState {
             extn_client,
             thunder_client,
+            event_processor: ThunderEventProcessor::new(),
+            sender: tx,
+            receiver: Arc::new(RwLock::new(Some(rx))),
         }
     }
 
@@ -66,5 +83,61 @@ impl ThunderState {
         payload: impl ExtnPayloadProvider,
     ) -> Result<ExtnMessage, RippleError> {
         self.extn_client.clone().request(payload).await
+    }
+
+    pub async fn handle_listener(
+        &self,
+        listen: bool,
+        app_id: String,
+        handler: ThunderEventHandler,
+    ) {
+        if self
+            .event_processor
+            .handle_listener(listen, app_id.clone(), handler.clone())
+        {
+            if listen {
+                self.subscribe(handler).await
+            } else {
+                self.unsubscribe(handler).await
+            }
+        }
+    }
+
+    async fn subscribe(&self, handler: ThunderEventHandler) {
+        let client = self.get_thunder_client();
+        let sender = self.sender.clone();
+        let _ = client.subscribe(handler.request, sender).await;
+    }
+
+    async fn unsubscribe(&self, handler: ThunderEventHandler) {
+        let client = self.get_thunder_client();
+        let request = DeviceUnsubscribeRequest {
+            module: handler.request.module,
+            event_name: handler.request.event_name,
+        };
+        let _ = client.unsubscribe(request).await;
+    }
+
+    pub fn start_event_thread(&self) {
+        let mut rx = self.receiver.write().unwrap();
+        let rx = rx.take();
+        if let Some(mut r) = rx {
+            let state_c = self.clone();
+            tokio::spawn(async move {
+                while let Some(request) = r.recv().await {
+                    if let Some(id) = request.sub_id {
+                        let value = request.message.clone();
+                        if let Some(handler) = state_c.event_processor.get_handler(&id) {
+                            handler.process(
+                                state_c.clone(),
+                                &id,
+                                value,
+                                handler.callback_type.clone(),
+                            )
+                        }
+                    }
+                }
+            });
+        }
     }
 }

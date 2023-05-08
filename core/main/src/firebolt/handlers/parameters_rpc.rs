@@ -1,24 +1,41 @@
-use crate::{
-    api::rpc::rpc_gateway::{CallContext, RPCProvider},
-    apps::app_mgr::{AppError, AppManagerResponse, AppMethod, AppRequest},
-    helpers::{
-        error_util::rpc_await_oneshot,
-        ripple_helper::{IRippleHelper, RippleHelper, RippleHelperFactory, RippleHelperType},
-    },
-    managers::capability_manager::{
-        CapClassifiedRequest, FireboltCap, IGetLoadedCaps, RippleHandlerCaps,
-    },
-    platform_state::PlatformState,
-};
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
     RpcModule,
 };
+use ripple_sdk::{
+    api::{
+        apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
+        firebolt::fb_discovery::NavigationIntent,
+        gateway::rpc_gateway_api::CallContext,
+    },
+    tokio::sync::oneshot,
+};
 use serde::{Deserialize, Serialize};
-use tokio::sync::oneshot;
 
-use super::{discovery::NavigationIntent, privacy};
+use crate::{
+    firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState,
+    utils::rpc_utils::rpc_await_oneshot,
+};
+
+use super::privacy_rpc;
 
 #[derive(Serialize, Debug, Clone)]
 pub struct AppInitParameters {
@@ -51,29 +68,28 @@ pub trait Parameters {
     async fn initialization(&self, _ctx: CallContext) -> RpcResult<AppInitParameters>;
 }
 
-pub struct ParametersImpl<IRippleHelper> {
-    pub helper: Box<IRippleHelper>,
+pub struct ParametersImpl {
     platform_state: PlatformState,
 }
 
 #[async_trait]
-impl ParametersServer for ParametersImpl<RippleHelper> {
+impl ParametersServer for ParametersImpl {
     async fn initialization(&self, ctx: CallContext) -> RpcResult<AppInitParameters> {
-        let (app_resp_tx, app_resp_rx) = oneshot::channel::<Result<AppManagerResponse, AppError>>();
-        let app_request = AppRequest {
-            method: AppMethod::GetLaunchRequest(ctx.app_id),
-            resp_tx: Some(app_resp_tx),
-        };
+        let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
+        let app_request = AppRequest::new(AppMethod::GetLaunchRequest(ctx.app_id), app_resp_tx);
         let privacy_data =
-            privacy::get_allow_app_content_ad_targeting_settings(&self.platform_state).await;
+            privacy_rpc::get_allow_app_content_ad_targeting_settings(&self.platform_state).await;
 
-        let _ = self.helper.send_app_request(app_request).await?;
+        let _ = self
+            .platform_state
+            .get_client()
+            .send_app_request(app_request);
         let resp = rpc_await_oneshot(app_resp_rx).await?;
         if let AppManagerResponse::LaunchRequest(launch_req) = resp? {
             return Ok(AppInitParameters {
-                us_privacy: privacy_data.get(privacy::US_PRIVACY_KEY).cloned(),
+                us_privacy: privacy_data.get(privacy_rpc::US_PRIVACY_KEY).cloned(),
                 lmt: privacy_data
-                    .get(privacy::LMT_KEY)
+                    .get(privacy_rpc::LMT_KEY)
                     .and_then(|x| x.parse::<u16>().ok()),
                 discovery: Some(DiscoveryEvent {
                     navigate_to: launch_req.get_intent(),
@@ -88,33 +104,13 @@ impl ParametersServer for ParametersImpl<RippleHelper> {
     }
 }
 
-pub struct ParametersProvider;
+pub struct ParametersRPCProvider;
 
-pub struct ParametersCapHandler;
-
-impl IGetLoadedCaps for ParametersCapHandler {
-    fn get_loaded_caps(&self) -> RippleHandlerCaps {
-        RippleHandlerCaps { caps: Some(vec![]) }
-    }
-}
-
-impl RPCProvider<ParametersImpl<RippleHelper>, ParametersCapHandler> for ParametersProvider {
-    fn provide(
-        self,
-        rhf: Box<RippleHelperFactory>,
-        platform_state: PlatformState,
-    ) -> (
-        RpcModule<ParametersImpl<RippleHelper>>,
-        ParametersCapHandler,
-    ) {
-        let a = ParametersImpl {
-            helper: rhf.get(self.get_helper_variant()),
-            platform_state,
-        };
-        (a.into_rpc(), ParametersCapHandler)
-    }
-
-    fn get_helper_variant(self) -> Vec<RippleHelperType> {
-        vec![RippleHelperType::AppManager]
+impl RippleRPCProvider<ParametersImpl> for ParametersRPCProvider {
+    fn provide(state: PlatformState) -> RpcModule<ParametersImpl> {
+        (ParametersImpl {
+            platform_state: state,
+        })
+        .into_rpc()
     }
 }

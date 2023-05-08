@@ -17,11 +17,12 @@
 use std::sync::{Arc, RwLock};
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
 use crate::{
-    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
+    extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     framework::ripple_contract::RippleContract,
     utils::{channel_utils::oneshot_send_and_log, error::RippleError},
 };
@@ -246,4 +247,38 @@ pub struct Dimensions {
     pub y: u32,
     pub w: u32,
     pub h: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct AppEvent {
+    pub event_name: String,
+    pub result: Value,
+    pub context: Option<Value>,
+}
+
+impl ExtnPayloadProvider for AppEvent {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Event(ExtnEvent::Value(
+            serde_json::to_value(self.clone()).unwrap(),
+        ))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        match payload {
+            ExtnPayload::Event(resp) => match resp {
+                ExtnEvent::Value(v) => {
+                    if let Ok(v) = serde_json::from_value(v) {
+                        return Some(v);
+                    }
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::AppEvents
+    }
 }

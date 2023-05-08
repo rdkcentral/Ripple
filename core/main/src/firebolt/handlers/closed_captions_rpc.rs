@@ -29,8 +29,9 @@ use crate::{
             EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL,
         },
     },
+    service::apps::app_events::{AppEventDecorationError, AppEventDecorator},
     state::platform_state::PlatformState,
-    utils::rpc_utils::rpc_add_event_listener,
+    utils::rpc_utils::{rpc_add_event_listener, rpc_add_event_listener_with_decorator},
 };
 
 use jsonrpsee::{
@@ -47,6 +48,7 @@ use ripple_sdk::api::{
     firebolt::fb_general::{ListenRequest, ListenerResponse},
     gateway::rpc_gateway_api::CallContext,
 };
+use serde_json::Value;
 
 #[derive(Clone)]
 struct CCEventDecorator {}
@@ -60,9 +62,9 @@ impl AppEventDecorator for CCEventDecorator {
         _event_name: &str,
         _val_in: &Value,
     ) -> Result<Value, AppEventDecorationError> {
-        use crate::managers::storage::storage_manager::StorageManager as SM;
+        use crate::processor::storage::storage_manager::StorageManager as SM;
         use StorageProperty::*;
-        let enabled_res = AccessibilityImpl::closed_captions_settings_enabled(&ps).await;
+        let enabled_res = ClosedcaptionsImpl::closed_captions_settings_enabled(&ps).await;
         if let Err(_) = enabled_res {
             return Err(AppEventDecorationError {});
         }
@@ -291,6 +293,10 @@ impl ClosedcaptionsImpl {
     fn is_font_family_supported(font_family: &str) -> bool {
         FONT_FAMILY_LIST.contains(&font_family)
     }
+
+    pub async fn closed_captions_settings_enabled(state: &PlatformState) -> RpcResult<bool> {
+        StorageManager::get_bool(state, StorageProperty::ClosedCaptionsEnabled).await
+    }
 }
 
 #[async_trait]
@@ -340,11 +346,12 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(
+        rpc_add_event_listener_with_decorator(
             &self.state,
             ctx,
             request,
             EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED,
+            Some(Box::new(CCEventDecorator {})),
         )
         .await
     }
