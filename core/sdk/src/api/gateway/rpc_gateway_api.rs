@@ -60,7 +60,7 @@ pub enum ApiProtocol {
     JsonRpc,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ApiMessage {
     pub protocol: ApiProtocol,
     pub jsonrpc_msg: String,

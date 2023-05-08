@@ -15,26 +15,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//pub mod rpc_gateway;
-//pub mod firebolt_gateway;
-pub mod handlers {
-    pub mod accessory_rpc;
-    pub mod acknowledge_rpc;
-    pub mod capabilities_rpc;
-    pub mod closed_captions_rpc;
-    pub mod device_rpc;
-    pub mod keyboard_rpc;
-    pub mod lcm_rpc;
-    pub mod lifecycle_rpc;
-    pub mod localization_rpc;
-    pub mod pin_rpc;
-    pub mod profile_rpc;
-    pub mod second_screen_rpc;
-    pub mod voice_guidance_rpc;
-    pub mod wifi_rpc;
+use chrono::{DateTime, NaiveDateTime, Utc};
+
+/*
+Handle various types of timestamp conversion from magnitude -> String
+for ISO8601 format, e.g: 2022-06-23T16:16:10Z
+
+*/
+
+pub fn timestamp_2_iso8601(timestamp: i64) -> String {
+    if let Some(t) = NaiveDateTime::from_timestamp_opt(timestamp, 0) {
+        DateTime::<Utc>::from_utc(t, Utc).to_rfc3339().to_string()
+    } else {
+        timestamp.to_string()
+    }
 }
-pub mod firebolt_gatekeeper;
-pub mod firebolt_gateway;
-pub mod firebolt_ws;
-pub mod rpc;
-pub mod rpc_router;

@@ -14,38 +14,40 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-use serde::{Deserialize, Serialize};
+use jsonrpsee_core::Serialize;
+use serde::Deserialize;
 
 use crate::{
-    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
+    api::session::TokenType,
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
 
-use super::gateway::rpc_gateway_api::ApiMessage;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum BridgeProtocolRequest {
-    StartSession(BridgeSessionParams),
-    EndSession(String),
-    Send(String, ApiMessage),
+#[serde(rename_all = "camelCase")]
+pub struct TokenResult {
+    pub value: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires: Option<String>,
+    #[serde(rename = "type")]
+    pub _type: TokenType,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BridgeSessionParams {
-    pub container_id: String,
-    pub session_id: String,
+#[derive(Deserialize, Debug)]
+pub struct TokenRequest {
+    #[serde(rename = "type")]
+    pub _type: TokenType,
 }
 
-impl ExtnPayloadProvider for BridgeProtocolRequest {
+impl ExtnPayloadProvider for TokenResult {
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::BridgeProtocolRequest(self.clone()))
+        ExtnPayload::Response(ExtnResponse::Token(self.clone()))
     }
 
-    fn get_from_payload(payload: ExtnPayload) -> Option<BridgeProtocolRequest> {
+    fn get_from_payload(payload: ExtnPayload) -> Option<TokenResult> {
         match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::BridgeProtocolRequest(r) => return Some(r),
+            ExtnPayload::Response(response) => match response {
+                ExtnResponse::Token(r) => return Some(r),
                 _ => {}
             },
             _ => {}
@@ -54,6 +56,6 @@ impl ExtnPayloadProvider for BridgeProtocolRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::BridgeProtocol
+        RippleContract::SessionToken
     }
 }
