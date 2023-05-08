@@ -1,13 +1,9 @@
-//use crate::message::{DistributorSession, DpabRequest};
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::{
     api::session::AccountSession,
-    extn::extn_client_message::{
-        ExtnMessage, ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse,
-    },
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
 
@@ -16,7 +12,6 @@ pub enum AdvertisingRequest {
     GetAdInitObject(AdInitObjectRequestParams),
     GetAdIdObject(AdIdRequestParams),
     ResetAdIdentifier(AccountSession),
-    //TODO Distributer session not present how to replace it ?
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -69,17 +64,6 @@ pub struct AdIdResponse {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SessionParams {
     pub dist_session: AccountSession,
-}
-
-#[async_trait]
-pub trait AdvertisingService {
-    async fn get_ad_init_object(
-        self: Box<Self>,
-        request: ExtnRequest,
-        params: AdInitObjectRequestParams,
-    );
-    async fn get_ad_identifier(self: Box<Self>, request: ExtnMessage, params: AdIdRequestParams);
-    async fn reset_ad_identifier(self: Box<Self>, request: ExtnMessage, params: AccountSession);
 }
 
 impl ExtnPayloadProvider for AdvertisingRequest {

@@ -174,41 +174,44 @@ impl AdvertisingServer for AdvertisingImpl {
     }
 
     async fn advertising_id(&self, ctx: CallContext) -> RpcResult<AdvertisingId> {
-        // let session = self.state.session_state.get_account_session().unwrap();
+        //TODO: blocked by privacy.
+        //// for testing purpose privacy not implemeted. ////
+        let mut p_data = HashMap::new();
+        p_data.insert("abcd".to_string(), "xyz".to_string());
+        /////////////////////////////////////////////////////
 
-        // let payload = AdvertisingRequest::GetAdIdObject(AdIdRequestParams {
-        //     privacy_data: privacy::get_limit_ad_tracking_settings(&self.state).await,
-        //     app_id: ctx.clone().app_id.to_string(),
-        //     dist_session: session,
-        // });
-        // let resp = self.state.get_client().send_extn_request(payload).await;
+        let session = self.state.session_state.get_account_session().unwrap();
+        let payload = AdvertisingRequest::GetAdIdObject(AdIdRequestParams {
+            //privacy_data: privacy::get_limit_ad_tracking_settings(&self.state).await,
+            privacy_data: p_data,
+            app_id: ctx.clone().app_id.to_string(),
+            dist_session: session,
+        });
+        let resp = self.state.get_client().send_extn_request(payload).await;
 
-        // if let Err(_) = resp {
-        //     error!("Error getting ad init object: {:?}", resp);
-        //     return Err(rpc_err("Could not get ad init object from the device"));
-        // }
+        if let Err(_) = resp {
+            error!("Error getting ad init object: {:?}", resp);
+            return Err(rpc_err("Could not get ad init object from the device"));
+        }
 
-        // match resp {
-        //     Ok(payload) => match payload.payload.extract().unwrap() {
-        //         ExtnResponse::AdIdObject(obj) => {
-        //             let ad_init_object = AdvertisingId {
-        //                 ifa: obj.ifa,
-        //                 ifa_type: obj.ifa_type,
-        //                 lmt: obj.lmt,
-        //             };
-        //             Ok(ad_init_object)
-        //         }
-        //         _ => Err(rpc_err(
-        //             "Device returned an invalid type for ad init object",
-        //         )),
-        //     },
-        //     Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-        //         "Failed to extract ad init object from response",
-        //     ))),
-        // }
-
-        //TODO: blocked by privacy
-        todo!()
+        match resp {
+            Ok(payload) => match payload.payload.extract().unwrap() {
+                ExtnResponse::AdIdObject(obj) => {
+                    let ad_init_object = AdvertisingId {
+                        ifa: obj.ifa,
+                        ifa_type: obj.ifa_type,
+                        lmt: obj.lmt,
+                    };
+                    Ok(ad_init_object)
+                }
+                _ => Err(rpc_err(
+                    "Device returned an invalid type for ad init object",
+                )),
+            },
+            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
+                "Failed to extract ad init object from response",
+            ))),
+        }
     }
 
     fn app_bundle_id(&self, ctx: CallContext) -> RpcResult<String> {
@@ -223,71 +226,78 @@ impl AdvertisingServer for AdvertisingImpl {
         ctx: CallContext,
         config: GetAdConfig,
     ) -> RpcResult<AdvertisingFrameworkConfig> {
-        // let session = self.state.session_state.get_account_session();
-        // let distributor_experience_id = self
-        //     .state
-        //     .get_device_manifest()
-        //     .get_distributor_experience_id();
-        // let params = RoleInfo {
-        //     capability: "advertising:identifier".to_string(),
-        //     role: Some(CapabilityRole::Use),
-        // };
-        // let ad_id_authorised = is_permitted(self.state, ctx, params).await;
+        let session = self.state.session_state.get_account_session();
+        let app_id = ctx.app_id.to_string();
+        let distributor_experience_id = self
+            .state
+            .get_device_manifest()
+            .get_distributor_experience_id();
+        let params = RoleInfo {
+            capability: "advertising:identifier".to_string(),
+            role: Some(CapabilityRole::Use),
+        };
+        //TODO: blocked by privacy.
+        //// for testing purpose privacy not implemeted. ////
+        let mut p_data = HashMap::new();
+        p_data.insert("abcd".to_string(), "xyz".to_string());
+        /////////////////////////////////////////////////////
 
-        // let payload = AdvertisingRequest::GetAdInitObject(AdInitObjectRequestParams {
-        //     privacy_data: privacy::get_limit_ad_tracking_settings(&self.state).await,
-        //     environment: config.options.environment.to_string(),
-        //     durable_app_id: ctx.app_id.to_string(),
-        //     app_version: "".to_string(),
-        //     distributor_app_id: distributor_experience_id,
-        //     device_ad_attributes: HashMap::new(),
-        //     coppa: config.options.coppa.unwrap_or(false),
-        //     authentication_entity: config.options.authentication_entity.unwrap_or_default(),
-        //     dist_session: session.unwrap(),
-        // });
+        let ad_id_authorised = is_permitted(self.state.clone(), ctx, params).await;
 
-        // let resp = self.state.get_client().send_extn_request(payload).await;
+        let payload = AdvertisingRequest::GetAdInitObject(AdInitObjectRequestParams {
+            //privacy_data: privacy::get_limit_ad_tracking_settings(&self.state).await,
+            privacy_data: p_data,
+            environment: config.options.environment.to_string(),
+            durable_app_id: app_id,
+            app_version: "".to_string(),
+            distributor_app_id: distributor_experience_id,
+            device_ad_attributes: HashMap::new(),
+            coppa: config.options.coppa.unwrap_or(false),
+            authentication_entity: config.options.authentication_entity.unwrap_or_default(),
+            dist_session: session.unwrap(),
+        });
 
-        // if let Err(_) = resp {
-        //     error!("Error getting ad init object: {:?}", resp);
-        //     return Err(rpc_err("Could not get ad init object from the device"));
-        // }
+        let resp = self.state.get_client().send_extn_request(payload).await;
 
-        // match resp {
-        //     Ok(payload) => match payload.payload.extract().unwrap() {
-        //         ExtnResponse::AdInitObject(obj) => {
-        //             let ad_init_object = AdvertisingFrameworkConfig {
-        //                 ad_server_url: obj.ad_server_url,
-        //                 ad_server_url_template: obj.ad_server_url_template,
-        //                 ad_network_id: obj.ad_network_id,
-        //                 ad_profile_id: obj.ad_profile_id,
-        //                 ad_site_section_id: "".to_string(),
-        //                 ad_opt_out: obj.ad_opt_out,
-        //                 privacy_data: obj.privacy_data,
-        //                 ifa: if ad_id_authorised.unwrap() {
-        //                     obj.ifa
-        //                 } else {
-        //                     "0".repeat(obj.ifa.len())
-        //                 },
-        //                 ifa_value: obj.ifa_value,
-        //                 app_name: obj.app_name,
-        //                 app_bundle_id: obj.app_bundle_id,
-        //                 distributor_app_id: obj.distributor_app_id,
-        //                 device_ad_attributes: obj.device_ad_attributes,
-        //                 coppa: obj.coppa.to_string().parse::<u32>().unwrap(),
-        //                 authentication_entity: obj.authentication_entity,
-        //             };
-        //             Ok(ad_init_object)
-        //         }
-        //         _ => Err(rpc_err(
-        //             "Device returned an invalid type for ad init object",
-        //         )),
-        //     },
-        //     Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-        //         "Failed to extract ad init object from response",
-        //     ))),
-        // }
-        todo!();
+        if let Err(_) = resp {
+            error!("Error getting ad init object: {:?}", resp);
+            return Err(rpc_err("Could not get ad init object from the device"));
+        }
+
+        match resp {
+            Ok(payload) => match payload.payload.extract().unwrap() {
+                ExtnResponse::AdInitObject(obj) => {
+                    let ad_init_object = AdvertisingFrameworkConfig {
+                        ad_server_url: obj.ad_server_url,
+                        ad_server_url_template: obj.ad_server_url_template,
+                        ad_network_id: obj.ad_network_id,
+                        ad_profile_id: obj.ad_profile_id,
+                        ad_site_section_id: "".to_string(),
+                        ad_opt_out: obj.ad_opt_out,
+                        privacy_data: obj.privacy_data,
+                        ifa: if ad_id_authorised.unwrap() {
+                            obj.ifa
+                        } else {
+                            "0".repeat(obj.ifa.len())
+                        },
+                        ifa_value: obj.ifa_value,
+                        app_name: obj.app_name,
+                        app_bundle_id: obj.app_bundle_id,
+                        distributor_app_id: obj.distributor_app_id,
+                        device_ad_attributes: obj.device_ad_attributes,
+                        coppa: obj.coppa.to_string().parse::<u32>().unwrap(),
+                        authentication_entity: obj.authentication_entity,
+                    };
+                    Ok(ad_init_object)
+                }
+                _ => Err(rpc_err(
+                    "Device returned an invalid type for ad init object",
+                )),
+            },
+            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
+                "Failed to extract ad init object from response",
+            ))),
+        }
     }
 
     async fn device_attributes(&self, ctx: CallContext) -> RpcResult<Value> {
@@ -316,13 +326,16 @@ impl AdvertisingServer for AdvertisingImpl {
     }
 
     async fn policy(&self, _ctx: CallContext) -> RpcResult<AdvertisingPolicy> {
-        // let limit_ad_tracking = PrivacyImpl::get_limit_ad_tracking(&self.state).await;
-        // Ok(AdvertisingPolicy {
-        //     skip_restriction: "adsUnwatched".to_owned(),
-        //     limit_ad_tracking,
-        // })
-        // TODO: privacy not implemented
-        todo!()
+        //TODO: blocked by privacy.
+        //// for testing purpose privacy not implemeted. ////
+        let limit_ad_tracking = true;
+        /////////////////////////////////////////////////////
+
+        //let limit_ad_tracking = PrivacyImpl::get_limit_ad_tracking(&self.state).await;
+        Ok(AdvertisingPolicy {
+            skip_restriction: "adsUnwatched".to_owned(),
+            limit_ad_tracking,
+        })
     }
 
     async fn advertising_on_policy_changed(
@@ -330,13 +343,11 @@ impl AdvertisingServer for AdvertisingImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        let listen = request.listen;
         rpc_add_event_listener(&self.state, ctx, request, EVENT_ADVERTISING_POLICY_CHANGED).await
     }
 }
 
 pub struct AdvertisingRPCProvider;
-pub struct LifecycleManagementProvider;
 impl RippleRPCProvider<AdvertisingImpl> for AdvertisingRPCProvider {
     fn provide(state: PlatformState) -> RpcModule<AdvertisingImpl> {
         (AdvertisingImpl { state }).into_rpc()

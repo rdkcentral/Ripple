@@ -72,6 +72,8 @@
         "xrn:firebolt:capability:localization:location",
         "xrn:firebolt:capability:localization:location[manage]",
         "xrn:firebolt:capability:protocol:wifi",
-        "xrn:firebolt:capability:advertising:configuration"
+        "xrn:firebolt:capability:advertising:configuration",
+        "xrn:firebolt:capability:advertising:identifier",
+        "xrn:firebolt:capability:privacy:advertising"
     ]
 }
