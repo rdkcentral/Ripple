@@ -15,6 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+pub mod app_events_processor;
 pub mod config_processor;
 pub mod exn_status_processor;
 pub mod keyboard_processor;

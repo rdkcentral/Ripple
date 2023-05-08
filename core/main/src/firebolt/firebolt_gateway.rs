@@ -33,6 +33,7 @@ use serde::Serialize;
 
 use crate::{
     firebolt::firebolt_gatekeeper::FireboltGatekeeper,
+    service::apps::app_events::AppEvents,
     state::{bootstrap_state::BootstrapState, session_state::Session},
 };
 
@@ -103,11 +104,13 @@ impl FireboltGateway {
                         .session_state
                         .add_session(session_id, session);
                 }
-                UnregisterSession { session_id } => self
-                    .state
-                    .platform_state
-                    .session_state
-                    .clear_session(&session_id),
+                UnregisterSession { session_id } => {
+                    AppEvents::remove_session(&self.state.platform_state, session_id.clone());
+                    self.state
+                        .platform_state
+                        .session_state
+                        .clear_session(&session_id);
+                }
                 HandleRpc { request } => self.handle(request, None).await,
                 HandleRpcForExtn { msg } => {
                     if let Some(request) = msg.payload.clone().extract() {
