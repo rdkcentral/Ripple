@@ -21,7 +21,10 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::{service::apps::app_events::AppEvents, state::platform_state::PlatformState};
+use crate::{
+    service::{apps::app_events::AppEvents, user_grants::GrantState},
+    state::platform_state::PlatformState,
+};
 use ripple_sdk::serde_json;
 use ripple_sdk::{
     api::{
@@ -42,7 +45,6 @@ use ripple_sdk::{
 
 use super::{
     generic_cap_state::GenericCapState,
-    grant_state::GrantState,
     permitted_state::{PermissionHandler, PermittedState},
 };
 

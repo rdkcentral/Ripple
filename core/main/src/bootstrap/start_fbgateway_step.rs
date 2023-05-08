@@ -24,9 +24,9 @@ use crate::{
             device_rpc::DeviceRPCProvider, keyboard_rpc::KeyboardRPCProvider,
             lcm_rpc::LifecycleManagementProvider, lifecycle_rpc::LifecycleRippleProvider,
             localization_rpc::LocalizationRPCProvider, pin_rpc::PinRPCProvider,
+            profile_rpc::ProfileRPCProvider, second_screen_rpc::SecondScreenRPCProvider,
             user_grants_rpc::UserGrantsRPCProvider, voice_guidance_rpc::VoiceguidanceRPCProvider,
             wifi_rpc::WifiRPCProvider,
-
         },
         rpc::RippleRPCProvider,
     },

@@ -17,7 +17,7 @@
 use ripple_sdk::api::firebolt::fb_capabilities::{DenyReason, DenyReasonWithCap};
 use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
 
-use crate::state::cap::grant_state::GrantState;
+use crate::service::user_grants::GrantState;
 use crate::state::{cap::permitted_state::PermissionHandler, platform_state::PlatformState};
 use ripple_sdk::log::debug;
 

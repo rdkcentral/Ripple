@@ -17,9 +17,8 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    hash::{Hash, Hasher},
     sync::{Arc, RwLock},
-    time::{Duration, SystemTime},
+    time::SystemTime,
 };
 
 use jsonrpsee::tracing::debug;
@@ -27,7 +26,8 @@ use ripple_sdk::{
     api::{
         apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
         device::device_user_grants_data::{
-            GrantLifespan, GrantPolicy, GrantPrivacySetting, GrantScope, GrantStep,
+            GrantActiveState, GrantEntry, GrantErrors, GrantLifespan, GrantPolicy,
+            GrantPrivacySetting, GrantScope, GrantStateModify, GrantStatus, GrantStep,
         },
         firebolt::{
             fb_capabilities::{
@@ -47,7 +47,7 @@ use ripple_sdk::{
     serde_json::Value,
     tokio::sync::oneshot,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::state::{cap::cap_state::CapState, platform_state::PlatformState};
 
@@ -55,108 +55,11 @@ use super::apps::provider_broker::{ProviderBroker, ProviderBrokerRequest};
 
 pub struct UserGrants {}
 
-#[derive(Eq, Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum GrantStatus {
-    Allowed,
-    Denied,
-}
-
-impl GrantStatus {
-    pub fn as_string(&self) -> &'static str {
-        match self {
-            GrantStatus::Allowed => "granted",
-            GrantStatus::Denied => "denied",
-        }
-    }
-}
-
-impl From<GrantStatus> for Result<(), DenyReason> {
-    fn from(grant_status: GrantStatus) -> Self {
-        match grant_status {
-            GrantStatus::Allowed => Ok(()),
-            GrantStatus::Denied => Err(DenyReason::GrantDenied),
-        }
-    }
-}
-
-impl Hash for GrantStatus {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write_u8(match self {
-            GrantStatus::Allowed => 0,
-            GrantStatus::Denied => 1,
-        });
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct GrantState {
     device_grants: Arc<RwLock<FileStore<HashSet<GrantEntry>>>>,
     grant_app_map: Arc<RwLock<FileStore<HashMap<String, HashSet<GrantEntry>>>>>,
     caps_needing_grants: Vec<String>,
-}
-
-#[derive(Eq, Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum GrantStateModify {
-    Grant,
-    Deny,
-    Clear,
-}
-
-#[derive(Eq, Clone, Debug, Serialize, Deserialize)]
-pub struct GrantEntry {
-    pub role: CapabilityRole,
-    pub capability: String,
-    pub status: Option<GrantStatus>,
-    pub lifespan: Option<GrantLifespan>,
-    pub last_modified_time: Duration,
-    pub lifespan_ttl_in_secs: Option<u64>,
-}
-
-impl PartialEq for GrantEntry {
-    fn eq(&self, other: &Self) -> bool {
-        self.role == other.role && self.capability == other.capability
-    }
-}
-
-impl Hash for GrantEntry {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.role.hash(state);
-        self.capability.hash(state);
-    }
-}
-
-impl GrantEntry {
-    pub fn get(role: CapabilityRole, capability: String) -> GrantEntry {
-        GrantEntry {
-            role,
-            capability,
-            status: None,
-            lifespan: None,
-            last_modified_time: SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap(),
-            lifespan_ttl_in_secs: None,
-        }
-    }
-
-    fn has_expired(&self) -> bool {
-        match self.lifespan {
-            Some(GrantLifespan::Seconds) => match self.lifespan_ttl_in_secs {
-                None => true,
-                Some(ttl) => {
-                    let elapsed_time = SystemTime::now()
-                        .duration_since(SystemTime::UNIX_EPOCH)
-                        .unwrap()
-                        .checked_sub(self.last_modified_time)
-                        .unwrap_or(Duration::from_secs(0));
-
-                    elapsed_time > Duration::from_secs(ttl)
-                }
-            },
-            Some(GrantLifespan::Once) => true,
-            _ => false,
-        }
-    }
 }
 
 impl GrantState {
@@ -589,42 +492,6 @@ impl GrantHandler {
         }
 
         Ok(())
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum GrantActiveState {
-    ActiveGrant(Result<(), DenyReason>),
-    PendingGrant,
-}
-
-#[derive(Debug, Default)]
-pub struct GrantErrors {
-    pub ungranted: HashSet<FireboltCap>,
-    pub denied: HashSet<FireboltCap>,
-}
-
-impl GrantErrors {
-    fn add_ungranted(&mut self, cap: FireboltCap) {
-        self.ungranted.insert(cap);
-    }
-
-    fn add_denied(&mut self, cap: FireboltCap) {
-        self.denied.insert(cap);
-    }
-
-    fn has_errors(&self) -> bool {
-        self.ungranted.len() > 0 || self.denied.len() > 0
-    }
-
-    pub fn get_reason(&self, cap: &FireboltCap) -> Option<DenyReason> {
-        if self.ungranted.contains(cap) {
-            Some(DenyReason::Ungranted)
-        } else if self.denied.contains(cap) {
-            Some(DenyReason::GrantDenied)
-        } else {
-            None
-        }
     }
 }
 

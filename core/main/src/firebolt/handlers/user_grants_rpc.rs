@@ -18,6 +18,7 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
 use ripple_sdk::{
     api::{
         apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
+        device::device_user_grants_data::{GrantEntry, GrantStateModify},
         firebolt::fb_user_grants::{
             AppInfo, GetUserGrantsByAppRequest, GetUserGrantsByCapabilityRequest, GrantInfo,
             GrantRequest,
@@ -30,7 +31,7 @@ use ripple_sdk::{
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
-    service::user_grants::{GrantEntry, GrantState, GrantStateModify},
+    service::user_grants::GrantState,
     state::platform_state::PlatformState,
     utils::rpc_utils::{rpc_await_oneshot, rpc_err},
 };
