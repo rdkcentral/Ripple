@@ -43,6 +43,10 @@ pub enum RippleContract {
     RemoteAccessory,
     Keyboard,
     SessionToken,
+    AppEvents,
+    DeviceEvents,
+    PowerStateEvent,
+    VoiceGuidance,
 }
 
 impl TryFrom<String> for RippleContract {

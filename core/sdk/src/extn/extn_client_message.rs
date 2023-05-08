@@ -23,9 +23,11 @@ use serde_json::Value;
 
 use crate::{
     api::{
+        apps::AppEvent,
         config::{Config, ConfigResponse},
         device::{
-            device_request::{DeviceRequest, NetworkResponse},
+            device_events::DeviceEventRequest,
+            device_request::{DeviceRequest, NetworkResponse, SystemPowerState},
             device_storage::StorageData,
         },
         distributor::{
@@ -221,6 +223,7 @@ pub enum ExtnRequest {
     Config(Config),
     Rpc(RpcRequest),
     Device(DeviceRequest),
+    DeviceEvent(DeviceEventRequest),
     Extn(Value),
     LifecycleManagement(LifecycleManagementRequest),
     PinChallenge(PinChallengeRequest),
@@ -238,6 +241,7 @@ pub enum ExtnResponse {
     String(String),
     Boolean(bool),
     Number(u32),
+    Float(f32),
     Value(Value),
     StringMap(HashMap<String, String>),
     List(Vec<String>),
@@ -276,6 +280,8 @@ pub enum ExtnEvent {
     String(String),
     Value(Value),
     Status(ExtnStatus),
+    AppEvent(AppEvent),
+    PowerState(SystemPowerState),
 }
 
 impl ExtnPayloadProvider for ExtnEvent {
