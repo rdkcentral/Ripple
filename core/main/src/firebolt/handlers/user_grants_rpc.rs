@@ -30,10 +30,8 @@ use ripple_sdk::{
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
-    state::{
-        cap::grant_state::{GrantEntry, GrantState, GrantStateModify},
-        platform_state::PlatformState,
-    },
+    service::user_grants::{GrantEntry, GrantState, GrantStateModify},
+    state::platform_state::PlatformState,
     utils::rpc_utils::{rpc_await_oneshot, rpc_err},
 };
 use ripple_sdk::async_trait::async_trait;
