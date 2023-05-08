@@ -1,177 +1,87 @@
-use async_trait::async_trait;
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use serde_json::Value;
 
-use crate::message::{DistributorSession, DpabRequest};
+pub const DISCOVERY_EVENT_ON_NAVIGATE_TO: &'static str = "discovery.onNavigateTo";
 
-#[derive(Debug, Clone)]
-pub enum DiscoveryAccountLinkRequest {
-    EntitlementsAccountLink(EntitlementsAccountLinkRequestParams),
-    MediaEventAccountLink(MediaEventsAccountLinkRequestParams),
-    LaunchPadAccountLink(LaunchPadAccountLinkRequestParams),
-    SignIn(SignInRequestParams),
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct DiscoveryContext {
+    pub source: String,
 }
 
-pub const PROGRESS_UNIT_SECONDS: &'static str = "Seconds";
-pub const PROGRESS_UNIT_PERCENT: &'static str = "Percent";
-
-pub const ACCOUNT_LINK_TYPE_ACCOUNT_LINK: &'static str = "AccountLink";
-pub const ACCOUNT_LINK_TYPE_ENTITLEMENT_UPDATES: &'static str = "EntitlementUpdates";
-pub const ACCOUNT_LINK_TYPE_LAUNCH_PAD: &'static str = "LaunchPad";
-
-pub const ACCOUNT_LINK_ACTION_SIGN_IN: &'static str = "SignIn";
-pub const ACCOUNT_LINK_ACTION_SIGN_OUT: &'static str = "SignOut";
-pub const ACCOUNT_LINK_ACTION_APP_LAUNCH: &'static str = "AppLaunch";
-pub const ACCOUNT_LINK_ACTION_CREATE: &'static str = "Create";
-pub const ACCOUNT_LINK_ACTION_DELETE: &'static str = "Delete";
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DiscoveryEntitlement {
-    pub entitlement_id: String,
-    pub start_time: i64,
-    pub end_time: i64,
+impl DiscoveryContext {
+    pub fn new(source: &str) -> DiscoveryContext {
+        return DiscoveryContext {
+            source: source.to_string(),
+        };
+    }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub enum ProgressUnit {
-    Seconds,
-    Percent,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct MediaEvent {
-    pub content_id: String,
-    pub completed: bool,
-    pub progress: f32,
-    pub progress_unit: ProgressUnit,
-    pub watched_on: Option<String>,
+#[derive(Deserialize, Serialize, Clone, Debug)]
+pub struct LaunchRequest {
+    #[serde(rename = "appId")]
     pub app_id: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AccountLaunchpad {
-    pub expiration: i64,
-    pub app_name: String,
-    pub content_id: Option<String>,
-    pub deeplink: Option<String>,
-    pub content_url: Option<String>,
-    pub app_id: String,
-    pub title: HashMap<String, String>,
-    pub images: HashMap<String, HashMap<String, String>>,
-    pub account_link_type: String,
-    pub account_link_action: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct EntitlementsAccountLinkRequestParams {
-    pub account_link_type: Option<String>,
-    pub account_link_action: Option<String>,
-    pub entitlements: Vec<DiscoveryEntitlement>,
-    pub app_id: String,
-    pub content_partner_id: String,
-    pub dist_session: DistributorSession,
-}
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct EntitlementsAccountLinkResponse {}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct MediaEventsAccountLinkRequestParams {
-    pub media_event: MediaEvent,
-    pub content_partner_id: String,
-    pub client_supports_opt_out: bool,
-    pub dist_session: DistributorSession,
-    pub data_tags: HashSet<String>,
-}
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct MediaEventsAccountLinkResponse {}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct LaunchPadAccountLinkRequestParams {
-    pub link_launchpad: AccountLaunchpad,
-    pub content_partner_id: String,
-    pub dist_session: DistributorSession,
-}
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct LaunchPadAccountLinkResponse {}
-
-#[async_trait]
-pub trait AccountLinkService {
-    async fn entitlements_account_link(
-        self: Box<Self>,
-        request: DpabRequest,
-        params: EntitlementsAccountLinkRequestParams,
-    );
-    async fn media_events_account_link(
-        self: Box<Self>,
-        request: DpabRequest,
-        params: MediaEventsAccountLinkRequestParams,
-    );
-    async fn launch_pad_account_link(
-        self: Box<Self>,
-        request: DpabRequest,
-        params: LaunchPadAccountLinkRequestParams,
-    );
-    async fn sign_in(self: Box<Self>, request: DpabRequest, params: SignInRequestParams);
-}
-
-#[derive(Debug, Clone)]
-pub enum DiscoveryRequest {
-    SetContentAccess(ContentAccessListSetParams),
-    ClearContent(ClearContentSetParams),
-}
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct ContentAccessEntitlement {
-    pub entitlement_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub start_time: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_time: Option<String>,
+    pub intent: Option<NavigationIntent>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct ContentAccessAvailability {
-    #[serde(rename = "type")]
-    pub _type: String,
-    pub id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub catalog_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub start_time: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_time: Option<String>,
-}
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionParams {
-    pub app_id: String, // eg: Netflix
-    pub dist_session: DistributorSession,
-}
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct ContentAccessInfo {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub availabilities: Option<Vec<ContentAccessAvailability>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub entitlements: Option<Vec<ContentAccessEntitlement>>,
+impl LaunchRequest {
+    pub fn new(
+        app_id: String,
+        action: String,
+        data: Option<Value>,
+        source: String,
+    ) -> LaunchRequest {
+        LaunchRequest {
+            app_id,
+            intent: Some(NavigationIntent {
+                action,
+                data,
+                context: DiscoveryContext { source },
+            }),
+        }
+    }
+
+    pub fn get_intent(&self) -> NavigationIntent {
+        self.intent.clone().unwrap_or_default()
+    }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ClearContentSetParams {
-    pub session_info: SessionParams,
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct NavigationIntent {
+    pub action: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<Value>,
+    pub context: DiscoveryContext,
 }
-#[derive(Debug, Serialize, Clone)]
-pub struct ContentAccessListSetParams {
-    pub session_info: SessionParams,
-    pub content_access_info: ContentAccessInfo,
-}
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ContentAccessResponse {}
 
-#[derive(Debug, Clone)]
-pub struct SignInRequestParams {
-    pub session_info: SessionParams,
-    pub is_signed_in: bool, /*true for signIn, false for signOut */
+impl Default for NavigationIntent {
+    fn default() -> NavigationIntent {
+        NavigationIntent {
+            action: "home".to_string(),
+            data: None,
+            context: DiscoveryContext::new("device"),
+        }
+    }
+}
+
+impl PartialEq for NavigationIntent {
+    fn eq(&self, other: &Self) -> bool {
+        self.action.eq(&other.action) && self.context.eq(&other.context)
+    }
 }
