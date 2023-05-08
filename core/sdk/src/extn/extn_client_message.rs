@@ -24,19 +24,23 @@ use serde_json::Value;
 use crate::{
     api::{
         config::{Config, ConfigResponse},
-        device::{device_request::DeviceRequest, device_storage::StorageData},
+        device::{
+            device_request::{DeviceRequest, NetworkResponse},
+            device_storage::StorageData,
+        },
         distributor::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
             distributor_request::DistributorRequest,
         },
         firebolt::{
+            fb_authentication::TokenResult,
             fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
             fb_lifecycle_management::LifecycleManagementRequest,
             fb_pin::{PinChallengeRequest, PinChallengeResponse},
         },
         gateway::rpc_gateway_api::RpcRequest,
         protocol::BridgeProtocolRequest,
-        session::{AccountSession, AccountSessionRequest},
+        session::{AccountSession, AccountSessionRequest, SessionTokenRequest},
         status_update::ExtnStatus,
     },
     framework::ripple_contract::RippleContract,
@@ -87,6 +91,16 @@ impl ExtnMessage {
                 error!("can only respond for a request message");
                 Err(RippleError::InvalidInput)
             }
+        }
+    }
+
+    pub fn ack(&self) -> ExtnMessage {
+        ExtnMessage {
+            id: self.id.clone(),
+            requestor: self.requestor.clone(),
+            target: self.target.clone(),
+            payload: ExtnPayload::Response(ExtnResponse::None(())),
+            callback: self.callback.clone(),
         }
     }
 }
@@ -215,6 +229,7 @@ pub enum ExtnRequest {
     Distributor(DistributorRequest),
     AccountSession(AccountSessionRequest),
     BridgeProtocolRequest(BridgeProtocolRequest),
+    SessionToken(SessionTokenRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -233,7 +248,9 @@ pub enum ExtnResponse {
     AccountSession(AccountSession),
     Permission(PermissionResponse),
     StorageData(StorageData),
+    NetworkResponse(NetworkResponse),
     AvailableTimezones(Vec<String>),
+    Token(TokenResult),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {

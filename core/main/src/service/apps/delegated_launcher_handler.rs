@@ -38,6 +38,7 @@ use ripple_sdk::{
         },
         protocol::{BridgeProtocolRequest, BridgeSessionParams},
     },
+    log::info,
     tokio::{
         self,
         sync::mpsc::Receiver,
@@ -288,27 +289,29 @@ impl DelegatedLauncherHandler {
 
             match transport.clone() {
                 EffectiveTransport::Bridge(container_id) => {
-                    if !self.platform_state.supports_bridge() {
+                    if self.platform_state.supports_bridge() {
                         // Step 1: Add the session of the app to the state if bridge
                         let session_state = Session::new(app_id.clone(), None, transport);
                         self.platform_state
                             .session_state
                             .add_session(session_id.clone(), session_state);
-
+                        let id = container_id.clone();
                         // Step 2: Start the session using contract
                         let request = BridgeSessionParams {
                             container_id,
                             session_id: session_id.clone(),
                         };
                         let request = BridgeProtocolRequest::StartSession(request);
-                        if let Err(e) = self
-                            .platform_state
-                            .get_client()
-                            .send_extn_request(request)
-                            .await
-                        {
-                            error!("Error sending event to bridge {:?}", e);
-                        }
+                        let client = self.platform_state.get_client();
+                        // After processing the session response the launcher will launch the app
+                        // Below thread is going to wait for the app to be launched and create a connection
+                        tokio::spawn(async move {
+                            if let Err(e) = client.send_extn_request(request).await {
+                                error!("Error sending request to bridge {:?}", e);
+                            } else {
+                                info!("Bridge connected for {}", id);
+                            }
+                        });
                     }
                 }
                 _ => {}

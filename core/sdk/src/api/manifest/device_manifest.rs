@@ -378,4 +378,7 @@ impl DeviceManifest {
     pub fn get_grant_policies(&self) -> Option<HashMap<String, GrantPolicies>> {
         self.clone().capabilities.grant_policies
     }
+    pub fn get_distributor_experience_id(&self) -> String {
+        self.configuration.distributor_experience_id.clone()
+    }
 }
