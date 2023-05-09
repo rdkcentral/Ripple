@@ -6,7 +6,10 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         firebolt::{
-            fb_advertising::{AdIdRequestParams, AdInitObjectRequestParams, AdvertisingRequest},
+            fb_advertising::{
+                AdIdRequestParams, AdInitObjectRequestParams, AdvertisingRequest,
+                AdvertisingResponse,
+            },
             fb_capabilities::{CapabilityRole, RoleInfo},
             fb_general::{ListenRequest, ListenerResponse},
         },
@@ -196,7 +199,7 @@ impl AdvertisingServer for AdvertisingImpl {
 
         match resp {
             Ok(payload) => match payload.payload.extract().unwrap() {
-                ExtnResponse::AdIdObject(obj) => {
+                AdvertisingResponse::AdIdObject(obj) => {
                     let ad_init_object = AdvertisingId {
                         ifa: obj.ifa,
                         ifa_type: obj.ifa_type,
@@ -266,7 +269,7 @@ impl AdvertisingServer for AdvertisingImpl {
 
         match resp {
             Ok(payload) => match payload.payload.extract().unwrap() {
-                ExtnResponse::AdInitObject(obj) => {
+                AdvertisingResponse::AdInitObject(obj) => {
                     let ad_init_object = AdvertisingFrameworkConfig {
                         ad_server_url: obj.ad_server_url,
                         ad_server_url_template: obj.ad_server_url_template,
