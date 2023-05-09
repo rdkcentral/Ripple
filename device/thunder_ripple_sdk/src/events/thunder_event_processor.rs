@@ -154,8 +154,8 @@ pub trait ThunderEventHandlerProvider {
     }
     fn get_device_request() -> DeviceSubscribeRequest {
         DeviceSubscribeRequest {
-            module: Self::event_name(),
-            event_name: Self::module(),
+            module: Self::module(),
+            event_name: Self::event_name(),
             params: None,
             sub_id: Some(Self::get_mapped_event()),
         }
