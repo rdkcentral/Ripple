@@ -21,7 +21,7 @@ use jsonrpsee::{
 };
 use ripple_sdk::{
     api::{
-        apps::EffectiveTransport,
+        apps::{AppEvent, EffectiveTransport},
         firebolt::fb_general::ListenRequest,
         gateway::rpc_gateway_api::{ApiMessage, CallContext},
         protocol::BridgeProtocolRequest,
@@ -320,6 +320,16 @@ impl AppEvents {
 
     pub async fn emit(state: &PlatformState, event_name: &str, result: &Value) {
         AppEvents::emit_with_context(state, event_name, result, None).await;
+    }
+
+    pub async fn emit_with_app_event(state: &PlatformState, app_event: AppEvent) {
+        AppEvents::emit_with_context(
+            state,
+            &app_event.event_name,
+            &app_event.result,
+            app_event.context,
+        )
+        .await
     }
 
     pub async fn emit_with_context(
