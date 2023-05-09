@@ -26,7 +26,6 @@ pub mod device_request;
 pub mod device_storage;
 pub mod device_wifi;
 pub mod device_window_manager;
-//pub mod device_advertising;
 
 /// Contains a list of available Platformtypes supported by Ripple.
 #[derive(Debug, Deserialize, Clone)]
