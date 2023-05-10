@@ -16,4 +16,5 @@
 // limitations under the License.
 mod distributor_general_ffi;
 mod general_permission_processor;
+mod general_securestorage_processor;
 mod general_session_processor;

@@ -36,6 +36,7 @@ use ripple_sdk::{
 
 use crate::{
     general_permission_processor::DistributorPermissionProcessor,
+    general_securestorage_processor::DistributorSecureStorageProcessor,
     general_session_processor::DistributorSessionProcessor,
 };
 
@@ -47,6 +48,7 @@ fn init_library() -> CExtnMetadata {
         ContractFulfiller::new(vec![
             RippleContract::Permissions,
             RippleContract::AccountSession,
+            RippleContract::SecureStorage,
         ]),
         Version::new(1, 1, 0),
     );
@@ -69,6 +71,7 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     runtime.block_on(async move {
         client.add_request_processor(DistributorSessionProcessor::new(client.clone()));
         client.add_request_processor(DistributorPermissionProcessor::new(client.clone()));
+        client.add_request_processor(DistributorSecureStorageProcessor::new(client.clone()));
         // Lets Main know that the distributor channel is ready
         let _ = client.event(ExtnStatus::Ready).await;
         client.initialize().await;
