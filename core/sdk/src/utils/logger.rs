@@ -15,7 +15,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::str::FromStr;
+
 pub fn init_logger(name: String) -> Result<(), fern::InitError> {
+    let log_string: String = std::env::var("RUST_LOG").unwrap_or("info".into());
+    let filter = log::LevelFilter::from_str(&log_string).unwrap_or(log::LevelFilter::Info);
     fern::Dispatch::new()
         .format(move |out, message, record| {
             out.finish(format_args!(
@@ -28,7 +32,7 @@ pub fn init_logger(name: String) -> Result<(), fern::InitError> {
                 message
             ))
         })
-        .level(log::LevelFilter::Debug)
+        .level(filter)
         .chain(std::io::stdout())
         .apply()?;
     Ok(())
