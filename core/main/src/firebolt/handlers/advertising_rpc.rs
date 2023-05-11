@@ -47,7 +47,10 @@ use crate::{
     utils::rpc_utils::{rpc_add_event_listener, rpc_err},
 };
 
-use super::capabilities_rpc::is_permitted;
+use super::{
+    capabilities_rpc::is_permitted,
+    privacy_rpc::{self, PrivacyImpl},
+};
 
 const ADVERTISING_APP_BUNDLE_ID_SUFFIX: &'static str = "Comcast";
 
@@ -194,16 +197,10 @@ impl AdvertisingServer for AdvertisingImpl {
     }
 
     async fn advertising_id(&self, ctx: CallContext) -> RpcResult<AdvertisingId> {
-        //TODO: blocked by privacy.
-        //// for testing purpose privacy not implemeted. ////
-        let mut p_data = HashMap::new();
-        p_data.insert("abcd".to_string(), "xyz".to_string());
-        /////////////////////////////////////////////////////
-
         let session = self.state.session_state.get_account_session().unwrap();
         let payload = AdvertisingRequest::GetAdIdObject(AdIdRequestParams {
-            //privacy_data: privacy::get_limit_ad_tracking_settings(&self.state).await,
-            privacy_data: p_data,
+            privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(&self.state)
+                .await,
             app_id: ctx.clone().app_id.to_string(),
             dist_session: session,
         });
@@ -256,17 +253,11 @@ impl AdvertisingServer for AdvertisingImpl {
             capability: "advertising:identifier".to_string(),
             role: Some(CapabilityRole::Use),
         };
-        //TODO: blocked by privacy.
-        //// for testing purpose privacy not implemeted. ////
-        let mut p_data = HashMap::new();
-        p_data.insert("abcd".to_string(), "xyz".to_string());
-        /////////////////////////////////////////////////////
-
         let ad_id_authorised = is_permitted(self.state.clone(), ctx, params).await;
 
         let payload = AdvertisingRequest::GetAdInitObject(AdInitObjectRequestParams {
-            //privacy_data: privacy::get_limit_ad_tracking_settings(&self.state).await,
-            privacy_data: p_data,
+            privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(&self.state)
+                .await,
             environment: config.options.environment.to_string(),
             durable_app_id: app_id,
             app_version: "".to_string(),
@@ -346,12 +337,7 @@ impl AdvertisingServer for AdvertisingImpl {
     }
 
     async fn policy(&self, _ctx: CallContext) -> RpcResult<AdvertisingPolicy> {
-        //TODO: blocked by privacy.
-        //// for testing purpose privacy not implemeted. ////
-        let limit_ad_tracking = true;
-        /////////////////////////////////////////////////////
-
-        //let limit_ad_tracking = PrivacyImpl::get_limit_ad_tracking(&self.state).await;
+        let limit_ad_tracking = PrivacyImpl::get_limit_ad_tracking(&self.state).await;
         Ok(AdvertisingPolicy {
             skip_restriction: "adsUnwatched".to_owned(),
             limit_ad_tracking,
