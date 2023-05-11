@@ -35,6 +35,7 @@ use crate::{
             distributor_request::DistributorRequest,
         },
         firebolt::{
+            fb_advertising::AdvertisingRequest,
             fb_authentication::TokenResult,
             fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
             fb_lifecycle_management::LifecycleManagementRequest,
@@ -235,6 +236,7 @@ pub enum ExtnRequest {
     BridgeProtocolRequest(BridgeProtocolRequest),
     SessionToken(SessionTokenRequest),
     SecureStorage(SecureStorageRequest),
+    Advertising(AdvertisingRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

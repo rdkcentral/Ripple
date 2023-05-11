@@ -33,7 +33,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
     },
     extn::extn_client_message::{ExtnMessage, ExtnResponse},
-    log::{error, info, trace},
+    log::{error, info},
     serde_json::{self, Result as SResult},
     tokio::{self},
     utils::error::RippleError,
@@ -128,7 +128,10 @@ impl RpcRouter {
         tokio::spawn(async move {
             let session_id = req.ctx.session_id.clone();
             if let Ok(msg) = resolve_route(methods, resources, req).await {
-                trace!("sending back to {} {}", session_id, msg.jsonrpc_msg);
+                info!(
+                    "Sending Firebolt response to {} {}",
+                    session_id, msg.jsonrpc_msg
+                );
                 match session.get_transport() {
                     EffectiveTransport::Websocket => {
                         if let Err(e) = session.send_json_rpc(msg).await {

@@ -31,7 +31,12 @@
         "xrn:firebolt:capability:protocol:wifi",
         "xrn:firebolt:capability:approve:purchase",
         "xrn:firebolt:capability:approve:content",
-        "xrn:firebolt:capability:profile:flags"
+        "xrn:firebolt:capability:profile:flags",
+        "xrn:firebolt:capability:storage:secure",
+        "xrn:firebolt:capability:storage:secure[manage]",
+        "xrn:firebolt:capability:advertising:configuration",
+        "xrn:firebolt:capability:advertising:identifier",
+        "xrn:firebolt:capability:privacy:advertising"
     ],
     "comcast_firebolt_reference" : [
         "xrn:firebolt:capability:input:keyboard",
@@ -73,6 +78,9 @@
         "xrn:firebolt:capability:localization:location[manage]",
         "xrn:firebolt:capability:protocol:wifi",
         "xrn:firebolt:capability:storage:secure",
-        "xrn:firebolt:capability:storage:secure[manage]"
+        "xrn:firebolt:capability:storage:secure[manage]",
+        "xrn:firebolt:capability:advertising:configuration",
+        "xrn:firebolt:capability:advertising:identifier",
+        "xrn:firebolt:capability:privacy:advertising"
     ]
 }

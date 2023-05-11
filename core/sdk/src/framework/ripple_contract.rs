@@ -48,6 +48,7 @@ pub enum RippleContract {
     PowerStateEvent,
     VoiceGuidance,
     SecureStorage,
+    Advertising,
 }
 
 impl TryFrom<String> for RippleContract {

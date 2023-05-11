@@ -83,7 +83,10 @@
       "xrn:firebolt:capability:input:keyboard",
       "xrn:firebolt:capability:accessory:pair",
       "xrn:firebolt:capability:accessory:list",
-      "xrn:firebolt:capability:remote:ble"
+      "xrn:firebolt:capability:remote:ble",
+      "xrn:firebolt:capability:advertising:configuration",
+      "xrn:firebolt:capability:advertising:identifier",
+      "xrn:firebolt:capability:privacy:advertising"
     ]
   },
   "lifecycle": {
