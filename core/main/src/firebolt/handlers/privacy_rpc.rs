@@ -16,8 +16,7 @@
 // limitations under the License.
 
 use crate::{
-    firebolt::rpc::RippleRPCProvider,
-    processor::storage::storage_manager::{StorageManagerError, StorageManagerResponse},
+    firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManagerError,
     state::platform_state::PlatformState,
 };
 use jsonrpsee::{
@@ -35,7 +34,6 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::CallContext,
     },
     log::debug,
-    serde_json::json,
 };
 use serde::{Deserialize, Serialize};
 
@@ -49,9 +47,6 @@ use crate::processor::storage::{
         EVENT_ALLOW_REMOTE_DIAGNOSTICS_CHANGED, EVENT_ALLOW_RESUME_POINTS_CHANGED,
         EVENT_ALLOW_UNENTITLED_PERSONALIZATION_CHANGED,
         EVENT_ALLOW_UNENTITLED_RESUME_POINTS_CHANGED, EVENT_ALLOW_WATCH_HISTORY_CHANGED,
-        EVENT_ENABLE_RECOMMENDATIONS, EVENT_LIMIT_AD_TRACKING, EVENT_REMEMBER_WATCHED_PROGRAMS,
-        EVENT_SHARE_WATCH_HISTORY, KEY_ENABLE_RECOMMENDATIONS, KEY_REMEMBER_WATCHED_PROGRAMS,
-        KEY_SHARE_WATCH_HISTORY,
     },
 };
 
@@ -87,38 +82,33 @@ pub const US_PRIVACY_KEY: &'static str = "us_privacy";
 pub const LMT_KEY: &'static str = "lmt";
 
 #[derive(Debug, Clone)]
-struct LimitAdTrackingSettings {
+struct AllowAppContentAdTargetingSettings {
     lmt: String,
     us_privacy: String,
 }
 
-impl LimitAdTrackingSettings {
-    pub fn new(limit_ad_tracking: bool) -> Self {
-        let (lmt, us_privacy) = match limit_ad_tracking {
+impl AllowAppContentAdTargetingSettings {
+    pub fn new(limit_ad_targeting: bool) -> Self {
+        let (lmt, us_privacy) = match limit_ad_targeting {
             true => ("1", "1-Y-"),
             false => ("0", "1-N-"),
         };
-        LimitAdTrackingSettings {
+        AllowAppContentAdTargetingSettings {
             lmt: lmt.to_owned(),
             us_privacy: us_privacy.to_owned(),
         }
     }
 
-    pub fn get_limit_ad_tracking_settings(&self) -> HashMap<String, String> {
+    pub fn get_allow_app_content_ad_targeting_settings(&self) -> HashMap<String, String> {
         HashMap::from([
             (US_PRIVACY_KEY.to_owned(), self.us_privacy.to_owned()),
             (LMT_KEY.to_owned(), self.lmt.to_owned()),
         ])
     }
 }
-impl Default for LimitAdTrackingSettings {
+impl Default for AllowAppContentAdTargetingSettings {
     fn default() -> Self {
         Self {
-            /*
-            As per X1 privacy settings documentation, default privacy setting is lmt = 0 us_privacy = 1-N-
-            (i.e. , Customer has not opted-out)
-            https://developer.comcast.com/documentation/limit-ad-tracking-and-ccpa-technical-requirements-1
-            */
             lmt: "0".to_owned(),
             us_privacy: "1-N-".to_owned(),
         }
@@ -164,76 +154,6 @@ impl PrivacySettings {
 
 #[rpc(server)]
 pub trait Privacy {
-    #[method(name = "privacy.enableRecommendations")]
-    async fn privacy_enable_recommendations(
-        &self,
-        ctx: CallContext,
-        get_request: GetAppContentPolicy,
-    ) -> RpcResult<bool>;
-    #[method(name = "privacy.setEnableRecommendations")]
-    async fn privacy_enable_recommendations_set(
-        &self,
-        ctx: CallContext,
-        set_request: SetAppContentPolicy,
-    ) -> RpcResult<()>;
-    #[method(name = "privacy.onEnableRecommendationsChanged")]
-    async fn privacy_enable_recommendations_changed(
-        &self,
-        ctx: CallContext,
-        request: ContentListenRequest,
-    ) -> RpcResult<ListenerResponse>;
-
-    #[method(name = "privacy.limitAdTracking", aliases = ["badger.limitAdTracking"])]
-    async fn privacy_limit_ad_tracking(&self, ctx: CallContext) -> RpcResult<bool>;
-    #[method(name = "privacy.setLimitAdTracking")]
-    async fn privacy_limit_ad_tracking_set(
-        &self,
-        ctx: CallContext,
-        set_request: SetBoolProperty,
-    ) -> RpcResult<()>;
-    #[method(name = "privacy.onLimitAdTrackingChanged")]
-    async fn privacy_limit_ad_tracking_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
-
-    #[method(name = "privacy.rememberWatchedPrograms")]
-    async fn privacy_remember_watched_programs(
-        &self,
-        ctx: CallContext,
-        get_request: GetAppContentPolicy,
-    ) -> RpcResult<bool>;
-    #[method(name = "privacy.setRememberWatchedPrograms")]
-    async fn privacy_remember_watched_programs_set(
-        &self,
-        ctx: CallContext,
-        set_request: SetAppContentPolicy,
-    ) -> RpcResult<()>;
-    #[method(name = "privacy.onRememberWatchedProgramsChanged")]
-    async fn privacy_remember_watched_programs_changed(
-        &self,
-        ctx: CallContext,
-        request: ContentListenRequest,
-    ) -> RpcResult<ListenerResponse>;
-    #[method(name = "privacy.shareWatchHistory")]
-    async fn privacy_share_watch_history(
-        &self,
-        ctx: CallContext,
-        get_request: GetAppContentPolicy,
-    ) -> RpcResult<bool>;
-    #[method(name = "privacy.setShareWatchHistory")]
-    async fn privacy_share_watch_history_set(
-        &self,
-        ctx: CallContext,
-        set_request: SetAppContentPolicy,
-    ) -> RpcResult<()>;
-    #[method(name = "privacy.onShareWatchHistoryChanged")]
-    async fn privacy_share_watch_history_changed(
-        &self,
-        ctx: CallContext,
-        request: ContentListenRequest,
-    ) -> RpcResult<ListenerResponse>;
     #[method(name = "privacy.allowACRCollection")]
     async fn privacy_allow_acr_collection(&self, ctx: CallContext) -> RpcResult<bool>;
     #[method(name = "privacy.setAllowACRCollection")]
@@ -407,10 +327,10 @@ pub trait Privacy {
     async fn get_settings(&self, ctx: CallContext) -> RpcResult<PrivacySettings>;
 }
 
-pub async fn get_limit_ad_tracking_settings(
+pub async fn get_allow_app_content_ad_targeting_settings(
     platform_state: &PlatformState,
 ) -> HashMap<String, String> {
-    let data = StorageProperty::LimitAdTracking.as_data();
+    let data = StorageProperty::AllowAppContentAdTargeting.as_data();
 
     match StorageManager::get_bool_from_namespace(
         platform_state,
@@ -419,11 +339,12 @@ pub async fn get_limit_ad_tracking_settings(
     )
     .await
     {
-        Ok(resp) => LimitAdTrackingSettings::new(resp.as_value()).get_limit_ad_tracking_settings(),
-        Err(StorageManagerError::NotFound) => {
-            LimitAdTrackingSettings::default().get_limit_ad_tracking_settings()
-        }
-        _ => LimitAdTrackingSettings::new(true).get_limit_ad_tracking_settings(),
+        Ok(resp) => AllowAppContentAdTargetingSettings::new(resp.as_value())
+            .get_allow_app_content_ad_targeting_settings(),
+        Err(StorageManagerError::NotFound) => AllowAppContentAdTargetingSettings::default()
+            .get_allow_app_content_ad_targeting_settings(),
+        _ => AllowAppContentAdTargetingSettings::new(true)
+            .get_allow_app_content_ad_targeting_settings(),
     }
 }
 
@@ -433,21 +354,6 @@ pub struct PrivacyImpl {
 }
 
 impl PrivacyImpl {
-    async fn send_policy_changed_event(&self, _ctx: &CallContext, _app_id: String) {
-        // TODO: This can be implemented when Discovery RPC is implemented
-        // let event_data = DiscoveryImpl::get_content_policy(&ctx, &self.state, &app_id.clone())
-        //     .await
-        //     .unwrap();
-        // AppEvents::emit_with_context(
-        //     &self.state,
-        //     "discovery.onPolicyChanged",
-        //     &serde_json::to_value(event_data).unwrap(),
-        //     Some(serde_json::Value::String(app_id)),
-        // )
-        // .await;
-        todo!()
-    }
-
     async fn on_content_policy_changed(
         &self,
         _ctx: CallContext,
@@ -485,17 +391,10 @@ impl PrivacyImpl {
         }
     }
 
-    pub async fn get_enable_recommendations(state: &PlatformState, app_id: &str) -> bool {
-        match StorageManager::get_bool_from_namespace(
-            state,
-            get_namespace(app_id),
-            KEY_ENABLE_RECOMMENDATIONS,
-        )
-        .await
-        {
-            Ok(resp) => resp.as_value(),
-            Err(_) => false,
-        }
+    pub async fn get_allow_personalization(state: &PlatformState, _app_id: &str) -> bool {
+        StorageManager::get_bool(state, StorageProperty::AllowPersonalization)
+            .await
+            .unwrap_or(false)
     }
 
     pub async fn get_share_watch_history(
@@ -517,17 +416,10 @@ impl PrivacyImpl {
         todo!()
     }
 
-    pub async fn get_remember_watched_programs(state: &PlatformState, app_id: &str) -> bool {
-        match StorageManager::get_bool_from_namespace(
-            state,
-            get_namespace(app_id),
-            KEY_REMEMBER_WATCHED_PROGRAMS,
-        )
-        .await
-        {
-            Ok(resp) => resp.as_value(),
-            Err(_) => false,
-        }
+    pub async fn get_allow_watch_history(state: &PlatformState, _app_id: &str) -> bool {
+        StorageManager::get_bool(state, StorageProperty::AllowWatchHistory)
+            .await
+            .unwrap_or(false)
     }
 
     pub fn to_storage_property(method: &str) -> Option<StorageProperty> {
@@ -730,208 +622,6 @@ impl PrivacyImpl {
 
 #[async_trait]
 impl PrivacyServer for PrivacyImpl {
-    async fn privacy_enable_recommendations(
-        &self,
-        _ctx: CallContext,
-        get_request: GetAppContentPolicy,
-    ) -> RpcResult<bool> {
-        match StorageManager::get_bool_from_namespace(
-            &self.state,
-            get_namespace(&get_request.app_id),
-            KEY_ENABLE_RECOMMENDATIONS,
-        )
-        .await
-        {
-            Ok(resp) => Ok(resp.as_value()),
-            Err(_) => Ok(false),
-        }
-    }
-
-    async fn privacy_enable_recommendations_set(
-        &self,
-        ctx: CallContext,
-        set_request: SetAppContentPolicy,
-    ) -> RpcResult<()> {
-        let context = Some(json!({
-            "appId": set_request.app_id,
-        }));
-        match StorageManager::set_in_namespace(
-            &self.state,
-            get_namespace(&set_request.app_id),
-            KEY_ENABLE_RECOMMENDATIONS.to_string(),
-            json!(set_request.value),
-            Some(&[EVENT_ENABLE_RECOMMENDATIONS]),
-            context,
-        )
-        .await
-        {
-            Ok(resp) => {
-                if let StorageManagerResponse::Ok(_) = resp {
-                    self.send_policy_changed_event(&ctx, set_request.app_id)
-                        .await;
-                }
-                Ok(())
-            }
-            Err(_e) => Err(StorageManager::get_firebolt_error(
-                &StorageProperty::EnableRecommendations,
-            )),
-        }
-    }
-
-    async fn privacy_enable_recommendations_changed(
-        &self,
-        ctx: CallContext,
-        request: ContentListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        self.on_content_policy_changed(ctx, EVENT_ENABLE_RECOMMENDATIONS, request)
-            .await
-    }
-
-    async fn privacy_limit_ad_tracking(&self, _ctx: CallContext) -> RpcResult<bool> {
-        Ok(PrivacyImpl::get_limit_ad_tracking(&self.state).await)
-    }
-
-    async fn privacy_limit_ad_tracking_set(
-        &self,
-        _ctx: CallContext,
-        set_request: SetBoolProperty,
-    ) -> RpcResult<()> {
-        StorageManager::set_bool(
-            &self.state,
-            StorageProperty::LimitAdTracking,
-            set_request.value,
-            None,
-        )
-        .await
-    }
-
-    async fn privacy_limit_ad_tracking_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        self.on_content_policy_changed(
-            ctx,
-            EVENT_LIMIT_AD_TRACKING,
-            ContentListenRequest {
-                app_id: None,
-                listen: request.listen,
-            },
-        )
-        .await
-    }
-    async fn privacy_remember_watched_programs(
-        &self,
-        _ctx: CallContext,
-        get_request: GetAppContentPolicy,
-    ) -> RpcResult<bool> {
-        match StorageManager::get_bool_from_namespace(
-            &self.state,
-            get_namespace(&get_request.app_id),
-            KEY_REMEMBER_WATCHED_PROGRAMS,
-        )
-        .await
-        {
-            Ok(resp) => Ok(resp.as_value()),
-            Err(_) => Ok(false),
-        }
-    }
-    async fn privacy_remember_watched_programs_set(
-        &self,
-        ctx: CallContext,
-        set_request: SetAppContentPolicy,
-    ) -> RpcResult<()> {
-        let context = Some(json!({
-            "appId": set_request.app_id,
-        }));
-        match StorageManager::set_in_namespace(
-            &self.state,
-            get_namespace(&set_request.app_id),
-            KEY_REMEMBER_WATCHED_PROGRAMS.to_string(),
-            json!(set_request.value),
-            Some(&[EVENT_REMEMBER_WATCHED_PROGRAMS]),
-            context,
-        )
-        .await
-        {
-            Ok(resp) => {
-                if let StorageManagerResponse::Ok(_) = resp {
-                    self.send_policy_changed_event(&ctx, set_request.app_id)
-                        .await;
-                }
-                Ok(())
-            }
-            Err(_e) => Err(StorageManager::get_firebolt_error(
-                &StorageProperty::RemeberWatchedPrograms,
-            )),
-        }
-    }
-
-    async fn privacy_remember_watched_programs_changed(
-        &self,
-        ctx: CallContext,
-        request: ContentListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        self.on_content_policy_changed(ctx, EVENT_REMEMBER_WATCHED_PROGRAMS, request)
-            .await
-    }
-
-    async fn privacy_share_watch_history(
-        &self,
-        _ctx: CallContext,
-        get_request: GetAppContentPolicy,
-    ) -> RpcResult<bool> {
-        match StorageManager::get_bool_from_namespace(
-            &self.state,
-            get_namespace(&get_request.app_id),
-            KEY_SHARE_WATCH_HISTORY,
-        )
-        .await
-        {
-            Ok(resp) => Ok(resp.as_value()),
-            Err(_) => Ok(false),
-        }
-    }
-    async fn privacy_share_watch_history_set(
-        &self,
-        ctx: CallContext,
-        set_request: SetAppContentPolicy,
-    ) -> RpcResult<()> {
-        let context = Some(json!({
-            "appId": set_request.app_id,
-        }));
-        match StorageManager::set_in_namespace(
-            &self.state,
-            get_namespace(&set_request.app_id),
-            KEY_SHARE_WATCH_HISTORY.to_string(),
-            json!(set_request.value),
-            Some(&[EVENT_SHARE_WATCH_HISTORY]),
-            context,
-        )
-        .await
-        {
-            Ok(resp) => {
-                if let StorageManagerResponse::Ok(_) = resp {
-                    self.send_policy_changed_event(&ctx, set_request.app_id)
-                        .await;
-                }
-                Ok(())
-            }
-            Err(_e) => Err(StorageManager::get_firebolt_error(
-                &StorageProperty::ShareWatchHistory,
-            )),
-        }
-    }
-
-    async fn privacy_share_watch_history_changed(
-        &self,
-        ctx: CallContext,
-        request: ContentListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        self.on_content_policy_changed(ctx, EVENT_SHARE_WATCH_HISTORY, request)
-            .await
-    }
-
     async fn privacy_allow_acr_collection(&self, ctx: CallContext) -> RpcResult<bool> {
         Self::handle_allow_get_requests(&ctx.method, &self.state, true).await
     }
@@ -1296,13 +986,5 @@ pub struct PrivacyProvider;
 impl RippleRPCProvider<PrivacyImpl> for PrivacyProvider {
     fn provide(state: PlatformState) -> RpcModule<PrivacyImpl> {
         (PrivacyImpl { state }).into_rpc()
-    }
-}
-
-fn get_namespace(app_id: &str) -> String {
-    if app_id.is_empty() {
-        String::from("Privacy")
-    } else {
-        format!("Privacy.{}", app_id)
     }
 }

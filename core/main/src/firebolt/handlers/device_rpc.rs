@@ -25,6 +25,7 @@ use crate::{
             StorageProperty, EVENT_DEVICE_DEVICE_NAME_CHANGED, EVENT_DEVICE_NAME_CHANGED,
         },
     },
+    service::apps::app_events::AppEvents,
     state::platform_state::PlatformState,
     utils::rpc_utils::{rpc_add_event_listener, rpc_err},
 };
@@ -36,6 +37,11 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         device::{
+            device_events::{
+                DeviceEvent, DeviceEventCallback, DeviceEventRequest, AUDIO_CHANGED_EVENT,
+                HDCP_CHANGED_EVENT, HDR_CHANGED_EVENT, NETWORK_CHANGED_EVENT,
+                SCREEN_RESOLUTION_CHANGED_EVENT, VIDEO_RESOLUTION_CHANGED_EVENT,
+            },
             device_info_request::{DeviceInfoRequest, DeviceResponse},
             device_request::{
                 AudioProfile, DeviceVersionResponse, HdcpProfile, HdrProfile, NetworkResponse,
@@ -49,6 +55,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::CallContext,
     },
     extn::extn_client_message::ExtnResponse,
+    log::error,
     uuid::Uuid,
 };
 
@@ -358,11 +365,36 @@ impl DeviceServer for DeviceImpl {
 
     async fn on_hdcp_changed(
         &self,
-        _ctx: CallContext,
-        _request: ListenRequest,
+        ctx: CallContext,
+        request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        //TODO
-        todo!();
+        let listen = request.listen;
+
+        AppEvents::add_listener(
+            &&self.state,
+            HDCP_CHANGED_EVENT.to_string(),
+            ctx.clone(),
+            request,
+        );
+
+        if let Err(_) = self
+            .state
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::InputChanged,
+                id: ctx.app_id,
+                subscribe: listen,
+                callback_type: DeviceEventCallback::FireboltAppEvent,
+            })
+            .await
+        {
+            error!("Error while registration");
+        }
+
+        Ok(ListenerResponse {
+            listening: listen,
+            event: HDCP_CHANGED_EVENT.to_string(),
+        })
     }
 
     async fn hdr(&self, _ctx: CallContext) -> RpcResult<HashMap<HdrProfile, bool>> {
@@ -387,11 +419,35 @@ impl DeviceServer for DeviceImpl {
 
     async fn on_hdr_changed(
         &self,
-        _ctx: CallContext,
-        _request: ListenRequest,
+        ctx: CallContext,
+        request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        //TODO
-        todo!();
+        let listen = request.listen;
+        AppEvents::add_listener(
+            &&self.state,
+            HDR_CHANGED_EVENT.to_string(),
+            ctx.clone(),
+            request,
+        );
+
+        if let Err(_) = self
+            .state
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::HdrChanged,
+                id: ctx.app_id,
+                subscribe: listen,
+                callback_type: DeviceEventCallback::FireboltAppEvent,
+            })
+            .await
+        {
+            error!("Error while registration");
+        }
+
+        Ok(ListenerResponse {
+            listening: listen,
+            event: HDR_CHANGED_EVENT.to_string(),
+        })
     }
 
     async fn screen_resolution(&self, _ctx: CallContext) -> RpcResult<Vec<i32>> {
@@ -416,11 +472,35 @@ impl DeviceServer for DeviceImpl {
 
     async fn on_screen_resolution_changed(
         &self,
-        _ctx: CallContext,
-        _request: ListenRequest,
+        ctx: CallContext,
+        request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        //TODO
-        todo!();
+        let listen = request.listen;
+        AppEvents::add_listener(
+            &&self.state,
+            SCREEN_RESOLUTION_CHANGED_EVENT.to_string(),
+            ctx.clone(),
+            request,
+        );
+
+        if let Err(_) = self
+            .state
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::ScreenResolutionChanged,
+                id: ctx.app_id,
+                subscribe: listen,
+                callback_type: DeviceEventCallback::FireboltAppEvent,
+            })
+            .await
+        {
+            error!("Error while registration");
+        }
+
+        Ok(ListenerResponse {
+            listening: listen,
+            event: SCREEN_RESOLUTION_CHANGED_EVENT.to_string(),
+        })
     }
 
     async fn video_resolution(&self, _ctx: CallContext) -> RpcResult<Vec<i32>> {
@@ -445,11 +525,35 @@ impl DeviceServer for DeviceImpl {
 
     async fn on_video_resolution_changed(
         &self,
-        _ctx: CallContext,
-        _request: ListenRequest,
+        ctx: CallContext,
+        request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        //TODO
-        todo!();
+        let listen = request.listen;
+        AppEvents::add_listener(
+            &&self.state,
+            VIDEO_RESOLUTION_CHANGED_EVENT.to_string(),
+            ctx.clone(),
+            request,
+        );
+
+        if let Err(_) = self
+            .state
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::VideoResolutionChanged,
+                id: ctx.app_id,
+                subscribe: listen,
+                callback_type: DeviceEventCallback::FireboltAppEvent,
+            })
+            .await
+        {
+            error!("Error while registration");
+        }
+
+        Ok(ListenerResponse {
+            listening: listen,
+            event: VIDEO_RESOLUTION_CHANGED_EVENT.to_string(),
+        })
     }
 
     async fn make(&self, _ctx: CallContext) -> RpcResult<String> {
@@ -495,11 +599,36 @@ impl DeviceServer for DeviceImpl {
 
     async fn on_audio_changed(
         &self,
-        _ctx: CallContext,
-        _request: ListenRequest,
+        ctx: CallContext,
+        request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        //TODO
-        todo!();
+        let listen = request.listen;
+
+        AppEvents::add_listener(
+            &&self.state,
+            AUDIO_CHANGED_EVENT.to_string(),
+            ctx.clone(),
+            request,
+        );
+
+        if let Err(_) = self
+            .state
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::AudioChanged,
+                id: ctx.clone().app_id,
+                subscribe: listen,
+                callback_type: DeviceEventCallback::FireboltAppEvent,
+            })
+            .await
+        {
+            error!("Error while registration");
+        }
+
+        Ok(ListenerResponse {
+            listening: listen,
+            event: AUDIO_CHANGED_EVENT.to_string(),
+        })
     }
 
     async fn network(&self, _ctx: CallContext) -> RpcResult<NetworkResponse> {
@@ -524,11 +653,35 @@ impl DeviceServer for DeviceImpl {
 
     async fn on_network_changed(
         &self,
-        _ctx: CallContext,
-        _request: ListenRequest,
+        ctx: CallContext,
+        request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        //TODO
-        todo!();
+        let listen = request.listen;
+        AppEvents::add_listener(
+            &&self.state,
+            NETWORK_CHANGED_EVENT.to_string(),
+            ctx.clone(),
+            request,
+        );
+
+        if let Err(_) = self
+            .state
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::NetworkChanged,
+                id: ctx.app_id,
+                subscribe: listen,
+                callback_type: DeviceEventCallback::FireboltAppEvent,
+            })
+            .await
+        {
+            error!("Error while registration");
+        }
+
+        Ok(ListenerResponse {
+            listening: listen,
+            event: NETWORK_CHANGED_EVENT.to_string(),
+        })
     }
 
     // async fn provision(
