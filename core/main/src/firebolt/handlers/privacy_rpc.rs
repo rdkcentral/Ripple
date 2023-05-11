@@ -17,7 +17,7 @@
 
 use crate::{
     firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManagerError,
-    state::platform_state::PlatformState,
+    service::apps::app_events::AppEvents, state::platform_state::PlatformState,
 };
 use jsonrpsee::{
     core::{async_trait, RpcResult},
@@ -34,6 +34,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::CallContext,
     },
     log::debug,
+    serde_json::json,
 };
 use serde::{Deserialize, Serialize};
 
@@ -356,32 +357,31 @@ pub struct PrivacyImpl {
 impl PrivacyImpl {
     async fn on_content_policy_changed(
         &self,
-        _ctx: CallContext,
-        _event_name: &'static str,
-        _request: ContentListenRequest,
+        ctx: CallContext,
+        event_name: &'static str,
+        request: ContentListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        // TODO: Check config for storage type? Are we supporting listeners for cloud settings?
-        // let event_context = request.app_id.map(|x| {
-        //     json!({
-        //         "appId": x,
-        //     })
-        // });
+        //TODO: Check config for storage type? Are we supporting listeners for cloud settings?
+        let event_context = request.app_id.map(|x| {
+            json!({
+                "appId": x,
+            })
+        });
 
-        // AppEvents::add_listener_with_context(
-        //     &&self.state.app_events_state,
-        //     event_name.to_owned(),
-        //     ctx,
-        //     ListenRequest {
-        //         listen: request.listen,
-        //     },
-        //     event_context,
-        // );
+        AppEvents::add_listener_with_context(
+            &&self.state,
+            event_name.to_owned(),
+            ctx,
+            ListenRequest {
+                listen: request.listen,
+            },
+            event_context,
+        );
 
-        // Ok(ListenerResponse {
-        //     listening: request.listen,
-        //     event: event_name,
-        // })
-        todo!()
+        Ok(ListenerResponse {
+            listening: request.listen,
+            event: event_name.into(),
+        })
     }
 
     pub async fn get_allow_app_content_ad_targeting(state: &PlatformState) -> bool {
@@ -401,7 +401,7 @@ impl PrivacyImpl {
         _state: &PlatformState,
         _app_id: &str,
     ) -> bool {
-        // This should be done when capabilities are implemented.
+        // This should be done when Usergrants is merged.
         // let helper = Box::new(state.services.clone());
         // let watch_granted = is_granted(
         //     &helper,
@@ -412,7 +412,7 @@ impl PrivacyImpl {
         // .await;
         // debug!("--> watch_granted={}", watch_granted);
         // watch_granted
-        todo!()
+        false
     }
 
     pub async fn get_allow_watch_history(state: &PlatformState, _app_id: &str) -> bool {
