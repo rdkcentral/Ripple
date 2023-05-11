@@ -384,11 +384,10 @@ impl PrivacyImpl {
         todo!()
     }
 
-    pub async fn get_limit_ad_tracking(state: &PlatformState) -> bool {
-        match StorageManager::get_bool(state, StorageProperty::LimitAdTracking).await {
-            Ok(resp) => resp,
-            Err(_) => true,
-        }
+    pub async fn get_allow_app_content_ad_targeting(state: &PlatformState) -> bool {
+        StorageManager::get_bool(state, StorageProperty::AllowAppContentAdTargeting)
+            .await
+            .unwrap_or(false)
     }
 
     pub async fn get_allow_personalization(state: &PlatformState, _app_id: &str) -> bool {
