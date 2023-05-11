@@ -1,38 +1,56 @@
-use crate::{
-    api::handlers::capabilities::is_authorized,
-    api::rpc::rpc_gateway::{CallContext, RPCProvider},
-    apps::app_events::{
-        AppEventDecorationError, AppEventDecorator, AppEvents, ListenRequest, ListenerResponse,
-    },
-    helpers::{
-        ripple_helper::{IRippleHelper, RippleHelper, RippleHelperFactory, RippleHelperType},
-        rpc_util::rpc_err,
-        session_util::{dab_to_dpab, get_distributor_session_from_platform_state},
-    },
-    managers::{
-        capability_manager::{
-            CapClassifiedRequest, CapRequest, FireboltCap, IGetLoadedCaps, RippleHandlerCaps,
-        },
-        storage::storage_property::EVENT_ADVERTISING_POLICY_CHANGED,
-    },
-    platform_state::PlatformState,
-};
-use dpab::core::{
-    message::{DpabRequestPayload, DpabResponsePayload},
-    model::advertising::{AdIdRequestParams, AdInitObjectRequestParams, AdvertisingRequest},
-};
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use jsonrpsee::{
     core::{async_trait, Error, RpcResult},
     proc_macros::rpc,
     RpcModule,
 };
+use ripple_sdk::{
+    api::{
+        firebolt::{
+            fb_advertising::{
+                AdIdRequestParams, AdInitObjectRequestParams, AdvertisingRequest,
+                AdvertisingResponse,
+            },
+            fb_capabilities::{CapabilityRole, RoleInfo},
+            fb_general::{ListenRequest, ListenerResponse},
+        },
+        gateway::rpc_gateway_api::CallContext,
+    },
+    extn::extn_client_message::ExtnResponse,
+    log::error,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
-use tracing::{error, instrument};
 
-use super::privacy::{self, PrivacyImpl};
+use crate::{
+    firebolt::rpc::RippleRPCProvider,
+    processor::storage::storage_property::EVENT_ADVERTISING_POLICY_CHANGED,
+    state::platform_state::PlatformState,
+    utils::rpc_utils::{rpc_add_event_listener, rpc_err},
+};
+
+use super::{
+    capabilities_rpc::is_permitted,
+    privacy_rpc::{self, PrivacyImpl},
+};
 
 const ADVERTISING_APP_BUNDLE_ID_SUFFIX: &'static str = "Comcast";
 
@@ -147,86 +165,72 @@ pub trait Advertising {
     async fn reset_identifier(&self, ctx: CallContext) -> RpcResult<()>;
 }
 
-#[derive(Clone)]
-struct AdvertisingPolicyEventDecorator {}
-
-#[async_trait]
-impl AppEventDecorator for AdvertisingPolicyEventDecorator {
-    async fn decorate(
-        &self,
-        _ps: &PlatformState,
-        _ctx: &CallContext,
-        _event_name: &str,
-        val_in: &Value,
-    ) -> Result<Value, AppEventDecorationError> {
-        Ok(serde_json::to_value(AdvertisingPolicy {
-            skip_restriction: "adsUnwatched".to_owned(),
-            limit_ad_tracking: val_in.as_bool().unwrap(),
-        })
-        .unwrap())
-    }
-    fn dec_clone(&self) -> Box<dyn AppEventDecorator + Send + Sync> {
-        Box::new(self.clone())
-    }
-}
-
-pub struct AdvertisingImpl<IRippleHelper> {
-    pub helper: Box<IRippleHelper>,
-    pub platform_state: PlatformState,
+pub struct AdvertisingImpl {
+    pub state: PlatformState,
 }
 
 #[async_trait]
-impl AdvertisingServer for AdvertisingImpl<RippleHelper> {
-    #[instrument(skip(self))]
+impl AdvertisingServer for AdvertisingImpl {
     async fn reset_identifier(&self, _ctx: CallContext) -> RpcResult<()> {
-        let cm_c = self.helper.get_config();
-        let session = get_distributor_session_from_platform_state(&self.platform_state).await?;
+        let session = self.state.session_state.get_account_session().unwrap();
 
-        let payload = DpabRequestPayload::Advertising(AdvertisingRequest::ResetAdIdentifier(
-            dab_to_dpab(session).unwrap(),
-        ));
-        let resp = self.helper.clone().send_dpab(payload).await;
+        let resp = self
+            .state
+            .get_client()
+            .send_extn_request(AdvertisingRequest::ResetAdIdentifier(session))
+            .await;
+
         if let Err(_) = resp {
             error!("Error resetting ad identifier {:?}", resp);
             return Err(rpc_err("Could not reset ad identifier for the device"));
         }
-        match resp.unwrap() {
-            DpabResponsePayload::None => Ok(()),
-            _ => Err(rpc_err("Unable to reset ad identifier")),
+
+        match resp {
+            Ok(payload) => match payload.payload.extract().unwrap() {
+                ExtnResponse::None(()) => Ok(()),
+                _ => Err(rpc_err("Device returned Unable to reset ad identifier")),
+            },
+            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
+                "Unable to reset ad identifier",
+            ))),
         }
     }
-    #[instrument(skip(self))]
-    async fn advertising_id(&self, ctx: CallContext) -> RpcResult<AdvertisingId> {
-        let cm_c = self.helper.get_config();
-        let session = get_distributor_session_from_platform_state(&self.platform_state).await?;
 
-        let payload =
-            DpabRequestPayload::Advertising(AdvertisingRequest::GetAdIdObject(AdIdRequestParams {
-                privacy_data: privacy::get_limit_ad_tracking_settings(&self.platform_state).await,
-                app_id: ctx.clone().app_id.to_string(),
-                dist_session: dab_to_dpab(session).unwrap(),
-            }));
-        let resp = self.helper.clone().send_dpab(payload).await;
+    async fn advertising_id(&self, ctx: CallContext) -> RpcResult<AdvertisingId> {
+        let session = self.state.session_state.get_account_session().unwrap();
+        let payload = AdvertisingRequest::GetAdIdObject(AdIdRequestParams {
+            privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(&self.state)
+                .await,
+            app_id: ctx.clone().app_id.to_string(),
+            dist_session: session,
+        });
+        let resp = self.state.get_client().send_extn_request(payload).await;
+
         if let Err(_) = resp {
             error!("Error getting ad init object: {:?}", resp);
             return Err(rpc_err("Could not get ad init object from the device"));
         }
-        match resp.unwrap() {
-            DpabResponsePayload::AdIdObject(obj) => {
-                let ad_init_object = AdvertisingId {
-                    ifa: obj.ifa,
-                    ifa_type: obj.ifa_type,
-                    lmt: obj.lmt,
-                };
-                Ok(ad_init_object)
-            }
-            _ => Err(rpc_err(
-                "Device returned an invalid type for ad init object",
-            )),
+
+        match resp {
+            Ok(payload) => match payload.payload.extract().unwrap() {
+                AdvertisingResponse::AdIdObject(obj) => {
+                    let ad_init_object = AdvertisingId {
+                        ifa: obj.ifa,
+                        ifa_type: obj.ifa_type,
+                        lmt: obj.lmt,
+                    };
+                    Ok(ad_init_object)
+                }
+                _ => Err(rpc_err(
+                    "Device returned an invalid type for ad init object",
+                )),
+            },
+            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
+                "Failed to extract ad init object from response",
+            ))),
         }
     }
 
-    #[instrument(skip(self))]
     fn app_bundle_id(&self, ctx: CallContext) -> RpcResult<String> {
         Ok(format!(
             "{}.{}",
@@ -239,60 +243,74 @@ impl AdvertisingServer for AdvertisingImpl<RippleHelper> {
         ctx: CallContext,
         config: GetAdConfig,
     ) -> RpcResult<AdvertisingFrameworkConfig> {
-        let cm_c = self.helper.get_config();
-        let session = get_distributor_session_from_platform_state(&self.platform_state).await?;
-        let ad_id_authorised = is_authorized(&self.helper, &ctx, "advertising:identifier").await;
+        let session = self.state.session_state.get_account_session();
+        let app_id = ctx.app_id.to_string();
+        let distributor_experience_id = self
+            .state
+            .get_device_manifest()
+            .get_distributor_experience_id();
+        let params = RoleInfo {
+            capability: "advertising:identifier".to_string(),
+            role: Some(CapabilityRole::Use),
+        };
+        let ad_id_authorised = is_permitted(self.state.clone(), ctx, params).await;
 
-        let payload = DpabRequestPayload::Advertising(AdvertisingRequest::GetAdInitObject(
-            AdInitObjectRequestParams {
-                privacy_data: privacy::get_limit_ad_tracking_settings(&self.platform_state).await,
-                environment: config.options.environment.to_string(),
-                durable_app_id: ctx.app_id.to_string(),
-                app_version: "".to_string(),
-                distributor_app_id: self.helper.get_config().distributor_experience_id(),
-                device_ad_attributes: HashMap::new(),
-                coppa: config.options.coppa.unwrap_or(false),
-                authentication_entity: config.options.authentication_entity.unwrap_or_default(),
-                dist_session: dab_to_dpab(session).unwrap(),
-            },
-        ));
-        let resp = self.helper.clone().send_dpab(payload).await;
+        let payload = AdvertisingRequest::GetAdInitObject(AdInitObjectRequestParams {
+            privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(&self.state)
+                .await,
+            environment: config.options.environment.to_string(),
+            durable_app_id: app_id,
+            app_version: "".to_string(),
+            distributor_app_id: distributor_experience_id,
+            device_ad_attributes: HashMap::new(),
+            coppa: config.options.coppa.unwrap_or(false),
+            authentication_entity: config.options.authentication_entity.unwrap_or_default(),
+            dist_session: session.unwrap(),
+        });
+
+        let resp = self.state.get_client().send_extn_request(payload).await;
+
         if let Err(_) = resp {
             error!("Error getting ad init object: {:?}", resp);
             return Err(rpc_err("Could not get ad init object from the device"));
         }
-        match resp.unwrap() {
-            DpabResponsePayload::AdInitObject(obj) => {
-                let ad_init_object = AdvertisingFrameworkConfig {
-                    ad_server_url: obj.ad_server_url,
-                    ad_server_url_template: obj.ad_server_url_template,
-                    ad_network_id: obj.ad_network_id,
-                    ad_profile_id: obj.ad_profile_id,
-                    ad_site_section_id: "".to_string(),
-                    ad_opt_out: obj.ad_opt_out,
-                    privacy_data: obj.privacy_data,
-                    ifa: if (ad_id_authorised) {
-                        obj.ifa
-                    } else {
-                        "0".repeat(obj.ifa.len())
-                    },
-                    ifa_value: obj.ifa_value,
-                    app_name: obj.app_name,
-                    app_bundle_id: obj.app_bundle_id,
-                    distributor_app_id: obj.distributor_app_id,
-                    device_ad_attributes: obj.device_ad_attributes,
-                    coppa: obj.coppa.to_string().parse::<u32>().unwrap(),
-                    authentication_entity: obj.authentication_entity,
-                };
-                Ok(ad_init_object)
-            }
-            _ => Err(rpc_err(
-                "Device returned an invalid type for ad init object",
-            )),
+
+        match resp {
+            Ok(payload) => match payload.payload.extract().unwrap() {
+                AdvertisingResponse::AdInitObject(obj) => {
+                    let ad_init_object = AdvertisingFrameworkConfig {
+                        ad_server_url: obj.ad_server_url,
+                        ad_server_url_template: obj.ad_server_url_template,
+                        ad_network_id: obj.ad_network_id,
+                        ad_profile_id: obj.ad_profile_id,
+                        ad_site_section_id: "".to_string(),
+                        ad_opt_out: obj.ad_opt_out,
+                        privacy_data: obj.privacy_data,
+                        ifa: if ad_id_authorised.unwrap() {
+                            obj.ifa
+                        } else {
+                            "0".repeat(obj.ifa.len())
+                        },
+                        ifa_value: obj.ifa_value,
+                        app_name: obj.app_name,
+                        app_bundle_id: obj.app_bundle_id,
+                        distributor_app_id: obj.distributor_app_id,
+                        device_ad_attributes: obj.device_ad_attributes,
+                        coppa: obj.coppa.to_string().parse::<u32>().unwrap(),
+                        authentication_entity: obj.authentication_entity,
+                    };
+                    Ok(ad_init_object)
+                }
+                _ => Err(rpc_err(
+                    "Device returned an invalid type for ad init object",
+                )),
+            },
+            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
+                "Failed to extract ad init object from response",
+            ))),
         }
     }
 
-    #[instrument(skip(self))]
     async fn device_attributes(&self, ctx: CallContext) -> RpcResult<Value> {
         let afc = self.config(ctx.clone(), Default::default()).await?;
 
@@ -318,74 +336,26 @@ impl AdvertisingServer for AdvertisingImpl<RippleHelper> {
         }
     }
 
-    #[instrument(skip(self))]
     async fn policy(&self, _ctx: CallContext) -> RpcResult<AdvertisingPolicy> {
-        let limit_ad_tracking = PrivacyImpl::get_limit_ad_tracking(&self.platform_state).await;
+        let limit_ad_tracking = PrivacyImpl::get_limit_ad_tracking(&self.state).await;
         Ok(AdvertisingPolicy {
             skip_restriction: "adsUnwatched".to_owned(),
             limit_ad_tracking,
         })
     }
-    #[instrument(skip(self))]
+
     async fn advertising_on_policy_changed(
         &self,
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        let listen = request.listen;
-        AppEvents::add_listener_with_decorator(
-            &&self.platform_state.app_events_state,
-            EVENT_ADVERTISING_POLICY_CHANGED.to_string(),
-            ctx,
-            request,
-            Some(Box::new(AdvertisingPolicyEventDecorator {})),
-        );
-        Ok(ListenerResponse {
-            listening: listen,
-            event: EVENT_ADVERTISING_POLICY_CHANGED,
-        })
+        rpc_add_event_listener(&self.state, ctx, request, EVENT_ADVERTISING_POLICY_CHANGED).await
     }
 }
 
-pub struct AdvertisingRippleProvider;
-
-pub struct AdvertisingCapHandler;
-
-impl IGetLoadedCaps for AdvertisingCapHandler {
-    fn get_loaded_caps(&self) -> RippleHandlerCaps {
-        RippleHandlerCaps {
-            caps: Some(vec![CapClassifiedRequest::Supported(vec![
-                FireboltCap::Short("advertising:identifier".into()),
-                FireboltCap::Short("advertising:configuration".into()),
-                FireboltCap::Short("privacy:advertising".into()),
-            ])]),
-        }
-    }
-}
-
-impl RPCProvider<AdvertisingImpl<RippleHelper>, AdvertisingCapHandler>
-    for AdvertisingRippleProvider
-{
-    fn provide(
-        self,
-        rhf: Box<RippleHelperFactory>,
-        platform_state: PlatformState,
-    ) -> (
-        RpcModule<AdvertisingImpl<RippleHelper>>,
-        AdvertisingCapHandler,
-    ) {
-        let a = AdvertisingImpl {
-            helper: rhf.clone().get(self.get_helper_variant()),
-            platform_state,
-        };
-        (a.into_rpc(), AdvertisingCapHandler)
-    }
-
-    fn get_helper_variant(self) -> Vec<RippleHelperType> {
-        vec![
-            RippleHelperType::Dab,
-            RippleHelperType::Dpab,
-            RippleHelperType::Cap,
-        ]
+pub struct AdvertisingRPCProvider;
+impl RippleRPCProvider<AdvertisingImpl> for AdvertisingRPCProvider {
+    fn provide(state: PlatformState) -> RpcModule<AdvertisingImpl> {
+        (AdvertisingImpl { state }).into_rpc()
     }
 }
