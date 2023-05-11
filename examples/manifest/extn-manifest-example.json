@@ -48,6 +48,7 @@
                     "fulfills": [
                         "permissions",
                         "account_session",
+                        "secure_storage",
                         "advertising"
                     ]
                 }
@@ -64,6 +65,7 @@
         "permissions",
         "account_session",
         "wifi",
+        "secure_storage",
         "advertising"
     ],
     "rpc_aliases": {

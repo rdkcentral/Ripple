@@ -44,6 +44,10 @@ fn init_library() -> CExtnMetadata {
             RippleContract::DeviceInfo,
             RippleContract::WindowManager,
             RippleContract::Browser,
+            RippleContract::DeviceEvents,
+            RippleContract::Storage,
+            RippleContract::RemoteAccessory,
+            RippleContract::Wifi,
         ]),
         Version::new(1, 1, 0),
     );

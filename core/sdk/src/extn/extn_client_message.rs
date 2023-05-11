@@ -40,6 +40,7 @@ use crate::{
             fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
             fb_lifecycle_management::LifecycleManagementRequest,
             fb_pin::{PinChallengeRequest, PinChallengeResponse},
+            fb_secure_storage::SecureStorageRequest,
         },
         gateway::rpc_gateway_api::RpcRequest,
         protocol::BridgeProtocolRequest,
@@ -234,6 +235,7 @@ pub enum ExtnRequest {
     AccountSession(AccountSessionRequest),
     BridgeProtocolRequest(BridgeProtocolRequest),
     SessionToken(SessionTokenRequest),
+    SecureStorage(SecureStorageRequest),
     Advertising(AdvertisingRequest),
 }
 
