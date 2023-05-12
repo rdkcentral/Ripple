@@ -100,6 +100,9 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
             Config::AllDefaultApps => ExtnResponse::Config(ConfigResponse::AllApps(
                 state.app_library_state.get_all_apps(),
             )),
+            Config::SavedDir => {
+                ExtnResponse::String(device_manifest.clone().configuration.saved_dir)
+            }
             _ => ExtnResponse::Error(ripple_sdk::utils::error::RippleError::InvalidInput),
         };
         Self::respond(state.get_client().get_extn_client(), msg, response)

@@ -15,29 +15,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{
-    firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManagerError,
-    service::apps::app_events::AppEvents, state::platform_state::PlatformState,
-};
-use jsonrpsee::{
-    core::{async_trait, RpcResult},
-    proc_macros::rpc,
-    types::error::CallError,
-    RpcModule,
-};
-use ripple_sdk::{
-    api::{
-        firebolt::{
-            fb_capabilities::CAPABILITY_NOT_AVAILABLE,
-            fb_general::{ListenRequest, ListenerResponse},
-        },
-        gateway::rpc_gateway_api::CallContext,
-    },
-    log::debug,
-    serde_json::json,
-};
-use serde::{Deserialize, Serialize};
-
 use crate::processor::storage::{
     storage_manager::StorageManager,
     storage_property::{
@@ -50,34 +27,31 @@ use crate::processor::storage::{
         EVENT_ALLOW_UNENTITLED_RESUME_POINTS_CHANGED, EVENT_ALLOW_WATCH_HISTORY_CHANGED,
     },
 };
+use crate::{
+    firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManagerError,
+    service::apps::app_events::AppEvents, state::platform_state::PlatformState,
+};
+use jsonrpsee::{
+    core::{async_trait, RpcResult},
+    proc_macros::rpc,
+    types::error::CallError,
+    RpcModule,
+};
+use ripple_sdk::{
+    api::{
+        device::device_storage::SetBoolProperty,
+        distributor::distributor_privacy::{ContentListenRequest, PrivacySettings},
+        firebolt::{
+            fb_capabilities::CAPABILITY_NOT_AVAILABLE,
+            fb_general::{ListenRequest, ListenerResponse},
+        },
+        gateway::rpc_gateway_api::CallContext,
+    },
+    log::debug,
+    serde_json::json,
+};
 
 use std::collections::HashMap;
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct SetBoolProperty {
-    pub value: bool,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct GetAppContentPolicy {
-    pub app_id: String,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct SetAppContentPolicy {
-    pub app_id: String,
-    pub value: bool,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct ContentListenRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub app_id: Option<String>,
-    pub listen: bool,
-}
 
 pub const US_PRIVACY_KEY: &'static str = "us_privacy";
 pub const LMT_KEY: &'static str = "lmt";
@@ -115,44 +89,6 @@ impl Default for AllowAppContentAdTargetingSettings {
         }
     }
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PrivacySettings {
-    #[serde(rename = "allowACRCollection")]
-    pub allow_acr_collection: bool,
-    pub allow_resume_points: bool,
-    pub allow_app_content_ad_targeting: bool,
-    pub allow_camera_analytics: bool,
-    pub allow_personalization: bool,
-    pub allow_primary_browse_ad_targeting: bool,
-    pub allow_primary_content_ad_targeting: bool,
-    pub allow_product_analytics: bool,
-    pub allow_remote_diagnostics: bool,
-    pub allow_unentitled_personalization: bool,
-    pub allow_unentitled_resume_points: bool,
-    pub allow_watch_history: bool,
-}
-
-impl PrivacySettings {
-    pub fn new() -> Self {
-        PrivacySettings {
-            allow_acr_collection: false,
-            allow_resume_points: false,
-            allow_app_content_ad_targeting: false,
-            allow_camera_analytics: false,
-            allow_personalization: false,
-            allow_primary_browse_ad_targeting: false,
-            allow_primary_content_ad_targeting: false,
-            allow_product_analytics: false,
-            allow_remote_diagnostics: false,
-            allow_unentitled_personalization: false,
-            allow_unentitled_resume_points: false,
-            allow_watch_history: false,
-        }
-    }
-}
-
 #[rpc(server)]
 pub trait Privacy {
     #[method(name = "privacy.allowACRCollection")]
@@ -476,7 +412,6 @@ impl PrivacyImpl {
     pub async fn handle_allow_get_requests(
         method: &str,
         platform_state: &PlatformState,
-        fill_default: bool,
     ) -> RpcResult<bool> {
         let property_opt = Self::to_storage_property(method);
         if property_opt.is_none() {
@@ -487,7 +422,7 @@ impl PrivacyImpl {
             }));
         } else {
             let property = property_opt.unwrap();
-            Self::get_bool(platform_state, property, fill_default).await
+            Self::get_bool(platform_state, property).await
         }
     }
 
@@ -511,13 +446,12 @@ impl PrivacyImpl {
     }
 
     pub async fn get_bool_storage_property(&self, property: StorageProperty) -> RpcResult<bool> {
-        Self::get_bool(&self.state, property, true).await
+        Self::get_bool(&self.state, property).await
     }
 
     pub async fn get_bool(
         platform_state: &PlatformState,
         property: StorageProperty,
-        _fill_default: bool,
     ) -> RpcResult<bool> {
         use ripple_sdk::api::manifest::device_manifest::PrivacySettingsStorageType;
         let privacy_settings_storage_type: PrivacySettingsStorageType = platform_state
@@ -622,7 +556,7 @@ impl PrivacyImpl {
 #[async_trait]
 impl PrivacyServer for PrivacyImpl {
     async fn privacy_allow_acr_collection(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
     async fn privacy_allow_acr_collection_set(
@@ -650,7 +584,7 @@ impl PrivacyServer for PrivacyImpl {
     }
 
     async fn privacy_allow_app_content_ad_targeting(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
     async fn privacy_allow_app_content_ad_targeting_set(
@@ -678,7 +612,7 @@ impl PrivacyServer for PrivacyImpl {
     }
 
     async fn privacy_allow_camera_analytics(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
     async fn privacy_allow_camera_analytics_set(
@@ -706,7 +640,7 @@ impl PrivacyServer for PrivacyImpl {
     }
 
     async fn privacy_allow_personalization(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
     async fn privacy_allow_personalization_set(
@@ -734,7 +668,7 @@ impl PrivacyServer for PrivacyImpl {
     }
 
     async fn privacy_allow_primary_browse_ad_targeting(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
     async fn privacy_allow_primary_browse_ad_targeting_set(
@@ -765,7 +699,7 @@ impl PrivacyServer for PrivacyImpl {
         &self,
         ctx: CallContext,
     ) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
     async fn privacy_allow_primary_content_ad_targeting_set(
@@ -793,7 +727,7 @@ impl PrivacyServer for PrivacyImpl {
     }
 
     async fn privacy_allow_product_analytics(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
     async fn privacy_allow_product_analytics_set(
@@ -821,7 +755,7 @@ impl PrivacyServer for PrivacyImpl {
     }
 
     async fn privacy_allow_remote_diagnostics(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
     async fn privacy_allow_remote_diagnostics_set(
@@ -849,7 +783,7 @@ impl PrivacyServer for PrivacyImpl {
     }
 
     async fn privacy_allow_resume_points(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
     async fn privacy_allow_resume_points_set(
@@ -877,7 +811,7 @@ impl PrivacyServer for PrivacyImpl {
     }
 
     async fn privacy_allow_unentitled_personalization(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
     async fn privacy_allow_unentitled_personalization_set(
@@ -905,7 +839,7 @@ impl PrivacyServer for PrivacyImpl {
     }
 
     async fn privacy_allow_unentitled_resume_points(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
     async fn privacy_allow_unentitled_resume_points_set(
@@ -933,7 +867,7 @@ impl PrivacyServer for PrivacyImpl {
     }
 
     async fn privacy_allow_watch_history(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
     async fn privacy_allow_watch_history_set(

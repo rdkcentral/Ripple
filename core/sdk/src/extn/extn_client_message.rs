@@ -32,6 +32,7 @@ use crate::{
         },
         distributor::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
+            distributor_privacy::PrivacyRequest,
             distributor_request::DistributorRequest,
         },
         firebolt::{
@@ -157,6 +158,14 @@ impl ExtnPayload {
             _ => false,
         }
     }
+
+    pub fn as_response(&self) -> Option<ExtnResponse> {
+        if let ExtnPayload::Response(r) = self.clone() {
+            Some(r)
+        } else {
+            None
+        }
+    }
 }
 
 /// Most critical trait used in Inter Extension Communication(IEC). Any message has to conform to this trait specification
@@ -237,6 +246,7 @@ pub enum ExtnRequest {
     SessionToken(SessionTokenRequest),
     SecureStorage(SecureStorageRequest),
     Advertising(AdvertisingRequest),
+    PrivacySettings(PrivacyRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
