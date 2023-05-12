@@ -40,13 +40,17 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         device::device_storage::SetBoolProperty,
-        distributor::distributor_privacy::{ContentListenRequest, PrivacySettings},
+        distributor::distributor_privacy::{
+            ContentListenRequest, GetPropertyParams, PrivacyRequest, PrivacySettings,
+            SetPropertyParams,
+        },
         firebolt::{
             fb_capabilities::CAPABILITY_NOT_AVAILABLE,
             fb_general::{ListenRequest, ListenerResponse},
         },
         gateway::rpc_gateway_api::CallContext,
     },
+    extn::extn_client_message::ExtnResponse,
     log::debug,
     serde_json::json,
 };
@@ -464,9 +468,21 @@ impl PrivacyImpl {
             PrivacySettingsStorageType::Local => {
                 StorageManager::get_bool(platform_state, property).await
             }
-            PrivacySettingsStorageType::Cloud => Err(jsonrpsee::core::Error::Custom(String::from(
-                "PrivacySettingsStorageType::Cloud: Unimplemented",
-            ))),
+            PrivacySettingsStorageType::Cloud => {
+                let dist_session = platform_state.session_state.get_account_session().unwrap();
+                let request = PrivacyRequest::GetProperty(GetPropertyParams {
+                    setting: property.as_privacy_setting().unwrap(),
+                    dist_session,
+                });
+                if let Ok(resp) = platform_state.get_client().send_extn_request(request).await {
+                    if let Some(ExtnResponse::Boolean(b)) = resp.payload.extract() {
+                        return Ok(b);
+                    }
+                }
+                Err(jsonrpsee::core::Error::Custom(String::from(
+                    "PrivacySettingsStorageType::Cloud: Not Available",
+                )))
+            }
             PrivacySettingsStorageType::Sync => Err(jsonrpsee::core::Error::Custom(String::from(
                 "PrivacySettingsStorageType::Sync: Unimplemented",
             ))),
@@ -489,9 +505,20 @@ impl PrivacyImpl {
             PrivacySettingsStorageType::Local => {
                 StorageManager::set_bool(platform_state, property, value, None).await
             }
-            PrivacySettingsStorageType::Cloud => Err(jsonrpsee::core::Error::Custom(String::from(
-                "PrivacySettingsStorageType::Cloud: Unimplemented",
-            ))),
+            PrivacySettingsStorageType::Cloud => {
+                let dist_session = platform_state.session_state.get_account_session().unwrap();
+                let request = PrivacyRequest::SetProperty(SetPropertyParams {
+                    setting: property.as_privacy_setting().unwrap(),
+                    value,
+                    dist_session,
+                });
+                if let Ok(_) = platform_state.get_client().send_extn_request(request).await {
+                    return Ok(());
+                }
+                Err(jsonrpsee::core::Error::Custom(String::from(
+                    "PrivacySettingsStorageType::Cloud: Not Available",
+                )))
+            }
             PrivacySettingsStorageType::Sync => Err(jsonrpsee::core::Error::Custom(String::from(
                 "PrivacySettingsStorageType::Sync: Unimplemented",
             ))),
@@ -905,9 +932,18 @@ impl PrivacyServer for PrivacyImpl {
 
         match privacy_settings_storage_type {
             PrivacySettingsStorageType::Local => self.get_settings_local().await,
-            PrivacySettingsStorageType::Cloud => Err(jsonrpsee::core::Error::Custom(String::from(
-                "PrivacySettingsStorageType::Cloud: Unimplemented",
-            ))),
+            PrivacySettingsStorageType::Cloud => {
+                let dist_session = self.state.session_state.get_account_session().unwrap();
+                let request = PrivacyRequest::GetProperties(dist_session);
+                if let Ok(resp) = self.state.get_client().send_extn_request(request).await {
+                    if let Some(b) = resp.payload.extract() {
+                        return Ok(b);
+                    }
+                }
+                Err(jsonrpsee::core::Error::Custom(String::from(
+                    "PrivacySettingsStorageType::Cloud: Not Available",
+                )))
+            }
             PrivacySettingsStorageType::Sync => Err(jsonrpsee::core::Error::Custom(String::from(
                 "PrivacySettingsStorageType::Sync: Unimplemented",
             ))),
