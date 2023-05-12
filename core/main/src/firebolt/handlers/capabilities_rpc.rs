@@ -196,3 +196,29 @@ impl RippleRPCProvider<CapabilityImpl> for CapRPCProvider {
         (CapabilityImpl { state }).into_rpc()
     }
 }
+
+pub async fn is_permitted(
+    state: PlatformState,
+    ctx: CallContext,
+    cap: RoleInfo,
+) -> RpcResult<bool> {
+    if let Ok(v) = state
+        .cap_state
+        .permitted_state
+        .check_cap_role(&ctx.app_id, cap.clone())
+    {
+        return Ok(v);
+    } else {
+        if let Ok(_) = PermissionHandler::fetch_and_store(state.clone(), ctx.clone().app_id).await {
+            //successful fetch retry
+            if let Ok(v) = state
+                .cap_state
+                .permitted_state
+                .check_cap_role(&ctx.app_id, cap)
+            {
+                return Ok(v);
+            }
+        }
+    }
+    Ok(false)
+}

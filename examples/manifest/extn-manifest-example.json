@@ -47,7 +47,9 @@
                     ],
                     "fulfills": [
                         "permissions",
-                        "account_session"
+                        "account_session",
+                        "secure_storage",
+                        "advertising"
                     ]
                 }
             ]
@@ -62,7 +64,9 @@
         "browser",
         "permissions",
         "account_session",
-        "wifi"
+        "wifi",
+        "secure_storage",
+        "advertising"
     ],
     "rpc_aliases": {
         "device.model": ["custom.model"]

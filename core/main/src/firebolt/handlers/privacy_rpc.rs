@@ -87,3 +87,16 @@ pub async fn get_allow_app_content_ad_targeting_settings(
             .get_allow_app_content_ad_targeting_settings(),
     }
 }
+
+pub struct PrivacyImpl {
+    pub platform_state: PlatformState,
+}
+
+impl PrivacyImpl {
+    pub async fn get_limit_ad_tracking(state: &PlatformState) -> bool {
+        match StorageManager::get_bool(state, StorageProperty::LimitAdTracking).await {
+            Ok(resp) => resp,
+            Err(_) => true,
+        }
+    }
+}

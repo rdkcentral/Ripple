@@ -20,6 +20,7 @@
 pub mod handlers {
     pub mod accessory_rpc;
     pub mod acknowledge_rpc;
+    pub mod advertising_rpc;
     pub mod capabilities_rpc;
     pub mod closed_captions_rpc;
     pub mod device_rpc;
@@ -32,6 +33,7 @@ pub mod handlers {
     pub mod privacy_rpc;
     pub mod profile_rpc;
     pub mod second_screen_rpc;
+    pub mod secure_storage_rpc;
     pub mod voice_guidance_rpc;
     pub mod wifi_rpc;
 }
