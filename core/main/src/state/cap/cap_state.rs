@@ -21,7 +21,10 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::{service::apps::app_events::AppEvents, state::platform_state::PlatformState};
+use crate::{
+    service::{apps::app_events::AppEvents, user_grants::GrantState},
+    state::platform_state::PlatformState,
+};
 use ripple_sdk::serde_json;
 use ripple_sdk::{
     api::{
@@ -50,15 +53,16 @@ pub struct CapState {
     pub generic: GenericCapState,
     pub permitted_state: PermittedState,
     primed_listeners: Arc<RwLock<HashSet<CapEventEntry>>>,
-    // add user grant state here
+    pub grant_state: GrantState,
 }
 
 impl CapState {
     pub fn new(manifest: DeviceManifest) -> Self {
         CapState {
             generic: GenericCapState::new(manifest.clone()),
-            permitted_state: PermittedState::new(manifest),
+            permitted_state: PermittedState::new(manifest.clone()),
             primed_listeners: Arc::new(RwLock::new(HashSet::new())),
+            grant_state: GrantState::new(manifest),
         }
     }
 

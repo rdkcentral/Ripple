@@ -1,18 +1,31 @@
-use crate::api::rpc::rpc_gateway::CallContext;
-use crate::apps::provider_broker::{
-    self, ProviderBroker, ProviderRequestPayload, ProviderResponsePayload,
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+use crate::api::firebolt::fb_capabilities::{
+    CapabilityRole, DenyReason, FireboltCap, FireboltPermission,
 };
-use crate::helpers::ripple_helper::IRippleHelper;
-use crate::managers::capability_manager::{DenyReason, FireboltCap};
-use crate::managers::capability_resolver::CapabilityResolver;
-use crate::platform_state::PlatformState;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::hash::{Hash, Hasher};
-use tokio::sync::oneshot;
-use tracing::debug;
+use std::{
+    collections::HashSet,
+    hash::{Hash, Hasher},
+    time::{Duration, SystemTime},
+};
 
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GrantStep {
     pub capability: String,
@@ -27,7 +40,7 @@ pub struct GrantRequirements {
 
 #[derive(Eq, Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub enum Lifespan {
+pub enum GrantLifespan {
     Once,
     Forever,
     AppActive,
@@ -35,31 +48,31 @@ pub enum Lifespan {
     Seconds,
 }
 
-impl Lifespan {
+impl GrantLifespan {
     pub fn as_string(&self) -> &'static str {
         match self {
-            Lifespan::Once => "once",
-            Lifespan::Forever => "forever",
-            Lifespan::AppActive => "appActive",
-            Lifespan::PowerActive => "powerActive",
-            Lifespan::Seconds => "seconds",
+            GrantLifespan::Once => "once",
+            GrantLifespan::Forever => "forever",
+            GrantLifespan::AppActive => "appActive",
+            GrantLifespan::PowerActive => "powerActive",
+            GrantLifespan::Seconds => "seconds",
         }
     }
 }
 
-impl Hash for Lifespan {
+impl Hash for GrantLifespan {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write_u8(match self {
-            Lifespan::Once => 0,
-            Lifespan::Forever => 1,
-            Lifespan::AppActive => 2,
-            Lifespan::PowerActive => 3,
-            Lifespan::Seconds => 4,
+            GrantLifespan::Once => 0,
+            GrantLifespan::Forever => 1,
+            GrantLifespan::AppActive => 2,
+            GrantLifespan::PowerActive => 3,
+            GrantLifespan::Seconds => 4,
         });
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum AutoApplyPolicy {
     Always,
@@ -70,7 +83,7 @@ pub enum AutoApplyPolicy {
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct PrivacySetting {
+pub struct GrantPrivacySetting {
     pub property: String,
     pub auto_apply_policy: AutoApplyPolicy,
     pub update_property: bool,
@@ -78,16 +91,16 @@ pub struct PrivacySetting {
 
 #[derive(Eq, PartialEq, Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub enum Scope {
+pub enum GrantScope {
     App,
     Device,
 }
 
-impl Hash for Scope {
+impl Hash for GrantScope {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write_u8(match self {
-            Scope::App => 0,
-            Scope::Device => 1,
+            GrantScope::App => 0,
+            GrantScope::Device => 1,
         });
     }
 }
@@ -96,19 +109,19 @@ impl Hash for Scope {
 #[serde(rename_all = "camelCase")]
 pub struct GrantPolicy {
     pub options: Vec<GrantRequirements>,
-    pub scope: Scope,
-    pub lifespan: Lifespan,
+    pub scope: GrantScope,
+    pub lifespan: GrantLifespan,
     pub overridable: bool,
     pub lifespan_ttl: Option<u64>,
-    pub privacy_setting: Option<PrivacySetting>,
+    pub privacy_setting: Option<GrantPrivacySetting>,
 }
 
 impl Default for GrantPolicy {
     fn default() -> Self {
         GrantPolicy {
             options: Default::default(),
-            scope: Scope::Device,
-            lifespan: Lifespan::Once,
+            scope: GrantScope::Device,
+            lifespan: GrantLifespan::Once,
             overridable: true,
             lifespan_ttl: None,
             privacy_setting: None,
@@ -116,7 +129,7 @@ impl Default for GrantPolicy {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct GrantPolicies {
     #[serde(rename = "use")]
     pub _use: Option<GrantPolicy>,
@@ -124,265 +137,178 @@ pub struct GrantPolicies {
     pub provide: Option<GrantPolicy>,
 }
 
-impl GrantStep {
-    pub async fn execute(
-        &self,
-        platform_state: &PlatformState,
-        call_ctx: &CallContext,
-    ) -> Result<(), DenyReason> {
-        let capability = &self.capability;
-        let configuration = &self.configuration;
-        debug!(
-            "Reached execute phase of step for capability: {}",
-            capability
-        );
-        // 1. Check if the capability is supported and available.
-        // 2. Call the capability,
-        // 3. Get the user response and return
-        let firebolt_cap = FireboltCap::Full(capability.to_owned());
-        if !platform_state
-            .services
-            .is_cap_supported(firebolt_cap.clone())
-            .await
-        {
-            debug!("Cap is neither supported nor available");
-            return Err(DenyReason::Unsupported);
-        }
-        debug!("Cap is supported. Now have to check if it is available");
-        if !platform_state
-            .services
-            .is_cap_available(firebolt_cap.clone())
-            .await
-        {
-            debug!("cap is supported but not available");
-            return Err(DenyReason::Unavailable);
-        }
-        self.invoke_capability(platform_state, call_ctx, &firebolt_cap, configuration)
-            .await
-    }
-    pub async fn invoke_capability(
-        &self,
-        platform_state: &PlatformState,
-        call_ctx: &CallContext,
-        cap: &FireboltCap,
-        param: &Option<Value>,
-    ) -> Result<(), DenyReason> {
-        let (session_tx, session_rx) = oneshot::channel::<ProviderResponsePayload>();
-        let p_cap = cap.clone();
-        /*
-         * We have a concrete struct defined for ack challenge and pin challenge hence handling them separately. If any new
-         * caps are introduced in future, the assumption is that capability provider has a method "challenge" and it can
-         * deduce its params from a string.
-         */
-
-        /*
-         * this might be weird looking as_str().as_str(), FireboltCap returns String but has a function named as_str.
-         * We call as_str on String to convert String to str to perform our match
-         */
-        let pr_msg_opt = match p_cap.as_str().as_str() {
-            "xrn:firebolt:capability:usergrant:acknowledgechallenge" => {
-                serde_json::from_value(param.as_ref().unwrap().clone()).map_or(None, |challenge| {
-                    Some(provider_broker::Request {
-                        capability: p_cap.as_str(),
-                        method: String::from("challenge"),
-                        caller: call_ctx.clone(),
-                        request: ProviderRequestPayload::AckChallenge(challenge),
-                        tx: session_tx,
-                        app_id: None,
-                    })
-                })
-            }
-            "xrn:firebolt:capability:usergrant:pinchallenge" => {
-                serde_json::from_value(param.as_ref().unwrap().clone()).map_or(None, |challenge| {
-                    Some(provider_broker::Request {
-                        capability: p_cap.as_str(),
-                        method: String::from("challenge"),
-                        caller: call_ctx.clone(),
-                        request: ProviderRequestPayload::PinChallenge(challenge),
-                        tx: session_tx,
-                        app_id: None,
-                    })
-                })
-            }
-            _ => {
-                /*
-                 * This is for any other capability, hoping it to deduce its necessary params from a json string
-                 * and has a challenge method.
-                 */
-                let param_str = match param {
-                    None => "".to_owned(),
-                    Some(val) => val.to_string(),
-                };
-                Some(provider_broker::Request {
-                    capability: p_cap.as_str(),
-                    method: String::from("challenge"),
-                    caller: call_ctx.clone(),
-                    request: ProviderRequestPayload::Generic(param_str),
-                    tx: session_tx,
-                    app_id: None,
-                })
-            }
-        };
-        if let Some(pr_msg) = pr_msg_opt {
-            ProviderBroker::invoke_method(&platform_state.clone(), pr_msg).await;
-            match session_rx.await {
-                Ok(result) => match result.as_challenge_response() {
-                    Some(res) => match res.granted {
-                        true => {
-                            debug!("returning ok from invoke_capability");
-                            return Ok(());
-                        }
-                        false => {
-                            debug!("returning err from invoke_capability");
-                            return Err(DenyReason::GrantDenied);
-                        }
-                    },
-                    None => {
-                        debug!("Received reponse that is not convertable to challenge response");
-                        return Err(DenyReason::Ungranted);
-                    }
-                },
-                Err(_) => {
-                    debug!("Receive error in channel");
-                    return Err(DenyReason::Ungranted);
+impl GrantPolicies {
+    pub fn get_policy(&self, permission: &FireboltPermission) -> Option<GrantPolicy> {
+        match permission.role {
+            CapabilityRole::Use => {
+                if self._use.is_some() {
+                    return Some(self._use.clone().unwrap());
                 }
             }
-        } else {
-            /*
-             * We would reach here if the cap is ack or pin
-             * and we are not able to parse the configuration in the manifest
-             * as pinchallenge or ackchallenge.
-             */
-            return Err(DenyReason::Unsupported);
-        }
-    }
-}
-
-impl GrantRequirements {
-    /*
-     * We can execute a grant requirement only if the caps defined in its
-     * steps are supported and available. This functions checks if all the
-     * steps in the requirements are supported and available.
-     */
-    async fn has_steps_for_execution(
-        &self,
-        platform_state: &PlatformState,
-        call_ctx: &CallContext,
-    ) -> bool {
-        let mut supported_and_available = true;
-        for step in &self.steps {
-            let firebolt_cap = FireboltCap::Full(step.capability.to_owned());
-            debug!(
-                "checking if the cap is supported & available: {:?}",
-                firebolt_cap.as_str()
-            );
-            if platform_state
-                .services
-                .is_cap_supported(firebolt_cap.clone())
-                .await
-                && platform_state
-                    .services
-                    .is_cap_available(firebolt_cap.clone())
-                    .await
-            {
-                supported_and_available = true;
-            } else {
-                supported_and_available = false;
-                break;
+            CapabilityRole::Manage => {
+                if self.manage.is_some() {
+                    return Some(self.manage.clone().unwrap());
+                }
+            }
+            CapabilityRole::Provide => {
+                if self.manage.is_some() {
+                    return Some(self.manage.clone().unwrap());
+                }
             }
         }
-        supported_and_available
-    }
-
-    async fn execute(
-        &self,
-        platform_state: &PlatformState,
-        call_ctx: &CallContext,
-    ) -> Result<(), DenyReason> {
-        for step in &self.steps {
-            step.execute(platform_state, call_ctx).await?
-        }
-        Ok(())
+        None
     }
 }
 
 impl GrantPolicy {
-    async fn evaluate_options(
-        &self,
-        platform_state: &PlatformState,
-        call_ctx: &CallContext,
-    ) -> Result<(), DenyReason> {
-        let mut result: Result<(), DenyReason> = Err(DenyReason::GrantDenied);
+    pub fn get_steps_without_grant(&self) -> Option<Vec<GrantStep>> {
+        let mut grant_steps = Vec::new();
         for grant_requirements in &self.options {
-            if grant_requirements
-                .has_steps_for_execution(platform_state, call_ctx)
-                .await
-            {
-                result = grant_requirements.execute(platform_state, call_ctx).await;
-                break;
-            }
-        }
-        result
-    }
-
-    pub async fn execute(
-        &self,
-        platform_state: &PlatformState,
-        call_ctx: &CallContext,
-    ) -> Result<(), DenyReason> {
-        let mut result: Result<(), DenyReason>;
-        if let Some(_privacy_settings) = &self.privacy_setting {
-            result = Ok(());
-        } else {
-            result = self.evaluate_options(platform_state, call_ctx).await;
-        }
-        result
-    }
-
-    pub async fn override_policy(&mut self, plaform_state: &PlatformState, call_ctx: &CallContext) {
-    }
-
-    pub async fn is_valid(&self, platform_state: &PlatformState, call_ctx: &CallContext) -> bool {
-        let mut result = false;
-        if let Some(privacy_settings) = &self.privacy_setting {
-            // Checking if the property is present in firebolt-open-rpc spec
-            if let Some(method) = &platform_state
-                .firebolt_open_rpc
-                .methods
-                .iter()
-                .find(|x| x.name == privacy_settings.property)
-            {
-                // Checking if the property tag is havin x-allow-value extension.
-                if let Some(tags) = &method.tags {
-                    result = tags
-                        .iter()
-                        .find(|x| x.name.starts_with("property:") && x.allow_value.is_some())
-                        .map_or(false, |_| true);
+            for step in &grant_requirements.steps {
+                if !step
+                    .capability
+                    .starts_with("xrn:firebolt:capability:usergrant:")
+                {
+                    grant_steps.push(step.clone());
                 }
             }
-        } else {
-            // Checking if we have at least one Grant Requirements.
-            result = true;
-            if self.options.len() > 0 {
-                // Check if all the Granting capabilities are of the format "xrn:firebolt:capability:usergrant:* and have entry in firebolt-spec"
-                'requirements: for grant_requirements in &self.options {
-                    for step in &grant_requirements.steps {
-                        if !step
-                            .capability
-                            .starts_with("xrn:firebolt:capability:usergrant:")
-                            && CapabilityResolver::get(None)
-                                .cap_policies
-                                .contains_key(&step.capability)
-                        {
-                            result = false;
-                            break 'requirements;
-                        }
-                    }
-                }
-            } else {
-                result = false;
-            }
         }
-        result
+        if grant_steps.len() > 0 {
+            return Some(grant_steps);
+        }
+        None
+    }
+}
+
+#[derive(Eq, Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum GrantStatus {
+    Allowed,
+    Denied,
+}
+
+impl GrantStatus {
+    pub fn as_string(&self) -> &'static str {
+        match self {
+            GrantStatus::Allowed => "granted",
+            GrantStatus::Denied => "denied",
+        }
+    }
+}
+
+impl From<GrantStatus> for Result<(), DenyReason> {
+    fn from(grant_status: GrantStatus) -> Self {
+        match grant_status {
+            GrantStatus::Allowed => Ok(()),
+            GrantStatus::Denied => Err(DenyReason::GrantDenied),
+        }
+    }
+}
+
+impl Hash for GrantStatus {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u8(match self {
+            GrantStatus::Allowed => 0,
+            GrantStatus::Denied => 1,
+        });
+    }
+}
+
+#[derive(Eq, Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum GrantStateModify {
+    Grant,
+    Deny,
+    Clear,
+}
+
+#[derive(Eq, Clone, Debug, Serialize, Deserialize)]
+pub struct GrantEntry {
+    pub role: CapabilityRole,
+    pub capability: String,
+    pub status: Option<GrantStatus>,
+    pub lifespan: Option<GrantLifespan>,
+    pub last_modified_time: Duration,
+    pub lifespan_ttl_in_secs: Option<u64>,
+}
+
+impl PartialEq for GrantEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.role == other.role && self.capability == other.capability
+    }
+}
+
+impl Hash for GrantEntry {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.role.hash(state);
+        self.capability.hash(state);
+    }
+}
+
+impl GrantEntry {
+    pub fn get(role: CapabilityRole, capability: String) -> GrantEntry {
+        GrantEntry {
+            role,
+            capability,
+            status: None,
+            lifespan: None,
+            last_modified_time: SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap(),
+            lifespan_ttl_in_secs: None,
+        }
+    }
+
+    pub fn has_expired(&self) -> bool {
+        match self.lifespan {
+            Some(GrantLifespan::Seconds) => match self.lifespan_ttl_in_secs {
+                None => true,
+                Some(ttl) => {
+                    let elapsed_time = SystemTime::now()
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .unwrap()
+                        .checked_sub(self.last_modified_time)
+                        .unwrap_or(Duration::from_secs(0));
+
+                    elapsed_time > Duration::from_secs(ttl)
+                }
+            },
+            Some(GrantLifespan::Once) => true,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum GrantActiveState {
+    ActiveGrant(Result<(), DenyReason>),
+    PendingGrant,
+}
+
+#[derive(Debug, Default)]
+pub struct GrantErrors {
+    pub ungranted: HashSet<FireboltCap>,
+    pub denied: HashSet<FireboltCap>,
+}
+
+impl GrantErrors {
+    pub fn add_ungranted(&mut self, cap: FireboltCap) {
+        self.ungranted.insert(cap);
+    }
+
+    pub fn add_denied(&mut self, cap: FireboltCap) {
+        self.denied.insert(cap);
+    }
+
+    pub fn has_errors(&self) -> bool {
+        self.ungranted.len() > 0 || self.denied.len() > 0
+    }
+
+    pub fn get_reason(&self, cap: &FireboltCap) -> Option<DenyReason> {
+        if self.ungranted.contains(cap) {
+            Some(DenyReason::Ungranted)
+        } else if self.denied.contains(cap) {
+            Some(DenyReason::GrantDenied)
+        } else {
+            None
+        }
     }
 }
