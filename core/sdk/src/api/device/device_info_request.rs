@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 // If not stated otherwise in this file or this component's license file the
 // following copyright and licenses apply:
 //
@@ -17,6 +15,7 @@ use std::collections::HashMap;
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::{
     api::firebolt::fb_openrpc::FireboltSemanticVersion,
@@ -48,6 +47,10 @@ pub enum DeviceInfoRequest {
     SetTimezone(String),
     GetTimezone,
     GetAvailableTimezones,
+    VoiceGuidanceEnabled,
+    SetVoiceGuidanceEnabled(bool),
+    VoiceGuidanceSpeed,
+    SetVoiceGuidanceSpeed(f32),
 }
 
 impl ExtnPayloadProvider for DeviceInfoRequest {

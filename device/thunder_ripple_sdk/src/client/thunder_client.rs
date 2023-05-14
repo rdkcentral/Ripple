@@ -22,6 +22,7 @@ use jsonrpsee::ws_client::WsClientBuilder;
 
 use jsonrpsee::core::async_trait;
 use jsonrpsee::types::ParamsSer;
+use ripple_sdk::tokio::sync::oneshot::{self, Sender as OneShotSender};
 use ripple_sdk::tokio::task::JoinHandle;
 use ripple_sdk::{
     api::device::device_operator::DeviceResponseMessage,
@@ -37,10 +38,6 @@ use ripple_sdk::{
 use ripple_sdk::{
     api::device::device_operator::{DeviceChannelParams, DeviceOperator},
     uuid::Uuid,
-};
-use ripple_sdk::{
-    log::debug,
-    tokio::sync::oneshot::{self, Sender as OneShotSender},
 };
 use ripple_sdk::{
     log::{error, info, trace, warn},
@@ -167,7 +164,7 @@ impl ThunderClient {
     /// Sends a message to thunder. If this client is pooled
     /// then it will wrap the message in a pool command before sending
     pub async fn send_message(&self, message: ThunderMessage) {
-        debug!("Client {} sending thunder message {:?}", self.id, message);
+        info!("Client {} sending thunder message {:?}", self.id, message);
         if let Some(s) = &self.pooled_sender {
             mpsc_send_and_log(
                 s,
@@ -192,7 +189,7 @@ impl DeviceOperator for ThunderClient {
         });
         self.send_message(message).await;
         let result = rx.await.unwrap();
-        debug!("received thunder message {:?}", result);
+        info!("received thunder message {:?}", result);
         result
     }
 
@@ -282,11 +279,12 @@ impl ThunderClient {
         .await;
         let handler_channel = thunder_message.handler.clone();
         let resub_message = ThunderMessage::ThunderSubscribeMessage(thunder_message.resubscribe());
+        let sub_id_c = sub_id.clone();
         let handle = ripple_sdk::tokio::spawn(async move {
             trace!("Starting thread to listen for thunder events");
             while let Some(ev_res) = subscription.next().await {
                 if let Ok(ev) = ev_res {
-                    let msg = DeviceResponseMessage::call(ev);
+                    let msg = DeviceResponseMessage::sub(ev, sub_id_c.clone());
                     mpsc_send_and_log(&thunder_message.handler, msg, "ThunderSubscribeEvent").await;
                 }
             }

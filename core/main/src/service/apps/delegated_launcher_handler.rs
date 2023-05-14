@@ -344,6 +344,7 @@ impl DelegatedLauncherHandler {
         if let Some(app) = app {
             let transport = app.initial_session.get_transport();
             if let EffectiveTransport::Bridge(container_id) = transport {
+                AppEvents::remove_session(&self.platform_state, app.session_id.clone());
                 let request = BridgeProtocolRequest::EndSession(container_id);
                 if let Err(e) = self
                     .platform_state

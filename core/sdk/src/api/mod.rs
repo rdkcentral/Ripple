@@ -34,6 +34,7 @@ pub mod distributor {
 }
 
 pub mod firebolt {
+    pub mod fb_advertising;
     pub mod fb_authentication;
     pub mod fb_capabilities;
     pub mod fb_discovery;
@@ -45,6 +46,7 @@ pub mod firebolt {
     pub mod fb_parameters;
     pub mod fb_pin;
     pub mod fb_secondscreen;
+    pub mod fb_secure_storage;
     pub mod fb_user_grants;
     pub mod provider;
 }
