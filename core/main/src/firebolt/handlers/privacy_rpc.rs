@@ -15,15 +15,47 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
-
-use crate::{
-    processor::storage::{
-        storage_manager::{StorageManager, StorageManagerError},
-        storage_property::StorageProperty,
+use crate::processor::storage::{
+    storage_manager::StorageManager,
+    storage_property::{
+        StorageProperty, EVENT_ALLOW_ACR_COLLECTION_CHANGED,
+        EVENT_ALLOW_APP_CONTENT_AD_TARGETING_CHANGED, EVENT_ALLOW_CAMERA_ANALYTICS_CHANGED,
+        EVENT_ALLOW_PERSONALIZATION_CHANGED, EVENT_ALLOW_PRIMARY_BROWSE_AD_TARGETING_CHANGED,
+        EVENT_ALLOW_PRIMARY_CONTENT_AD_TARGETING_CHANGED, EVENT_ALLOW_PRODUCT_ANALYTICS_CHANGED,
+        EVENT_ALLOW_REMOTE_DIAGNOSTICS_CHANGED, EVENT_ALLOW_RESUME_POINTS_CHANGED,
+        EVENT_ALLOW_UNENTITLED_PERSONALIZATION_CHANGED,
+        EVENT_ALLOW_UNENTITLED_RESUME_POINTS_CHANGED, EVENT_ALLOW_WATCH_HISTORY_CHANGED,
     },
-    state::platform_state::PlatformState,
 };
+use crate::{
+    firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManagerError,
+    service::apps::app_events::AppEvents, state::platform_state::PlatformState,
+};
+use jsonrpsee::{
+    core::{async_trait, RpcResult},
+    proc_macros::rpc,
+    types::error::CallError,
+    RpcModule,
+};
+use ripple_sdk::{
+    api::{
+        device::device_storage::SetBoolProperty,
+        distributor::distributor_privacy::{
+            ContentListenRequest, GetPropertyParams, PrivacyRequest, PrivacySettings,
+            SetPropertyParams,
+        },
+        firebolt::{
+            fb_capabilities::CAPABILITY_NOT_AVAILABLE,
+            fb_general::{ListenRequest, ListenerResponse},
+        },
+        gateway::rpc_gateway_api::CallContext,
+    },
+    extn::extn_client_message::ExtnResponse,
+    log::debug,
+    serde_json::json,
+};
+
+use std::collections::HashMap;
 
 pub const US_PRIVACY_KEY: &'static str = "us_privacy";
 pub const LMT_KEY: &'static str = "lmt";
@@ -61,7 +93,6 @@ impl Default for AllowAppContentAdTargetingSettings {
         }
     }
 }
-
 #[rpc(server)]
 pub trait Privacy {
     #[method(name = "privacy.allowACRCollection")]
@@ -259,33 +290,18 @@ pub async fn get_allow_app_content_ad_targeting_settings(
 }
 
 #[derive(Debug)]
-pub struct PrivacyImpl<IRippleHelper> {
-    pub helper: Box<IRippleHelper>,
-    pub platform_state: PlatformState,
+pub struct PrivacyImpl {
+    pub state: PlatformState,
 }
 
-impl PrivacyImpl<RippleHelper> {
-    async fn send_policy_changed_event(&self, ctx: &CallContext, app_id: String) {
-        let event_data =
-            DiscoveryImpl::get_content_policy(&ctx, &self.platform_state, &app_id.clone())
-                .await
-                .unwrap();
-        AppEvents::emit_with_context(
-            &self.platform_state,
-            "discovery.onPolicyChanged",
-            &serde_json::to_value(event_data).unwrap(),
-            Some(serde_json::Value::String(app_id)),
-        )
-        .await;
-    }
-
+impl PrivacyImpl {
     async fn on_content_policy_changed(
         &self,
         ctx: CallContext,
         event_name: &'static str,
         request: ContentListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        // TODO: Check config for storage type? Are we supporting listeners for cloud settings?
+        //TODO: Check config for storage type? Are we supporting listeners for cloud settings?
         let event_context = request.app_id.map(|x| {
             json!({
                 "appId": x,
@@ -293,7 +309,7 @@ impl PrivacyImpl<RippleHelper> {
         });
 
         AppEvents::add_listener_with_context(
-            &&self.platform_state.app_events_state,
+            &&self.state,
             event_name.to_owned(),
             ctx,
             ListenRequest {
@@ -304,41 +320,43 @@ impl PrivacyImpl<RippleHelper> {
 
         Ok(ListenerResponse {
             listening: request.listen,
-            event: event_name,
+            event: event_name.into(),
         })
     }
 
     pub async fn get_allow_app_content_ad_targeting(state: &PlatformState) -> bool {
-        StorageManager::get_bool(state, StorageProperty::AllowAppContentAdTargeting, true)
+        StorageManager::get_bool(state, StorageProperty::AllowAppContentAdTargeting)
             .await
             .unwrap_or(false)
     }
 
-    pub async fn get_allow_personalization(state: &PlatformState, app_id: &str) -> bool {
-        StorageManager::get_bool(state, StorageProperty::AllowPersonalization, true)
+    pub async fn get_allow_personalization(state: &PlatformState, _app_id: &str) -> bool {
+        StorageManager::get_bool(state, StorageProperty::AllowPersonalization)
             .await
             .unwrap_or(false)
     }
 
     pub async fn get_share_watch_history(
-        ctx: &CallContext,
-        state: &PlatformState,
-        app_id: &str,
+        _ctx: &CallContext,
+        _state: &PlatformState,
+        _app_id: &str,
     ) -> bool {
-        let helper = Box::new(state.services.clone());
-        let watch_granted = is_granted(
-            &helper,
-            ctx,
-            "xrn:firebolt:capability:discovery:watched",
-            None,
-        )
-        .await;
-        debug!("watch_granted={}", watch_granted);
-        watch_granted
+        // This should be done when Usergrants is merged.
+        // let helper = Box::new(state.services.clone());
+        // let watch_granted = is_granted(
+        //     &helper,
+        //     ctx,
+        //     "xrn:firebolt:capability:discovery:watched",
+        //     None,
+        // )
+        // .await;
+        // debug!("--> watch_granted={}", watch_granted);
+        // watch_granted
+        false
     }
 
-    pub async fn get_allow_watch_history(state: &PlatformState, app_id: &str) -> bool {
-        StorageManager::get_bool(state, StorageProperty::AllowWatchHistory, true)
+    pub async fn get_allow_watch_history(state: &PlatformState, _app_id: &str) -> bool {
+        StorageManager::get_bool(state, StorageProperty::AllowWatchHistory)
             .await
             .unwrap_or(false)
     }
@@ -398,7 +416,6 @@ impl PrivacyImpl<RippleHelper> {
     pub async fn handle_allow_get_requests(
         method: &str,
         platform_state: &PlatformState,
-        fill_default: bool,
     ) -> RpcResult<bool> {
         let property_opt = Self::to_storage_property(method);
         if property_opt.is_none() {
@@ -409,7 +426,7 @@ impl PrivacyImpl<RippleHelper> {
             }));
         } else {
             let property = property_opt.unwrap();
-            Self::get_bool(platform_state, property, fill_default).await
+            Self::get_bool(platform_state, property).await
         }
     }
 
@@ -433,25 +450,38 @@ impl PrivacyImpl<RippleHelper> {
     }
 
     pub async fn get_bool_storage_property(&self, property: StorageProperty) -> RpcResult<bool> {
-        Self::get_bool(&self.platform_state, property, true).await
+        Self::get_bool(&self.state, property).await
     }
 
     pub async fn get_bool(
         platform_state: &PlatformState,
         property: StorageProperty,
-        fill_default: bool,
     ) -> RpcResult<bool> {
-        match platform_state
-            .services
-            .get_config()
-            .get_features()
-            .privacy_settings_storage_type
-        {
+        use ripple_sdk::api::manifest::device_manifest::PrivacySettingsStorageType;
+        let privacy_settings_storage_type: PrivacySettingsStorageType = platform_state
+            .get_device_manifest()
+            .configuration
+            .features
+            .privacy_settings_storage_type;
+
+        match privacy_settings_storage_type {
             PrivacySettingsStorageType::Local => {
-                StorageManager::get_bool(platform_state, property, fill_default).await
+                StorageManager::get_bool(platform_state, property).await
             }
             PrivacySettingsStorageType::Cloud => {
-                PrivacyCloud::get_bool(platform_state, property).await
+                let dist_session = platform_state.session_state.get_account_session().unwrap();
+                let request = PrivacyRequest::GetProperty(GetPropertyParams {
+                    setting: property.as_privacy_setting().unwrap(),
+                    dist_session,
+                });
+                if let Ok(resp) = platform_state.get_client().send_extn_request(request).await {
+                    if let Some(ExtnResponse::Boolean(b)) = resp.payload.extract() {
+                        return Ok(b);
+                    }
+                }
+                Err(jsonrpsee::core::Error::Custom(String::from(
+                    "PrivacySettingsStorageType::Cloud: Not Available",
+                )))
             }
             PrivacySettingsStorageType::Sync => Err(jsonrpsee::core::Error::Custom(String::from(
                 "PrivacySettingsStorageType::Sync: Unimplemented",
@@ -464,17 +494,30 @@ impl PrivacyImpl<RippleHelper> {
         property: StorageProperty,
         value: bool,
     ) -> RpcResult<()> {
-        match platform_state
-            .services
-            .get_config()
-            .get_features()
-            .privacy_settings_storage_type
-        {
+        use ripple_sdk::api::manifest::device_manifest::PrivacySettingsStorageType;
+        let privacy_settings_storage_type: PrivacySettingsStorageType = platform_state
+            .get_device_manifest()
+            .configuration
+            .features
+            .privacy_settings_storage_type;
+
+        match privacy_settings_storage_type {
             PrivacySettingsStorageType::Local => {
                 StorageManager::set_bool(platform_state, property, value, None).await
             }
             PrivacySettingsStorageType::Cloud => {
-                PrivacyCloud::set_bool(platform_state, property, value).await
+                let dist_session = platform_state.session_state.get_account_session().unwrap();
+                let request = PrivacyRequest::SetProperty(SetPropertyParams {
+                    setting: property.as_privacy_setting().unwrap(),
+                    value,
+                    dist_session,
+                });
+                if let Ok(_) = platform_state.get_client().send_extn_request(request).await {
+                    return Ok(());
+                }
+                Err(jsonrpsee::core::Error::Custom(String::from(
+                    "PrivacySettingsStorageType::Cloud: Not Available",
+                )))
             }
             PrivacySettingsStorageType::Sync => Err(jsonrpsee::core::Error::Custom(String::from(
                 "PrivacySettingsStorageType::Sync: Unimplemented",
@@ -538,21 +581,19 @@ impl PrivacyImpl<RippleHelper> {
 }
 
 #[async_trait]
-impl PrivacyServer for PrivacyImpl<RippleHelper> {
+impl PrivacyServer for PrivacyImpl {
     async fn privacy_allow_acr_collection(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.platform_state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_acr_collection_set(
         &self,
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.platform_state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_acr_collection_changed(
         &self,
         ctx: CallContext,
@@ -570,19 +611,17 @@ impl PrivacyServer for PrivacyImpl<RippleHelper> {
     }
 
     async fn privacy_allow_app_content_ad_targeting(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.platform_state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_app_content_ad_targeting_set(
         &self,
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.platform_state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_app_content_ad_targeting_changed(
         &self,
         ctx: CallContext,
@@ -599,21 +638,18 @@ impl PrivacyServer for PrivacyImpl<RippleHelper> {
         .await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_camera_analytics(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.platform_state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_camera_analytics_set(
         &self,
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.platform_state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_camera_analytics_changed(
         &self,
         ctx: CallContext,
@@ -630,21 +666,18 @@ impl PrivacyServer for PrivacyImpl<RippleHelper> {
         .await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_personalization(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.platform_state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_personalization_set(
         &self,
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.platform_state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_personalization_changed(
         &self,
         ctx: CallContext,
@@ -661,21 +694,18 @@ impl PrivacyServer for PrivacyImpl<RippleHelper> {
         .await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_primary_browse_ad_targeting(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.platform_state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_primary_browse_ad_targeting_set(
         &self,
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.platform_state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_primary_browse_ad_targeting_changed(
         &self,
         ctx: CallContext,
@@ -692,24 +722,21 @@ impl PrivacyServer for PrivacyImpl<RippleHelper> {
         .await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_primary_content_ad_targeting(
         &self,
         ctx: CallContext,
     ) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.platform_state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_primary_content_ad_targeting_set(
         &self,
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.platform_state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_primary_content_ad_targeting_changed(
         &self,
         ctx: CallContext,
@@ -726,21 +753,18 @@ impl PrivacyServer for PrivacyImpl<RippleHelper> {
         .await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_product_analytics(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.platform_state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_product_analytics_set(
         &self,
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.platform_state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_product_analytics_changed(
         &self,
         ctx: CallContext,
@@ -757,21 +781,18 @@ impl PrivacyServer for PrivacyImpl<RippleHelper> {
         .await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_remote_diagnostics(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.platform_state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_remote_diagnostics_set(
         &self,
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.platform_state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_remote_diagnostics_changed(
         &self,
         ctx: CallContext,
@@ -788,21 +809,18 @@ impl PrivacyServer for PrivacyImpl<RippleHelper> {
         .await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_resume_points(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.platform_state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_resume_points_set(
         &self,
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.platform_state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_resume_points_changed(
         &self,
         ctx: CallContext,
@@ -819,21 +837,18 @@ impl PrivacyServer for PrivacyImpl<RippleHelper> {
         .await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_unentitled_personalization(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.platform_state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_unentitled_personalization_set(
         &self,
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.platform_state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_unentitled_personalization_changed(
         &self,
         ctx: CallContext,
@@ -850,21 +865,18 @@ impl PrivacyServer for PrivacyImpl<RippleHelper> {
         .await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_unentitled_resume_points(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.platform_state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_unentitled_resume_points_set(
         &self,
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.platform_state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_unentitled_resume_points_changed(
         &self,
         ctx: CallContext,
@@ -881,21 +893,18 @@ impl PrivacyServer for PrivacyImpl<RippleHelper> {
         .await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_watch_history(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.platform_state, true).await
+        Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_watch_history_set(
         &self,
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.platform_state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
     }
 
-    #[instrument(skip(self))]
     async fn privacy_allow_watch_history_changed(
         &self,
         ctx: CallContext,
@@ -912,18 +921,28 @@ impl PrivacyServer for PrivacyImpl<RippleHelper> {
         .await
     }
 
-    #[instrument(skip(self))]
     async fn get_settings(&self, _ctx: CallContext) -> RpcResult<PrivacySettings> {
-        match self
-            .helper
-            .get_config()
-            .get_features()
-            .privacy_settings_storage_type
-        {
+        use ripple_sdk::api::manifest::device_manifest::PrivacySettingsStorageType;
+        let privacy_settings_storage_type: PrivacySettingsStorageType = self
+            .state
+            .get_device_manifest()
+            .configuration
+            .features
+            .privacy_settings_storage_type;
+
+        match privacy_settings_storage_type {
             PrivacySettingsStorageType::Local => self.get_settings_local().await,
             PrivacySettingsStorageType::Cloud => {
-                let resp = PrivacyCloud::get_settings(&self.platform_state).await?;
-                Ok(PrivacySettings::new(resp))
+                let dist_session = self.state.session_state.get_account_session().unwrap();
+                let request = PrivacyRequest::GetProperties(dist_session);
+                if let Ok(resp) = self.state.get_client().send_extn_request(request).await {
+                    if let Some(b) = resp.payload.extract() {
+                        return Ok(b);
+                    }
+                }
+                Err(jsonrpsee::core::Error::Custom(String::from(
+                    "PrivacySettingsStorageType::Cloud: Not Available",
+                )))
             }
             PrivacySettingsStorageType::Sync => Err(jsonrpsee::core::Error::Custom(String::from(
                 "PrivacySettingsStorageType::Sync: Unimplemented",
@@ -932,48 +951,9 @@ impl PrivacyServer for PrivacyImpl<RippleHelper> {
     }
 }
 
-pub struct PrivacyRippleProvider;
-pub struct PrivacyCapHandler;
-
-impl IGetLoadedCaps for PrivacyCapHandler {
-    fn get_loaded_caps(&self) -> RippleHandlerCaps {
-        RippleHandlerCaps {
-            caps: Some(vec![CapClassifiedRequest::Supported(vec![
-                FireboltCap::Short("privacy:allowPersonalization".into()),
-                FireboltCap::Short("privacy:allowAppContentAdTargeting".into()),
-                FireboltCap::Short("privacy:allowWatchHistory".into()),
-                FireboltCap::Short("privacy:shareWatchHistory".into()),
-            ])]),
-        }
-    }
-}
-
-impl RPCProvider<PrivacyImpl<RippleHelper>, PrivacyCapHandler> for PrivacyRippleProvider {
-    fn provide(
-        self,
-        rhf: Box<RippleHelperFactory>,
-        platform_state: PlatformState,
-    ) -> (RpcModule<PrivacyImpl<RippleHelper>>, PrivacyCapHandler) {
-        let a = PrivacyImpl {
-            helper: rhf.clone().get(self.get_helper_variant()),
-            platform_state,
-        };
-        (a.into_rpc(), PrivacyCapHandler)
-    }
-
-    fn get_helper_variant(self) -> Vec<RippleHelperType> {
-        vec![
-            RippleHelperType::Cap,
-            RippleHelperType::Dab,
-            RippleHelperType::Dpab,
-        ]
-    }
-}
-
-fn get_namespace(app_id: &str) -> String {
-    if app_id.is_empty() {
-        String::from("Privacy")
-    } else {
-        format!("Privacy.{}", app_id)
+pub struct PrivacyProvider;
+impl RippleRPCProvider<PrivacyImpl> for PrivacyProvider {
+    fn provide(state: PlatformState) -> RpcModule<PrivacyImpl> {
+        (PrivacyImpl { state }).into_rpc()
     }
 }
