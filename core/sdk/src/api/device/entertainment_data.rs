@@ -15,11 +15,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::helpers::serde_utils::*;
-use dab::core::model::device::AudioProfile;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::api::device::device_request::AudioProfile;
+use crate::utils::serde_utils::*;
 #[derive(Debug, Deserialize, Default, Clone)]
 pub struct ProviderRequest {}
 
