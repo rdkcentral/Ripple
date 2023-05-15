@@ -45,8 +45,24 @@ impl ThunderPoolStep {
             return Err(RippleError::BootstrapError);
         }
         let controller_pool = ThunderClientPool::start(url.clone(), None, 1);
+        if controller_pool.is_err() {
+            if let Err(e) = controller_pool {
+                let _ = state.extn_client.event(ExtnStatus::Error).await;
+                return Err(e);
+            }
+        }
+        let controller_pool = controller_pool.unwrap();
         let plugin_manager_tx = PluginManager::start(Box::new(controller_pool)).await;
         let client = ThunderClientPool::start(url, Some(plugin_manager_tx), pool_size - 1);
+
+        if client.is_err() {
+            if let Err(e) = client {
+                let _ = state.extn_client.event(ExtnStatus::Error).await;
+                return Err(e);
+            }
+        }
+
+        let client = client.unwrap();
         info!("Thunder client connected successfully");
         let _ = state.extn_client.event(ExtnStatus::Ready).await;
         let extn_client = state.extn_client.clone();

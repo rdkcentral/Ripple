@@ -22,7 +22,6 @@ use jsonrpsee::ws_client::WsClientBuilder;
 
 use jsonrpsee::core::async_trait;
 use jsonrpsee::types::ParamsSer;
-use ripple_sdk::tokio::sync::oneshot::{self, Sender as OneShotSender};
 use ripple_sdk::tokio::task::JoinHandle;
 use ripple_sdk::{
     api::device::device_operator::DeviceResponseMessage,
@@ -42,6 +41,10 @@ use ripple_sdk::{
 use ripple_sdk::{
     log::{error, info, trace, warn},
     utils::channel_utils::{mpsc_send_and_log, oneshot_send_and_log},
+};
+use ripple_sdk::{
+    tokio::sync::oneshot::{self, Sender as OneShotSender},
+    utils::error::RippleError,
 };
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -414,7 +417,7 @@ impl ThunderClientBuilder {
         url: Url,
         plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
         pool_tx: Option<mpsc::Sender<ThunderPoolCommand>>,
-    ) -> ThunderClient {
+    ) -> Result<ThunderClient, RippleError> {
         let id = Uuid::new_v4();
 
         info!("initiating thunder connection {}", url);
@@ -471,12 +474,12 @@ impl ThunderClientBuilder {
             }
         });
 
-        ThunderClient {
+        Ok(ThunderClient {
             sender: Some(s),
             pooled_sender: None,
             id: id,
             plugin_manager_tx: pmtx_c,
-        }
+        })
     }
 
     #[cfg(test)]
