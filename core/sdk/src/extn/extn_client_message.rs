@@ -38,6 +38,7 @@ use crate::{
             fb_authentication::TokenResult,
             fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
             fb_lifecycle_management::LifecycleManagementRequest,
+            fb_metrics::BehavioralMetricRequest,
             fb_pin::{PinChallengeRequest, PinChallengeResponse},
         },
         gateway::rpc_gateway_api::RpcRequest,
@@ -233,6 +234,7 @@ pub enum ExtnRequest {
     AccountSession(AccountSessionRequest),
     BridgeProtocolRequest(BridgeProtocolRequest),
     SessionToken(SessionTokenRequest),
+    Metrics(BehavioralMetricRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

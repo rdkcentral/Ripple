@@ -1,22 +1,7 @@
-use dab::core::{
-    message::DabRequestPayload,
-    model::{
-        device::{DeviceRequest, FireboltSemanticVersion},
-        distributor::DistributorRequest,
-    },
-};
-use dpab::core::model::metrics::{MetricsContext, MetricsContextField};
+use futures::future::ok;
+use ripple_sdk::{tokio::sync::{mpsc::Receiver, oneshot}, api::{firebolt::fb_metrics::MetricsContext, device::{device_request::DeviceRequest, device_info_request::DeviceInfoRequest}}, log::info, utils::channel_utils::oneshot_send_and_log, extn::extn_client_message::ExtnRequest};
 
-use tracing::info;
-
-use crate::{
-    apps::app_events::AppEventsState,
-    helpers::{channel_util::oneshot_send_and_log, ripple_helper::IRippleHelper},
-    platform_state::PlatformState,
-};
-use tokio::sync::{mpsc::Receiver, oneshot};
-
-use super::storage::{storage_manager::StorageManager, storage_property::StorageProperty};
+use crate::{state::platform_state::PlatformState, firebolt::handlers::device_rpc::get_ll_mac_addr};
 
 #[derive(Debug, Clone)]
 pub enum MetricsContextErr {
@@ -99,20 +84,17 @@ impl MetricsManager {
         Once we move to more DOP, hopefully this can be simplified
         */
         let mac_address = MetricsManager::get_value(
-            self.platform_state
-                .services
-                .send_dab(DabRequestPayload::Device(DeviceRequest::MacAddress))
-                .await
-                .unwrap()
-                .as_string(),
+        Some(get_ll_mac_addr(self.platform_state.clone()).await.unwrap())
         );
+
+        
         let device_model = MetricsManager::get_value(
-            self.platform_state
-                .services
-                .send_dab(DabRequestPayload::Device(DeviceRequest::Model))
-                .await
-                .unwrap()
-                .as_string(),
+            // self.platform_state
+            //     .services
+            //     .send_dab(DabRequestPayload::Device(DeviceRequest::Model))
+            //     .await
+            //     .unwrap()
+            //     .as_string(),
         );
 
         let dist_session = self
@@ -200,61 +182,3 @@ impl MetricsManager {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::apps::app_events::AppEventsState;
-    use crate::apps::app_mgr::AppRequest;
-    use crate::helpers::ripple_helper::RippleHelperFactory;
-    use crate::managers::metrics_manager::{MetricsManager, MetricsRequest};
-    use crate::managers::{capability_manager::CapRequest, config_manager::ConfigManager};
-    use crate::platform_state::PlatformState;
-    use dab::core::message::DabRequest;
-    use dpab::core::message::DpabRequest;
-    use tokio::sync::mpsc;
-    //use tokio::sync::mpsc::{Receiver, Sender};
-
-    #[cfg(feature = "only_launcher")]
-    use crate::launcher::gateway_bridge::GatewayRequest;
-
-    fn get_rhf(metrics_events_tx: mpsc::Sender<MetricsRequest>) -> RippleHelperFactory {
-        let (dab_tx, _) = mpsc::channel::<DabRequest>(1);
-        let (dpab_tx, _) = mpsc::channel::<DpabRequest>(1);
-        let (cap_tx, _) = mpsc::channel::<CapRequest>(1);
-        let (app_mgr_req_tx, _) = mpsc::channel::<AppRequest>(1);
-
-        #[cfg(feature = "only_launcher")]
-        let (gateway_req_tx, _) = mpsc::channel::<GatewayRequest>(1);
-
-        RippleHelperFactory {
-            app_mgr_req_tx,
-            cap_tx,
-            dab_tx,
-            dpab_tx,
-            #[cfg(any(feature = "only_launcher", feature = "gateway_with_launcher"))]
-            container_mgr_req_tx: None,
-            #[cfg(any(feature = "only_launcher", feature = "gateway_with_launcher"))]
-            view_mgr_req_tx: None,
-            cm: ConfigManager::get(),
-            #[cfg(feature = "only_launcher")]
-            gateway_req_tx: Some(gateway_req_tx),
-            metrics_context_tx: metrics_events_tx,
-        }
-    }
-
-    #[tokio::test]
-    async fn test_metrics_manager() {
-        let test_thread = tokio::spawn(async move {
-            run_test().await;
-        });
-        let _result = test_thread.await.unwrap();
-    }
-
-    async fn run_test() {
-        let (metrics_events_tx, metrics_events_rx) = mpsc::channel::<MetricsRequest>(32);
-        let mut metrics_manager = MetricsManager::new(metrics_events_rx, PlatformState::default());
-
-        tokio::spawn(async move {
-            metrics_manager.start().await;
-        });
-    }
-}

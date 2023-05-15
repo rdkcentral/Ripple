@@ -1,38 +1,33 @@
-use std::collections::HashMap;
-
-use dpab::core::model::metrics::{
-    hashmap_to_param_vec, Action, ActionType, BehavioralMetricContext,
-    CategoryType, EosBehavioralMetric, Error, ErrorType, MediaEnded, MediaLoadStart, MediaPause,
-    MediaPlay, MediaPlaying, MediaPositionType, MediaProgress, MediaRateChanged,
-    MediaRenditionChanged, MediaSeeked, MediaSeeking, MediaWaiting, Page, Param, StartContent,
-    StopContent,
-};
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
     types::error::CallError,
     RpcModule,
 };
+use std::collections::HashMap;
+
+use ripple_sdk::{
+    api::{
+        firebolt::{
+            fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+            fb_metrics::{
+                self, hashmap_to_param_vec, Action, BehavioralMetricContext,
+                BehavioralMetricRequest, CategoryType, ErrorType, MediaEnded, MediaLoadStart,
+                MediaPause, MediaPlay, MediaPlaying, MediaPositionType, MediaProgress,
+                MediaRateChanged, MediaRenditionChanged, MediaSeeked, MediaSeeking, MediaWaiting,
+                MetricsError, Page, Param, StartContent, StopContent,
+            },
+        },
+        gateway::rpc_gateway_api::CallContext,
+    },
+    log::trace,
+};
 
 use serde::Deserialize;
 
-use tokio::sync::oneshot;
-use tracing::trace;
-
 use crate::{
-    api::rpc::rpc_gateway::{CallContext, RPCProvider},
-    apps::app_mgr::{AppError, AppManagerResponse, AppMethod, AppRequest},
-    helpers::{
-        error_util::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS, metrics_helper::MetricsHelper,
-        ripple_helper::IRippleHelper,
-    },
-    managers::capability_manager::{
-        CapClassifiedRequest, FireboltCap, IGetLoadedCaps, RippleHandlerCaps,
-    },
-};
-use crate::{
-    helpers::ripple_helper::{RippleHelper, RippleHelperFactory, RippleHelperType},
-    platform_state::PlatformState,
+    firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState,
+    utils::rpc_utils::rpc_err,
 };
 
 const LAUNCH_COMPLETED_SEGMENT: &'static str = "LAUNCH_COMPLETED";
@@ -43,7 +38,7 @@ pub struct PageParams {
     pub page_id: String,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct ActionParams {
     pub category: CategoryType,
     #[serde(rename = "type")]
@@ -274,20 +269,10 @@ pub trait Metrics {
 }
 
 #[derive(Debug, Clone)]
-pub struct MetricsImpl<IRippleHelper> {
-    pub ripple_helper: Box<IRippleHelper>,
-    pub metrics_helper: Box<MetricsHelper>,
+pub struct MetricsImpl {
+    state: PlatformState,
 }
 
-impl From<CallContext> for BehavioralMetricContext {
-    fn from(call_context: CallContext) -> Self {
-        BehavioralMetricContext {
-            app_id: call_context.app_id,
-            app_version: call_context.session_id.clone(),
-            partner_id: call_context.session_id,
-        }
-    }
-}
 impl From<ActionParams> for CategoryType {
     fn from(action_params: ActionParams) -> Self {
         action_params.category
@@ -301,66 +286,108 @@ impl From<ErrorParams> for ErrorType {
 }
 
 #[async_trait]
-impl MetricsServer for MetricsImpl<RippleHelper> {
+impl MetricsServer for MetricsImpl {
     async fn start_content(
         &self,
         ctx: CallContext,
         page_params: StartContentParams,
     ) -> RpcResult<bool> {
-        let start_content = EosBehavioralMetric::StartContent(StartContent {
+        let start_content = BehavioralMetricRequest::StartContent(StartContent {
             context: ctx.into(),
             entity_id: page_params.entity_id,
         });
-        self.metrics_helper.send(start_content.clone()).await;
-        trace!("metrics.startContent={:?}", start_content);
-        Ok(true)
+
+        println!("metrics.startContent={:?}", start_content);
+        match self
+            .state
+            .get_client()
+            .send_extn_request(start_content.clone())
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(_) => Err(rpc_err("parse error").into()),
+        }
     }
+
     async fn stop_content(
         &self,
         ctx: CallContext,
         stop_content_params: StopContentParams,
     ) -> RpcResult<bool> {
-        let stop_content = EosBehavioralMetric::StopContent(StopContent {
+        let stop_content = BehavioralMetricRequest::StopContent(StopContent {
             context: ctx.into(),
             entity_id: stop_content_params.entity_id,
         });
-        self.metrics_helper.send(stop_content.clone()).await;
-        trace!("metrics.stopContent={:?}", stop_content);
-        Ok(true)
+        println!("metrics.stopContent={:?}", stop_content);
+        match self
+            .state
+            .get_client()
+            .send_extn_request(stop_content.clone())
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(_) => Err(rpc_err("parse error").into()),
+        }
     }
     async fn page(&self, ctx: CallContext, page_params: PageParams) -> RpcResult<bool> {
-        let page = EosBehavioralMetric::Page(Page {
+        let page = BehavioralMetricRequest::Page(Page {
             context: ctx.into(),
             page_id: page_params.page_id,
         });
-        self.metrics_helper.send(page.clone()).await;
-        trace!("metrics.page={:?}", page);
-        Ok(true)
+        println!("metrics.page={:?}", page);
+        match self
+            .state
+            .get_client()
+            .send_extn_request(page.clone())
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(_) => Err(rpc_err("parse error").into()),
+        }
     }
     async fn action(&self, ctx: CallContext, action_params: ActionParams) -> RpcResult<bool> {
         //call it and let it blow up
-        let _ = validate_metrics_action_type(&action_params.action_type)?;
+        //let _ = validate_metrics_action_type(&action_params.action_type)?;
+        let p_type = action_params.clone();
 
-        let action = EosBehavioralMetric::Action(Action {
+        let action = BehavioralMetricRequest::Action(Action {
             context: ctx.into(),
-            category: action_params.clone().into(),
-            parameters: hashmap_to_param_vec(action_params.parameters),
-            _type: action_params.action_type.clone(),
+            category: action_params.into(),
+            parameters: hashmap_to_param_vec(p_type.parameters),
+            _type: p_type.action_type,
         });
-        self.metrics_helper.send(action.clone()).await;
-        trace!("metrics.action={:?}", action);
-        Ok(true)
+        println!("metrics.action={:?}", action);
+
+        match self
+            .state
+            .get_client()
+            .send_extn_request(action.clone())
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(_) => Err(rpc_err("parse error").into()),
+        }
     }
     async fn ready(&self, ctx: CallContext) -> RpcResult<bool> {
-        self.metrics_helper
-            .app_done_loading(ctx.app_id, true, None, None)
-            .await;
-        Ok(true)
+        let data = fb_metrics::Ready {
+            context: BehavioralMetricContext::from(ctx.clone()),
+            ttmu_ms: 12,
+        };
+        println!("metrics.action = {:?}", data);
+        match self
+            .state
+            .get_client()
+            .send_extn_request(BehavioralMetricRequest::Ready(data))
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(_) => Err(rpc_err("parse error").into()),
+        }
     }
 
     async fn error(&self, ctx: CallContext, error_params: ErrorParams) -> RpcResult<bool> {
-        let app_id = ctx.app_id.clone();
-        let error_message = EosBehavioralMetric::Error(Error {
+        let _app_id = ctx.app_id.clone();
+        let error_message = BehavioralMetricRequest::Error(MetricsError {
             context: ctx.into(),
             error_type: error_params.clone().into(),
             code: error_params.code.clone(),
@@ -368,77 +395,116 @@ impl MetricsServer for MetricsImpl<RippleHelper> {
             visible: error_params.visible.clone(),
             parameters: error_params.parameters.clone(),
         });
-        self.metrics_helper.send(error_message.clone()).await;
-        self.metrics_helper.app_error(app_id, error_params).await;
-        trace!("metrics.error={:?}", error_message);
-        Ok(true)
+        println!("metrics.error={:?}", error_message);
+        match self
+            .state
+            .get_client()
+            .send_extn_request(error_message.clone())
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(_) => Err(rpc_err("parse error").into()),
+        }
     }
     async fn media_load_start(
         &self,
         ctx: CallContext,
         media_load_start_params: MediaLoadStartParams,
     ) -> RpcResult<bool> {
-        let media_load_start_message = EosBehavioralMetric::MediaLoadStart(MediaLoadStart {
+        let media_load_start_message = BehavioralMetricRequest::MediaLoadStart(MediaLoadStart {
             context: ctx.into(),
             entity_id: media_load_start_params.entity_id,
         });
-        self.metrics_helper
-            .send(media_load_start_message.clone())
-            .await;
-        trace!("metrics.media_load_start={:?}", media_load_start_message);
-        Ok(true)
+        println!("metrics.media_load_start={:?}", media_load_start_message);
+        match self
+            .state
+            .get_client()
+            .send_extn_request(media_load_start_message.clone())
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(_) => Err(rpc_err("parse error").into()),
+        }
     }
     async fn media_play(
         &self,
         ctx: CallContext,
         media_play_params: MediaPlayParams,
     ) -> RpcResult<bool> {
-        let media_play_message = EosBehavioralMetric::MediaPlay(MediaPlay {
+        let media_play_message = BehavioralMetricRequest::MediaPlay(MediaPlay {
             context: ctx.into(),
             entity_id: media_play_params.entity_id,
         });
-        self.metrics_helper.send(media_play_message.clone()).await;
-        trace!("metrics.media_play={:?}", media_play_message);
-        Ok(true)
+        println!("metrics.media_play={:?}", media_play_message);
+        match self
+            .state
+            .get_client()
+            .send_extn_request(media_play_message.clone())
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(_) => Err(rpc_err("parse error").into()),
+        }
     }
     async fn media_playing(
         &self,
         ctx: CallContext,
         media_playing_params: MediaPlayingParams,
     ) -> RpcResult<bool> {
-        let media_playing = EosBehavioralMetric::MediaPlaying(MediaPlaying {
+        let media_playing = BehavioralMetricRequest::MediaPlaying(MediaPlaying {
             context: ctx.into(),
             entity_id: media_playing_params.entity_id,
         });
-        self.metrics_helper.send(media_playing.clone()).await;
-        trace!("metrics.media_playing={:?}", media_playing);
-        Ok(true)
+        println!("metrics.media_playing={:?}", media_playing);
+        match self
+            .state
+            .get_client()
+            .send_extn_request(media_playing.clone())
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(_) => Err(rpc_err("parse error").into()),
+        }
     }
     async fn media_pause(
         &self,
         ctx: CallContext,
         media_pause_params: MediaPauseParams,
     ) -> RpcResult<bool> {
-        let media_pause = EosBehavioralMetric::MediaPause(MediaPause {
+        let media_pause = BehavioralMetricRequest::MediaPause(MediaPause {
             context: ctx.into(),
             entity_id: media_pause_params.entity_id,
         });
-        self.metrics_helper.send(media_pause.clone()).await;
-        trace!("metrics.media_pause={:?}", media_pause);
-        Ok(true)
+        println!("metrics.media_pause={:?}", media_pause);
+        match self
+            .state
+            .get_client()
+            .send_extn_request(media_pause.clone())
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(_) => Err(rpc_err("parse error").into()),
+        }
     }
     async fn media_waiting(
         &self,
         ctx: CallContext,
         media_waiting_params: MediaWaitingParams,
     ) -> RpcResult<bool> {
-        let media_waiting = EosBehavioralMetric::MediaWaiting(MediaWaiting {
+        let media_waiting = BehavioralMetricRequest::MediaWaiting(MediaWaiting {
             context: ctx.into(),
             entity_id: media_waiting_params.entity_id,
         });
-        self.metrics_helper.send(media_waiting.clone()).await;
-        trace!("metrics.media_waiting={:?}", media_waiting);
-        Ok(true)
+        println!("metrics.media_waiting={:?}", media_waiting);
+        match self
+            .state
+            .get_client()
+            .send_extn_request(media_waiting.clone())
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(_) => Err(rpc_err("parse error").into()),
+        }
     }
     async fn media_progress(
         &self,
@@ -446,14 +512,21 @@ impl MetricsServer for MetricsImpl<RippleHelper> {
         media_progress_params: MediaProgressParams,
     ) -> RpcResult<bool> {
         let progress = convert_to_media_position_type(media_progress_params.progress)?;
-        let media_progress = EosBehavioralMetric::MediaProgress(MediaProgress {
+        let media_progress = BehavioralMetricRequest::MediaProgress(MediaProgress {
             context: ctx.into(),
             entity_id: media_progress_params.entity_id,
             progress: Some(progress),
         });
-        self.metrics_helper.send(media_progress.clone()).await;
-        trace!("metrics.media_progress={:?}", media_progress);
-        Ok(true)
+        println!("metrics.media_progress={:?}", media_progress);
+        match self
+            .state
+            .get_client()
+            .send_extn_request(media_progress.clone())
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(_) => Err(rpc_err("parse error").into()),
+        }
     }
     async fn media_seeking(
         &self,
@@ -462,14 +535,21 @@ impl MetricsServer for MetricsImpl<RippleHelper> {
     ) -> RpcResult<bool> {
         let target = convert_to_media_position_type(media_seeking_params.target)?;
 
-        let media_seeking = EosBehavioralMetric::MediaSeeking(MediaSeeking {
+        let media_seeking = BehavioralMetricRequest::MediaSeeking(MediaSeeking {
             context: ctx.into(),
             entity_id: media_seeking_params.entity_id,
             target: Some(target),
         });
-        self.metrics_helper.send(media_seeking.clone()).await;
-        trace!("metrics.media_seeking={:?}", media_seeking);
-        Ok(true)
+        println!("metrics.media_seeking={:?}", media_seeking);
+        match self
+            .state
+            .get_client()
+            .send_extn_request(media_seeking.clone())
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(_) => Err(rpc_err("parse error").into()),
+        }
     }
     async fn media_seeked(
         &self,
@@ -477,28 +557,42 @@ impl MetricsServer for MetricsImpl<RippleHelper> {
         media_seeked_params: MediaSeekedParams,
     ) -> RpcResult<bool> {
         let position = convert_to_media_position_type(media_seeked_params.position).unwrap();
-        let media_seeked = EosBehavioralMetric::MediaSeeked(MediaSeeked {
+        let media_seeked = BehavioralMetricRequest::MediaSeeked(MediaSeeked {
             context: ctx.into(),
             entity_id: media_seeked_params.entity_id,
             position: Some(position),
         });
-        self.metrics_helper.send(media_seeked.clone()).await;
-        trace!("metrics.media_seeked={:?}", media_seeked);
-        Ok(true)
+        println!("metrics.media_seeked={:?}", media_seeked);
+        match self
+            .state
+            .get_client()
+            .send_extn_request(media_seeked.clone())
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(_) => Err(rpc_err("parse error").into()),
+        }
     }
     async fn media_rate_change(
         &self,
         ctx: CallContext,
         media_rate_changed_params: MediaRateChangeParams,
     ) -> RpcResult<bool> {
-        let media_rate_change = EosBehavioralMetric::MediaRateChanged(MediaRateChanged {
+        let media_rate_change = BehavioralMetricRequest::MediaRateChanged(MediaRateChanged {
             context: ctx.into(),
             entity_id: media_rate_changed_params.entity_id,
             rate: media_rate_changed_params.rate,
         });
-        self.metrics_helper.send(media_rate_change.clone()).await;
-        trace!("metrics.media_seeked={:?}", media_rate_change);
-        Ok(true)
+        println!("metrics.media_seeked={:?}", media_rate_change);
+        match self
+            .state
+            .get_client()
+            .send_extn_request(media_rate_change.clone())
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(_) => Err(rpc_err("parse error").into()),
+        }
     }
     async fn media_rendition_change(
         &self,
@@ -506,7 +600,7 @@ impl MetricsServer for MetricsImpl<RippleHelper> {
         media_rendition_change_params: MediaRenditionChangeParams,
     ) -> RpcResult<bool> {
         let media_rendition_change =
-            EosBehavioralMetric::MediaRenditionChanged(MediaRenditionChanged {
+            BehavioralMetricRequest::MediaRenditionChanged(MediaRenditionChanged {
                 context: ctx.into(),
                 entity_id: media_rendition_change_params.entity_id,
                 bitrate: media_rendition_change_params.bitrate,
@@ -514,73 +608,47 @@ impl MetricsServer for MetricsImpl<RippleHelper> {
                 profile: media_rendition_change_params.profile,
                 width: media_rendition_change_params.width,
             });
-        self.metrics_helper
-            .send(media_rendition_change.clone())
-            .await;
-        trace!(
+        println!(
             "metrics.media_rendition_change={:?}",
             media_rendition_change
         );
-        Ok(true)
+        match self
+            .state
+            .get_client()
+            .send_extn_request(media_rendition_change.clone())
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(_) => Err(rpc_err("parse error").into()),
+        }
     }
     async fn media_ended(
         &self,
         ctx: CallContext,
         media_ended_params: MediaEndedParams,
     ) -> RpcResult<bool> {
-        let media_ended = EosBehavioralMetric::MediaEnded(MediaEnded {
+        let media_ended = BehavioralMetricRequest::MediaEnded(MediaEnded {
             context: ctx.into(),
             entity_id: media_ended_params.entity_id,
         });
-        self.metrics_helper.send(media_ended.clone()).await;
-        trace!("metrics.media_ended={:?}", media_ended);
-        Ok(true)
-    }
-}
-#[derive(Debug, Clone)]
-pub struct MetricsRippleProvider;
+        println!("metrics.media_ended={:?}", media_ended);
 
-pub struct MetricsCapHandler;
-impl IGetLoadedCaps for MetricsCapHandler {
-    fn get_loaded_caps(&self) -> RippleHandlerCaps {
-        RippleHandlerCaps {
-            caps: Some(vec![CapClassifiedRequest::Supported(vec![
-                FireboltCap::Short("metrics:general".into()),
-                FireboltCap::Short("metrics:media".into()),
-            ])]),
+        match self
+            .state
+            .get_client()
+            .send_extn_request(media_ended.clone())
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(_) => Err(rpc_err("parse error").into()),
         }
     }
 }
 
-/*
-Called once at startup
-*/
-impl RPCProvider<MetricsImpl<RippleHelper>, MetricsCapHandler> for MetricsRippleProvider {
-    fn provide(
-        self,
-        rhf: Box<RippleHelperFactory>,
-        platform_state: PlatformState,
-    ) -> (RpcModule<MetricsImpl<RippleHelper>>, MetricsCapHandler) {
-        /*
-        Get sift endpoint stuff and register callback for context changes
-        */
-        let ripple_helper = rhf.clone().get(self.get_helper_variant());
-
-        let provider = MetricsImpl {
-            ripple_helper: ripple_helper.clone(),
-            metrics_helper: Box::new(MetricsHelper::new(Box::new(platform_state.clone()))),
-        };
-
-        (provider.into_rpc(), MetricsCapHandler)
-    }
-
-    fn get_helper_variant(self) -> Vec<RippleHelperType> {
-        vec![
-            RippleHelperType::Dab,
-            RippleHelperType::Dpab,
-            RippleHelperType::Cap,
-            RippleHelperType::AppManager,
-            RippleHelperType::MetricsManager,
-        ]
+#[derive(Debug, Clone)]
+pub struct MetricsRPCProvider;
+impl RippleRPCProvider<MetricsImpl> for MetricsRPCProvider {
+    fn provide(state: PlatformState) -> RpcModule<MetricsImpl> {
+        (MetricsImpl { state }).into_rpc()
     }
 }

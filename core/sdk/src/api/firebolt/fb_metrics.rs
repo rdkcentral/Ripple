@@ -2,10 +2,15 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
+use log::info;
 use serde::{Deserialize, Serialize};
-//https://developer.comcast.com/firebolt/core/sdk/latest/api/metrics
 
-use tracing::info;
+use crate::{
+    api::gateway::rpc_gateway_api::CallContext,
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
+    framework::ripple_contract::RippleContract,
+};
+//https://developer.comcast.com/firebolt/core/sdk/latest/api/metrics
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 
@@ -14,6 +19,17 @@ pub struct BehavioralMetricContext {
     pub app_version: String,
     pub partner_id: String,
 }
+
+impl From<CallContext> for BehavioralMetricContext {
+    fn from(call_context: CallContext) -> Self {
+        BehavioralMetricContext {
+            app_id: call_context.app_id,
+            app_version: call_context.session_id.clone(),
+            partner_id: call_context.session_id,
+        }
+    }
+}
+
 #[async_trait]
 pub trait MetricsContextProvider: core::fmt::Debug {
     async fn provide_context(&mut self) -> Option<MetricsContext>;
@@ -21,7 +37,6 @@ pub trait MetricsContextProvider: core::fmt::Debug {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Ready {
-    #[serde(skip_serializing)]
     pub context: BehavioralMetricContext,
     pub ttmu_ms: u32,
 }
@@ -74,6 +89,7 @@ pub enum CategoryType {
     user,
     app,
 }
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Param {
     pub name: String,
@@ -116,7 +132,7 @@ pub enum ErrorType {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Error {
+pub struct MetricsError {
     #[serde(skip_serializing)]
     pub context: BehavioralMetricContext,
     #[serde(alias = "type")]
@@ -202,7 +218,7 @@ pub struct MediaEnded {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum EosBehavioralMetric {
+pub enum BehavioralMetricRequest {
     Ready(Ready),
     SignIn(SignIn),
     SignOut(SignOut),
@@ -210,7 +226,7 @@ pub enum EosBehavioralMetric {
     StopContent(StopContent),
     Page(Page),
     Action(Action),
-    Error(Error),
+    Error(MetricsError),
     MediaLoadStart(MediaLoadStart),
     MediaPlay(MediaPlay),
     MediaPlaying(MediaPlaying),
@@ -223,6 +239,28 @@ pub enum EosBehavioralMetric {
     MediaRenditionChanged(MediaRenditionChanged),
     MediaEnded(MediaEnded),
 }
+
+impl ExtnPayloadProvider for BehavioralMetricRequest {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(ExtnRequest::Metrics(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<BehavioralMetricRequest> {
+        match payload {
+            ExtnPayload::Request(request) => match request {
+                ExtnRequest::Metrics(r) => return Some(r),
+                _ => {}
+            },
+            _ => {}
+        }
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::Metrics
+    }
+}
+
 /// all the things that are provided by platform that need to
 /// be updated, and eventually in/outjected into/out of a payload
 /// These items may (or may not) be available when the ripple
@@ -293,7 +331,7 @@ impl MetricsContext {
 
 #[async_trait]
 pub trait BehavioralMetricsService {
-    async fn send_metric(&mut self, metrics: EosBehavioralMetric) -> ();
+    async fn send_metric(&mut self, metrics: BehavioralMetricRequest) -> ();
 }
 #[async_trait]
 pub trait ContextualMetricsService {
@@ -301,7 +339,7 @@ pub trait ContextualMetricsService {
 }
 #[async_trait]
 pub trait MetricsManager: Send + Sync {
-    async fn send_metric(&mut self, metrics: EosBehavioralMetric) -> ();
+    async fn send_metric(&mut self, metrics: BehavioralMetricRequest) -> ();
 }
 pub struct LoggingBehavioralMetricsManager {
     pub metrics_context: Option<MetricsContext>,
@@ -309,7 +347,7 @@ pub struct LoggingBehavioralMetricsManager {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct LoggableBehavioralMetric {
     context: Option<MetricsContext>,
-    payload: EosBehavioralMetric,
+    payload: BehavioralMetricRequest,
 }
 
 impl LoggingBehavioralMetricsManager {
@@ -320,7 +358,7 @@ impl LoggingBehavioralMetricsManager {
     }
 }
 impl LoggingBehavioralMetricsManager {
-    pub async fn send_metric(&mut self, metrics: EosBehavioralMetric) -> () {
+    pub async fn send_metric(&mut self, metrics: BehavioralMetricRequest) -> () {
         info!(
             "{}",
             serde_json::to_string(&LoggableBehavioralMetric {
@@ -329,5 +367,38 @@ impl LoggingBehavioralMetricsManager {
             })
             .unwrap()
         );
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum MetricsResponse {
+    None,
+    Boolean,
+}
+
+impl ExtnPayloadProvider for MetricsResponse {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Response(ExtnResponse::Value(
+            serde_json::to_value(self.clone()).unwrap(),
+        ))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        match payload {
+            ExtnPayload::Response(response) => match response {
+                ExtnResponse::Value(value) => {
+                    if let Ok(v) = serde_json::from_value(value) {
+                        return Some(v);
+                    }
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::Metrics
     }
 }
