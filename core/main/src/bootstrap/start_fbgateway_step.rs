@@ -27,7 +27,7 @@ use crate::{
             parameters_rpc::ParametersRPCProvider, pin_rpc::PinRPCProvider,
             privacy_rpc::PrivacyProvider, profile_rpc::ProfileRPCProvider,
             second_screen_rpc::SecondScreenRPCProvider,
-            secure_storage_rpc::SecureStorageRPCProvider,
+            secure_storage_rpc::SecureStorageRPCProvider, user_grants_rpc::UserGrantsRPCProvider,
             voice_guidance_rpc::VoiceguidanceRPCProvider, wifi_rpc::WifiRPCProvider,
         },
         rpc::RippleRPCProvider,
@@ -57,6 +57,7 @@ impl FireboltGatewayStep {
         let _ = methods.merge(PrivacyProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(ProfileRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(SecondScreenRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(UserGrantsRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(ParametersRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(SecureStorageRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(AdvertisingRPCProvider::provide_with_alias(state.clone()));
