@@ -31,7 +31,7 @@ use ripple_sdk::{
         },
         extn_client_message::ExtnResponse,
     },
-    log::error,
+    log::{debug, error},
 };
 
 #[derive(Debug, Clone)]
@@ -96,6 +96,10 @@ impl ExtnRequestProcessor for DistributorPermissionProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         if let Some(v) = state.permissions.get(&extracted_message.app_id) {
+            debug!(
+                "Permissions for app: {} [{:?}]",
+                extracted_message.app_id, v
+            );
             if let Err(e) = state
                 .client
                 .clone()

@@ -275,14 +275,24 @@ pub struct AppAuthorizationRules {
     pub app_ignore_rules: HashMap<String, Vec<String>>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub enum PrivacySettingsStorageType {
+    Local,
+    Cloud,
+    Sync,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RippleFeatures {
     pub app_scoped_device_tokens: bool,
+    pub privacy_settings_storage_type: PrivacySettingsStorageType,
 }
 
 fn default_ripple_features() -> RippleFeatures {
     RippleFeatures {
         app_scoped_device_tokens: false,
+        privacy_settings_storage_type: PrivacySettingsStorageType::Local,
     }
 }
 

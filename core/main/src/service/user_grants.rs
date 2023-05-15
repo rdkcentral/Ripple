@@ -25,9 +25,13 @@ use jsonrpsee::tracing::debug;
 use ripple_sdk::{
     api::{
         apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
-        device::device_user_grants_data::{
-            GrantActiveState, GrantEntry, GrantErrors, GrantLifespan, GrantPolicy,
-            GrantPrivacySetting, GrantScope, GrantStateModify, GrantStatus, GrantStep,
+        device::{
+            device_storage::SetBoolProperty,
+            device_user_grants_data::{
+                AutoApplyPolicy, GrantActiveState, GrantEntry, GrantErrors, GrantLifespan,
+                GrantPolicy, GrantPrivacySetting, GrantScope, GrantStateModify, GrantStatus,
+                GrantStep,
+            },
         },
         firebolt::{
             fb_capabilities::{
@@ -49,7 +53,10 @@ use ripple_sdk::{
 };
 use serde::Deserialize;
 
-use crate::state::{cap::cap_state::CapState, platform_state::PlatformState};
+use crate::{
+    firebolt::handlers::privacy_rpc::PrivacyImpl,
+    state::{cap::cap_state::CapState, platform_state::PlatformState},
+};
 
 use super::apps::provider_broker::{ProviderBroker, ProviderBrokerRequest};
 
@@ -556,13 +563,140 @@ impl GrantPolicyEnforcer {
         false
     }
 
+    pub fn get_allow_value(platform_state: &PlatformState, property_name: &str) -> Option<bool> {
+        // Find the rpc method which has same name as that mentioned in privacy settings, and has allow property.
+        platform_state
+            .open_rpc_state
+            .get_method_with_allow_value_property(String::from(property_name))
+            .map(|method| method.get_allow_value().unwrap()) // We can safely unwrap because the previous step in the chain ensures x-allow-value is present
+    }
+
     async fn evaluate_privacy_settings(
-        _platform_state: &PlatformState,
-        _privacy_setting: &GrantPrivacySetting,
+        platform_state: &PlatformState,
+        privacy_setting: &GrantPrivacySetting,
         _call_ctx: &CallContext,
-    ) -> Option<Result<(), DenyReasonWithCap>> {
-        // TODO add Privacy logic
-        None
+    ) -> Option<Result<(), DenyReason>> {
+        let allow_value_opt =
+            Self::get_allow_value(platform_state, privacy_setting.property.as_str());
+        if allow_value_opt.is_none() {
+            debug!(
+                "Allow value not present for property: {}",
+                privacy_setting.property.as_str()
+            );
+            return None;
+        }
+        let allow_value = allow_value_opt.unwrap();
+        // From privacyImpl make the call to the registered method for the configured privacy settings.
+        let res_stored_value =
+            PrivacyImpl::handle_allow_get_requests(&privacy_setting.property, platform_state).await;
+        if res_stored_value.is_err() {
+            debug!(
+                "Unable to get stored value for privacy settings: {}",
+                privacy_setting.property.as_str()
+            );
+            return None;
+        }
+        let stored_value = res_stored_value.unwrap();
+        debug!(
+            "auto apply policy: {:?}, stored_value: {}, allow_value: {}",
+            privacy_setting.auto_apply_policy, stored_value, allow_value
+        );
+        match privacy_setting.auto_apply_policy {
+            AutoApplyPolicy::Always => {
+                if stored_value == allow_value {
+                    // Silently Grant if the stored value is same as that of allowed value
+                    debug!("Silently Granting");
+                    Some(Ok(()))
+                } else {
+                    // Silently Deny if the stored value is inverse of allowed value
+                    debug!("Silently Denying");
+                    Some(Err(DenyReason::GrantDenied))
+                }
+            }
+            AutoApplyPolicy::Allowed => {
+                // Silently Grant if the stored value is same as that of allowed value
+                if stored_value == allow_value {
+                    debug!("Silently Granting");
+                    Some(Ok(()))
+                } else {
+                    debug!("Cant Silently determine");
+                    None
+                }
+            }
+            AutoApplyPolicy::Disallowed => {
+                // Silently Deny if the stored value is inverse of allowed value
+                if stored_value != allow_value {
+                    debug!("Silently Denying");
+                    Some(Err(DenyReason::GrantDenied))
+                } else {
+                    debug!("Cant Silently determine");
+                    None
+                }
+            }
+            AutoApplyPolicy::Never => {
+                // This is already handled during start of the function.
+                // Do nothing using privacy settings get it by evaluating options
+                debug!("Cant Silently determine");
+                None
+            }
+        }
+    }
+
+    pub async fn update_privacy_settings_with_grant(
+        platform_state: &PlatformState,
+        _call_ctx: &CallContext,
+        privacy_setting: &GrantPrivacySetting,
+        grant: bool,
+    ) {
+        let allow_value_opt =
+            Self::get_allow_value(platform_state, privacy_setting.property.as_str());
+        let allow_value = allow_value_opt.unwrap_or(true);
+        /*
+         * We have to update the privacy settings such that it matches x-allow-value when cap is granted
+         * and we have to set it to !x-allow-value when the grant is denied.
+         *  ┌───────────────┬──────────────┬─────────────────┐
+         *  │ X-allow-value │  User Grant  │ Property value  │
+         *  ├───────────────┼──────────────┼─────────────────┤
+         *  │    True       │   Granted    │    True         │
+         *  │    True       │   Denied     │    False        │
+         *  │    False      │   Granted    │    False        │
+         *  │    False      │   Denied     │    True         │
+         *  └───────────────┴──────────────┴─────────────────┘
+         */
+        let set_value = match (allow_value, grant) {
+            (true, true) => true,
+            (true, false) => false,
+            (false, true) => false,
+            (false, false) => true,
+        };
+        debug!(
+            "x-allow-value: {}, grant: {}, set_value: {}",
+            allow_value, grant, set_value
+        );
+        let property = privacy_setting.property.strip_prefix("privacy.").unwrap();
+        debug!("property to set: {}", property);
+        let method_name = Self::get_setter_method_name(platform_state, property);
+        if method_name.is_none() {
+            return;
+        }
+        let method_name = method_name.unwrap();
+        debug!("Resolved method_name: {}", &method_name);
+        let set_request = SetBoolProperty { value: set_value };
+        let _res =
+            PrivacyImpl::handle_allow_set_requests(&method_name, &platform_state, set_request)
+                .await;
+    }
+
+    pub fn get_setter_method_name(
+        platform_state: &PlatformState,
+        property: &str,
+    ) -> Option<String> {
+        let firebolt_rpc_method_opt = platform_state
+            .open_rpc_state
+            .get_open_rpc()
+            .get_setter_method_for_property(property);
+        firebolt_rpc_method_opt
+            .map(|firebolt_openrpc_method| firebolt_openrpc_method.name.to_owned())
     }
 
     async fn evaluate_options(
@@ -628,10 +762,32 @@ impl GrantPolicyEnforcer {
                 Self::evaluate_privacy_settings(platform_state, &privacy_setting, call_ctx).await;
 
             if resp.is_some() {
-                return resp.unwrap();
+                if let Some(Err(reason)) = resp {
+                    return Err(DenyReasonWithCap {
+                        reason,
+                        caps: vec![permission.cap.clone()],
+                    });
+                }
             }
+            let result = Self::evaluate_options(platform_state, call_ctx, permission, policy).await;
+
+            let mapped_result = if result.is_ok() { true } else { false };
+
+            Self::update_privacy_settings_with_grant(
+                platform_state,
+                call_ctx,
+                &privacy_setting,
+                mapped_result,
+            )
+            .await;
+
+            return result;
         }
-        Self::evaluate_options(platform_state, call_ctx, permission, policy).await
+
+        Err(DenyReasonWithCap {
+            reason: DenyReason::Ungranted,
+            caps: vec![permission.cap.clone()],
+        })
     }
 }
 

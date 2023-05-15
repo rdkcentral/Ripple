@@ -17,5 +17,6 @@
 mod distributor_general_ffi;
 mod general_advertising_processor;
 mod general_permission_processor;
+mod general_privacy_processor;
 mod general_securestorage_processor;
 mod general_session_processor;

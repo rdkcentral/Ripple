@@ -25,7 +25,8 @@ use crate::{
             keyboard_rpc::KeyboardRPCProvider, lcm_rpc::LifecycleManagementProvider,
             lifecycle_rpc::LifecycleRippleProvider, localization_rpc::LocalizationRPCProvider,
             parameters_rpc::ParametersRPCProvider, pin_rpc::PinRPCProvider,
-            profile_rpc::ProfileRPCProvider, second_screen_rpc::SecondScreenRPCProvider,
+            privacy_rpc::PrivacyProvider, profile_rpc::ProfileRPCProvider,
+            second_screen_rpc::SecondScreenRPCProvider,
             secure_storage_rpc::SecureStorageRPCProvider, user_grants_rpc::UserGrantsRPCProvider,
             voice_guidance_rpc::VoiceguidanceRPCProvider, wifi_rpc::WifiRPCProvider,
         },
@@ -53,7 +54,8 @@ impl FireboltGatewayStep {
         let _ = methods.merge(VoiceguidanceRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(LocalizationRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(AccessoryRippleProvider::provide_with_alias(state.clone()));
-        let _ = methods.merge(ProfileRPCProvider::provide(state.clone()));
+        let _ = methods.merge(PrivacyProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(ProfileRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(SecondScreenRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(UserGrantsRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(ParametersRPCProvider::provide_with_alias(state.clone()));
