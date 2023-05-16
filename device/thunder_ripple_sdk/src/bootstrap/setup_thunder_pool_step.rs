@@ -44,7 +44,7 @@ impl ThunderPoolStep {
             warn!("Pool size of 1 is not recommended, there will be no dedicated connection for Controller events");
             return Err(RippleError::BootstrapError);
         }
-        let controller_pool = ThunderClientPool::start(url.clone(), None, 1);
+        let controller_pool = ThunderClientPool::start(url.clone(), None, 1).await;
         if controller_pool.is_err() {
             if let Err(e) = controller_pool {
                 let _ = state.extn_client.event(ExtnStatus::Error).await;
@@ -53,7 +53,7 @@ impl ThunderPoolStep {
         }
         let controller_pool = controller_pool.unwrap();
         let plugin_manager_tx = PluginManager::start(Box::new(controller_pool)).await;
-        let client = ThunderClientPool::start(url, Some(plugin_manager_tx), pool_size - 1);
+        let client = ThunderClientPool::start(url, Some(plugin_manager_tx), pool_size - 1).await;
 
         if client.is_err() {
             if let Err(e) = client {

@@ -413,7 +413,7 @@ impl ThunderClient {
 }
 
 impl ThunderClientBuilder {
-    pub fn get_client(
+    pub async fn get_client(
         url: Url,
         plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
         pool_tx: Option<mpsc::Sender<ThunderPoolCommand>>,
@@ -424,21 +424,20 @@ impl ThunderClientBuilder {
         let mut subscriptions = HashMap::<String, ThunderSubscription>::default();
         let (s, mut r) = mpsc::channel::<ThunderMessage>(32);
         let pmtx_c = plugin_manager_tx.clone();
-        tokio::spawn(async move {
-            let url_with_token = if cfg!(feature = "local_dev") {
-                if let Ok(token) = env::var("THUNDER_TOKEN") {
-                    Url::parse_with_params(url.as_str(), &[("token", token)]).unwrap()
-                } else {
-                    url.clone()
-                }
-            } else {
-                url.clone()
-            };
-            let client = WsClientBuilder::default()
-                .build(url_with_token.to_string())
-                .await
-                .unwrap();
+        let url_with_token = if let Ok(token) = env::var("THUNDER_TOKEN") {
+            Url::parse_with_params(url.as_str(), &[("token", token)]).unwrap()
+        } else {
+            url.clone()
+        };
+        let client = WsClientBuilder::default()
+            .build(url_with_token.to_string())
+            .await;
+        if client.is_err() {
+            return Err(RippleError::BootstrapError);
+        }
 
+        let client = client.unwrap();
+        tokio::spawn(async move {
             while let Some(message) = r.recv().await {
                 if !client.is_connected() {
                     if let Some(ptx) = pool_tx {
