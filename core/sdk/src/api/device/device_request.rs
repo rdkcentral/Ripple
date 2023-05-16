@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 // If not stated otherwise in this file or this component's license file the
 // following copyright and licenses apply:
 //
@@ -16,13 +14,13 @@ use std::str::FromStr;
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use serde::{Deserialize, Serialize};
-
 use crate::{
     api::firebolt::fb_openrpc::FireboltSemanticVersion,
     extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
     framework::ripple_contract::RippleContract,
 };
+use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 use super::{
     device_accessory::RemoteAccessoryRequest, device_browser::BrowserRequest,
