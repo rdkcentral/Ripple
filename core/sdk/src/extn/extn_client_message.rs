@@ -234,7 +234,7 @@ pub enum ExtnRequest {
     AccountSession(AccountSessionRequest),
     BridgeProtocolRequest(BridgeProtocolRequest),
     SessionToken(SessionTokenRequest),
-    Metrics(BehavioralMetricRequest),
+    BehavioralMetric(BehavioralMetricRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

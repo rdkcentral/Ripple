@@ -240,13 +240,13 @@ pub enum BehavioralMetricRequest {
 
 impl ExtnPayloadProvider for BehavioralMetricRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::Metrics(self.clone()))
+        ExtnPayload::Request(ExtnRequest::BehavioralMetric(self.clone()))
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<BehavioralMetricRequest> {
         match payload {
             ExtnPayload::Request(request) => match request {
-                ExtnRequest::Metrics(r) => return Some(r),
+                ExtnRequest::BehavioralMetric(r) => return Some(r),
                 _ => {}
             },
             _ => {}
