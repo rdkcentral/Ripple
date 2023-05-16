@@ -1,3 +1,19 @@
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 use std::collections::HashMap;
 
@@ -50,29 +66,24 @@ pub enum MediaPositionType {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SignIn {
-    #[serde(skip_serializing)]
     pub context: BehavioralMetricContext,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SignOut {
-    #[serde(skip_serializing)]
     pub context: BehavioralMetricContext,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StartContent {
-    #[serde(skip_serializing)]
     pub context: BehavioralMetricContext,
     pub entity_id: Option<String>,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StopContent {
-    #[serde(skip_serializing)]
     pub context: BehavioralMetricContext,
     pub entity_id: Option<String>,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Page {
-    #[serde(skip_serializing)]
     pub context: BehavioralMetricContext,
     pub page_id: String,
 }
@@ -114,7 +125,6 @@ pub fn hashmap_to_param_vec(the_map: Option<HashMap<String, String>>) -> Vec<Par
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Action {
-    #[serde(skip_serializing)]
     pub context: BehavioralMetricContext,
     pub category: CategoryType,
     #[serde(rename = "type")]
@@ -133,7 +143,6 @@ pub enum ErrorType {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MetricsError {
-    #[serde(skip_serializing)]
     pub context: BehavioralMetricContext,
     #[serde(alias = "type")]
     pub error_type: ErrorType,
@@ -144,65 +153,55 @@ pub struct MetricsError {
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MediaLoadStart {
-    #[serde(skip_serializing)]
     pub context: BehavioralMetricContext,
     pub entity_id: String,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MediaPlay {
-    #[serde(skip_serializing)]
     pub context: BehavioralMetricContext,
     pub entity_id: String,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MediaPlaying {
-    #[serde(skip_serializing)]
     pub context: BehavioralMetricContext,
     pub entity_id: String,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MediaPause {
-    #[serde(skip_serializing)]
     pub context: BehavioralMetricContext,
     pub entity_id: String,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MediaWaiting {
-    #[serde(skip_serializing)]
     pub context: BehavioralMetricContext,
     pub entity_id: String,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MediaProgress {
-    #[serde(skip_serializing)]
     pub context: BehavioralMetricContext,
     pub entity_id: String,
     pub progress: Option<MediaPositionType>,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MediaSeeking {
-    #[serde(skip_serializing)]
     pub context: BehavioralMetricContext,
     pub entity_id: String,
     pub target: Option<MediaPositionType>,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MediaSeeked {
-    #[serde(skip_serializing)]
     pub context: BehavioralMetricContext,
     pub entity_id: String,
     pub position: Option<MediaPositionType>,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MediaRateChanged {
-    #[serde(skip_serializing)]
     pub context: BehavioralMetricContext,
     pub entity_id: String,
     pub rate: u32,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MediaRenditionChanged {
-    #[serde(skip_serializing)]
     pub context: BehavioralMetricContext,
     pub entity_id: String,
     pub bitrate: u32,
@@ -212,7 +211,6 @@ pub struct MediaRenditionChanged {
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MediaEnded {
-    #[serde(skip_serializing)]
     pub context: BehavioralMetricContext,
     pub entity_id: String,
 }

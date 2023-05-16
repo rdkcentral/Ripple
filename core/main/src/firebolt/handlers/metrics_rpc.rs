@@ -1,3 +1,20 @@
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
@@ -30,7 +47,7 @@ use crate::{
     utils::rpc_utils::rpc_err,
 };
 
-const LAUNCH_COMPLETED_SEGMENT: &'static str = "LAUNCH_COMPLETED";
+//const LAUNCH_COMPLETED_SEGMENT: &'static str = "LAUNCH_COMPLETED";
 
 #[derive(Deserialize, Debug)]
 pub struct PageParams {
@@ -66,18 +83,18 @@ pub struct ErrorParams {
     pub visible: bool,
     pub parameters: Option<Vec<Param>>,
 }
-fn validate_metrics_action_type(metrics_action: &str) -> RpcResult<bool> {
-    match metrics_action.len() {
-        1..=256 => Ok(true),
-        _ => {
-            return Err(jsonrpsee::core::Error::Call(CallError::Custom {
-                code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
-                message: "metrics.action.action_type out of range".to_string(),
-                data: None,
-            }))
-        }
-    }
-}
+// fn validate_metrics_action_type(metrics_action: &str) -> RpcResult<bool> {
+//     match metrics_action.len() {
+//         1..=256 => Ok(true),
+//         _ => {
+//             return Err(jsonrpsee::core::Error::Call(CallError::Custom {
+//                 code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+//                 message: "metrics.action.action_type out of range".to_string(),
+//                 data: None,
+//             }))
+//         }
+//     }
+// }
 pub const ERROR_MEDIA_POSITION_OUT_OF_RANGE: &str = "absolute media position out of range";
 pub const ERROR_BAD_ABSOLUTE_MEDIA_POSITION: &str =
     "absolute media position must not contain any numbers to the right of the decimal point.";
@@ -297,7 +314,7 @@ impl MetricsServer for MetricsImpl {
             entity_id: page_params.entity_id,
         });
 
-        println!("metrics.startContent={:?}", start_content);
+        trace!("metrics.startContent={:?}", start_content);
         match self
             .state
             .get_client()
@@ -318,7 +335,7 @@ impl MetricsServer for MetricsImpl {
             context: ctx.into(),
             entity_id: stop_content_params.entity_id,
         });
-        println!("metrics.stopContent={:?}", stop_content);
+        trace!("metrics.stopContent={:?}", stop_content);
         match self
             .state
             .get_client()
@@ -334,7 +351,7 @@ impl MetricsServer for MetricsImpl {
             context: ctx.into(),
             page_id: page_params.page_id,
         });
-        println!("metrics.page={:?}", page);
+        trace!("metrics.page={:?}", page);
         match self
             .state
             .get_client()
@@ -356,7 +373,7 @@ impl MetricsServer for MetricsImpl {
             parameters: hashmap_to_param_vec(p_type.parameters),
             _type: p_type.action_type,
         });
-        println!("metrics.action={:?}", action);
+        trace!("metrics.action={:?}", action);
 
         match self
             .state
@@ -373,7 +390,7 @@ impl MetricsServer for MetricsImpl {
             context: BehavioralMetricContext::from(ctx.clone()),
             ttmu_ms: 12,
         };
-        println!("metrics.action = {:?}", data);
+        trace!("metrics.action = {:?}", data);
         match self
             .state
             .get_client()
@@ -395,7 +412,7 @@ impl MetricsServer for MetricsImpl {
             visible: error_params.visible.clone(),
             parameters: error_params.parameters.clone(),
         });
-        println!("metrics.error={:?}", error_message);
+        trace!("metrics.error={:?}", error_message);
         match self
             .state
             .get_client()
@@ -415,7 +432,7 @@ impl MetricsServer for MetricsImpl {
             context: ctx.into(),
             entity_id: media_load_start_params.entity_id,
         });
-        println!("metrics.media_load_start={:?}", media_load_start_message);
+        trace!("metrics.media_load_start={:?}", media_load_start_message);
         match self
             .state
             .get_client()
@@ -435,7 +452,7 @@ impl MetricsServer for MetricsImpl {
             context: ctx.into(),
             entity_id: media_play_params.entity_id,
         });
-        println!("metrics.media_play={:?}", media_play_message);
+        trace!("metrics.media_play={:?}", media_play_message);
         match self
             .state
             .get_client()
@@ -455,7 +472,7 @@ impl MetricsServer for MetricsImpl {
             context: ctx.into(),
             entity_id: media_playing_params.entity_id,
         });
-        println!("metrics.media_playing={:?}", media_playing);
+        trace!("metrics.media_playing={:?}", media_playing);
         match self
             .state
             .get_client()
@@ -475,7 +492,7 @@ impl MetricsServer for MetricsImpl {
             context: ctx.into(),
             entity_id: media_pause_params.entity_id,
         });
-        println!("metrics.media_pause={:?}", media_pause);
+        trace!("metrics.media_pause={:?}", media_pause);
         match self
             .state
             .get_client()
@@ -495,7 +512,7 @@ impl MetricsServer for MetricsImpl {
             context: ctx.into(),
             entity_id: media_waiting_params.entity_id,
         });
-        println!("metrics.media_waiting={:?}", media_waiting);
+        trace!("metrics.media_waiting={:?}", media_waiting);
         match self
             .state
             .get_client()
@@ -517,7 +534,7 @@ impl MetricsServer for MetricsImpl {
             entity_id: media_progress_params.entity_id,
             progress: Some(progress),
         });
-        println!("metrics.media_progress={:?}", media_progress);
+        trace!("metrics.media_progress={:?}", media_progress);
         match self
             .state
             .get_client()
@@ -540,7 +557,7 @@ impl MetricsServer for MetricsImpl {
             entity_id: media_seeking_params.entity_id,
             target: Some(target),
         });
-        println!("metrics.media_seeking={:?}", media_seeking);
+        trace!("metrics.media_seeking={:?}", media_seeking);
         match self
             .state
             .get_client()
@@ -562,7 +579,7 @@ impl MetricsServer for MetricsImpl {
             entity_id: media_seeked_params.entity_id,
             position: Some(position),
         });
-        println!("metrics.media_seeked={:?}", media_seeked);
+        trace!("metrics.media_seeked={:?}", media_seeked);
         match self
             .state
             .get_client()
@@ -583,7 +600,7 @@ impl MetricsServer for MetricsImpl {
             entity_id: media_rate_changed_params.entity_id,
             rate: media_rate_changed_params.rate,
         });
-        println!("metrics.media_seeked={:?}", media_rate_change);
+        trace!("metrics.media_seeked={:?}", media_rate_change);
         match self
             .state
             .get_client()
@@ -608,7 +625,7 @@ impl MetricsServer for MetricsImpl {
                 profile: media_rendition_change_params.profile,
                 width: media_rendition_change_params.width,
             });
-        println!(
+        trace!(
             "metrics.media_rendition_change={:?}",
             media_rendition_change
         );
@@ -631,7 +648,7 @@ impl MetricsServer for MetricsImpl {
             context: ctx.into(),
             entity_id: media_ended_params.entity_id,
         });
-        println!("metrics.media_ended={:?}", media_ended);
+        trace!("metrics.media_ended={:?}", media_ended);
 
         match self
             .state

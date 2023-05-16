@@ -95,18 +95,7 @@ impl ExtnRequestProcessor for DistributorMetricsProcessor {
                 mock_metrics_response(state, msg, extracted_message).await
             }
             BehavioralMetricRequest::StartContent(_) => {
-                if let Err(e) = state
-                    .clone()
-                    .respond(
-                        msg,
-                        ripple_sdk::extn::extn_client_message::ExtnResponse::Boolean(true),
-                    )
-                    .await
-                {
-                    error!("Error sending back response {:?}", e);
-                    return false;
-                }
-                true
+                mock_metrics_response(state, msg, extracted_message).await
             }
             BehavioralMetricRequest::StopContent(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
