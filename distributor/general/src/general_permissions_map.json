@@ -73,7 +73,6 @@
         "xrn:firebolt:capability:localization:location[manage]",
         "xrn:firebolt:capability:protocol:wifi",
         "xrn:firebolt:capability:metrics:general",
-        "xrn:firebolt:capability:metrics:general[manage]",
         "xrn:firebolt:capability:metrics:media"
     ]
 }
