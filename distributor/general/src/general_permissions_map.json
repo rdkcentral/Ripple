@@ -29,6 +29,8 @@
         "xrn:firebolt:capability:localization:location",
         "xrn:firebolt:capability:localization:location[manage]",
         "xrn:firebolt:capability:protocol:wifi",
+        "xrn:firebolt:capability:privacy:settings",
+        "xrn:firebolt:capability:privacy:settings[manage]",
         "xrn:firebolt:capability:approve:purchase",
         "xrn:firebolt:capability:approve:content",
         "xrn:firebolt:capability:profile:flags",
@@ -43,7 +45,8 @@
         "xrn:firebolt:capability:device:info",
         "xrn:firebolt:capability:device:make",
         "xrn:firebolt:capability:device:model",
-        "xrn:firebolt:capability:protocol:wifi"
+        "xrn:firebolt:capability:protocol:wifi",
+        "xrn:firebolt:capability:privacy:settings"
     ],
     "test" : [
         "xrn:firebolt:capability:input:keyboard",
@@ -77,6 +80,7 @@
         "xrn:firebolt:capability:localization:location",
         "xrn:firebolt:capability:localization:location[manage]",
         "xrn:firebolt:capability:protocol:wifi",
+        "xrn:firebolt:capability:privacy:settings",
         "xrn:firebolt:capability:storage:secure",
         "xrn:firebolt:capability:storage:secure[manage]",
         "xrn:firebolt:capability:advertising:configuration",

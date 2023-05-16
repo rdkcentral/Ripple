@@ -15,6 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use ripple_sdk::api::distributor::distributor_privacy::PrivacySetting;
 use serde::{Deserialize, Serialize};
 
 pub const NAMESPACE_CLOSED_CAPTIONS: &'static str = "ClosedCaptions";
@@ -504,6 +505,34 @@ impl StorageProperty {
                 PROPERTY_DATA_ALLOW_UNENTITLED_RESUME_POINTS
             }
             StorageProperty::AllowWatchHistory => PROPERTY_DATA_ALLOW_WATCH_HISTORY,
+        }
+    }
+
+    pub fn as_privacy_setting(&self) -> Option<PrivacySetting> {
+        match self {
+            StorageProperty::AllowAcrCollection => Some(PrivacySetting::Acr),
+            StorageProperty::AllowAppContentAdTargeting => {
+                Some(PrivacySetting::AppContentAdTargeting)
+            }
+            StorageProperty::AllowCameraAnalytics => Some(PrivacySetting::CameraAnalytics),
+            StorageProperty::AllowPersonalization => Some(PrivacySetting::Personalization),
+            StorageProperty::AllowPrimaryBrowseAdTargeting => {
+                Some(PrivacySetting::PrimaryBrowseAdTargeting)
+            }
+            StorageProperty::AllowPrimaryContentAdTargeting => {
+                Some(PrivacySetting::PrimaryContentAdTargeting)
+            }
+            StorageProperty::AllowProductAnalytics => Some(PrivacySetting::ProductAnalytics),
+            StorageProperty::AllowRemoteDiagnostics => Some(PrivacySetting::RemoteDiagnostics),
+            StorageProperty::AllowResumePoints => Some(PrivacySetting::ContinueWatching),
+            StorageProperty::AllowUnentitledPersonalization => {
+                Some(PrivacySetting::UnentitledPersonalization)
+            }
+            StorageProperty::AllowUnentitledResumePoints => {
+                Some(PrivacySetting::UnentitledContinueWatching)
+            }
+            StorageProperty::AllowWatchHistory => Some(PrivacySetting::WatchHistory),
+            _ => None,
         }
     }
 }

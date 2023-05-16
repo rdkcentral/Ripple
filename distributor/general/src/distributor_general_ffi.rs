@@ -15,11 +15,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use ripple_sdk::{
-    api::status_update::ExtnStatus,
+    api::{config::Config, status_update::ExtnStatus},
     crossbeam::channel::Receiver as CReceiver,
     export_channel_builder, export_extn_metadata,
     extn::{
         client::{extn_client::ExtnClient, extn_sender::ExtnSender},
+        extn_client_message::ExtnResponse,
         extn_id::{ExtnClassId, ExtnId},
         ffi::{
             ffi_channel::{ExtnChannel, ExtnChannelBuilder},
@@ -37,6 +38,7 @@ use ripple_sdk::{
 use crate::{
     general_advertising_processor::DistributorAdvertisingProcessor,
     general_permission_processor::DistributorPermissionProcessor,
+    general_privacy_processor::DistributorPrivacyProcessor,
     general_securestorage_processor::DistributorSecureStorageProcessor,
     general_session_processor::DistributorSessionProcessor,
 };
@@ -71,6 +73,12 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     let runtime = Runtime::new().unwrap();
     let mut client = ExtnClient::new(receiver.clone(), sender);
     runtime.block_on(async move {
+        if let Ok(response) = client.request(Config::SavedDir).await {
+            if let Some(ExtnResponse::String(value)) = response.payload.extract() {
+                client
+                    .add_request_processor(DistributorPrivacyProcessor::new(client.clone(), value));
+            }
+        }
         client.add_request_processor(DistributorSessionProcessor::new(client.clone()));
         client.add_request_processor(DistributorPermissionProcessor::new(client.clone()));
         client.add_request_processor(DistributorSecureStorageProcessor::new(client.clone()));

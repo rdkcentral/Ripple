@@ -23,6 +23,7 @@ use crate::{
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ExtnStatus {
+    Error,
     Ready,
     Interrupted,
 }

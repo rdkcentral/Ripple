@@ -24,6 +24,7 @@ use ripple_sdk::{
         },
         extn_client_message::{ExtnMessage, ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     },
+    serde_json,
     tokio::sync::mpsc::{Receiver as MReceiver, Sender as MSender},
 };
 
@@ -77,6 +78,10 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
 
         let config_request = extracted_message;
         let response = match config_request {
+            Config::RippleFeatures => ExtnResponse::Value(
+                serde_json::to_value(device_manifest.configuration.features.clone())
+                    .unwrap_or_default(),
+            ),
             Config::PlatformParameters => {
                 ExtnResponse::Value(device_manifest.configuration.platform_parameters.clone())
             }
@@ -95,6 +100,9 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
             Config::AllDefaultApps => ExtnResponse::Config(ConfigResponse::AllApps(
                 state.app_library_state.get_all_apps(),
             )),
+            Config::SavedDir => {
+                ExtnResponse::String(device_manifest.clone().configuration.saved_dir)
+            }
             _ => ExtnResponse::Error(ripple_sdk::utils::error::RippleError::InvalidInput),
         };
         Self::respond(state.get_client().get_extn_client(), msg, response)
