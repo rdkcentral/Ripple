@@ -541,4 +541,8 @@ impl DeviceManifest {
     pub fn get_distributor_experience_id(&self) -> String {
         self.configuration.distributor_experience_id.clone()
     }
+
+    pub fn get_features(&self) -> RippleFeatures {
+        self.configuration.features.clone()
+    }
 }

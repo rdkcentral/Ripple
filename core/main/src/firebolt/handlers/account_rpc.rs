@@ -1,34 +1,45 @@
-use crate::{
-    api::rpc::rpc_gateway::{CallContext, RPCProvider},
-    apps::app_mgr::{AppError, AppManagerResponse, AppMethod, AppRequest},
-    helpers::{
-        crypto_util::{extract_app_ref, salt_using_app_scope},
-        error_util::rpc_await_oneshot,
-        ripple_helper::{IRippleHelper, RippleHelper, RippleHelperFactory, RippleHelperType},
-        rpc_util::rpc_err,
-    },
-    managers::capability_manager::{
-        Availability, CapAvailability, CapAvailabilityProvider, CapClassifiedRequest, CapRequest,
-        FireboltCap, IGetLoadedCaps, RippleHandlerCaps,
-    },
-    platform_state::PlatformState,
-};
-use dab::core::{
-    message::{DabRequestPayload, DabResponsePayload},
-    model::distributor::{AccessTokenRequest, DistributorRequest, DistributorSession},
-};
+// If not stated otherwise in this file or this component's license file the
+// following copyright and licenses apply:
+//
+// Copyright 2023 RDK Management
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
     RpcModule,
 };
-use tokio::sync::oneshot;
-use tracing::{error, instrument};
+use ripple_sdk::{
+    api::{
+        firebolt::fb_capabilities::{CapEvent, FireboltCap},
+        gateway::rpc_gateway_api::CallContext,
+        session::{AccountSessionRequest, AccountSessionTokenRequest},
+    },
+    extn::extn_client_message::ExtnResponse,
+    log::error,
+};
+
+use crate::{
+    firebolt::rpc::RippleRPCProvider,
+    state::{cap::cap_state::CapState, platform_state::PlatformState},
+    utils::rpc_utils::rpc_err,
+};
 
 #[rpc(server)]
 pub trait Account {
     #[method(name = "account.session")]
-    async fn session(&self, ctx: CallContext, a_t_r: AccessTokenRequest) -> RpcResult<()>;
+    async fn session(&self, ctx: CallContext, a_t_r: AccountSessionTokenRequest) -> RpcResult<()>;
     #[method(name = "account.id")]
     async fn id_rpc(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "account.uid")]
@@ -36,183 +47,85 @@ pub trait Account {
 }
 
 #[derive(Debug, Clone)]
-pub struct AccountImpl<IRippleHelper> {
-    pub helper: Box<IRippleHelper>,
+pub struct AccountImpl {
     pub platform_state: PlatformState,
 }
 
-#[derive(Debug, Clone)]
-pub struct AccountSessionCamProvider {
-    pub helper: Box<RippleHelper>,
-}
-
-pub async fn id(helper: Box<dyn IRippleHelper + Send + Sync>) -> RpcResult<String> {
-    let resp = helper
-        .send_dab(DabRequestPayload::Distributor(DistributorRequest::Session))
-        .await;
-    if let Err(_) = resp {
-        return Err(rpc_err("Could not get distributor session from the device"));
-    }
-    if let None = resp.as_ref().unwrap().as_dist_session() {
-        return Err(rpc_err("Device returned an invalid type for dist session"));
-    }
-    let session: DistributorSession = resp.unwrap().as_dist_session().unwrap();
-    if let Some(account_id) = session.account_id {
-        Ok(account_id)
-    } else {
-        Err(rpc_err("Account.uid: some failure"))
-    }
-}
-
-pub async fn uid(
-    account_id: String,
-    helper: Box<dyn IRippleHelper + Send + Sync>,
-    ctx: CallContext,
-) -> RpcResult<String> {
-    let (app_resp_tx, app_resp_rx) = oneshot::channel::<Result<AppManagerResponse, AppError>>();
-
-    let app_request = AppRequest {
-        method: AppMethod::GetStartPage(ctx.app_id.clone()),
-        resp_tx: Some(app_resp_tx),
-    };
-    helper.send_app_request(app_request).await?;
-    let resp = rpc_await_oneshot(app_resp_rx).await?;
-    if let AppManagerResponse::StartPage(start_page) = resp? {
-        let app_scope = match start_page {
-            Some(sp) => extract_app_ref(sp),
-            None => ctx.app_id,
-        };
-        return Ok(salt_using_app_scope(
-            app_scope,
-            account_id,
-            helper.get_config().get_default_id_salt(),
-        ));
-    }
-
-    Err(rpc_err("Account.uid: some failure"))
-}
-
-#[async_trait::async_trait]
-impl CapAvailabilityProvider for AccountSessionCamProvider {
-    type Cap = FireboltCap;
-    fn get(self) -> FireboltCap {
-        FireboltCap::Short("account:session".into())
-    }
-    async fn update_cam(self, ca: Availability) {
-        if let Err(_) = self
-            .helper
-            .update_cap(CapRequest::UpdateAvailability(
-                CapAvailability {
-                    c: FireboltCap::Short("account:session".into()),
-                    a: ca,
-                },
-                None,
-            ))
-            .await
-        {
-            error!("Updating cam")
-        }
-    }
-}
-
 #[async_trait]
-impl AccountServer for AccountImpl<RippleHelper> {
-    #[instrument(skip(self))]
-    async fn session(&self, _ctx: CallContext, a_t_r: AccessTokenRequest) -> RpcResult<()> {
+impl AccountServer for AccountImpl {
+    async fn session(&self, ctx: CallContext, a_t_r: AccountSessionTokenRequest) -> RpcResult<()> {
         let resp = self
-            .helper
-            .send_dab(DabRequestPayload::Distributor(
-                DistributorRequest::SetSession(a_t_r),
-            ))
+            .platform_state
+            .get_client()
+            .send_extn_request(AccountSessionRequest::SetAccessToken(a_t_r))
             .await;
+        if let Err(_) = resp {
+            error!("Error in session {:?}", resp);
+            return Err(rpc_err("session error response TBD"));
+        }
 
         // clear the cached distributor session
         self.platform_state
-            .app_auth_sessions
-            .clear_device_auth_session()
-            .await;
+            .session_state
+            .clear_session(&ctx.session_id.clone());
 
-        let scp = Box::new(AccountSessionCamProvider {
-            helper: self.helper.clone(),
-        });
         match resp {
-            Ok(dab_payload) => match dab_payload {
-                DabResponsePayload::None => {
-                    // let the Capability Availability manager know that Session is now available
-                    scp.update_cam(Availability::Ready).await;
+            Ok(payload) => match payload.payload.extract().unwrap() {
+                ExtnResponse::None(()) => {
+                    CapState::emit(
+                        &self.platform_state,
+                        CapEvent::OnAvailable,
+                        FireboltCap::Full("xrn:firebolt:capability:account:session".to_owned()),
+                        None,
+                    )
+                    .await;
                     Ok(())
                 }
                 _ => {
-                    scp.update_cam(Availability::Failed).await;
-                    Err(jsonrpsee::core::Error::Custom(String::from(
-                        "Provision Status error response TBD",
-                    )))
+                    CapState::emit(
+                        &self.platform_state,
+                        CapEvent::OnUnavailable,
+                        FireboltCap::Full("xrn:firebolt:capability:account:session".to_owned()),
+                        None,
+                    )
+                    .await;
+                    Err(rpc_err("Provision Status error response TBD"))
                 }
             },
             Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-                "Provision status error response TBD",
+                "Provision Status error response TBD",
             ))),
         }
     }
 
-    #[instrument(skip(self))]
     async fn id_rpc(&self, _ctx: CallContext) -> RpcResult<String> {
-        id(self.helper.clone()).await
+        self.id().await
     }
 
-    #[instrument(skip(self))]
-    async fn uid_rpc(&self, ctx: CallContext) -> RpcResult<String> {
-        if let Ok(account_id) = id(self.helper.clone()).await {
-            uid(account_id, self.helper.clone(), ctx).await
+    async fn uid_rpc(&self, _ctx: CallContext) -> RpcResult<String> {
+        self.id().await
+    }
+}
+impl AccountImpl {
+    pub async fn id(&self) -> RpcResult<String> {
+        let response = self
+            .platform_state
+            .get_client()
+            .send_extn_request(AccountSessionRequest::Get)
+            .await
+            .expect("session");
+
+        if let Some(ExtnResponse::AccountSession(session)) = response.payload.clone().extract() {
+            Ok(session.account_id.to_owned())
         } else {
             Err(rpc_err("Account.uid: some failure"))
         }
     }
 }
 
-pub struct AccountRippleProvider;
-#[derive(Debug)]
-pub struct AccountCapHandler;
-
-#[async_trait]
-impl IGetLoadedCaps for AccountCapHandler {
-    fn get_loaded_caps(&self) -> RippleHandlerCaps {
-        RippleHandlerCaps {
-            caps: Some(vec![
-                CapClassifiedRequest::Supported(vec![
-                    FireboltCap::Short("token:account".into()),
-                    FireboltCap::Short("account:id".into()),
-                    FireboltCap::Short("account:uid".into()),
-                ]),
-                // For Session when the device starts up there is no session then it becomes available from provider
-                CapClassifiedRequest::NotAvailable(vec![FireboltCap::Short(
-                    "token:account".into(),
-                )]),
-            ]),
-        }
+pub struct AccountRPCProvider;
+impl RippleRPCProvider<AccountImpl> for AccountRPCProvider {
+    fn provide(platform_state: PlatformState) -> RpcModule<AccountImpl> {
+        (AccountImpl { platform_state }).into_rpc()
     }
 }
-
-impl RPCProvider<AccountImpl<RippleHelper>, AccountCapHandler> for AccountRippleProvider {
-    fn provide(
-        self,
-        rhf: Box<RippleHelperFactory>,
-        platform_state: PlatformState,
-    ) -> (RpcModule<AccountImpl<RippleHelper>>, AccountCapHandler) {
-        let a = AccountImpl {
-            helper: rhf.get(self.get_helper_variant()),
-            platform_state,
-        };
-        (a.into_rpc(), AccountCapHandler)
-    }
-
-    fn get_helper_variant(self) -> Vec<RippleHelperType> {
-        vec![
-            RippleHelperType::Dab,
-            RippleHelperType::Dpab,
-            RippleHelperType::Cap,
-            RippleHelperType::AppManager,
-        ]
-    }
-}
-
