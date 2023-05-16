@@ -50,6 +50,7 @@ pub enum RippleContract {
     SecureStorage,
     Advertising,
     PrivacySettings,
+    Metrics,
 }
 
 impl TryFrom<String> for RippleContract {
