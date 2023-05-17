@@ -1,3 +1,5 @@
+use std::sync::{Arc, RwLock};
+
 // If not stated otherwise in this file or this component's license file the
 // following copyright and licenses apply:
 //
@@ -15,37 +17,126 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use ripple_sdk::{
-    api::session::{AccountSession, AccountSessionRequest},
-    async_trait::async_trait,
-    extn::client::{
-        extn_client::ExtnClient,
-        extn_processor::{
-            DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
-        },
+    api::session::{
+        AccountSession, AccountSessionRequest, AccountSessionTokenRequest, ProvisionRequest,
     },
+    async_trait::async_trait,
+    extn::{
+        client::{
+            extn_client::ExtnClient,
+            extn_processor::{
+                DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
+            },
+        },
+        extn_client_message::ExtnMessage,
+    },
+    framework::file_store::FileStore,
     log::error,
+    utils::error::RippleError,
 };
 
-pub struct DistributorSessionProcessor {
+#[derive(Debug, Clone)]
+pub struct DistSessionState {
     client: ExtnClient,
-    streamer: DefaultExtnStreamer,
+    session: Arc<RwLock<FileStore<AccountSession>>>,
 }
 
-impl DistributorSessionProcessor {
-    pub fn new(client: ExtnClient) -> DistributorSessionProcessor {
-        DistributorSessionProcessor {
+fn get_privacy_path(saved_dir: String) -> String {
+    format!("{}/{}", saved_dir, "dist_session")
+}
+
+impl DistSessionState {
+    fn new(client: ExtnClient, path: String) -> Self {
+        let path = get_privacy_path(path);
+        let store = if let Ok(v) = FileStore::load(path.clone()) {
+            v
+        } else {
+            FileStore::new(
+                path.clone(),
+                AccountSession {
+                    id: "general".into(),
+                    token: "general".into(),
+                    account_id: "general".into(),
+                    device_id: "general".into(),
+                },
+            )
+        };
+
+        Self {
             client,
-            streamer: DefaultExtnStreamer::new(),
+            session: Arc::new(RwLock::new(store)),
         }
     }
 }
 
+pub struct DistributorSessionProcessor {
+    state: DistSessionState,
+    streamer: DefaultExtnStreamer,
+}
+
+impl DistributorSessionProcessor {
+    pub fn new(client: ExtnClient, path: String) -> DistributorSessionProcessor {
+        DistributorSessionProcessor {
+            state: DistSessionState::new(client, path),
+            streamer: DefaultExtnStreamer::new(),
+        }
+    }
+
+    async fn get_token(mut state: DistSessionState, msg: ExtnMessage) -> bool {
+        let session = state.session.read().unwrap().value.clone();
+        if let Err(e) = state
+            .client
+            .respond(
+                msg.clone(),
+                ripple_sdk::extn::extn_client_message::ExtnResponse::AccountSession(session),
+            )
+            .await
+        {
+            error!("Error sending back response {:?}", e);
+            return false;
+        }
+
+        Self::handle_error(state.clone().client, msg, RippleError::ExtnError).await
+    }
+
+    async fn set_token(
+        state: DistSessionState,
+        msg: ExtnMessage,
+        token: AccountSessionTokenRequest,
+    ) -> bool {
+        {
+            let mut session = state.session.write().unwrap();
+            session.value.token = token.token;
+            session.sync();
+        }
+        Self::ack(state.client, msg).await.is_ok()
+    }
+
+    async fn provision(
+        state: DistSessionState,
+        msg: ExtnMessage,
+        provision: ProvisionRequest,
+    ) -> bool {
+        {
+            let mut session = state.session.write().unwrap();
+            session.value.account_id = provision.account_id;
+            session.value.device_id = provision.device_id;
+            if let Some(distributor) = provision.distributor_id {
+                session.value.id = distributor;
+            }
+
+            session.sync();
+        }
+        Self::ack(state.client, msg).await.is_ok()
+    }
+}
+
 impl ExtnStreamProcessor for DistributorSessionProcessor {
-    type STATE = ExtnClient;
+    type STATE = DistSessionState;
     type VALUE = AccountSessionRequest;
 
     fn get_state(&self) -> Self::STATE {
-        self.client.clone()
+        self.state.clone()
     }
 
     fn receiver(
@@ -66,31 +157,17 @@ impl ExtnStreamProcessor for DistributorSessionProcessor {
 #[async_trait]
 impl ExtnRequestProcessor for DistributorSessionProcessor {
     fn get_client(&self) -> ExtnClient {
-        self.client.clone()
+        self.state.clone().client
     }
     async fn process_request(
         state: Self::STATE,
         msg: ripple_sdk::extn::extn_client_message::ExtnMessage,
-        _extracted_message: Self::VALUE,
+        extracted_message: Self::VALUE,
     ) -> bool {
-        if let Err(e) = state
-            .clone()
-            .respond(
-                msg,
-                ripple_sdk::extn::extn_client_message::ExtnResponse::AccountSession(
-                    AccountSession {
-                        id: "general".into(),
-                        token: "general".into(),
-                        account_id: "general".into(),
-                        device_id: "general".into(),
-                    },
-                ),
-            )
-            .await
-        {
-            error!("Error sending back response {:?}", e);
-            return false;
+        match extracted_message {
+            AccountSessionRequest::Get => Self::get_token(state.clone(), msg).await,
+            AccountSessionRequest::Provision(p) => Self::provision(state.clone(), msg, p).await,
+            AccountSessionRequest::SetAccessToken(s) => Self::set_token(state, msg, s).await,
         }
-        true
     }
 }

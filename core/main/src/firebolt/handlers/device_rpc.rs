@@ -52,7 +52,8 @@ use ripple_sdk::{
             fb_general::{ListenRequest, ListenerResponse},
             fb_openrpc::FireboltSemanticVersion,
         },
-        gateway::rpc_gateway_api::CallContext, session::{ProvisionRequest, AccountSessionRequest},
+        gateway::rpc_gateway_api::CallContext,
+        session::{AccountSessionRequest, ProvisionRequest},
     },
     extn::extn_client_message::ExtnResponse,
     log::error,
@@ -690,10 +691,10 @@ impl DeviceServer for DeviceImpl {
         provision_request: ProvisionRequest,
     ) -> RpcResult<()> {
         let resp = self
-                            .state
-                            .get_client()
-                            .send_extn_request(AccountSessionRequest::Provision(provision_request))
-                            .await;
+            .state
+            .get_client()
+            .send_extn_request(AccountSessionRequest::Provision(provision_request))
+            .await;
         // clear the cached distributor session
         self.state
             .session_state

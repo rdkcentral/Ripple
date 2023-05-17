@@ -42,6 +42,7 @@ use crate::{
     general_privacy_processor::DistributorPrivacyProcessor,
     general_securestorage_processor::DistributorSecureStorageProcessor,
     general_session_processor::DistributorSessionProcessor,
+    general_token_processor::DistributorTokenProcessor,
 };
 
 fn init_library() -> CExtnMetadata {
@@ -54,6 +55,10 @@ fn init_library() -> CExtnMetadata {
             RippleContract::AccountSession,
             RippleContract::SecureStorage,
             RippleContract::Advertising,
+            RippleContract::PrivacySettings,
+            RippleContract::SessionToken,
+            RippleContract::Metrics,
+            RippleContract::SessionToken,
         ]),
         Version::new(1, 1, 0),
     );
@@ -80,17 +85,21 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
                 if let Some(ExtnResponse::String(value)) = response.payload.extract() {
                     client.add_request_processor(DistributorPrivacyProcessor::new(
                         client.clone(),
-                        value,
+                        value.clone(),
+                    ));
+                    client.add_request_processor(DistributorSessionProcessor::new(
+                        client.clone(),
+                        value.clone(),
                     ));
                 }
             }
 
-            client.add_request_processor(DistributorSessionProcessor::new(client.clone()));
             client.add_request_processor(DistributorPermissionProcessor::new(client.clone()));
             client.add_request_processor(DistributorSecureStorageProcessor::new(client.clone()));
             client.add_request_processor(DistributorAdvertisingProcessor::new(client.clone()));
             client.add_request_processor(DistributorMetricsProcessor::new(client.clone()));
-
+            client.add_request_processor(DistributorTokenProcessor::new(client.clone()));
+            client.add_request_processor(DistributorTokenProcessor::new(client.clone()));
             // Lets Main know that the distributor channel is ready
             let _ = client.event(ExtnStatus::Ready).await;
         });

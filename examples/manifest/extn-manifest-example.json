@@ -51,7 +51,8 @@
                         "secure_storage",
                         "advertising",
                         "privacy_settings",
-                        "metrics"
+                        "metrics",
+                        "session_token"
                     ]
                 }
             ]
@@ -69,6 +70,8 @@
         "wifi",
         "secure_storage",
         "advertising",
+        "privacy_settings",
+        "session_token",
         "metrics"
     ],
     "rpc_aliases": {
