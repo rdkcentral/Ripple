@@ -159,14 +159,6 @@ pub struct SessionTokenRequest {
     pub context: Option<TokenContext>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct TokenContainer {
-    pub token_type: TokenType,
-    pub native_token_type: String,
-    pub token_data: String,
-    pub expires: i64,
-}
-
 impl ExtnPayloadProvider for SessionTokenRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Request(ExtnRequest::SessionToken(self.clone()))
