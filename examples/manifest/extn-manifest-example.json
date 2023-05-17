@@ -50,7 +50,8 @@
                         "account_session",
                         "secure_storage",
                         "advertising",
-                        "privacy_settings"
+                        "privacy_settings",
+                        "metrics"
                     ]
                 }
             ]
@@ -67,7 +68,8 @@
         "account_session",
         "wifi",
         "secure_storage",
-        "advertising"
+        "advertising",
+        "metrics"
     ],
     "rpc_aliases": {
         "device.model": ["custom.model"]

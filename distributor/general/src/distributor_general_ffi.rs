@@ -37,6 +37,7 @@ use ripple_sdk::{
 
 use crate::{
     general_advertising_processor::DistributorAdvertisingProcessor,
+    general_metrics_processor::DistributorMetricsProcessor,
     general_permission_processor::DistributorPermissionProcessor,
     general_privacy_processor::DistributorPrivacyProcessor,
     general_securestorage_processor::DistributorSecureStorageProcessor,
@@ -83,10 +84,13 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
                     ));
                 }
             }
+
             client.add_request_processor(DistributorSessionProcessor::new(client.clone()));
             client.add_request_processor(DistributorPermissionProcessor::new(client.clone()));
             client.add_request_processor(DistributorSecureStorageProcessor::new(client.clone()));
             client.add_request_processor(DistributorAdvertisingProcessor::new(client.clone()));
+            client.add_request_processor(DistributorMetricsProcessor::new(client.clone()));
+
             // Lets Main know that the distributor channel is ready
             let _ = client.event(ExtnStatus::Ready).await;
         });
