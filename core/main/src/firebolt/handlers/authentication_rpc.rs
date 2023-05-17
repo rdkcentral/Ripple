@@ -38,10 +38,6 @@ use tracing::{error, instrument};
 pub trait Authentication {
     #[method(name = "authentication.token", param_kind = map)]
     async fn token(&self, ctx: CallContext, x: TokenRequest) -> RpcResult<TokenResult>;
-    #[method(name = "badger.refreshPlatformAuthToken", param_kind = map)]
-    async fn badger_refresh_platform_auth_token(&self, ctx: CallContext) -> RpcResult<String>;
-    #[method(name = "badger.getXact")]
-    async fn badger_get_xact(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "authentication.root", param_kind = map)]
     async fn root(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "authentication.device", param_kind = map)]
@@ -108,14 +104,6 @@ impl AuthenticationServer for AuthenticationImpl<RippleHelper> {
                 }));
             }
         }
-    }
-
-    #[instrument(skip(self))]
-    async fn badger_refresh_platform_auth_token(&self, ctx: CallContext) -> RpcResult<String> {
-        Ok(self.platform_token(ctx).await?.value)
-    }
-    async fn badger_get_xact(&self, ctx: CallContext) -> RpcResult<String> {
-        Ok(self.root_token(ctx).await?.value)
     }
 
     #[instrument(skip(self))]
@@ -262,8 +250,6 @@ impl IGetLoadedCaps for AuthCapHandler {
     fn get_loaded_caps(&self) -> RippleHandlerCaps {
         RippleHandlerCaps {
             caps: Some(vec![CapClassifiedRequest::Supported(vec![
-                FireboltCap::Short("badger:refreshPlatformAuthToken".into()),
-                FireboltCap::Short("badger:getXact".into()),
                 FireboltCap::Short("token:platform".into()),
                 FireboltCap::Short("token:device".into()),
                 FireboltCap::Short("token:root".into()),
