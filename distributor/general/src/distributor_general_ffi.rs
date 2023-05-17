@@ -31,7 +31,7 @@ use ripple_sdk::{
     framework::ripple_contract::{ContractFulfiller, RippleContract},
     log::{debug, info},
     semver::Version,
-    tokio::runtime::Runtime,
+    tokio::{self, runtime::Runtime},
     utils::{error::RippleError, logger::init_logger},
 };
 
@@ -73,19 +73,24 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     let runtime = Runtime::new().unwrap();
     let mut client = ExtnClient::new(receiver.clone(), sender);
     runtime.block_on(async move {
-        if let Ok(response) = client.request(Config::SavedDir).await {
-            if let Some(ExtnResponse::String(value)) = response.payload.extract() {
-                client
-                    .add_request_processor(DistributorPrivacyProcessor::new(client.clone(), value));
+        let client_c = client.clone();
+        tokio::spawn(async move {
+            if let Ok(response) = client.request(Config::SavedDir).await {
+                if let Some(ExtnResponse::String(value)) = response.payload.extract() {
+                    client.add_request_processor(DistributorPrivacyProcessor::new(
+                        client.clone(),
+                        value,
+                    ));
+                }
             }
-        }
-        client.add_request_processor(DistributorSessionProcessor::new(client.clone()));
-        client.add_request_processor(DistributorPermissionProcessor::new(client.clone()));
-        client.add_request_processor(DistributorSecureStorageProcessor::new(client.clone()));
-        client.add_request_processor(DistributorAdvertisingProcessor::new(client.clone()));
-        // Lets Main know that the distributor channel is ready
-        let _ = client.event(ExtnStatus::Ready).await;
-        client.initialize().await;
+            client.add_request_processor(DistributorSessionProcessor::new(client.clone()));
+            client.add_request_processor(DistributorPermissionProcessor::new(client.clone()));
+            client.add_request_processor(DistributorSecureStorageProcessor::new(client.clone()));
+            client.add_request_processor(DistributorAdvertisingProcessor::new(client.clone()));
+            // Lets Main know that the distributor channel is ready
+            let _ = client.event(ExtnStatus::Ready).await;
+        });
+        client_c.initialize().await;
     });
 }
 
