@@ -49,6 +49,7 @@ pub enum RippleContract {
     VoiceGuidance,
     SecureStorage,
     Advertising,
+    PrivacySettings,
 }
 
 impl TryFrom<String> for RippleContract {

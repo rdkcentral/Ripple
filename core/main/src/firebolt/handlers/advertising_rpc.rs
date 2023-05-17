@@ -337,7 +337,7 @@ impl AdvertisingServer for AdvertisingImpl {
     }
 
     async fn policy(&self, _ctx: CallContext) -> RpcResult<AdvertisingPolicy> {
-        let limit_ad_tracking = PrivacyImpl::get_limit_ad_tracking(&self.state).await;
+        let limit_ad_tracking = PrivacyImpl::get_allow_app_content_ad_targeting(&self.state).await;
         Ok(AdvertisingPolicy {
             skip_restriction: "adsUnwatched".to_owned(),
             limit_ad_tracking,

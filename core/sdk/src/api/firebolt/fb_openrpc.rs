@@ -203,6 +203,26 @@ impl FireboltOpenRpc {
         r
     }
 
+    pub fn get_setter_method_for_property(&self, property: &str) -> Option<FireboltOpenRpcMethod> {
+        self.methods
+            .iter()
+            .find(|method| {
+                method.tags.is_some()
+                    && method
+                        .tags
+                        .as_ref()
+                        .unwrap()
+                        .iter()
+                        .find(|tag| {
+                            (tag.name == "rpc-only" || tag.name == "setter")
+                                && tag.setter_for.is_some()
+                                && tag.setter_for.as_ref().unwrap().as_str() == property
+                        })
+                        .is_some()
+            })
+            .cloned()
+    }
+
     /// Ripple Developers can use this method to create an extension open rpc based on Firebolt Schema
     /// and pass this to the main application for capability resolution
     pub fn load_additional_methods(rpc: &mut FireboltOpenRpc, file_contents: &'static str) {
@@ -243,6 +263,8 @@ pub struct FireboltOpenRpcTag {
     pub since: Option<String>,
     #[serde(rename = "x-allow-value")]
     pub allow_value: Option<bool>,
+    #[serde(rename = "x-setter-for")]
+    pub setter_for: Option<String>,
 }
 
 impl FireboltOpenRpcTag {
@@ -272,6 +294,22 @@ impl FireboltOpenRpcTag {
 pub struct FireboltOpenRpcMethod {
     pub name: String,
     pub tags: Option<Vec<FireboltOpenRpcTag>>,
+}
+
+impl FireboltOpenRpcMethod {
+    pub fn get_allow_value(&self) -> Option<bool> {
+        if self.tags.is_none() {
+            return None;
+        }
+        let allow_tag_opt = self
+            .tags
+            .as_ref()
+            .unwrap()
+            .iter()
+            .find(|x| x.name == "property" && x.allow_value.is_some());
+
+        allow_tag_opt.map(|openrpc_tag| openrpc_tag.allow_value.unwrap())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]

@@ -36,6 +36,7 @@ pub mod handlers {
     pub mod profile_rpc;
     pub mod second_screen_rpc;
     pub mod secure_storage_rpc;
+    pub mod user_grants_rpc;
     pub mod voice_guidance_rpc;
     pub mod wifi_rpc;
 }

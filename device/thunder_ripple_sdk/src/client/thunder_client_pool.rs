@@ -21,7 +21,6 @@ use std::sync::{
 };
 
 use crate::client::thunder_client::ThunderClientBuilder;
-use ripple_sdk::tokio;
 use ripple_sdk::{
     api::device::device_operator::DeviceResponseMessage,
     log::{debug, error},
@@ -29,6 +28,7 @@ use ripple_sdk::{
     utils::channel_utils::oneshot_send_and_log,
     uuid::Uuid,
 };
+use ripple_sdk::{tokio, utils::error::RippleError};
 use url::Url;
 
 use super::{
@@ -54,11 +54,11 @@ pub enum ThunderPoolCommand {
 }
 
 impl ThunderClientPool {
-    pub fn start(
+    pub async fn start(
         url: Url,
         plugin_manager_tx: Option<mpsc::Sender<PluginManagerCommand>>,
         size: u32,
-    ) -> ThunderClient {
+    ) -> Result<ThunderClient, RippleError> {
         debug!("Starting a Thunder connection pool of size {}", size);
         let (s, mut r) = mpsc::channel::<ThunderPoolCommand>(32);
         let mut clients = Vec::default();
@@ -67,11 +67,17 @@ impl ThunderClientPool {
                 url.clone(),
                 plugin_manager_tx.clone(),
                 Some(s.clone()),
-            );
-            clients.push(PooledThunderClient {
-                in_use: Arc::new(AtomicBool::new(false)),
-                client,
-            });
+            )
+            .await;
+            if client.is_ok() {
+                clients.push(PooledThunderClient {
+                    in_use: Arc::new(AtomicBool::new(false)),
+                    client: client.unwrap(),
+                });
+            }
+        }
+        if clients.len() == 0 {
+            return Err(RippleError::BootstrapError);
         }
         let sender_for_thread = s.clone();
         let pmtx_c = plugin_manager_tx.clone();
@@ -126,21 +132,24 @@ impl ThunderClientPool {
                             url.clone(),
                             plugin_manager_tx.clone(),
                             Some(sender_for_thread.clone()),
-                        );
-                        pool.clients.push(PooledThunderClient {
-                            in_use: Arc::new(AtomicBool::new(false)),
-                            client,
-                        });
+                        )
+                        .await;
+                        if client.is_ok() {
+                            pool.clients.push(PooledThunderClient {
+                                in_use: Arc::new(AtomicBool::new(false)),
+                                client: client.unwrap(),
+                            });
+                        }
                     }
                 }
             }
         });
-        ThunderClient {
+        Ok(ThunderClient {
             sender: None,
             pooled_sender: Some(s),
             id: Uuid::new_v4(),
             plugin_manager_tx: pmtx_c,
-        }
+        })
     }
 
     fn get_client(&mut self) -> Option<&mut PooledThunderClient> {

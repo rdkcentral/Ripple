@@ -22,7 +22,6 @@ use jsonrpsee::ws_client::WsClientBuilder;
 
 use jsonrpsee::core::async_trait;
 use jsonrpsee::types::ParamsSer;
-use ripple_sdk::tokio::sync::oneshot::{self, Sender as OneShotSender};
 use ripple_sdk::tokio::task::JoinHandle;
 use ripple_sdk::{
     api::device::device_operator::DeviceResponseMessage,
@@ -42,6 +41,10 @@ use ripple_sdk::{
 use ripple_sdk::{
     log::{error, info, trace, warn},
     utils::channel_utils::{mpsc_send_and_log, oneshot_send_and_log},
+};
+use ripple_sdk::{
+    tokio::sync::oneshot::{self, Sender as OneShotSender},
+    utils::error::RippleError,
 };
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -410,32 +413,31 @@ impl ThunderClient {
 }
 
 impl ThunderClientBuilder {
-    pub fn get_client(
+    pub async fn get_client(
         url: Url,
         plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
         pool_tx: Option<mpsc::Sender<ThunderPoolCommand>>,
-    ) -> ThunderClient {
+    ) -> Result<ThunderClient, RippleError> {
         let id = Uuid::new_v4();
 
         info!("initiating thunder connection {}", url);
         let mut subscriptions = HashMap::<String, ThunderSubscription>::default();
         let (s, mut r) = mpsc::channel::<ThunderMessage>(32);
         let pmtx_c = plugin_manager_tx.clone();
-        tokio::spawn(async move {
-            let url_with_token = if cfg!(feature = "local_dev") {
-                if let Ok(token) = env::var("THUNDER_TOKEN") {
-                    Url::parse_with_params(url.as_str(), &[("token", token)]).unwrap()
-                } else {
-                    url.clone()
-                }
-            } else {
-                url.clone()
-            };
-            let client = WsClientBuilder::default()
-                .build(url_with_token.to_string())
-                .await
-                .unwrap();
+        let url_with_token = if let Ok(token) = env::var("THUNDER_TOKEN") {
+            Url::parse_with_params(url.as_str(), &[("token", token)]).unwrap()
+        } else {
+            url.clone()
+        };
+        let client = WsClientBuilder::default()
+            .build(url_with_token.to_string())
+            .await;
+        if client.is_err() {
+            return Err(RippleError::BootstrapError);
+        }
 
+        let client = client.unwrap();
+        tokio::spawn(async move {
             while let Some(message) = r.recv().await {
                 if !client.is_connected() {
                     if let Some(ptx) = pool_tx {
@@ -471,12 +473,12 @@ impl ThunderClientBuilder {
             }
         });
 
-        ThunderClient {
+        Ok(ThunderClient {
             sender: Some(s),
             pooled_sender: None,
             id: id,
             plugin_manager_tx: pmtx_c,
-        }
+        })
     }
 
     #[cfg(test)]
