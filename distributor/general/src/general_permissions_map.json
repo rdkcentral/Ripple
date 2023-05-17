@@ -38,7 +38,9 @@
         "xrn:firebolt:capability:storage:secure[manage]",
         "xrn:firebolt:capability:advertising:configuration",
         "xrn:firebolt:capability:advertising:identifier",
-        "xrn:firebolt:capability:privacy:advertising"
+        "xrn:firebolt:capability:privacy:advertising",
+        "xrn:firebolt:capability:account:id",
+        "xrn:firebolt:capability:device:distributor"
     ],
     "comcast_firebolt_reference" : [
         "xrn:firebolt:capability:input:keyboard",

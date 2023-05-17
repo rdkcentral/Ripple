@@ -52,7 +52,7 @@ use ripple_sdk::{
             fb_general::{ListenRequest, ListenerResponse},
             fb_openrpc::FireboltSemanticVersion,
         },
-        gateway::rpc_gateway_api::CallContext,
+        gateway::rpc_gateway_api::CallContext, session::{ProvisionRequest, AccountSessionRequest},
     },
     extn::extn_client_message::ExtnResponse,
     log::error,
@@ -160,12 +160,12 @@ pub trait Device {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
-    // #[method(name = "device.provision")]
-    // async fn provision(
-    //     &self,
-    //     ctx: CallContext,
-    //     provision_request: ProvisionRequest,
-    // ) -> RpcResult<()>;
+    #[method(name = "device.provision")]
+    async fn provision(
+        &self,
+        ctx: CallContext,
+        provision_request: ProvisionRequest,
+    ) -> RpcResult<()>;
     // #[method(name = "device.distributor")]
     // async fn distributor(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "device.make")]
@@ -684,13 +684,31 @@ impl DeviceServer for DeviceImpl {
         })
     }
 
-    // async fn provision(
-    //     &self,
-    //     _ctx: CallContext,
-    //     provision_request: ProvisionRequest,
-    // ) -> RpcResult<()> {
-    // TODO:device not provisioned
-    // }
+    async fn provision(
+        &self,
+        ctx: CallContext,
+        provision_request: ProvisionRequest,
+    ) -> RpcResult<()> {
+        let resp = self
+                            .state
+                            .get_client()
+                            .send_extn_request(AccountSessionRequest::Provision(provision_request))
+                            .await;
+        // clear the cached distributor session
+        self.state
+            .session_state
+            .clear_session(&ctx.session_id.clone());
+
+        match resp {
+            Ok(payload) => match payload.payload.extract().unwrap() {
+                ExtnResponse::None(()) => Ok(()),
+                _ => Err(rpc_err("Provision Status error response TBD")),
+            },
+            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
+                "Provision Status error response TBD",
+            ))),
+        }
+    }
 
     // async fn distributor(&self, _ctx: CallContext) -> RpcResult<String> {
     // TODO:device not provisioned
