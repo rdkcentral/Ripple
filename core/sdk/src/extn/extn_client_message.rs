@@ -40,6 +40,7 @@ use crate::{
             fb_authentication::{AuthRequest, TokenResult},
             fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
             fb_lifecycle_management::LifecycleManagementRequest,
+            fb_metrics::BehavioralMetricRequest,
             fb_pin::{PinChallengeRequest, PinChallengeResponse},
             fb_secure_storage::SecureStorageRequest,
         },
@@ -248,6 +249,7 @@ pub enum ExtnRequest {
     Advertising(AdvertisingRequest),
     PrivacySettings(PrivacyRequest),
     Auth(AuthRequest),
+    BehavioralMetric(BehavioralMetricRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

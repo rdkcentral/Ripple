@@ -87,6 +87,8 @@
         "xrn:firebolt:capability:storage:secure[manage]",
         "xrn:firebolt:capability:advertising:configuration",
         "xrn:firebolt:capability:advertising:identifier",
-        "xrn:firebolt:capability:privacy:advertising"
+        "xrn:firebolt:capability:privacy:advertising",
+        "xrn:firebolt:capability:metrics:general",
+        "xrn:firebolt:capability:metrics:media"
     ]
 }

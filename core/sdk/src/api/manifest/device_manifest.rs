@@ -36,7 +36,6 @@ pub struct RippleConfiguration {
     pub platform: DevicePlatformType,
     pub platform_parameters: Value,
     pub distribution_platform: String,
-    pub distribution_tenant: String,
     pub distribution_id_salt: Option<IdSalt>,
     pub form_factor: String,
     #[serde(default = "default_values_default")]
