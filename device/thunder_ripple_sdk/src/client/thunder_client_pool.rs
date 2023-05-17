@@ -54,7 +54,7 @@ pub enum ThunderPoolCommand {
 }
 
 impl ThunderClientPool {
-    pub fn start(
+    pub async fn start(
         url: Url,
         plugin_manager_tx: Option<mpsc::Sender<PluginManagerCommand>>,
         size: u32,
@@ -67,7 +67,8 @@ impl ThunderClientPool {
                 url.clone(),
                 plugin_manager_tx.clone(),
                 Some(s.clone()),
-            );
+            )
+            .await;
             if client.is_ok() {
                 clients.push(PooledThunderClient {
                     in_use: Arc::new(AtomicBool::new(false)),
@@ -131,7 +132,8 @@ impl ThunderClientPool {
                             url.clone(),
                             plugin_manager_tx.clone(),
                             Some(sender_for_thread.clone()),
-                        );
+                        )
+                        .await;
                         if client.is_ok() {
                             pool.clients.push(PooledThunderClient {
                                 in_use: Arc::new(AtomicBool::new(false)),
