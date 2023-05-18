@@ -6,7 +6,7 @@ After=wpeframework.service
 [Service]
 Type=simple
 Environment="RUST_LOG=debug"
-ExecStart=/usr/bin/firebolt_service
+ExecStart=/usr/bin/ripple
 ExecStop=/bin/kill -TERM $MAINPID
 Restart=always
 RestartSec=10
