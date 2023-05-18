@@ -22,13 +22,14 @@ use crate::{
             accessory_rpc::AccessoryRippleProvider, acknowledge_rpc::AckRPCProvider,
             advertising_rpc::AdvertisingRPCProvider, capabilities_rpc::CapRPCProvider,
             closed_captions_rpc::ClosedcaptionsRPCProvider, device_rpc::DeviceRPCProvider,
-            keyboard_rpc::KeyboardRPCProvider, lcm_rpc::LifecycleManagementProvider,
-            lifecycle_rpc::LifecycleRippleProvider, localization_rpc::LocalizationRPCProvider,
-            metrics_rpc::MetricsRPCProvider, parameters_rpc::ParametersRPCProvider,
-            pin_rpc::PinRPCProvider, privacy_rpc::PrivacyProvider, profile_rpc::ProfileRPCProvider,
+            discovery_rpc::DiscoveryRpcProvider, keyboard_rpc::KeyboardRPCProvider,
+            lcm_rpc::LifecycleManagementProvider, lifecycle_rpc::LifecycleRippleProvider,
+            localization_rpc::LocalizationRPCProvider, metrics_rpc::MetricsRPCProvider,
+            parameters_rpc::ParametersRPCProvider, pin_rpc::PinRPCProvider,
+            privacy_rpc::PrivacyProvider, profile_rpc::ProfileRPCProvider,
             second_screen_rpc::SecondScreenRPCProvider,
             secure_storage_rpc::SecureStorageRPCProvider, user_grants_rpc::UserGrantsRPCProvider,
-            voice_guidance_rpc::VoiceguidanceRPCProvider, wifi_rpc::WifiRPCProvider,
+            voice_guidance_rpc::VoiceguidanceRPCProvider, wifi_rpc::WifiRPCProvider, authentication_rpc::AuthRPCProvider,
         },
         rpc::RippleRPCProvider,
     },
@@ -62,6 +63,8 @@ impl FireboltGatewayStep {
         let _ = methods.merge(SecureStorageRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(AdvertisingRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(MetricsRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(DiscoveryRpcProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(AuthRPCProvider::provide_with_alias(state.clone()));
         // LCM Api(s) not required for internal launcher
         if !state.has_internal_launcher() {
             let _ = methods.merge(LifecycleManagementProvider::provide_with_alias(

@@ -249,8 +249,8 @@ impl AuthenticationImpl {
     }
 }
 
-pub struct AuthRPCrovider;
-impl RippleRPCProvider<AuthenticationImpl> for AuthRPCrovider {
+pub struct AuthRPCProvider;
+impl RippleRPCProvider<AuthenticationImpl> for AuthRPCProvider {
     fn provide(platform_state: PlatformState) -> RpcModule<AuthenticationImpl> {
         (AuthenticationImpl { platform_state }).into_rpc()
     }
