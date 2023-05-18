@@ -14,7 +14,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use std::collections::HashMap;
+use std::{collections::HashMap, fs, path::Path};
 
 use ripple_sdk::{
     api::{
@@ -46,6 +46,14 @@ pub struct DistributorPermissionProcessor {
 }
 
 fn get_permissions_map() -> HashMap<String, Vec<FireboltPermission>> {
+    if let Some(p) = Path::new("/opt/ripple/permissions_map.json").to_str() {
+        if let Ok(contents) = fs::read_to_string(&p) {
+            if let Ok(r) = serde_json::from_str(contents.as_str()) {
+                return r;
+            }
+        }
+    }
+
     let contents = std::include_str!("./general_permissions_map.json");
     serde_json::from_str(contents).expect("valid permissions map")
 }
