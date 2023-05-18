@@ -27,7 +27,7 @@ impl FireboltGatekeeper {
     // TODO return Deny Reason into ripple error
     pub async fn gate(state: PlatformState, request: RpcRequest) -> Result<(), DenyReasonWithCap> {
         let open_rpc_state = state.clone().open_rpc_state;
-        if open_rpc_state.is_excluded(request.clone().method) {
+        if open_rpc_state.is_excluded(request.clone().method, request.clone().ctx.app_id) {
             return Ok(());
         }
         if let Some(caps) = open_rpc_state.get_caps_for_method(request.clone().method) {
