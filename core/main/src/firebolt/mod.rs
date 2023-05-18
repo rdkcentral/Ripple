@@ -26,6 +26,7 @@ pub mod handlers {
     pub mod capabilities_rpc;
     pub mod closed_captions_rpc;
     pub mod device_rpc;
+    pub mod discovery_rpc;
     pub mod keyboard_rpc;
     pub mod lcm_rpc;
     pub mod lifecycle_rpc;

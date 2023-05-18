@@ -397,6 +397,16 @@ impl AppEvents {
         }
     }
 
+    pub fn is_app_registered_for_event(
+        state: &PlatformState,
+        app_id: String,
+        event_name: &str,
+    ) -> bool {
+        return AppEvents::get_listeners(&state.app_events_state, event_name, None)
+            .iter()
+            .any(|listener| listener.call_ctx.app_id.eq(&app_id));
+    }
+
     fn remove_session_from_events(event_listeners: &mut Vec<EventListener>, session_id: &String) {
         let mut itr = event_listeners.iter();
         let i = itr.position(|x| x.call_ctx.session_id == *session_id);

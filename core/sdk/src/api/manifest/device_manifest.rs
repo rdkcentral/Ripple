@@ -93,6 +93,24 @@ pub struct ApplicationDefaultsConfiguration {
     pub main: String,
     #[serde(rename = "xrn:firebolt:application-type:settings")]
     pub settings: String,
+    #[serde(
+        rename = "xrn:firebolt:application-type:player",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub player: Option<String>,
+}
+
+impl ApplicationDefaultsConfiguration {
+    pub fn get_reserved_application_id(&self, field_name: &str) -> Option<&str> {
+        match field_name {
+            "xrn:firebolt:application-type:main" => Some(&self.main),
+            "xrn:firebolt:application-type:settings" => Some(&self.settings),
+            "xrn:firebolt:application-type:player" => {
+                self.player.as_ref().map(|p| p.as_str()).or(Some(""))
+            }
+            _ => None,
+        }
+    }
 }
 
 #[derive(Deserialize, Debug, Clone)]

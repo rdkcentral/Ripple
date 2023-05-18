@@ -15,7 +15,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use jsonrpsee::core::{Error, RpcResult};
+use jsonrpsee::{
+    core::{Error, RpcResult},
+    types::error::CallError,
+};
 use ripple_sdk::{
     api::{
         firebolt::fb_general::{ListenRequest, ListenerResponse},
@@ -28,6 +31,8 @@ use crate::{
     service::apps::app_events::{AppEventDecorator, AppEvents},
     state::platform_state::PlatformState,
 };
+
+pub const FIRE_BOLT_DEEPLINK_ERROR_CODE: i32 = -40400;
 
 pub fn rpc_err(msg: impl Into<String>) -> Error {
     Error::Custom(msg.into())
@@ -81,5 +86,13 @@ pub async fn rpc_add_event_listener_with_decorator(
     Ok(ListenerResponse {
         listening: listen,
         event: event_name.into(),
+    })
+}
+
+pub fn rpc_navigate_reserved_app_err(msg: &str) -> jsonrpsee::core::error::Error {
+    Error::Call(CallError::Custom {
+        code: FIRE_BOLT_DEEPLINK_ERROR_CODE,
+        message: msg.to_owned(),
+        data: None,
     })
 }
