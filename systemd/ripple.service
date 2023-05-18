@@ -1,12 +1,13 @@
 [Unit]
-Description=Firebolt Service
+Description=Firebolt reference implementation
 Requires=wpeframework.service
 After=wpeframework.service
 
 [Service]
 Type=simple
 Environment="RUST_LOG=debug"
-ExecStart=/usr/bin/firebolt_service
+EnvironmentFile=-/opt/ripple.conf
+ExecStart=/usr/bin/ripple
 ExecStop=/bin/kill -TERM $MAINPID
 Restart=always
 RestartSec=10
