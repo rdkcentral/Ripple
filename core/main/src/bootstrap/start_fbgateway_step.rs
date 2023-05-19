@@ -22,7 +22,7 @@ use crate::{
             accessory_rpc::AccessoryRippleProvider, acknowledge_rpc::AckRPCProvider,
             advertising_rpc::AdvertisingRPCProvider, authentication_rpc::AuthRPCProvider,
             capabilities_rpc::CapRPCProvider, closed_captions_rpc::ClosedcaptionsRPCProvider,
-            device_rpc::DeviceRPCProvider, discovery_rpc::DiscoveryRpcProvider,
+            device_rpc::DeviceRPCProvider, discovery_rpc::DiscoveryRPCProvider,
             keyboard_rpc::KeyboardRPCProvider, lcm_rpc::LifecycleManagementProvider,
             lifecycle_rpc::LifecycleRippleProvider, localization_rpc::LocalizationRPCProvider,
             metrics_rpc::MetricsRPCProvider, parameters_rpc::ParametersRPCProvider,
@@ -63,7 +63,7 @@ impl FireboltGatewayStep {
         let _ = methods.merge(SecureStorageRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(AdvertisingRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(MetricsRPCProvider::provide_with_alias(state.clone()));
-        let _ = methods.merge(DiscoveryRpcProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(DiscoveryRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(AuthRPCProvider::provide_with_alias(state.clone()));
         // LCM Api(s) not required for internal launcher
         if !state.has_internal_launcher() {
