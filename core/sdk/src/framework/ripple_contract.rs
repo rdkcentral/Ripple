@@ -51,6 +51,9 @@ pub enum RippleContract {
     Advertising,
     PrivacySettings,
     Metrics,
+    Entitlements,
+    MediaEvents,
+    WatchHistory,
 }
 
 impl TryFrom<String> for RippleContract {

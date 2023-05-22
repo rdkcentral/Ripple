@@ -31,6 +31,7 @@ use crate::{
             device_storage::StorageData,
         },
         distributor::{
+            distributor_discovery::DiscoveryRequest,
             distributor_permissions::{PermissionRequest, PermissionResponse},
             distributor_privacy::PrivacyRequest,
             distributor_request::DistributorRequest,

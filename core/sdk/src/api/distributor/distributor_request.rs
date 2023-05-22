@@ -16,10 +16,18 @@
 // limitations under the License.
 use serde::{Deserialize, Serialize};
 
-use super::{distributor_discovery::DiscoveryRequest, distributor_permissions::PermissionRequest};
+use super::{
+    distributor_discovery::{
+        DiscoveryRequest, EntitlementsRequest, MediaEventRequest, WatchHistoryRequest,
+    },
+    distributor_permissions::PermissionRequest,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DistributorRequest {
     Permission(PermissionRequest),
     Discovery(DiscoveryRequest),
+    Entitlements(EntitlementsRequest),
+    MediaEvent(MediaEventRequest),
+    WatchHistory(WatchHistoryRequest),
 }

@@ -74,7 +74,20 @@ impl ExtnRequestProcessor for DistributorDiscoveryProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         match extracted_message {
-            DiscoveryRequest::SetContentAccess => todo!(),
+            DiscoveryRequest::SetContentAccess(_) => {
+                if let Err(e) = state
+                    .clone()
+                    .respond(
+                        msg,
+                        ripple_sdk::extn::extn_client_message::ExtnResponse::Boolean(false),
+                    )
+                    .await
+                {
+                    error!("Error sending back response {:?}", e);
+                    return false;
+                }
+            }
+            DiscoveryRequest::ClearContent(_) => todo!(),
         }
         true
     }

@@ -15,21 +15,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
-    service::apps::app_events::AppEvents,
-    utils::rpc_utils::{rpc_await_oneshot, rpc_err, rpc_navigate_reserved_app_err},
+    service::apps::{
+        app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
+        provider_broker::{self, ProviderBroker},
+    },
+    utils::rpc_utils::{
+        rpc_await_oneshot, rpc_downstream_service_err, rpc_err, rpc_navigate_reserved_app_err,
+    },
 };
 use jsonrpsee::{
-    core::{async_trait, RpcResult},
+    core::{async_trait, Error, RpcResult},
     proc_macros::rpc,
     RpcModule,
 };
+
 use ripple_sdk::api::{
     device::entertainment_data::*,
+    distributor::distributor_discovery::DiscoveryRequest,
     firebolt::{
+        fb_discovery::{
+            ContentAccessAvailability, ContentAccessEntitlement, ContentAccessInfo,
+            ContentAccessListSetParams, SessionParams,
+        },
         fb_general::{ListenRequest, ListenerResponse},
         provider::ExternalProviderResponse,
     },
@@ -39,19 +50,39 @@ use ripple_sdk::{
     api::{
         apps::{AppError, AppManagerResponse, AppMethod, AppRequest, AppResponse},
         config::Config,
-        firebolt::fb_discovery::{
-            ContentAccessRequest, EntitlementsInfo, LaunchRequest, LocalizedString, SignInInfo,
-            WatchNextInfo, WatchedInfo, DISCOVERY_EVENT_ON_NAVIGATE_TO,
+        distributor::distributor_discovery::EntitlementsRequest,
+        firebolt::{
+            fb_capabilities::FireboltCap,
+            fb_discovery::{
+                ClearContentSetParams, ContentAccessRequest, EntitlementsInfo, LaunchRequest,
+                LocalizedString, SignInInfo, SignInRequestParams, WatchNextInfo, WatchedInfo,
+                DISCOVERY_EVENT_ON_NAVIGATE_TO, ENTITY_INFO_CAPABILITY, ENTITY_INFO_EVENT,
+                EVENT_DISCOVERY_POLICY_CHANGED, PURCHASED_CONTENT_CAPABILITY,
+                PURCHASED_CONTENT_EVENT,
+            },
+            provider::{ProviderRequestPayload, ProviderResponse, ProviderResponsePayload},
         },
     },
     extn::extn_client_message::ExtnResponse,
     log::{error, info},
-    tokio::sync::oneshot,
+    tokio::{sync::oneshot, time::timeout},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::state::platform_state::PlatformState;
+
+#[derive(Default, Serialize, Debug)]
+pub struct DiscoveryEmptyResult {
+    //Empty object to take care of OTTX-28709
+}
+
+impl PartialEq for DiscoveryEmptyResult {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+type EmptyResult = DiscoveryEmptyResult;
 
 #[rpc(server)]
 pub trait Discovery {
@@ -195,6 +226,106 @@ impl DiscoveryImpl {
         content_providers
     }
 
+    async fn content_access(
+        &self,
+        ctx: CallContext,
+        request: ContentAccessRequest,
+    ) -> RpcResult<EmptyResult> {
+        let session = self.state.session_state.get_account_session().unwrap();
+
+        // If both entitlement & availability are None return EmptyResult
+        if request.ids.availabilities.is_none() && request.ids.entitlements.is_none() {
+            return Ok(EmptyResult::default());
+        }
+
+        let payload = DiscoveryRequest::SetContentAccess(ContentAccessListSetParams {
+            session_info: SessionParams {
+                app_id: ctx.app_id.to_owned(),
+                dist_session: session,
+            },
+            content_access_info: ContentAccessInfo {
+                availabilities: request.ids.availabilities.map(|availability_vec| {
+                    availability_vec
+                        .into_iter()
+                        .map(|x| ContentAccessAvailability {
+                            _type: x._type.as_string().to_owned(),
+                            id: x.id,
+                            catalog_id: x.catalog_id,
+                            start_time: x.start_time,
+                            end_time: x.end_time,
+                        })
+                        .collect()
+                }),
+                entitlements: request.ids.entitlements.map(|entitlement_vec| {
+                    entitlement_vec
+                        .into_iter()
+                        .map(|x| ContentAccessEntitlement {
+                            entitlement_id: x.entitlement_id,
+                            start_time: x.start_time,
+                            end_time: x.end_time,
+                        })
+                        .collect()
+                }),
+            },
+        });
+
+        let resp = self.state.get_client().send_extn_request(payload).await;
+        if let Err(_) = resp {
+            error!(
+                "Error: Notifying Content AccessList to the platform: {:?}",
+                resp
+            );
+            return Err(rpc_downstream_service_err(
+                "Could not notify Content AccessList to the platform",
+            ));
+        }
+
+        match resp.unwrap().payload.extract().unwrap() {
+            ExtnResponse::None(()) => Ok(EmptyResult::default()),
+            _ => Err(rpc_downstream_service_err(
+                "Did not receive a valid resposne from platform when notifying Content Access List",
+            )),
+        }
+    }
+
+    async fn clear_content_access(&self, ctx: CallContext) -> RpcResult<EmptyResult> {
+        let session = self.state.session_state.get_account_session().unwrap();
+
+        let payload = DiscoveryRequest::ClearContent(ClearContentSetParams {
+            session_info: SessionParams {
+                app_id: ctx.app_id.to_owned(),
+                dist_session: session,
+            },
+        });
+
+        let resp = self.state.get_client().send_extn_request(payload).await;
+
+        if let Err(_) = resp {
+            error!(
+                "Error: Clearing the Content AccessList to the platform: {:?}",
+                resp
+            );
+            return Err(rpc_downstream_service_err(
+                "Could not clear Content AccessList from the platform",
+            ));
+        }
+
+        //TODO:ExtnResppnse
+        match resp.unwrap().payload.extract().unwrap() {
+            ExtnResponse::None(()) => Ok(EmptyResult::default()),
+            _ => Err(rpc_downstream_service_err(
+                "Did not receive a valid resposne from platform when clearing the Content Access List",
+            )),
+                }
+
+        // match resp.unwrap() {
+        //     ExtnRespons::ContentAccess(_obj) => Ok(EmptyResult::default()),
+        //     _ => Err(rpc_downstream_service_err(
+        //         "Did not receive a valid resposne from platform when clearing the Content Access List",
+        //     )),
+        // }
+    }
+
     pub async fn get_content_policy(
         ctx: &CallContext,
         state: &PlatformState,
@@ -246,7 +377,62 @@ impl DiscoveryImpl {
         }
         title_map
     }
+
+    async fn process_sign_in_request(
+        &self,
+        ctx: CallContext,
+        is_signed_in: bool,
+    ) -> RpcResult<bool> {
+        let session = self.state.session_state.get_account_session().unwrap();
+
+        let payload = EntitlementsRequest::SignIn(SignInRequestParams {
+            session_info: SessionParams {
+                app_id: ctx.clone().app_id.to_owned(),
+                dist_session: session,
+            },
+            is_signed_in,
+        });
+
+        let resp = self.state.get_client().send_extn_request(payload).await;
+
+        if let Err(_) = resp {
+            error!("Error: Notifying SignIn info to the platform: {:?}", resp);
+            return Err(rpc_downstream_service_err(
+                "Error: Notifying SignIn info to the platform",
+            ));
+        }
+
+        match resp.unwrap().payload.extract().unwrap() {
+            ExtnResponse::None(()) => Ok(true),
+            _ => Err(rpc_downstream_service_err(
+                "Did not receive a valid resposne from platform when notifying Content Access List",
+            )),
+        }
+    }
 }
+
+#[derive(Clone)]
+struct DiscoveryPolicyEventDecorator {}
+
+#[async_trait]
+impl AppEventDecorator for DiscoveryPolicyEventDecorator {
+    async fn decorate(
+        &self,
+        ps: &PlatformState,
+        ctx: &CallContext,
+        _event_name: &str,
+        val_in: &Value,
+    ) -> Result<Value, AppEventDecorationError> {
+        match DiscoveryImpl::get_content_policy(&ctx, &ps, &ctx.app_id).await {
+            Ok(cp) => Ok(serde_json::to_value(cp).unwrap()),
+            Err(_) => Err(AppEventDecorationError {}),
+        }
+    }
+    fn dec_clone(&self) -> Box<dyn AppEventDecorator + Send + Sync> {
+        Box::new(self.clone())
+    }
+}
+
 #[async_trait]
 impl DiscoveryServer for DiscoveryImpl {
     async fn entitlements(
@@ -254,16 +440,42 @@ impl DiscoveryServer for DiscoveryImpl {
         ctx: CallContext,
         entitlements_info: EntitlementsInfo,
     ) -> RpcResult<bool> {
-        todo!()
+        info!("Discovery.entitlements");
+        let resp = self.content_access(ctx, entitlements_info.into()).await;
+        match resp {
+            Ok(_) => Ok(true),
+            Err(e) => Err(e),
+        }
     }
 
     async fn sign_in(&self, ctx: CallContext, sign_in_info: SignInInfo) -> RpcResult<bool> {
-        todo!()
+        info!("Discovery.signIn");
+
+        let mut resp = Ok(EmptyResult::default());
+        let fut = self.process_sign_in_request(ctx.clone(), true);
+
+        if sign_in_info.entitlements.is_some() {
+            resp = self.content_access(ctx, sign_in_info.into()).await;
+        }
+
+        let mut sign_in_resp = fut.await;
+
+        // Return Ok if both dpap calls are successful.
+        if sign_in_resp.is_ok() && resp.is_ok() {
+            sign_in_resp = Ok(true);
+        } else {
+            sign_in_resp = Err(rpc_downstream_service_err("Received error from Server"));
+        }
+        sign_in_resp
     }
     async fn sign_out(&self, ctx: CallContext) -> RpcResult<bool> {
-        todo!()
+        info!("Discovery.signOut");
+        // Note : Do NOT issue clearContentAccess for Firebolt SignOut case.
+        self.process_sign_in_request(ctx.clone(), false).await
     }
+
     async fn watched(&self, ctx: CallContext, watched_info: WatchedInfo) -> RpcResult<bool> {
+        //TODO: need data gavenance impl
         todo!()
     }
     async fn watch_next(
@@ -271,7 +483,15 @@ impl DiscoveryServer for DiscoveryImpl {
         ctx: CallContext,
         watch_next_info: WatchNextInfo,
     ) -> RpcResult<bool> {
-        todo!()
+        info!("Discovery.watchNext");
+        let session = self.state.session_state.get_account_session().unwrap();
+        let watched_info = WatchedInfo {
+            entity_id: watch_next_info.identifiers.entity_id.unwrap(),
+            progress: 1.0,
+            completed: Some(false),
+            watched_on: None,
+        };
+        return self.watched(ctx, watched_info.clone()).await;
     }
     async fn launch(&self, _ctx: CallContext, request: LaunchRequest) -> RpcResult<bool> {
         let app_defaults_configuration = self.state.get_device_manifest().applications.defaults;
@@ -334,77 +554,211 @@ impl DiscoveryServer for DiscoveryImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        todo!()
+        let listening = request.listen;
+        ProviderBroker::register_or_unregister_provider(
+            &self.state,
+            FireboltCap::Short(ENTITY_INFO_CAPABILITY.into()).as_str(),
+            String::from("entityInfo"),
+            ENTITY_INFO_EVENT,
+            ctx,
+            request,
+        )
+        .await;
+        Ok(ListenerResponse {
+            listening,
+            event: ENTITY_INFO_EVENT.to_string(),
+        })
     }
     async fn get_entity(
         &self,
         ctx: CallContext,
         entity_request: ContentEntityRequest,
     ) -> RpcResult<ContentEntityResponse> {
-        todo!()
+        let parameters = entity_request.parameters;
+        let federated_options = entity_request.options.unwrap_or_default();
+        let (session_tx, session_rx) = oneshot::channel::<ProviderResponsePayload>();
+        let pr_msg = provider_broker::ProviderBrokerRequest {
+            app_id: Some(entity_request.provider.to_owned()),
+            capability: FireboltCap::Short(ENTITY_INFO_CAPABILITY.into()).as_str(),
+            method: String::from("entityInfo"),
+            caller: ctx,
+            request: ProviderRequestPayload::EntityInfoRequest(parameters),
+            tx: session_tx,
+        };
+        ProviderBroker::invoke_method(&self.state, pr_msg).await;
+        let channel_result = timeout(
+            Duration::from_millis(federated_options.timeout.into()),
+            session_rx,
+        )
+        .await
+        .map_err(|_| Error::Custom(String::from("Didn't receive response within time")))?;
+        /*handle channel response*/
+        let result = channel_result.map_err(|_| {
+            Error::Custom(String::from(
+                "Error returning back from entity response provider",
+            ))
+        })?;
+        match result.as_entity_info_result() {
+            Some(res) => Ok(ContentEntityResponse {
+                provider: entity_request.provider.to_owned(),
+                data: res.clone(),
+            }),
+            None => Err(Error::Custom(String::from(
+                "Invalid response back from provider",
+            ))),
+        }
     }
     async fn handle_entity_info_result(
         &self,
         ctx: CallContext,
         entity_info: ExternalProviderResponse<Option<EntityInfoResult>>,
     ) -> RpcResult<bool> {
-        todo!()
+        let response = ProviderResponse {
+            correlation_id: entity_info.correlation_id,
+            result: ProviderResponsePayload::EntityInfoResponse(entity_info.result),
+        };
+        ProviderBroker::provider_response(&self.state, response).await;
+        Ok(true)
     }
+
     async fn on_pull_purchased_content(
         &self,
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        todo!()
+        let listening = request.listen;
+        ProviderBroker::register_or_unregister_provider(
+            &self.state,
+            FireboltCap::Short(PURCHASED_CONTENT_CAPABILITY.into()).as_str(),
+            String::from("purchasedContent"),
+            PURCHASED_CONTENT_EVENT,
+            ctx,
+            request,
+        )
+        .await;
+
+        Ok(ListenerResponse {
+            listening,
+            event: ENTITY_INFO_EVENT.to_string(),
+        })
     }
     async fn get_purchases(
         &self,
         ctx: CallContext,
         entity_request: ProvidedPurchaseContentRequest,
     ) -> RpcResult<ProvidedPurchasedContentResult> {
-        todo!()
+        let parameters = entity_request.parameters;
+        let federated_options = entity_request.options.unwrap_or_default();
+        let (session_tx, session_rx) = oneshot::channel::<ProviderResponsePayload>();
+        let pr_msg = provider_broker::ProviderBrokerRequest {
+            app_id: Some(entity_request.provider.to_owned()),
+            capability: FireboltCap::Short(PURCHASED_CONTENT_CAPABILITY.into()).as_str(),
+            method: String::from("purchasedContent"),
+            caller: ctx,
+            request: ProviderRequestPayload::PurchasedContentRequest(parameters),
+            tx: session_tx,
+        };
+        ProviderBroker::invoke_method(&self.state, pr_msg).await;
+        let channel_result = timeout(
+            Duration::from_millis(federated_options.timeout.into()),
+            session_rx,
+        )
+        .await
+        .map_err(|_| Error::Custom(String::from("Didn't receive response within time")))?;
+        /*handle channel response*/
+        let result = channel_result.map_err(|_| {
+            Error::Custom(String::from(
+                "Error returning back from entity response provider",
+            ))
+        })?;
+        match result.as_purchased_content_result() {
+            Some(res) => Ok(ProvidedPurchasedContentResult {
+                provider: entity_request.provider.to_owned(),
+                data: res.clone(),
+            }),
+            None => Err(Error::Custom(String::from(
+                "Invalid response back from provider",
+            ))),
+        }
     }
     async fn handle_purchased_content_result(
         &self,
         ctx: CallContext,
         entity_info: ExternalProviderResponse<PurchasedContentResult>,
     ) -> RpcResult<bool> {
-        todo!()
+        let response = ProviderResponse {
+            correlation_id: entity_info.correlation_id,
+            result: ProviderResponsePayload::PurchasedContentResponse(entity_info.result),
+        };
+        ProviderBroker::provider_response(&self.state, response).await;
+        Ok(true)
     }
     async fn get_providers(&self, ctx: CallContext) -> RpcResult<Vec<ContentProvider>> {
-        todo!()
+        let res = ProviderBroker::get_provider_methods(&self.state);
+        let provider_list = self.convert_provider_result(ProviderResult::new(res.entries));
+        Ok(provider_list)
     }
     async fn on_navigate_to(
         &self,
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        todo!()
+        let listen = request.listen;
+
+        AppEvents::add_listener(
+            &&self.state,
+            DISCOVERY_EVENT_ON_NAVIGATE_TO.into(),
+            ctx,
+            request,
+        );
+        Ok(ListenerResponse {
+            listening: listen,
+            event: DISCOVERY_EVENT_ON_NAVIGATE_TO.into(),
+        })
     }
     async fn get_content_policy_rpc(&self, ctx: CallContext) -> RpcResult<ContentPolicy> {
-        todo!()
+        DiscoveryImpl::get_content_policy(&ctx, &self.state, &ctx.app_id).await
     }
     async fn on_policy_changed(
         &self,
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        todo!()
+        let listen = request.listen;
+        AppEvents::add_listener_with_decorator(
+            &self.state,
+            EVENT_DISCOVERY_POLICY_CHANGED.to_string(),
+            ctx,
+            request,
+            Some(Box::new(DiscoveryPolicyEventDecorator {})),
+        );
+
+        Ok(ListenerResponse {
+            listening: listen,
+            event: EVENT_DISCOVERY_POLICY_CHANGED.to_string(),
+        })
     }
     async fn discovery_content_access(
         &self,
         ctx: CallContext,
         request: ContentAccessRequest,
     ) -> RpcResult<()> {
-        todo!()
+        let resp = self.content_access(ctx, request).await;
+        match resp {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e),
+        }
     }
     async fn discovery_clear_content_access(&self, ctx: CallContext) -> RpcResult<()> {
-        todo!()
+        let resp = self.clear_content_access(ctx).await;
+        match resp {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e),
+        }
     }
 }
 
 pub struct DiscoveryRPCProvider;
-
 impl RippleRPCProvider<DiscoveryImpl> for DiscoveryRPCProvider {
     fn provide(state: PlatformState) -> RpcModule<DiscoveryImpl> {
         (DiscoveryImpl { state }).into_rpc()
