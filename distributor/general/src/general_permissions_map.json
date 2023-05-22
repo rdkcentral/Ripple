@@ -40,7 +40,14 @@
         "xrn:firebolt:capability:advertising:identifier",
         "xrn:firebolt:capability:privacy:advertising",
         "xrn:firebolt:capability:account:id",
-        "xrn:firebolt:capability:device:distributor"
+        "xrn:firebolt:capability:device:distributor",
+        "xrn:firebolt:capability:discovery:policy",
+        "xrn:firebolt:capability:discovery:watched",
+        "xrn:firebolt:capability:discovery:watch-next",
+        "xrn:firebolt:capability:approve:content",
+        "xrn:firebolt:capability:approve:purchase",
+        "xrn:firebolt:capability:profile:flag",
+        "xrn:firebolt:capability:protocol:dial"
     ],
     "comcast_firebolt_reference" : [
         "xrn:firebolt:capability:input:keyboard",
@@ -130,6 +137,13 @@
         "xrn:firebolt:capability:advertising:identifier",
         "xrn:firebolt:capability:privacy:advertising",
         "xrn:firebolt:capability:metrics:general",
-        "xrn:firebolt:capability:metrics:media"
+        "xrn:firebolt:capability:metrics:media",
+        "xrn:firebolt:capability:device:distributor",
+        "xrn:firebolt:capability:discovery:policy",
+        "xrn:firebolt:capability:discovery:watched",
+        "xrn:firebolt:capability:approve:content",
+        "xrn:firebolt:capability:approve:purchase",
+        "xrn:firebolt:capability:profile:flag",
+        "xrn:firebolt:capability:protocol:dial"
     ]
 }
