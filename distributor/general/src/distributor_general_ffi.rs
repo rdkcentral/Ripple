@@ -38,12 +38,15 @@ use ripple_sdk::{
 use crate::{
     general_advertising_processor::DistributorAdvertisingProcessor,
     general_discovery_processor::DistributorDiscoveryProcessor,
+    general_entitlements_processor::DistributorEntitlementsProcessor,
+    general_media_events_processor::DistributorMediaEventProcessor,
     general_metrics_processor::DistributorMetricsProcessor,
     general_permission_processor::DistributorPermissionProcessor,
     general_privacy_processor::DistributorPrivacyProcessor,
     general_securestorage_processor::DistributorSecureStorageProcessor,
     general_session_processor::DistributorSessionProcessor,
     general_token_processor::DistributorTokenProcessor,
+    general_watch_history_processor::DistributorWatchHistoryProcessor,
 };
 
 fn init_library() -> CExtnMetadata {
@@ -61,6 +64,9 @@ fn init_library() -> CExtnMetadata {
             RippleContract::Metrics,
             RippleContract::SessionToken,
             RippleContract::Discovery,
+            RippleContract::Entitlements,
+            RippleContract::MediaEvents,
+            RippleContract::WatchHistory,
         ]),
         Version::new(1, 1, 0),
     );
@@ -103,6 +109,9 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
             client.add_request_processor(DistributorTokenProcessor::new(client.clone()));
             client.add_request_processor(DistributorTokenProcessor::new(client.clone()));
             client.add_request_processor(DistributorDiscoveryProcessor::new(client.clone()));
+            client.add_request_processor(DistributorEntitlementsProcessor::new(client.clone()));
+            client.add_request_processor(DistributorMediaEventProcessor::new(client.clone()));
+            client.add_request_processor(DistributorWatchHistoryProcessor::new(client.clone()));
             // Lets Main know that the distributor channel is ready
             let _ = client.event(ExtnStatus::Ready).await;
         });
