@@ -50,7 +50,6 @@ use ripple_sdk::{
     api::{
         apps::{AppError, AppManagerResponse, AppMethod, AppRequest, AppResponse},
         config::Config,
-        distributor::distributor_discovery::EntitlementsRequest,
         firebolt::{
             fb_capabilities::FireboltCap,
             fb_discovery::{
@@ -226,6 +225,90 @@ impl DiscoveryImpl {
         content_providers
     }
 
+    pub async fn get_content_policy(
+        _ctx: &CallContext,
+        _state: &PlatformState,
+        _app_id: &str,
+    ) -> RpcResult<ContentPolicy> {
+        let mut content_policy: ContentPolicy = Default::default();
+        content_policy.enable_recommendations = false; // TODO: Need to replace with PrivacyImpl
+        content_policy.share_watch_history = false; // TODO: Need to replace with PrivacyImpl
+        content_policy.remember_watched_programs = false; // TODO: Need to replace with PrivacyImpl
+        Ok(content_policy)
+    }
+
+    fn get_share_watch_history() -> bool {
+        false
+    }
+
+    async fn _get_titles_from_localized_string(
+        &self,
+        title: &LocalizedString,
+    ) -> HashMap<String, String> {
+        let mut title_map = HashMap::new();
+        let result = self
+            .state
+            .get_client()
+            .send_extn_request(Config::DefaultLanguage)
+            .await;
+        let def_lang = match result {
+            Ok(extn_message) => {
+                match extn_message
+                    .payload
+                    .extract()
+                    .unwrap_or(ExtnResponse::String("en".to_owned()))
+                {
+                    ExtnResponse::String(value) => value.to_owned(),
+                    _ => "en".to_owned(),
+                }
+            }
+            Err(_) => "en".to_owned(),
+        };
+        match title {
+            LocalizedString::Simple(value) => {
+                title_map.insert(def_lang, value.to_string());
+            }
+            LocalizedString::Locale(value) => {
+                for (locale, description) in value.iter() {
+                    title_map.insert(locale.to_string(), description.to_string());
+                }
+            }
+        }
+        title_map
+    }
+
+    async fn process_sign_in_request(
+        &self,
+        ctx: CallContext,
+        is_signed_in: bool,
+    ) -> RpcResult<bool> {
+        let session = self.state.session_state.get_account_session().unwrap();
+
+        let payload = DiscoveryRequest::SignIn(SignInRequestParams {
+            session_info: SessionParams {
+                app_id: ctx.clone().app_id.to_owned(),
+                dist_session: session,
+            },
+            is_signed_in,
+        });
+
+        let resp = self.state.get_client().send_extn_request(payload).await;
+
+        if let Err(_) = resp {
+            error!("Error: Notifying SignIn info to the platform: {:?}", resp);
+            return Err(rpc_downstream_service_err(
+                "Error: Notifying SignIn info to the platform",
+            ));
+        }
+
+        match resp.unwrap().payload.extract().unwrap() {
+            ExtnResponse::None(()) => Ok(true),
+            _ => Err(rpc_downstream_service_err(
+                "Did not receive a valid resposne from platform when notifying Content Access List",
+            )),
+        }
+    }
+
     async fn content_access(
         &self,
         ctx: CallContext,
@@ -325,90 +408,6 @@ impl DiscoveryImpl {
         //     )),
         // }
     }
-
-    pub async fn get_content_policy(
-        ctx: &CallContext,
-        state: &PlatformState,
-        app_id: &str,
-    ) -> RpcResult<ContentPolicy> {
-        let mut content_policy: ContentPolicy = Default::default();
-        content_policy.enable_recommendations = false; // TODO: Need to replace with PrivacyImpl
-        content_policy.share_watch_history = false; // TODO: Need to replace with PrivacyImpl
-        content_policy.remember_watched_programs = false; // TODO: Need to replace with PrivacyImpl
-        Ok(content_policy)
-    }
-
-    fn get_share_watch_history() -> bool {
-        false
-    }
-
-    async fn get_titles_from_localized_string(
-        &self,
-        title: &LocalizedString,
-    ) -> HashMap<String, String> {
-        let mut title_map = HashMap::new();
-        let result = self
-            .state
-            .get_client()
-            .send_extn_request(Config::DefaultLanguage)
-            .await;
-        let def_lang = match result {
-            Ok(extn_message) => {
-                match extn_message
-                    .payload
-                    .extract()
-                    .unwrap_or(ExtnResponse::String("en".to_owned()))
-                {
-                    ExtnResponse::String(value) => value.to_owned(),
-                    _ => "en".to_owned(),
-                }
-            }
-            Err(_) => "en".to_owned(),
-        };
-        match title {
-            LocalizedString::Simple(value) => {
-                title_map.insert(def_lang, value.to_string());
-            }
-            LocalizedString::Locale(value) => {
-                for (locale, description) in value.iter() {
-                    title_map.insert(locale.to_string(), description.to_string());
-                }
-            }
-        }
-        title_map
-    }
-
-    async fn process_sign_in_request(
-        &self,
-        ctx: CallContext,
-        is_signed_in: bool,
-    ) -> RpcResult<bool> {
-        let session = self.state.session_state.get_account_session().unwrap();
-
-        let payload = EntitlementsRequest::SignIn(SignInRequestParams {
-            session_info: SessionParams {
-                app_id: ctx.clone().app_id.to_owned(),
-                dist_session: session,
-            },
-            is_signed_in,
-        });
-
-        let resp = self.state.get_client().send_extn_request(payload).await;
-
-        if let Err(_) = resp {
-            error!("Error: Notifying SignIn info to the platform: {:?}", resp);
-            return Err(rpc_downstream_service_err(
-                "Error: Notifying SignIn info to the platform",
-            ));
-        }
-
-        match resp.unwrap().payload.extract().unwrap() {
-            ExtnResponse::None(()) => Ok(true),
-            _ => Err(rpc_downstream_service_err(
-                "Did not receive a valid resposne from platform when notifying Content Access List",
-            )),
-        }
-    }
 }
 
 #[derive(Clone)]
@@ -416,12 +415,13 @@ struct DiscoveryPolicyEventDecorator {}
 
 #[async_trait]
 impl AppEventDecorator for DiscoveryPolicyEventDecorator {
+
     async fn decorate(
         &self,
         ps: &PlatformState,
         ctx: &CallContext,
         _event_name: &str,
-        val_in: &Value,
+        _val_in: &Value,
     ) -> Result<Value, AppEventDecorationError> {
         match DiscoveryImpl::get_content_policy(&ctx, &ps, &ctx.app_id).await {
             Ok(cp) => Ok(serde_json::to_value(cp).unwrap()),
@@ -435,6 +435,27 @@ impl AppEventDecorator for DiscoveryPolicyEventDecorator {
 
 #[async_trait]
 impl DiscoveryServer for DiscoveryImpl {
+
+    async fn on_policy_changed(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        let listen = request.listen;
+        AppEvents::add_listener_with_decorator(
+            &self.state,
+            EVENT_DISCOVERY_POLICY_CHANGED.to_string(),
+            ctx,
+            request,
+            Some(Box::new(DiscoveryPolicyEventDecorator {})),
+        );
+
+        Ok(ListenerResponse {
+            listening: listen,
+            event: EVENT_DISCOVERY_POLICY_CHANGED.to_string(),
+        })
+    }
+
     async fn entitlements(
         &self,
         ctx: CallContext,
@@ -484,7 +505,6 @@ impl DiscoveryServer for DiscoveryImpl {
         watch_next_info: WatchNextInfo,
     ) -> RpcResult<bool> {
         info!("Discovery.watchNext");
-        let session = self.state.session_state.get_account_session().unwrap();
         let watched_info = WatchedInfo {
             entity_id: watch_next_info.identifiers.entity_id.unwrap(),
             progress: 1.0,
@@ -493,6 +513,11 @@ impl DiscoveryServer for DiscoveryImpl {
         };
         return self.watched(ctx, watched_info.clone()).await;
     }
+
+    async fn get_content_policy_rpc(&self, ctx: CallContext) -> RpcResult<ContentPolicy> {
+        DiscoveryImpl::get_content_policy(&ctx, &self.state, &ctx.app_id).await
+    }
+
     async fn launch(&self, _ctx: CallContext, request: LaunchRequest) -> RpcResult<bool> {
         let app_defaults_configuration = self.state.get_device_manifest().applications.defaults;
 
@@ -549,6 +574,26 @@ impl DiscoveryServer for DiscoveryImpl {
             "Discovery.launch: some failure",
         )))
     }
+
+    async fn on_navigate_to(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        let listen = request.listen;
+
+        AppEvents::add_listener(
+            &&self.state,
+            DISCOVERY_EVENT_ON_NAVIGATE_TO.into(),
+            ctx,
+            request,
+        );
+        Ok(ListenerResponse {
+            listening: listen,
+            event: DISCOVERY_EVENT_ON_NAVIGATE_TO.into(),
+        })
+    }
+
     async fn on_pull_entity_info(
         &self,
         ctx: CallContext,
@@ -610,7 +655,7 @@ impl DiscoveryServer for DiscoveryImpl {
     }
     async fn handle_entity_info_result(
         &self,
-        ctx: CallContext,
+        _ctx: CallContext,
         entity_info: ExternalProviderResponse<Option<EntityInfoResult>>,
     ) -> RpcResult<bool> {
         let response = ProviderResponse {
@@ -642,6 +687,13 @@ impl DiscoveryServer for DiscoveryImpl {
             event: ENTITY_INFO_EVENT.to_string(),
         })
     }
+
+    async fn get_providers(&self, _ctx: CallContext) -> RpcResult<Vec<ContentProvider>> {
+        let res = ProviderBroker::get_provider_methods(&self.state);
+        let provider_list = self.convert_provider_result(ProviderResult::new(res.entries));
+        Ok(provider_list)
+    }
+
     async fn get_purchases(
         &self,
         ctx: CallContext,
@@ -683,7 +735,7 @@ impl DiscoveryServer for DiscoveryImpl {
     }
     async fn handle_purchased_content_result(
         &self,
-        ctx: CallContext,
+        _ctx: CallContext,
         entity_info: ExternalProviderResponse<PurchasedContentResult>,
     ) -> RpcResult<bool> {
         let response = ProviderResponse {
@@ -693,51 +745,8 @@ impl DiscoveryServer for DiscoveryImpl {
         ProviderBroker::provider_response(&self.state, response).await;
         Ok(true)
     }
-    async fn get_providers(&self, ctx: CallContext) -> RpcResult<Vec<ContentProvider>> {
-        let res = ProviderBroker::get_provider_methods(&self.state);
-        let provider_list = self.convert_provider_result(ProviderResult::new(res.entries));
-        Ok(provider_list)
-    }
-    async fn on_navigate_to(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        let listen = request.listen;
-
-        AppEvents::add_listener(
-            &&self.state,
-            DISCOVERY_EVENT_ON_NAVIGATE_TO.into(),
-            ctx,
-            request,
-        );
-        Ok(ListenerResponse {
-            listening: listen,
-            event: DISCOVERY_EVENT_ON_NAVIGATE_TO.into(),
-        })
-    }
-    async fn get_content_policy_rpc(&self, ctx: CallContext) -> RpcResult<ContentPolicy> {
-        DiscoveryImpl::get_content_policy(&ctx, &self.state, &ctx.app_id).await
-    }
-    async fn on_policy_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        let listen = request.listen;
-        AppEvents::add_listener_with_decorator(
-            &self.state,
-            EVENT_DISCOVERY_POLICY_CHANGED.to_string(),
-            ctx,
-            request,
-            Some(Box::new(DiscoveryPolicyEventDecorator {})),
-        );
-
-        Ok(ListenerResponse {
-            listening: listen,
-            event: EVENT_DISCOVERY_POLICY_CHANGED.to_string(),
-        })
-    }
+    
+    
     async fn discovery_content_access(
         &self,
         ctx: CallContext,

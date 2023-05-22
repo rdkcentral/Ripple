@@ -88,6 +88,7 @@ impl ExtnRequestProcessor for DistributorDiscoveryProcessor {
                 }
             }
             DiscoveryRequest::ClearContent(_) => todo!(),
+            DiscoveryRequest::SignIn(_) => todo!()
         }
         true
     }

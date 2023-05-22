@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use ripple_sdk::{
-    api::distributor::distributor_discovery::{DiscoveryRequest, MediaEventRequest},
+    api::distributor::distributor_discovery::{MediaEventRequest},
     async_trait::async_trait,
     extn::client::{
         extn_client::ExtnClient,
@@ -23,7 +23,6 @@ use ripple_sdk::{
             DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
         },
     },
-    log::error,
 };
 
 pub struct DistributorMediaEventProcessor {

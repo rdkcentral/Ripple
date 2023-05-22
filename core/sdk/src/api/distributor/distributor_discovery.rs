@@ -19,9 +19,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     api::firebolt::fb_discovery::{
-        ClearContentSetParams, ContentAccessListSetParams, EntitlementsAccountLinkRequestParams,
-        MediaEventsAccountLinkRequestParams, SignInRequestParams,
-        WatchHistoryAccountLinkRequestParams,
+        ClearContentSetParams, ContentAccessListSetParams,
+        MediaEventsAccountLinkRequestParams, SignInRequestParams
     },
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
@@ -33,6 +32,7 @@ use super::distributor_request::DistributorRequest;
 pub enum DiscoveryRequest {
     SetContentAccess(ContentAccessListSetParams),
     ClearContent(ClearContentSetParams),
+    SignIn(SignInRequestParams)
 }
 
 impl ExtnPayloadProvider for DiscoveryRequest {
@@ -60,40 +60,6 @@ impl ExtnPayloadProvider for DiscoveryRequest {
 
     fn contract() -> RippleContract {
         RippleContract::Discovery
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum EntitlementsRequest {
-    EntitlementsAccountLink(EntitlementsAccountLinkRequestParams),
-    SignIn(SignInRequestParams),
-}
-
-impl ExtnPayloadProvider for EntitlementsRequest {
-    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(r) => match r {
-                ExtnRequest::Distributor(v) => match v {
-                    DistributorRequest::Entitlements(d) => {
-                        return Some(d);
-                    }
-                    _ => {}
-                },
-                _ => {}
-            },
-            _ => {}
-        }
-        None
-    }
-
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::Distributor(DistributorRequest::Entitlements(
-            self.clone(),
-        )))
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::Entitlements
     }
 }
 
@@ -130,35 +96,3 @@ impl ExtnPayloadProvider for MediaEventRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum WatchHistoryRequest {
-    WatchHistoryAccountLink(WatchHistoryAccountLinkRequestParams),
-}
-
-impl ExtnPayloadProvider for WatchHistoryRequest {
-    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(r) => match r {
-                ExtnRequest::Distributor(v) => match v {
-                    DistributorRequest::WatchHistory(d) => {
-                        return Some(d);
-                    }
-                    _ => {}
-                },
-                _ => {}
-            },
-            _ => {}
-        }
-        None
-    }
-
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::Distributor(DistributorRequest::WatchHistory(
-            self.clone(),
-        )))
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::WatchHistory
-    }
-}

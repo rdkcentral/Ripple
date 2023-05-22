@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     distributor_discovery::{
-        DiscoveryRequest, EntitlementsRequest, MediaEventRequest, WatchHistoryRequest,
+        DiscoveryRequest, MediaEventRequest
     },
     distributor_permissions::PermissionRequest,
 };
@@ -27,7 +27,5 @@ use super::{
 pub enum DistributorRequest {
     Permission(PermissionRequest),
     Discovery(DiscoveryRequest),
-    Entitlements(EntitlementsRequest),
     MediaEvent(MediaEventRequest),
-    WatchHistory(WatchHistoryRequest),
 }

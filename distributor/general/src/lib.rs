@@ -17,7 +17,6 @@
 mod distributor_general_ffi;
 mod general_advertising_processor;
 mod general_discovery_processor;
-mod general_entitlements_processor;
 mod general_media_events_processor;
 mod general_metrics_processor;
 mod general_permission_processor;
@@ -25,4 +24,3 @@ mod general_privacy_processor;
 mod general_securestorage_processor;
 mod general_session_processor;
 mod general_token_processor;
-mod general_watch_history_processor;

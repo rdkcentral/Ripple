@@ -398,12 +398,6 @@ pub struct MediaEventsAccountLinkRequestParams {
 pub struct MediaEventsAccountLinkResponse {}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct WatchHistoryAccountLinkRequestParams {
-    pub link_launchpad: AccountLaunchpad,
-    pub content_partner_id: String,
-    pub dist_session: AccountSession,
-}
-#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LaunchPadAccountLinkResponse {}
 
 // #[async_trait]
