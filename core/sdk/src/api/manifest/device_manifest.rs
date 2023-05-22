@@ -89,6 +89,7 @@ pub struct DistributionConfiguration {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct ApplicationDefaultsConfiguration {
+    #[serde(rename = "xrn:firebolt:application-type:main")]
     pub main: String,
     #[serde(rename = "xrn:firebolt:application-type:settings")]
     pub settings: String,
@@ -97,6 +98,19 @@ pub struct ApplicationDefaultsConfiguration {
         skip_serializing_if = "Option::is_none"
     )]
     pub player: Option<String>,
+}
+
+impl ApplicationDefaultsConfiguration {
+    pub fn get_reserved_application_id(&self, field_name: &str) -> Option<&str> {
+        match field_name {
+            "xrn:firebolt:application-type:main" => Some(&self.main),
+            "xrn:firebolt:application-type:settings" => Some(&self.settings),
+            "xrn:firebolt:application-type:player" => {
+                self.player.as_ref().map(|p| p.as_str()).or(Some(""))
+            }
+            _ => None,
+        }
+    }
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -271,19 +285,6 @@ fn voice_guidance_default() -> VoiceGuidance {
 #[serde(rename_all = "camelCase")]
 pub struct CloudService {
     pub url: String,
-}
-
-impl ApplicationDefaultsConfiguration {
-    pub fn get_reserved_application_id(&self, field_name: &str) -> Option<&str> {
-        match field_name {
-            "xrn:firebolt:application-type:main" => Some(&self.main),
-            "xrn:firebolt:application-type:settings" => Some(&self.settings),
-            "xrn:firebolt:application-type:player" => {
-                self.player.as_ref().map(|p| p.as_str()).or(Some(""))
-            }
-            _ => None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
