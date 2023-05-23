@@ -18,7 +18,7 @@ use std::hash::{Hash, Hasher};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::api::gateway::rpc_error::RpcError;
+use crate::{api::gateway::rpc_error::RpcError, utils::error::RippleError};
 
 /// There are many types of Firebolt Cap enums
 /// 1. Short: `device:model` becomes = `xrn:firebolt:capability:account:session` its just a handy cap which helps us write less code
@@ -159,6 +159,20 @@ impl<'de> Deserialize<'de> for FireboltPermission {
             cap: FireboltCap::Full(cap),
             role,
         })
+    }
+}
+
+impl TryFrom<RoleInfo> for FireboltPermission {
+    type Error = RippleError;
+    fn try_from(role_info: RoleInfo) -> Result<Self, Self::Error> {
+        if let Some(role) = role_info.role {
+            let permission = FireboltPermission {
+                cap: FireboltCap::Full(role_info.capability.clone()),
+                role: role.clone(),
+            };
+            return Ok(permission);
+        }
+        Err(RippleError::ParseError)
     }
 }
 

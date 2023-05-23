@@ -336,11 +336,7 @@ impl GrantState {
             return Ok(true);
         }
 
-        if let Some(role) = role_info.role {
-            let permission = FireboltPermission {
-                cap: FireboltCap::Full(role_info.capability.clone()),
-                role: role.clone(),
-            };
+        if let Ok(permission) = FireboltPermission::try_from(role_info) {
             let result = self.get_grant_state(&app_id, &permission);
 
             match result {
