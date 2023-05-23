@@ -15,6 +15,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::str::FromStr;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -132,6 +134,7 @@ pub enum PrivacyRequest {
     GetProperty(GetPropertyParams),
     GetProperties(AccountSession),
     SetProperty(SetPropertyParams),
+    GetPartnerExclusions(AccountSession),
 }
 
 impl PrivacyRequest {
@@ -140,6 +143,7 @@ impl PrivacyRequest {
             PrivacyRequest::GetProperty(params) => params.dist_session.clone(),
             PrivacyRequest::GetProperties(session) => session.clone(),
             PrivacyRequest::SetProperty(params) => params.dist_session.clone(),
+            PrivacyRequest::GetPartnerExclusions(session) => session.clone(),
         }
     }
 }
@@ -163,5 +167,73 @@ impl ExtnPayloadProvider for PrivacyRequest {
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
         RippleContract::PrivacySettings
+    }
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+pub struct ExclusionPolicyData {
+    pub data_events: Vec<DataEventType>,
+    pub entity_reference: Vec<String>,
+    pub derivative_propagation: bool,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+pub struct ExclusionPolicy {
+    pub acr: Option<ExclusionPolicyData>,
+    pub app_content_ad_targeting: Option<ExclusionPolicyData>,
+    pub business_analytics: Option<ExclusionPolicyData>,
+    pub camera_analytics: Option<ExclusionPolicyData>,
+    pub continue_watching: Option<ExclusionPolicyData>,
+    pub personalization: Option<ExclusionPolicyData>,
+    pub primary_browse_ad_targeting: Option<ExclusionPolicyData>,
+    pub primary_content_ad_targeting: Option<ExclusionPolicyData>,
+    pub product_analytics: Option<ExclusionPolicyData>,
+    pub remote_diagnostics: Option<ExclusionPolicyData>,
+    pub unentitled_continue_watching: Option<ExclusionPolicyData>,
+    pub unentitled_personalization: Option<ExclusionPolicyData>,
+    pub watch_history: Option<ExclusionPolicyData>,
+}
+
+impl ExtnPayloadProvider for ExclusionPolicy {
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        match payload {
+            ExtnPayload::Response(r) => match r {
+                ExtnResponse::Value(v) => {
+                    if let Ok(v) = serde_json::from_value(v) {
+                        return Some(v);
+                    }
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+
+        None
+    }
+
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Response(ExtnResponse::Value(
+            serde_json::to_value(self.clone()).unwrap(),
+        ))
+    }
+
+    fn contract() -> crate::framework::ripple_contract::RippleContract {
+        RippleContract::PrivacySettings
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
+pub enum DataEventType {
+    Watched,
+    BusinessIntelligence,
+}
+
+impl FromStr for DataEventType {
+    type Err = ();
+    fn from_str(input: &str) -> Result<DataEventType, Self::Err> {
+        match input {
+            "Watch_History" => Ok(DataEventType::Watched),
+            _ => Err(()),
+        }
     }
 }

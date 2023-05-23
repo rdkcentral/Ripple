@@ -52,7 +52,9 @@
                         "advertising",
                         "privacy_settings",
                         "metrics",
-                        "session_token"
+                        "session_token",
+                        "discovery",
+                        "media_events"
                     ]
                 }
             ]

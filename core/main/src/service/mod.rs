@@ -16,5 +16,6 @@
 // limitations under the License.
 
 pub mod apps;
+pub mod data_governance;
 pub mod extn;
 pub mod user_grants;

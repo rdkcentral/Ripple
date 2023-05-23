@@ -15,18 +15,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use ripple_sdk::log::debug;
-
-use crate::{
-    processor::storage::storage_property::{
+use ripple_sdk::{
+    api::storage_property::{
         KEY_BACKGROUND_COLOR, KEY_BACKGROUND_OPACITY, KEY_COUNTRY_CODE, KEY_ENABLED,
         KEY_FONT_COLOR, KEY_FONT_EDGE, KEY_FONT_EDGE_COLOR, KEY_FONT_FAMILY, KEY_FONT_OPACITY,
         KEY_FONT_SIZE, KEY_LANGUAGE, KEY_LOCALE, KEY_NAME, KEY_TEXT_ALIGN, KEY_TEXT_ALIGN_VERTICAL,
         KEY_VOICE_GUIDANCE_SPEED, NAMESPACE_CLOSED_CAPTIONS, NAMESPACE_DEVICE_NAME,
         NAMESPACE_LOCALIZATION, NAMESPACE_VOICE_GUIDANCE,
     },
-    state::platform_state::PlatformState,
+    log::debug,
 };
+
+use crate::state::platform_state::PlatformState;
 
 #[derive(Clone, Debug)]
 pub struct DefaultStorageProperties;

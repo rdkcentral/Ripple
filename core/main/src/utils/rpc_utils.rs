@@ -33,6 +33,7 @@ use crate::{
 };
 
 pub const FIRE_BOLT_DEEPLINK_ERROR_CODE: i32 = -40400;
+pub const DOWNSTREAM_SERVICE_UNAVAILABLE_ERROR_CODE: i32 = -50200;
 
 pub fn rpc_err(msg: impl Into<String>) -> Error {
     Error::Custom(msg.into())
@@ -86,6 +87,14 @@ pub async fn rpc_add_event_listener_with_decorator(
     Ok(ListenerResponse {
         listening: listen,
         event: event_name.into(),
+    })
+}
+
+pub fn rpc_downstream_service_err(msg: &str) -> jsonrpsee::core::error::Error {
+    Error::Call(CallError::Custom {
+        code: DOWNSTREAM_SERVICE_UNAVAILABLE_ERROR_CODE,
+        message: msg.to_owned(),
+        data: None,
     })
 }
 

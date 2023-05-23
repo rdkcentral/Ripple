@@ -39,6 +39,7 @@ use crate::{
             app_events::AppEventsState, delegated_launcher_handler::AppManagerState,
             provider_broker::ProviderBrokerState,
         },
+        data_governance::DataGovernanceState,
         extn::ripple_client::RippleClient,
     },
 };
@@ -68,6 +69,7 @@ pub struct PlatformState {
     pub app_manager_state: AppManagerState,
     pub open_rpc_state: OpenRpcState,
     pub router_state: RouterState,
+    pub data_governance: DataGovernanceState,
 }
 
 impl PlatformState {
@@ -89,6 +91,7 @@ impl PlatformState {
             app_manager_state: AppManagerState::default(),
             open_rpc_state: OpenRpcState::new(manifest.clone().configuration.exclusory),
             router_state: RouterState::new(),
+            data_governance: DataGovernanceState::default(),
         }
     }
 

@@ -22,6 +22,7 @@ use ripple_sdk::{
             GetStorageProperty, SetStorageProperty, StorageData, StorageRequest,
         },
         firebolt::fb_capabilities::CAPABILITY_NOT_AVAILABLE,
+        storage_property::StorageProperty,
     },
     extn::extn_client_message::ExtnResponse,
     log::debug,
@@ -39,9 +40,7 @@ use crate::{
     state::platform_state::PlatformState,
 };
 
-use super::{
-    default_storage_properties::DefaultStorageProperties, storage_property::StorageProperty,
-};
+use super::default_storage_properties::DefaultStorageProperties;
 
 #[derive(Debug)]
 pub enum StorageManagerResponse<T> {

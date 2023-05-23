@@ -16,6 +16,8 @@
 // limitations under the License.
 mod distributor_general_ffi;
 mod general_advertising_processor;
+mod general_discovery_processor;
+mod general_media_events_processor;
 mod general_metrics_processor;
 mod general_permission_processor;
 mod general_privacy_processor;

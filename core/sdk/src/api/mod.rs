@@ -22,6 +22,7 @@ pub mod manifest;
 pub mod protocol;
 pub mod session;
 pub mod status_update;
+pub mod storage_property;
 pub mod wifi;
 pub mod gateway {
     pub mod rpc_error;
@@ -29,6 +30,7 @@ pub mod gateway {
 }
 
 pub mod distributor {
+    pub mod distributor_discovery;
     pub mod distributor_permissions;
     pub mod distributor_privacy;
     pub mod distributor_request;

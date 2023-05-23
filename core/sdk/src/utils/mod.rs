@@ -18,4 +18,5 @@
 pub mod channel_utils;
 pub mod error;
 pub mod logger;
+pub mod serde_utils;
 pub mod time_utils;
