@@ -19,14 +19,15 @@ use crate::{
     firebolt::{
         firebolt_gateway::FireboltGateway,
         handlers::{
-            accessory_rpc::AccessoryRippleProvider, acknowledge_rpc::AckRPCProvider,
-            advertising_rpc::AdvertisingRPCProvider, authentication_rpc::AuthRPCProvider,
-            capabilities_rpc::CapRPCProvider, closed_captions_rpc::ClosedcaptionsRPCProvider,
-            device_rpc::DeviceRPCProvider, discovery_rpc::DiscoveryRPCProvider,
-            keyboard_rpc::KeyboardRPCProvider, lcm_rpc::LifecycleManagementProvider,
-            lifecycle_rpc::LifecycleRippleProvider, localization_rpc::LocalizationRPCProvider,
-            metrics_rpc::MetricsRPCProvider, parameters_rpc::ParametersRPCProvider,
-            pin_rpc::PinRPCProvider, privacy_rpc::PrivacyProvider, profile_rpc::ProfileRPCProvider,
+            accessory_rpc::AccessoryRippleProvider, account_rpc::AccountRPCProvider,
+            acknowledge_rpc::AckRPCProvider, advertising_rpc::AdvertisingRPCProvider,
+            authentication_rpc::AuthRPCProvider, capabilities_rpc::CapRPCProvider,
+            closed_captions_rpc::ClosedcaptionsRPCProvider, device_rpc::DeviceRPCProvider,
+            discovery_rpc::DiscoveryRPCProvider, keyboard_rpc::KeyboardRPCProvider,
+            lcm_rpc::LifecycleManagementProvider, lifecycle_rpc::LifecycleRippleProvider,
+            localization_rpc::LocalizationRPCProvider, metrics_rpc::MetricsRPCProvider,
+            parameters_rpc::ParametersRPCProvider, pin_rpc::PinRPCProvider,
+            privacy_rpc::PrivacyProvider, profile_rpc::ProfileRPCProvider,
             second_screen_rpc::SecondScreenRPCProvider,
             secure_storage_rpc::SecureStorageRPCProvider, user_grants_rpc::UserGrantsRPCProvider,
             voice_guidance_rpc::VoiceguidanceRPCProvider, wifi_rpc::WifiRPCProvider,
@@ -65,6 +66,7 @@ impl FireboltGatewayStep {
         let _ = methods.merge(MetricsRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(DiscoveryRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(AuthRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(AccountRPCProvider::provide_with_alias(state.clone()));
 
         // LCM Api(s) not required for internal launcher
         if !state.has_internal_launcher() {
