@@ -39,7 +39,6 @@
         "xrn:firebolt:capability:advertising:configuration",
         "xrn:firebolt:capability:advertising:identifier",
         "xrn:firebolt:capability:privacy:advertising",
-        "xrn:firebolt:capability:account:id",
         "xrn:firebolt:capability:device:distributor",
         "xrn:firebolt:capability:discovery:policy",
         "xrn:firebolt:capability:discovery:watched",
@@ -47,7 +46,11 @@
         "xrn:firebolt:capability:approve:content",
         "xrn:firebolt:capability:approve:purchase",
         "xrn:firebolt:capability:profile:flag",
-        "xrn:firebolt:capability:protocol:dial"
+        "xrn:firebolt:capability:protocol:dial",
+        "xrn:firebolt:capability:account:id",
+        "xrn:firebolt:capability:account:uid",
+        "xrn:firebolt:capability:token:account"
+
     ],
     "comcast_firebolt_reference" : [
         "xrn:firebolt:capability:input:keyboard",
@@ -58,6 +61,9 @@
         "xrn:firebolt:capability:privacy:settings"
     ],
     "test" : [
+        "xrn:firebolt:capability:account:id",
+        "xrn:firebolt:capability:account:uid",
+        "xrn:firebolt:capability:token:account",
         "xrn:firebolt:capability:input:keyboard",
         "xrn:firebolt:capability:device:info",
         "xrn:firebolt:capability:device:make",
@@ -99,6 +105,9 @@
         "xrn:firebolt:capability:metrics:media"
     ],
     "comcast.test.firecert" : [
+        "xrn:firebolt:capability:account:id",
+        "xrn:firebolt:capability:account:uid",
+        "xrn:firebolt:capability:token:account",
         "xrn:firebolt:capability:input:keyboard",
         "xrn:firebolt:capability:device:info",
         "xrn:firebolt:capability:device:make",
