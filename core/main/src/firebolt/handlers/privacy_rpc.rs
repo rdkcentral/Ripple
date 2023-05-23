@@ -34,7 +34,7 @@ use ripple_sdk::{
             SetPropertyParams,
         },
         firebolt::{
-            fb_capabilities::CAPABILITY_NOT_AVAILABLE,
+            fb_capabilities::{CapabilityRole, RoleInfo, CAPABILITY_NOT_AVAILABLE},
             fb_general::{ListenRequest, ListenerResponse},
         },
         gateway::rpc_gateway_api::CallContext,
@@ -54,6 +54,8 @@ use ripple_sdk::{
 };
 
 use std::collections::HashMap;
+
+use super::capabilities_rpc::is_granted;
 
 pub const US_PRIVACY_KEY: &'static str = "us_privacy";
 pub const LMT_KEY: &'static str = "lmt";
@@ -335,21 +337,18 @@ impl PrivacyImpl {
     }
 
     pub async fn get_share_watch_history(
-        _ctx: &CallContext,
-        _state: &PlatformState,
+        ctx: &CallContext,
+        state: &PlatformState,
         _app_id: &str,
     ) -> bool {
-        // This should be done when Usergrants is merged.
-        // let helper = Box::new(state.services.clone());
-        // let watch_granted = is_granted(
-        //     &helper,
-        //     ctx,
-        //     "xrn:firebolt:capability:discovery:watched",
-        //     None,
-        // )
-        // .await;
-        // debug!("--> watch_granted={}", watch_granted);
-        // watch_granted
+        let cap = RoleInfo {
+            capability: "xrn:firebolt:capability:discovery:watched".to_string(),
+            role: Some(CapabilityRole::Use),
+        };
+        if let Ok(watch_granted) = is_granted(state.clone(), ctx.clone(), cap).await {
+            debug!("--> watch_granted={}", watch_granted);
+            return watch_granted;
+        }
         false
     }
 
