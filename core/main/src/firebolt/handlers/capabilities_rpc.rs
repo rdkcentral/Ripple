@@ -142,12 +142,10 @@ impl CapabilityServer for CapabilityImpl {
     }
 
     async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
-        Ok(self
-            .state
-            .cap_state
-            .grant_state
-            .check_granted(&ctx.app_id, cap)
-            .is_ok())
+        if let Ok(response) = is_granted(self.state.clone(), ctx, cap).await {
+            return Ok(response);
+        }
+        Ok(false)
     }
 
     async fn info(
@@ -232,4 +230,12 @@ pub async fn is_permitted(
         }
     }
     Ok(false)
+}
+
+pub async fn is_granted(state: PlatformState, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
+    Ok(state
+        .cap_state
+        .grant_state
+        .check_granted(&ctx.app_id, cap)
+        .is_ok())
 }

@@ -50,6 +50,7 @@ use ripple_sdk::{
     framework::file_store::FileStore,
     serde_json::Value,
     tokio::sync::oneshot,
+    utils::error::RippleError,
 };
 use serde::Deserialize;
 
@@ -330,13 +331,9 @@ impl GrantState {
         // UserGrants::determine_grant_policies(&self.ps.clone(), call_ctx, &r).await
     }
 
-    pub fn check_granted(
-        &self,
-        app_id: &str,
-        role_info: RoleInfo,
-    ) -> Result<(), DenyReasonWithCap> {
+    pub fn check_granted(&self, app_id: &str, role_info: RoleInfo) -> Result<bool, RippleError> {
         if !self.caps_needing_grants.contains(&role_info.capability) {
-            return Ok(());
+            return Ok(true);
         }
 
         if let Some(role) = role_info.role {
@@ -344,29 +341,22 @@ impl GrantState {
                 cap: FireboltCap::Full(role_info.capability.clone()),
                 role: role.clone(),
             };
-
             let result = self.get_grant_state(&app_id, &permission);
 
             match result {
                 GrantActiveState::ActiveGrant(grant) => {
                     if grant.is_err() {
-                        return Err(DenyReasonWithCap {
-                            reason: DenyReason::GrantDenied,
-                            caps: vec![permission.cap.clone()],
-                        });
+                        return Err(RippleError::Permission(DenyReason::GrantDenied));
                     } else {
-                        return Ok(());
+                        return Ok(true);
                     }
                 }
                 GrantActiveState::PendingGrant => {
-                    return Err(DenyReasonWithCap {
-                        reason: DenyReason::Ungranted,
-                        caps: vec![permission.cap.clone()],
-                    });
+                    return Err(RippleError::Permission(DenyReason::Ungranted));
                 }
             }
         }
-        Ok(())
+        return Err(RippleError::Permission(DenyReason::Ungranted));
     }
 
     pub fn update(
