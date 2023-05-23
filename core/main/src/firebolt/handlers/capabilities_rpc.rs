@@ -41,6 +41,8 @@ pub trait Capability {
     async fn available(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool>;
     #[method(name = "capabilities.permitted")]
     async fn permitted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool>;
+    #[method(name = "capabilities.granted")]
+    async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool>;
     #[method(name = "capabilities.info")]
     async fn info(
         &self,
@@ -137,6 +139,15 @@ impl CapabilityServer for CapabilityImpl {
             }
         }
         Ok(false)
+    }
+
+    async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
+        Ok(self
+            .state
+            .cap_state
+            .grant_state
+            .check_granted(&ctx.app_id, cap)
+            .is_ok())
     }
 
     async fn info(

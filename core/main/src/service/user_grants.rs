@@ -36,7 +36,7 @@ use ripple_sdk::{
         firebolt::{
             fb_capabilities::{
                 CapEvent, CapabilityRole, DenyReason, DenyReasonWithCap, FireboltCap,
-                FireboltPermission,
+                FireboltPermission, RoleInfo,
             },
             fb_openrpc::CapabilitySet,
             fb_pin::{PinChallengeConfiguration, PinChallengeRequest},
@@ -328,6 +328,45 @@ impl GrantState {
         Ok(())
 
         // UserGrants::determine_grant_policies(&self.ps.clone(), call_ctx, &r).await
+    }
+
+    pub fn check_granted(
+        &self,
+        app_id: &str,
+        role_info: RoleInfo,
+    ) -> Result<(), DenyReasonWithCap> {
+        if !self.caps_needing_grants.contains(&role_info.capability) {
+            return Ok(());
+        }
+
+        if let Some(role) = role_info.role {
+            let permission = FireboltPermission {
+                cap: FireboltCap::Full(role_info.capability.clone()),
+                role: role.clone(),
+            };
+
+            let result = self.get_grant_state(&app_id, &permission);
+
+            match result {
+                GrantActiveState::ActiveGrant(grant) => {
+                    if grant.is_err() {
+                        return Err(DenyReasonWithCap {
+                            reason: DenyReason::GrantDenied,
+                            caps: vec![permission.cap.clone()],
+                        });
+                    } else {
+                        return Ok(());
+                    }
+                }
+                GrantActiveState::PendingGrant => {
+                    return Err(DenyReasonWithCap {
+                        reason: DenyReason::Ungranted,
+                        caps: vec![permission.cap.clone()],
+                    });
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn update(
