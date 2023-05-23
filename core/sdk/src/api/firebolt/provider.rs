@@ -16,6 +16,10 @@
 // limitations under the License.
 use serde::{Deserialize, Serialize};
 
+use crate::api::device::entertainment_data::{
+    EntityInfoParameters, EntityInfoResult, PurchasedContentParameters, PurchasedContentResult,
+};
+
 use super::{
     fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
     fb_pin::{PinChallengeRequest, PinChallengeResponse},
@@ -31,6 +35,8 @@ pub enum ProviderRequestPayload {
     KeyboardSession(KeyboardSessionRequest),
     PinChallenge(PinChallengeRequest),
     AckChallenge(Challenge),
+    EntityInfoRequest(EntityInfoParameters),
+    PurchasedContentRequest(PurchasedContentParameters),
     Generic(String),
 }
 
@@ -40,6 +46,8 @@ pub enum ProviderResponsePayload {
     ChallengeResponse(ChallengeResponse),
     PinChallengeResponse(PinChallengeResponse),
     KeyboardResult(KeyboardSessionResponse),
+    EntityInfoResponse(Option<EntityInfoResult>),
+    PurchasedContentResponse(PurchasedContentResult),
 }
 
 impl ProviderResponsePayload {
@@ -60,6 +68,20 @@ impl ProviderResponsePayload {
     pub fn as_challenge_response(&self) -> Option<ChallengeResponse> {
         match self {
             ProviderResponsePayload::ChallengeResponse(res) => Some(res.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn as_entity_info_result(&self) -> Option<Option<EntityInfoResult>> {
+        match self {
+            ProviderResponsePayload::EntityInfoResponse(res) => Some(res.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn as_purchased_content_result(&self) -> Option<PurchasedContentResult> {
+        match self {
+            ProviderResponsePayload::PurchasedContentResponse(res) => Some(res.clone()),
             _ => None,
         }
     }

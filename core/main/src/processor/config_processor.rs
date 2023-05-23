@@ -97,6 +97,9 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
                     ExtnResponse::Error(ripple_sdk::utils::error::RippleError::ProcessorError)
                 }
             }
+            Config::DefaultLanguage => ExtnResponse::Config(ConfigResponse::String(
+                device_manifest.configuration.default_values.language,
+            )),
             Config::AllDefaultApps => ExtnResponse::Config(ConfigResponse::AllApps(
                 state.app_library_state.get_all_apps(),
             )),

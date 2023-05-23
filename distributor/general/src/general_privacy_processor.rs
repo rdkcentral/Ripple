@@ -22,7 +22,8 @@ use std::{
 
 use ripple_sdk::{
     api::distributor::distributor_privacy::{
-        GetPropertyParams, PrivacyRequest, PrivacySetting, PrivacySettings, SetPropertyParams,
+        ExclusionPolicy, GetPropertyParams, PrivacyRequest, PrivacySetting, PrivacySettings,
+        SetPropertyParams,
     },
     async_trait::async_trait,
     extn::{
@@ -261,6 +262,16 @@ impl ExtnRequestProcessor for DistributorPrivacyProcessor {
                 .await
                 .is_ok()
             }
+            PrivacyRequest::GetPartnerExclusions(_) => Self::respond(
+                state.client.clone(),
+                msg,
+                ExclusionPolicy::default()
+                    .get_extn_payload()
+                    .as_response()
+                    .unwrap(),
+            )
+            .await
+            .is_ok(),
         }
     }
 }

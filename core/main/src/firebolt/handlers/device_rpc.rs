@@ -19,12 +19,7 @@ use std::collections::HashMap;
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
-    processor::storage::{
-        storage_manager::StorageManager,
-        storage_property::{
-            StorageProperty, EVENT_DEVICE_DEVICE_NAME_CHANGED, EVENT_DEVICE_NAME_CHANGED,
-        },
-    },
+    processor::storage::storage_manager::StorageManager,
     service::apps::app_events::AppEvents,
     state::platform_state::PlatformState,
     utils::rpc_utils::{rpc_add_event_listener, rpc_err},
@@ -54,6 +49,9 @@ use ripple_sdk::{
         },
         gateway::rpc_gateway_api::CallContext,
         session::{AccountSessionRequest, ProvisionRequest},
+        storage_property::{
+            StorageProperty, EVENT_DEVICE_DEVICE_NAME_CHANGED, EVENT_DEVICE_NAME_CHANGED,
+        },
     },
     extn::extn_client_message::ExtnResponse,
     log::error,

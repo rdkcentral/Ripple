@@ -15,8 +15,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use ripple_sdk::api::distributor::distributor_privacy::PrivacySetting;
 use serde::{Deserialize, Serialize};
+
+use super::distributor::distributor_privacy::PrivacySetting;
 
 pub const NAMESPACE_CLOSED_CAPTIONS: &'static str = "ClosedCaptions";
 pub const NAMESPACE_PRIVACY: &'static str = "Privacy";
@@ -62,6 +63,7 @@ pub const KEY_ALLOW_UNENTITLED_PERSONALIZATION: &'static str = "allowUnentitledP
 pub const KEY_ALLOW_UNENTITLED_RESUME_POINTS: &'static str = "allowUnentitledResumePoints";
 pub const KEY_ALLOW_WATCH_HISTORY: &'static str = "allowWatchHistory";
 pub const KEY_VOICE_GUIDANCE_SPEED: &'static str = "speed";
+pub const KEY_PARTNER_EXCLUSIONS: &'static str = "partnerExclusions";
 
 pub const EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED: &'static str =
     "accessibility.onClosedCaptionsSettingsChanged";
@@ -395,6 +397,12 @@ const PROPERTY_DATA_ALLOW_WATCH_HISTORY: PropertyData = PropertyData {
     event_names: Some(&[EVENT_ALLOW_WATCH_HISTORY_CHANGED]),
 };
 
+const PROPERTY_DATA_PARTNER_EXCLUSIONS: PropertyData = PropertyData {
+    key: KEY_PARTNER_EXCLUSIONS,
+    namespace: NAMESPACE_PRIVACY,
+    event_names: None,
+};
+
 #[derive(Debug)]
 pub struct PropertyData {
     pub namespace: &'static str,
@@ -442,6 +450,7 @@ pub enum StorageProperty {
     AllowWatchHistory,
     VoiceguidanceEnabled,
     VoiceguidanceSpeed,
+    PartnerExclusions,
 }
 
 impl StorageProperty {
@@ -505,6 +514,7 @@ impl StorageProperty {
                 PROPERTY_DATA_ALLOW_UNENTITLED_RESUME_POINTS
             }
             StorageProperty::AllowWatchHistory => PROPERTY_DATA_ALLOW_WATCH_HISTORY,
+            StorageProperty::PartnerExclusions => PROPERTY_DATA_PARTNER_EXCLUSIONS,
         }
     }
 

@@ -17,12 +17,18 @@
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{collections::HashMap, fs, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+    path::Path,
+};
 
 use crate::{
     api::{
         device::{device_user_grants_data::GrantPolicies, DevicePlatformType},
+        distributor::distributor_privacy::DataEventType,
         firebolt::fb_capabilities::FireboltCap,
+        storage_property::StorageProperty,
     },
     utils::error::RippleError,
 };
@@ -52,6 +58,13 @@ pub struct RippleConfiguration {
     pub internal_app_id: Option<String>,
     #[serde(default = "default_saved_dir")]
     pub saved_dir: String,
+    #[serde(default = "data_governance_default")]
+    pub data_governance: DataGovernanceConfig,
+    pub partner_exclusion_refresh_timeout: Option<u32>,
+}
+
+fn data_governance_default() -> DataGovernanceConfig {
+    DataGovernanceConfig::default()
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -315,6 +328,44 @@ fn default_ripple_features() -> RippleFeatures {
 
 fn default_saved_dir() -> String {
     String::from("/opt/persistent/ripple")
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, Default)]
+pub struct DataGovernanceConfig {
+    policies: Vec<DataGovernancePolicy>,
+}
+
+impl DataGovernanceConfig {
+    pub fn get_policy(&self, data_type: DataEventType) -> Option<DataGovernancePolicy> {
+        self.policies
+            .iter()
+            .find(|p| p.data_type == data_type)
+            .cloned()
+    }
+}
+
+pub fn default_enforcement_value() -> bool {
+    false
+}
+
+pub fn default_drop_on_all_tags() -> bool {
+    true
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct DataGovernancePolicy {
+    pub data_type: DataEventType,
+    pub setting_tags: Vec<DataGovernanceSettingTag>,
+    #[serde(default = "default_drop_on_all_tags")]
+    pub drop_on_all_tags: bool,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct DataGovernanceSettingTag {
+    pub setting: StorageProperty,
+    #[serde(default = "default_enforcement_value")]
+    pub enforcement_value: bool,
+    pub tags: HashSet<String>,
 }
 
 impl DeviceManifest {
