@@ -19,9 +19,12 @@ use std::{collections::HashMap, time::Duration};
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
-    service::apps::{
-        app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
-        provider_broker::{self, ProviderBroker},
+    service::{
+        apps::{
+            app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
+            provider_broker::{self, ProviderBroker},
+        },
+        data_governance::DataGovernance,
     },
     utils::rpc_utils::{
         rpc_await_oneshot, rpc_downstream_service_err, rpc_err, rpc_navigate_reserved_app_err,
@@ -33,19 +36,6 @@ use jsonrpsee::{
     RpcModule,
 };
 
-use ripple_sdk::api::{
-    device::entertainment_data::*,
-    distributor::distributor_discovery::DiscoveryRequest,
-    firebolt::{
-        fb_discovery::{
-            ContentAccessAvailability, ContentAccessEntitlement, ContentAccessInfo,
-            ContentAccessListSetParams, SessionParams,
-        },
-        fb_general::{ListenRequest, ListenerResponse},
-        provider::ExternalProviderResponse,
-    },
-    gateway::rpc_gateway_api::CallContext,
-};
 use ripple_sdk::{
     api::{
         apps::{AppError, AppManagerResponse, AppMethod, AppRequest, AppResponse},
@@ -65,6 +55,26 @@ use ripple_sdk::{
     extn::extn_client_message::ExtnResponse,
     log::{error, info},
     tokio::{sync::oneshot, time::timeout},
+};
+use ripple_sdk::{
+    api::{
+        device::entertainment_data::*,
+        distributor::{
+            distributor_discovery::{DiscoveryRequest, MediaEventRequest},
+            distributor_privacy::DataEventType,
+        },
+        firebolt::{
+            fb_discovery::{
+                ContentAccessAvailability, ContentAccessEntitlement, ContentAccessInfo,
+                ContentAccessListSetParams, MediaEvent, MediaEventsAccountLinkRequestParams,
+                ProgressUnit, SessionParams,
+            },
+            fb_general::{ListenRequest, ListenerResponse},
+            provider::ExternalProviderResponse,
+        },
+        gateway::rpc_gateway_api::CallContext,
+    },
+    log::debug,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -415,7 +425,6 @@ struct DiscoveryPolicyEventDecorator {}
 
 #[async_trait]
 impl AppEventDecorator for DiscoveryPolicyEventDecorator {
-
     async fn decorate(
         &self,
         ps: &PlatformState,
@@ -435,7 +444,6 @@ impl AppEventDecorator for DiscoveryPolicyEventDecorator {
 
 #[async_trait]
 impl DiscoveryServer for DiscoveryImpl {
-
     async fn on_policy_changed(
         &self,
         ctx: CallContext,
@@ -496,8 +504,52 @@ impl DiscoveryServer for DiscoveryImpl {
     }
 
     async fn watched(&self, ctx: CallContext, watched_info: WatchedInfo) -> RpcResult<bool> {
-        //TODO: need data gavenance impl
-        todo!()
+        info!("Discovery.watched");
+        let (data_tags, drop_data) =
+            DataGovernance::resolve_tags(&self.state, ctx.app_id.clone(), DataEventType::Watched)
+                .await;
+        debug!("drop_all={:?} data_tags={:?}", drop_data, data_tags);
+        if drop_data {
+            return Ok(false);
+        }
+        let progress = watched_info.progress;
+        if let Some(dist_session) = self.state.session_state.get_account_session() {
+            let request =
+                MediaEventRequest::MediaEventAccountLink(MediaEventsAccountLinkRequestParams {
+                    media_event: MediaEvent {
+                        content_id: watched_info.entity_id.to_owned(),
+                        completed: watched_info.completed.unwrap_or(true),
+                        progress: if progress > 1.0 {
+                            progress
+                        } else {
+                            progress * 100.0
+                        },
+                        progress_unit: if progress > 1.0 {
+                            ProgressUnit::Seconds
+                        } else {
+                            ProgressUnit::Percent
+                        },
+                        watched_on: watched_info.watched_on.clone(),
+                        app_id: ctx.clone().app_id.to_owned(),
+                    },
+                    content_partner_id: get_content_partner_id(&self.state, &ctx)
+                        .await
+                        .unwrap_or(ctx.app_id.to_owned()),
+                    client_supports_opt_out: DiscoveryImpl::get_share_watch_history(),
+                    dist_session,
+                    data_tags,
+                });
+
+            if let Ok(resp) = self.state.get_client().send_extn_request(request).await {
+                if let Some(_) = resp.payload.extract::<ExtnResponse>() {
+                    return Ok(true);
+                }
+            }
+        }
+
+        Err(rpc_err(
+            "Did not receive a valid resposne from platform when notifying watched info",
+        ))
     }
     async fn watch_next(
         &self,
@@ -745,8 +797,7 @@ impl DiscoveryServer for DiscoveryImpl {
         ProviderBroker::provider_response(&self.state, response).await;
         Ok(true)
     }
-    
-    
+
     async fn discovery_content_access(
         &self,
         ctx: CallContext,

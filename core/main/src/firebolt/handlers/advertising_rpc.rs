@@ -31,6 +31,7 @@ use ripple_sdk::{
             fb_general::{ListenRequest, ListenerResponse},
         },
         gateway::rpc_gateway_api::CallContext,
+        storage_property::EVENT_ADVERTISING_POLICY_CHANGED,
     },
     extn::extn_client_message::ExtnResponse,
     log::error,
@@ -42,7 +43,6 @@ use std::fmt;
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
-    processor::storage::storage_property::EVENT_ADVERTISING_POLICY_CHANGED,
     state::platform_state::PlatformState,
     utils::rpc_utils::{rpc_add_event_listener, rpc_err},
 };

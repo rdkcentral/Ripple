@@ -44,7 +44,7 @@ use crate::{
     general_privacy_processor::DistributorPrivacyProcessor,
     general_securestorage_processor::DistributorSecureStorageProcessor,
     general_session_processor::DistributorSessionProcessor,
-    general_token_processor::DistributorTokenProcessor
+    general_token_processor::DistributorTokenProcessor,
 };
 
 fn init_library() -> CExtnMetadata {
@@ -62,9 +62,7 @@ fn init_library() -> CExtnMetadata {
             RippleContract::Metrics,
             RippleContract::SessionToken,
             RippleContract::Discovery,
-            RippleContract::Entitlements,
             RippleContract::MediaEvents,
-            RippleContract::WatchHistory,
         ]),
         Version::new(1, 1, 0),
     );

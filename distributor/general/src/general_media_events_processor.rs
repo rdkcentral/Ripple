@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use ripple_sdk::{
-    api::distributor::distributor_discovery::{MediaEventRequest},
+    api::distributor::distributor_discovery::MediaEventRequest,
     async_trait::async_trait,
     extn::client::{
         extn_client::ExtnClient,
@@ -70,11 +70,15 @@ impl ExtnRequestProcessor for DistributorMediaEventProcessor {
     async fn process_request(
         state: Self::STATE,
         msg: ripple_sdk::extn::extn_client_message::ExtnMessage,
-        extracted_message: Self::VALUE,
+        _: Self::VALUE,
     ) -> bool {
-        match extracted_message {
-            MediaEventRequest::MediaEventAccountLink(_) => todo!(),
-        }
-        true
+        state
+            .clone()
+            .respond(
+                msg,
+                ripple_sdk::extn::extn_client_message::ExtnResponse::None(()),
+            )
+            .await
+            .is_ok()
     }
 }

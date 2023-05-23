@@ -19,8 +19,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     api::firebolt::fb_discovery::{
-        ClearContentSetParams, ContentAccessListSetParams,
-        MediaEventsAccountLinkRequestParams, SignInRequestParams
+        ClearContentSetParams, ContentAccessListSetParams, MediaEventsAccountLinkRequestParams,
+        SignInRequestParams,
     },
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
@@ -32,7 +32,7 @@ use super::distributor_request::DistributorRequest;
 pub enum DiscoveryRequest {
     SetContentAccess(ContentAccessListSetParams),
     ClearContent(ClearContentSetParams),
-    SignIn(SignInRequestParams)
+    SignIn(SignInRequestParams),
 }
 
 impl ExtnPayloadProvider for DiscoveryRequest {
@@ -95,4 +95,3 @@ impl ExtnPayloadProvider for MediaEventRequest {
         RippleContract::MediaEvents
     }
 }
-

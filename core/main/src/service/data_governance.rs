@@ -1,35 +1,20 @@
-use super::storage::{storage_manager::StorageManager, storage_property::StorageProperty};
-use crate::{
-    api::handlers::privacy_cloud::PrivacyCloud, helpers::error_util::RippleError,
-    platform_state::PlatformState,
+use ripple_sdk::{
+    api::{
+        distributor::distributor_privacy::{
+            DataEventType, ExclusionPolicy, ExclusionPolicyData, PrivacyRequest,
+        },
+        manifest::device_manifest::DataGovernancePolicy,
+        storage_property::StorageProperty,
+    },
+    log::{debug, info},
+    utils::error::RippleError,
 };
-use dpab::core::model::privacy::{DataEventType, ExclusionPolicy, ExclusionPolicyData};
-use jsonrpsee::core::RpcResult;
-use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::sync::{Arc, RwLock};
-use tracing::{debug, info};
 
-#[derive(Deserialize, Serialize, Debug, Clone, Default)]
-pub struct DataGovernanceConfig {
-    policies: Vec<DataGovernancePolicy>,
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct DataGovernancePolicy {
-    pub data_type: DataEventType,
-    pub setting_tags: Vec<DataGovernanceSettingTag>,
-    #[serde(default = "default_drop_on_all_tags")]
-    pub drop_on_all_tags: bool,
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct DataGovernanceSettingTag {
-    pub setting: StorageProperty,
-    #[serde(default = "default_enforcement_value")]
-    pub enforcement_value: bool,
-    pub tags: HashSet<String>,
-}
+use crate::{
+    processor::storage::storage_manager::StorageManager, state::platform_state::PlatformState,
+};
 
 pub fn default_enforcement_value() -> bool {
     false
@@ -68,21 +53,8 @@ impl DataGovernance {
     }
 
     fn get_local_exclusion_policy(state: &DataGovernanceState) -> Option<ExclusionPolicy> {
-        let mut result = None;
         let dg = state.exclusions.read().unwrap();
-        result = (*dg).clone();
-        return result;
-    }
-
-    pub fn get_policy(
-        config: DataGovernanceConfig,
-        data_type: DataEventType,
-    ) -> Option<DataGovernancePolicy> {
-        config
-            .policies
-            .iter()
-            .find(|p| p.data_type == data_type)
-            .cloned()
+        (*dg).clone()
     }
 
     pub async fn get_tags(
@@ -118,7 +90,7 @@ impl DataGovernance {
                 let tags_to_add = tag.tags.clone();
                 tags.extend(tags_to_add);
             } else {
-                let val = StorageManager::get_bool(state, tag.setting.clone(), true)
+                let val = StorageManager::get_bool(state, tag.setting.clone())
                     .await
                     .unwrap_or(false);
                 if val == tag.enforcement_value {
@@ -137,8 +109,12 @@ impl DataGovernance {
         app_id: String,
         data_type: DataEventType,
     ) -> (HashSet<String>, bool) {
-        let data_gov_cfg = platform_state.services.cm.get_data_governance_config();
-        let data_tags = match DataGovernance::get_policy(data_gov_cfg, data_type.clone()) {
+        let data_gov_cfg = platform_state
+            .get_device_manifest()
+            .configuration
+            .data_governance
+            .clone();
+        let data_tags = match data_gov_cfg.get_policy(data_type.clone()) {
             Some(policy) => {
                 let (t, all) =
                     DataGovernance::get_tags(platform_state, app_id, data_type, &policy).await;
@@ -156,27 +132,34 @@ impl DataGovernance {
     }
 
     pub async fn refresh_partner_exclusions(state: &PlatformState) -> bool {
-        let mut ret: bool = false;
-        let response: RpcResult<dpab::core::model::privacy::ExclusionPolicy> =
-            PrivacyCloud::get_partner_exclusions(state).await;
-        if response.is_ok() {
-            let excl = response.unwrap();
-            DataGovernance::update_local_exclusion_policy(&state.data_governance, excl.clone());
-            let result = serde_json::to_string(&excl);
-            // result.unwrap_or("");    // XXX: when server return 404 or empty string
-            if result.is_ok() {
-                let str_excl = result.unwrap();
-                let response = StorageManager::set_string(
-                    state,
-                    StorageProperty::PartnerExclusions,
-                    str_excl,
-                    None,
-                )
-                .await;
-                ret = true
+        if let Some(session) = state.session_state.get_account_session() {
+            if let Ok(response) = state
+                .get_client()
+                .send_extn_request(PrivacyRequest::GetPartnerExclusions(session))
+                .await
+            {
+                if let Some(excl) = response.payload.clone().extract::<ExclusionPolicy>() {
+                    DataGovernance::update_local_exclusion_policy(
+                        &state.data_governance,
+                        excl.clone(),
+                    );
+                    let result = serde_json::to_string(&excl);
+                    // result.unwrap_or("");    // XXX: when server return 404 or empty string
+                    if result.is_ok() {
+                        let str_excl = result.unwrap();
+                        return StorageManager::set_string(
+                            state,
+                            StorageProperty::PartnerExclusions,
+                            str_excl,
+                            None,
+                        )
+                        .await
+                        .is_ok();
+                    }
+                }
             }
         }
-        ret
+        false
     }
 
     pub async fn get_partner_exclusions(
@@ -244,4 +227,3 @@ impl DataGovernance {
         app_found
     }
 }
-

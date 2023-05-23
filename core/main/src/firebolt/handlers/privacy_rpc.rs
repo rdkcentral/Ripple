@@ -15,18 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::processor::storage::{
-    storage_manager::StorageManager,
-    storage_property::{
-        StorageProperty, EVENT_ALLOW_ACR_COLLECTION_CHANGED,
-        EVENT_ALLOW_APP_CONTENT_AD_TARGETING_CHANGED, EVENT_ALLOW_CAMERA_ANALYTICS_CHANGED,
-        EVENT_ALLOW_PERSONALIZATION_CHANGED, EVENT_ALLOW_PRIMARY_BROWSE_AD_TARGETING_CHANGED,
-        EVENT_ALLOW_PRIMARY_CONTENT_AD_TARGETING_CHANGED, EVENT_ALLOW_PRODUCT_ANALYTICS_CHANGED,
-        EVENT_ALLOW_REMOTE_DIAGNOSTICS_CHANGED, EVENT_ALLOW_RESUME_POINTS_CHANGED,
-        EVENT_ALLOW_UNENTITLED_PERSONALIZATION_CHANGED,
-        EVENT_ALLOW_UNENTITLED_RESUME_POINTS_CHANGED, EVENT_ALLOW_WATCH_HISTORY_CHANGED,
-    },
-};
+use crate::processor::storage::storage_manager::StorageManager;
 use crate::{
     firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManagerError,
     service::apps::app_events::AppEvents, state::platform_state::PlatformState,
@@ -49,6 +38,15 @@ use ripple_sdk::{
             fb_general::{ListenRequest, ListenerResponse},
         },
         gateway::rpc_gateway_api::CallContext,
+        storage_property::{
+            StorageProperty, EVENT_ALLOW_ACR_COLLECTION_CHANGED,
+            EVENT_ALLOW_APP_CONTENT_AD_TARGETING_CHANGED, EVENT_ALLOW_CAMERA_ANALYTICS_CHANGED,
+            EVENT_ALLOW_PERSONALIZATION_CHANGED, EVENT_ALLOW_PRIMARY_BROWSE_AD_TARGETING_CHANGED,
+            EVENT_ALLOW_PRIMARY_CONTENT_AD_TARGETING_CHANGED,
+            EVENT_ALLOW_PRODUCT_ANALYTICS_CHANGED, EVENT_ALLOW_REMOTE_DIAGNOSTICS_CHANGED,
+            EVENT_ALLOW_RESUME_POINTS_CHANGED, EVENT_ALLOW_UNENTITLED_PERSONALIZATION_CHANGED,
+            EVENT_ALLOW_UNENTITLED_RESUME_POINTS_CHANGED, EVENT_ALLOW_WATCH_HISTORY_CHANGED,
+        },
     },
     extn::extn_client_message::ExtnResponse,
     log::debug,

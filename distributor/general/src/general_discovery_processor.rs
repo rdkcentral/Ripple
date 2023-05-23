@@ -23,7 +23,6 @@ use ripple_sdk::{
             DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
         },
     },
-    log::error,
 };
 
 pub struct DistributorDiscoveryProcessor {
@@ -71,25 +70,15 @@ impl ExtnRequestProcessor for DistributorDiscoveryProcessor {
     async fn process_request(
         state: Self::STATE,
         msg: ripple_sdk::extn::extn_client_message::ExtnMessage,
-        extracted_message: Self::VALUE,
+        _: Self::VALUE,
     ) -> bool {
-        match extracted_message {
-            DiscoveryRequest::SetContentAccess(_) => {
-                if let Err(e) = state
-                    .clone()
-                    .respond(
-                        msg,
-                        ripple_sdk::extn::extn_client_message::ExtnResponse::Boolean(false),
-                    )
-                    .await
-                {
-                    error!("Error sending back response {:?}", e);
-                    return false;
-                }
-            }
-            DiscoveryRequest::ClearContent(_) => todo!(),
-            DiscoveryRequest::SignIn(_) => todo!()
-        }
-        true
+        state
+            .clone()
+            .respond(
+                msg,
+                ripple_sdk::extn::extn_client_message::ExtnResponse::None(()),
+            )
+            .await
+            .is_ok()
     }
 }

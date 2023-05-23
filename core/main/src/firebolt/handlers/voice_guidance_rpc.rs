@@ -16,10 +16,7 @@
 // limitations under the License.
 use crate::{
     firebolt::rpc::RippleRPCProvider,
-    processor::storage::{
-        storage_manager::StorageManager,
-        storage_property::{StorageProperty, EVENT_VOICE_GUIDANCE_SPEED_CHANGED},
-    },
+    processor::storage::storage_manager::StorageManager,
     service::apps::app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
     state::platform_state::PlatformState,
     utils::rpc_utils::{rpc_add_event_listener, rpc_err},
@@ -43,6 +40,7 @@ use ripple_sdk::{
         },
         firebolt::fb_general::{ListenRequest, ListenerResponse},
         gateway::rpc_gateway_api::CallContext,
+        storage_property::{StorageProperty, EVENT_VOICE_GUIDANCE_SPEED_CHANGED},
     },
     extn::extn_client_message::ExtnResponse,
     log::error,

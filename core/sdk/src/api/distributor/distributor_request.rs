@@ -17,9 +17,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    distributor_discovery::{
-        DiscoveryRequest, MediaEventRequest
-    },
+    distributor_discovery::{DiscoveryRequest, MediaEventRequest},
     distributor_permissions::PermissionRequest,
 };
 

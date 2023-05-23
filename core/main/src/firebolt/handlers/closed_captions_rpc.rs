@@ -17,18 +17,7 @@
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
-    processor::storage::{
-        storage_manager::StorageManager,
-        storage_property::{
-            StorageProperty, EVENT_CLOSED_CAPTIONS_BACKGROUND_COLOR,
-            EVENT_CLOSED_CAPTIONS_BACKGROUND_OPACITY, EVENT_CLOSED_CAPTIONS_ENABLED,
-            EVENT_CLOSED_CAPTIONS_FONT_COLOR, EVENT_CLOSED_CAPTIONS_FONT_EDGE,
-            EVENT_CLOSED_CAPTIONS_FONT_EDGE_COLOR, EVENT_CLOSED_CAPTIONS_FONT_FAMILY,
-            EVENT_CLOSED_CAPTIONS_FONT_OPACITY, EVENT_CLOSED_CAPTIONS_FONT_SIZE,
-            EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED, EVENT_CLOSED_CAPTIONS_TEXT_ALIGN,
-            EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL,
-        },
-    },
+    processor::storage::storage_manager::StorageManager,
     service::apps::app_events::{AppEventDecorationError, AppEventDecorator},
     state::platform_state::PlatformState,
     utils::rpc_utils::{rpc_add_event_listener, rpc_add_event_listener_with_decorator},
@@ -47,6 +36,15 @@ use ripple_sdk::api::{
     },
     firebolt::fb_general::{ListenRequest, ListenerResponse},
     gateway::rpc_gateway_api::CallContext,
+    storage_property::{
+        StorageProperty, EVENT_CLOSED_CAPTIONS_BACKGROUND_COLOR,
+        EVENT_CLOSED_CAPTIONS_BACKGROUND_OPACITY, EVENT_CLOSED_CAPTIONS_ENABLED,
+        EVENT_CLOSED_CAPTIONS_FONT_COLOR, EVENT_CLOSED_CAPTIONS_FONT_EDGE,
+        EVENT_CLOSED_CAPTIONS_FONT_EDGE_COLOR, EVENT_CLOSED_CAPTIONS_FONT_FAMILY,
+        EVENT_CLOSED_CAPTIONS_FONT_OPACITY, EVENT_CLOSED_CAPTIONS_FONT_SIZE,
+        EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED, EVENT_CLOSED_CAPTIONS_TEXT_ALIGN,
+        EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL,
+    },
 };
 use serde_json::Value;
 
