@@ -24,10 +24,11 @@ use crate::{
     state::platform_state::PlatformState,
     utils::rpc_utils::{rpc_add_event_listener, rpc_err},
 };
+
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
-    RpcModule,
+    RpcModule, types::error::CallError,
 };
 use ripple_sdk::{
     api::{
@@ -45,7 +46,7 @@ use ripple_sdk::{
         },
         firebolt::{
             fb_general::{ListenRequest, ListenerResponse},
-            fb_openrpc::FireboltSemanticVersion,
+            fb_openrpc::FireboltSemanticVersion, fb_capabilities::{CAPABILITY_NOT_AVAILABLE, FireboltCap},
         },
         gateway::rpc_gateway_api::CallContext,
         session::{AccountSessionRequest, ProvisionRequest},
@@ -57,6 +58,7 @@ use ripple_sdk::{
     log::error,
     uuid::Uuid,
 };
+
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
@@ -165,8 +167,8 @@ pub trait Device {
         ctx: CallContext,
         provision_request: ProvisionRequest,
     ) -> RpcResult<()>;
-    // #[method(name = "device.distributor")]
-    // async fn distributor(&self, ctx: CallContext) -> RpcResult<String>;
+    #[method(name = "device.distributor")]
+    async fn distributor(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "device.make")]
     async fn make(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "device.platform")]
@@ -709,9 +711,21 @@ impl DeviceServer for DeviceImpl {
         }
     }
 
-    // async fn distributor(&self, _ctx: CallContext) -> RpcResult<String> {
-    // TODO:device not provisioned
-    //}
+    async fn distributor(&self, _ctx: CallContext) -> RpcResult<String> {
+        let sess = self.state.session_state.get_account_session().unwrap();
+
+        match Some(sess.id) {
+            Some(resp) => Ok(resp),
+            None => Err(jsonrpsee::core::Error::Call(CallError::Custom {
+                code: CAPABILITY_NOT_AVAILABLE,
+                message: format!(
+                    "{} is not available",
+                    FireboltCap::Short(String::from("device:distributor")).as_str()
+                ),
+                data: None,
+            })),
+        }
+    }
 }
 
 pub struct DeviceRPCProvider;
