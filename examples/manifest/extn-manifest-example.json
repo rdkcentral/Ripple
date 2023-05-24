@@ -14,7 +14,8 @@
                         "device_info",
                         "window_manager",
                         "browser",
-                        "wifi"
+                        "wifi",
+                        "storage"
                     ]
                 }
             ]
@@ -74,7 +75,8 @@
         "advertising",
         "privacy_settings",
         "session_token",
-        "metrics"
+        "metrics",
+        "storage"
     ],
     "rpc_aliases": {
         "device.model": ["custom.model"]
