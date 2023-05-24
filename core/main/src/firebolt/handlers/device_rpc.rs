@@ -28,7 +28,8 @@ use crate::{
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
-    RpcModule, types::error::CallError,
+    types::error::CallError,
+    RpcModule,
 };
 use ripple_sdk::{
     api::{
@@ -45,8 +46,9 @@ use ripple_sdk::{
             device_storage::SetStringProperty,
         },
         firebolt::{
+            fb_capabilities::{FireboltCap, CAPABILITY_NOT_AVAILABLE},
             fb_general::{ListenRequest, ListenerResponse},
-            fb_openrpc::FireboltSemanticVersion, fb_capabilities::{CAPABILITY_NOT_AVAILABLE, FireboltCap},
+            fb_openrpc::FireboltSemanticVersion,
         },
         gateway::rpc_gateway_api::CallContext,
         session::{AccountSessionRequest, ProvisionRequest},
@@ -58,7 +60,6 @@ use ripple_sdk::{
     log::error,
     uuid::Uuid,
 };
-
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
