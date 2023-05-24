@@ -17,8 +17,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::fb_discovery::NavigationIntent;
-
+use crate::api::device::entertainment_data::NavigationIntent;
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct SecondScreenEvent {
     #[serde(rename = "type")]

@@ -29,9 +29,10 @@ use ripple_sdk::{
         device::{
             device_browser::{BrowserNameRequestParams, BrowserRequest},
             device_info_request::DeviceInfoRequest,
+            entertainment_data::{HomeIntent, NavigationIntent},
         },
         firebolt::{
-            fb_discovery::{DiscoveryContext, LaunchRequest, NavigationIntent},
+            fb_discovery::{DiscoveryContext, LaunchRequest},
             fb_lifecycle::LifecycleState,
             fb_lifecycle_management::{AppSessionRequest, LifecycleManagementRequest},
         },
@@ -286,14 +287,13 @@ impl AppLauncher {
         {
             // Only add the container if app is not launching to suspend and not launched due to
             // a pending provider request.
-            if !app.launch_params.suspend
-                && !app
-                    .current_intent
-                    .action
-                    .eq(NAVIGATION_INTENT_PROVIDER_REQUEST)
-            {
-                let props = app.container_props.clone();
-                ContainerManager::add(&state, props).await.ok();
+            if !app.launch_params.suspend {
+                if let NavigationIntent::ProviderRequest(_) = app.current_intent {
+                    // Do nothing if the current intent is a provider request
+                } else {
+                    let props = app.container_props.clone();
+                    ContainerManager::add(state, props).await.ok();
+                }
             }
             Self::check_retention_policy(state).await;
         } else if state_change.states.state == LifecycleState::Inactive {
@@ -483,15 +483,16 @@ impl AppLauncher {
                 // to inactive.
                 let iter_apps = state.app_launcher_state.get_apps();
                 for app in iter_apps {
-                    if app.container_props.view_id == props.view_id
-                        && app
-                            .current_intent
-                            .action
-                            .eq(NAVIGATION_INTENT_PROVIDER_REQUEST)
-                    {
-                        Self::set_state(state.clone(), props.name, LifecycleState::Inactive)
-                            .await
-                            .ok();
+                    if app.container_props.view_id == props.view_id {
+                        if let NavigationIntent::ProviderRequest(_) = app.current_intent {
+                            Self::set_state(state.clone(), props.name, LifecycleState::Inactive)
+                                .await
+                                .ok();
+                        } else {
+                            Self::set_state(state.clone(), props.name, LifecycleState::Background)
+                                .await
+                                .ok();
+                        }
                         break;
                     }
                 }
@@ -525,14 +526,13 @@ impl AppLauncher {
                 transport: Self::get_transport(manifest.start_page),
             }),
             launch: AppLaunchInfo {
-                intent: NavigationIntent {
-                    action: "home".into(),
+                intent: NavigationIntent::Home(HomeIntent {
                     context: DiscoveryContext {
                         source: "manifest".into(),
                     },
-                    data: None,
-                },
+                }),
                 second_screen: None,
+                inactive: false,
             },
         };
 
