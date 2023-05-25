@@ -24,7 +24,7 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         firebolt::{
-            fb_authentication::{AuthRequest, GetPlatformTokenParams, TokenRequest, TokenResult},
+            fb_authentication::{TokenRequest, TokenResult},
             fb_capabilities::{FireboltCap, CAPABILITY_NOT_AVAILABLE, CAPABILITY_NOT_SUPPORTED},
         },
         gateway::rpc_gateway_api::CallContext,
@@ -131,41 +131,27 @@ impl AuthenticationServer for AuthenticationImpl {
 
 impl AuthenticationImpl {
     async fn platform_token(&self, ctx: CallContext) -> RpcResult<TokenResult> {
-        let session = self
-            .platform_state
-            .session_state
-            .get_account_session()
-            .unwrap();
-
-        let payload = AuthRequest::GetPlatformToken(GetPlatformTokenParams {
-            app_id: ctx.app_id.clone(),
-            dist_session: session,
-            // content_provider: get_content_partner_id(&self.helper, &ctx)
-            //.await
-            //.unwrap_or(ctx.app_id.clone()),
-            content_provider: String::from("xumo"),
-            device_session_id: ctx.session_id.clone(),
-            // device_session_id: (&self.platform_state.device_session_id).into(),
-            app_session_id: ctx.session_id.clone(),
-        });
         let resp = self
             .platform_state
             .get_client()
-            .send_extn_request(payload)
+            .send_extn_request(SessionTokenRequest {
+                token_type: TokenType::Platform,
+                options: Vec::new(),
+                context: None,
+            })
             .await;
-
-        if let Err(_) = resp {
-            return Err(rpc_err("Failed to fetch token from distribution platform"));
-        }
 
         match resp {
             Ok(payload) => match payload.payload.extract().unwrap() {
                 ExtnResponse::Token(t) => Ok(TokenResult {
                     value: t.value,
                     expires: t.expires,
-                    _type: TokenType::Root,
+                    _type: TokenType::Platform,
                 }),
-                _ => Err(rpc_err("Distribution platform returned invalid format")),
+                e => Err(jsonrpsee::core::Error::Custom(String::from(format!(
+                    "unknown error getting platform token {:?}",
+                    e
+                )))),
             },
 
             Err(_e) => {

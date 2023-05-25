@@ -95,7 +95,11 @@
       "xrn:firebolt:capability:privacy:advertising",
       "xrn:firebolt:capability:metrics:general",
       "xrn:firebolt:capability:metrics:media",
-      "xrn:firebolt:capability:protocol:dial"
+      "xrn:firebolt:capability:protocol:dial",
+      "xrn:firebolt:capability:token:session",
+      "xrn:firebolt:capability:token:platform",
+      "xrn:firebolt:capability:token:device",
+      "xrn:firebolt:capability:token:root"
     ]
   },
   "lifecycle": {
