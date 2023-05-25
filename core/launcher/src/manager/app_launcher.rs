@@ -280,7 +280,7 @@ impl AppLauncher {
         let app = entry.unwrap();
         let app_id = app.container_props.name.clone();
 
-        ContainerManager::on_state_changed(&state, state_change.clone());
+        ContainerManager::on_state_changed(&state, state_change.clone()).await;
 
         if state_change.states.previous == LifecycleState::Initializing
             && state_change.states.state == LifecycleState::Inactive
