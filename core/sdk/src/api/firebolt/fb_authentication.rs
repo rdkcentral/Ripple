@@ -18,8 +18,8 @@ use jsonrpsee_core::Serialize;
 use serde::Deserialize;
 
 use crate::{
-    api::session::{AccountSession, TokenType},
-    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
+    api::session::TokenType,
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
 

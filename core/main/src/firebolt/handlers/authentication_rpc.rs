@@ -130,7 +130,7 @@ impl AuthenticationServer for AuthenticationImpl {
 }
 
 impl AuthenticationImpl {
-    async fn platform_token(&self, ctx: CallContext) -> RpcResult<TokenResult> {
+    async fn platform_token(&self, _ctx: CallContext) -> RpcResult<TokenResult> {
         let resp = self
             .platform_state
             .get_client()
