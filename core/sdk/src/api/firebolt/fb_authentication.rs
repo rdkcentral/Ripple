@@ -18,8 +18,8 @@ use jsonrpsee_core::Serialize;
 use serde::Deserialize;
 
 use crate::{
-    api::session::{AccountSession, TokenType},
-    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
+    api::session::TokenType,
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
 
@@ -57,40 +57,5 @@ impl ExtnPayloadProvider for TokenResult {
 
     fn contract() -> RippleContract {
         RippleContract::SessionToken
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum AuthRequest {
-    GetPlatformToken(GetPlatformTokenParams),
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GetPlatformTokenParams {
-    pub app_id: String,
-    pub content_provider: String,
-    pub device_session_id: String,
-    pub app_session_id: String,
-    pub dist_session: AccountSession,
-}
-
-impl ExtnPayloadProvider for AuthRequest {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::Auth(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<AuthRequest> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::Auth(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
-        }
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::Advertising
     }
 }

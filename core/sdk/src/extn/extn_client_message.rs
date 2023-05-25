@@ -37,7 +37,7 @@ use crate::{
         },
         firebolt::{
             fb_advertising::AdvertisingRequest,
-            fb_authentication::{AuthRequest, TokenResult},
+            fb_authentication::TokenResult,
             fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
             fb_lifecycle_management::LifecycleManagementRequest,
             fb_metrics::BehavioralMetricRequest,
@@ -248,7 +248,6 @@ pub enum ExtnRequest {
     SecureStorage(SecureStorageRequest),
     Advertising(AdvertisingRequest),
     PrivacySettings(PrivacyRequest),
-    Auth(AuthRequest),
     BehavioralMetric(BehavioralMetricRequest),
 }
 
