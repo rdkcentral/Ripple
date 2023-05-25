@@ -23,6 +23,7 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub enum StorageScope {
     Device,
     Account,

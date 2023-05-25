@@ -27,10 +27,11 @@ use crate::{
     utils::{channel_utils::oneshot_send_and_log, error::RippleError},
 };
 
-use super::firebolt::{
-    fb_discovery::{LaunchRequest, NavigationIntent},
-    fb_lifecycle::LifecycleState,
-    fb_parameters::SecondScreenEvent,
+use super::{
+    device::entertainment_data::NavigationIntent,
+    firebolt::{
+        fb_discovery::LaunchRequest, fb_lifecycle::LifecycleState, fb_parameters::SecondScreenEvent,
+    },
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -89,6 +90,8 @@ pub struct AppLaunchInfo {
     pub intent: NavigationIntent,
     #[serde(rename = "secondScreen")]
     pub second_screen: Option<SecondScreenEvent>,
+    #[serde(default = "bool::default")]
+    pub inactive: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

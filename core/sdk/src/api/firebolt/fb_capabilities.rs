@@ -197,6 +197,7 @@ pub struct CapabilityInfo {
     pub _use: RolePermission,
     pub manage: RolePermission,
     pub provide: RolePermission,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<Vec<DenyReason>>,
 }
 

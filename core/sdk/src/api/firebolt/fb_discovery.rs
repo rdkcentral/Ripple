@@ -18,10 +18,12 @@
 use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 use crate::{
-    api::{device::entertainment_data::ContentIdentifiers, session::AccountSession},
+    api::{
+        device::entertainment_data::{ContentIdentifiers, NavigationIntent},
+        session::AccountSession,
+    },
     utils::serde_utils::{optional_date_time_str_serde, progress_value_deserialize},
 };
 
@@ -41,33 +43,9 @@ impl DiscoveryContext {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct NavigationIntent {
-    pub action: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<Value>,
-    pub context: DiscoveryContext,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SectionIntentData {
     pub section_name: String,
-}
-
-impl Default for NavigationIntent {
-    fn default() -> NavigationIntent {
-        NavigationIntent {
-            action: "home".to_string(),
-            data: None,
-            context: DiscoveryContext::new("device"),
-        }
-    }
-}
-
-impl PartialEq for NavigationIntent {
-    fn eq(&self, other: &Self) -> bool {
-        self.action.eq(&other.action) && self.context.eq(&other.context)
-    }
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
@@ -79,22 +57,6 @@ pub struct LaunchRequest {
 }
 
 impl LaunchRequest {
-    pub fn new(
-        app_id: String,
-        action: String,
-        data: Option<Value>,
-        source: String,
-    ) -> LaunchRequest {
-        LaunchRequest {
-            app_id,
-            intent: Some(NavigationIntent {
-                action,
-                data,
-                context: DiscoveryContext { source },
-            }),
-        }
-    }
-
     pub fn get_intent(&self) -> NavigationIntent {
         self.intent.clone().unwrap_or_default()
     }

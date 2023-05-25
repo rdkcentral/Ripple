@@ -23,7 +23,7 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
-        firebolt::fb_discovery::NavigationIntent,
+        device::entertainment_data::NavigationIntent,
         gateway::rpc_gateway_api::CallContext,
     },
     tokio::sync::oneshot,

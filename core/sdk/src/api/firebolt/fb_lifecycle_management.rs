@@ -18,12 +18,15 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::apps::{AppSession, CloseReason},
+    api::{
+        apps::{AppSession, CloseReason},
+        device::entertainment_data::NavigationIntent,
+    },
     extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
 };
 
-use super::{fb_discovery::NavigationIntent, fb_lifecycle::LifecycleState};
+use super::fb_lifecycle::LifecycleState;
 
 pub const LCM_EVENT_ON_REQUEST_READY: &'static str = "lifecyclemanagement.onRequestReady";
 pub const LCM_EVENT_ON_REQUEST_CLOSE: &'static str = "lifecyclemanagement.onRequestClose";
