@@ -25,7 +25,6 @@ use ripple_sdk::api::{
     firebolt::fb_secure_storage::{
         GetRequest, RemoveRequest, SecureStorageGetRequest, SecureStorageRemoveRequest,
         SecureStorageRequest, SecureStorageResponse, SecureStorageSetRequest, SetRequest,
-        StorageSetOptions,
     },
     gateway::rpc_gateway_api::CallContext,
 };
@@ -81,9 +80,7 @@ impl SecureStorageServer for SecureStorageImpl {
             .send_extn_request(SecureStorageRequest::Set(SecureStorageSetRequest {
                 app_id: ctx.app_id,
                 value: request.value,
-                options: StorageSetOptions {
-                    ttl: request.options.ttl,
-                },
+                options: request.options,
                 scope: request.scope,
                 key: request.key,
                 distributor_session: self.state.session_state.get_account_session().unwrap(),

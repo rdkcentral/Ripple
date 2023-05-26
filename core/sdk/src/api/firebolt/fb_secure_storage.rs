@@ -28,10 +28,7 @@ pub enum StorageScope {
     Device,
     Account,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct StorageSetOptions {
-    pub ttl: i32,
-}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SecureStorageGetRequest {
     pub app_id: String,
@@ -46,7 +43,7 @@ pub struct SecureStorageSetRequest {
     pub scope: StorageScope,
     pub key: String,
     pub value: String,
-    pub options: StorageSetOptions,
+    pub options: Option<StorageOptions>,
     pub distributor_session: AccountSession,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -82,7 +79,8 @@ pub struct SetRequest {
     pub scope: StorageScope,
     pub key: String,
     pub value: String,
-    pub options: StorageOptions,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub options: Option<StorageOptions>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
