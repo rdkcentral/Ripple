@@ -59,8 +59,7 @@
         "xrn:firebolt:capability:lifecycle:launch",
         "xrn:firebolt:capability:discovery:sign-in-status",
         "xrn:firebolt:capability:profile:flags",
-        "xrn:firebolt:capability:advertising:identifier",
-        "xrn:firebolt:capability:device:distributor"
+        "xrn:firebolt:capability:advertising:identifier"
     ],
     "comcast_firebolt_reference" : [
         "xrn:firebolt:capability:input:keyboard",
@@ -174,7 +173,6 @@
         "xrn:firebolt:capability:lifecycle:launch",
         "xrn:fireπbolt:capability:discovery:sign-in-status",
         "xrn:firebolt:capability:profile:flags",
-        "xrn:firebolt:capability:advertising:identifier",
-        "xrn:firebolt:capability:device:distributor"
+        "xrn:firebolt:capability:advertising:identifier"
     ]
 }
