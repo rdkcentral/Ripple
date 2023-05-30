@@ -525,6 +525,7 @@ impl AppLauncher {
         state: &LauncherState,
         manifest: AppManifest,
         callsign: String,
+        intent: NavigationIntent,
     ) -> RippleResponse {
         let session = AppSession {
             app: AppBasicInfo {
@@ -538,11 +539,7 @@ impl AppLauncher {
                 transport: Self::get_transport(manifest.start_page),
             }),
             launch: AppLaunchInfo {
-                intent: NavigationIntent::Home(HomeIntent {
-                    context: DiscoveryContext {
-                        source: "manifest".into(),
-                    },
-                }),
+                intent,
                 second_screen: None,
                 inactive: false,
             },
@@ -599,7 +596,20 @@ impl AppLauncher {
                 return Err(AppError::NotSupported);
             };
 
-        if let Err(_) = Self::pre_launch(&state, app_manifest.clone(), callsign.clone()).await {
+        let intent = request.intent.unwrap_or(NavigationIntent::Home(HomeIntent {
+            context: DiscoveryContext {
+                source: "device".into(),
+            },
+        }));
+
+        if let Err(_) = Self::pre_launch(
+            &state,
+            app_manifest.clone(),
+            callsign.clone(),
+            intent.clone(),
+        )
+        .await
+        {
             return Err(AppError::IoError);
         }
 
@@ -629,8 +639,6 @@ impl AppLauncher {
             .always_retained
             .iter()
             .find(|app_id| request.app_id.eq(*app_id));
-
-        let intent = request.get_intent();
 
         let mut app = App {
             manifest: app_manifest.clone(),
