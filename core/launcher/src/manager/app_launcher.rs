@@ -34,7 +34,9 @@ use ripple_sdk::{
         firebolt::{
             fb_discovery::{DiscoveryContext, LaunchRequest},
             fb_lifecycle::LifecycleState,
-            fb_lifecycle_management::{AppSessionRequest, LifecycleManagementRequest},
+            fb_lifecycle_management::{
+                AppSessionRequest, LifecycleManagementRequest, SetStateRequest,
+            },
         },
         manifest::{app_library::AppLibrary, apps::AppManifest, device_manifest::RetentionPolicy},
     },
@@ -246,8 +248,18 @@ impl AppLauncher {
                         "previous".into(),
                         Value::String(previous_state.as_string().into()),
                     );
+                    let app_id = app.app_id.clone();
 
                     // Call Set State Request for Extn Sender
+                    if let Err(e) = state
+                        .send_extn_request(LifecycleManagementRequest::SetState(SetStateRequest {
+                            app_id,
+                            state: lc_state.clone(),
+                        }))
+                        .await
+                    {
+                        error!("Error while setting state {:?}", e);
+                    }
 
                     let state_change = StateChangeInternal {
                         states: StateChange {

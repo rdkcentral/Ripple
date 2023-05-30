@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 // If not stated otherwise in this file or this component's license file the
 // following copyright and licenses apply:
 //
@@ -16,6 +18,7 @@
 // limitations under the License.
 use crate::{
     firebolt::rpc::RippleRPCProvider,
+    service::user_grants::GrantState,
     state::{
         cap::{cap_state::CapState, permitted_state::PermissionHandler},
         platform_state::PlatformState,
@@ -25,9 +28,11 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
 use ripple_sdk::api::{
     firebolt::{
         fb_capabilities::{
-            CapEvent, CapInfoRpcRequest, CapListenRPCRequest, CapabilityInfo, FireboltCap, RoleInfo,
+            CapEvent, CapInfoRpcRequest, CapListenRPCRequest, CapRequestRpcRequest, CapabilityInfo,
+            CapabilityRole, DenyReason, FireboltCap, RoleInfo,
         },
         fb_general::ListenerResponse,
+        fb_openrpc::CapabilitySet,
     },
     gateway::rpc_gateway_api::CallContext,
 };
@@ -73,6 +78,12 @@ pub trait Capability {
         ctx: CallContext,
         cap: CapListenRPCRequest,
     ) -> RpcResult<ListenerResponse>;
+    #[method(name = "capabilities.request")]
+    async fn request(
+        &self,
+        ctx: CallContext,
+        grants: CapRequestRpcRequest,
+    ) -> RpcResult<Vec<CapabilityInfo>>;
 }
 
 pub struct CapabilityImpl {
@@ -153,7 +164,14 @@ impl CapabilityServer for CapabilityImpl {
         ctx: CallContext,
         request: CapInfoRpcRequest,
     ) -> RpcResult<Vec<CapabilityInfo>> {
-        if let Ok(a) = CapState::get_cap_info(&self.state, ctx, request.capabilities, None).await {
+        let mut caps = Vec::new();
+        for cap in request.capabilities {
+            if let Some(firebolt_cap) = FireboltCap::parse(cap) {
+                caps.push(firebolt_cap);
+            }
+        }
+        let cap_set = CapabilitySet::get_from_role(caps, Some(CapabilityRole::Use));
+        if let Ok(a) = CapState::get_cap_info(&self.state, ctx, cap_set).await {
             Ok(a)
         } else {
             Err(jsonrpsee::core::Error::Custom(String::from(
@@ -196,6 +214,65 @@ impl CapabilityServer for CapabilityImpl {
     ) -> RpcResult<ListenerResponse> {
         self.on_request_cap_event(ctx, cap, CapEvent::OnRevoked)
             .await
+    }
+
+    async fn request(
+        &self,
+        ctx: CallContext,
+        grants: CapRequestRpcRequest,
+    ) -> RpcResult<Vec<CapabilityInfo>> {
+        let request = grants.clone().into();
+        if let Ok(mut result) = CapState::get_cap_info(&self.state, ctx.clone(), request).await {
+            // filter out Ungranted
+            let caps: Vec<String> = result
+                .clone()
+                .into_iter()
+                .filter(|x| {
+                    x.details.is_some()
+                        && x.details.clone().unwrap().contains(&DenyReason::Ungranted)
+                })
+                .map(|x| x.capability.clone())
+                .collect();
+            let grants: Vec<RoleInfo> = grants
+                .grants
+                .into_iter()
+                .filter(|x| caps.contains(&x.capability))
+                .collect();
+            if grants.len() == 0 {
+                return Ok(result);
+            }
+
+            let mut cap_role = HashMap::new();
+            for role_info in grants.clone() {
+                cap_role.insert(
+                    role_info.capability.clone(),
+                    role_info.role.unwrap_or(CapabilityRole::Use),
+                );
+            }
+
+            let ungranted_set = CapRequestRpcRequest { grants }.into();
+            let mut grant_denied_caps: Vec<String> = Vec::new();
+            if let Err(e) =
+                GrantState::check_with_roles(&self.state, &ctx, ungranted_set, false).await
+            {
+                for cap in e.caps {
+                    grant_denied_caps.push(cap.as_str());
+                }
+            }
+
+            for info in result.iter_mut() {
+                let capability = info.capability.clone();
+                if let Some(role) = cap_role.get(&capability) {
+                    info.update_ungranted(role, grant_denied_caps.contains(&capability));
+                }
+            }
+
+            return Ok(result);
+        }
+
+        Err(jsonrpsee::core::Error::Custom(String::from(
+            "Error retreiving Capability Info TBD",
+        )))
     }
 }
 

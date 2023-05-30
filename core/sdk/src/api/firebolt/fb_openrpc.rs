@@ -20,7 +20,8 @@ use log::{debug, warn};
 use serde::{Deserialize, Serialize};
 
 use super::fb_capabilities::{
-    CapabilityRole, DenyReason, DenyReasonWithCap, FireboltCap, FireboltPermission,
+    CapRequestRpcRequest, CapabilityRole, DenyReason, DenyReasonWithCap, FireboltCap,
+    FireboltPermission,
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -319,6 +320,46 @@ pub struct CapabilitySet {
     pub manage_caps: Option<Vec<FireboltCap>>,
 }
 
+impl From<CapRequestRpcRequest> for CapabilitySet {
+    fn from(c: CapRequestRpcRequest) -> Self {
+        let mut use_caps_vec = Vec::new();
+        let mut provide_cap = None;
+        let mut manage_caps_vec = Vec::new();
+
+        for cap in c.grants {
+            if let Some(capability) = FireboltCap::parse(cap.clone().capability) {
+                if let Some(role) = cap.clone().role {
+                    match role {
+                        CapabilityRole::Use => use_caps_vec.push(capability),
+                        CapabilityRole::Provide => {
+                            let _ = provide_cap.insert(capability);
+                        }
+                        CapabilityRole::Manage => manage_caps_vec.push(capability),
+                    }
+                }
+            }
+        }
+
+        let use_caps = if use_caps_vec.len() > 0 {
+            Some(use_caps_vec)
+        } else {
+            None
+        };
+
+        let manage_caps = if manage_caps_vec.len() > 0 {
+            Some(manage_caps_vec)
+        } else {
+            None
+        };
+
+        CapabilitySet {
+            use_caps,
+            provide_cap,
+            manage_caps,
+        }
+    }
+}
+
 impl From<Vec<FireboltPermission>> for CapabilitySet {
     fn from(permissions: Vec<FireboltPermission>) -> Self {
         let mut use_caps = Vec::new();
@@ -381,17 +422,17 @@ impl CapabilitySet {
     }
 
     /// TODO: Make this more role driven in future
-    pub fn get_caps(self) -> Vec<FireboltCap> {
+    pub fn get_caps(&self) -> Vec<FireboltCap> {
         let mut caps = HashSet::new();
-        if let Some(c) = self.use_caps {
+        if let Some(c) = self.use_caps.clone() {
             c.into_iter().for_each(|x| {
                 caps.insert(x);
             });
         }
-        if let Some(c) = self.provide_cap {
+        if let Some(c) = self.provide_cap.clone() {
             caps.insert(c);
         }
-        if let Some(c) = self.manage_caps {
+        if let Some(c) = self.manage_caps.clone() {
             c.into_iter().for_each(|x| {
                 caps.insert(x);
             });

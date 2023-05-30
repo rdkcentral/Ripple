@@ -226,6 +226,9 @@ impl CapabilityInfo {
                 DenyReason::Ungranted => {
                     granted = false;
                 }
+                DenyReason::GrantDenied => {
+                    granted = false;
+                }
                 _ => {}
             }
         }
@@ -237,6 +240,26 @@ impl CapabilityInfo {
             manage: RolePermission::get(permitted, granted),
             provide: RolePermission::get(permitted, granted),
             details,
+        }
+    }
+
+    pub fn update_ungranted(&mut self, role: &CapabilityRole, granted: bool) {
+        if let Some(details) = self.details.as_mut() {
+            if let Some(index) = details.iter().position(|x| x == &DenyReason::Ungranted) {
+                details.remove(index);
+                if !granted {
+                    details.push(DenyReason::GrantDenied)
+                } else {
+                    match role {
+                        CapabilityRole::Use => self._use.granted = granted,
+                        CapabilityRole::Manage => self.manage.granted = granted,
+                        CapabilityRole::Provide => self.provide.granted = granted,
+                    }
+                }
+            }
+            if details.len() == 0 {
+                self.details = None;
+            }
         }
     }
 }
