@@ -290,6 +290,7 @@ impl GrantState {
         state: &PlatformState,
         call_ctx: &CallContext,
         r: CapabilitySet,
+        fail_on_first_error: bool,
     ) -> Result<(), DenyReasonWithCap> {
         /*
          * Instead of just checking for grants previously, if the user grants are not present,
@@ -316,12 +317,15 @@ impl GrantState {
                     }
                 }
                 GrantActiveState::PendingGrant => {
-                    let _result = GrantPolicyEnforcer::determine_grant_policies_for_permission(
+                    let result = GrantPolicyEnforcer::determine_grant_policies_for_permission(
                         &state,
                         &call_ctx,
                         &permission,
                     )
-                    .await?;
+                    .await;
+                    if fail_on_first_error && result.is_err() {
+                        return result;
+                    }
                 }
             }
         }

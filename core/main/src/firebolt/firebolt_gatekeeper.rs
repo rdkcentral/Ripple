@@ -57,7 +57,8 @@ impl FireboltGatekeeper {
             } else {
                 debug!("check_permitted for method ({}) succeded", request.method);
                 //usergrants check
-                if let Err(e) = GrantState::check_with_roles(&state, &request.ctx, caps).await {
+                if let Err(e) = GrantState::check_with_roles(&state, &request.ctx, caps, true).await
+                {
                     debug!(
                         "check_with_roles for method ({}) failed. Error: {:?}",
                         request.method, e

@@ -242,7 +242,9 @@ impl CapabilityServer for CapabilityImpl {
 
             let ungranted_set = CapRequestRpcRequest { grants }.into();
             let mut grant_denied_caps: Vec<String> = Vec::new();
-            if let Err(e) = GrantState::check_with_roles(&self.state, &ctx, ungranted_set).await {
+            if let Err(e) =
+                GrantState::check_with_roles(&self.state, &ctx, ungranted_set, false).await
+            {
                 for cap in e.caps {
                     grant_denied_caps.push(cap.as_str());
                 }
