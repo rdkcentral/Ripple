@@ -290,6 +290,7 @@ impl GrantState {
         state: &PlatformState,
         call_ctx: &CallContext,
         r: CapabilitySet,
+        fail_on_first_error: bool,
     ) -> Result<(), DenyReasonWithCap> {
         /*
          * Instead of just checking for grants previously, if the user grants are not present,
@@ -304,6 +305,7 @@ impl GrantState {
             .into_iter()
             .filter(|x| caps_needing_grants.contains(&x.cap.as_str()))
             .collect();
+        let mut denied_caps = Vec::new();
         for permission in caps_needing_grant_in_request {
             let result = grant_state.get_grant_state(&app_id, &permission);
             match result {
@@ -316,14 +318,28 @@ impl GrantState {
                     }
                 }
                 GrantActiveState::PendingGrant => {
-                    let _result = GrantPolicyEnforcer::determine_grant_policies_for_permission(
+                    let result = GrantPolicyEnforcer::determine_grant_policies_for_permission(
                         &state,
                         &call_ctx,
                         &permission,
                     )
-                    .await?;
+                    .await;
+                    if result.is_err() {
+                        if fail_on_first_error {
+                            return result;
+                        } else {
+                            denied_caps.push(permission.cap.clone())
+                        }
+                    }
                 }
             }
+        }
+
+        if denied_caps.len() > 0 {
+            return Err(DenyReasonWithCap {
+                reason: DenyReason::GrantDenied,
+                caps: denied_caps,
+            });
         }
 
         Ok(())

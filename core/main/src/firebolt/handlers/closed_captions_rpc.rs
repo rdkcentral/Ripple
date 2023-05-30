@@ -92,7 +92,7 @@ impl AppEventDecorator for CCEventDecorator {
 
 #[rpc(server)]
 pub trait Closedcaptions {
-    #[method(name = "accessibility.closedCaptionsSettings")]
+    #[method(name = "accessibility.closedCaptionsSettings", aliases = ["accessibility.closedCaptions"])]
     async fn closed_captions_settings(
         &self,
         _ctx: CallContext,

@@ -184,8 +184,14 @@ impl CapState {
                         continue;
                     }
                 }
+                let caps = vec![cap.clone()];
+                let request = CapabilitySet::get_from_role(
+                    caps,
+                    Some(role.clone().unwrap_or(CapabilityRole::Use)),
+                );
+
                 // Step 3: Get Capability info for each app based on context available in listener
-                if let Ok(r) = Self::get_cap_info(ps, cc, vec![f.clone()], role.clone()).await {
+                if let Ok(r) = Self::get_cap_info(ps, cc, request).await {
                     if let Some(cap_info) = r.get(0) {
                         if let Ok(data) = serde_json::to_value(cap_info) {
                             // Step 4: Send exclusive cap info data for each listener
@@ -200,11 +206,10 @@ impl CapState {
     pub async fn get_cap_info(
         state: &PlatformState,
         call_context: CallContext,
-        caps: Vec<String>,
-        role: Option<CapabilityRole>,
+        cap_set: CapabilitySet,
     ) -> Result<Vec<CapabilityInfo>, RippleError> {
         let mut unsupported_caps = Vec::new();
-        let generic_caps = FireboltCap::from_vec_string(caps.clone());
+        let generic_caps = cap_set.clone().get_caps();
         if let Err(e) = GenericCapState::check_supported(&state.cap_state.generic, &generic_caps) {
             unsupported_caps.extend(e.caps);
         }
@@ -215,11 +220,15 @@ impl CapState {
         }
 
         let mut unpermitted_caps = Vec::new();
-        let cap_set = CapabilitySet::get_from_role(generic_caps.clone(), role);
         if let Err(e) =
-            PermissionHandler::check_permitted(state, &call_context.app_id, cap_set).await
+            PermissionHandler::check_permitted(state, &call_context.app_id, cap_set.clone()).await
         {
             unpermitted_caps.extend(e.caps);
+        }
+
+        let mut grant_errors = None;
+        if let Err(e) = GrantState::get_info(state, &call_context, cap_set) {
+            let _ = grant_errors.insert(e);
         }
 
         let cap_infos: Vec<CapabilityInfo> = generic_caps
@@ -234,6 +243,15 @@ impl CapState {
                 } else if unpermitted_caps.contains(&x) {
                     // Un Permitted
                     Some(DenyReason::Unpermitted)
+                } else if let Some(g) = &grant_errors {
+                    if g.ungranted.contains(&x) {
+                        Some(DenyReason::Ungranted)
+                    } else if g.denied.contains(&x) {
+                        // Grant denied
+                        Some(DenyReason::GrantDenied)
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 };

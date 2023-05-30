@@ -34,7 +34,9 @@ use ripple_sdk::{
         firebolt::{
             fb_discovery::{DiscoveryContext, LaunchRequest},
             fb_lifecycle::LifecycleState,
-            fb_lifecycle_management::{AppSessionRequest, LifecycleManagementRequest},
+            fb_lifecycle_management::{
+                AppSessionRequest, LifecycleManagementRequest, SetStateRequest,
+            },
         },
         manifest::{app_library::AppLibrary, apps::AppManifest, device_manifest::RetentionPolicy},
     },
@@ -246,8 +248,18 @@ impl AppLauncher {
                         "previous".into(),
                         Value::String(previous_state.as_string().into()),
                     );
+                    let app_id = app.app_id.clone();
 
                     // Call Set State Request for Extn Sender
+                    if let Err(e) = state
+                        .send_extn_request(LifecycleManagementRequest::SetState(SetStateRequest {
+                            app_id,
+                            state: lc_state.clone(),
+                        }))
+                        .await
+                    {
+                        error!("Error while setting state {:?}", e);
+                    }
 
                     let state_change = StateChangeInternal {
                         states: StateChange {
@@ -513,6 +525,7 @@ impl AppLauncher {
         state: &LauncherState,
         manifest: AppManifest,
         callsign: String,
+        intent: NavigationIntent,
     ) -> RippleResponse {
         let session = AppSession {
             app: AppBasicInfo {
@@ -526,11 +539,7 @@ impl AppLauncher {
                 transport: Self::get_transport(manifest.start_page),
             }),
             launch: AppLaunchInfo {
-                intent: NavigationIntent::Home(HomeIntent {
-                    context: DiscoveryContext {
-                        source: "manifest".into(),
-                    },
-                }),
+                intent,
                 second_screen: None,
                 inactive: false,
             },
@@ -587,7 +596,20 @@ impl AppLauncher {
                 return Err(AppError::NotSupported);
             };
 
-        if let Err(_) = Self::pre_launch(&state, app_manifest.clone(), callsign.clone()).await {
+        let intent = request.intent.unwrap_or(NavigationIntent::Home(HomeIntent {
+            context: DiscoveryContext {
+                source: "device".into(),
+            },
+        }));
+
+        if let Err(_) = Self::pre_launch(
+            &state,
+            app_manifest.clone(),
+            callsign.clone(),
+            intent.clone(),
+        )
+        .await
+        {
             return Err(AppError::IoError);
         }
 
@@ -617,8 +639,6 @@ impl AppLauncher {
             .always_retained
             .iter()
             .find(|app_id| request.app_id.eq(*app_id));
-
-        let intent = request.get_intent();
 
         let mut app = App {
             manifest: app_manifest.clone(),
