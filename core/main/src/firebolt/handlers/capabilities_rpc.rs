@@ -261,6 +261,8 @@ impl CapabilityServer for CapabilityImpl {
                     }
                 }
             }
+
+            return Ok(result);
         }
 
         Err(jsonrpsee::core::Error::Custom(String::from(
