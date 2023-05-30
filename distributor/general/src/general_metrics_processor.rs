@@ -142,6 +142,15 @@ impl ExtnRequestProcessor for DistributorMetricsProcessor {
             BehavioralMetricRequest::MediaEnded(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
+            BehavioralMetricRequest::TelemetrySignIn(_) => {
+                mock_metrics_response(state, msg, extracted_message).await
+            }
+            BehavioralMetricRequest::TelemetrySignOut(_) => {
+                mock_metrics_response(state, msg, extracted_message).await
+            }
+            BehavioralMetricRequest::TelemetryInternalInitialize(_) => {
+                mock_metrics_response(state, msg, extracted_message).await
+            }
         }
     }
 }

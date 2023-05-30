@@ -26,6 +26,8 @@ use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
+
+use super::fb_telemetry;
 //https://developer.comcast.com/firebolt/core/sdk/latest/api/metrics
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -44,6 +46,18 @@ impl From<CallContext> for BehavioralMetricContext {
             partner_id: call_context.session_id,
         }
     }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct InternalInitializeParams {
+    pub name: String,
+    pub value: Version,
+}
+
+#[derive(Deserialize, Debug, Clone, Serialize)]
+pub struct InternalInitializeResponse {
+    pub name: String,
+    pub value: SemanticVersion,
 }
 
 #[async_trait]
@@ -131,6 +145,26 @@ pub struct Action {
     pub _type: String,
     pub parameters: Vec<Param>,
 }
+
+#[derive(Deserialize, Debug, Clone, Serialize)]
+pub struct SemanticVersion {
+    pub version: Version,
+}
+
+#[derive(Deserialize, Debug, Clone, Serialize, PartialEq)]
+pub struct Version {
+    pub major: i8,
+    pub minor: i8,
+    pub patch: i8,
+    pub readable: String,
+}
+
+impl std::fmt::Display for Version {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "foo")
+    }
+}
+
 #[allow(non_camel_case_types)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ErrorType {
@@ -236,6 +270,9 @@ pub enum BehavioralMetricRequest {
     MediaRateChanged(MediaRateChanged),
     MediaRenditionChanged(MediaRenditionChanged),
     MediaEnded(MediaEnded),
+    TelemetrySignIn(fb_telemetry::SignIn),
+    TelemetrySignOut(fb_telemetry::SignOut),
+    TelemetryInternalInitialize(fb_telemetry::InternalInitialize),
 }
 
 impl ExtnPayloadProvider for BehavioralMetricRequest {
