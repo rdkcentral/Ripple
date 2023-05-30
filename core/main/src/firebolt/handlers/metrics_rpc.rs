@@ -29,11 +29,13 @@ use ripple_sdk::{
             fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
             fb_metrics::{
                 self, hashmap_to_param_vec, Action, BehavioralMetricContext,
-                BehavioralMetricRequest, CategoryType, ErrorType, MediaEnded, MediaLoadStart,
-                MediaPause, MediaPlay, MediaPlaying, MediaPositionType, MediaProgress,
-                MediaRateChanged, MediaRenditionChanged, MediaSeeked, MediaSeeking, MediaWaiting,
-                MetricsError, Page, Param, StartContent, StopContent,
+                BehavioralMetricRequest, CategoryType, ErrorType, InternalInitializeParams,
+                InternalInitializeResponse, MediaEnded, MediaLoadStart, MediaPause, MediaPlay,
+                MediaPlaying, MediaPositionType, MediaProgress, MediaRateChanged,
+                MediaRenditionChanged, MediaSeeked, MediaSeeking, MediaWaiting, MetricsError, Page,
+                Param, StartContent, StopContent, Version,
             },
+            fb_telemetry::{self},
         },
         gateway::rpc_gateway_api::CallContext,
     },
@@ -46,6 +48,8 @@ use crate::{
     firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState,
     utils::rpc_utils::rpc_err,
 };
+
+use ripple_sdk::api::firebolt::fb_metrics::SemanticVersion;
 
 //const LAUNCH_COMPLETED_SEGMENT: &'static str = "LAUNCH_COMPLETED";
 
@@ -217,6 +221,16 @@ pub trait Metrics {
     async fn error(&self, ctx: CallContext, error_params: ErrorParams) -> RpcResult<bool>;
     #[method(name = "metrics.ready")]
     async fn ready(&self, ctx: CallContext) -> RpcResult<bool>;
+    #[method(name = "metrics.signin")]
+    async fn sign_in(&self, ctx: CallContext) -> RpcResult<bool>;
+    #[method(name = "metrics.signout")]
+    async fn sign_out(&self, ctx: CallContext) -> RpcResult<bool>;
+    #[method(name = "internal.initialize")]
+    async fn internal_initialize(
+        &self,
+        ctx: CallContext,
+        internal_initialize_params: InternalInitializeParams,
+    ) -> RpcResult<InternalInitializeResponse>;
     #[method(name = "metrics.mediaLoadStart")]
     async fn media_load_start(
         &self,
@@ -422,6 +436,70 @@ impl MetricsServer for MetricsImpl {
             Ok(_) => Ok(true),
             Err(_) => Err(rpc_err("parse error").into()),
         }
+    }
+    async fn sign_in(&self, ctx: CallContext) -> RpcResult<bool> {
+        let data = fb_telemetry::SignIn {
+            app_id: ctx.app_id,
+            ripple_session_id: ctx.session_id.clone(),
+            app_session_id: Some(ctx.session_id),
+        };
+        trace!("metrics.action = {:?}", data);
+        Ok(self
+            .state
+            .get_client()
+            .send_extn_request(BehavioralMetricRequest::TelemetrySignIn(data))
+            .await
+            .is_ok())
+    }
+
+    async fn sign_out(&self, ctx: CallContext) -> RpcResult<bool> {
+        let data = fb_telemetry::SignOut {
+            app_id: ctx.app_id,
+            ripple_session_id: ctx.session_id.clone(),
+            app_session_id: Some(ctx.session_id),
+        };
+        trace!("metrics.action = {:?}", data);
+        Ok(self
+            .state
+            .get_client()
+            .send_extn_request(BehavioralMetricRequest::TelemetrySignOut(data))
+            .await
+            .is_ok())
+    }
+
+    async fn internal_initialize(
+        &self,
+        ctx: CallContext,
+        internal_initialize_params: InternalInitializeParams,
+    ) -> RpcResult<InternalInitializeResponse> {
+        let data = fb_telemetry::InternalInitialize {
+            app_id: ctx.app_id,
+            ripple_session_id: ctx.session_id.clone(),
+            app_session_id: Some(ctx.session_id),
+            semantic_version: internal_initialize_params.value.to_string(),
+        };
+        trace!("metrics.action = {:?}", data);
+        let _ = self
+            .state
+            .get_client()
+            .send_extn_request(BehavioralMetricRequest::TelemetryInternalInitialize(data))
+            .await;
+        let readable_result = internal_initialize_params
+            .value
+            .readable
+            .replace("SDK", "FEE");
+        let internal_initialize_resp = Version {
+            major: internal_initialize_params.value.major,
+            minor: internal_initialize_params.value.minor,
+            patch: internal_initialize_params.value.patch,
+            readable: readable_result,
+        };
+        Ok(InternalInitializeResponse {
+            name: String::from("Default Result"),
+            value: SemanticVersion {
+                version: internal_initialize_resp,
+            },
+        })
     }
     async fn media_load_start(
         &self,

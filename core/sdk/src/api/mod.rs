@@ -51,6 +51,7 @@ pub mod firebolt {
     pub mod fb_pin;
     pub mod fb_secondscreen;
     pub mod fb_secure_storage;
+    pub mod fb_telemetry;
     pub mod fb_user_grants;
     pub mod provider;
 }
