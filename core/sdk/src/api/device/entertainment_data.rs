@@ -538,6 +538,7 @@ impl Default for ChannelEntityType {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ChannelEntity {
     pub entity_type: ChannelEntityType,
     pub channel_type: ChannelType,
