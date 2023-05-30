@@ -243,10 +243,10 @@ impl CapabilityServer for CapabilityImpl {
             }
 
             let mut cap_role = HashMap::new();
-            for role_info in grants.clone() {
+            for role_info in &grants {
                 cap_role.insert(
                     role_info.capability.clone(),
-                    role_info.role.unwrap_or(CapabilityRole::Use),
+                    role_info.role.clone().unwrap_or(CapabilityRole::Use),
                 );
             }
 
