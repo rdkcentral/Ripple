@@ -444,10 +444,12 @@ impl MetricsServer for MetricsImpl {
             app_session_id: Some(ctx.session_id),
         };
         trace!("metrics.action = {:?}", data);
-        Ok(self.state
+        Ok(self
+            .state
             .get_client()
             .send_extn_request(BehavioralMetricRequest::TelemetrySignIn(data))
-            .await.is_ok())
+            .await
+            .is_ok())
     }
 
     async fn sign_out(&self, ctx: CallContext) -> RpcResult<bool> {
@@ -457,10 +459,12 @@ impl MetricsServer for MetricsImpl {
             app_session_id: Some(ctx.session_id),
         };
         trace!("metrics.action = {:?}", data);
-        Ok(self.state
+        Ok(self
+            .state
             .get_client()
             .send_extn_request(BehavioralMetricRequest::TelemetrySignOut(data))
-            .await.is_ok())
+            .await
+            .is_ok())
     }
 
     async fn internal_initialize(
@@ -475,7 +479,8 @@ impl MetricsServer for MetricsImpl {
             semantic_version: internal_initialize_params.value.to_string(),
         };
         trace!("metrics.action = {:?}", data);
-        let _ = self.state
+        let _ = self
+            .state
             .get_client()
             .send_extn_request(BehavioralMetricRequest::TelemetryInternalInitialize(data))
             .await;
