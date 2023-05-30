@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 // If not stated otherwise in this file or this component's license file the
 // following copyright and licenses apply:
 //
@@ -240,6 +242,14 @@ impl CapabilityServer for CapabilityImpl {
                 return Ok(result);
             }
 
+            let mut cap_role = HashMap::new();
+            for role_info in grants.clone() {
+                cap_role.insert(
+                    role_info.capability.clone(),
+                    role_info.role.unwrap_or(CapabilityRole::Use),
+                );
+            }
+
             let ungranted_set = CapRequestRpcRequest { grants }.into();
             let mut grant_denied_caps: Vec<String> = Vec::new();
             if let Err(e) =
@@ -251,16 +261,9 @@ impl CapabilityServer for CapabilityImpl {
             }
 
             for info in result.iter_mut() {
-                if let Some(details) = info.details.as_mut() {
-                    if let Some(index) = details.iter().position(|x| x == &DenyReason::Ungranted) {
-                        details.remove(index);
-                        if grant_denied_caps.contains(&info.capability) {
-                            details.push(DenyReason::GrantDenied)
-                        }
-                    }
-                    if details.len() == 0 {
-                        info.details = None;
-                    }
+                let capability = info.capability.clone();
+                if let Some(role) = cap_role.get(&capability) {
+                    info.update_ungranted(role, grant_denied_caps.contains(&capability));
                 }
             }
 
