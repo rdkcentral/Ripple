@@ -19,20 +19,49 @@ use crate::utils::error::RippleError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// Ripple Contract is the building block of Ripple Extension ecosystem.
+/// A concrete unit of work expected to be available through extensions.
+/// These contracts are not bound to a particular ExtnClass or ExtnType. Depending on a distributor implementation this contract can be fulfilled from
+/// a. Device Extn
+/// b. Distributor Extn/Channel
+/// c. Combination of a Device + Distributor Extensions
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RippleContract {
+    /// Used by Main application to provide internal contracts for Extensions
     Internal,
+    /// Provided by the distributor could be a device extension or a cloud extension.
+    /// Distributor gets the ability to configure and customize the generation of
+    /// the Session information based on their policies. Used by [crate::api::session::AccountSession]
     AccountSession,
+    /// Provided by the distributor useful for adding Governance implementation for handling
+    /// privacy information and other sensitive data.
     Governance,
+    /// Provided by the distributor to discover content, apps, history and recommendations.
+    /// Used by [crate::api::distributor::distributor_discovery::DiscoveryRequest]
     Discovery,
+    /// Provided by the platform to handle launching and managing applications.
+    /// Used by [crate::api::firebolt::fb_lifecycle_management::LifecycleManagementEventRequest]
     Launcher,
+    /// Provided by the platform to support Pin challenge request from extensions. Used by [crate::api::firebolt::fb_pin::PinChallengeRequest]
     PinChallenge,
+    /// Provided by the distributor for any additional RPC extensions doesnt use a request object. 
+    /// It is loaded by Extension manager during startup 
     JsonRpsee,
+    /// Provided by the platform as part of the Main application. 
+    /// Used by [crate::api::config::Config]
     Config,
+    /// Provided by the Main application to help launcher application to get session and state.
+    /// Used by [crate::api::firebolt::fb_lifecycle_management::LifecycleManagementRequest]
     LifecycleManagement,
+    /// Not Used right now reserved for non JsonRPsee methods
     Rpc,
+    /// Provided by the platform to maintain status of the loaded extension. 
+    /// Used as a Event contract doesnt map to a request.
     ExtnStatus,
+    /// Provided by the device channel extensino for information specific to the device.
+    /// Used by [crate::api::device::device_info_request::DeviceInfoRequest]
     DeviceInfo,
     Wifi,
     WindowManager,

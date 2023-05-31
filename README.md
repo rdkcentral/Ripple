@@ -1,7 +1,31 @@
-# Ripple 2.0
+# Ripple
+
+Ripple is a synonym for Firebolt Implementation, it is a Rust based Application gateway which supports loading dynamic extensions. Ripple will provide a Firebolt Gateway which will be used by Distributors and App Developers to interact with the Application platform to discover, launch and manage video streaming applications.
 > let's ripple better
 
-## How to run?
+## Why Rust?
+Rust is a systems programming language that offers the performance and small footprint of C with the abstractions of a higher level language.
+The package manager is similar to the ease-of-use found in NodeJS's npm or yarn systems.
+It ships with a build system. Because of this, it is possible to produce a binary that will run on an Arm v7 processor found in an XClass television or XiOne. This makes it easy to demonstrate native code running on real hardware.
+The compiler keeps developers out of trouble. Especially helpful for new systems programmers in that it eliminates entire classes of bugs that exist in languages like C/C++.
+
+## Setup
+
+### Manifests
+Before we run Ripple we need to take a moment to understand the manifest files used in Ripple.
+
+There are 3 Manifest files which are necessary for Ripple 2.0.
+1. `Device Manifest` : Contains configurations, capabilities and link for the app libraries. Device Manifest complies to the Open RPC schema detailed in the [Firebolt configuration repo](https://github.com/rdkcentral/firebolt-configuration). An example for the device manifest can be found in `examples/manifest/device-manifest-example.json`
+2. `Extension Manifest` : Contains the path of the extensions, contracts used and fulfilled by each extension. An example of the extn manifest can be found in `examples/manifest/extn-manifest-example.json`.
+3. `App Library`: Contains the App catalogue denoting the App Launch Url and configurations required by Ripple for launching and management. An example can be found in `examples/manifest/app-library-example.json`.
+
+
+### Pre-requisites for running with VSCode
+1. Install [Rust](https://www.rust-lang.org/tools/install)
+1. Install [VSCode](https://code.visualstudio.com/)
+2. Install Rust Analyzer from VS Code Marketplace
+
+## How to run Ripple locally?
 
 1. >$git submodule update --init --recursive
 2. Before running this command if you already have a `~/.ripple` folder take backup.
@@ -40,6 +64,17 @@ default_library": [
 > ripple run {ip address of the device} 
 
 Note: Device should be accessible bothways between the machine which is running ripple and target device.
+
+### Debugging using VSCode
+
+Only follow the below steps, if all the above instructions to run the app locally were successfully executed.
+
+1. Install LLVM Debugger from the VS Code Marketplace.
+2. Open `main.rs` in `core/main/`
+3. Set some breakpoints in code.
+4. Upon clicking on the main method in the file. There would be an option to `Run` or `Debug`. Select Debug.
+5. VSCode will pause at the breakpoint and allows access for Debug Playback and ability to inspect the values.
+
 ## Folder structure
 
 Ripple folder structure has the below layers
@@ -57,15 +92,18 @@ This folder contains the workspaces which solves usecase with actual examples
 
 ### What is Ripple magic sauce?
 
-Load extensions(Dynamic shared libraries) during Ripple Startup
+Loads shared libraries during Ripple Startup using extension manifest and provides extensibility.
+
 ![Ripple startup](./docs/images/RippleStartup.jpeg)
 
 Lets apply this to an actual Ripple 2.0 runtime which has loaded the below plugins
 1. `device/thunder`: This starts the thunder thread and accepts Device Requests. It also accepts Device extentions which assist in proprietary thunder plugins and device specific thunder extensions.
-2. `examples/rpc_extn`: This provides 2 extensions one for externalizing hdcp firebolt api and another to showcase support for legacy which can call into another rpc extension in `core/main`
-
-
+2. `distributor/general`: This starts a thread to service Distributor specific contracts like Privacy, Advertising, Session etc.
+2. `examples/rpc_extn`: This provides 2 extensions one for externalizing Non Firebolt Api which can be proprietary in nature.
 
 Breakdown the big Ripple monolith into smaller runtime extensions using a standardized SDK.
-![Ripple startup](./docs/images/R2DeliverySo.jpeg)
+![Ripple startup](./docs/images/R2Runtime.jpeg)
 
+## Further Reading
+
+[How-to](./docs/how-to.md)
