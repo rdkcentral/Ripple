@@ -46,10 +46,10 @@ pub enum RippleContract {
     Launcher,
     /// Provided by the platform to support Pin challenge request from extensions. Used by [crate::api::firebolt::fb_pin::PinChallengeRequest]
     PinChallenge,
-    /// Provided by the distributor for any additional RPC extensions doesnt use a request object. 
-    /// It is loaded by Extension manager during startup 
+    /// Provided by the distributor for any additional RPC extensions doesnt use a request object.
+    /// It is loaded by Extension manager during startup
     JsonRpsee,
-    /// Provided by the platform as part of the Main application. 
+    /// Provided by the platform as part of the Main application.
     /// Used by [crate::api::config::Config]
     Config,
     /// Provided by the Main application to help launcher application to get session and state.
@@ -57,7 +57,7 @@ pub enum RippleContract {
     LifecycleManagement,
     /// Not Used right now reserved for non JsonRPsee methods
     Rpc,
-    /// Provided by the platform to maintain status of the loaded extension. 
+    /// Provided by the platform to maintain status of the loaded extension.
     /// Used as a Event contract doesnt map to a request.
     ExtnStatus,
     /// Provided by the device channel extensino for information specific to the device.

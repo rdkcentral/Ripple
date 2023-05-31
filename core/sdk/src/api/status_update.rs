@@ -14,12 +14,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use serde::{Deserialize, Serialize};
-
 use crate::{
     extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
     framework::ripple_contract::RippleContract,
 };
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ExtnStatus {
