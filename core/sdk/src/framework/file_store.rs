@@ -14,7 +14,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use log::{info, warn};
+use log::{debug, info, warn};
 use serde::{de::DeserializeOwned, Serialize};
 use std::{
     fs::{self, OpenOptions},
@@ -75,7 +75,8 @@ where
 
     pub fn load(path: String) -> Result<FileStore<S>, RippleError> {
         if let Ok(contents) = fs::read_to_string(&path) {
-            if let Ok(s) = Self::load_from_content(contents) {
+            if let Ok(s) = Self::load_from_content(contents.clone()) {
+                debug!("valid filestore content {} from {}", contents, path);
                 return Ok(FileStore { value: s, path });
             } else {
                 return Err(RippleError::InvalidAccess);

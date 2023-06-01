@@ -384,11 +384,7 @@ impl LocalizationServer for LocalizationImpl {
                 let deserialized = serde_json::from_str::<HashMap<String, String>>(&s).unwrap();
                 return Ok(deserialized);
             }
-            Err(_e) => {
-                return Err(jsonrpsee::core::Error::Custom(String::from(
-                    "additional_info: error response TBD",
-                )))
-            }
+            Err(_e) => return Ok(HashMap::new()),
         }
     }
 

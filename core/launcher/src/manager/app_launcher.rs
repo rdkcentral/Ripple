@@ -757,18 +757,7 @@ impl AppLauncher {
     ) -> Result<AppManagerResponse, AppError> {
         info!("close {:?}", reason);
         match reason {
-            CloseReason::RemoteButton => {
-                // Presumption is that app sent reason due to <LAST> being pressed without allowing
-                // user an option to exit app, thereby dismissing the app UI but allowing any
-                // content to continue. In the future this may result in the app being "minimized"
-                // in the UI, TBD.
-                // TODO: I'm not positive what we really want to do here, let's discuss.
-                match ContainerManager::send_to_back(&state, app_id.into()).await {
-                    Ok(_) => Ok(AppManagerResponse::None),
-                    Err(_) => Err(AppError::IoError),
-                }
-            }
-            CloseReason::UserExit => {
+            CloseReason::UserExit | CloseReason::RemoteButton => {
                 Self::set_state(state.clone(), app_id.into(), LifecycleState::Inactive).await
             }
             CloseReason::Error => {
