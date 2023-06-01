@@ -7,6 +7,7 @@
         "xrn:firebolt:capability:lifecycle:ready",
         "xrn:firebolt:capability:lifecycle:initialize",
         "xrn:firebolt:capability:lifecycle:state",
+        "xrn:firebolt:capability:lifecycle:state[manage]",
         "xrn:firebolt:capability:device:info",
         "xrn:firebolt:capability:device:make",
         "xrn:firebolt:capability:device:model",
@@ -64,7 +65,14 @@
         "xrn:firebolt:capability:discovery:entity-info",
         "xrn:firebolt:capability:discovery:entity-info[provide]",
         "xrn:firebolt:capability:discovery:purchased-content",
-        "xrn:firebolt:capability:discovery:purchased-content[provide]"
+        "xrn:firebolt:capability:discovery:purchased-content[provide]",
+        "xrn:firebolt:capability:device:id",
+        "xrn:firebolt:capability:device:uid",
+        "xrn:firebolt:capability:device:sku",
+        "xrn:firebolt:capability:network:status",
+        "xrn:firebolt:capability:metrics:general",
+        "xrn:firebolt:capability:metrics:media",
+        "xrn:firebolt:capability:metrics:distributor"
     ],
     "comcast_firebolt_reference" : [
         "xrn:firebolt:capability:input:keyboard",
@@ -129,7 +137,6 @@
         "xrn:firebolt:capability:device:model",
         "xrn:firebolt:capability:device:name",
         "xrn:firebolt:capability:device:name[manage]",
-        "xrn:firebolt:capability:device:info",
         "xrn:firebolt:capability:device:id",
         "xrn:firebolt:capability:device:uid",
         "xrn:firebolt:capability:device:sku",
@@ -162,6 +169,7 @@
         "xrn:firebolt:capability:privacy:advertising",
         "xrn:firebolt:capability:metrics:general",
         "xrn:firebolt:capability:metrics:media",
+        "xrn:firebolt:capability:metrics:distributor",
         "xrn:firebolt:capability:device:distributor",
         "xrn:firebolt:capability:discovery:policy",
         "xrn:firebolt:capability:discovery:watched",
@@ -185,6 +193,7 @@
         "xrn:firebolt:capability:discovery:purchased-content[provide]",
         "xrn:firebolt:capability:discovery:entity-info[provide]",
         "xrn:firebolt:capability:lifecycle:state",
+        "xrn:firebolt:capability:lifecycle:state[manage]",
         "xrn:firebolt:capability:lifecycle:ready",
         "xrn:firebolt:capability:lifecycle:initialize"
     ]
