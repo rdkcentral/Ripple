@@ -58,10 +58,13 @@
         "xrn:firebolt:capability:discovery:content-access",
         "xrn:firebolt:capability:lifecycle:launch",
         "xrn:firebolt:capability:discovery:sign-in-status",
+        "xrn:firebolt:capability:discovery:sign-in-status[provide]",
         "xrn:firebolt:capability:profile:flags",
         "xrn:firebolt:capability:advertising:identifier",
         "xrn:firebolt:capability:discovery:entity-info",
-        "xrn:firebolt:capability:discovery:purchased-content"
+        "xrn:firebolt:capability:discovery:entity-info[provide]",
+        "xrn:firebolt:capability:discovery:purchased-content",
+        "xrn:firebolt:capability:discovery:purchased-content[provide]"
     ],
     "comcast_firebolt_reference" : [
         "xrn:firebolt:capability:input:keyboard",
@@ -173,10 +176,16 @@
         "xrn:firebolt:capability:discovery:watch-next",
         "xrn:firebolt:capability:discovery:content-access",
         "xrn:firebolt:capability:lifecycle:launch",
-        "xrn:fireπbolt:capability:discovery:sign-in-status",
+        "xrn:firebolt:capability:discovery:sign-in-status",
         "xrn:firebolt:capability:profile:flags",
         "xrn:firebolt:capability:advertising:identifier",
         "xrn:firebolt:capability:discovery:entity-info",
-        "xrn:firebolt:capability:discovery:purchased-content"
+        "xrn:firebolt:capability:discovery:purchased-content",
+        "xrn:firebolt:capability:discovery:sign-in-status[provide]",
+        "xrn:firebolt:capability:discovery:purchased-content[provide]",
+        "xrn:firebolt:capability:discovery:entity-info[provide]",
+        "xrn:firebolt:capability:lifecycle:state",
+        "xrn:firebolt:capability:lifecycle:ready",
+        "xrn:firebolt:capability:lifecycle:initialize"
     ]
 }

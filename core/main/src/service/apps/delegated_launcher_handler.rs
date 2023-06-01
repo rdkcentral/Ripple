@@ -22,7 +22,21 @@ use std::{
 
 use ripple_sdk::{
     api::{
-        apps::AppRequest,
+        apps::{
+            AppError, AppManagerResponse, AppMethod, AppSession, EffectiveTransport, StateChange,
+        },
+        firebolt::{
+            fb_discovery::DISCOVERY_EVENT_ON_NAVIGATE_TO, fb_lifecycle::LifecycleState,
+            fb_secondscreen::SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST,
+        },
+    },
+    log::{debug, error, warn},
+    serde_json::{self},
+    uuid::Uuid,
+};
+use ripple_sdk::{
+    api::{
+        apps::{AppRequest, AppResponse},
         device::device_user_grants_data::GrantLifespan,
         firebolt::{
             fb_discovery::LaunchRequest,
@@ -44,20 +58,6 @@ use ripple_sdk::{
         sync::mpsc::Receiver,
         time::{sleep, Duration},
     },
-};
-use ripple_sdk::{
-    api::{
-        apps::{
-            AppError, AppManagerResponse, AppMethod, AppSession, EffectiveTransport, StateChange,
-        },
-        firebolt::{
-            fb_discovery::DISCOVERY_EVENT_ON_NAVIGATE_TO, fb_lifecycle::LifecycleState,
-            fb_secondscreen::SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST,
-        },
-    },
-    log::{debug, error, warn},
-    serde_json::{self},
-    uuid::Uuid,
 };
 
 use crate::{
@@ -165,13 +165,19 @@ impl DelegatedLauncherHandler {
                         .await;
                 }
                 AppMethod::Ready(app_id) => {
-                    resp = self
-                        .send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Ready(
-                            LifecycleManagementReadyEvent {
-                                parameters: LifecycleManagementReadyParameters { app_id: app_id },
-                            },
-                        ))
-                        .await;
+                    if let Err(e) = self.ready_check(&app_id) {
+                        resp = Err(e)
+                    } else {
+                        resp = self
+                            .send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Ready(
+                                LifecycleManagementReadyEvent {
+                                    parameters: LifecycleManagementReadyParameters {
+                                        app_id: app_id,
+                                    },
+                                },
+                            ))
+                            .await;
+                    }
                 }
                 AppMethod::Close(app_id, reason) => {
                     resp = self
@@ -189,16 +195,20 @@ impl DelegatedLauncherHandler {
                     resp = self.check_finished(&app_id).await;
                 }
                 AppMethod::Finished(app_id) => {
-                    self.send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Finished(
-                        LifecycleManagementFinishedEvent {
-                            parameters: LifecycleManagementFinishedParameters {
-                                app_id: app_id.clone(),
+                    if let Err(e) = self.finished_check(&app_id) {
+                        resp = Err(e)
+                    } else {
+                        self.send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Finished(
+                            LifecycleManagementFinishedEvent {
+                                parameters: LifecycleManagementFinishedParameters {
+                                    app_id: app_id.clone(),
+                                },
                             },
-                        },
-                    ))
-                    .await
-                    .ok();
-                    resp = self.end_session(&app_id).await;
+                        ))
+                        .await
+                        .ok();
+                        resp = self.end_session(&app_id).await;
+                    }
                 }
                 AppMethod::GetLaunchRequest(app_id) => {
                     resp = self.get_launch_request(&app_id).await;
@@ -423,6 +433,32 @@ impl DelegatedLauncherHandler {
             self.on_unloading(&app_id).await.ok();
         }
         Ok(AppManagerResponse::None)
+    }
+
+    fn ready_check(&self, app_id: &str) -> AppResponse {
+        let app = self.platform_state.app_manager_state.get(app_id);
+        if app.is_none() {
+            warn!("appid:{} Not found", app_id);
+            return Err(AppError::NotFound);
+        }
+        let app = app.unwrap();
+        match app.state {
+            LifecycleState::Initializing => Ok(AppManagerResponse::None),
+            _ => Err(AppError::UnexpectedState),
+        }
+    }
+
+    fn finished_check(&self, app_id: &str) -> AppResponse {
+        let app = self.platform_state.app_manager_state.get(app_id);
+        if app.is_none() {
+            warn!("appid:{} Not found", app_id);
+            return Err(AppError::NotFound);
+        }
+        let app = app.unwrap();
+        match app.state {
+            LifecycleState::Unloading => Ok(AppManagerResponse::None),
+            _ => Err(AppError::UnexpectedState),
+        }
     }
 
     async fn send_lifecycle_mgmt_event(

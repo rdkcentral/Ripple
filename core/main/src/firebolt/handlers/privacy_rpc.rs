@@ -359,44 +359,46 @@ impl PrivacyImpl {
     }
 
     pub fn to_storage_property(method: &str) -> Option<StorageProperty> {
-        match method {
-            "privacy.setAllowACRCollection" | "privacy.allowACRCollection" => {
+        let mut parts: Vec<&str> = method.clone().split(".").collect();
+        if parts.len() < 2 {
+            return None;
+        }
+        let method_name = parts.remove(1);
+        match method_name {
+            "setAllowACRCollection" | "allowACRCollection" => {
                 Some(StorageProperty::AllowAcrCollection)
             }
-            "privacy.setAllowAppContentAdTargeting" | "privacy.allowAppContentAdTargeting" => {
+            "setAllowAppContentAdTargeting" | "allowAppContentAdTargeting" => {
                 Some(StorageProperty::AllowAppContentAdTargeting)
             }
-            "privacy.setAllowCameraAnalytics" | "privacy.allowCameraAnalytics" => {
+            "setAllowCameraAnalytics" | "allowCameraAnalytics" => {
                 Some(StorageProperty::AllowCameraAnalytics)
             }
-            "privacy.setAllowPersonalization" | "privacy.allowPersonalization" => {
+            "setAllowPersonalization" | "allowPersonalization" => {
                 Some(StorageProperty::AllowPersonalization)
             }
-            "privacy.setAllowPrimaryBrowseAdTargeting"
-            | "privacy.allowPrimaryBrowseAdTargeting" => {
+            "setAllowPrimaryBrowseAdTargeting" | "allowPrimaryBrowseAdTargeting" => {
                 Some(StorageProperty::AllowPrimaryBrowseAdTargeting)
             }
-            "privacy.setAllowPrimaryContentAdTargeting"
-            | "privacy.allowPrimaryContentAdTargeting" => {
+            "setAllowPrimaryContentAdTargeting" | "allowPrimaryContentAdTargeting" => {
                 Some(StorageProperty::AllowPrimaryContentAdTargeting)
             }
-            "privacy.setAllowProductAnalytics" | "privacy.allowProductAnalytics" => {
+            "setAllowProductAnalytics" | "allowProductAnalytics" => {
                 Some(StorageProperty::AllowProductAnalytics)
             }
-            "privacy.setAllowRemoteDiagnostics" | "privacy.allowRemoteDiagnostics" => {
+            "setAllowRemoteDiagnostics" | "allowRemoteDiagnostics" => {
                 Some(StorageProperty::AllowRemoteDiagnostics)
             }
-            "privacy.setAllowResumePoints" | "privacy.allowResumePoints" => {
+            "setAllowResumePoints" | "allowResumePoints" => {
                 Some(StorageProperty::AllowResumePoints)
             }
-            "privacy.setAllowUnentitledPersonalization"
-            | "privacy.allowUnentitledPersonalization" => {
+            "setAllowUnentitledPersonalization" | "allowUnentitledPersonalization" => {
                 Some(StorageProperty::AllowUnentitledPersonalization)
             }
-            "privacy.setAllowUnentitledResumePoints" | "privacy.allowUnentitledResumePoints" => {
+            "setAllowUnentitledResumePoints" | "allowUnentitledResumePoints" => {
                 Some(StorageProperty::AllowUnentitledResumePoints)
             }
-            "privacy.setAllowWatchHistory" | "privacy.allowWatchHistory" => {
+            "setAllowWatchHistory" | "allowWatchHistory" => {
                 Some(StorageProperty::AllowWatchHistory)
             }
             _ => None,
