@@ -88,7 +88,6 @@ impl SecondScreenServer for SecondScreenImpl {
 
     async fn protocols(&self, _ctx: CallContext) -> RpcResult<HashMap<String, bool>> {
         let mut protocols = HashMap::<String, bool>::new();
-        // TODO: This is what we do for XClass, but should this really be defined in the device manifest or queried via DAB?
         protocols.insert("dial2".into(), true);
         Ok(protocols)
     }
