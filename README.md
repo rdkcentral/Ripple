@@ -6,7 +6,7 @@ Ripple is a synonym for Firebolt Implementation, it is a Rust based Application 
 ## Why Rust?
 Rust is a systems programming language that offers the performance and small footprint of C with the abstractions of a higher level language.
 The package manager is similar to the ease-of-use found in NodeJS's npm or yarn systems.
-It ships with a build system. Because of this, it is possible to produce a binary that will run on an Arm v7 processor found in an XClass television or XiOne. This makes it easy to demonstrate native code running on real hardware.
+It ships with a build system. Because of this, it is possible to produce a binary that will run on an Arm v7 processor. This makes it easy to demonstrate native code running on real hardware.
 The compiler keeps developers out of trouble. Especially helpful for new systems programmers in that it eliminates entire classes of bugs that exist in languages like C/C++.
 
 ## Setup
