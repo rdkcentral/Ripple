@@ -35,7 +35,8 @@ use ripple_sdk::{
             fb_discovery::{DiscoveryContext, LaunchRequest},
             fb_lifecycle::LifecycleState,
             fb_lifecycle_management::{
-                AppSessionRequest, LifecycleManagementRequest, SetStateRequest,
+                AppSessionRequest, LifecycleManagementProviderEvent, LifecycleManagementRequest,
+                SetStateRequest,
             },
         },
         manifest::{app_library::AppLibrary, apps::AppManifest, device_manifest::RetentionPolicy},
@@ -798,5 +799,41 @@ impl AppLauncher {
             Ok(_) => Ok(AppManagerResponse::None),
             Err(_) => Err(AppError::General),
         }
+    }
+
+    pub async fn provide(
+        state: &LauncherState,
+        request: LifecycleManagementProviderEvent,
+    ) -> AppResponse {
+        match request {
+            LifecycleManagementProviderEvent::Add(id) => {
+                let existing_app = state.app_launcher_state.get_app_by_id(&id);
+                if let Some(existing) = existing_app {
+                    if let Ok(_) = ContainerManager::bring_to_front(
+                        state,
+                        existing.container_props.name.as_str(),
+                    )
+                    .await
+                    {
+                        return Ok(AppManagerResponse::None);
+                    }
+                }
+            }
+            LifecycleManagementProviderEvent::Remove(id) => {
+                let existing_app = state.app_launcher_state.get_app_by_id(&id);
+                if let Some(existing) = existing_app {
+                    if let Ok(_) = ContainerManager::send_to_back(
+                        state,
+                        existing.container_props.name.as_str(),
+                    )
+                    .await
+                    {
+                        return Ok(AppManagerResponse::None);
+                    }
+                }
+            }
+        }
+
+        Err(AppError::General)
     }
 }

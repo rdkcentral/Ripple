@@ -221,9 +221,9 @@ pub trait Metrics {
     async fn error(&self, ctx: CallContext, error_params: ErrorParams) -> RpcResult<bool>;
     #[method(name = "metrics.ready")]
     async fn ready(&self, ctx: CallContext) -> RpcResult<bool>;
-    #[method(name = "metrics.signin")]
+    #[method(name = "metrics.signin", aliases=["metrics.signIn"])]
     async fn sign_in(&self, ctx: CallContext) -> RpcResult<bool>;
-    #[method(name = "metrics.signout")]
+    #[method(name = "metrics.signout", aliases=["metrics.signOut"])]
     async fn sign_out(&self, ctx: CallContext) -> RpcResult<bool>;
     #[method(name = "internal.initialize")]
     async fn internal_initialize(

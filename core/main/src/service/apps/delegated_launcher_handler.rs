@@ -490,6 +490,7 @@ impl DelegatedLauncherHandler {
                     event_name = LCM_EVENT_ON_REQUEST_FINISHED;
                     value = serde_json::to_value(req).unwrap();
                 }
+                _ => return Err(AppError::OsError),
             }
 
             AppEvents::emit(&self.platform_state, event_name, &value).await;
