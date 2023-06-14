@@ -466,7 +466,7 @@ impl DelegatedLauncherHandler {
         event: LifecycleManagementEventRequest,
     ) -> Result<AppManagerResponse, AppError> {
         if self.platform_state.has_internal_launcher() {
-            if let Err(e) = self.platform_state.get_client().send_event(event).await {
+            if let Err(e) = self.platform_state.get_client().send_event(event) {
                 error!("send event error {:?}", e);
                 return Err(AppError::OsError);
             }
@@ -490,6 +490,7 @@ impl DelegatedLauncherHandler {
                     event_name = LCM_EVENT_ON_REQUEST_FINISHED;
                     value = serde_json::to_value(req).unwrap();
                 }
+                _ => return Err(AppError::OsError),
             }
 
             AppEvents::emit(&self.platform_state, event_name, &value).await;

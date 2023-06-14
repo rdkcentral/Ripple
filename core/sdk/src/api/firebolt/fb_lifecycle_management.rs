@@ -39,6 +39,7 @@ pub enum LifecycleManagementEventRequest {
     Ready(LifecycleManagementReadyEvent),
     Close(LifecycleManagementCloseEvent),
     Finished(LifecycleManagementFinishedEvent),
+    Provide(LifecycleManagementProviderEvent),
 }
 
 impl ExtnPayloadProvider for LifecycleManagementEventRequest {
@@ -133,6 +134,12 @@ pub struct LifecycleManagementCloseParameters {
 #[serde(rename_all = "camelCase")]
 pub struct LifecycleManagementFinishedEvent {
     pub parameters: LifecycleManagementFinishedParameters,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum LifecycleManagementProviderEvent {
+    Add(String),
+    Remove(String),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

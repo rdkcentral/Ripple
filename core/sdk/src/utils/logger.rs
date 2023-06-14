@@ -18,7 +18,7 @@
 use std::str::FromStr;
 
 pub fn init_logger(name: String) -> Result<(), fern::InitError> {
-    let log_string: String = std::env::var("RUST_LOG").unwrap_or("info".into());
+    let log_string: String = std::env::var("RUST_LOG").unwrap_or("debug".into());
     println!("log level {}", log_string);
     let filter = log::LevelFilter::from_str(&log_string).unwrap_or(log::LevelFilter::Info);
     fern::Dispatch::new()

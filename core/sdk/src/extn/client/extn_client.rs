@@ -411,9 +411,9 @@ impl ExtnClient {
     /// Critical method used by event processors to emit event back to the requestor
     /// # Arguments
     /// `msg` - [ExtnMessage] event object
-    pub async fn event(&mut self, event: impl ExtnPayloadProvider) -> Result<(), RippleError> {
+    pub fn event(&mut self, event: impl ExtnPayloadProvider) -> Result<(), RippleError> {
         let other_sender = self.get_extn_sender_with_contract(event.get_contract());
-        self.sender.send_event(event, other_sender).await
+        self.sender.send_event(event, other_sender)
     }
 
     /// Request method which accepts a impl [ExtnPayloadProvider] and uses the capability provided by the trait to send the request.

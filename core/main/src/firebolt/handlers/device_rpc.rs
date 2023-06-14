@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
@@ -40,6 +40,7 @@ use ripple_sdk::{
                 SCREEN_RESOLUTION_CHANGED_EVENT, VIDEO_RESOLUTION_CHANGED_EVENT,
             },
             device_info_request::{DeviceInfoRequest, DeviceResponse},
+            device_operator::DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS,
             device_request::{
                 AudioProfile, DeviceVersionResponse, HdcpProfile, HdrProfile, NetworkResponse,
             },
@@ -58,6 +59,7 @@ use ripple_sdk::{
     },
     extn::extn_client_message::ExtnResponse,
     log::error,
+    tokio::time::timeout,
     uuid::Uuid,
 };
 
@@ -453,23 +455,24 @@ impl DeviceServer for DeviceImpl {
     }
 
     async fn screen_resolution(&self, _ctx: CallContext) -> RpcResult<Vec<i32>> {
-        let resp = self
-            .state
-            .get_client()
-            .send_extn_request(DeviceInfoRequest::ScreenResolution)
-            .await;
-
-        match resp {
-            Ok(response) => match response.payload.extract().unwrap() {
-                DeviceResponse::ScreenResolutionResponse(value) => Ok(value),
-                _ => Err(jsonrpsee::core::Error::Custom(String::from(
-                    "screen_resolution error response TBD",
-                ))),
-            },
-            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-                "screen_resolution error response TBD",
-            ))),
+        if let Ok(resp) = timeout(
+            Duration::from_secs(DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS),
+            self.state
+                .get_client()
+                .send_extn_request(DeviceInfoRequest::ScreenResolution),
+        )
+        .await
+        {
+            if let Ok(r) = resp {
+                match r.payload.extract().unwrap() {
+                    DeviceResponse::ScreenResolutionResponse(value) => return Ok(value),
+                    _ => {}
+                };
+            }
         }
+        Err(jsonrpsee::core::Error::Custom(String::from(
+            "screen_resolution error response TBD",
+        )))
     }
 
     async fn on_screen_resolution_changed(
@@ -506,23 +509,24 @@ impl DeviceServer for DeviceImpl {
     }
 
     async fn video_resolution(&self, _ctx: CallContext) -> RpcResult<Vec<i32>> {
-        let resp = self
-            .state
-            .get_client()
-            .send_extn_request(DeviceInfoRequest::VideoResolution)
-            .await;
-
-        match resp {
-            Ok(response) => match response.payload.extract().unwrap() {
-                DeviceResponse::VideoResolutionResponse(value) => Ok(value),
-                _ => Err(jsonrpsee::core::Error::Custom(String::from(
-                    "video_resolution cap error response TBD",
-                ))),
-            },
-            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-                "video_resolution cap error response TBD",
-            ))),
+        if let Ok(resp) = timeout(
+            Duration::from_secs(DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS),
+            self.state
+                .get_client()
+                .send_extn_request(DeviceInfoRequest::VideoResolution),
+        )
+        .await
+        {
+            if let Ok(r) = resp {
+                match r.payload.extract().unwrap() {
+                    DeviceResponse::VideoResolutionResponse(value) => return Ok(value),
+                    _ => {}
+                };
+            }
         }
+        Err(jsonrpsee::core::Error::Custom(String::from(
+            "video_resolution error response TBD",
+        )))
     }
 
     async fn on_video_resolution_changed(

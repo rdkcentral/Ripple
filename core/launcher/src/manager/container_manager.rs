@@ -199,7 +199,7 @@ impl ContainerManager {
         result
     }
 
-    async fn bring_to_front(
+    pub async fn bring_to_front(
         state: &LauncherState,
         name: &str,
     ) -> Result<ResultType, ContainerError> {

@@ -86,7 +86,7 @@ impl ExtnSender {
         self.send(msg, other_sender)
     }
 
-    pub async fn send_event(
+    pub fn send_event(
         &self,
         payload: impl ExtnPayloadProvider,
         other_sender: Option<CSender<CExtnMessage>>,

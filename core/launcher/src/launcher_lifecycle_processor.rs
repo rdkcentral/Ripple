@@ -94,6 +94,7 @@ impl ExtnEventProcessor for LauncherLifecycleEventProcessor {
                 )
                 .await
             }
+            LifecycleManagementEventRequest::Provide(p) => AppLauncher::provide(&state, p).await,
         };
         if let Err(e) = result {
             error!("Error during lifecycle management processing {:?}", e)

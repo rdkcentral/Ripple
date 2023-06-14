@@ -134,7 +134,7 @@ impl RippleClient {
             .cleanup_event_stream(capability);
     }
 
-    pub async fn send_event(&self, event: impl ExtnPayloadProvider) -> RippleResponse {
-        self.get_extn_client().event(event).await
+    pub fn send_event(&self, event: impl ExtnPayloadProvider) -> RippleResponse {
+        self.get_extn_client().event(event)
     }
 }
