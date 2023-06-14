@@ -106,7 +106,7 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
             client.add_request_processor(DistributorDiscoveryProcessor::new(client.clone()));
             client.add_request_processor(DistributorMediaEventProcessor::new(client.clone()));
             // Lets Main know that the distributor channel is ready
-            let _ = client.event(ExtnStatus::Ready).await;
+            let _ = client.event(ExtnStatus::Ready);
         });
         client_c.initialize().await;
     });

@@ -47,7 +47,7 @@ impl ThunderPoolStep {
         let controller_pool = ThunderClientPool::start(url.clone(), None, 1).await;
         if controller_pool.is_err() {
             if let Err(e) = controller_pool {
-                let _ = state.extn_client.event(ExtnStatus::Error).await;
+                let _ = state.extn_client.event(ExtnStatus::Error);
                 return Err(e);
             }
         }
@@ -57,14 +57,14 @@ impl ThunderPoolStep {
 
         if client.is_err() {
             if let Err(e) = client {
-                let _ = state.extn_client.event(ExtnStatus::Error).await;
+                let _ = state.extn_client.event(ExtnStatus::Error);
                 return Err(e);
             }
         }
 
         let client = client.unwrap();
         info!("Thunder client connected successfully");
-        let _ = state.extn_client.event(ExtnStatus::Ready).await;
+        let _ = state.extn_client.event(ExtnStatus::Ready);
         let extn_client = state.extn_client.clone();
         Ok(ThunderBootstrapStateWithClient {
             prev: state,

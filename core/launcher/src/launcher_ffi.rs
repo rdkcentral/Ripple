@@ -76,7 +76,7 @@ fn start_launcher(sender: ExtnSender, receiver: Receiver<CExtnMessage>) {
             client_for_processor.add_event_processor(LauncherLifecycleEventProcessor::new(state));
 
             // Lets Main know that the launcher is ready
-            let _ = client_for_processor.event(ExtnStatus::Ready).await;
+            let _ = client_for_processor.event(ExtnStatus::Ready);
         });
         client_for_receiver.initialize().await;
     });

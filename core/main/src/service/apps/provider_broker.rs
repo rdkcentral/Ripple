@@ -311,7 +311,7 @@ impl ProviderBroker {
                         LifecycleManagementProviderEvent::Remove(app_id),
                     );
                     let client = pst.clone().get_client();
-                    if let Err(e) = client.get_extn_client().request_transient(event) {
+                    if let Err(e) = client.send_event(event) {
                         error!("send event error {:?}", e);
                     }
                 }
@@ -403,7 +403,7 @@ impl ProviderBroker {
                     LifecycleManagementProviderEvent::Add(app_id),
                 );
                 let client = pst.clone().get_client();
-                if let Err(e) = client.get_extn_client().request_transient(event) {
+                if let Err(e) = client.send_event(event) {
                     error!("send event error {:?}", e);
                 }
             }
