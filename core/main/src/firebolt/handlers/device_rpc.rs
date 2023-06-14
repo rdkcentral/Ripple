@@ -40,6 +40,7 @@ use ripple_sdk::{
                 SCREEN_RESOLUTION_CHANGED_EVENT, VIDEO_RESOLUTION_CHANGED_EVENT,
             },
             device_info_request::{DeviceInfoRequest, DeviceResponse},
+            device_operator::DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS,
             device_request::{
                 AudioProfile, DeviceVersionResponse, HdcpProfile, HdrProfile, NetworkResponse,
             },
@@ -455,7 +456,7 @@ impl DeviceServer for DeviceImpl {
 
     async fn screen_resolution(&self, _ctx: CallContext) -> RpcResult<Vec<i32>> {
         if let Ok(resp) = timeout(
-            Duration::from_secs(2),
+            Duration::from_secs(DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS),
             self.state
                 .get_client()
                 .send_extn_request(DeviceInfoRequest::ScreenResolution),
@@ -509,7 +510,7 @@ impl DeviceServer for DeviceImpl {
 
     async fn video_resolution(&self, _ctx: CallContext) -> RpcResult<Vec<i32>> {
         if let Ok(resp) = timeout(
-            Duration::from_secs(2),
+            Duration::from_secs(DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS),
             self.state
                 .get_client()
                 .send_extn_request(DeviceInfoRequest::VideoResolution),

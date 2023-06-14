@@ -19,6 +19,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::mpsc;
 
+pub const DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS: u64 = 5;
+
 /// Generic Operator trait used for Device Communications
 /// Each Device platform should implement this trait based on the underlying service
 #[async_trait]
