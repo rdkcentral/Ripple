@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use std::str::FromStr;
 
 pub fn init_logger(name: String) -> Result<(), fern::InitError> {

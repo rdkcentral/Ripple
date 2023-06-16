@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use crate::thunder_state::ThunderBootstrapStateWithConfig;
 use ripple_sdk::extn::{
     client::extn_client::ExtnClient,

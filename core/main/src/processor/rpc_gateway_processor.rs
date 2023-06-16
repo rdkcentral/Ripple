@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::{ApiProtocol, RpcRequest},
     async_trait::async_trait,

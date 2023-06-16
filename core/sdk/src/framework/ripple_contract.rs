@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use crate::utils::error::RippleError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

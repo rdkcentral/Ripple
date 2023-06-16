@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::{
     api::firebolt::fb_openrpc::FireboltVersionManifest,

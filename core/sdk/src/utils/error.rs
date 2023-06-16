@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use serde::{Deserialize, Serialize};
 
 use crate::api::firebolt::fb_capabilities::DenyReason;

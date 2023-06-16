@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use thunder_ripple_sdk::{
     bootstrap::boot_thunder::boot_thunder,
     ripple_sdk::{extn::client::extn_client::ExtnClient, log::info},

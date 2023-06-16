@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 pub mod apps;
 pub mod device;
 pub mod extn;

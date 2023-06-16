@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use thunder_ripple_sdk::{
     events::thunder_event_processor::ThunderEventHandlerProvider,
     ripple_sdk::{

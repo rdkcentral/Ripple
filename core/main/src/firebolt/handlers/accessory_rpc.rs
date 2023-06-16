@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use crate::{
     firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState,
     utils::rpc_utils::rpc_err,

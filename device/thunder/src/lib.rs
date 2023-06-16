@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 pub mod thunder_ffi;
 
 pub mod bootstrap {

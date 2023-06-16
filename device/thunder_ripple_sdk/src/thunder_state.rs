@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use std::sync::{Arc, RwLock};
 
 use ripple_sdk::{

@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use super::device_request::DeviceRequest;
 use crate::{
     api::{firebolt::fb_capabilities::FireboltCap, manifest::device_manifest::DeviceManifest},

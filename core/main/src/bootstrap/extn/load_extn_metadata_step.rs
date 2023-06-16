@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use std::ffi::OsStr;
 
 use ripple_sdk::{

@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use ripple_sdk::{
     api::apps::AppRequest,
     crossbeam::channel::{unbounded, Receiver as CReceiver, Sender as CSender},

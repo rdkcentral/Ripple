@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use ripple_sdk::{
     api::config::{Config, ConfigResponse, LauncherConfig},
     async_trait::async_trait,

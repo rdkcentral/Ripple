@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 pub mod bootstrap_state;
 pub mod extn_state;
 pub mod openrpc_state;

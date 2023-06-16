@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use jsonrpsee::{core::RpcResult, types::error::CallError};
 use ripple_sdk::{
     api::{

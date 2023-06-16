@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use ripple_sdk::async_trait::async_trait;
 use ripple_sdk::{framework::bootstrap::Bootstep, tokio, utils::error::RippleError};
 

@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 pub trait RpcError {
     type E;
     fn get_rpc_error_code(&self) -> i32;

@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use thunder_ripple_sdk::{
     ripple_sdk::utils::error::RippleError, thunder_state::ThunderBootstrapStateWithClient,
 };

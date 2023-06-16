@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use thunder_ripple_sdk::ripple_sdk::{
     crossbeam::channel::Receiver as CReceiver,
     export_channel_builder, export_extn_metadata,

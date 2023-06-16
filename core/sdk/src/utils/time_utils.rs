@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use chrono::{DateTime, NaiveDateTime, Utc};
 
 /*

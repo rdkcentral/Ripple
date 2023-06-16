@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use crate::{
     firebolt::{
         firebolt_gateway::FireboltGateway,

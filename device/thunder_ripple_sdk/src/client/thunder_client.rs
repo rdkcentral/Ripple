@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use std::collections::{BTreeMap, HashMap};
 
 use jsonrpsee::core::client::{Client, ClientT, SubscriptionClientT};

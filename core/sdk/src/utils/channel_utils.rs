@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use log::{error, trace};
 use tokio::sync::{mpsc, oneshot};
 

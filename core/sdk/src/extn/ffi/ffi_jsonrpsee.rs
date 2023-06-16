@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use crate::{
     api::firebolt::fb_openrpc::FireboltVersionManifest, extn::client::extn_sender::ExtnSender,
 };

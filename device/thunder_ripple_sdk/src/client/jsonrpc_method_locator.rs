@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 #[derive(Debug)]
 pub struct JsonRpcMethodLocator {
     pub module: Option<String>,

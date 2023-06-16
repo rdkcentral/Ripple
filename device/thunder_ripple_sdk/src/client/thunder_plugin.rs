@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use ThunderPluginConfig as Cfg;

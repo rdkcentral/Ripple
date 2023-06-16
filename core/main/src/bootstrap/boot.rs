@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use ripple_sdk::framework::bootstrap::Bootstrap;
 
 use crate::state::bootstrap_state::BootstrapState;

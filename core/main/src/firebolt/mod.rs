@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 //pub mod rpc_gateway;
 //pub mod firebolt_gateway;
 pub mod handlers {

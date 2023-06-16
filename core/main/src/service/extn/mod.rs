@@ -15,5 +15,4 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 pub mod ripple_client;

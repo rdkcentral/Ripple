@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
