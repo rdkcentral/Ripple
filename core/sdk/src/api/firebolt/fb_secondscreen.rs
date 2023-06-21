@@ -15,5 +15,13 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use serde::{Deserialize, Serialize};
+
 pub const SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST: &'static str = "secondscreen.onLaunchRequest";
 pub const SECOND_SCREEN_EVENT_ON_CLOSE_REQUEST: &'static str = "secondscreen.onCloseRequest";
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SecondScreenDeviceInfo {
+    #[serde(rename = "type")]
+    pub _type: Option<String>,
+}

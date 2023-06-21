@@ -16,7 +16,7 @@
 //
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt};
 
 use crate::{
     api::session::AccountSession,
@@ -78,11 +78,6 @@ pub struct AdIdResponse {
     pub lmt: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SessionParams {
-    pub dist_session: AccountSession,
-}
-
 impl ExtnPayloadProvider for AdvertisingRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Request(ExtnRequest::Advertising(self.clone()))
@@ -111,6 +106,26 @@ pub enum AdvertisingResponse {
     AdIdObject(AdIdResponse),
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdvertisingFrameworkConfig {
+    pub ad_server_url: String,
+    pub ad_server_url_template: String,
+    pub ad_network_id: String,
+    pub ad_profile_id: String,
+    pub ad_site_section_id: String,
+    pub ad_opt_out: bool,
+    pub privacy_data: String,
+    pub ifa_value: String,
+    pub ifa: String,
+    pub app_name: String,
+    pub app_bundle_id: String,
+    pub distributor_app_id: String,
+    pub device_ad_attributes: String,
+    pub coppa: u32,
+    pub authentication_entity: String,
+}
+
 impl ExtnPayloadProvider for AdvertisingResponse {
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Response(ExtnResponse::Value(
@@ -135,5 +150,55 @@ impl ExtnPayloadProvider for AdvertisingResponse {
 
     fn contract() -> RippleContract {
         RippleContract::Advertising
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct GetAdConfig {
+    pub options: AdConfig,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum Environment {
+    Prod,
+    Test,
+}
+
+impl fmt::Display for Environment {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Environment::Prod => write!(f, "prod"),
+            Environment::Test => write!(f, "test"),
+        }
+    }
+}
+
+impl Default for Environment {
+    fn default() -> Self {
+        Environment::Prod
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AdConfig {
+    #[serde(default)]
+    pub environment: Environment,
+    // COPPA stands for Children's Online Privacy Protection Act.
+    pub coppa: Option<bool>,
+    pub authentication_entity: Option<String>,
+}
+
+impl Default for GetAdConfig {
+    fn default() -> Self {
+        GetAdConfig {
+            options: AdConfig {
+                environment: Environment::default(),
+                coppa: Some(false),
+                authentication_entity: Some("".to_owned()),
+            },
+        }
     }
 }

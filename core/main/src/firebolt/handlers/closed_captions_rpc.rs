@@ -32,7 +32,7 @@ use jsonrpsee::{
 use ripple_sdk::api::{
     device::{
         device_accessibility_data::{ClosedCaptionStyle, ClosedCaptionsSettings, FONT_FAMILY_LIST},
-        device_storage::{SetBoolProperty, SetF32Property, SetStringProperty, SetU32Property},
+        device_peristence::{SetBoolProperty, SetF32Property, SetStringProperty, SetU32Property},
     },
     firebolt::fb_general::{ListenRequest, ListenerResponse},
     gateway::rpc_gateway_api::CallContext,

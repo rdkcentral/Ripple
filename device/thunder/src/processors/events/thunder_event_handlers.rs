@@ -24,7 +24,7 @@ use thunder_ripple_sdk::{
     },
     ripple_sdk::{
         api::{
-            apps::AppEvent,
+            apps::{AppEvent, AppEventRequest},
             device::{
                 device_events::{
                     DeviceEventCallback, HDCP_CHANGED_EVENT, HDR_CHANGED_EVENT,
@@ -367,11 +367,14 @@ impl ThunderEventHandlerProvider for SystemPowerStateChangeEventHandler {
     ) -> Result<ExtnEvent, RippleError> {
         let result = serde_json::to_value(r.clone()).unwrap();
         match callback_type {
-            DeviceEventCallback::FireboltAppEvent => Ok(ExtnEvent::AppEvent(AppEvent {
-                event_name: Self::get_mapped_event(),
-                context: None,
-                result,
-            })),
+            DeviceEventCallback::FireboltAppEvent => {
+                Ok(ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
+                    event_name: Self::get_mapped_event(),
+                    context: None,
+                    result,
+                    app_id: None,
+                })))
+            }
             DeviceEventCallback::ExtnEvent => Ok(ExtnEvent::PowerState(r)),
         }
     }

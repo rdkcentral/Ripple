@@ -22,7 +22,7 @@ use std::{
 
 use ripple_sdk::{
     api::distributor::distributor_privacy::{
-        ExclusionPolicy, GetPropertyParams, PrivacyRequest, PrivacySetting, PrivacySettings,
+        ExclusionPolicy, GetPropertyParams, PrivacyCloudRequest, PrivacySetting, PrivacySettings,
         SetPropertyParams,
     },
     async_trait::async_trait,
@@ -210,7 +210,7 @@ impl DistributorPrivacyProcessor {
 
 impl ExtnStreamProcessor for DistributorPrivacyProcessor {
     type STATE = PrivacyState;
-    type VALUE = PrivacyRequest;
+    type VALUE = PrivacyCloudRequest;
 
     fn get_state(&self) -> Self::STATE {
         self.state.clone()
@@ -242,17 +242,17 @@ impl ExtnRequestProcessor for DistributorPrivacyProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         match extracted_message {
-            PrivacyRequest::GetProperty(p) => {
+            PrivacyCloudRequest::GetProperty(p) => {
                 let resp = state.get_property(p);
                 Self::respond(state.client.clone(), msg, ExtnResponse::Boolean(resp))
                     .await
                     .is_ok()
             }
-            PrivacyRequest::SetProperty(p) => {
+            PrivacyCloudRequest::SetProperty(p) => {
                 state.set_property(p);
                 Self::ack(state.client.clone(), msg).await.is_ok()
             }
-            PrivacyRequest::GetProperties(_) => {
+            PrivacyCloudRequest::GetProperties(_) => {
                 let v = state.get_settings();
                 Self::respond(
                     state.client.clone(),
@@ -262,7 +262,7 @@ impl ExtnRequestProcessor for DistributorPrivacyProcessor {
                 .await
                 .is_ok()
             }
-            PrivacyRequest::GetPartnerExclusions(_) => Self::respond(
+            PrivacyCloudRequest::GetPartnerExclusions(_) => Self::respond(
                 state.client.clone(),
                 msg,
                 ExclusionPolicy::default()

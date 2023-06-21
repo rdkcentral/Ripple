@@ -25,8 +25,8 @@ use ripple_sdk::{
     api::{
         device::{
             device_info_request::DeviceInfoRequest,
+            device_peristence::SetStringProperty,
             device_request::{LanguageProperty, TimezoneProperty},
-            device_storage::SetStringProperty,
         },
         firebolt::fb_general::{ListenRequest, ListenerResponse},
         gateway::rpc_gateway_api::CallContext,

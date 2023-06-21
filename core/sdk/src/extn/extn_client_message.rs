@@ -24,16 +24,17 @@ use serde_json::Value;
 
 use crate::{
     api::{
-        apps::AppEvent,
+        account_link::AccountLinkRequest,
+        apps::AppEventRequest,
         config::{Config, ConfigResponse},
         device::{
             device_events::DeviceEventRequest,
+            device_peristence::StorageData,
             device_request::{DeviceRequest, NetworkResponse, SystemPowerState},
-            device_storage::StorageData,
         },
         distributor::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
-            distributor_privacy::PrivacyRequest,
+            distributor_privacy::PrivacyCloudRequest,
             distributor_request::DistributorRequest,
         },
         firebolt::{
@@ -46,9 +47,12 @@ use crate::{
             fb_secure_storage::SecureStorageRequest,
         },
         gateway::rpc_gateway_api::RpcRequest,
+        manifest::device_manifest::AppLibraryEntry,
         protocol::BridgeProtocolRequest,
         session::{AccountSession, AccountSessionRequest, SessionTokenRequest},
+        settings::{SettingValue, SettingsRequest},
         status_update::ExtnStatus,
+        storage_property::StorageManagerRequest,
     },
     framework::ripple_contract::RippleContract,
     utils::error::RippleError,
@@ -248,8 +252,11 @@ pub enum ExtnRequest {
     SessionToken(SessionTokenRequest),
     SecureStorage(SecureStorageRequest),
     Advertising(AdvertisingRequest),
-    PrivacySettings(PrivacyRequest),
+    PrivacySettings(PrivacyCloudRequest),
     BehavioralMetric(BehavioralMetricRequest),
+    StorageManager(StorageManagerRequest),
+    AccountLink(AccountLinkRequest),
+    Settings(SettingsRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -272,7 +279,8 @@ pub enum ExtnResponse {
     NetworkResponse(NetworkResponse),
     AvailableTimezones(Vec<String>),
     Token(TokenResult),
-    // Token(RootTokenResponse),
+    DefaultApp(AppLibraryEntry),
+    Settings(HashMap<String, SettingValue>),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {
@@ -298,7 +306,7 @@ pub enum ExtnEvent {
     String(String),
     Value(Value),
     Status(ExtnStatus),
-    AppEvent(AppEvent),
+    AppEvent(AppEventRequest),
     PowerState(SystemPowerState),
 }
 

@@ -34,7 +34,7 @@ pub struct TokenResult {
     pub _type: TokenType,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct TokenRequest {
     #[serde(rename = "type")]
     pub _type: TokenType,

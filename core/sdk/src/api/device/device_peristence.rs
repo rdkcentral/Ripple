@@ -75,12 +75,12 @@ pub struct SetStorageProperty {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum StorageRequest {
+pub enum DevicePersistenceRequest {
     Get(GetStorageProperty),
     Set(SetStorageProperty),
 }
 
-impl ExtnPayloadProvider for StorageRequest {
+impl ExtnPayloadProvider for DevicePersistenceRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Storage(self.clone())))
     }
@@ -100,6 +100,6 @@ impl ExtnPayloadProvider for StorageRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Storage
+        RippleContract::DevicePersistence
     }
 }

@@ -27,23 +27,18 @@ use jsonrpsee::{
     RpcModule,
 };
 use ripple_sdk::api::{
-    firebolt::fb_general::{ListenRequest, ListenerResponse},
+    firebolt::{
+        fb_general::{ListenRequest, ListenerResponse},
+        fb_secondscreen::{SecondScreenDeviceInfo, SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST},
+    },
     gateway::rpc_gateway_api::CallContext,
 };
-use serde::{Deserialize, Serialize};
 
 use super::device_rpc::{get_device_id, get_device_name};
 
-pub const EVENT_SECOND_SCREEN_ON_LAUNCH_REQUEST: &'static str = "secondscreen.onLaunchRequest";
 pub const EVENT_SECOND_SCREEN_ON_CLOSE_REQUEST: &'static str = "secondscreen.onCloseRequest";
 pub const EVENT_SECOND_SCREEN_ON_FRIENDLY_NAME_CHANGED: &'static str =
     "secondscreen.onFriendlyNameChanged";
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct SecondScreenDeviceInfo {
-    #[serde(rename = "type")]
-    pub _type: Option<String>,
-}
 
 #[rpc(server)]
 pub trait SecondScreen {
@@ -102,7 +97,7 @@ impl SecondScreenServer for SecondScreenImpl {
             &self.state,
             ctx,
             request,
-            EVENT_SECOND_SCREEN_ON_LAUNCH_REQUEST,
+            SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST,
         )
         .await
     }

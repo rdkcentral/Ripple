@@ -23,7 +23,7 @@ use std::{
 
 use ripple_sdk::{
     api::{
-        apps::AppEvent,
+        apps::{AppEvent, AppEventRequest},
         device::{
             device_events::{DeviceEvent, DeviceEventCallback},
             device_operator::DeviceSubscribeRequest,
@@ -167,11 +167,14 @@ pub trait ThunderEventHandlerProvider {
     ) -> Result<ExtnEvent, RippleError> {
         let result = serde_json::to_value(r).unwrap();
         match callback_type {
-            DeviceEventCallback::FireboltAppEvent => Ok(ExtnEvent::AppEvent(AppEvent {
-                event_name: Self::get_mapped_event(),
-                context: None,
-                result,
-            })),
+            DeviceEventCallback::FireboltAppEvent => {
+                Ok(ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
+                    event_name: Self::get_mapped_event(),
+                    context: None,
+                    result,
+                    app_id: None,
+                })))
+            }
             DeviceEventCallback::ExtnEvent => Ok(ExtnEvent::Value(result)),
         }
     }

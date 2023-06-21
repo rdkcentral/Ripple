@@ -103,6 +103,9 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
             Config::AllDefaultApps => ExtnResponse::Config(ConfigResponse::AllApps(
                 state.app_library_state.get_all_apps(),
             )),
+            Config::DefaultApp => {
+                ExtnResponse::DefaultApp(state.app_library_state.get_default_app().unwrap())
+            }
             Config::SavedDir => {
                 ExtnResponse::String(device_manifest.clone().configuration.saved_dir)
             }

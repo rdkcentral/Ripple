@@ -79,6 +79,7 @@ impl ExtnRequestProcessor for DistributorTokenProcessor {
         let token = ExtnResponse::Token(TokenResult {
             _type: extracted_message.clone().token_type,
             expires: None,
+            // Mock invalidated token for schema validation
             value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c".into()
         });
         Self::respond(state.clone(), msg, token).await.is_ok()

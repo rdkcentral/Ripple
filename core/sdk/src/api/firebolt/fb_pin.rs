@@ -68,7 +68,7 @@ pub enum PinChallengeResultReason {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PinChallengeResponse {
     pub granted: bool,
-    reason: PinChallengeResultReason,
+    pub reason: PinChallengeResultReason,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

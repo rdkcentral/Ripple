@@ -42,12 +42,6 @@ impl DiscoveryContext {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct SectionIntentData {
-    pub section_name: String,
-}
-
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct LaunchRequest {
     #[serde(rename = "appId")]
@@ -64,7 +58,7 @@ impl LaunchRequest {
 
 //TODO: need to update 1.0 code
 
-#[derive(Debug, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct EntitlementData {
     pub entitlement_id: String,
@@ -94,14 +88,14 @@ pub struct SignInInfo {
 }
 
 //type LocalizedString = string | object
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(untagged)]
 pub enum LocalizedString {
     Simple(String),
     Locale(HashMap<String, String>),
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct WatchedInfo {
     pub entity_id: String,
@@ -116,13 +110,12 @@ pub struct WatchedInfo {
     )]
     pub watched_on: Option<String>,
 }
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct WatchNextInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<LocalizedString>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub identifiers: ContentIdentifiers,
     #[serde(
         default,
@@ -140,7 +133,7 @@ pub struct NavigateCompanyPageRequest {
     pub company_id: String,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ContentAccessRequest {
     pub ids: ContentAccessIdentifiers,
 }
@@ -151,7 +144,7 @@ pub const PURCHASED_CONTENT_EVENT: &'static str = "discovery.onPullPurchasedCont
 pub const PURCHASED_CONTENT_CAPABILITY: &'static str = "discovery:purchased-content";
 pub const EVENT_DISCOVERY_POLICY_CHANGED: &'static str = "discovery.onPolicyChanged";
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub enum ContentType {
     ChannelLineup,
@@ -166,7 +159,7 @@ impl ContentType {
     }
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Availability {
     #[serde(rename = "type")]
@@ -186,7 +179,7 @@ pub struct Availability {
     pub end_time: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentAccessIdentifiers {
     #[serde(skip_serializing_if = "Option::is_none")]

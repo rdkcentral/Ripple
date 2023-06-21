@@ -26,7 +26,7 @@ use ripple_sdk::{
     api::{
         apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
         device::{
-            device_storage::SetBoolProperty,
+            device_peristence::SetBoolProperty,
             device_user_grants_data::{
                 AutoApplyPolicy, GrantActiveState, GrantEntry, GrantErrors, GrantLifespan,
                 GrantPolicy, GrantPrivacySetting, GrantScope, GrantStateModify, GrantStatus,

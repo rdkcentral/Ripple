@@ -111,7 +111,7 @@
   },
   "applications": {
     "distribution": {
-      "library": "/etc/default-app-library.json",
+      "library": "/etc/firebolt-app-library.json",
       "catalog": ""
     },
     "defaults": {

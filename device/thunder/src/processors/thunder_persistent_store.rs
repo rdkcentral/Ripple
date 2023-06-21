@@ -21,7 +21,9 @@ use thunder_ripple_sdk::{
     ripple_sdk::{
         api::device::{
             device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
-            device_storage::{GetStorageProperty, SetStorageProperty, StorageData, StorageRequest},
+            device_peristence::{
+                DevicePersistenceRequest, GetStorageProperty, SetStorageProperty, StorageData,
+            },
         },
         async_trait::async_trait,
         extn::{
@@ -246,7 +248,7 @@ impl ThunderStorageRequestProcessor {
 
 impl ExtnStreamProcessor for ThunderStorageRequestProcessor {
     type STATE = ThunderState;
-    type VALUE = StorageRequest;
+    type VALUE = DevicePersistenceRequest;
 
     fn get_state(&self) -> Self::STATE {
         self.state.clone()
@@ -272,10 +274,10 @@ impl ExtnRequestProcessor for ThunderStorageRequestProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         match extracted_message {
-            StorageRequest::Get(get_params) => {
+            DevicePersistenceRequest::Get(get_params) => {
                 Self::get_value(state.clone(), msg, get_params).await
             }
-            StorageRequest::Set(set_params) => {
+            DevicePersistenceRequest::Set(set_params) => {
                 Self::set_value(state.clone(), msg, set_params).await
             }
         }

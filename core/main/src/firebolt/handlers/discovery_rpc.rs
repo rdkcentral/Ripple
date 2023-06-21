@@ -19,12 +19,9 @@ use std::{collections::HashMap, time::Duration};
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
-    service::{
-        apps::{
-            app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
-            provider_broker::{self, ProviderBroker},
-        },
-        data_governance::DataGovernance,
+    service::apps::{
+        app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
+        provider_broker::{self, ProviderBroker},
     },
     utils::rpc_utils::{
         rpc_await_oneshot, rpc_downstream_service_err, rpc_err, rpc_navigate_reserved_app_err,
@@ -36,17 +33,25 @@ use jsonrpsee::{
     RpcModule,
 };
 
+use ripple_sdk::api::{
+    device::entertainment_data::*,
+    firebolt::{
+        fb_general::{ListenRequest, ListenerResponse},
+        provider::ExternalProviderResponse,
+    },
+    gateway::rpc_gateway_api::CallContext,
+};
 use ripple_sdk::{
     api::{
+        account_link::AccountLinkRequest,
         apps::{AppError, AppManagerResponse, AppMethod, AppRequest, AppResponse},
         config::Config,
         firebolt::{
             fb_capabilities::FireboltCap,
             fb_discovery::{
-                ClearContentSetParams, ContentAccessRequest, EntitlementsInfo, LaunchRequest,
-                LocalizedString, SignInInfo, SignInRequestParams, WatchNextInfo, WatchedInfo,
-                DISCOVERY_EVENT_ON_NAVIGATE_TO, ENTITY_INFO_CAPABILITY, ENTITY_INFO_EVENT,
-                EVENT_DISCOVERY_POLICY_CHANGED, PURCHASED_CONTENT_CAPABILITY,
+                ContentAccessRequest, EntitlementsInfo, LaunchRequest, LocalizedString, SignInInfo,
+                WatchNextInfo, WatchedInfo, DISCOVERY_EVENT_ON_NAVIGATE_TO, ENTITY_INFO_CAPABILITY,
+                ENTITY_INFO_EVENT, EVENT_DISCOVERY_POLICY_CHANGED, PURCHASED_CONTENT_CAPABILITY,
                 PURCHASED_CONTENT_EVENT,
             },
             provider::{ProviderRequestPayload, ProviderResponse, ProviderResponsePayload},
@@ -55,26 +60,6 @@ use ripple_sdk::{
     extn::extn_client_message::ExtnResponse,
     log::{error, info},
     tokio::{sync::oneshot, time::timeout},
-};
-use ripple_sdk::{
-    api::{
-        device::entertainment_data::*,
-        distributor::{
-            distributor_discovery::{DiscoveryRequest, MediaEventRequest},
-            distributor_privacy::DataEventType,
-        },
-        firebolt::{
-            fb_discovery::{
-                ContentAccessAvailability, ContentAccessEntitlement, ContentAccessInfo,
-                ContentAccessListSetParams, MediaEvent, MediaEventsAccountLinkRequestParams,
-                ProgressUnit, SessionParams,
-            },
-            fb_general::{ListenRequest, ListenerResponse},
-            provider::ExternalProviderResponse,
-        },
-        gateway::rpc_gateway_api::CallContext,
-    },
-    log::debug,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -247,7 +232,7 @@ impl DiscoveryImpl {
         Ok(content_policy)
     }
 
-    fn get_share_watch_history() -> bool {
+    pub fn get_share_watch_history() -> bool {
         false
     }
 
@@ -292,31 +277,15 @@ impl DiscoveryImpl {
         ctx: CallContext,
         is_signed_in: bool,
     ) -> RpcResult<bool> {
-        let session = self.state.session_state.get_account_session().unwrap();
-
-        let payload = DiscoveryRequest::SignIn(SignInRequestParams {
-            session_info: SessionParams {
-                app_id: ctx.clone().app_id.to_owned(),
-                dist_session: session,
-            },
-            is_signed_in,
-        });
-
-        let resp = self.state.get_client().send_extn_request(payload).await;
-
-        if let Err(_) = resp {
-            error!("Error: Notifying SignIn info to the platform: {:?}", resp);
-            return Err(rpc_downstream_service_err(
-                "Error: Notifying SignIn info to the platform",
-            ));
-        }
-
-        match resp.unwrap().payload.extract().unwrap() {
-            ExtnResponse::None(()) => Ok(true),
-            _ => Err(rpc_downstream_service_err(
-                "Did not receive a valid resposne from platform when notifying Content Access List",
-            )),
-        }
+        Ok(self
+            .state
+            .get_client()
+            .send_extn_request(match is_signed_in {
+                true => AccountLinkRequest::SignIn(ctx),
+                false => AccountLinkRequest::SignOut(ctx),
+            })
+            .await
+            .is_ok())
     }
 
     async fn content_access(
@@ -324,99 +293,31 @@ impl DiscoveryImpl {
         ctx: CallContext,
         request: ContentAccessRequest,
     ) -> RpcResult<EmptyResult> {
-        let session = self.state.session_state.get_account_session().unwrap();
-
-        // If both entitlement & availability are None return EmptyResult
-        if request.ids.availabilities.is_none() && request.ids.entitlements.is_none() {
-            return Ok(EmptyResult::default());
-        }
-
-        let payload = DiscoveryRequest::SetContentAccess(ContentAccessListSetParams {
-            session_info: SessionParams {
-                app_id: ctx.app_id.to_owned(),
-                dist_session: session,
-            },
-            content_access_info: ContentAccessInfo {
-                availabilities: request.ids.availabilities.map(|availability_vec| {
-                    availability_vec
-                        .into_iter()
-                        .map(|x| ContentAccessAvailability {
-                            _type: x._type.as_string().to_owned(),
-                            id: x.id,
-                            catalog_id: x.catalog_id,
-                            start_time: x.start_time,
-                            end_time: x.end_time,
-                        })
-                        .collect()
-                }),
-                entitlements: request.ids.entitlements.map(|entitlement_vec| {
-                    entitlement_vec
-                        .into_iter()
-                        .map(|x| ContentAccessEntitlement {
-                            entitlement_id: x.entitlement_id,
-                            start_time: x.start_time,
-                            end_time: x.end_time,
-                        })
-                        .collect()
-                }),
-            },
-        });
-
-        let resp = self.state.get_client().send_extn_request(payload).await;
-        if let Err(_) = resp {
-            error!(
-                "Error: Notifying Content AccessList to the platform: {:?}",
-                resp
-            );
-            return Err(rpc_downstream_service_err(
+        match self
+            .state
+            .get_client()
+            .send_extn_request(AccountLinkRequest::ContentAccess(ctx, request))
+            .await
+        {
+            Ok(_) => Ok(EmptyResult::default()),
+            Err(_) => Err(rpc_downstream_service_err(
                 "Could not notify Content AccessList to the platform",
-            ));
-        }
-
-        match resp.unwrap().payload.extract().unwrap() {
-            ExtnResponse::None(()) => Ok(EmptyResult::default()),
-            _ => Err(rpc_downstream_service_err(
-                "Did not receive a valid resposne from platform when notifying Content Access List",
             )),
         }
     }
 
     async fn clear_content_access(&self, ctx: CallContext) -> RpcResult<EmptyResult> {
-        let session = self.state.session_state.get_account_session().unwrap();
-
-        let payload = DiscoveryRequest::ClearContent(ClearContentSetParams {
-            session_info: SessionParams {
-                app_id: ctx.app_id.to_owned(),
-                dist_session: session,
-            },
-        });
-
-        let resp = self.state.get_client().send_extn_request(payload).await;
-
-        if let Err(_) = resp {
-            error!(
-                "Error: Clearing the Content AccessList to the platform: {:?}",
-                resp
-            );
-            return Err(rpc_downstream_service_err(
-                "Could not clear Content AccessList from the platform",
-            ));
-        }
-
-        //TODO:ExtnResppnse
-        match resp.unwrap().payload.extract().unwrap() {
-            ExtnResponse::None(()) => Ok(EmptyResult::default()),
-            _ => Err(rpc_downstream_service_err(
-                "Did not receive a valid resposne from platform when clearing the Content Access List",
+        match self
+            .state
+            .get_client()
+            .send_extn_request(AccountLinkRequest::ClearContentAccess(ctx))
+            .await
+        {
+            Ok(_) => Ok(EmptyResult::default()),
+            Err(_) => Err(rpc_downstream_service_err(
+                "Could not notify Content AccessList to the platform",
             )),
-                }
-
-        // match resp.unwrap() {
-        //     ExtnRespons::ContentAccess(_obj) => Ok(EmptyResult::default()),
-        //     _ => Err(rpc_downstream_service_err(
-        //         "Did not receive a valid resposne from platform when clearing the Content Access List",
-        //     )),
-        // }
+        }
     }
 }
 
@@ -505,48 +406,21 @@ impl DiscoveryServer for DiscoveryImpl {
 
     async fn watched(&self, ctx: CallContext, watched_info: WatchedInfo) -> RpcResult<bool> {
         info!("Discovery.watched");
-        let (data_tags, drop_data) =
-            DataGovernance::resolve_tags(&self.state, ctx.app_id.clone(), DataEventType::Watched)
-                .await;
-        debug!("drop_all={:?} data_tags={:?}", drop_data, data_tags);
-        if drop_data {
-            return Ok(false);
-        }
-        let progress = watched_info.progress;
-        if let Some(dist_session) = self.state.session_state.get_account_session() {
-            let request =
-                MediaEventRequest::MediaEventAccountLink(MediaEventsAccountLinkRequestParams {
-                    media_event: MediaEvent {
-                        content_id: watched_info.entity_id.to_owned(),
-                        completed: watched_info.completed.unwrap_or(true),
-                        progress: if progress > 1.0 {
-                            progress
-                        } else {
-                            progress * 100.0
-                        },
-                        progress_unit: if progress > 1.0 {
-                            ProgressUnit::Seconds
-                        } else {
-                            ProgressUnit::Percent
-                        },
-                        watched_on: watched_info.watched_on.clone(),
-                        app_id: ctx.clone().app_id.to_owned(),
-                    },
-                    content_partner_id: get_content_partner_id(&self.state, &ctx)
-                        .await
-                        .unwrap_or(ctx.app_id.to_owned()),
-                    client_supports_opt_out: DiscoveryImpl::get_share_watch_history(),
-                    dist_session,
-                    data_tags,
-                });
-
-            if let Ok(resp) = self.state.get_client().send_extn_request(request).await {
-                if let Some(_) = resp.payload.extract::<ExtnResponse>() {
-                    return Ok(true);
+        match self
+            .state
+            .get_client()
+            .send_extn_request(AccountLinkRequest::Watched(ctx, watched_info))
+            .await
+        {
+            Ok(response) => {
+                if let Some(ExtnResponse::Boolean(v)) =
+                    response.payload.clone().extract::<ExtnResponse>()
+                {
+                    return Ok(v);
                 }
             }
+            Err(_) => {}
         }
-
         Err(rpc_err(
             "Did not receive a valid resposne from platform when notifying watched info",
         ))

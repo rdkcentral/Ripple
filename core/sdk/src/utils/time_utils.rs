@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 
 /*
 Handle various types of timestamp conversion from magnitude -> String
@@ -29,4 +29,23 @@ pub fn timestamp_2_iso8601(timestamp: i64) -> String {
     } else {
         timestamp.to_string()
     }
+}
+
+/*
+Handle various types of timestamp conversion from magnitude -> String
+*/
+const TIME_STAMP_CHECK: i64 = 100000000000;
+
+pub fn convert_timestamp_to_iso8601(timestamp: i64) -> String {
+    let timestamp_in_secs = if timestamp >= TIME_STAMP_CHECK {
+        // the given time stamp is in milliseconds.
+        timestamp / 1000
+    } else {
+        timestamp
+    };
+
+    Utc.timestamp_opt(timestamp_in_secs, 0)
+        .unwrap()
+        .to_rfc3339()
+        .to_string()
 }
