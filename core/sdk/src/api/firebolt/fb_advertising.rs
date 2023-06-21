@@ -126,7 +126,6 @@ pub struct AdvertisingFrameworkConfig {
     pub authentication_entity: String,
 }
 
-
 impl ExtnPayloadProvider for AdvertisingResponse {
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Response(ExtnResponse::Value(
@@ -154,12 +153,11 @@ impl ExtnPayloadProvider for AdvertisingResponse {
     }
 }
 
-#[derive(Deserialize,Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct GetAdConfig {
     pub options: AdConfig,
 }
-
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "lowercase")]

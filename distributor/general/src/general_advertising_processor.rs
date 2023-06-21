@@ -102,8 +102,10 @@ impl ExtnRequestProcessor for DistributorAdvertisingProcessor {
                     ad_profile_id: "12345:caf_allinone_profile".into(),
                     ad_site_section_id: "caf_allinone_profile_section".into(),
                     ad_opt_out: true,
+                    // Mock invalidated token for schema validation
                     privacy_data: "ew0KICAicGR0IjogImdkcDp2MSIsDQogICJ1c19wcml2YWN5IjogIjEtTi0iLA0KICAibG10IjogIjEiIA0KfQ0K".into(),
                     ifa_value: "01234567-89AB-CDEF-GH01-23456789ABCD".into(),
+                    // Mock invalidated token for schema validation
                     ifa: "ewogICJ2YWx1ZSI6ICIwMTIzNDU2Ny04OUFCLUNERUYtR0gwMS0yMzQ1Njc4OUFCQ0QiLAogICJpZmFfdHlwZSI6ICJzc3BpZCIsCiAgImxtdCI6ICIwIgp9Cg==".into(),
                     app_name: "FutureToday".into(),
                     app_version: "".into(),

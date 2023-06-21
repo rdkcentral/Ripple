@@ -24,8 +24,8 @@ use ripple_sdk::{
     api::{
         firebolt::{
             fb_advertising::{
-                AdIdRequestParams, AdInitObjectRequestParams, AdvertisingRequest,
-                AdvertisingResponse, AdvertisingFrameworkConfig, GetAdConfig,
+                AdIdRequestParams, AdInitObjectRequestParams, AdvertisingFrameworkConfig,
+                AdvertisingRequest, AdvertisingResponse, GetAdConfig,
             },
             fb_capabilities::{CapabilityRole, RoleInfo},
             fb_general::{ListenRequest, ListenerResponse},
@@ -36,7 +36,7 @@ use ripple_sdk::{
     extn::extn_client_message::ExtnResponse,
     log::error,
 };
-use serde::{ Serialize};
+use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -52,7 +52,6 @@ use super::{
 };
 
 const ADVERTISING_APP_BUNDLE_ID_SUFFIX: &'static str = "Comcast";
-
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
