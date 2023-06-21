@@ -128,23 +128,18 @@ pub struct AdvertisingFrameworkConfig {
 
 impl ExtnPayloadProvider for AdvertisingResponse {
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Response(ExtnResponse::Value(
-            serde_json::to_value(self.clone()).unwrap(),
-        ))
+        ExtnPayload::Response(ExtnResponse::Advertising(self.clone()))
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         match payload {
-            ExtnPayload::Response(response) => match response {
-                ExtnResponse::Value(value) => {
-                    if let Ok(v) = serde_json::from_value(value) {
-                        return Some(v);
-                    }
-                }
+            ExtnPayload::Response(r) => match r {
+                ExtnResponse::Advertising(v) => return Some(v),
                 _ => {}
             },
             _ => {}
         }
+
         None
     }
 
