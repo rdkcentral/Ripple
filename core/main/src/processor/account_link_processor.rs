@@ -259,7 +259,13 @@ impl AccountLinkProcessor {
             DataGovernance::resolve_tags(state, ctx.app_id.clone(), DataEventType::Watched).await;
         debug!("drop_all={:?} data_tags={:?}", drop_data, data_tags);
         if drop_data {
-            //return Ok(false);
+            return Self::respond(
+                state.get_client().get_extn_client(),
+                msg,
+                ExtnResponse::Boolean(false),
+            )
+            .await
+            .is_ok();
         }
         let progress = watched_info.progress;
         if let Some(dist_session) = state.session_state.get_account_session() {
@@ -293,7 +299,7 @@ impl AccountLinkProcessor {
                 return Self::respond(
                     state.get_client().get_extn_client(),
                     msg,
-                    ExtnResponse::None(()),
+                    ExtnResponse::Boolean(true),
                 )
                 .await
                 .is_ok();
