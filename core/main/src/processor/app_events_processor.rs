@@ -16,7 +16,7 @@
 // limitations under the License.
 
 use ripple_sdk::{
-    api::apps::AppEvent,
+    api::apps::AppEventRequest,
     async_trait::async_trait,
     extn::{
         client::extn_processor::{
@@ -47,7 +47,7 @@ impl AppEventsProcessor {
 
 impl ExtnStreamProcessor for AppEventsProcessor {
     type STATE = PlatformState;
-    type VALUE = AppEvent;
+    type VALUE = AppEventRequest;
     fn get_state(&self) -> Self::STATE {
         self.state.clone()
     }
@@ -68,7 +68,20 @@ impl ExtnEventProcessor for AppEventsProcessor {
         _msg: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> Option<bool> {
-        AppEvents::emit_with_app_event(&state, extracted_message).await;
+        match extracted_message.clone() {
+            AppEventRequest::Emit(event) => {
+                if let Some(app_id) = event.clone().app_id {
+                    let event_name = &event.event_name;
+                    let result = &event.result;
+                    AppEvents::emit_to_app(&state, app_id, event_name, result).await;
+                } else {
+                    AppEvents::emit_with_app_event(&state, extracted_message).await;
+                }
+            }
+            AppEventRequest::Register(ctx, event, request) => {
+                AppEvents::add_listener(&state, event, ctx, request);
+            }
+        }
         None
     }
 }

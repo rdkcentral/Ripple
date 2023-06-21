@@ -23,7 +23,7 @@ use crate::{
     processor::{
         app_events_processor::AppEventsProcessor, config_processor::ConfigRequestProcessor,
         exn_status_processor::ExtnStatusProcessor, keyboard_processor::KeyboardProcessor,
-        pin_processor::PinProcessor,
+        pin_processor::PinProcessor, storage::storage_manager_processor::StorageManagerProcessor,
     },
     state::bootstrap_state::BootstrapState,
 };
@@ -45,6 +45,7 @@ impl Bootstep<BootstrapState> for SetupExtnClientStep {
         client.add_request_processor(KeyboardProcessor::new(state.platform_state.clone()));
         client.add_event_processor(ExtnStatusProcessor::new(state.clone().extn_state));
         client.add_event_processor(AppEventsProcessor::new(state.platform_state.clone()));
+        client.add_request_processor(StorageManagerProcessor::new(state.platform_state.clone()));
         Ok(())
     }
 }

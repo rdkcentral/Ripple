@@ -24,7 +24,7 @@ use std::str::FromStr;
 
 use super::{
     device_accessory::RemoteAccessoryRequest, device_browser::BrowserRequest,
-    device_info_request::DeviceInfoRequest, device_storage::StorageRequest,
+    device_info_request::DeviceInfoRequest, device_peristence::DevicePersistenceRequest,
     device_wifi::WifiRequest, device_window_manager::WindowManagerRequest,
 };
 
@@ -33,7 +33,7 @@ pub enum DeviceRequest {
     DeviceInfo(DeviceInfoRequest),
     Browser(BrowserRequest),
     WindowManager(WindowManagerRequest),
-    Storage(StorageRequest),
+    Storage(DevicePersistenceRequest),
     Wifi(WifiRequest),
     Accessory(RemoteAccessoryRequest),
 }

@@ -15,15 +15,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 pub mod accessory;
+pub mod account_link;
 pub mod apps;
 pub mod config;
 pub mod device;
 pub mod manifest;
 pub mod protocol;
 pub mod session;
+pub mod settings;
 pub mod status_update;
 pub mod storage_property;
 pub mod wifi;
+
 pub mod gateway {
     pub mod rpc_error;
     pub mod rpc_gateway_api;

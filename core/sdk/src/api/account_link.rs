@@ -17,35 +17,35 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
-    utils::error::RippleError,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum AccessibilityResponse {
-    None(()),
-    String(String),
-    Boolean(bool),
-    Number(u32),
-    Error(RippleError),
+use super::{
+    firebolt::fb_discovery::{ContentAccessRequest, WatchNextInfo, WatchedInfo},
+    gateway::rpc_gateway_api::CallContext,
+};
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub enum AccountLinkRequest {
+    SignIn(CallContext),
+    SignOut(CallContext),
+    ContentAccess(CallContext, ContentAccessRequest),
+    ClearContentAccess(CallContext),
+    Watched(CallContext, WatchedInfo),
+    WatchedNext(CallContext, WatchNextInfo),
 }
 
-impl ExtnPayloadProvider for AccessibilityResponse {
+impl ExtnPayloadProvider for AccountLinkRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Response(ExtnResponse::Value(
-            serde_json::to_value(self.clone()).unwrap(),
-        ))
+        ExtnPayload::Request(ExtnRequest::AccountLink(self.clone()))
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         match payload {
-            ExtnPayload::Response(response) => match response {
-                ExtnResponse::Value(value) => {
-                    if let Ok(v) = serde_json::from_value(value) {
-                        return Some(v);
-                    }
-                }
+            ExtnPayload::Request(response) => match response {
+                ExtnRequest::AccountLink(value) => return Some(value),
                 _ => {}
             },
             _ => {}
@@ -54,6 +54,6 @@ impl ExtnPayloadProvider for AccessibilityResponse {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::DevicePersistence
+        RippleContract::AccountLink
     }
 }

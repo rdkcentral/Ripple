@@ -68,7 +68,7 @@ pub enum RippleContract {
     Browser,
     Permissions,
     BridgeProtocol,
-    Storage,
+    DevicePersistence,
     RemoteAccessory,
     Keyboard,
     SessionToken,
@@ -78,9 +78,13 @@ pub enum RippleContract {
     VoiceGuidance,
     SecureStorage,
     Advertising,
-    PrivacySettings,
+    PrivacyCloudSync,
     Metrics,
     MediaEvents,
+    PrivacySettings,
+    StorageManager,
+    AccountLink,
+    Settings,
 }
 
 impl TryFrom<String> for RippleContract {

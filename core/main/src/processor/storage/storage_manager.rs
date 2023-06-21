@@ -18,8 +18,8 @@
 use jsonrpsee::{core::RpcResult, types::error::CallError};
 use ripple_sdk::{
     api::{
-        device::device_storage::{
-            GetStorageProperty, SetStorageProperty, StorageData, StorageRequest,
+        device::device_peristence::{
+            DevicePersistenceRequest, GetStorageProperty, SetStorageProperty, StorageData,
         },
         firebolt::fb_capabilities::CAPABILITY_NOT_AVAILABLE,
         storage_property::StorageProperty,
@@ -267,7 +267,7 @@ impl StorageManager {
             // .await
             //.state
             .get_client()
-            .send_extn_request(StorageRequest::Set(ssp))
+            .send_extn_request(DevicePersistenceRequest::Set(ssp))
             .await
         {
             Ok(_) => {
@@ -371,7 +371,7 @@ impl StorageManager {
         };
         let result = state
             .get_client()
-            .send_extn_request(StorageRequest::Get(data))
+            .send_extn_request(DevicePersistenceRequest::Get(data))
             .await;
 
         match result {

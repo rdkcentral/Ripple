@@ -36,7 +36,7 @@ use ripple_sdk::{
                 DeviceEvent, DeviceEventCallback, DeviceEventRequest, VOICE_GUIDANCE_CHANGED,
             },
             device_info_request::DeviceInfoRequest,
-            device_storage::{SetBoolProperty, SetF32Property},
+            device_peristence::{SetBoolProperty, SetF32Property},
         },
         firebolt::fb_general::{ListenRequest, ListenerResponse},
         gateway::rpc_gateway_api::CallContext,
@@ -161,7 +161,7 @@ pub async fn voice_guidance_settings_speed(state: &PlatformState) -> RpcResult<f
 /*
 Free function to allow variability of event_name
 */
-async fn voice_guidance_settings_enabled_changed(
+pub async fn voice_guidance_settings_enabled_changed(
     platform_state: &PlatformState,
     ctx: &CallContext,
     request: &ListenRequest,

@@ -247,7 +247,7 @@ impl DiscoveryImpl {
         Ok(content_policy)
     }
 
-    fn get_share_watch_history() -> bool {
+    pub fn get_share_watch_history() -> bool {
         false
     }
 

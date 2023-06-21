@@ -25,7 +25,7 @@ use ripple_sdk::{
         firebolt::{
             fb_advertising::{
                 AdIdRequestParams, AdInitObjectRequestParams, AdvertisingRequest,
-                AdvertisingResponse,
+                AdvertisingResponse, AdvertisingFrameworkConfig, GetAdConfig,
             },
             fb_capabilities::{CapabilityRole, RoleInfo},
             fb_general::{ListenRequest, ListenerResponse},
@@ -36,10 +36,9 @@ use ripple_sdk::{
     extn::extn_client_message::ExtnResponse,
     log::error,
 };
-use serde::{Deserialize, Serialize};
+use serde::{ Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::fmt;
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
@@ -54,75 +53,6 @@ use super::{
 
 const ADVERTISING_APP_BUNDLE_ID_SUFFIX: &'static str = "Comcast";
 
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct GetAdConfig {
-    pub options: AdConfig,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "lowercase")]
-pub enum Environment {
-    Prod,
-    Test,
-}
-
-impl fmt::Display for Environment {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Environment::Prod => write!(f, "prod"),
-            Environment::Test => write!(f, "test"),
-        }
-    }
-}
-
-impl Default for Environment {
-    fn default() -> Self {
-        Environment::Prod
-    }
-}
-
-#[derive(Deserialize, Debug, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct AdConfig {
-    #[serde(default)]
-    pub environment: Environment,
-    // COPPA stands for Children's Online Privacy Protection Act.
-    pub coppa: Option<bool>,
-    pub authentication_entity: Option<String>,
-}
-
-impl Default for GetAdConfig {
-    fn default() -> Self {
-        GetAdConfig {
-            options: AdConfig {
-                environment: Environment::default(),
-                coppa: Some(false),
-                authentication_entity: Some("".to_owned()),
-            },
-        }
-    }
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AdvertisingFrameworkConfig {
-    pub ad_server_url: String,
-    pub ad_server_url_template: String,
-    pub ad_network_id: String,
-    pub ad_profile_id: String,
-    pub ad_site_section_id: String,
-    pub ad_opt_out: bool,
-    pub privacy_data: String,
-    pub ifa_value: String,
-    pub ifa: String,
-    pub app_name: String,
-    pub app_bundle_id: String,
-    pub distributor_app_id: String,
-    pub device_ad_attributes: String,
-    pub coppa: u32,
-    pub authentication_entity: String,
-}
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]

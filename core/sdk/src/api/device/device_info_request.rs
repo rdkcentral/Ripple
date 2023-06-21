@@ -51,6 +51,7 @@ pub enum DeviceInfoRequest {
     SetVoiceGuidanceEnabled(bool),
     VoiceGuidanceSpeed,
     SetVoiceGuidanceSpeed(f32),
+    FullCapabilities,
 }
 
 impl ExtnPayloadProvider for DeviceInfoRequest {
@@ -77,6 +78,19 @@ impl ExtnPayloadProvider for DeviceInfoRequest {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceCapabilities {
+    pub video_resolution: Vec<i32>,
+    pub firmware_info: FireboltSemanticVersion,
+    pub hdr: HashMap<HdrProfile, bool>,
+    pub hdcp: HDCPStatus,
+    pub is_wifi: bool,
+    pub make: String,
+    pub model: String,
+    pub audio: HashMap<AudioProfile, bool>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DeviceResponse {
     CustomError(String),
@@ -87,6 +101,7 @@ pub enum DeviceResponse {
     FirmwareInfo(FireboltSemanticVersion),
     ScreenResolutionResponse(Vec<i32>),
     VideoResolutionResponse(Vec<i32>),
+    FullCapabilities(DeviceCapabilities),
 }
 
 impl ExtnPayloadProvider for DeviceResponse {

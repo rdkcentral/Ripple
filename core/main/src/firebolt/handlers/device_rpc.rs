@@ -41,10 +41,10 @@ use ripple_sdk::{
             },
             device_info_request::{DeviceInfoRequest, DeviceResponse},
             device_operator::DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS,
+            device_peristence::SetStringProperty,
             device_request::{
                 AudioProfile, DeviceVersionResponse, HdcpProfile, HdrProfile, NetworkResponse,
             },
-            device_storage::SetStringProperty,
         },
         firebolt::{
             fb_capabilities::{FireboltCap, CAPABILITY_NOT_AVAILABLE},

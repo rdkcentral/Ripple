@@ -72,6 +72,9 @@ impl ExtnPayloadProvider for LifecycleManagementEventRequest {
 pub enum LifecycleManagementRequest {
     Session(AppSessionRequest),
     SetState(SetStateRequest),
+    Close(String, CloseReason),
+    Ready(String),
+    GetSecondScreenPayload(String),
 }
 
 impl ExtnPayloadProvider for LifecycleManagementRequest {

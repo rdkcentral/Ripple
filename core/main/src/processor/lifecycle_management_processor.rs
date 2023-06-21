@@ -83,6 +83,11 @@ impl ExtnRequestProcessor for LifecycleManagementProcessor {
         let method = match request {
             LifecycleManagementRequest::Session(s) => AppMethod::BrowserSession(s.session),
             LifecycleManagementRequest::SetState(s) => AppMethod::SetState(s.app_id, s.state),
+            LifecycleManagementRequest::Close(app_id, cr) => AppMethod::Close(app_id, cr),
+            LifecycleManagementRequest::Ready(app_id) => AppMethod::Ready(app_id),
+            LifecycleManagementRequest::GetSecondScreenPayload(app_id) => {
+                AppMethod::GetSecondScreenPayload(app_id)
+            }
         };
         if let Err(e) = state.send_app_request(AppRequest::new(method, resp_tx)) {
             error!("Sending to App manager {:?}", e);

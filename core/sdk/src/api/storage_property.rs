@@ -17,6 +17,11 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::{
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
+    framework::ripple_contract::RippleContract,
+};
+
 use super::distributor::distributor_privacy::PrivacySetting;
 
 pub const NAMESPACE_CLOSED_CAPTIONS: &'static str = "ClosedCaptions";
@@ -544,5 +549,31 @@ impl StorageProperty {
             StorageProperty::AllowWatchHistory => Some(PrivacySetting::WatchHistory),
             _ => None,
         }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum StorageManagerRequest {
+    GetBool(StorageProperty, bool),
+}
+
+impl ExtnPayloadProvider for StorageManagerRequest {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(ExtnRequest::StorageManager(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<StorageManagerRequest> {
+        match payload {
+            ExtnPayload::Request(request) => match request {
+                ExtnRequest::StorageManager(r) => return Some(r),
+                _ => {}
+            },
+            _ => {}
+        }
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::StorageManager
     }
 }

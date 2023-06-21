@@ -104,7 +104,7 @@ impl ExtnPayloadProvider for PrivacySettings {
     }
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
-        RippleContract::PrivacySettings
+        RippleContract::PrivacyCloudSync
     }
 }
 
@@ -130,25 +130,25 @@ pub struct SetPropertyParams {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum PrivacyRequest {
+pub enum PrivacyCloudRequest {
     GetProperty(GetPropertyParams),
     GetProperties(AccountSession),
     SetProperty(SetPropertyParams),
     GetPartnerExclusions(AccountSession),
 }
 
-impl PrivacyRequest {
+impl PrivacyCloudRequest {
     pub fn get_session(&self) -> AccountSession {
         match self {
-            PrivacyRequest::GetProperty(params) => params.dist_session.clone(),
-            PrivacyRequest::GetProperties(session) => session.clone(),
-            PrivacyRequest::SetProperty(params) => params.dist_session.clone(),
-            PrivacyRequest::GetPartnerExclusions(session) => session.clone(),
+            PrivacyCloudRequest::GetProperty(params) => params.dist_session.clone(),
+            PrivacyCloudRequest::GetProperties(session) => session.clone(),
+            PrivacyCloudRequest::SetProperty(params) => params.dist_session.clone(),
+            PrivacyCloudRequest::GetPartnerExclusions(session) => session.clone(),
         }
     }
 }
 
-impl ExtnPayloadProvider for PrivacyRequest {
+impl ExtnPayloadProvider for PrivacyCloudRequest {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         match payload {
             ExtnPayload::Request(r) => match r {
@@ -166,7 +166,7 @@ impl ExtnPayloadProvider for PrivacyRequest {
     }
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
-        RippleContract::PrivacySettings
+        RippleContract::PrivacyCloudSync
     }
 }
 
@@ -218,7 +218,7 @@ impl ExtnPayloadProvider for ExclusionPolicy {
     }
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
-        RippleContract::PrivacySettings
+        RippleContract::PrivacyCloudSync
     }
 }
 

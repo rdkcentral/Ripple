@@ -1,7 +1,7 @@
 use ripple_sdk::{
     api::{
         distributor::distributor_privacy::{
-            DataEventType, ExclusionPolicy, ExclusionPolicyData, PrivacyRequest,
+            DataEventType, ExclusionPolicy, ExclusionPolicyData, PrivacyCloudRequest,
         },
         manifest::device_manifest::DataGovernancePolicy,
         storage_property::StorageProperty,
@@ -135,7 +135,7 @@ impl DataGovernance {
         if let Some(session) = state.session_state.get_account_session() {
             if let Ok(response) = state
                 .get_client()
-                .send_extn_request(PrivacyRequest::GetPartnerExclusions(session))
+                .send_extn_request(PrivacyCloudRequest::GetPartnerExclusions(session))
                 .await
             {
                 if let Some(excl) = response.payload.clone().extract::<ExclusionPolicy>() {

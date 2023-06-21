@@ -57,7 +57,7 @@ fn init_library() -> CExtnMetadata {
             RippleContract::AccountSession,
             RippleContract::SecureStorage,
             RippleContract::Advertising,
-            RippleContract::PrivacySettings,
+            RippleContract::PrivacyCloudSync,
             RippleContract::SessionToken,
             RippleContract::Metrics,
             RippleContract::SessionToken,

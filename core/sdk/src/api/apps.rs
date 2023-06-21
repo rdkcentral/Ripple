@@ -30,8 +30,10 @@ use crate::{
 use super::{
     device::entertainment_data::NavigationIntent,
     firebolt::{
-        fb_discovery::LaunchRequest, fb_lifecycle::LifecycleState, fb_parameters::SecondScreenEvent,
+        fb_discovery::LaunchRequest, fb_general::ListenRequest, fb_lifecycle::LifecycleState,
+        fb_parameters::SecondScreenEvent,
     },
+    gateway::rpc_gateway_api::CallContext,
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -257,9 +259,16 @@ pub struct AppEvent {
     pub event_name: String,
     pub result: Value,
     pub context: Option<Value>,
+    pub app_id: Option<String>,
 }
 
-impl ExtnPayloadProvider for AppEvent {
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum AppEventRequest {
+    Emit(AppEvent),
+    Register(CallContext, String, ListenRequest),
+}
+
+impl ExtnPayloadProvider for AppEventRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Event(ExtnEvent::Value(
             serde_json::to_value(self.clone()).unwrap(),
