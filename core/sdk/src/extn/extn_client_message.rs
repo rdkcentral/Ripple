@@ -36,6 +36,7 @@ use crate::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
             distributor_privacy::PrivacyCloudRequest,
             distributor_request::DistributorRequest,
+            distributor_sync::SyncAndMonitorRequest,
         },
         firebolt::{
             fb_advertising::AdvertisingRequest,
@@ -49,6 +50,7 @@ use crate::{
         gateway::rpc_gateway_api::RpcRequest,
         manifest::device_manifest::AppLibraryEntry,
         protocol::BridgeProtocolRequest,
+        pubsub::{PubSubRequest, PubSubResponse},
         session::{AccountSession, AccountSessionRequest, SessionTokenRequest},
         settings::{SettingValue, SettingsRequest},
         status_update::ExtnStatus,
@@ -257,6 +259,8 @@ pub enum ExtnRequest {
     StorageManager(StorageManagerRequest),
     AccountLink(AccountLinkRequest),
     Settings(SettingsRequest),
+    PubSub(PubSubRequest),
+    CloudSync(SyncAndMonitorRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -281,6 +285,7 @@ pub enum ExtnResponse {
     Token(TokenResult),
     DefaultApp(AppLibraryEntry),
     Settings(HashMap<String, SettingValue>),
+    PubSub(PubSubResponse),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {
