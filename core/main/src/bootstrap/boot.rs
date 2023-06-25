@@ -23,7 +23,7 @@ use super::{
     extn::{
         check_launcher_step::CheckLauncherStep, load_extn_metadata_step::LoadExtensionMetadataStep,
         load_extn_step::LoadExtensionsStep, load_session_step::LoadDistributorValuesStep,
-        start_extn_channel_step::StartExtnChannelsStep, start_cloud_sync_step::StartCloudSyncStep,
+        start_cloud_sync_step::StartCloudSyncStep, start_extn_channel_step::StartExtnChannelsStep,
     },
     setup_extn_client_step::SetupExtnClientStep,
     start_app_manager_step::StartAppManagerStep,
@@ -74,7 +74,7 @@ pub async fn boot(state: BootstrapState) {
         .expect("Distributor values needs to be loaded")
         .step(StartCloudSyncStep)
         .await
-        .expect("Distributor values needs to be loaded")
+        .expect("Cloud Sync startup failed")
         .step(CheckLauncherStep)
         .await
         .expect("if Launcher exists start")

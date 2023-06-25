@@ -464,7 +464,7 @@ impl PrivacyImpl {
             .privacy_settings_storage_type;
 
         match privacy_settings_storage_type {
-            PrivacySettingsStorageType::Local => {
+            PrivacySettingsStorageType::Local | PrivacySettingsStorageType::Sync => {
                 StorageManager::get_bool(platform_state, property).await
             }
             PrivacySettingsStorageType::Cloud => {
@@ -482,9 +482,9 @@ impl PrivacyImpl {
                     "PrivacySettingsStorageType::Cloud: Not Available",
                 )))
             }
-            PrivacySettingsStorageType::Sync => Err(jsonrpsee::core::Error::Custom(String::from(
-                "PrivacySettingsStorageType::Sync: Unimplemented",
-            ))),
+            // PrivacySettingsStorageType::Sync => Err(jsonrpsee::core::Error::Custom(String::from(
+            //     "PrivacySettingsStorageType::Sync: Unimplemented",
+            // ))),
         }
     }
 
@@ -504,7 +504,7 @@ impl PrivacyImpl {
             PrivacySettingsStorageType::Local => {
                 StorageManager::set_bool(platform_state, property, value, None).await
             }
-            PrivacySettingsStorageType::Cloud => {
+            PrivacySettingsStorageType::Cloud | PrivacySettingsStorageType::Sync => {
                 let dist_session = platform_state.session_state.get_account_session().unwrap();
                 let request = PrivacyCloudRequest::SetProperty(SetPropertyParams {
                     setting: property.as_privacy_setting().unwrap(),
@@ -518,13 +518,13 @@ impl PrivacyImpl {
                     "PrivacySettingsStorageType::Cloud: Not Available",
                 )))
             }
-            PrivacySettingsStorageType::Sync => Err(jsonrpsee::core::Error::Custom(String::from(
-                "PrivacySettingsStorageType::Sync: Unimplemented",
-            ))),
+            // PrivacySettingsStorageType::Sync => Err(jsonrpsee::core::Error::Custom(String::from(
+            //     "PrivacySettingsStorageType::Sync: Unimplemented",
+            // ))),
         }
     }
 
-    async fn get_settings_local(&self) -> RpcResult<PrivacySettings> {
+    pub async fn get_settings_local(&self) -> RpcResult<PrivacySettings> {
         let settings = PrivacySettings {
             allow_acr_collection: self
                 .get_bool_storage_property(StorageProperty::AllowAcrCollection)

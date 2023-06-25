@@ -87,6 +87,7 @@ pub enum RippleContract {
     Settings,
     PubSub,
     CloudSync,
+    StoreUserGrants,
 }
 
 impl TryFrom<String> for RippleContract {

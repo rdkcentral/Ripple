@@ -14,11 +14,15 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use ripple_sdk::{api::distributor::distributor_sync::{SyncAndMonitorRequest, SyncAndMonitorModule}, framework::bootstrap::Bootstep};
+use ripple_sdk::{
+    api::distributor::distributor_sync::{SyncAndMonitorModule, SyncAndMonitorRequest},
+    framework::bootstrap::Bootstep,
+};
 use ripple_sdk::{async_trait::async_trait, framework::RippleResponse};
 
 use crate::state::bootstrap_state::BootstrapState;
 
+use ripple_sdk::log::debug;
 pub struct StartCloudSyncStep;
 
 #[async_trait]
@@ -28,13 +32,32 @@ impl Bootstep<BootstrapState> for StartCloudSyncStep {
     }
 
     async fn setup(&self, state: BootstrapState) -> RippleResponse {
-        if let Some(account_session) = state.platform_state.session_state.get_account_session(){
+        debug!("Setup of StartCloudSyncStep");
+        if let Some(account_session) = state.platform_state.session_state.get_account_session() {
+            debug!("Successfully got account session");
             let sync_response = state
                 .platform_state
                 .get_client()
-                .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(SyncAndMonitorModule::Privacy, account_session.clone())).await;
+                .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
+                    SyncAndMonitorModule::Privacy,
+                    account_session.clone(),
+                ))
+                .await;
+            debug!("Received Sync response for privacy: {:?}", sync_response);
+            let sync_response = state
+                .platform_state
+                .get_client()
+                .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
+                    SyncAndMonitorModule::UserGrants,
+                    account_session.clone(),
+                ))
+                .await;
+            debug!(
+                "Received Sync response for user grants: {:?}",
+                sync_response
+            );
         }
-        
+
         Ok(())
     }
 }

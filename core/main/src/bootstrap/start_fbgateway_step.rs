@@ -38,8 +38,8 @@ use crate::{
     state::{bootstrap_state::BootstrapState, platform_state::PlatformState},
 };
 use jsonrpsee::core::{async_trait, server::rpc_module::Methods};
+use ripple_sdk::log::debug;
 use ripple_sdk::{framework::bootstrap::Bootstep, utils::error::RippleError};
-
 pub struct FireboltGatewayStep;
 
 impl FireboltGatewayStep {
@@ -86,6 +86,7 @@ impl Bootstep<BootstrapState> for FireboltGatewayStep {
     }
 
     async fn setup(&self, state: BootstrapState) -> Result<(), RippleError> {
+        debug!("Setup called for fireboltgateway step");
         let methods = self
             .init_handlers(
                 state.platform_state.clone(),
@@ -93,12 +94,15 @@ impl Bootstep<BootstrapState> for FireboltGatewayStep {
             )
             .await;
         let gateway = FireboltGateway::new(state.clone(), methods);
+        debug!("Handlers initialized");
         // Main can now recieve RPC requests
         state
             .platform_state
             .get_client()
             .add_request_processor(RpcGatewayProcessor::new(state.platform_state.get_client()));
+        debug!("Adding RPC gateway processor");
         gateway.start().await;
+        debug!("Handlers initialized");
         Ok(())
     }
 }

@@ -22,6 +22,8 @@ use log::error;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::api::distributor::distributor_privacy::CloudPrivacySettings;
+use crate::api::usergrant_entry::UserGrantInfo;
 use crate::{
     api::{
         account_link::AccountLinkRequest,
@@ -261,6 +263,8 @@ pub enum ExtnRequest {
     Settings(SettingsRequest),
     PubSub(PubSubRequest),
     CloudSync(SyncAndMonitorRequest),
+    UserGrantsStoreRequest(UserGrantInfo),
+    PrivacySettingsStoreRequest(CloudPrivacySettings),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

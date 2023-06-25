@@ -19,6 +19,10 @@ use ripple_sdk::{
     async_trait::async_trait, framework::bootstrap::Bootstep, utils::error::RippleError,
 };
 
+use crate::processor::{
+    store_privacy_settings_processor::StorePrivacySettingsProcessor,
+    store_user_grants_processor::StoreUserGrantsProcessor,
+};
 use crate::{
     processor::{
         app_events_processor::AppEventsProcessor, config_processor::ConfigRequestProcessor,
@@ -46,6 +50,10 @@ impl Bootstep<BootstrapState> for SetupExtnClientStep {
         client.add_event_processor(ExtnStatusProcessor::new(state.clone().extn_state));
         client.add_event_processor(AppEventsProcessor::new(state.platform_state.clone()));
         client.add_request_processor(StorageManagerProcessor::new(state.platform_state.clone()));
+        client.add_request_processor(StoreUserGrantsProcessor::new(state.platform_state.clone()));
+        client.add_request_processor(StorePrivacySettingsProcessor::new(
+            state.platform_state.clone(),
+        ));
         Ok(())
     }
 }

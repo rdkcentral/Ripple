@@ -27,6 +27,7 @@ pub mod session;
 pub mod settings;
 pub mod status_update;
 pub mod storage_property;
+pub mod usergrant_entry;
 pub mod wifi;
 
 pub mod gateway {

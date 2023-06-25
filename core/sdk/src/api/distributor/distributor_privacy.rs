@@ -80,6 +80,76 @@ impl PrivacySettings {
     }
 }
 
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+pub struct CloudPrivacySettings {
+    pub allow_acr_collection: Option<bool>,
+    pub allow_resume_points: Option<bool>,
+    pub allow_app_content_ad_targeting: Option<bool>,
+    pub allow_camera_analytics: Option<bool>,
+    pub allow_personalization: Option<bool>,
+    pub allow_primary_browse_ad_targeting: Option<bool>,
+    pub allow_primary_content_ad_targeting: Option<bool>,
+    pub allow_product_analytics: Option<bool>,
+    pub allow_remote_diagnostics: Option<bool>,
+    pub allow_unentitled_personalization: Option<bool>,
+    pub allow_unentitled_resume_points: Option<bool>,
+    pub allow_watch_history: Option<bool>,
+}
+
+// impl From<CloudPrivacySettings> for PrivacySettings {
+//     fn from(cloud_privacy_settings: CloudPrivacySettings) -> Self {
+//         let mut privacy_settings = PrivacySettings::new();
+//         if let Some(allow_acr_collection) = cloud_privacy_settings.allow_acr_collection {
+//             privacy_settings.allow_acr_collection = allow_acr_collection;
+//         }
+//         if let Some(allow_resume_points) = cloud_privacy_settings.allow_resume_points {
+//             privacy_settings.allow_resume_points = allow_resume_points;
+//         }
+//         if let Some(allow_app_content_ad_targeting) =
+//             cloud_privacy_settings.allow_app_content_ad_targeting
+//         {
+//             privacy_settings.allow_app_content_ad_targeting = allow_app_content_ad_targeting;
+//         }
+//         if let Some(allow_camera_analytics) = cloud_privacy_settings.allow_camera_analytics {
+//             privacy_settings.allow_camera_analytics = allow_camera_analytics;
+//         }
+//         if let Some(allow_personalization) = cloud_privacy_settings.allow_personalization {
+//             privacy_settings.allow_personalization = allow_personalization;
+//         }
+//         if let Some(allow_primary_browse_ad_targeting) =
+//             cloud_privacy_settings.allow_primary_browse_ad_targeting
+//         {
+//             privacy_settings.allow_primary_browse_ad_targeting = allow_primary_browse_ad_targeting;
+//         }
+//         if let Some(allow_primary_content_ad_targeting) =
+//             cloud_privacy_settings.allow_primary_content_ad_targeting
+//         {
+//             privacy_settings.allow_primary_content_ad_targeting =
+//                 allow_primary_content_ad_targeting;
+//         }
+//         if let Some(allow_product_analytics) = cloud_privacy_settings.allow_product_analytics {
+//             privacy_settings.allow_product_analytics = allow_product_analytics;
+//         }
+//         if let Some(allow_remote_diagnostics) = cloud_privacy_settings.allow_remote_diagnostics {
+//             privacy_settings.allow_remote_diagnostics = allow_remote_diagnostics;
+//         }
+//         if let Some(allow_unentitled_personalization) =
+//             cloud_privacy_settings.allow_unentitled_personalization
+//         {
+//             privacy_settings.allow_unentitled_personalization = allow_unentitled_personalization;
+//         }
+//         if let Some(allow_unentitled_resume_points) =
+//             cloud_privacy_settings.allow_unentitled_resume_points
+//         {
+//             privacy_settings.allow_unentitled_resume_points = allow_unentitled_resume_points;
+//         }
+//         if let Some(allow_watch_history) = cloud_privacy_settings.allow_watch_history {
+//             privacy_settings.allow_watch_history = allow_watch_history;
+//         }
+//         privacy_settings
+//     }
+// }
+
 impl ExtnPayloadProvider for PrivacySettings {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         match payload {
@@ -101,6 +171,30 @@ impl ExtnPayloadProvider for PrivacySettings {
         ExtnPayload::Response(ExtnResponse::Value(
             serde_json::to_value(self.clone()).unwrap(),
         ))
+    }
+
+    fn contract() -> crate::framework::ripple_contract::RippleContract {
+        RippleContract::PrivacyCloudSync
+    }
+}
+
+impl ExtnPayloadProvider for CloudPrivacySettings {
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        match payload {
+            ExtnPayload::Request(r) => match r {
+                ExtnRequest::PrivacySettingsStoreRequest(v) => {
+                    return Some(v);
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+
+        None
+    }
+
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(ExtnRequest::PrivacySettingsStoreRequest(self.clone()))
     }
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
