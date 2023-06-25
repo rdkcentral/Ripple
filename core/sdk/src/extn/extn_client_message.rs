@@ -41,7 +41,7 @@ use crate::{
             distributor_sync::SyncAndMonitorRequest,
         },
         firebolt::{
-            fb_advertising::AdvertisingRequest,
+            fb_advertising::{AdvertisingRequest, AdvertisingResponse},
             fb_authentication::TokenResult,
             fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
             fb_lifecycle_management::LifecycleManagementRequest,
@@ -290,6 +290,8 @@ pub enum ExtnResponse {
     DefaultApp(AppLibraryEntry),
     Settings(HashMap<String, SettingValue>),
     PubSub(PubSubResponse),
+    Advertising(AdvertisingResponse),
+    // Token(RootTokenResponse),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {
