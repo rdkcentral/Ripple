@@ -310,6 +310,7 @@ impl DelegatedLauncherHandler {
                         let request = BridgeSessionParams {
                             container_id,
                             session_id: session_id.clone(),
+                            app_id: app_id.clone(),
                         };
                         let request = BridgeProtocolRequest::StartSession(request);
                         let client = self.platform_state.get_client();

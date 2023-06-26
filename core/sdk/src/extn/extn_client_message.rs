@@ -26,6 +26,7 @@ use crate::{
     api::{
         account_link::AccountLinkRequest,
         apps::AppEventRequest,
+        caps::CapsRequest,
         config::{Config, ConfigResponse},
         device::{
             device_events::DeviceEventRequest,
@@ -257,6 +258,7 @@ pub enum ExtnRequest {
     StorageManager(StorageManagerRequest),
     AccountLink(AccountLinkRequest),
     Settings(SettingsRequest),
+    AuthorizedInfo(CapsRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -278,11 +280,12 @@ pub enum ExtnResponse {
     StorageData(StorageData),
     NetworkResponse(NetworkResponse),
     AvailableTimezones(Vec<String>),
+    TimezoneWithOffset(String, i64),
     Token(TokenResult),
     DefaultApp(AppLibraryEntry),
     Settings(HashMap<String, SettingValue>),
+    BoolMap(HashMap<String, bool>),
     Advertising(AdvertisingResponse),
-    // Token(RootTokenResponse),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {

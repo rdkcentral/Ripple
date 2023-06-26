@@ -15,7 +15,9 @@
                         "window_manager",
                         "browser",
                         "wifi",
-                        "storage"
+                        "device_events",
+                        "device_persistence",
+                        "remote_accessory"
                     ]
                 }
             ]
@@ -71,12 +73,16 @@
         "permissions",
         "account_session",
         "wifi",
+        "device_events",
+        "device_persistence",
+        "remote_accessory",
         "secure_storage",
         "advertising",
         "privacy_settings",
         "session_token",
         "metrics",
-        "storage"
+        "discovery",
+        "media_events"
     ],
     "rpc_aliases": {
         "device.model": ["custom.model"]

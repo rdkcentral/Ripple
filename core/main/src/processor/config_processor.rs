@@ -109,6 +109,10 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
             Config::SavedDir => {
                 ExtnResponse::String(device_manifest.clone().configuration.saved_dir)
             }
+            Config::FormFactor => ExtnResponse::String(device_manifest.get_form_factor()),
+            Config::DistributorExperienceId => {
+                ExtnResponse::String(device_manifest.get_distributor_experience_id())
+            }
             _ => ExtnResponse::Error(ripple_sdk::utils::error::RippleError::InvalidInput),
         };
         Self::respond(state.get_client().get_extn_client(), msg, response)

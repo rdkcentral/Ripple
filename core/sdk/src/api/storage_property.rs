@@ -555,6 +555,7 @@ impl StorageProperty {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum StorageManagerRequest {
     GetBool(StorageProperty, bool),
+    GetString(StorageProperty),
 }
 
 impl ExtnPayloadProvider for StorageManagerRequest {

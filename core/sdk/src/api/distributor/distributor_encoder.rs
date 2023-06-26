@@ -22,31 +22,23 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
-use super::gateway::rpc_gateway_api::ApiMessage;
+use super::distributor_request::DistributorRequest;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum BridgeProtocolRequest {
-    StartSession(BridgeSessionParams),
-    EndSession(String),
-    Send(String, ApiMessage),
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EncoderRequest {
+    pub reference: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BridgeSessionParams {
-    pub container_id: String,
-    pub session_id: String,
-    pub app_id: String,
-}
-
-impl ExtnPayloadProvider for BridgeProtocolRequest {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::BridgeProtocolRequest(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<BridgeProtocolRequest> {
+impl ExtnPayloadProvider for EncoderRequest {
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::BridgeProtocolRequest(r) => return Some(r),
+            ExtnPayload::Request(r) => match r {
+                ExtnRequest::Distributor(v) => match v {
+                    DistributorRequest::Encoder(d) => {
+                        return Some(d);
+                    }
+                    _ => {}
+                },
                 _ => {}
             },
             _ => {}
@@ -54,7 +46,13 @@ impl ExtnPayloadProvider for BridgeProtocolRequest {
         None
     }
 
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(ExtnRequest::Distributor(DistributorRequest::Encoder(
+            self.clone(),
+        )))
+    }
+
     fn contract() -> RippleContract {
-        RippleContract::BridgeProtocol
+        RippleContract::Encoder
     }
 }

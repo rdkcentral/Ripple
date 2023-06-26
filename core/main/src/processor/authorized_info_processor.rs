@@ -16,7 +16,7 @@
 //
 
 use ripple_sdk::{
-    api::storage_property::StorageManagerRequest,
+    api::caps::CapsRequest,
     async_trait::async_trait,
     extn::{
         client::extn_processor::{
@@ -24,48 +24,45 @@ use ripple_sdk::{
         },
         extn_client_message::{ExtnMessage, ExtnResponse},
     },
-    tokio::sync::mpsc::{Receiver as MReceiver, Sender as MSender},
+    tokio::sync::mpsc::Sender,
 };
 
 use crate::state::platform_state::PlatformState;
 
-use super::storage_manager::StorageManager;
-
-/// Supports processing of [Config] request from extensions and also
-/// internal services.
+/// Processor to service incoming RPC Requests used by extensions and other local rpc handlers for aliasing.
 #[derive(Debug)]
-pub struct StorageManagerProcessor {
+pub struct AuthorizedInfoProcessor {
     state: PlatformState,
     streamer: DefaultExtnStreamer,
 }
 
-impl StorageManagerProcessor {
-    pub fn new(state: PlatformState) -> StorageManagerProcessor {
-        StorageManagerProcessor {
+impl AuthorizedInfoProcessor {
+    pub fn new(state: PlatformState) -> AuthorizedInfoProcessor {
+        AuthorizedInfoProcessor {
             state,
             streamer: DefaultExtnStreamer::new(),
         }
     }
 }
 
-impl ExtnStreamProcessor for StorageManagerProcessor {
+impl ExtnStreamProcessor for AuthorizedInfoProcessor {
     type STATE = PlatformState;
-    type VALUE = StorageManagerRequest;
+    type VALUE = CapsRequest;
     fn get_state(&self) -> Self::STATE {
         self.state.clone()
     }
 
-    fn sender(&self) -> MSender<ExtnMessage> {
+    fn sender(&self) -> Sender<ExtnMessage> {
         self.streamer.sender()
     }
 
-    fn receiver(&mut self) -> MReceiver<ExtnMessage> {
+    fn receiver(&mut self) -> ripple_sdk::tokio::sync::mpsc::Receiver<ExtnMessage> {
         self.streamer.receiver()
     }
 }
 
 #[async_trait]
-impl ExtnRequestProcessor for StorageManagerProcessor {
+impl ExtnRequestProcessor for AuthorizedInfoProcessor {
     fn get_client(&self) -> ripple_sdk::extn::client::extn_client::ExtnClient {
         self.state.get_client().get_extn_client()
     }
@@ -75,26 +72,29 @@ impl ExtnRequestProcessor for StorageManagerProcessor {
         msg: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
-        let client = state.get_client().get_extn_client();
-        match extracted_message {
-            StorageManagerRequest::GetBool(key, default_value) => {
-                let result = StorageManager::get_bool(&state, key)
-                    .await
-                    .unwrap_or(default_value);
-                Self::respond(client, msg, ExtnResponse::Boolean(result))
-                    .await
-                    .is_ok()
+        match extracted_message.clone() {
+            CapsRequest::Permitted(app_id, request) => {
+                let result = state
+                    .cap_state
+                    .permitted_state
+                    .check_multiple(&app_id, request);
+                Self::respond(
+                    state.get_client().get_extn_client(),
+                    msg,
+                    ExtnResponse::BoolMap(result),
+                )
+                .await
+                .is_ok()
             }
-            StorageManagerRequest::GetString(key) => {
-                if let Ok(result) = StorageManager::get_string(&state, key).await {
-                    Self::respond(client, msg, ExtnResponse::String(result))
-                        .await
-                        .is_ok()
-                } else {
-                    Self::respond(client, msg, ExtnResponse::None(()))
-                        .await
-                        .is_ok()
-                }
+            CapsRequest::Supported(request) => {
+                let result = state.cap_state.generic.check_for_processor(request);
+                Self::respond(
+                    state.get_client().get_extn_client(),
+                    msg,
+                    ExtnResponse::BoolMap(result),
+                )
+                .await
+                .is_ok()
             }
         }
     }

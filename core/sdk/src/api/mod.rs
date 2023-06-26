@@ -18,6 +18,7 @@
 pub mod accessory;
 pub mod account_link;
 pub mod apps;
+pub mod caps;
 pub mod config;
 pub mod device;
 pub mod manifest;
@@ -35,6 +36,7 @@ pub mod gateway {
 
 pub mod distributor {
     pub mod distributor_discovery;
+    pub mod distributor_encoder;
     pub mod distributor_permissions;
     pub mod distributor_privacy;
     pub mod distributor_request;

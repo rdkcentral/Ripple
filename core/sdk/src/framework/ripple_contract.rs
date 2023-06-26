@@ -85,6 +85,8 @@ pub enum RippleContract {
     StorageManager,
     AccountLink,
     Settings,
+    Caps,
+    Encoder,
 }
 
 impl TryFrom<String> for RippleContract {

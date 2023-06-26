@@ -16,7 +16,7 @@
 //
 
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     sync::{Arc, RwLock},
 };
 
@@ -58,6 +58,15 @@ impl GenericCapState {
                 not_available.insert(cap.as_str());
             }
         }
+    }
+
+    pub fn check_for_processor(&self, request: Vec<String>) -> HashMap<String, bool> {
+        let supported = self.supported.read().unwrap();
+        let mut result = HashMap::new();
+        for cap in request {
+            result.insert(cap.clone(), supported.contains(&cap));
+        }
+        result
     }
 
     pub fn check_supported(&self, request: &Vec<FireboltCap>) -> Result<(), DenyReasonWithCap> {
