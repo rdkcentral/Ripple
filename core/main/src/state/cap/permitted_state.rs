@@ -82,6 +82,17 @@ impl PermittedState {
         Ok(false)
     }
 
+    pub fn check_multiple(&self, app_id: &str, request: Vec<RoleInfo>) -> HashMap<String, bool> {
+        let mut map = HashMap::new();
+        for role_info in request {
+            map.insert(
+                role_info.clone().capability,
+                self.check_cap_role(app_id, role_info).is_ok(),
+            );
+        }
+        map
+    }
+
     pub fn get_app_permissions(&self, app_id: &str) -> Option<Vec<FireboltPermission>> {
         if let Some(perms) = self.get_all_permissions().get(app_id) {
             return Some(perms.clone());

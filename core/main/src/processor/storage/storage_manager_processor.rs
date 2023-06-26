@@ -85,6 +85,17 @@ impl ExtnRequestProcessor for StorageManagerProcessor {
                     .await
                     .is_ok()
             }
+            StorageManagerRequest::GetString(key) => {
+                if let Ok(result) = StorageManager::get_string(&state, key).await {
+                    Self::respond(client, msg, ExtnResponse::String(result))
+                        .await
+                        .is_ok()
+                } else {
+                    Self::respond(client, msg, ExtnResponse::None(()))
+                        .await
+                        .is_ok()
+                }
+            }
         }
     }
 }

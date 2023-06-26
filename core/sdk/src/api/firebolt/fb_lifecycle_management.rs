@@ -75,6 +75,7 @@ pub enum LifecycleManagementRequest {
     Close(String, CloseReason),
     Ready(String),
     GetSecondScreenPayload(String),
+    StartPage(String),
 }
 
 impl ExtnPayloadProvider for LifecycleManagementRequest {

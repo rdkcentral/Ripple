@@ -46,6 +46,7 @@ use ripple_sdk::{
                 AudioProfile, DeviceVersionResponse, HdcpProfile, HdrProfile, NetworkResponse,
             },
         },
+        distributor::distributor_encoder::EncoderRequest,
         firebolt::{
             fb_capabilities::{FireboltCap, CAPABILITY_NOT_AVAILABLE},
             fb_general::{ListenRequest, ListenerResponse},
@@ -60,7 +61,6 @@ use ripple_sdk::{
     extn::extn_client_message::ExtnResponse,
     log::error,
     tokio::time::timeout,
-    uuid::Uuid,
 };
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
@@ -185,6 +185,9 @@ pub fn filter_mac(mac_address: String) -> String {
 }
 
 pub async fn get_device_id(state: &PlatformState) -> RpcResult<String> {
+    if let Some(session) = state.session_state.get_account_session() {
+        return Ok(session.device_id);
+    }
     match get_ll_mac_addr(state.clone()).await {
         Ok(device_id) => Ok(device_id),
         Err(_) => Err(rpc_err("parse error").into()),
@@ -192,14 +195,25 @@ pub async fn get_device_id(state: &PlatformState) -> RpcResult<String> {
 }
 
 pub async fn get_uid(state: &PlatformState) -> RpcResult<String> {
-    let mac_id = get_ll_mac_addr(state.clone()).await.unwrap();
-    let prefix = "00000000000000000000";
-    let uuid_string = format!("{}{}", prefix, mac_id);
-    let uuid = Uuid::parse_str(&uuid_string);
-
-    match uuid {
-        Ok(uid) => Ok(uid.to_string()),
-        Err(_) => Err(rpc_err("parse error").into()),
+    if let Ok(device_id) = get_device_id(state).await {
+        if state.supports_encoding() {
+            if let Ok(resp) = state
+                .get_client()
+                .send_extn_request(EncoderRequest {
+                    reference: device_id.clone(),
+                })
+                .await
+            {
+                if let Some(ExtnResponse::String(enc_device_id)) =
+                    resp.payload.clone().extract::<ExtnResponse>()
+                {
+                    return Ok(enc_device_id);
+                }
+            }
+        }
+        Ok(device_id)
+    } else {
+        Err(rpc_err("parse error").into())
     }
 }
 

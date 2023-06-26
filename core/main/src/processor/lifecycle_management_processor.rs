@@ -88,6 +88,7 @@ impl ExtnRequestProcessor for LifecycleManagementProcessor {
             LifecycleManagementRequest::GetSecondScreenPayload(app_id) => {
                 AppMethod::GetSecondScreenPayload(app_id)
             }
+            LifecycleManagementRequest::StartPage(app_id) => AppMethod::GetStartPage(app_id),
         };
         if let Err(e) = state.send_app_request(AppRequest::new(method, resp_tx)) {
             error!("Sending to App manager {:?}", e);
