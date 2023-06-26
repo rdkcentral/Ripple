@@ -38,12 +38,17 @@ pub struct SecureStorageGetRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct StorageSetOptions {
+    pub ttl: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SecureStorageSetRequest {
     pub app_id: String,
     pub scope: StorageScope,
     pub key: String,
     pub value: String,
-    pub options: Option<StorageOptions>,
+    pub options: Option<StorageSetOptions>,
     pub distributor_session: AccountSession,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -126,19 +131,13 @@ pub enum SecureStorageResponse {
 
 impl ExtnPayloadProvider for SecureStorageResponse {
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Response(ExtnResponse::Value(
-            serde_json::to_value(self.clone()).unwrap(),
-        ))
+        ExtnPayload::Response(ExtnResponse::SecureStorage(self.clone()))
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         match payload {
-            ExtnPayload::Response(response) => match response {
-                ExtnResponse::Value(value) => {
-                    if let Ok(v) = serde_json::from_value(value) {
-                        return Some(v);
-                    }
-                }
+            ExtnPayload::Response(r) => match r {
+                ExtnResponse::SecureStorage(v) => return Some(v),
                 _ => {}
             },
             _ => {}

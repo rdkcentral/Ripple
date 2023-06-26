@@ -45,7 +45,7 @@ use crate::{
             fb_lifecycle_management::LifecycleManagementRequest,
             fb_metrics::BehavioralMetricRequest,
             fb_pin::{PinChallengeRequest, PinChallengeResponse},
-            fb_secure_storage::SecureStorageRequest,
+            fb_secure_storage::{SecureStorageRequest, SecureStorageResponse},
         },
         gateway::rpc_gateway_api::RpcRequest,
         manifest::device_manifest::AppLibraryEntry,
@@ -286,6 +286,7 @@ pub enum ExtnResponse {
     Settings(HashMap<String, SettingValue>),
     BoolMap(HashMap<String, bool>),
     Advertising(AdvertisingResponse),
+    SecureStorage(SecureStorageResponse),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {
