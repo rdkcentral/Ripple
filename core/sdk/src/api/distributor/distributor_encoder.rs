@@ -26,7 +26,7 @@ use super::distributor_request::DistributorRequest;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EncoderRequest {
-    reference: String,
+    pub reference: String,
 }
 
 impl ExtnPayloadProvider for EncoderRequest {

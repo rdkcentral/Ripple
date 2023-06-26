@@ -16,19 +16,18 @@
 //
 
 use ripple_sdk::{
-    api::{apps::AppEventRequest, caps::CapsRequest},
+    api::caps::CapsRequest,
     async_trait::async_trait,
     extn::{
         client::extn_processor::{
-            DefaultExtnStreamer, ExtnEventProcessor, ExtnRequestProcessor, ExtnStreamProcessor,
-            ExtnStreamer,
+            DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
         },
         extn_client_message::{ExtnMessage, ExtnResponse},
     },
     tokio::sync::mpsc::Sender,
 };
 
-use crate::{service::apps::app_events::AppEvents, state::platform_state::PlatformState};
+use crate::state::platform_state::PlatformState;
 
 /// Processor to service incoming RPC Requests used by extensions and other local rpc handlers for aliasing.
 #[derive(Debug)]
