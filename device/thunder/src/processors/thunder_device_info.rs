@@ -83,7 +83,7 @@ use expectest::prelude::*;
 use pact_consumer::mock_server::StartMockServerAsync;
 use pact_consumer::prelude::*;
 use pact_consumer::*;
-
+use url::Url;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::RecvError;
 use tokio::sync::oneshot::Sender;
@@ -1346,7 +1346,7 @@ async fn test_get_device_info_mac_address() {
         target: RippleContract::DeviceInfo,
     };
     
-    let url = thunder_ripple_sdk::url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
     
     // creating a cross beam channel used by extn client
@@ -1439,7 +1439,7 @@ async fn test_get_device_model() {
         target: RippleContract::DeviceInfo,
     };
     
-    let url = thunder_ripple_sdk::url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
     
     // creating a cross beam channel used by extn client

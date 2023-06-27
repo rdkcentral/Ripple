@@ -29,3 +29,11 @@ crate-type = ["cdylib"]
 [dependencies]
 thunder_ripple_sdk = { path = "../thunder_ripple_sdk" }
 serde = { version = "1.0", features = ["derive"] }
+pact_consumer = "=0.10.4"
+reqwest = "0.11"
+expectest = "0.12.0"
+pact-plugin-driver = "0.4.1"
+pact_models = "1.0.9"
+maplit = "1.0.2"
+test-log = "0.2.11"
+url = "2.2.2"
