@@ -292,11 +292,8 @@ pub enum ExtnResponse {
     Token(TokenResult),
     DefaultApp(AppLibraryEntry),
     Settings(HashMap<String, SettingValue>),
-<<<<<<< HEAD
     PubSub(PubSubResponse),
-=======
     BoolMap(HashMap<String, bool>),
->>>>>>> main
     Advertising(AdvertisingResponse),
     SecureStorage(SecureStorageResponse),
 }
