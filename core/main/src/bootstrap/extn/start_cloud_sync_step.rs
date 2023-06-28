@@ -32,7 +32,10 @@ impl Bootstep<BootstrapState> for StartCloudSyncStep {
     }
 
     async fn setup(&self, state: BootstrapState) -> RippleResponse {
-        debug!("Setup of StartCloudSyncStep");
+        if !state.platform_state.supports_cloud_sync() {
+            debug!("Cloud Sync not configured as a required contract so not starting.");
+            return Ok(());
+        }
         if let Some(account_session) = state.platform_state.session_state.get_account_session() {
             debug!("Successfully got account session");
             let sync_response = state
