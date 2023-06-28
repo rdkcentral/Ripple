@@ -14,23 +14,24 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-use crate::firebolt::handlers::privacy_rpc::PrivacyImpl;
 use crate::processor::storage::storage_manager::StorageManager;
 use crate::state::platform_state::PlatformState;
-use ripple_sdk::api::device::device_user_grants_data::GrantEntry;
-use ripple_sdk::api::device::device_user_grants_data::GrantLifespan;
-use ripple_sdk::api::distributor::distributor_privacy::CloudPrivacySettings;
-use ripple_sdk::api::storage_property::StorageProperty;
-use ripple_sdk::async_trait::async_trait;
-use ripple_sdk::extn::client::extn_processor::DefaultExtnStreamer;
-use ripple_sdk::extn::client::extn_processor::ExtnRequestProcessor;
-use ripple_sdk::extn::client::extn_processor::ExtnStreamProcessor;
-use ripple_sdk::extn::client::extn_processor::ExtnStreamer;
-use ripple_sdk::extn::extn_client_message::ExtnMessage;
-use ripple_sdk::extn::extn_client_message::ExtnResponse;
-use ripple_sdk::tokio::sync::mpsc::{Receiver as MReceiver, Sender as MSender};
-
-use ripple_sdk::log::{debug, error};
+use ripple_sdk::{
+    api::{
+        distributor::distributor_privacy::CloudPrivacySettings, storage_property::StorageProperty,
+    },
+    async_trait::async_trait,
+    extn::{
+        client::extn_processor::{
+            DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
+        },
+        extn_client_message::ExtnMessage,
+        extn_client_message::ExtnResponse,
+    },
+    log::{debug, error},
+    tokio::sync::mpsc::{Receiver as MReceiver, Sender as MSender},
+    utils::error::RippleError,
+};
 
 #[derive(Debug)]
 pub struct StorePrivacySettingsProcessor {
@@ -78,77 +79,115 @@ impl ExtnRequestProcessor for StorePrivacySettingsProcessor {
             "processor received extracted message: {:?}",
             extracted_message
         );
-        let privacy_impl = PrivacyImpl {
-            state: state.clone(),
-        };
+        let mut err = false;
         if let Some(allow_acr_collection) = extracted_message.allow_acr_collection {
-            StorageManager::set_bool(
+            let res = StorageManager::set_bool(
                 &state,
                 StorageProperty::AllowAcrCollection,
                 allow_acr_collection,
                 None,
             )
             .await;
+            if let Err(e) = res {
+                error!("Unable to set property allow_resume_points error: {:?}", e);
+                err = true;
+            }
         }
         if let Some(allow_resume_points) = extracted_message.allow_resume_points {
-            StorageManager::set_bool(
+            let res = StorageManager::set_bool(
                 &state,
                 StorageProperty::AllowResumePoints,
                 allow_resume_points,
                 None,
             )
             .await;
+            if let Err(e) = res {
+                error!("Unable to set property allow_resume_points error: {:?}", e);
+                err = true;
+            }
         }
         if let Some(allow_app_content_ad_targeting) =
             extracted_message.allow_app_content_ad_targeting
         {
-            StorageManager::set_bool(
+            let res = StorageManager::set_bool(
                 &state,
                 StorageProperty::AllowAppContentAdTargeting,
                 allow_app_content_ad_targeting,
                 None,
             )
             .await;
+            if let Err(e) = res {
+                error!(
+                    "Unable to set property allow_primary_browse_ad_targetting: {:?}",
+                    e
+                );
+                err = true;
+            }
         }
         if let Some(allow_camera_analytics) = extracted_message.allow_camera_analytics {
-            StorageManager::set_bool(
+            let res = StorageManager::set_bool(
                 &state,
                 StorageProperty::AllowCameraAnalytics,
                 allow_camera_analytics,
                 None,
             )
             .await;
+            if let Err(e) = res {
+                error!(
+                    "Unable to set property allow_primary_browse_ad_targetting: {:?}",
+                    e
+                );
+                err = true;
+            }
         }
         if let Some(allow_personalization) = extracted_message.allow_personalization {
-            StorageManager::set_bool(
+            let res = StorageManager::set_bool(
                 &state,
                 StorageProperty::AllowPersonalization,
                 allow_personalization,
                 None,
             )
             .await;
+            if let Err(e) = res {
+                error!("Unable to set property allow_resume_points error: {:?}", e);
+                err = true;
+            }
         }
         if let Some(allow_primary_browse_ad_targeting) =
             extracted_message.allow_primary_browse_ad_targeting
         {
-            StorageManager::set_bool(
+            let res = StorageManager::set_bool(
                 &state,
                 StorageProperty::AllowPrimaryBrowseAdTargeting,
                 allow_primary_browse_ad_targeting,
                 None,
             )
             .await;
+            if let Err(e) = res {
+                error!(
+                    "Unable to set property allow_primary_browse_ad_targetting: {:?}",
+                    e
+                );
+                err = true;
+            }
         }
         if let Some(allow_primary_content_ad_targeting) =
             extracted_message.allow_primary_content_ad_targeting
         {
-            StorageManager::set_bool(
+            let res = StorageManager::set_bool(
                 &state,
                 StorageProperty::AllowPrimaryContentAdTargeting,
                 allow_primary_content_ad_targeting,
                 None,
             )
             .await;
+            if let Err(e) = res {
+                error!(
+                    "Unable to set property allow_primary_browse_ad_targetting: {:?}",
+                    e
+                );
+                err = true;
+            }
         }
         if let Some(allow_product_analytics) = extracted_message.allow_product_analytics {
             let res = StorageManager::set_bool(
@@ -158,59 +197,91 @@ impl ExtnRequestProcessor for StorePrivacySettingsProcessor {
                 None,
             )
             .await;
-            if res.is_err() {
-                error!("Error in storing product analytics");
+            if let Err(e) = res {
+                error!("Unable to set property allow_resume_points error: {:?}", e);
+                err = true;
             }
         }
         if let Some(allow_remote_diagnostics) = extracted_message.allow_remote_diagnostics {
-            StorageManager::set_bool(
+            let res = StorageManager::set_bool(
                 &state,
                 StorageProperty::AllowRemoteDiagnostics,
                 allow_remote_diagnostics,
                 None,
             )
             .await;
+            if let Err(e) = res {
+                error!(
+                    "Unable to set property allow_primary_browse_ad_targetting: {:?}",
+                    e
+                );
+                err = true;
+            }
         }
         if let Some(allow_unentitled_personalization) =
             extracted_message.allow_unentitled_personalization
         {
-            StorageManager::set_bool(
+            let res = StorageManager::set_bool(
                 &state,
                 StorageProperty::AllowUnentitledPersonalization,
                 allow_unentitled_personalization,
                 None,
             )
             .await;
+            if let Err(e) = res {
+                error!(
+                    "Unable to set property allow_primary_browse_ad_targetting: {:?}",
+                    e
+                );
+                err = true;
+            }
         }
         if let Some(allow_unentitled_resume_points) =
             extracted_message.allow_unentitled_resume_points
         {
-            StorageManager::set_bool(
+            let res = StorageManager::set_bool(
                 &state,
                 StorageProperty::AllowUnentitledResumePoints,
                 allow_unentitled_resume_points,
                 None,
             )
             .await;
+            if let Err(e) = res {
+                error!("Unable to set property allow_resume_points error: {:?}", e);
+                err = true;
+            }
         }
         if let Some(allow_watch_history) = extracted_message.allow_watch_history {
-            StorageManager::set_bool(
+            let res = StorageManager::set_bool(
                 &state,
                 StorageProperty::AllowWatchHistory,
                 allow_watch_history,
                 None,
             )
             .await;
+            if let Err(e) = res {
+                error!(
+                    "Unable to set property allow_primary_browse_ad_targetting: {:?}",
+                    e
+                );
+                err = true;
+            }
         }
 
-        Self::respond(
+        if err {
+            return Self::handle_error(
+                state.get_client().get_extn_client(),
+                msg,
+                RippleError::ProcessorError,
+            )
+            .await;
+        }
+        return Self::respond(
             state.get_client().get_extn_client(),
             msg,
             ExtnResponse::None(()),
         )
         .await
         .is_ok();
-
-        true
     }
 }

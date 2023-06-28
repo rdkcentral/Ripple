@@ -15,20 +15,19 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 use crate::state::platform_state::PlatformState;
-use ripple_sdk::api::device::device_user_grants_data::GrantEntry;
-use ripple_sdk::api::device::device_user_grants_data::GrantLifespan;
-use ripple_sdk::api::firebolt::fb_capabilities::CapabilityRole;
-use ripple_sdk::api::usergrant_entry::UserGrantInfo;
-use ripple_sdk::async_trait::async_trait;
-use ripple_sdk::extn::client::extn_processor::DefaultExtnStreamer;
-use ripple_sdk::extn::client::extn_processor::ExtnRequestProcessor;
-use ripple_sdk::extn::client::extn_processor::ExtnStreamProcessor;
-use ripple_sdk::extn::client::extn_processor::ExtnStreamer;
-use ripple_sdk::extn::extn_client_message::ExtnMessage;
-use ripple_sdk::extn::extn_client_message::ExtnResponse;
-use ripple_sdk::log::{debug, info};
-
-use ripple_sdk::tokio::sync::mpsc::{Receiver as MReceiver, Sender as MSender};
+use ripple_sdk::{
+    api::{
+        device::device_user_grants_data::{GrantEntry, GrantLifespan},
+        usergrant_entry::UserGrantInfo,
+    },
+    async_trait::async_trait,
+    extn::client::extn_processor::{
+        DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
+    },
+    extn::extn_client_message::{ExtnMessage, ExtnResponse},
+    log::debug,
+    tokio::sync::mpsc::{Receiver as MReceiver, Sender as MSender},
+};
 #[derive(Debug)]
 pub struct StoreUserGrantsProcessor {
     state: PlatformState,
@@ -90,13 +89,12 @@ impl ExtnRequestProcessor for StoreUserGrantsProcessor {
             .cap_state
             .grant_state
             .update_grant_entry(app_id, grant_entry);
-        Self::respond(
+        return Self::respond(
             state.get_client().get_extn_client(),
             msg,
             ExtnResponse::None(()),
         )
         .await
         .is_ok();
-        true
     }
 }

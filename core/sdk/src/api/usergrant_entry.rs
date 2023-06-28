@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::default;
 use std::time::Duration;
 
 use crate::api::firebolt::fb_capabilities::CapabilityRole;
