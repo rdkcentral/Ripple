@@ -22,6 +22,7 @@ use jsonrpsee::{
 };
 use ripple_sdk::{
     api::{
+        distributor::distributor_encoder::EncoderRequest,
         firebolt::fb_capabilities::{CapEvent, FireboltCap},
         gateway::rpc_gateway_api::CallContext,
         session::{AccountSessionRequest, AccountSessionTokenRequest},
@@ -103,22 +104,33 @@ impl AccountServer for AccountImpl {
     }
 
     async fn uid_rpc(&self, _ctx: CallContext) -> RpcResult<String> {
-        self.id().await
+        if let Ok(id) = self.id().await {
+            if self.platform_state.supports_encoding() {
+                if let Ok(resp) = self
+                    .platform_state
+                    .get_client()
+                    .send_extn_request(EncoderRequest {
+                        reference: id.clone(),
+                    })
+                    .await
+                {
+                    if let Some(ExtnResponse::String(s)) = resp.payload.clone().extract() {
+                        return Ok(s);
+                    }
+                }
+            }
+            return Ok(id);
+        }
+
+        Err(rpc_err("Account.uid: some failure"))
     }
 }
 impl AccountImpl {
     pub async fn id(&self) -> RpcResult<String> {
-        let response = self
-            .platform_state
-            .get_client()
-            .send_extn_request(AccountSessionRequest::Get)
-            .await
-            .expect("session");
-
-        if let Some(ExtnResponse::AccountSession(session)) = response.payload.clone().extract() {
+        if let Some(session) = self.platform_state.session_state.get_account_session() {
             Ok(session.account_id.to_owned())
         } else {
-            Err(rpc_err("Account.uid: some failure"))
+            Err(rpc_err("Account.id: some failure"))
         }
     }
 }

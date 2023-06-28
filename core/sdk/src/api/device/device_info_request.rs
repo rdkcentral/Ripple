@@ -52,6 +52,7 @@ pub enum DeviceInfoRequest {
     SetVoiceGuidanceEnabled(bool),
     VoiceGuidanceSpeed,
     SetVoiceGuidanceSpeed(f32),
+    GetTimezoneWithOffset,
     FullCapabilities,
 }
 
@@ -83,6 +84,7 @@ impl ExtnPayloadProvider for DeviceInfoRequest {
 #[serde(rename_all = "camelCase")]
 pub struct DeviceCapabilities {
     pub video_resolution: Vec<i32>,
+    pub screen_resolution: Vec<i32>,
     pub firmware_info: FireboltSemanticVersion,
     pub hdr: HashMap<HdrProfile, bool>,
     pub hdcp: HDCPStatus,

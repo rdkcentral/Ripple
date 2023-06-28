@@ -14,7 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -22,31 +21,24 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
-use super::gateway::rpc_gateway_api::ApiMessage;
+use super::firebolt::fb_capabilities::RoleInfo;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum BridgeProtocolRequest {
-    StartSession(BridgeSessionParams),
-    EndSession(String),
-    Send(String, ApiMessage),
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub enum CapsRequest {
+    Permitted(String, Vec<RoleInfo>),
+    Supported(Vec<String>),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BridgeSessionParams {
-    pub container_id: String,
-    pub session_id: String,
-    pub app_id: String,
-}
-
-impl ExtnPayloadProvider for BridgeProtocolRequest {
+impl ExtnPayloadProvider for CapsRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::BridgeProtocolRequest(self.clone()))
+        ExtnPayload::Request(ExtnRequest::AuthorizedInfo(self.clone()))
     }
 
-    fn get_from_payload(payload: ExtnPayload) -> Option<BridgeProtocolRequest> {
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::BridgeProtocolRequest(r) => return Some(r),
+            ExtnPayload::Request(response) => match response {
+                ExtnRequest::AuthorizedInfo(value) => return Some(value),
                 _ => {}
             },
             _ => {}
@@ -55,6 +47,6 @@ impl ExtnPayloadProvider for BridgeProtocolRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::BridgeProtocol
+        RippleContract::Caps
     }
 }

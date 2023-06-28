@@ -132,6 +132,11 @@ impl PlatformState {
         self.extn_manifest.required_contracts.contains(&contract)
     }
 
+    pub fn supports_encoding(&self) -> bool {
+        let contract = RippleContract::Encoder.as_clear_string();
+        self.extn_manifest.required_contracts.contains(&contract)
+    }
+
     pub async fn send_to_bridge(&self, id: String, msg: ApiMessage) -> RippleResponse {
         let request = BridgeProtocolRequest::Send(id, msg);
         if let Err(e) = self.get_client().send_extn_request(request).await {

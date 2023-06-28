@@ -88,6 +88,8 @@ pub enum RippleContract {
     PubSub,
     CloudSync,
     StoreUserGrants,
+    Caps,
+    Encoder,
 }
 
 impl TryFrom<String> for RippleContract {

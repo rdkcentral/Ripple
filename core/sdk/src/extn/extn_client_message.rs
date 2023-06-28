@@ -28,6 +28,7 @@ use crate::{
     api::{
         account_link::AccountLinkRequest,
         apps::AppEventRequest,
+        caps::CapsRequest,
         config::{Config, ConfigResponse},
         device::{
             device_events::DeviceEventRequest,
@@ -47,7 +48,7 @@ use crate::{
             fb_lifecycle_management::LifecycleManagementRequest,
             fb_metrics::BehavioralMetricRequest,
             fb_pin::{PinChallengeRequest, PinChallengeResponse},
-            fb_secure_storage::SecureStorageRequest,
+            fb_secure_storage::{SecureStorageRequest, SecureStorageResponse},
         },
         gateway::rpc_gateway_api::RpcRequest,
         manifest::device_manifest::AppLibraryEntry,
@@ -265,6 +266,7 @@ pub enum ExtnRequest {
     CloudSync(SyncAndMonitorRequest),
     UserGrantsStoreRequest(UserGrantInfo),
     PrivacySettingsStoreRequest(CloudPrivacySettings),
+    AuthorizedInfo(CapsRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -286,12 +288,17 @@ pub enum ExtnResponse {
     StorageData(StorageData),
     NetworkResponse(NetworkResponse),
     AvailableTimezones(Vec<String>),
+    TimezoneWithOffset(String, i64),
     Token(TokenResult),
     DefaultApp(AppLibraryEntry),
     Settings(HashMap<String, SettingValue>),
+<<<<<<< HEAD
     PubSub(PubSubResponse),
+=======
+    BoolMap(HashMap<String, bool>),
+>>>>>>> main
     Advertising(AdvertisingResponse),
-    // Token(RootTokenResponse),
+    SecureStorage(SecureStorageResponse),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {

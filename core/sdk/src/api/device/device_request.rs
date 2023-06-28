@@ -77,6 +77,19 @@ pub enum AudioProfile {
     DolbyAtmos,
 }
 
+impl std::fmt::Display for AudioProfile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            Self::Stereo => write!(f, "stereo"),
+            Self::DolbyDigital5_1 => write!(f, "dolbyDigital5.1"),
+            Self::DolbyDigital7_1 => write!(f, "dolbyDigital7.1"),
+            Self::DolbyDigital5_1Plus => write!(f, "dolbyDigital5.1+"),
+            Self::DolbyDigital7_1Plus => write!(f, "dolbyDigital7.1+"),
+            Self::DolbyAtmos => write!(f, "dolbyAtmos"),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DeviceVersionResponse {
     pub api: FireboltSemanticVersion,
