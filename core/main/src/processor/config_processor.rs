@@ -112,11 +112,13 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
             Config::FormFactor => ExtnResponse::String(device_manifest.get_form_factor()),
             Config::DistributorExperienceId => {
                 ExtnResponse::String(device_manifest.get_distributor_experience_id())
-            },
-            Config::DistributorServices => if let Some(v) = device_manifest.clone().configuration.distributor_services {
-                ExtnResponse::Value(v)
-            } else {
-                ExtnResponse::None(())
+            }
+            Config::DistributorServices => {
+                if let Some(v) = device_manifest.clone().configuration.distributor_services {
+                    ExtnResponse::Value(v)
+                } else {
+                    ExtnResponse::None(())
+                }
             }
             _ => ExtnResponse::Error(ripple_sdk::utils::error::RippleError::InvalidInput),
         };
