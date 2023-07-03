@@ -88,6 +88,7 @@ pub enum RippleContract {
     PubSub,
     CloudSync,
     StoreUserGrants,
+    StorePrivacySettings,
     Caps,
     Encoder,
 }

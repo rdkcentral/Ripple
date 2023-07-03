@@ -18,7 +18,8 @@ use crate::processor::storage::storage_manager::StorageManager;
 use crate::state::platform_state::PlatformState;
 use ripple_sdk::{
     api::{
-        distributor::distributor_privacy::CloudPrivacySettings, storage_property::StorageProperty,
+        distributor::distributor_privacy::{PrivacySettingsData, PrivacySettingsStoreRequest},
+        storage_property::StorageProperty,
     },
     async_trait::async_trait,
     extn::{
@@ -50,7 +51,7 @@ impl StorePrivacySettingsProcessor {
 
 impl ExtnStreamProcessor for StorePrivacySettingsProcessor {
     type STATE = PlatformState;
-    type VALUE = CloudPrivacySettings;
+    type VALUE = PrivacySettingsStoreRequest;
     fn get_state(&self) -> Self::STATE {
         self.state.clone()
     }
@@ -63,24 +64,62 @@ impl ExtnStreamProcessor for StorePrivacySettingsProcessor {
         self.streamer.receiver()
     }
 }
-
-#[async_trait]
-impl ExtnRequestProcessor for StorePrivacySettingsProcessor {
-    fn get_client(&self) -> ripple_sdk::extn::client::extn_client::ExtnClient {
-        self.state.get_client().get_extn_client()
-    }
-
-    async fn process_request(
-        state: Self::STATE,
+impl StorePrivacySettingsProcessor {
+    async fn process_set_request(
+        state: &PlatformState,
         msg: ExtnMessage,
-        extracted_message: Self::VALUE,
+        storage_property: StorageProperty,
+        value: bool,
     ) -> bool {
-        debug!(
-            "processor received extracted message: {:?}",
-            extracted_message
-        );
+        let result = StorageManager::set_bool(state, storage_property, value, None).await;
+        if result.is_ok() {
+            Self::respond(
+                state.get_client().get_extn_client(),
+                msg,
+                ExtnResponse::None(()),
+            )
+            .await
+            .is_ok()
+        } else {
+            Self::handle_error(
+                state.get_client().get_extn_client(),
+                msg,
+                RippleError::ProcessorError,
+            )
+            .await
+        }
+    }
+    async fn process_get_request(
+        state: &PlatformState,
+        msg: ExtnMessage,
+        storage_property: StorageProperty,
+    ) -> bool {
+        let result = StorageManager::get_bool(state, storage_property).await;
+        match result {
+            Ok(val) => Self::respond(
+                state.get_client().get_extn_client(),
+                msg,
+                ExtnResponse::Boolean(val),
+            )
+            .await
+            .is_ok(),
+            Err(_err) => {
+                Self::handle_error(
+                    state.get_client().get_extn_client(),
+                    msg,
+                    RippleError::ProcessorError,
+                )
+                .await
+            }
+        }
+    }
+    async fn process_set_all_request(
+        state: &PlatformState,
+        msg: ExtnMessage,
+        privacy_settings_data: PrivacySettingsData,
+    ) -> bool {
         let mut err = false;
-        if let Some(allow_acr_collection) = extracted_message.allow_acr_collection {
+        if let Some(allow_acr_collection) = privacy_settings_data.allow_acr_collection {
             let res = StorageManager::set_bool(
                 &state,
                 StorageProperty::AllowAcrCollection,
@@ -93,7 +132,7 @@ impl ExtnRequestProcessor for StorePrivacySettingsProcessor {
                 err = true;
             }
         }
-        if let Some(allow_resume_points) = extracted_message.allow_resume_points {
+        if let Some(allow_resume_points) = privacy_settings_data.allow_resume_points {
             let res = StorageManager::set_bool(
                 &state,
                 StorageProperty::AllowResumePoints,
@@ -107,7 +146,7 @@ impl ExtnRequestProcessor for StorePrivacySettingsProcessor {
             }
         }
         if let Some(allow_app_content_ad_targeting) =
-            extracted_message.allow_app_content_ad_targeting
+            privacy_settings_data.allow_app_content_ad_targeting
         {
             let res = StorageManager::set_bool(
                 &state,
@@ -124,7 +163,7 @@ impl ExtnRequestProcessor for StorePrivacySettingsProcessor {
                 err = true;
             }
         }
-        if let Some(allow_camera_analytics) = extracted_message.allow_camera_analytics {
+        if let Some(allow_camera_analytics) = privacy_settings_data.allow_camera_analytics {
             let res = StorageManager::set_bool(
                 &state,
                 StorageProperty::AllowCameraAnalytics,
@@ -140,7 +179,7 @@ impl ExtnRequestProcessor for StorePrivacySettingsProcessor {
                 err = true;
             }
         }
-        if let Some(allow_personalization) = extracted_message.allow_personalization {
+        if let Some(allow_personalization) = privacy_settings_data.allow_personalization {
             let res = StorageManager::set_bool(
                 &state,
                 StorageProperty::AllowPersonalization,
@@ -154,7 +193,7 @@ impl ExtnRequestProcessor for StorePrivacySettingsProcessor {
             }
         }
         if let Some(allow_primary_browse_ad_targeting) =
-            extracted_message.allow_primary_browse_ad_targeting
+            privacy_settings_data.allow_primary_browse_ad_targeting
         {
             let res = StorageManager::set_bool(
                 &state,
@@ -172,7 +211,7 @@ impl ExtnRequestProcessor for StorePrivacySettingsProcessor {
             }
         }
         if let Some(allow_primary_content_ad_targeting) =
-            extracted_message.allow_primary_content_ad_targeting
+            privacy_settings_data.allow_primary_content_ad_targeting
         {
             let res = StorageManager::set_bool(
                 &state,
@@ -189,7 +228,7 @@ impl ExtnRequestProcessor for StorePrivacySettingsProcessor {
                 err = true;
             }
         }
-        if let Some(allow_product_analytics) = extracted_message.allow_product_analytics {
+        if let Some(allow_product_analytics) = privacy_settings_data.allow_product_analytics {
             let res = StorageManager::set_bool(
                 &state,
                 StorageProperty::AllowProductAnalytics,
@@ -202,7 +241,7 @@ impl ExtnRequestProcessor for StorePrivacySettingsProcessor {
                 err = true;
             }
         }
-        if let Some(allow_remote_diagnostics) = extracted_message.allow_remote_diagnostics {
+        if let Some(allow_remote_diagnostics) = privacy_settings_data.allow_remote_diagnostics {
             let res = StorageManager::set_bool(
                 &state,
                 StorageProperty::AllowRemoteDiagnostics,
@@ -219,7 +258,7 @@ impl ExtnRequestProcessor for StorePrivacySettingsProcessor {
             }
         }
         if let Some(allow_unentitled_personalization) =
-            extracted_message.allow_unentitled_personalization
+            privacy_settings_data.allow_unentitled_personalization
         {
             let res = StorageManager::set_bool(
                 &state,
@@ -237,7 +276,7 @@ impl ExtnRequestProcessor for StorePrivacySettingsProcessor {
             }
         }
         if let Some(allow_unentitled_resume_points) =
-            extracted_message.allow_unentitled_resume_points
+            privacy_settings_data.allow_unentitled_resume_points
         {
             let res = StorageManager::set_bool(
                 &state,
@@ -251,7 +290,7 @@ impl ExtnRequestProcessor for StorePrivacySettingsProcessor {
                 err = true;
             }
         }
-        if let Some(allow_watch_history) = extracted_message.allow_watch_history {
+        if let Some(allow_watch_history) = privacy_settings_data.allow_watch_history {
             let res = StorageManager::set_bool(
                 &state,
                 StorageProperty::AllowWatchHistory,
@@ -283,5 +322,34 @@ impl ExtnRequestProcessor for StorePrivacySettingsProcessor {
         )
         .await
         .is_ok();
+    }
+}
+
+#[async_trait]
+impl ExtnRequestProcessor for StorePrivacySettingsProcessor {
+    fn get_client(&self) -> ripple_sdk::extn::client::extn_client::ExtnClient {
+        self.state.get_client().get_extn_client()
+    }
+
+    async fn process_request(
+        state: Self::STATE,
+        msg: ExtnMessage,
+        extracted_message: Self::VALUE,
+    ) -> bool {
+        debug!(
+            "processor received extracted message: {:?}",
+            extracted_message
+        );
+        match extracted_message {
+            PrivacySettingsStoreRequest::GetPrivacySettings(storage_property) => {
+                Self::process_get_request(&state, msg, storage_property).await
+            }
+            PrivacySettingsStoreRequest::SetAllPrivacySettings(privacy_settings_data) => {
+                Self::process_set_all_request(&state, msg, privacy_settings_data).await
+            }
+            PrivacySettingsStoreRequest::SetPrivacySettings(storage_property, value) => {
+                Self::process_set_request(&state, msg, storage_property, value).await
+            }
+        }
     }
 }

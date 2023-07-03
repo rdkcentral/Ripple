@@ -15,7 +15,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use ripple_sdk::{
-    api::distributor::distributor_sync::{SyncAndMonitorModule, SyncAndMonitorRequest},
+    api::{
+        distributor::distributor_sync::{SyncAndMonitorModule, SyncAndMonitorRequest},
+        manifest::device_manifest::PrivacySettingsStorageType,
+    },
     framework::bootstrap::Bootstep,
 };
 use ripple_sdk::{async_trait::async_trait, framework::RippleResponse};
@@ -34,6 +37,19 @@ impl Bootstep<BootstrapState> for StartCloudSyncStep {
     async fn setup(&self, state: BootstrapState) -> RippleResponse {
         if !state.platform_state.supports_cloud_sync() {
             debug!("Cloud Sync not configured as a required contract so not starting.");
+            return Ok(());
+        }
+        if state
+            .platform_state
+            .get_device_manifest()
+            .configuration
+            .features
+            .privacy_settings_storage_type
+            != PrivacySettingsStorageType::Sync
+        {
+            debug!(
+                "Privacy settings storage type is not set as sync so not starting cloud monitor"
+            );
             return Ok(());
         }
         if let Some(account_session) = state.platform_state.session_state.get_account_session() {

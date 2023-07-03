@@ -25,19 +25,34 @@ use crate::{
 use serde::{Deserialize, Serialize};
 
 use super::device::device_user_grants_data::GrantStatus;
+use super::firebolt::fb_capabilities::FireboltPermission;
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-pub enum Role {
-    Use,
-    Manage,
-    Provide,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum UserGrantsStoreRequest {
+    GetUserGrants(String, FireboltPermission),
+    SetUserGrants(UserGrantInfo),
 }
 
-// #[derive(Debug, Clone, Deserialize, Serialize)]
-// pub enum GrantStatus {
-//     Allowed,
-//     Denied,
-// }
+impl ExtnPayloadProvider for UserGrantsStoreRequest {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(ExtnRequest::UserGrantsStore(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        match payload {
+            ExtnPayload::Request(request) => match request {
+                ExtnRequest::UserGrantsStore(r) => return Some(r),
+                _ => {}
+            },
+            _ => {}
+        }
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::StoreUserGrants
+    }
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct UserGrantInfo {
@@ -59,26 +74,5 @@ impl Default for UserGrantInfo {
             expiry_time: None,
             app_name: None,
         }
-    }
-}
-
-impl ExtnPayloadProvider for UserGrantInfo {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::UserGrantsStoreRequest(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<UserGrantInfo> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::UserGrantsStoreRequest(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
-        }
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::StoreUserGrants
     }
 }

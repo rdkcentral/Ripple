@@ -17,8 +17,9 @@
 use crate::state::platform_state::PlatformState;
 use ripple_sdk::{
     api::{
-        device::device_user_grants_data::{GrantEntry, GrantLifespan},
-        usergrant_entry::UserGrantInfo,
+        device::device_user_grants_data::{GrantEntry, GrantLifespan, GrantStatus},
+        firebolt::fb_capabilities::FireboltPermission,
+        usergrant_entry::{UserGrantInfo, UserGrantsStoreRequest},
     },
     async_trait::async_trait,
     extn::client::extn_processor::{
@@ -45,7 +46,7 @@ impl StoreUserGrantsProcessor {
 
 impl ExtnStreamProcessor for StoreUserGrantsProcessor {
     type STATE = PlatformState;
-    type VALUE = UserGrantInfo;
+    type VALUE = UserGrantsStoreRequest;
     fn get_state(&self) -> Self::STATE {
         self.state.clone()
     }
@@ -56,6 +57,71 @@ impl ExtnStreamProcessor for StoreUserGrantsProcessor {
 
     fn receiver(&mut self) -> MReceiver<ExtnMessage> {
         self.streamer.receiver()
+    }
+}
+
+impl StoreUserGrantsProcessor {
+    async fn process_get_request(
+        state: &PlatformState,
+        msg: ExtnMessage,
+        app_id: String,
+        permission: FireboltPermission,
+    ) -> bool {
+        let result = state
+            .cap_state
+            .grant_state
+            .get_grant_status(&app_id, &permission);
+        if let Some(granted) = result {
+            return Self::respond(
+                state.get_client().get_extn_client(),
+                msg,
+                ExtnResponse::Boolean(match granted {
+                    GrantStatus::Allowed => true,
+                    GrantStatus::Denied => false,
+                }),
+            )
+            .await
+            .is_ok();
+        } else {
+            return Self::respond(
+                state.get_client().get_extn_client(),
+                msg,
+                ExtnResponse::None(()),
+            )
+            .await
+            .is_ok();
+        }
+    }
+    async fn process_set_request(
+        state: &PlatformState,
+        msg: ExtnMessage,
+        user_grant_info: UserGrantInfo,
+    ) -> bool {
+        let app_id = user_grant_info.app_name.to_owned();
+        let grant_entry = GrantEntry {
+            role: user_grant_info.role,
+            capability: user_grant_info.capability.to_owned(),
+            status: Some(user_grant_info.status),
+            lifespan: match user_grant_info.expiry_time {
+                Some(_) => Some(GrantLifespan::Seconds),
+                None => Some(GrantLifespan::Forever),
+            },
+            last_modified_time: user_grant_info.last_modified_time,
+            lifespan_ttl_in_secs: user_grant_info
+                .expiry_time
+                .map(|epoch_duration| epoch_duration.as_secs()),
+        };
+        state
+            .cap_state
+            .grant_state
+            .update_grant_entry(app_id, grant_entry);
+        return Self::respond(
+            state.get_client().get_extn_client(),
+            msg,
+            ExtnResponse::None(()),
+        )
+        .await
+        .is_ok();
     }
 }
 
@@ -71,30 +137,13 @@ impl ExtnRequestProcessor for StoreUserGrantsProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         debug!("process request: Received message: {:?}", extracted_message);
-        let app_id = extracted_message.app_name.to_owned();
-        let grant_entry = GrantEntry {
-            role: extracted_message.role,
-            capability: extracted_message.capability.to_owned(),
-            status: Some(extracted_message.status),
-            lifespan: match extracted_message.expiry_time {
-                Some(_) => Some(GrantLifespan::Seconds),
-                None => Some(GrantLifespan::Forever),
-            },
-            last_modified_time: extracted_message.last_modified_time,
-            lifespan_ttl_in_secs: extracted_message
-                .expiry_time
-                .map(|epoch_duration| epoch_duration.as_secs()),
-        };
-        state
-            .cap_state
-            .grant_state
-            .update_grant_entry(app_id, grant_entry);
-        return Self::respond(
-            state.get_client().get_extn_client(),
-            msg,
-            ExtnResponse::None(()),
-        )
-        .await
-        .is_ok();
+        match extracted_message {
+            UserGrantsStoreRequest::GetUserGrants(app_id, permission) => {
+                Self::process_get_request(&state, msg, app_id, permission).await
+            }
+            UserGrantsStoreRequest::SetUserGrants(user_grant_info) => {
+                Self::process_set_request(&state, msg, user_grant_info).await
+            }
+        }
     }
 }
