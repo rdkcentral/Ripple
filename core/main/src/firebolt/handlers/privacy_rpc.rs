@@ -469,20 +469,23 @@ impl PrivacyImpl {
             PrivacySettingsStorageType::Local | PrivacySettingsStorageType::Sync => {
                 let payload = PrivacySettingsStoreRequest::GetPrivacySettings(property);
                 let response = platform_state.get_client().send_extn_request(payload).await;
-                if let Ok(extn_msg) =  response {
+                if let Ok(extn_msg) = response {
                     match extn_msg.payload {
-                        ExtnPayload::Response(res) => {
-                            match res {
-                                ExtnResponse::Boolean(val) => RpcResult::Ok(val),
-                                _ => RpcResult::Err(jsonrpsee::core::Error::Custom("Unable to fetch".to_owned())),
-                            }
-                        }
-                        _ => RpcResult::Err(jsonrpsee::core::Error::Custom("Unexpected response received from Extn".to_owned()))
+                        ExtnPayload::Response(res) => match res {
+                            ExtnResponse::Boolean(val) => RpcResult::Ok(val),
+                            _ => RpcResult::Err(jsonrpsee::core::Error::Custom(
+                                "Unable to fetch".to_owned(),
+                            )),
+                        },
+                        _ => RpcResult::Err(jsonrpsee::core::Error::Custom(
+                            "Unexpected response received from Extn".to_owned(),
+                        )),
                     }
                 } else {
-                    RpcResult::Err(jsonrpsee::core::Error::Custom("Error in getting response from Extn".to_owned()))
+                    RpcResult::Err(jsonrpsee::core::Error::Custom(
+                        "Error in getting response from Extn".to_owned(),
+                    ))
                 }
-
             }
             PrivacySettingsStorageType::Cloud => {
                 let dist_session = platform_state.session_state.get_account_session().unwrap();
