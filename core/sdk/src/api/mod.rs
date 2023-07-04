@@ -23,10 +23,12 @@ pub mod config;
 pub mod device;
 pub mod manifest;
 pub mod protocol;
+pub mod pubsub;
 pub mod session;
 pub mod settings;
 pub mod status_update;
 pub mod storage_property;
+pub mod usergrant_entry;
 pub mod wifi;
 
 pub mod gateway {
@@ -40,6 +42,7 @@ pub mod distributor {
     pub mod distributor_permissions;
     pub mod distributor_privacy;
     pub mod distributor_request;
+    pub mod distributor_sync;
 }
 
 pub mod firebolt {
