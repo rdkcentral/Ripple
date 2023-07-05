@@ -1296,14 +1296,6 @@ async fn test_get_device_info_mac_address() {
         PactBuilder::new_v4("ripple-get-device-info", "rdk-get-device-info-handler")
             .using_plugin("websockets", None)
             .await;
-        // pact_builder_async
-        //     .synchronous_message_interaction("A request to get the device info", |mut i| async move {
-        //         i.given("websocket connection has been established");
-        //         i.test_name("get_device_info_mac_address");
-        //         i.request_json_body(json_pattern!({"jsonrpc": "2.0", "id": 0, "method": "org.rdk.System.1.getDeviceInfo", "params": {"params": ["estb_mac"]}}));
-        //         i.response_json_body(json_pattern!({"jsonrpc": "2.0", "id": 0, "result": {"estb_mac": term!("^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$", "e0:e1:e2:e3:e4:e5"), "success": true}}));
-        //         i
-        //     }).await;
 
         pact_builder_async
         .synchronous_message_interaction("A request to get the device info", |mut i| async move {
@@ -1327,8 +1319,6 @@ async fn test_get_device_info_mac_address() {
 
             i
         }).await;
-        // //Latest Changes to add Metadata
-
     // Define Pact request and response - End
 
     let mock_server = pact_builder_async
@@ -1376,8 +1366,6 @@ async fn test_get_device_info_mac_address() {
             }
         }
     }
-
-    // Here mock service will be shutdown when mock_server variable is dropped
 }
 
 
@@ -1388,14 +1376,6 @@ async fn test_get_device_model() {
         PactBuilder::new_v4("ripple-get-device-model", "rdk-get-device-model-handler")
             .using_plugin("websockets", None)
             .await;
-        // pact_builder_async
-        // .synchronous_message_interaction("A request to get the device model", |mut i| async move {
-        //     i.given("websocket connection has been established");
-        //     i.test_name("get_device_model");
-        //     i.request_json_body(json_pattern!({"jsonrpc": "2.0", "id": 0, "method": "org.rdk.System.1.getSystemVersions"}));
-        //     i.response_json_body(json_pattern!({"jsonrpc": "2.0", "id": 0, "result": {"stbVersion": "AX061AEI_VBN_1911_sprint_20200109040424sdy", "receiverVersion": "3.14.0.0", "stbTimestamp": "Thu 09 Jan 2020 04:04:24 AP UTC", "success": true}}));
-        //     i
-        // }).await;
 
         pact_builder_async
         .synchronous_message_interaction("A request to get the device model", |mut i| async move {
@@ -1420,8 +1400,6 @@ async fn test_get_device_model() {
             
             i
         }).await;
-        // //Latest Changes to add Metadata
-
     // Define Pact request and response - End
 
     let mock_server = pact_builder_async
@@ -1469,6 +1447,4 @@ async fn test_get_device_model() {
             }
         }
     }
-
-    // Here mock service will be shutdown when mock_server variable is dropped
 }
