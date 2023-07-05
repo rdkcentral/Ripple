@@ -306,7 +306,7 @@ pub struct AppAuthorizationRules {
     pub app_ignore_rules: HashMap<String, Vec<String>>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum PrivacySettingsStorageType {
     Local,

@@ -132,6 +132,11 @@ impl PlatformState {
         self.extn_manifest.required_contracts.contains(&contract)
     }
 
+    pub fn supports_cloud_sync(&self) -> bool {
+        let contract = RippleContract::CloudSync.as_clear_string();
+        self.extn_manifest.required_contracts.contains(&contract)
+    }
+
     pub fn supports_encoding(&self) -> bool {
         let contract = RippleContract::Encoder.as_clear_string();
         self.extn_manifest.required_contracts.contains(&contract)
