@@ -20,7 +20,7 @@ use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::session::AccountSession,
+    api::{session::AccountSession, storage_property::StorageProperty},
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
@@ -80,6 +80,49 @@ impl PrivacySettings {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PrivacySettingsStoreRequest {
+    GetPrivacySettings(StorageProperty),
+    SetPrivacySettings(StorageProperty, bool),
+    SetAllPrivacySettings(PrivacySettingsData),
+}
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+pub struct PrivacySettingsData {
+    pub allow_acr_collection: Option<bool>,
+    pub allow_resume_points: Option<bool>,
+    pub allow_app_content_ad_targeting: Option<bool>,
+    pub allow_camera_analytics: Option<bool>,
+    pub allow_personalization: Option<bool>,
+    pub allow_primary_browse_ad_targeting: Option<bool>,
+    pub allow_primary_content_ad_targeting: Option<bool>,
+    pub allow_product_analytics: Option<bool>,
+    pub allow_remote_diagnostics: Option<bool>,
+    pub allow_unentitled_personalization: Option<bool>,
+    pub allow_unentitled_resume_points: Option<bool>,
+    pub allow_watch_history: Option<bool>,
+}
+
+impl ExtnPayloadProvider for PrivacySettingsStoreRequest {
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        match payload {
+            ExtnPayload::Request(req) => match req {
+                ExtnRequest::PrivacySettingsStore(storage_request) => Some(storage_request),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(ExtnRequest::PrivacySettingsStore(self.clone()))
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::StorePrivacySettings
+    }
+}
+
 impl ExtnPayloadProvider for PrivacySettings {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         match payload {
@@ -105,6 +148,36 @@ impl ExtnPayloadProvider for PrivacySettings {
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
         RippleContract::PrivacyCloudSync
+    }
+}
+
+impl ExtnPayloadProvider for PrivacySettingsData {
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        match payload {
+            ExtnPayload::Request(r) => match r {
+                ExtnRequest::PrivacySettingsStore(storage_request) => {
+                    if let PrivacySettingsStoreRequest::SetAllPrivacySettings(settings) =
+                        storage_request
+                    {
+                        return Some(settings);
+                    }
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+
+        None
+    }
+
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(ExtnRequest::PrivacySettingsStore(
+            PrivacySettingsStoreRequest::SetAllPrivacySettings(self.clone()),
+        ))
+    }
+
+    fn contract() -> crate::framework::ripple_contract::RippleContract {
+        RippleContract::StorePrivacySettings
     }
 }
 
