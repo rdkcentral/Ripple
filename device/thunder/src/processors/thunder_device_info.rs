@@ -1293,7 +1293,7 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
 async fn test_get_device_info_mac_address() {
     // Define Pact request and response - Start
     let mut pact_builder_async =
-        PactBuilder::new_v4("ripple", "rdk")
+        PactBuilder::new_v4("ripple", "rdk_service")
             .using_plugin("websockets", None)
             .await;
 
@@ -1373,7 +1373,7 @@ async fn test_get_device_info_mac_address() {
 async fn test_get_device_model() {
     // Define Pact request and response - Start
     let mut pact_builder_async =
-        PactBuilder::new_v4("ripple", "rdk")
+        PactBuilder::new_v4("ripple", "rdk_service")
             .using_plugin("websockets", None)
             .await;
 
