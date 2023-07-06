@@ -69,6 +69,9 @@ impl ProviderResponsePayload {
     pub fn as_challenge_response(&self) -> Option<ChallengeResponse> {
         match self {
             ProviderResponsePayload::ChallengeResponse(res) => Some(res.clone()),
+            ProviderResponsePayload::PinChallengeResponse(res) => Some(ChallengeResponse {
+                granted: res.get_granted(),
+            }),
             _ => None,
         }
     }
