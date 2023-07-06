@@ -29,6 +29,7 @@ impl FireboltGatekeeper {
     pub async fn gate(state: PlatformState, request: RpcRequest) -> Result<(), DenyReasonWithCap> {
         let open_rpc_state = state.clone().open_rpc_state;
         if open_rpc_state.is_excluded(request.clone().method, request.clone().ctx.app_id) {
+            debug!("Method is exluded from gating");
             return Ok(());
         }
         if let Some(caps) = open_rpc_state.get_caps_for_method(request.clone().method) {
@@ -66,7 +67,7 @@ impl FireboltGatekeeper {
                     );
                     return Err(e);
                 } else {
-                    debug!("check_permitted for method ({}) succeded", request.method);
+                    debug!("check_with_roles for method ({}) succeded", request.method);
                 }
             }
         } else {
