@@ -22,8 +22,6 @@ use log::error;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::api::distributor::distributor_privacy::PrivacySettingsStoreRequest;
-use crate::api::usergrant_entry::UserGrantsStoreRequest;
 use crate::{
     api::{
         account_link::AccountLinkRequest,
@@ -37,7 +35,7 @@ use crate::{
         },
         distributor::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
-            distributor_privacy::PrivacyCloudRequest,
+            distributor_privacy::{PrivacyCloudRequest, PrivacySettingsStoreRequest},
             distributor_request::DistributorRequest,
             distributor_sync::SyncAndMonitorRequest,
         },
@@ -47,7 +45,7 @@ use crate::{
             fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
             fb_lifecycle_management::LifecycleManagementRequest,
             fb_metrics::BehavioralMetricRequest,
-            fb_pin::{PinChallengeRequest, PinChallengeResponse},
+            fb_pin::{PinChallengeRequestWithContext, PinChallengeResponse},
             fb_secure_storage::{SecureStorageRequest, SecureStorageResponse},
         },
         gateway::rpc_gateway_api::RpcRequest,
@@ -58,6 +56,7 @@ use crate::{
         settings::{SettingValue, SettingsRequest},
         status_update::ExtnStatus,
         storage_property::StorageManagerRequest,
+        usergrant_entry::UserGrantsStoreRequest,
     },
     framework::ripple_contract::RippleContract,
     utils::error::RippleError,
@@ -248,7 +247,7 @@ pub enum ExtnRequest {
     DeviceEvent(DeviceEventRequest),
     Extn(Value),
     LifecycleManagement(LifecycleManagementRequest),
-    PinChallenge(PinChallengeRequest),
+    PinChallenge(PinChallengeRequestWithContext),
     Keyboard(KeyboardSessionRequest),
     Permission(PermissionRequest),
     Distributor(DistributorRequest),

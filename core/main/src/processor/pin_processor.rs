@@ -18,7 +18,7 @@
 use ripple_sdk::{
     api::firebolt::{
         fb_capabilities::DenyReason,
-        fb_pin::{PinChallengeRequest, PIN_CHALLENGE_CAPABILITY},
+        fb_pin::{PinChallengeRequestWithContext, PIN_CHALLENGE_CAPABILITY},
         provider::{ProviderRequestPayload, ProviderResponsePayload},
     },
     async_trait::async_trait,
@@ -58,7 +58,7 @@ impl PinProcessor {
 
 impl ExtnStreamProcessor for PinProcessor {
     type STATE = PlatformState;
-    type VALUE = PinChallengeRequest;
+    type VALUE = PinChallengeRequestWithContext;
     fn get_state(&self) -> Self::STATE {
         self.state.clone()
     }
@@ -88,8 +88,8 @@ impl ExtnRequestProcessor for PinProcessor {
         let pr_msg = ProviderBrokerRequest {
             capability: String::from(PIN_CHALLENGE_CAPABILITY),
             method: String::from("challenge"),
-            caller: pin_request.clone().requestor,
-            request: ProviderRequestPayload::PinChallenge(pin_request),
+            caller: pin_request.call_ctx.to_owned(),
+            request: ProviderRequestPayload::PinChallenge(pin_request.into()),
             tx: session_tx,
             app_id: None,
         };

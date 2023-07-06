@@ -23,6 +23,8 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
+use super::provider::ChallengeRequestor;
+
 pub const PIN_CHALLENGE_EVENT: &'static str = "pinchallenge.onRequestChallenge";
 pub const PIN_CHALLENGE_CAPABILITY: &'static str = "xrn:firebolt:capability:usergrant:pinchallenge";
 
@@ -30,11 +32,29 @@ pub const PIN_CHALLENGE_CAPABILITY: &'static str = "xrn:firebolt:capability:user
 #[serde(rename_all = "camelCase")]
 pub struct PinChallengeRequest {
     pub pin_space: PinSpace,
-    pub requestor: CallContext,
+    pub requestor: ChallengeRequestor,
     pub capability: Option<String>,
 }
+impl From<PinChallengeRequestWithContext> for PinChallengeRequest {
+    fn from(pin_req: PinChallengeRequestWithContext) -> Self {
+        PinChallengeRequest {
+            pin_space: pin_req.pin_space,
+            requestor: pin_req.requestor.to_owned(),
+            capability: pin_req.capability.to_owned(),
+        }
+    }
+}
 
-impl ExtnPayloadProvider for PinChallengeRequest {
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PinChallengeRequestWithContext {
+    pub pin_space: PinSpace,
+    pub requestor: ChallengeRequestor,
+    pub capability: Option<String>,
+    pub call_ctx: CallContext,
+}
+
+impl ExtnPayloadProvider for PinChallengeRequestWithContext {
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Request(ExtnRequest::PinChallenge(self.clone()))
     }
@@ -69,6 +89,11 @@ pub enum PinChallengeResultReason {
 pub struct PinChallengeResponse {
     pub granted: bool,
     pub reason: PinChallengeResultReason,
+}
+impl PinChallengeResponse {
+    pub fn get_granted(&self) -> bool {
+        self.granted
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

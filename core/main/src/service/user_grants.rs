@@ -21,7 +21,7 @@ use std::{
     time::SystemTime,
 };
 
-use jsonrpsee::tracing::debug;
+use ripple_sdk::log::debug;
 use ripple_sdk::{
     api::{
         apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
@@ -341,7 +341,6 @@ impl GrantState {
                 caps: denied_caps,
             });
         }
-
         Ok(())
 
         // UserGrants::determine_grant_policies(&self.ps.clone(), call_ctx, &r).await
@@ -573,9 +572,16 @@ impl GrantPolicyEnforcer {
                         &policy,
                         result.is_ok(),
                         &call_context.app_id,
-                    )
+                    );
+                    return result;
+                } else {
+                    debug!("We dont have a policy for role");
                 }
+            } else {
+                debug!("We dont have grant polices for cap");
             }
+        } else {
+            debug!("No grant policies configured");
         }
         Ok(())
     }
@@ -798,37 +804,26 @@ impl GrantPolicyEnforcer {
         permission: &FireboltPermission,
         policy: &GrantPolicy,
     ) -> Result<(), DenyReasonWithCap> {
-        if let Some(privacy_setting) = policy.clone().privacy_setting {
-            let resp =
-                Self::evaluate_privacy_settings(platform_state, &privacy_setting, call_ctx).await;
-
-            if resp.is_some() {
-                if let Some(Err(reason)) = resp {
-                    return Err(DenyReasonWithCap {
-                        reason,
-                        caps: vec![permission.cap.clone()],
-                    });
-                }
-            }
-            let result = Self::evaluate_options(platform_state, call_ctx, permission, policy).await;
-
-            let mapped_result = if result.is_ok() { true } else { false };
-
-            Self::update_privacy_settings_with_grant(
+        if policy.privacy_setting.is_some()
+            && policy.privacy_setting.as_ref().unwrap().auto_apply_policy != AutoApplyPolicy::Never
+        {
+            if let Some(priv_sett_response) = Self::evaluate_privacy_settings(
                 platform_state,
+                &policy.privacy_setting.as_ref().unwrap(),
                 call_ctx,
-                &privacy_setting,
-                mapped_result,
             )
-            .await;
-
-            return result;
+            .await
+            {
+                return priv_sett_response.map_err(|err| DenyReasonWithCap {
+                    reason: err,
+                    caps: vec![permission.cap.clone()],
+                });
+            }
         }
 
-        Err(DenyReasonWithCap {
-            reason: DenyReason::Ungranted,
-            caps: vec![permission.cap.clone()],
-        })
+        let result = Self::evaluate_options(platform_state, call_ctx, permission, policy).await;
+
+        return result;
     }
 }
 
@@ -941,8 +936,11 @@ impl GrantStepExecutor {
                         caller: call_ctx.clone(),
                         request: ProviderRequestPayload::PinChallenge(PinChallengeRequest {
                             pin_space: pin_conf.pin_space,
-                            requestor: call_ctx.clone(),
-                            capability: Some(call_ctx.app_id.clone()),
+                            requestor: ChallengeRequestor {
+                                id: call_ctx.app_id.clone(),
+                                name: app_name,
+                            },
+                            capability: Some(p_cap.as_str()),
                         }),
                         tx: session_tx,
                         app_id: None,
