@@ -54,7 +54,7 @@ pub struct AccountImpl {
 
 #[async_trait]
 impl AccountServer for AccountImpl {
-    async fn session(&self, ctx: CallContext, a_t_r: AccountSessionTokenRequest) -> RpcResult<()> {
+    async fn session(&self, _ctx: CallContext, a_t_r: AccountSessionTokenRequest) -> RpcResult<()> {
         let resp = self
             .platform_state
             .get_client()
@@ -66,9 +66,7 @@ impl AccountServer for AccountImpl {
         }
 
         // clear the cached distributor session
-        self.platform_state
-            .session_state
-            .clear_session(&ctx.session_id.clone());
+        self.platform_state.session_state.clean_account_session();
 
         match resp {
             Ok(payload) => match payload.payload.extract().unwrap() {
