@@ -66,9 +66,7 @@ impl AccountServer for AccountImpl {
         }
 
         // clear the cached distributor session
-        self.platform_state
-            .session_state
-            .clean_account_session(&ctx.session_id.clone());
+        self.platform_state.session_state.clean_account_session();
 
         match resp {
             Ok(payload) => match payload.payload.extract().unwrap() {
