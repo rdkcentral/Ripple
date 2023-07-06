@@ -41,7 +41,23 @@
     "model_friendly_names": {
       "RSPPI": "Raspberry PI"
     },
-    "distributor_experience_id": "1001"
+    "distributor_experience_id": "0000",
+    "exclusory": {
+      "resolve_only": ["device.model", "localization.postalCode"],
+      "app_authorization_rules": {
+        "app_ignore_rules": {
+          "foo-insecure": [
+            "*"
+          ],
+          "refui": [
+            "*"
+          ]
+        }
+      },
+      "method_ignore_rules": [
+        "some.nonexistent.method"
+      ]
+    }
   },
   "capabilities": {
     "supported": [

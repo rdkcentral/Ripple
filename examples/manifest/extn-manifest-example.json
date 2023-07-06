@@ -23,24 +23,6 @@
             ]
         },
         {
-            "path": "liblauncher",
-            "symbols": [
-                {
-                    "id": "ripple:channel:launcher:internal",
-                    "uses": [
-                        "config",
-                        "lifecycle_management",
-                        "device_info",
-                        "window_manager",
-                        "browser"
-                    ],
-                    "fulfills": [
-                        "launcher"
-                    ]
-                }
-            ]
-        },
-        {
             "path": "libdistributor_general",
             "symbols": [
                 {
@@ -65,7 +47,6 @@
     ],
     "required_contracts": [
         "rpc",
-        "launcher",
         "lifecycle_management",
         "device_info",
         "window_manager",
