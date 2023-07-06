@@ -21,7 +21,7 @@ use ripple_sdk::{
 
 use crate::{
     processor::{
-        app_events_processor::AppEventsProcessor,
+        account_link_processor::AccountLinkProcessor, app_events_processor::AppEventsProcessor,
         authorized_info_processor::AuthorizedInfoProcessor,
         config_processor::ConfigRequestProcessor, exn_status_processor::ExtnStatusProcessor,
         keyboard_processor::KeyboardProcessor, pin_processor::PinProcessor,
@@ -49,6 +49,7 @@ impl Bootstep<BootstrapState> for SetupExtnClientStep {
         client.add_event_processor(AppEventsProcessor::new(state.platform_state.clone()));
         client.add_request_processor(StorageManagerProcessor::new(state.platform_state.clone()));
         client.add_request_processor(AuthorizedInfoProcessor::new(state.clone().platform_state));
+        client.add_request_processor(AccountLinkProcessor::new(state.clone().platform_state));
         Ok(())
     }
 }
