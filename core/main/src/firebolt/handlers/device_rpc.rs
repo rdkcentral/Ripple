@@ -706,7 +706,7 @@ impl DeviceServer for DeviceImpl {
 
     async fn provision(
         &self,
-        ctx: CallContext,
+        _ctx: CallContext,
         provision_request: ProvisionRequest,
     ) -> RpcResult<()> {
         let resp = self
@@ -715,9 +715,7 @@ impl DeviceServer for DeviceImpl {
             .send_extn_request(AccountSessionRequest::Provision(provision_request))
             .await;
         // clear the cached distributor session
-        self.state
-            .session_state
-            .clear_session(&ctx.session_id.clone());
+        self.state.session_state.clean_account_session();
 
         match resp {
             Ok(payload) => match payload.payload.extract().unwrap() {
