@@ -26,3 +26,8 @@ members = [
     "distributor/general",
     "examples/rpc_extn"
 ]
+
+[profile.release]
+strip = true
+opt-level = "z"
+codegen-units = 1

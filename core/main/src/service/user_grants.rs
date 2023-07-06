@@ -38,7 +38,7 @@ use ripple_sdk::{
                 CapEvent, CapabilityRole, DenyReason, DenyReasonWithCap, FireboltCap,
                 FireboltPermission, RoleInfo,
             },
-            fb_openrpc::CapabilitySet,
+            fb_openrpc::{CapabilitySet, FireboltOpenRpcMethod},
             fb_pin::{PinChallengeConfiguration, PinChallengeRequest},
             provider::{
                 Challenge, ChallengeRequestor, ProviderRequestPayload, ProviderResponsePayload,
@@ -736,8 +736,9 @@ impl GrantPolicyEnforcer {
             .open_rpc_state
             .get_open_rpc()
             .get_setter_method_for_property(property);
-        firebolt_rpc_method_opt
-            .map(|firebolt_openrpc_method| firebolt_openrpc_method.name.to_owned())
+        firebolt_rpc_method_opt.map(|firebolt_openrpc_method| {
+            FireboltOpenRpcMethod::name_with_lowercase_module(&firebolt_openrpc_method.name)
+        })
     }
 
     async fn evaluate_options(
