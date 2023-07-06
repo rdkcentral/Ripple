@@ -22,8 +22,6 @@ use log::error;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::api::distributor::distributor_privacy::PrivacySettingsStoreRequest;
-use crate::api::usergrant_entry::UserGrantsStoreRequest;
 use crate::{
     api::{
         account_link::AccountLinkRequest,

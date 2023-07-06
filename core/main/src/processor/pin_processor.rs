@@ -18,7 +18,7 @@
 use ripple_sdk::{
     api::firebolt::{
         fb_capabilities::DenyReason,
-        fb_pin::{PinChallengeRequest, PinChallengeRequestWithContext, PIN_CHALLENGE_CAPABILITY},
+        fb_pin::{PinChallengeRequestWithContext, PIN_CHALLENGE_CAPABILITY},
         provider::{ProviderRequestPayload, ProviderResponsePayload},
     },
     async_trait::async_trait,
