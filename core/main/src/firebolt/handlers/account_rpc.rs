@@ -65,9 +65,6 @@ impl AccountServer for AccountImpl {
             return Err(rpc_err("session error response TBD"));
         }
 
-        // clear the cached distributor session
-        self.platform_state.session_state.clean_account_session();
-
         match resp {
             Ok(payload) => match payload.payload.extract().unwrap() {
                 ExtnResponse::None(()) => {
