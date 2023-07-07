@@ -152,6 +152,9 @@ impl ExtnRequestProcessor for DistributorMetricsProcessor {
             BehavioralMetricRequest::TelemetryInternalInitialize(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
+            BehavioralMetricRequest::Raw(_) => {
+                mock_metrics_response(state, msg, extracted_message).await
+            }
         }
     }
 }
