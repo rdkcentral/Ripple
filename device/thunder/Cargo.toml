@@ -37,3 +37,6 @@ pact_models = "1.0.9"
 maplit = "1.0.2"
 test-log = "0.2.11"
 url = "2.2.2"
+
+[features]
+contract_tests = []

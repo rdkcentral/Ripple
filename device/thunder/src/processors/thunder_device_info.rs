@@ -1290,6 +1290,7 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_get_device_info_mac_address() {
     // Define Pact request and response - Start
     let mut pact_builder_async =
@@ -1370,6 +1371,7 @@ async fn test_get_device_info_mac_address() {
 
 
 #[tokio::test(flavor = "multi_thread")]
+#[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_get_device_model() {
     // Define Pact request and response - Start
     let mut pact_builder_async =
