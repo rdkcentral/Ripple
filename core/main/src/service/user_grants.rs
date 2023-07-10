@@ -21,7 +21,6 @@ use std::{
     time::SystemTime,
 };
 
-use ripple_sdk::log::debug;
 use ripple_sdk::{
     api::{
         apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
@@ -48,6 +47,7 @@ use ripple_sdk::{
         manifest::device_manifest::DeviceManifest,
     },
     framework::file_store::FileStore,
+    log::{debug, error},
     serde_json::Value,
     tokio::sync::oneshot,
     utils::error::RippleError,
@@ -545,45 +545,177 @@ impl GrantHandler {
 pub struct GrantPolicyEnforcer;
 
 impl GrantPolicyEnforcer {
+    pub async fn store_user_grants(
+        platform_state: &PlatformState,
+        permission: &FireboltPermission,
+        result: &Result<(), DenyReason>,
+        app_id: &Option<String>,
+        grant_policy: &GrantPolicy,
+    ) -> bool {
+        let mut ret_val = false;
+        let mut grant_entry =
+            GrantEntry::get(permission.role.clone(), permission.cap.as_str().to_owned());
+        grant_entry.lifespan = Some(grant_policy.lifespan.clone());
+        if grant_policy.lifespan_ttl.is_some() {
+            grant_entry.lifespan_ttl_in_secs = grant_policy.lifespan_ttl.clone();
+        }
+        if result.is_ok() {
+            grant_entry.status = Some(GrantStatus::Allowed);
+        } else {
+            grant_entry.status = Some(GrantStatus::Denied);
+        }
+        debug!("created grant_entry: {:?}", grant_entry);
+        let grant_entry_c = grant_entry.clone();
+        // If lifespan is once then no need to store it.
+        if grant_policy.lifespan != GrantLifespan::Once {
+            match grant_policy.scope {
+                GrantScope::App => {
+                    if let Some(app) = app_id {
+                        // UserGrantStateUtils::update_grant_entry(
+                        //     platform_state,
+                        //     Some(app.to_owned()),
+                        //     grant_entry,
+                        // )
+                        // .await;
+                        platform_state
+                            .cap_state
+                            .grant_state
+                            .update_grant_entry(app_id.to_owned(), grant_entry);
+                        ret_val = true;
+                    }
+                }
+                GrantScope::Device => {
+                    if let None = app_id {
+                        platform_state
+                            .cap_state
+                            .grant_state
+                            .update_grant_entry(None, grant_entry);
+                        ret_val = true;
+                    }
+                }
+            }
+        }
+        /*
+        if grant_policy.persistence == PolicyPersistenceType::Account {
+            let session = get_distributor_session_for_dpab(&platform_state.app_auth_sessions).await;
+
+            let cloud_grant_entry = grant_entry_c.as_cloud_grant_entry(match grant_policy.scope {
+                GrantScope::App => app_id.to_owned(),
+                GrantScope::Device => None,
+            });
+            if session.is_err() {
+                error!("Unable to send user grant info to cloud. Reason: Error in getting distributor session.")
+            } else if cloud_grant_entry.is_err() {
+                error!(
+                    "Unable to send user grant info to cloud. Reason: Failed to convert grantentry into Cloud Grant Entry: {:?}",
+                    grant_entry_c
+                );
+            } else {
+                let payload = DpabRequestPayload::UserGrants(UserGrantRequest {
+                    grant_entry: cloud_grant_entry.unwrap(),
+                    dist_session: session.unwrap(),
+                });
+
+                let response = platform_state.services.clone().send_dpab(payload).await;
+                if response.is_err() {
+                    error!(
+                        "Received Error response for sending user grant for cloud storage: {:?}",
+                        response
+                    );
+                }
+            }
+        }
+        */
+        ret_val
+    }
+    pub async fn update_privacy_settings_and_user_grants(
+        platform_state: &PlatformState,
+        call_ctx: &CallContext,
+        permission: &FireboltPermission,
+        result: &Result<(), DenyReasonWithCap>,
+        app_id: &Option<String>,
+        grant_policy: &GrantPolicy,
+    ) {
+        // Updating privacy settings
+        if grant_policy.privacy_setting.is_some()
+            && grant_policy
+                .privacy_setting
+                .as_ref()
+                .unwrap()
+                .update_property
+        {
+            Self::update_privacy_settings_with_grant(
+                platform_state,
+                call_ctx,
+                &grant_policy.privacy_setting.as_ref().unwrap(),
+                match result {
+                    Ok(_) => true,
+                    Err(_) => false,
+                },
+            )
+            .await;
+        }
+    }
     pub async fn determine_grant_policies_for_permission(
         platform_state: &PlatformState,
         call_context: &CallContext,
         permission: &FireboltPermission,
     ) -> Result<(), DenyReasonWithCap> {
-        if let Some(grant_policy_map) = platform_state.get_device_manifest().get_grant_policies() {
-            let result = grant_policy_map.get(&permission.cap.as_str());
-            if let Some(policies) = result {
-                if let Some(policy) = policies.get_policy(permission) {
-                    if Self::is_policy_valid(platform_state, &policy) {
-                        return Err(DenyReasonWithCap {
-                            caps: vec![permission.clone().cap],
-                            reason: DenyReason::Disabled,
-                        });
-                    }
-                    let result = GrantPolicyEnforcer::execute(
-                        platform_state,
-                        call_context,
-                        permission,
-                        &policy,
-                    )
-                    .await;
-                    platform_state.cap_state.grant_state.update(
-                        permission,
-                        &policy,
-                        result.is_ok(),
-                        &call_context.app_id,
-                    );
-                    return result;
-                } else {
-                    debug!("We dont have a policy for role");
-                }
-            } else {
-                debug!("We dont have grant polices for cap");
-            }
-        } else {
-            debug!("No grant policies configured");
+        let grant_policy_opt = platform_state.get_device_manifest().get_grant_policies();
+        if grant_policy_opt.is_none() {
+            debug!("There are no grant policies for the requesting cap so bailing out");
+            return Ok(());
         }
-        Ok(())
+        let grant_policies_map = grant_policy_opt.unwrap();
+        let grant_policies_opt = grant_policies_map.get(&permission.cap.as_str());
+        if grant_policies_opt.is_none() {
+            debug!(
+                "There are no policies for the cap: {} so granting request",
+                permission.cap.as_str()
+            );
+            return Ok(());
+        }
+        let policies = grant_policies_opt.unwrap();
+        let policy_opt = policies.get_policy(permission);
+        if policy_opt.is_none() {
+            debug!(
+                "There are no polices for cap: {} for role: {:?}",
+                permission.cap.as_str(),
+                permission.role
+            );
+            return Ok(());
+        }
+        let policy = policy_opt.unwrap();
+        if !Self::is_policy_valid(platform_state, &policy) {
+            return Err(DenyReasonWithCap {
+                caps: vec![permission.clone().cap],
+                reason: DenyReason::Disabled,
+            });
+        }
+        let result =
+            GrantPolicyEnforcer::execute(platform_state, call_context, permission, &policy).await;
+        platform_state.cap_state.grant_state.update(
+            permission,
+            &policy,
+            result.is_ok(),
+            &call_context.app_id,
+        );
+        if let Err(e) = &result {
+            if e.reason == DenyReason::Ungranted || e.reason == DenyReason::GrantProviderMissing {
+                return result;
+            }
+        }
+        Self::update_privacy_settings_and_user_grants(
+            platform_state,
+            call_context,
+            permission,
+            &result,
+            &Some(call_context.app_id.clone()),
+            &policy,
+        )
+        .await;
+
+        result
     }
 
     fn is_policy_valid(platform_state: &PlatformState, policy: &GrantPolicy) -> bool {
@@ -720,9 +852,7 @@ impl GrantPolicyEnforcer {
             "x-allow-value: {}, grant: {}, set_value: {}",
             allow_value, grant, set_value
         );
-        let property = privacy_setting.property.strip_prefix("privacy.").unwrap();
-        debug!("property to set: {}", property);
-        let method_name = Self::get_setter_method_name(platform_state, property);
+        let method_name = Self::get_setter_method_name(platform_state, &privacy_setting.property);
         if method_name.is_none() {
             return;
         }
@@ -741,7 +871,7 @@ impl GrantPolicyEnforcer {
         let firebolt_rpc_method_opt = platform_state
             .open_rpc_state
             .get_open_rpc()
-            .get_setter_method_for_property(property);
+            .get_setter_method_for_getter(property);
         firebolt_rpc_method_opt
             .map(|firebolt_openrpc_method| firebolt_openrpc_method.name.to_owned())
     }

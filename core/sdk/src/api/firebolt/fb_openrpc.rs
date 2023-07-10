@@ -185,7 +185,8 @@ impl FireboltOpenRpc {
     pub fn get_methods_caps(&self) -> HashMap<String, CapabilitySet> {
         let mut r = HashMap::default();
         for method in &self.methods {
-            let method_name = &method.name;
+            let method_name = FireboltOpenRpcMethod::name_with_lowercase_module(&method.name);
+            // let method_name = &method.name;
             let method_tags = &method.tags;
             if let Some(tags) = method_tags {
                 for tag in tags {
@@ -203,6 +204,28 @@ impl FireboltOpenRpc {
             }
         }
         r
+    }
+
+    pub fn get_setter_method_for_getter(
+        &self,
+        getter_method: &str,
+    ) -> Option<FireboltOpenRpcMethod> {
+        let mut result = None;
+        let tokens: Vec<&str> = getter_method.split_terminator(".").collect();
+        if tokens.len() == 2 {
+            let setter = self.get_setter_method_for_property(tokens[1]);
+            if let Some(method) = setter {
+                let setter_tokens: Vec<&str> = method.name.split_terminator(".").collect();
+                if !setter_tokens[0].eq(tokens[0]) {
+                    result = None;
+                } else {
+                    result = Some(method);
+                }
+            }
+        } else {
+            result = None;
+        }
+        result
     }
 
     pub fn get_setter_method_for_property(&self, property: &str) -> Option<FireboltOpenRpcMethod> {
@@ -311,6 +334,20 @@ impl FireboltOpenRpcMethod {
             .find(|x| x.name == "property" && x.allow_value.is_some());
 
         allow_tag_opt.map(|openrpc_tag| openrpc_tag.allow_value.unwrap())
+    }
+    pub fn name_with_lowercase_module(method: &str) -> String {
+        let mut parts: Vec<&str> = method.split(".").collect();
+        if parts.len() < 2 {
+            return String::from(method);
+        }
+        let module = parts.remove(0);
+        let method_name = parts.join(".");
+        format!("{}.{}", module.to_lowercase(), method_name)
+    }
+
+    pub fn is_named(&self, method_name: &str) -> bool {
+        FireboltOpenRpcMethod::name_with_lowercase_module(&self.name)
+            == FireboltOpenRpcMethod::name_with_lowercase_module(method_name)
     }
 }
 

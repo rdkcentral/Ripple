@@ -19,6 +19,7 @@ use jsonrpsee::{core::server::rpc_module::Methods, types::TwoPointZero};
 use ripple_sdk::{
     api::{
         apps::EffectiveTransport,
+        firebolt::fb_openrpc::FireboltOpenRpcMethod,
         gateway::{
             rpc_error::RpcError,
             rpc_gateway_api::{ApiMessage, ApiProtocol, RpcRequest},
@@ -158,8 +159,10 @@ impl FireboltGateway {
          * thread which was listening on the channel will be waiting for the user response. This
          * leads to a stall.
          */
+        let mut request_c = request.clone();
+        request_c.method = FireboltOpenRpcMethod::name_with_lowercase_module(&request.method);
         tokio::spawn(async move {
-            match FireboltGatekeeper::gate(platform_state.clone(), request.clone()).await {
+            match FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await {
                 Ok(_) => {
                     // Route
                     match request.clone().ctx.protocol {
@@ -177,8 +180,7 @@ impl FireboltGateway {
                                 .session_state
                                 .get_session(&session_id);
                             // session is already prechecked before gating so it is safe to unwrap
-                            RpcRouter::route(platform_state, request.clone(), session.unwrap())
-                                .await;
+                            RpcRouter::route(platform_state, request_c, session.unwrap()).await;
                         }
                     }
                 }

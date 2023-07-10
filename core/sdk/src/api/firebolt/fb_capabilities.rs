@@ -274,6 +274,7 @@ pub enum DenyReason {
     Unavailable,
     GrantDenied,
     Ungranted,
+    GrantProviderMissing,
 }
 
 pub const CAPABILITY_NOT_AVAILABLE: i32 = -50300;

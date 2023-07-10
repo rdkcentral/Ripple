@@ -20,8 +20,10 @@ use serde_json::{json, Value};
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
+    api::firebolt::fb_openrpc::FireboltOpenRpcMethod,
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
+    log::{debug, error},
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -201,13 +203,18 @@ impl RpcRequest {
             Some(n) => n,
             None => 0,
         };
+        let method = FireboltOpenRpcMethod::name_with_lowercase_module(&jsonrpc_req.method);
+        debug!(
+            "Converted method: from {} to {}",
+            jsonrpc_req.method, method
+        );
         let ctx = CallContext::new(
             session_id,
             request_id,
             app_id,
             id,
             ApiProtocol::JsonRpc,
-            jsonrpc_req.method.clone(),
+            method.clone(),
         );
         let ps = RpcRequest::prepend_ctx(jsonrpc_req.params, &ctx);
         Ok(RpcRequest::new(jsonrpc_req.method, ps, ctx))

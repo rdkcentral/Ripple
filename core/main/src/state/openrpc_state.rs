@@ -21,6 +21,7 @@ use ripple_sdk::api::{
     },
     manifest::exclusory::{Exclusory, ExclusoryImpl},
 };
+use ripple_sdk::log::{debug, error};
 use ripple_sdk::{api::firebolt::fb_openrpc::CapabilityPolicy, serde_json};
 use std::{
     collections::HashMap,
@@ -109,20 +110,26 @@ impl OpenRpcState {
     }
 
     pub fn check_privacy_property(&self, property: &str) -> bool {
+        debug!("Checking for property: {property}");
         if let Some(method) = self.open_rpc.methods.iter().find(|x| x.name == property) {
+            debug!("Method with proprty present {property}");
             // Checking if the property tag is havin x-allow-value extension.
             if let Some(tags) = &method.tags {
+                debug!("Method tags :{:?}", tags);
                 if tags
                     .iter()
                     .find(|x| x.name == "property" && x.allow_value.is_some())
                     .map_or(false, |_| true)
                 {
+                    debug!("Returning true");
                     return true;
                 }
             }
         }
+        debug!("After checking for {property} in open rpc");
         {
             let ext_rpcs = self.extended_rpc.read().unwrap();
+            debug!("Extn rpcs: {:?}", ext_rpcs);
             for ext_rpc in ext_rpcs.iter() {
                 if let Some(method) = ext_rpc.methods.iter().find(|x| x.name == property) {
                     // Checking if the property tag is havin x-allow-value extension.
@@ -138,6 +145,7 @@ impl OpenRpcState {
                 }
             }
         }
+        debug!("After checking for {property} in ext rpc");
         false
     }
 
