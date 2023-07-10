@@ -37,7 +37,7 @@ use ripple_sdk::{
                 CapEvent, CapabilityRole, DenyReason, DenyReasonWithCap, FireboltCap,
                 FireboltPermission, RoleInfo,
             },
-            fb_openrpc::CapabilitySet,
+            fb_openrpc::{CapabilitySet, FireboltOpenRpcMethod},
             fb_pin::{PinChallengeConfiguration, PinChallengeRequest},
             provider::{
                 Challenge, ChallengeRequestor, ProviderRequestPayload, ProviderResponsePayload,
@@ -704,6 +704,8 @@ impl GrantPolicyEnforcer {
             if e.reason == DenyReason::Ungranted || e.reason == DenyReason::GrantProviderMissing {
                 return result;
             }
+        } else {
+            debug!("No grant policies configured");
         }
         Self::update_privacy_settings_and_user_grants(
             platform_state,
@@ -871,9 +873,10 @@ impl GrantPolicyEnforcer {
         let firebolt_rpc_method_opt = platform_state
             .open_rpc_state
             .get_open_rpc()
-            .get_setter_method_for_getter(property);
-        firebolt_rpc_method_opt
-            .map(|firebolt_openrpc_method| firebolt_openrpc_method.name.to_owned())
+            .get_setter_method_for_property(property);
+        firebolt_rpc_method_opt.map(|firebolt_openrpc_method| {
+            FireboltOpenRpcMethod::name_with_lowercase_module(&firebolt_openrpc_method.name)
+        })
     }
 
     async fn evaluate_options(

@@ -186,7 +186,6 @@ impl FireboltOpenRpc {
         let mut r = HashMap::default();
         for method in &self.methods {
             let method_name = FireboltOpenRpcMethod::name_with_lowercase_module(&method.name);
-            // let method_name = &method.name;
             let method_tags = &method.tags;
             if let Some(tags) = method_tags {
                 for tag in tags {
@@ -335,6 +334,7 @@ impl FireboltOpenRpcMethod {
 
         allow_tag_opt.map(|openrpc_tag| openrpc_tag.allow_value.unwrap())
     }
+
     pub fn name_with_lowercase_module(method: &str) -> String {
         let mut parts: Vec<&str> = method.split(".").collect();
         if parts.len() < 2 {

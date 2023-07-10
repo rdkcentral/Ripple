@@ -217,7 +217,7 @@ impl RpcRequest {
             method.clone(),
         );
         let ps = RpcRequest::prepend_ctx(jsonrpc_req.params, &ctx);
-        Ok(RpcRequest::new(jsonrpc_req.method, ps, ctx))
+        Ok(RpcRequest::new(method, ps, ctx))
     }
 }
 

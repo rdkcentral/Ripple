@@ -128,6 +128,11 @@ impl SessionState {
         session_state.remove(session_id);
     }
 
+    pub fn clean_account_session(&self) {
+        let mut session_state = self.account_session.write().unwrap();
+        let _ = session_state.take();
+    }
+
     pub fn get_session(&self, session_id: &str) -> Option<Session> {
         let session_state = self.session_map.read().unwrap();
         session_state.get(session_id).cloned()
