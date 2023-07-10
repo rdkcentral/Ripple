@@ -24,7 +24,10 @@ use jsonrpsee::{
 };
 use ripple_sdk::{
     api::{
-        firebolt::fb_pin::{PinChallengeRequest, PinSpace, PIN_CHALLENGE_CAPABILITY},
+        firebolt::{
+            fb_pin::{PinChallengeRequestWithContext, PinSpace, PIN_CHALLENGE_CAPABILITY},
+            provider::ChallengeRequestor,
+        },
         gateway::rpc_gateway_api::CallContext,
     },
     extn::extn_client_message::ExtnResponse,
@@ -54,10 +57,14 @@ pub struct ProfileImpl {
 #[async_trait]
 impl ProfileServer for ProfileImpl {
     async fn approve_content_rating(&self, ctx: CallContext) -> RpcResult<bool> {
-        let pin_request = PinChallengeRequest {
+        let pin_request = PinChallengeRequestWithContext {
             pin_space: PinSpace::Content,
-            requestor: ctx,
+            requestor: ChallengeRequestor {
+                id: ctx.app_id.to_owned(),
+                name: ctx.app_id.to_owned(),
+            },
             capability: Some(String::from(PIN_CHALLENGE_CAPABILITY)),
+            call_ctx: ctx.clone(),
         };
 
         if let Ok(response) = self
@@ -76,10 +83,14 @@ impl ProfileServer for ProfileImpl {
     }
 
     async fn approve_purchase(&self, ctx: CallContext) -> RpcResult<bool> {
-        let pin_request = PinChallengeRequest {
+        let pin_request = PinChallengeRequestWithContext {
             pin_space: PinSpace::Purchase,
-            requestor: ctx,
+            requestor: ChallengeRequestor {
+                id: ctx.app_id.to_owned(),
+                name: ctx.app_id.to_owned(),
+            },
             capability: Some(String::from(PIN_CHALLENGE_CAPABILITY)),
+            call_ctx: ctx.clone(),
         };
 
         if let Ok(response) = self

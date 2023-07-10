@@ -20,6 +20,7 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 use log::info;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::{
     api::gateway::rpc_gateway_api::CallContext,
@@ -250,6 +251,12 @@ pub struct MediaEnded {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RawBehaviorMetricRequest {
+    pub context: BehavioralMetricContext,
+    pub value: Value,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum BehavioralMetricRequest {
     Ready(Ready),
     SignIn(SignIn),
@@ -273,6 +280,7 @@ pub enum BehavioralMetricRequest {
     TelemetrySignIn(fb_telemetry::SignIn),
     TelemetrySignOut(fb_telemetry::SignOut),
     TelemetryInternalInitialize(fb_telemetry::InternalInitialize),
+    Raw(RawBehaviorMetricRequest),
 }
 
 impl ExtnPayloadProvider for BehavioralMetricRequest {
