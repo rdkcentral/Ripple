@@ -24,28 +24,31 @@ use std::{
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
+use thunder_ripple_sdk::client::thunder_plugin::ThunderPlugin::LocationSync;
 use thunder_ripple_sdk::{
-    client::{thunder_client::ThunderClient, thunder_plugin::ThunderPlugin,plugin_manager::PluginManager, thunder_client_pool::ThunderClientPool},
+    client::{
+        plugin_manager::PluginManager, thunder_client::ThunderClient,
+        thunder_client_pool::ThunderClientPool, thunder_plugin::ThunderPlugin,
+    },
     ripple_sdk::{
         api::device::{device_info_request::DeviceCapabilities, device_request::AudioProfile},
         chrono::NaiveDateTime,
+        crossbeam::channel::unbounded,
         extn::{
             client::{extn_client::ExtnClient, extn_sender::ExtnSender},
+            extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
             extn_id::{ExtnClassId, ExtnId},
             ffi::{
                 ffi_channel::{ExtnChannel, ExtnChannelBuilder},
                 ffi_library::{CExtnMetadata, ExtnMetadata, ExtnSymbolMetadata},
                 ffi_message::CExtnMessage,
             },
-            extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
         },
         framework::{ripple_contract::RippleContract, RippleResponse},
         tokio::sync::mpsc,
-        crossbeam::channel::{unbounded},
     },
     thunder_state::ThunderState,
 };
-use thunder_ripple_sdk::client::thunder_plugin::ThunderPlugin::LocationSync;
 use thunder_ripple_sdk::{
     ripple_sdk::{
         api::{
@@ -56,8 +59,8 @@ use thunder_ripple_sdk::{
                     DeviceSubscribeRequest, DeviceUnsubscribeRequest,
                 },
                 device_request::{
-                    HDCPStatus, HdcpProfile, HdrProfile, NetworkResponse, NetworkState,
-                    NetworkType, Resolution,DeviceRequest
+                    DeviceRequest, HDCPStatus, HdcpProfile, HdrProfile, NetworkResponse,
+                    NetworkState, NetworkType, Resolution,
                 },
             },
             firebolt::fb_openrpc::FireboltSemanticVersion,
@@ -82,10 +85,10 @@ use expectest::prelude::*;
 use pact_consumer::mock_server::StartMockServerAsync;
 use pact_consumer::prelude::*;
 use pact_consumer::*;
-use url::Url;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::RecvError;
 use tokio::sync::oneshot::Sender;
+use url::Url;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ThunderHDCPStatus {
@@ -1292,12 +1295,11 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_get_device_info_mac_address() {
     // Define Pact request and response - Start
-    let mut pact_builder_async =
-        PactBuilder::new_v4("ripple", "rdk_service")
-            .using_plugin("websockets", None)
-            .await;
+    let mut pact_builder_async = PactBuilder::new_v4("ripple", "rdk_service")
+        .using_plugin("websockets", None)
+        .await;
 
-        pact_builder_async
+    pact_builder_async
         .synchronous_message_interaction("A request to get the device info", |mut i| async move {
             i.contents_from(json!({
                 "pact:content-type": "application/json",
@@ -1335,10 +1337,10 @@ async fn test_get_device_info_mac_address() {
         requestor: ExtnId::new_channel(ExtnClassId::Device, "pact".into()),
         target: RippleContract::DeviceInfo,
     };
-    
+
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
-    
+
     // creating a cross beam channel used by extn client
     let (s, r) = unbounded();
 
@@ -1368,17 +1370,15 @@ async fn test_get_device_info_mac_address() {
     }
 }
 
-
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_get_device_model() {
     // Define Pact request and response - Start
-    let mut pact_builder_async =
-        PactBuilder::new_v4("ripple", "rdk_service")
-            .using_plugin("websockets", None)
-            .await;
+    let mut pact_builder_async = PactBuilder::new_v4("ripple", "rdk_service")
+        .using_plugin("websockets", None)
+        .await;
 
-        pact_builder_async
+    pact_builder_async
         .synchronous_message_interaction("A request to get the device model", |mut i| async move {
             i.contents_from(json!({
                 "pact:content-type": "application/json",
@@ -1398,7 +1398,6 @@ async fn test_get_device_model() {
                 }]
             })).await;
             i.test_name("get_device_model");
-            
             i
         }).await;
     // Define Pact request and response - End
@@ -1417,10 +1416,10 @@ async fn test_get_device_model() {
         requestor: ExtnId::new_channel(ExtnClassId::Device, "pact".into()),
         target: RippleContract::DeviceInfo,
     };
-    
+
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
-    
+
     // creating a cross beam channel used by extn client
     let (s, r) = unbounded();
 
