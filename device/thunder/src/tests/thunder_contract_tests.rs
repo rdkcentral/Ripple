@@ -22,20 +22,30 @@ use std::{
     time::{self, Duration},
 };
 
-use crate::processors::thunder_device_info::ThunderPlugin::LocationSync;
-
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
 use thunder_ripple_sdk::{
-    client::{thunder_client::ThunderClient, thunder_plugin::ThunderPlugin},
+    client::{thunder_client::ThunderClient, thunder_plugin::ThunderPlugin,plugin_manager::PluginManager, thunder_client_pool::ThunderClientPool},
     ripple_sdk::{
         api::device::{device_info_request::DeviceCapabilities, device_request::AudioProfile},
         chrono::NaiveDateTime,
-        extn::client::extn_client::ExtnClient,
+        extn::{
+            client::{extn_client::ExtnClient, extn_sender::ExtnSender},
+            extn_id::{ExtnClassId, ExtnId},
+            ffi::{
+                ffi_channel::{ExtnChannel, ExtnChannelBuilder},
+                ffi_library::{CExtnMetadata, ExtnMetadata, ExtnSymbolMetadata},
+                ffi_message::CExtnMessage,
+            },
+            extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
+        },
+        framework::{ripple_contract::RippleContract, RippleResponse},
         tokio::sync::mpsc,
+        crossbeam::channel::{unbounded},
     },
     thunder_state::ThunderState,
 };
+use thunder_ripple_sdk::client::thunder_plugin::ThunderPlugin::LocationSync;
 use thunder_ripple_sdk::{
     ripple_sdk::{
         api::{
@@ -47,7 +57,7 @@ use thunder_ripple_sdk::{
                 },
                 device_request::{
                     HDCPStatus, HdcpProfile, HdrProfile, NetworkResponse, NetworkState,
-                    NetworkType, Resolution
+                    NetworkType, Resolution,DeviceRequest
                 },
             },
             firebolt::fb_openrpc::FireboltSemanticVersion,
@@ -57,7 +67,7 @@ use thunder_ripple_sdk::{
             client::extn_processor::{
                 DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
             },
-            extn_client_message::{ExtnMessage, ExtnPayload, ExtnPayloadProvider, ExtnResponse},
+            extn_client_message::{ExtnMessage, ExtnResponse},
         },
         log::{error, info},
         serde_json::{self},
@@ -66,6 +76,16 @@ use thunder_ripple_sdk::{
     },
     utils::get_audio_profile_from_value,
 };
+
+use expectest::expect;
+use expectest::prelude::*;
+use pact_consumer::mock_server::StartMockServerAsync;
+use pact_consumer::prelude::*;
+use pact_consumer::*;
+use url::Url;
+use tokio::sync::oneshot;
+use tokio::sync::oneshot::error::RecvError;
+use tokio::sync::oneshot::Sender;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ThunderHDCPStatus {
@@ -1264,6 +1284,168 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
                 }
             }
             _ => false,
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[cfg_attr(not(feature = "contract_tests"), ignore)]
+async fn test_get_device_info_mac_address() {
+    // Define Pact request and response - Start
+    let mut pact_builder_async =
+        PactBuilder::new_v4("ripple", "rdk_service")
+            .using_plugin("websockets", None)
+            .await;
+
+        pact_builder_async
+        .synchronous_message_interaction("A request to get the device info", |mut i| async move {
+            i.contents_from(json!({
+                "pact:content-type": "application/json",
+                "request": {"jsonrpc": "2.0", "id": "matching(integer, 0)", "method": "org.rdk.System.1.getDeviceInfo", "params": {"params": ["estb_mac"]}},
+                "requestMetadata": {
+                    "path": "/jsonrpc",
+                    "query": "/?appId=refui"
+                },
+                "response": [{
+                    "jsonrpc": "2.0",
+                    "id": "matching(integer, 0)",
+                    "result": {
+                        "estb_mac": "matching(regex, '^\\d{2}:\\d{2}:\\d{2}:\\d{2}:\\d{2}:\\d{2}', 'e0:e1:e2:e3:e4:e5')",
+                        "success": true
+                    }
+                }]
+            })).await;
+            i.test_name("get_device_info_mac_address");
+
+            i
+        }).await;
+    // Define Pact request and response - End
+
+    let mock_server = pact_builder_async
+        .start_mock_server_async(Some("websockets/transport/websockets"))
+        .await;
+
+    // Creating a mock extn message needed for calling the mac address method
+    let msg: ExtnMessage = ExtnMessage {
+        callback: None,
+        id: "SomeId".into(),
+        payload: ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
+            DeviceInfoRequest::MacAddress,
+        ))),
+        requestor: ExtnId::new_channel(ExtnClassId::Device, "pact".into()),
+        target: RippleContract::DeviceInfo,
+    };
+    
+    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    
+    // creating a cross beam channel used by extn client
+    let (s, r) = unbounded();
+
+    // Creating extn client which will send back the data to the receiver(instead of callback)
+    let extn_client = ExtnClient::new(
+        r.clone(),
+        ExtnSender::new(
+            s,
+            ExtnId::new_channel(ExtnClassId::Device, "pact".into()),
+            Vec::new(),
+        ),
+    );
+
+    // Create  Thunderstate which contains the extn_client for callback and thunder client for making thunder requests
+    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
+
+    // Make call to method
+    let _ = ThunderDeviceInfoRequestProcessor::mac_address(state, msg).await;
+    if let Ok(value) = r.recv() {
+        if let Ok(message) = value.try_into() {
+            let extn_message: ExtnMessage = message;
+            if let Some(ExtnResponse::String(v)) = extn_message.payload.extract() {
+                println!("Thunder Response from Plugin ::: {:?}", v);
+                assert_eq!(v, "e0:e1:e2:e3:e4:e5".to_string());
+            }
+        }
+    }
+}
+
+
+#[tokio::test(flavor = "multi_thread")]
+#[cfg_attr(not(feature = "contract_tests"), ignore)]
+async fn test_get_device_model() {
+    // Define Pact request and response - Start
+    let mut pact_builder_async =
+        PactBuilder::new_v4("ripple", "rdk_service")
+            .using_plugin("websockets", None)
+            .await;
+
+        pact_builder_async
+        .synchronous_message_interaction("A request to get the device model", |mut i| async move {
+            i.contents_from(json!({
+                "pact:content-type": "application/json",
+                "request": {"jsonrpc": "2.0", "id": "matching(integer, 0)", "method": "org.rdk.System.1.getSystemVersions"},
+                "requestMetadata": {
+                    "path": "/jsonrpc",
+                },
+                "response": [{
+                    "jsonrpc": "2.0",
+                    "id": "matching(integer, 0)",
+                    "result":  {
+                        "stbVersion": "AX061AEI_VBN_1911_sprint_20200109040424sdy", 
+                        "receiverVersion": "3.14.0.0", 
+                        "stbTimestamp": "Thu 09 Jan 2020 04:04:24 AP UTC", 
+                        "success": true
+                    }
+                }]
+            })).await;
+            i.test_name("get_device_model");
+            
+            i
+        }).await;
+    // Define Pact request and response - End
+
+    let mock_server = pact_builder_async
+        .start_mock_server_async(Some("websockets/transport/websockets"))
+        .await;
+
+    // Creating a mock extn message needed for calling the mac address method
+    let msg: ExtnMessage = ExtnMessage {
+        callback: None,
+        id: "SomeId".into(),
+        payload: ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
+            DeviceInfoRequest::Model,
+        ))),
+        requestor: ExtnId::new_channel(ExtnClassId::Device, "pact".into()),
+        target: RippleContract::DeviceInfo,
+    };
+    
+    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    
+    // creating a cross beam channel used by extn client
+    let (s, r) = unbounded();
+
+    // Creating extn client which will send back the data to the receiver(instead of callback)
+    let extn_client = ExtnClient::new(
+        r.clone(),
+        ExtnSender::new(
+            s,
+            ExtnId::new_channel(ExtnClassId::Device, "pact".into()),
+            Vec::new(),
+        ),
+    );
+
+    // Create  Thunderstate which contains the extn_client for callback and thunder client for making thunder requests
+    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
+
+    // Make call to method
+    let _ = ThunderDeviceInfoRequestProcessor::model(state, msg).await;
+    if let Ok(value) = r.recv() {
+        if let Ok(message) = value.try_into() {
+            let extn_message: ExtnMessage = message;
+            if let Some(ExtnResponse::String(v)) = extn_message.payload.extract() {
+                println!("Thunder Response from Plugin ::: {:?}", v);
+                assert_eq!(v, "AX061AEI".to_string());
+            }
         }
     }
 }

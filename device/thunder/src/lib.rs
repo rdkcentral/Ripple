@@ -34,3 +34,8 @@ pub mod processors {
     pub mod thunder_wifi;
     pub mod thunder_window_manager;
 }
+
+pub mod tests {
+    #[cfg(feature = "contract_tests")]
+    pub mod thunder_contract_tests;
+}
