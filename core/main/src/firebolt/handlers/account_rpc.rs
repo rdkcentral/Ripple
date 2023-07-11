@@ -55,6 +55,9 @@ pub struct AccountImpl {
 #[async_trait]
 impl AccountServer for AccountImpl {
     async fn session(&self, _ctx: CallContext, a_t_r: AccountSessionTokenRequest) -> RpcResult<()> {
+        self.platform_state
+            .session_state
+            .insert_session_token(a_t_r.clone().token);
         let resp = self
             .platform_state
             .get_client()

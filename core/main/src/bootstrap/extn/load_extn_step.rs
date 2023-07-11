@@ -79,6 +79,9 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                                 } else {
                                     deferred_channels.push(preloaded_channel);
                                 }
+                            } else {
+                                error!("invalid channel builder in {}", path);
+                                return Err(RippleError::BootstrapError);
                             }
                         } else {
                             error!("invalid channel builder in {}", path);
@@ -114,14 +117,17 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
 
         {
             let mut device_channel_state = state.extn_state.device_channels.write().unwrap();
+            info!("{} Device channels extension loaded", device_channels.len());
             let _ = device_channel_state.extend(device_channels);
-            info!("Device channels extension loaded");
         }
 
         {
             let mut deferred_channel_state = state.extn_state.deferred_channels.write().unwrap();
+            info!(
+                "{} Deferred channels extension loaded",
+                deferred_channels.len()
+            );
             let _ = deferred_channel_state.extend(deferred_channels);
-            info!("Deferred channels extension loaded");
         }
 
         state.extn_state.extend_methods(jsonrpsee_extns);

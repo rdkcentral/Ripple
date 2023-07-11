@@ -22,7 +22,9 @@ use std::{
 
 use ripple_sdk::{
     api::{
-        apps::EffectiveTransport, gateway::rpc_gateway_api::ApiMessage, session::AccountSession,
+        apps::EffectiveTransport,
+        gateway::rpc_gateway_api::ApiMessage,
+        session::{AccountSession, ProvisionRequest},
     },
     tokio::sync::mpsc::Sender,
     utils::error::RippleError,
@@ -92,6 +94,15 @@ pub struct SessionState {
 }
 
 impl SessionState {
+    pub fn insert_session_token(&self, token: String) {
+        let mut session_state = self.account_session.write().unwrap();
+        let account_session = session_state.take();
+        if let Some(mut session) = account_session {
+            session.token = token;
+            let _ = session_state.insert(session);
+        }
+    }
+
     pub fn insert_account_session(&self, account_session: AccountSession) {
         let mut session_state = self.account_session.write().unwrap();
         let _ = session_state.insert(account_session);
@@ -128,9 +139,17 @@ impl SessionState {
         session_state.remove(session_id);
     }
 
-    pub fn clean_account_session(&self) {
+    pub fn update_account_session(&self, provision: ProvisionRequest) {
         let mut session_state = self.account_session.write().unwrap();
-        let _ = session_state.take();
+        let account_session = session_state.take();
+        if let Some(mut session) = account_session {
+            session.device_id = provision.device_id;
+            session.account_id = provision.account_id;
+            if let Some(id) = provision.distributor_id {
+                session.id = id;
+            }
+            let _ = session_state.insert(session);
+        }
     }
 
     pub fn get_session(&self, session_id: &str) -> Option<Session> {
