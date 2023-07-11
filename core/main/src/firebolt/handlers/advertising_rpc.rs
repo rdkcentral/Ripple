@@ -141,23 +141,24 @@ impl AdvertisingServer for AdvertisingImpl {
         }
 
         match resp {
-            Ok(payload) => match payload.payload.extract().unwrap() {
-                AdvertisingResponse::AdIdObject(obj) => {
-                    let ad_init_object = AdvertisingId {
-                        ifa: obj.ifa,
-                        ifa_type: obj.ifa_type,
-                        lmt: obj.lmt,
-                    };
-                    Ok(ad_init_object)
+            Ok(payload) => match payload.payload.extract::<AdvertisingResponse>() {
+                Some(response) => {
+                    if let AdvertisingResponse::AdIdObject(obj) = response {
+                        let ad_init_object = AdvertisingId {
+                            ifa: obj.ifa,
+                            ifa_type: obj.ifa_type,
+                            lmt: obj.lmt,
+                        };
+                        return Ok(ad_init_object);
+                    }
                 }
-                _ => Err(rpc_err(
-                    "Device returned an invalid type for ad init object",
-                )),
+                None => {}
             },
-            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-                "Failed to extract ad init object from response",
-            ))),
+            Err(_) => {}
         }
+        Err(jsonrpsee::core::Error::Custom(String::from(
+            "Failed to extract ad init object from response",
+        )))
     }
 
     fn app_bundle_id(&self, ctx: CallContext) -> RpcResult<String> {
