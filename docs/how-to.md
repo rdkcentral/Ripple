@@ -133,7 +133,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 # Ripple sdk should be opensourced and available from crates.io at this point
-ripple_sdk = "0.6.0" 
+ripple_sdk = "0.7.0" 
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 ```
