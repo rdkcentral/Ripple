@@ -47,7 +47,7 @@ use thunder_ripple_sdk::{
                 },
                 device_request::{
                     HDCPStatus, HdcpProfile, HdrProfile, NetworkResponse, NetworkState,
-                    NetworkType, Resolution
+                    NetworkType, Resolution,
                 },
             },
             firebolt::fb_openrpc::FireboltSemanticVersion,
