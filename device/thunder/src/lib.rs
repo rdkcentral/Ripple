@@ -37,5 +37,7 @@ pub mod processors {
 
 pub mod tests {
     #[cfg(feature = "contract_tests")]
-    pub mod thunder_contract_tests;
+    pub mod contracts {
+        pub mod thunder_device_info_pacts;
+    }
 }
