@@ -19,7 +19,9 @@ use std::hash::{Hash, Hasher};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{api::gateway::rpc_error::RpcError, utils::error::RippleError};
+use crate::api::gateway::rpc_error::RpcError;
+
+use super::fb_openrpc::CapabilitySet;
 
 /// There are many types of Firebolt Cap enums
 /// 1. Short: `device:model` becomes = `xrn:firebolt:capability:account:session` its just a handy cap which helps us write less code
@@ -118,10 +120,47 @@ impl Hash for CapabilityRole {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FireboltPermission {
     pub cap: FireboltCap,
     pub role: CapabilityRole,
+}
+
+impl From<RoleInfo> for FireboltPermission {
+    fn from(role_info: RoleInfo) -> Self {
+        FireboltPermission {
+            cap: FireboltCap::Full(role_info.capability.to_owned()),
+            role: role_info.role.unwrap_or(CapabilityRole::Use),
+        }
+    }
+}
+impl From<CapabilitySet> for Vec<FireboltPermission> {
+    fn from(cap_set: CapabilitySet) -> Self {
+        let mut fb_perm_list = Vec::new();
+        if let Some(use_caps) = cap_set.use_caps {
+            for cap in use_caps {
+                fb_perm_list.push(FireboltPermission {
+                    cap: cap.clone(),
+                    role: CapabilityRole::Use,
+                });
+            }
+        }
+        if let Some(manage_caps) = cap_set.manage_caps {
+            for cap in manage_caps {
+                fb_perm_list.push(FireboltPermission {
+                    cap: cap.clone(),
+                    role: CapabilityRole::Manage,
+                });
+            }
+        }
+        if let Some(provide_cap) = cap_set.provide_cap {
+            fb_perm_list.push(FireboltPermission {
+                cap: provide_cap.clone(),
+                role: CapabilityRole::Provide,
+            });
+        }
+        fb_perm_list
+    }
 }
 
 impl Serialize for FireboltPermission {
@@ -163,19 +202,19 @@ impl<'de> Deserialize<'de> for FireboltPermission {
     }
 }
 
-impl TryFrom<RoleInfo> for FireboltPermission {
-    type Error = RippleError;
-    fn try_from(role_info: RoleInfo) -> Result<Self, Self::Error> {
-        if let Some(role) = role_info.role {
-            let permission = FireboltPermission {
-                cap: FireboltCap::Full(role_info.capability.clone()),
-                role: role.clone(),
-            };
-            return Ok(permission);
-        }
-        Err(RippleError::ParseError)
-    }
-}
+// impl TryFrom<RoleInfo> for FireboltPermission {
+//     type Error = RippleError;
+//     fn try_from(role_info: RoleInfo) -> Result<Self, Self::Error> {
+//         if let Some(role) = role_info.role {
+//             let permission = FireboltPermission {
+//                 cap: FireboltCap::Full(role_info.capability.clone()),
+//                 role: role.clone(),
+//             };
+//             return Ok(permission);
+//         }
+//         Err(RippleError::ParseError)
+//     }
+// }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RolePermission {

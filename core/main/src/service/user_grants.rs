@@ -47,7 +47,7 @@ use ripple_sdk::{
         manifest::device_manifest::DeviceManifest,
     },
     framework::file_store::FileStore,
-    log::{debug, error},
+    log::debug,
     serde_json::Value,
     tokio::sync::oneshot,
     utils::error::RippleError,
@@ -249,7 +249,7 @@ impl GrantState {
     pub fn get_info(
         state: &PlatformState,
         call_ctx: &CallContext,
-        r: CapabilitySet,
+        cap_set: &CapabilitySet,
     ) -> Result<(), GrantErrors> {
         /*
          * Instead of just checking for grants previously, if the user grants are not present,
@@ -258,7 +258,7 @@ impl GrantState {
         let grant_state = state.clone().cap_state.grant_state;
         let app_id = call_ctx.app_id.clone();
         let caps_needing_grants = grant_state.caps_needing_grants.clone();
-        let caps_needing_grant_in_request: Vec<FireboltPermission> = r
+        let caps_needing_grant_in_request: Vec<FireboltPermission> = cap_set
             .into_firebolt_permissions_vec()
             .clone()
             .into_iter()
@@ -289,7 +289,7 @@ impl GrantState {
     pub async fn check_with_roles(
         state: &PlatformState,
         call_ctx: &CallContext,
-        r: CapabilitySet,
+        fb_perms: &Vec<FireboltPermission>,
         fail_on_first_error: bool,
     ) -> Result<(), DenyReasonWithCap> {
         /*
@@ -299,8 +299,13 @@ impl GrantState {
         let grant_state = state.clone().cap_state.grant_state;
         let app_id = call_ctx.app_id.clone();
         let caps_needing_grants = grant_state.caps_needing_grants.clone();
-        let caps_needing_grant_in_request: Vec<FireboltPermission> = r
-            .into_firebolt_permissions_vec()
+        // let caps_needing_grant_in_request: Vec<FireboltPermission> = capability_set
+        //     .into_firebolt_permissions_vec()
+        //     .clone()
+        //     .into_iter()
+        //     .filter(|x| caps_needing_grants.contains(&x.cap.as_str()))
+        //     .collect();
+        let caps_needing_grant_in_request: Vec<FireboltPermission> = fb_perms
             .clone()
             .into_iter()
             .filter(|x| caps_needing_grants.contains(&x.cap.as_str()))
@@ -565,12 +570,12 @@ impl GrantPolicyEnforcer {
             grant_entry.status = Some(GrantStatus::Denied);
         }
         debug!("created grant_entry: {:?}", grant_entry);
-        let grant_entry_c = grant_entry.clone();
+        // let grant_entry_c = grant_entry.clone();
         // If lifespan is once then no need to store it.
         if grant_policy.lifespan != GrantLifespan::Once {
             match grant_policy.scope {
                 GrantScope::App => {
-                    if let Some(app) = app_id {
+                    if let Some(_) = app_id {
                         // UserGrantStateUtils::update_grant_entry(
                         //     platform_state,
                         //     Some(app.to_owned()),
@@ -631,9 +636,9 @@ impl GrantPolicyEnforcer {
     pub async fn update_privacy_settings_and_user_grants(
         platform_state: &PlatformState,
         call_ctx: &CallContext,
-        permission: &FireboltPermission,
+        _permission: &FireboltPermission,
         result: &Result<(), DenyReasonWithCap>,
-        app_id: &Option<String>,
+        _app_id: &Option<String>,
         grant_policy: &GrantPolicy,
     ) {
         // Updating privacy settings
@@ -894,7 +899,7 @@ impl GrantPolicyEnforcer {
                     "checking if the cap is supported & available: {:?}",
                     firebolt_cap
                 );
-                if let Err(e) = generic_cap_state.check_all(&firebolt_cap) {
+                if let Err(e) = generic_cap_state.check_all(&vec![permission.clone()]) {
                     return Err(DenyReasonWithCap {
                         caps: e.caps,
                         reason: DenyReason::GrantDenied,
@@ -984,7 +989,10 @@ impl GrantStepExecutor {
         if let Err(e) = platform_state
             .cap_state
             .generic
-            .check_all(&vec![firebolt_cap.clone()])
+            .check_all(&vec![FireboltPermission {
+                cap: firebolt_cap.clone(),
+                role: CapabilityRole::Use,
+            }])
         {
             return Err(DenyReasonWithCap {
                 reason: DenyReason::GrantDenied,

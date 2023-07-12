@@ -28,7 +28,7 @@ use crate::{
     api::{
         device::{device_user_grants_data::GrantPolicies, DevicePlatformType},
         distributor::distributor_privacy::DataEventType,
-        firebolt::fb_capabilities::FireboltCap,
+        firebolt::fb_capabilities::{FireboltCap, FireboltPermission},
         storage_property::StorageProperty,
     },
     utils::error::RippleError,
@@ -73,6 +73,8 @@ fn data_governance_default() -> DataGovernanceConfig {
 pub struct CapabilityConfiguration {
     pub supported: Vec<String>,
     pub grant_policies: Option<HashMap<String, GrantPolicies>>,
+    #[serde(default)]
+    pub dependencies: HashMap<FireboltPermission, Vec<FireboltPermission>>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
