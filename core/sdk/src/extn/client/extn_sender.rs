@@ -16,7 +16,7 @@
 //
 
 use crossbeam::channel::Sender as CSender;
-use log::{debug, error};
+use log::{debug, trace, error};
 
 use crate::{
     extn::{
@@ -126,7 +126,7 @@ impl ExtnSender {
         other_sender: Option<CSender<CExtnMessage>>,
     ) -> Result<(), RippleError> {
         if other_sender.is_some() {
-            debug!("Sending message on the other sender");
+            trace!("Sending message on the other sender");
             if let Err(e) = other_sender.unwrap().send(msg) {
                 error!("send error for message {:?}", e);
                 return Err(RippleError::SendFailure);
@@ -135,7 +135,7 @@ impl ExtnSender {
         } else {
             let tx = self.tx.clone();
             //tokio::spawn(async move {
-            debug!("sending to main channel");
+            trace!("sending to main channel");
             if let Err(e) = tx.send(msg) {
                 error!("send error for message {:?}", e);
                 return Err(RippleError::SendFailure);
