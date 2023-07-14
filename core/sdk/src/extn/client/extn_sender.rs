@@ -16,7 +16,7 @@
 //
 
 use crossbeam::channel::Sender as CSender;
-use log::{debug, trace, error};
+use log::{debug, error, trace};
 
 use crate::{
     extn::{

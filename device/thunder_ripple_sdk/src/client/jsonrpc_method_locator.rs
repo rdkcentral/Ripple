@@ -48,38 +48,41 @@ impl JsonRpcMethodLocator {
                 return Err(RpcMethodLocatorParseError {});
             }
         };
-        let rest = parts.get(0).unwrap().clone();
-        let mut parts = rest.split(".").collect::<Vec<&str>>();
-        match parts.len() {
-            1 => Ok(JsonRpcMethodLocator {
-                module: None,
-                version: None,
-                qualifier: q.clone().map(str::to_string),
-                method_name: rest.to_string(),
-            }),
-            2 => Ok(JsonRpcMethodLocator {
-                method_name: parts.get(parts.len() - 1).unwrap().to_string(),
-                module: Some(parts.get(parts.len() - 2).unwrap().to_string()),
-                version: None,
-                qualifier: q.map(str::to_string),
-            }),
-            _ => {
-                let mn = parts.pop().unwrap();
-                let v_or_mod = parts.pop().unwrap();
-                let mut v = Some(v_or_mod);
-                if !v_or_mod.parse::<i32>().is_ok() {
-                    v = None;
-                    parts.push(v_or_mod);
-                }
-                let md = Some(parts.join("."));
-                Ok(JsonRpcMethodLocator {
-                    module: md,
-                    version: v.map(str::to_string),
+        if let Some(v) = parts.get(0) {
+            let rest = String::from(*v);
+            let mut parts = rest.split(".").collect::<Vec<&str>>();
+            return match parts.len() {
+                1 => Ok(JsonRpcMethodLocator {
+                    module: None,
+                    version: None,
+                    qualifier: q.clone().map(str::to_string),
+                    method_name: rest.to_string(),
+                }),
+                2 => Ok(JsonRpcMethodLocator {
+                    method_name: parts.get(parts.len() - 1).unwrap().to_string(),
+                    module: Some(parts.get(parts.len() - 2).unwrap().to_string()),
+                    version: None,
                     qualifier: q.map(str::to_string),
-                    method_name: mn.to_string(),
-                })
-            }
+                }),
+                _ => {
+                    let mn = parts.pop().unwrap();
+                    let v_or_mod = parts.pop().unwrap();
+                    let mut v = Some(v_or_mod);
+                    if !v_or_mod.parse::<i32>().is_ok() {
+                        v = None;
+                        parts.push(v_or_mod);
+                    }
+                    let md = Some(parts.join("."));
+                    Ok(JsonRpcMethodLocator {
+                        module: md,
+                        version: v.map(str::to_string),
+                        qualifier: q.map(str::to_string),
+                        method_name: mn.to_string(),
+                    })
+                }
+            };
         }
+        Err(RpcMethodLocatorParseError {})
     }
 }
 
