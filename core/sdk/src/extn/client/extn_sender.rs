@@ -16,7 +16,7 @@
 //
 
 use crossbeam::channel::Sender as CSender;
-use log::{debug, error, trace};
+use log::{debug, error};
 
 use crate::{
     extn::{
@@ -42,6 +42,7 @@ pub struct ExtnSender {
     tx: CSender<CExtnMessage>,
     id: ExtnId,
     permitted: Vec<String>,
+    fulfills: Vec<String>,
 }
 
 impl ExtnSender {
@@ -49,11 +50,17 @@ impl ExtnSender {
         self.id.clone()
     }
 
-    pub fn new(tx: CSender<CExtnMessage>, id: ExtnId, context: Vec<String>) -> Self {
+    pub fn new(
+        tx: CSender<CExtnMessage>,
+        id: ExtnId,
+        context: Vec<String>,
+        fulfills: Vec<String>,
+    ) -> Self {
         ExtnSender {
             tx,
             id,
             permitted: context,
+            fulfills,
         }
     }
     fn check_contract_permission(&self, contract: RippleContract) -> bool {
@@ -61,6 +68,14 @@ impl ExtnSender {
             true
         } else {
             self.permitted.contains(&contract.as_clear_string())
+        }
+    }
+
+    pub fn check_contract_fulfillment(&self, contract: RippleContract) -> bool {
+        if self.id.is_main() {
+            true
+        } else {
+            self.fulfills.contains(&contract.as_clear_string())
         }
     }
 
@@ -120,7 +135,7 @@ impl ExtnSender {
         } else {
             let tx = self.tx.clone();
             //tokio::spawn(async move {
-            trace!("sending to main channel");
+            debug!("sending to main channel");
             if let Err(e) = tx.send(msg) {
                 error!("send error for message {:?}", e);
                 return Err(RippleError::SendFailure);

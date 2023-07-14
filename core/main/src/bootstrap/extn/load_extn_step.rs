@@ -102,6 +102,7 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                                 main_sender.clone(),
                                 extn_id,
                                 extension.clone().uses,
+                                extension.clone().fulfills,
                             );
                             if let Some(open_rpc) = (builder.get_extended_capabilities)() {
                                 open_rpcs.push(open_rpc)

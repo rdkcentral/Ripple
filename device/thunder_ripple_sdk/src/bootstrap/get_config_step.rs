@@ -59,6 +59,7 @@ impl ThunderGetConfigStep {
         mut state: ExtnClient,
         expected_plugins: ThunderPluginBootParam,
     ) -> Result<ThunderBootstrapStateWithConfig, RippleError> {
+        debug!("Requesting Platform parameters");
         let extn_message_response: Result<ExtnMessage, RippleError> =
             state.request(Config::PlatformParameters).await;
         if let Ok(message) = extn_message_response {

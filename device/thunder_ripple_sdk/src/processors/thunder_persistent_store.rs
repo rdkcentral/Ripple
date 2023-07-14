@@ -15,8 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use serde::{Deserialize, Serialize};
-use thunder_ripple_sdk::{
+use crate::{
     client::thunder_plugin::ThunderPlugin,
     ripple_sdk::{
         api::device::{
@@ -40,6 +39,7 @@ use thunder_ripple_sdk::{
     },
     thunder_state::ThunderState,
 };
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ThunderGetValueResponse {

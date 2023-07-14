@@ -16,6 +16,7 @@
 //
 
 use crate::{
+    bootstrap::setup_thunder_processors::SetupThunderProcessor,
     client::plugin_manager::ThunderPluginBootParam, thunder_state::ThunderBootstrapStateWithClient,
 };
 use ripple_sdk::{extn::client::extn_client::ExtnClient, log::info};
@@ -30,7 +31,9 @@ pub async fn boot_thunder(
     let state = ThunderGetConfigStep::setup(state, plugin_param)
         .await
         .expect(&ThunderGetConfigStep::get_name());
-    ThunderPoolStep::setup(state)
+    let state = ThunderPoolStep::setup(state)
         .await
-        .expect(&ThunderPoolStep::get_name())
+        .expect(&ThunderPoolStep::get_name());
+    SetupThunderProcessor::setup(state.clone()).await;
+    state
 }

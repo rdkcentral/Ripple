@@ -22,12 +22,11 @@ use std::{
     time::{self, Duration},
 };
 
-use crate::processors::thunder_device_info::ThunderPlugin::LocationSync;
-
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use serde_json::json;
-use thunder_ripple_sdk::{
-    client::{thunder_client::ThunderClient, thunder_plugin::ThunderPlugin},
+use crate::{
+    client::{
+        thunder_client::ThunderClient,
+        thunder_plugin::ThunderPlugin::{self, LocationSync},
+    },
     ripple_sdk::{
         api::device::{device_info_request::DeviceCapabilities, device_request::AudioProfile},
         chrono::NaiveDateTime,
@@ -36,7 +35,7 @@ use thunder_ripple_sdk::{
     },
     thunder_state::ThunderState,
 };
-use thunder_ripple_sdk::{
+use crate::{
     ripple_sdk::{
         api::{
             device::{
@@ -66,6 +65,8 @@ use thunder_ripple_sdk::{
     },
     utils::get_audio_profile_from_value,
 };
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde_json::json;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ThunderHDCPStatus {

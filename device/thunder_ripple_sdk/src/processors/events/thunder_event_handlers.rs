@@ -17,7 +17,7 @@
 
 use std::collections::HashMap;
 
-use thunder_ripple_sdk::{
+use crate::{
     client::thunder_plugin::ThunderPlugin,
     events::thunder_event_processor::{
         ThunderEventHandler, ThunderEventHandlerProvider, ThunderEventMessage, VoiceGuidanceEvent,
