@@ -79,7 +79,7 @@ pub enum RippleContract {
     SecureStorage,
     Advertising,
     PrivacyCloudSync,
-    Metrics,
+    BehaviorMetrics,
     MediaEvents,
     PrivacySettings,
     StorageManager,

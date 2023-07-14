@@ -15,14 +15,19 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::thunder_state::ThunderBootstrapStateWithClient;
+use crate::{
+    client::plugin_manager::ThunderPluginBootParam, thunder_state::ThunderBootstrapStateWithClient,
+};
 use ripple_sdk::{extn::client::extn_client::ExtnClient, log::info};
 
 use super::{get_config_step::ThunderGetConfigStep, setup_thunder_pool_step::ThunderPoolStep};
 
-pub async fn boot_thunder(state: ExtnClient) -> ThunderBootstrapStateWithClient {
+pub async fn boot_thunder(
+    state: ExtnClient,
+    plugin_param: ThunderPluginBootParam,
+) -> ThunderBootstrapStateWithClient {
     info!("Booting thunder");
-    let state = ThunderGetConfigStep::setup(state)
+    let state = ThunderGetConfigStep::setup(state, plugin_param)
         .await
         .expect(&ThunderGetConfigStep::get_name());
     ThunderPoolStep::setup(state)

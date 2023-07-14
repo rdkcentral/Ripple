@@ -120,8 +120,24 @@ impl PluginActivatedResult {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum ThunderPluginParam {
+    None,
+    Custom(Vec<String>),
+    Default,
+}
+
+#[derive(Debug, Clone)]
+pub struct ThunderPluginBootParam {
+    pub expected: ThunderPluginParam,
+    pub activate_on_boot: ThunderPluginParam,
+}
+
 impl PluginManager {
-    pub async fn start(thunder_client: Box<ThunderClient>) -> mpsc::Sender<PluginManagerCommand> {
+    pub async fn start(
+        thunder_client: Box<ThunderClient>,
+        plugin_request: ThunderPluginBootParam,
+    ) -> mpsc::Sender<PluginManagerCommand> {
         let (sub_tx, mut sub_rx) = mpsc::channel::<DeviceResponseMessage>(32);
         let (tx, mut rx) = mpsc::channel::<PluginManagerCommand>(32);
         let mut pm = PluginManager {
@@ -129,9 +145,20 @@ impl PluginManager {
             plugin_states: HashMap::default(),
             state_subscribers: Vec::default(),
         };
-        for p in ThunderPlugin::expect_activated_plugins() {
-            pm.plugin_states
-                .insert(String::from(p.callsign()), PluginState::Activated);
+        let expected = plugin_request.clone().expected;
+        match expected {
+            ThunderPluginParam::None => {}
+            ThunderPluginParam::Custom(p) => {
+                for plugin in p {
+                    pm.plugin_states.insert(plugin, PluginState::Activated);
+                }
+            }
+            ThunderPluginParam::Default => {
+                for p in ThunderPlugin::expect_activated_plugins() {
+                    pm.plugin_states
+                        .insert(String::from(p.callsign()), PluginState::Activated);
+                }
+            }
         }
         let tx_for_sub_thread = tx.clone();
         // Spawn statechange subscription thread
@@ -182,12 +209,23 @@ impl PluginManager {
                 }
             }
         });
-        for p in ThunderPlugin::activate_on_boot_plugins() {
+        let mut plugins = Vec::new();
+        match plugin_request.activate_on_boot {
+            ThunderPluginParam::Default => {
+                for p in ThunderPlugin::activate_on_boot_plugins() {
+                    plugins.push(p.callsign().to_string())
+                }
+            }
+            ThunderPluginParam::Custom(p) => plugins.extend(p),
+            ThunderPluginParam::None => {}
+        }
+
+        for p in plugins {
             let (plugin_rdy_tx, plugin_rdy_rx) = oneshot::channel::<PluginActivatedResult>();
             mpsc_send_and_log(
                 &tx,
                 PluginManagerCommand::ActivatePluginIfNeeded {
-                    callsign: p.callsign().to_string(),
+                    callsign: p,
                     tx: plugin_rdy_tx,
                 },
                 "ActivateOnBoot",

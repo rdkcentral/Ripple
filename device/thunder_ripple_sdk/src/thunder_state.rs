@@ -32,7 +32,7 @@ use ripple_sdk::{
 use url::Url;
 
 use crate::{
-    client::thunder_client::ThunderClient,
+    client::{plugin_manager::ThunderPluginBootParam, thunder_client::ThunderClient},
     events::thunder_event_processor::{ThunderEventHandler, ThunderEventProcessor},
 };
 
@@ -41,6 +41,7 @@ pub struct ThunderBootstrapStateWithConfig {
     pub extn_client: ExtnClient,
     pub url: Url,
     pub pool_size: u32,
+    pub plugin_param: ThunderPluginBootParam,
 }
 
 #[derive(Debug, Clone)]
