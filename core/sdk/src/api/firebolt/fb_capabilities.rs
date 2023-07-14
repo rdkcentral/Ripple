@@ -92,7 +92,7 @@ impl FireboltCap {
     }
 }
 
-#[derive(Eq, Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Eq, Debug, Copy, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum CapabilityRole {
     Use,

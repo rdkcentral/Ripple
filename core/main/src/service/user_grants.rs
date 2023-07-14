@@ -18,7 +18,7 @@
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, RwLock},
-    time::SystemTime,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use ripple_sdk::{
@@ -29,8 +29,11 @@ use ripple_sdk::{
             device_user_grants_data::{
                 AutoApplyPolicy, GrantActiveState, GrantEntry, GrantErrors, GrantLifespan,
                 GrantPolicy, GrantPrivacySetting, GrantScope, GrantStateModify, GrantStatus,
-                GrantStep,
+                GrantStep, PolicyPersistenceType,
             },
+        },
+        distributor::distributor_usergrants::{
+            UserGrantsCloudSetParams, UserGrantsCloudStoreRequest,
         },
         firebolt::{
             fb_capabilities::{
@@ -45,9 +48,11 @@ use ripple_sdk::{
         },
         gateway::rpc_gateway_api::CallContext,
         manifest::device_manifest::DeviceManifest,
+        usergrant_entry::UserGrantInfo,
     },
+    extn::extn_client_message::{ExtnRequest, ExtnResponse},
     framework::file_store::FileStore,
-    log::debug,
+    log::{debug, error},
     serde_json::Value,
     tokio::sync::oneshot,
     utils::error::RippleError,
@@ -382,6 +387,7 @@ impl GrantState {
         is_allowed: bool,
         app_id: &str,
     ) {
+        debug!("Update called to store user grant with grant = {is_allowed}");
         let mut grant_entry =
             GrantEntry::get(permission.role.clone(), permission.cap.as_str().to_owned());
         grant_entry.lifespan = Some(grant_policy.lifespan.clone());
@@ -495,6 +501,7 @@ impl GrantState {
                         }
                     }
 
+                    debug!("user grant modified with new entry:{:?}", new_entry);
                     platform_state
                         .cap_state
                         .grant_state
@@ -550,10 +557,54 @@ impl GrantHandler {
 pub struct GrantPolicyEnforcer;
 
 impl GrantPolicyEnforcer {
+    pub async fn send_usergrants_for_cloud_storage(
+        platform_state: &PlatformState,
+        grant_policy: &GrantPolicy,
+        grant_entry: &GrantEntry,
+        app_id: &Option<String>,
+    ) {
+        if let Some(account_session) = platform_state.session_state.get_account_session() {
+            let usergrants_cloud_set_params = UserGrantsCloudSetParams {
+                account_session,
+                user_grant_info: UserGrantInfo {
+                    role: grant_entry.role,
+                    capability: grant_entry.capability.to_owned(),
+                    status: grant_entry.status.as_ref().unwrap().to_owned(),
+                    last_modified_time: Duration::new(0, 0),
+                    expiry_time: match grant_policy.lifespan {
+                        GrantLifespan::Seconds => {
+                            let now = SystemTime::now().duration_since(UNIX_EPOCH);
+                            if now.is_err() {
+                                error!("Unable to sync usergrants to cloud. unable to get duration since epoch");
+                                return;
+                            }
+                            let now_dur = now
+                                .unwrap()
+                                .checked_add(Duration::new(grant_policy.lifespan_ttl.unwrap(), 0));
+                            if now_dur.is_none() {
+                                error!("Unable to sync usergrants to cloud. unable to get duration since epoch for lifespan_ttl");
+                                return;
+                            }
+                            Some(now_dur.unwrap())
+                        }
+                        _ => None,
+                    },
+                    app_name: app_id.to_owned(),
+                    lifespan: grant_policy.lifespan.to_owned(),
+                },
+            };
+            let request =
+                UserGrantsCloudStoreRequest::SetCloudUserGrants(usergrants_cloud_set_params);
+            let resp = platform_state.get_client().send_extn_request(request).await;
+            if resp.is_err() {
+                error!("Unable to sync usergrants to cloud. Unable to send request to extn");
+            }
+        }
+    }
     pub async fn store_user_grants(
         platform_state: &PlatformState,
         permission: &FireboltPermission,
-        result: &Result<(), DenyReason>,
+        result: &Result<(), DenyReasonWithCap>,
         app_id: &Option<String>,
         grant_policy: &GrantPolicy,
     ) -> bool {
@@ -570,6 +621,7 @@ impl GrantPolicyEnforcer {
             grant_entry.status = Some(GrantStatus::Denied);
         }
         debug!("created grant_entry: {:?}", grant_entry);
+        let grant_entry_c = grant_entry.clone();
         // let grant_entry_c = grant_entry.clone();
         // If lifespan is once then no need to store it.
         if grant_policy.lifespan != GrantLifespan::Once {
@@ -600,45 +652,50 @@ impl GrantPolicyEnforcer {
                 }
             }
         }
-        /*
         if grant_policy.persistence == PolicyPersistenceType::Account {
-            let session = get_distributor_session_for_dpab(&platform_state.app_auth_sessions).await;
+            Self::send_usergrants_for_cloud_storage(
+                platform_state,
+                grant_policy,
+                &grant_entry_c,
+                app_id,
+            )
+            .await;
+            // let session = get_distributor_session_for_dpab(&platform_state.app_auth_sessions).await;
 
-            let cloud_grant_entry = grant_entry_c.as_cloud_grant_entry(match grant_policy.scope {
-                GrantScope::App => app_id.to_owned(),
-                GrantScope::Device => None,
-            });
-            if session.is_err() {
-                error!("Unable to send user grant info to cloud. Reason: Error in getting distributor session.")
-            } else if cloud_grant_entry.is_err() {
-                error!(
-                    "Unable to send user grant info to cloud. Reason: Failed to convert grantentry into Cloud Grant Entry: {:?}",
-                    grant_entry_c
-                );
-            } else {
-                let payload = DpabRequestPayload::UserGrants(UserGrantRequest {
-                    grant_entry: cloud_grant_entry.unwrap(),
-                    dist_session: session.unwrap(),
-                });
+            // let cloud_grant_entry = grant_entry_c.as_cloud_grant_entry(match grant_policy.scope {
+            //     GrantScope::App => app_id.to_owned(),
+            //     GrantScope::Device => None,
+            // });
+            // if session.is_err() {
+            //     error!("Unable to send user grant info to cloud. Reason: Error in getting distributor session.")
+            // } else if cloud_grant_entry.is_err() {
+            //     error!(
+            //         "Unable to send user grant info to cloud. Reason: Failed to convert grantentry into Cloud Grant Entry: {:?}",
+            //         grant_entry_c
+            //     );
+            // } else {
+            //     let payload = DpabRequestPayload::UserGrants(UserGrantRequest {
+            //         grant_entry: cloud_grant_entry.unwrap(),
+            //         dist_session: session.unwrap(),
+            //     });
 
-                let response = platform_state.services.clone().send_dpab(payload).await;
-                if response.is_err() {
-                    error!(
-                        "Received Error response for sending user grant for cloud storage: {:?}",
-                        response
-                    );
-                }
-            }
+            //     let response = platform_state.services.clone().send_dpab(payload).await;
+            //     if response.is_err() {
+            //         error!(
+            //             "Received Error response for sending user grant for cloud storage: {:?}",
+            //             response
+            //         );
+            //     }
+            // }
         }
-        */
         ret_val
     }
     pub async fn update_privacy_settings_and_user_grants(
         platform_state: &PlatformState,
         call_ctx: &CallContext,
-        _permission: &FireboltPermission,
+        permission: &FireboltPermission,
         result: &Result<(), DenyReasonWithCap>,
-        _app_id: &Option<String>,
+        app_id: &Option<String>,
         grant_policy: &GrantPolicy,
     ) {
         // Updating privacy settings
@@ -653,13 +710,11 @@ impl GrantPolicyEnforcer {
                 platform_state,
                 call_ctx,
                 &grant_policy.privacy_setting.as_ref().unwrap(),
-                match result {
-                    Ok(_) => true,
-                    Err(_) => false,
-                },
+                result.is_ok(),
             )
             .await;
         }
+        Self::store_user_grants(platform_state, permission, result, app_id, grant_policy).await;
     }
     pub async fn determine_grant_policies_for_permission(
         platform_state: &PlatformState,
@@ -699,12 +754,12 @@ impl GrantPolicyEnforcer {
         }
         let result =
             GrantPolicyEnforcer::execute(platform_state, call_context, permission, &policy).await;
-        platform_state.cap_state.grant_state.update(
-            permission,
-            &policy,
-            result.is_ok(),
-            &call_context.app_id,
-        );
+        // platform_state.cap_state.grant_state.update(
+        //     permission,
+        //     &policy,
+        //     result.is_ok(),
+        //     &call_context.app_id,
+        // );
         if let Err(e) = &result {
             if e.reason == DenyReason::Ungranted || e.reason == DenyReason::GrantProviderMissing {
                 return result;

@@ -24,7 +24,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::device::device_user_grants_data::GrantStatus;
+use super::device::device_user_grants_data::{GrantLifespan, GrantStatus};
 use super::firebolt::fb_capabilities::FireboltPermission;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -62,6 +62,7 @@ pub struct UserGrantInfo {
     pub last_modified_time: Duration, // Duration since Unix epoch
     pub expiry_time: Option<Duration>,
     pub app_name: Option<String>,
+    pub lifespan: GrantLifespan,
 }
 
 impl Default for UserGrantInfo {
@@ -73,6 +74,7 @@ impl Default for UserGrantInfo {
             last_modified_time: Duration::new(0, 0),
             expiry_time: None,
             app_name: None,
+            lifespan: GrantLifespan::Once,
         }
     }
 }

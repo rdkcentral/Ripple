@@ -108,6 +108,13 @@ impl Hash for GrantScope {
     }
 }
 
+#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum PolicyPersistenceType {
+    Account,
+    Device,
+}
+
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GrantPolicy {
@@ -117,6 +124,12 @@ pub struct GrantPolicy {
     pub overridable: bool,
     pub lifespan_ttl: Option<u64>,
     pub privacy_setting: Option<GrantPrivacySetting>,
+    #[serde(default = "default_policy_persistence_type")]
+    pub persistence: PolicyPersistenceType,
+}
+
+pub fn default_policy_persistence_type() -> PolicyPersistenceType {
+    PolicyPersistenceType::Device
 }
 
 impl Default for GrantPolicy {
@@ -128,6 +141,7 @@ impl Default for GrantPolicy {
             overridable: true,
             lifespan_ttl: None,
             privacy_setting: None,
+            persistence: PolicyPersistenceType::Device,
         }
     }
 }
