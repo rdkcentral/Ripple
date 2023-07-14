@@ -15,8 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use serde::{Deserialize, Serialize};
-use thunder_ripple_sdk::ripple_sdk::{
+use crate::ripple_sdk::{
     api::{
         apps::Dimensions,
         device::{
@@ -38,8 +37,9 @@ use thunder_ripple_sdk::ripple_sdk::{
     tokio::sync::mpsc,
     utils::error::RippleError,
 };
+use serde::{Deserialize, Serialize};
 
-use thunder_ripple_sdk::{client::thunder_plugin::ThunderPlugin, thunder_state::ThunderState};
+use crate::{client::thunder_plugin::ThunderPlugin, thunder_state::ThunderState};
 
 #[derive(Debug)]
 pub struct ThunderWindowManagerRequestProcessor {

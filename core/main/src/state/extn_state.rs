@@ -190,7 +190,12 @@ impl ExtnState {
         let sender = self.clone().get_sender();
         let symbol = channel.symbol.clone();
         let extn_id = channel.extn_id.clone();
-        let extn_sender = ExtnSender::new(sender, extn_id.clone(), symbol.clone().uses);
+        let extn_sender = ExtnSender::new(
+            sender,
+            extn_id.clone(),
+            symbol.clone().uses,
+            symbol.clone().fulfills,
+        );
         let (extn_tx, extn_rx) = ChannelsState::get_crossbeam_channel();
         let extn_channel = channel.channel;
         tokio::spawn(async move {

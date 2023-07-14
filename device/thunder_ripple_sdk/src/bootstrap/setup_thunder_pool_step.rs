@@ -52,7 +52,9 @@ impl ThunderPoolStep {
             }
         }
         let controller_pool = controller_pool.unwrap();
-        let plugin_manager_tx = PluginManager::start(Box::new(controller_pool)).await;
+        let expected_plugins = state.plugin_param.clone();
+        let plugin_manager_tx =
+            PluginManager::start(Box::new(controller_pool), expected_plugins).await;
         let client = ThunderClientPool::start(url, Some(plugin_manager_tx), pool_size - 1).await;
 
         if client.is_err() {

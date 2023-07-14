@@ -27,10 +27,24 @@ pub mod bootstrap {
     pub mod boot_thunder;
     pub mod get_config_step;
     pub mod setup_thunder_pool_step;
+    pub mod setup_thunder_processors;
 }
 
 pub mod events {
     pub mod thunder_event_processor;
+}
+
+pub mod processors {
+    pub mod thunder_browser;
+    pub mod thunder_device_info;
+    pub mod thunder_events;
+    pub mod events {
+        pub mod thunder_event_handlers;
+    }
+    pub mod thunder_persistent_store;
+    pub mod thunder_remote;
+    pub mod thunder_wifi;
+    pub mod thunder_window_manager;
 }
 
 pub mod utils;

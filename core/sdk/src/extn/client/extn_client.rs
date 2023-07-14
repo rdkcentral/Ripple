@@ -120,17 +120,23 @@ impl ExtnClient {
     ///
     /// Also starts the thread in the processor to accept incoming requests.
     pub fn add_request_processor(&mut self, mut processor: impl ExtnRequestProcessor) {
-        let processor_string: String = processor.contract().into();
-        info!("adding request processor {}", processor_string);
-        add_stream_processor(
-            processor_string.clone(),
-            processor.sender(),
-            self.request_processors.clone(),
-        );
-        tokio::spawn(async move {
-            trace!("starting request processor thread for {}", processor_string);
-            processor.run().await
-        });
+        // Dont add and start a request processor if there is no contract fulfillment
+        if self
+            .sender
+            .check_contract_fulfillment(processor.contract().clone())
+        {
+            let processor_string: String = processor.contract().into();
+            info!("adding request processor {}", processor_string);
+            add_stream_processor(
+                processor_string.clone(),
+                processor.sender(),
+                self.request_processors.clone(),
+            );
+            tokio::spawn(async move {
+                trace!("starting request processor thread for {}", processor_string);
+                processor.run().await
+            });
+        }
     }
 
     /// Removes a request processor reference on the internal map of processors
@@ -431,7 +437,6 @@ impl ExtnClient {
         let (tx, rx) = oneshot::channel();
         add_single_processor(id.clone(), Some(tx), self.response_processors.clone());
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
-
         if let Err(e) = self.sender.send_request(id, payload, other_sender, None) {
             return Err(e);
         }

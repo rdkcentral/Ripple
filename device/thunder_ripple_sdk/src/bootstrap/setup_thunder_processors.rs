@@ -15,9 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use thunder_ripple_sdk::{
-    ripple_sdk::utils::error::RippleError, thunder_state::ThunderBootstrapStateWithClient,
-};
+use crate::thunder_state::ThunderBootstrapStateWithClient;
 
 use crate::processors::{
     thunder_browser::ThunderBrowserRequestProcessor,
@@ -36,9 +34,7 @@ impl SetupThunderProcessor {
         "SetupThunderProcessor".into()
     }
 
-    pub async fn setup(
-        state: ThunderBootstrapStateWithClient,
-    ) -> Result<ThunderBootstrapStateWithClient, RippleError> {
+    pub async fn setup(state: ThunderBootstrapStateWithClient) {
         let mut extn_client = state.state.get_client();
         extn_client
             .add_request_processor(ThunderDeviceInfoRequestProcessor::new(state.clone().state));
@@ -52,6 +48,5 @@ impl SetupThunderProcessor {
             state.clone().state,
         ));
         extn_client.add_request_processor(ThunderOpenEventsProcessor::new(state.clone().state));
-        Ok(state)
     }
 }

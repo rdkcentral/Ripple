@@ -300,7 +300,7 @@ impl ExtnPayloadProvider for BehavioralMetricRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Metrics
+        RippleContract::BehaviorMetrics
     }
 }
 
@@ -442,6 +442,6 @@ impl ExtnPayloadProvider for MetricsResponse {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Metrics
+        RippleContract::BehaviorMetrics
     }
 }

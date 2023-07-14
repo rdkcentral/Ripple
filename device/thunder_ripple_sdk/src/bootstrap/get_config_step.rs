@@ -15,7 +15,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::thunder_state::ThunderBootstrapStateWithConfig;
+use crate::{
+    client::plugin_manager::ThunderPluginBootParam, thunder_state::ThunderBootstrapStateWithConfig,
+};
 use ripple_sdk::extn::{
     client::extn_client::ExtnClient,
     extn_client_message::{ExtnMessage, ExtnResponse},
@@ -55,7 +57,9 @@ impl ThunderGetConfigStep {
 
     pub async fn setup(
         mut state: ExtnClient,
+        expected_plugins: ThunderPluginBootParam,
     ) -> Result<ThunderBootstrapStateWithConfig, RippleError> {
+        debug!("Requesting Platform parameters");
         let extn_message_response: Result<ExtnMessage, RippleError> =
             state.request(Config::PlatformParameters).await;
         if let Ok(message) = extn_message_response {
@@ -87,6 +91,7 @@ impl ThunderGetConfigStep {
                     extn_client: state,
                     url: gateway_url,
                     pool_size,
+                    plugin_param: expected_plugins,
                 });
             }
         }
