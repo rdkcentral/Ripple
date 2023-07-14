@@ -709,14 +709,16 @@ impl DeviceServer for DeviceImpl {
         _ctx: CallContext,
         provision_request: ProvisionRequest,
     ) -> RpcResult<()> {
+        // clear the cached distributor session
+        self.state
+            .session_state
+            .update_account_session(provision_request.clone());
+
         let resp = self
             .state
             .get_client()
             .send_extn_request(AccountSessionRequest::Provision(provision_request))
             .await;
-        // clear the cached distributor session
-        self.state.session_state.clean_account_session();
-
         match resp {
             Ok(payload) => match payload.payload.extract().unwrap() {
                 ExtnResponse::None(()) => Ok(()),
