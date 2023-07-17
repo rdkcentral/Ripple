@@ -122,7 +122,6 @@ impl OpenRpcState {
     }
 
     pub fn check_privacy_property(&self, property: &str) -> bool {
-        debug!("Checking for property: {property}");
         if let Some(method) = self.open_rpc.methods.iter().find(|x| x.name == property) {
             debug!("Method with proprty present {property}");
             // Checking if the property tag is havin x-allow-value extension.

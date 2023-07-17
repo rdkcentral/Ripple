@@ -275,10 +275,6 @@ impl GrantEntry {
     }
 
     pub fn has_expired(&self) -> bool {
-        debug!(
-            "Grant Entry lifespan: {:?}, capability: {:?}",
-            self.lifespan, self.capability
-        );
         match self.lifespan {
             Some(GrantLifespan::Seconds) => match self.lifespan_ttl_in_secs {
                 None => {
