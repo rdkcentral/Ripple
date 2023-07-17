@@ -25,10 +25,12 @@ use std::{
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
 
-use crate::{ 
+use crate::{
     client::{
-            plugin_manager::PluginManager, thunder_client::ThunderClient,
-            thunder_client_pool::ThunderClientPool, thunder_plugin::ThunderPlugin::{self, LocationSync},
+        plugin_manager::PluginManager,
+        thunder_client::ThunderClient,
+        thunder_client_pool::ThunderClientPool,
+        thunder_plugin::ThunderPlugin::{self, LocationSync},
     },
     ripple_sdk::{
         api::device::{device_info_request::DeviceCapabilities, device_request::AudioProfile},
@@ -50,33 +52,33 @@ use crate::{
     thunder_state::ThunderState,
 };
 
-use crate::{ 
+use crate::{
     ripple_sdk::{
-            api::{
-                device::{
-                    device_info_request::{DeviceInfoRequest, DeviceResponse},
-                    device_operator::{
-                        DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
-                        DeviceSubscribeRequest, DeviceUnsubscribeRequest,
-                    },
-                    device_request::{
-                        DeviceRequest, HDCPStatus, HdcpProfile, HdrProfile, NetworkResponse,
-                        NetworkState, NetworkType, Resolution,
-                    },
+        api::{
+            device::{
+                device_info_request::{DeviceInfoRequest, DeviceResponse},
+                device_operator::{
+                    DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
+                    DeviceSubscribeRequest, DeviceUnsubscribeRequest,
                 },
-                firebolt::fb_openrpc::FireboltSemanticVersion,
-            },
-            async_trait::async_trait,
-            extn::{
-                client::extn_processor::{
-                    DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
+                device_request::{
+                    DeviceRequest, HDCPStatus, HdcpProfile, HdrProfile, NetworkResponse,
+                    NetworkState, NetworkType, Resolution,
                 },
-                extn_client_message::{ExtnMessage, ExtnResponse},
             },
-            log::{error, info},
-            serde_json::{self},
-            tokio,
-            utils::error::RippleError,
+            firebolt::fb_openrpc::FireboltSemanticVersion,
+        },
+        async_trait::async_trait,
+        extn::{
+            client::extn_processor::{
+                DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
+            },
+            extn_client_message::{ExtnMessage, ExtnResponse},
+        },
+        log::{error, info},
+        serde_json::{self},
+        tokio,
+        utils::error::RippleError,
     },
     utils::get_audio_profile_from_value,
 };
