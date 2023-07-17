@@ -47,6 +47,13 @@ pub mod processors {
     pub mod thunder_window_manager;
 }
 
+pub mod tests {
+    #[cfg(feature = "contract_tests")]
+    pub mod contracts {
+        pub mod thunder_device_info_pacts;
+    }
+}
+
 pub mod utils;
 
 pub mod thunder_state;
