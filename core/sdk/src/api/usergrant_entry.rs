@@ -50,7 +50,7 @@ impl ExtnPayloadProvider for UserGrantsStoreRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::StoreUserGrants
+        RippleContract::UserGrantsLocalStore
     }
 }
 

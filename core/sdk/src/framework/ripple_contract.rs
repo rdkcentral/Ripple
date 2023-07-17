@@ -78,7 +78,7 @@ pub enum RippleContract {
     VoiceGuidance,
     SecureStorage,
     Advertising,
-    PrivacyCloudSync, //TODO: Rename it t PrivacyCloudStore,
+    PrivacyCloudStore, //TODO: Rename it t PrivacyCloudStore,
     UserGrantsCloudStore,
     Metrics,
     MediaEvents,
@@ -88,8 +88,8 @@ pub enum RippleContract {
     Settings,
     PubSub,
     CloudSync,
-    StoreUserGrants,      //TODO: Better to be explicitly say it is local store
-    StorePrivacySettings, //TODO: Better to be explicitly say it is local store
+    UserGrantsLocalStore, //TODO: Better to be explicitly say it is local store
+    PrivacySettingsLocalStore, //TODO: Better to be explicitly say it is local store
     Caps,
     Encoder,
 }
