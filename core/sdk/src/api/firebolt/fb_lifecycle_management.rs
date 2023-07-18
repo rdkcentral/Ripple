@@ -32,6 +32,10 @@ pub const LCM_EVENT_ON_REQUEST_READY: &'static str = "lifecyclemanagement.onRequ
 pub const LCM_EVENT_ON_REQUEST_CLOSE: &'static str = "lifecyclemanagement.onRequestClose";
 pub const LCM_EVENT_ON_REQUEST_FINISHED: &'static str = "lifecyclemanagement.onRequestFinished";
 pub const LCM_EVENT_ON_REQUEST_LAUNCH: &'static str = "lifecyclemanagement.onRequestLaunch";
+pub const LCM_EVENT_ON_SESSION_TRANSITION_COMPLETED: &'static str =
+    "lifecyclemanagement.onSessionTransitionCompleted";
+pub const LCM_EVENT_ON_SESSION_TRANSITION_CANCELED: &'static str =
+    "lifecyclemanagement.onSessionTransitionCanceled";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum LifecycleManagementEventRequest {
@@ -159,10 +163,31 @@ pub struct SetStateRequest {
     pub state: LifecycleState,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(untagged)]
+pub enum SessionResponse {
+    Pending(PendingSessionResponse),
+    Completed(CompletedSessionResponse),
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionResponse {
+pub struct CompletedSessionResponse {
+    pub app_id: String,
     pub session_id: String,
+    pub loaded_session_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_session_id: Option<String>,
+    pub transition_pending: bool,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingSessionResponse {
+    pub app_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub loaded_session_id: Option<String>,
+    pub transition_pending: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
