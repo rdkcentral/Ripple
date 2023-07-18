@@ -15,8 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use serde::{Deserialize, Serialize};
-use thunder_ripple_sdk::{
+use crate::{
     client::thunder_plugin::ThunderPlugin,
     ripple_sdk::{
         api::{
@@ -43,7 +42,7 @@ use thunder_ripple_sdk::{
     },
     thunder_state::ThunderState,
 };
-use thunder_ripple_sdk::{
+use crate::{
     client::thunder_plugin::ThunderPlugin::Wifi,
     ripple_sdk::{
         self,
@@ -51,6 +50,7 @@ use thunder_ripple_sdk::{
         extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider},
     },
 };
+use serde::{Deserialize, Serialize};
 use tokio::time::{self, timeout, Duration};
 
 pub fn wifi_security_mode_to_u32(v: WifiSecurityMode) -> u32 {

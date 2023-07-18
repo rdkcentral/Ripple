@@ -60,7 +60,7 @@ fn init_library() -> CExtnMetadata {
             RippleContract::Advertising,
             RippleContract::PrivacyCloudStore,
             RippleContract::SessionToken,
-            RippleContract::Metrics,
+            RippleContract::BehaviorMetrics,
             RippleContract::SessionToken,
             RippleContract::Discovery,
             RippleContract::MediaEvents,

@@ -42,6 +42,7 @@ pub struct ExtnSender {
     tx: CSender<CExtnMessage>,
     id: ExtnId,
     permitted: Vec<String>,
+    fulfills: Vec<String>,
 }
 
 impl ExtnSender {
@@ -49,11 +50,17 @@ impl ExtnSender {
         self.id.clone()
     }
 
-    pub fn new(tx: CSender<CExtnMessage>, id: ExtnId, context: Vec<String>) -> Self {
+    pub fn new(
+        tx: CSender<CExtnMessage>,
+        id: ExtnId,
+        context: Vec<String>,
+        fulfills: Vec<String>,
+    ) -> Self {
         ExtnSender {
             tx,
             id,
             permitted: context,
+            fulfills,
         }
     }
     fn check_contract_permission(&self, contract: RippleContract) -> bool {
@@ -61,6 +68,14 @@ impl ExtnSender {
             true
         } else {
             self.permitted.contains(&contract.as_clear_string())
+        }
+    }
+
+    pub fn check_contract_fulfillment(&self, contract: RippleContract) -> bool {
+        if self.id.is_main() {
+            true
+        } else {
+            self.fulfills.contains(&contract.as_clear_string())
         }
     }
 
@@ -111,7 +126,7 @@ impl ExtnSender {
         other_sender: Option<CSender<CExtnMessage>>,
     ) -> Result<(), RippleError> {
         if other_sender.is_some() {
-            debug!("Sending message on the other sender");
+            trace!("Sending message on the other sender");
             if let Err(e) = other_sender.unwrap().send(msg) {
                 error!("send error for message {:?}", e);
                 return Err(RippleError::SendFailure);

@@ -15,8 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use serde::{Deserialize, Serialize};
-use thunder_ripple_sdk::{
+use crate::{
     client::{
         thunder_client::ThunderClient,
         thunder_plugin::ThunderPlugin::{self, RemoteControl},
@@ -54,6 +53,7 @@ use thunder_ripple_sdk::{
     },
     thunder_state::ThunderState,
 };
+use serde::{Deserialize, Serialize};
 use tokio::time::{sleep, Duration};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -168,8 +168,7 @@ impl ThunderRemoteAccessoryRequestProcessor {
             .call(DeviceCallRequest {
                 method: request_method,
                 params: Some(DeviceChannelParams::Json(
-                    thunder_ripple_sdk::ripple_sdk::serde_json::to_string(&remote_pair_request)
-                        .unwrap(),
+                    ripple_sdk::serde_json::to_string(&remote_pair_request).unwrap(),
                 )),
             })
             .await;

@@ -80,7 +80,7 @@ pub enum RippleContract {
     Advertising,
     PrivacyCloudStore,
     UserGrantsCloudStore,
-    Metrics,
+    BehaviorMetrics,
     MediaEvents,
     PrivacySettings,
     StorageManager,

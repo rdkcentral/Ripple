@@ -277,7 +277,7 @@ impl StorageManager {
                         let state_for_event = state.clone();
                         let result = val.clone();
                         let ctx = context.clone();
-                        let evt = event.clone();
+                        let evt = String::from(*event);
                         tokio::spawn(async move {
                             AppEvents::emit_with_context(&state_for_event, &evt, &result, ctx)
                                 .await;
