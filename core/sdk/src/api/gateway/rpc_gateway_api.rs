@@ -204,10 +204,6 @@ impl RpcRequest {
             None => 0,
         };
         let method = FireboltOpenRpcMethod::name_with_lowercase_module(&jsonrpc_req.method);
-        debug!(
-            "Converted method: from {} to {}",
-            jsonrpc_req.method, method
-        );
         let ctx = CallContext::new(
             session_id,
             request_id,

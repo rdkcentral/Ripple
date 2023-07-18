@@ -26,8 +26,6 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use log::debug;
-
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GrantStep {
@@ -277,10 +275,7 @@ impl GrantEntry {
     pub fn has_expired(&self) -> bool {
         match self.lifespan {
             Some(GrantLifespan::Seconds) => match self.lifespan_ttl_in_secs {
-                None => {
-                    debug!("returning true since ttl is none");
-                    true
-                }
+                None => true,
                 Some(ttl) => {
                     let elapsed_time = SystemTime::now()
                         .duration_since(SystemTime::UNIX_EPOCH)
@@ -288,19 +283,11 @@ impl GrantEntry {
                         .checked_sub(self.last_modified_time)
                         .unwrap_or(Duration::from_secs(0));
 
-                    debug!(
-                        "elapsed time from epoch: {:?}, ttl: {:?}",
-                        elapsed_time,
-                        Duration::from_secs(ttl)
-                    );
                     elapsed_time > Duration::from_secs(ttl)
                 }
             },
             Some(GrantLifespan::Once) => true,
-            _ => {
-                debug!("Match all returning false;");
-                false
-            }
+            _ => false,
         }
     }
 }
