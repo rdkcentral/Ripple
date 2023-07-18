@@ -16,7 +16,7 @@
 //
 
 use ripple_sdk::{
-    api::firebolt::fb_metrics::BehavioralMetricRequest,
+    api::firebolt::fb_metrics::{BehavioralMetricPayload, BehavioralMetricRequest},
     async_trait::async_trait,
     extn::client::{
         extn_client::ExtnClient,
@@ -74,8 +74,8 @@ impl ExtnRequestProcessor for DistributorMetricsProcessor {
         msg: ripple_sdk::extn::extn_client_message::ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
-        match extracted_message {
-            BehavioralMetricRequest::Ready(_) => {
+        match extracted_message.clone().payload {
+            BehavioralMetricPayload::Ready(_) => {
                 if let Err(e) = state
                     .clone()
                     .respond(
@@ -89,70 +89,61 @@ impl ExtnRequestProcessor for DistributorMetricsProcessor {
                 }
                 true
             }
-            BehavioralMetricRequest::SignIn(_) => {
+            BehavioralMetricPayload::SignIn(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
-            BehavioralMetricRequest::SignOut(_) => {
+            BehavioralMetricPayload::SignOut(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
-            BehavioralMetricRequest::StartContent(_) => {
+            BehavioralMetricPayload::StartContent(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
-            BehavioralMetricRequest::StopContent(_) => {
+            BehavioralMetricPayload::StopContent(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
-            BehavioralMetricRequest::Page(_) => {
+            BehavioralMetricPayload::Page(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
-            BehavioralMetricRequest::Action(_) => {
+            BehavioralMetricPayload::Action(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
-            BehavioralMetricRequest::Error(_) => {
+            BehavioralMetricPayload::Error(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
-            BehavioralMetricRequest::MediaLoadStart(_) => {
+            BehavioralMetricPayload::MediaLoadStart(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
-            BehavioralMetricRequest::MediaPlay(_) => {
+            BehavioralMetricPayload::MediaPlay(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
-            BehavioralMetricRequest::MediaPlaying(_) => {
+            BehavioralMetricPayload::MediaPlaying(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
-            BehavioralMetricRequest::MediaPause(_) => {
+            BehavioralMetricPayload::MediaPause(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
-            BehavioralMetricRequest::MediaWaiting(_) => {
+            BehavioralMetricPayload::MediaWaiting(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
-            BehavioralMetricRequest::MediaProgress(_) => {
+            BehavioralMetricPayload::MediaProgress(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
-            BehavioralMetricRequest::MediaSeeking(_) => {
+            BehavioralMetricPayload::MediaSeeking(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
-            BehavioralMetricRequest::MediaSeeked(_) => {
+            BehavioralMetricPayload::MediaSeeked(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
-            BehavioralMetricRequest::MediaRateChanged(_) => {
+            BehavioralMetricPayload::MediaRateChanged(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
-            BehavioralMetricRequest::MediaRenditionChanged(_) => {
+            BehavioralMetricPayload::MediaRenditionChanged(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
-            BehavioralMetricRequest::MediaEnded(_) => {
+            BehavioralMetricPayload::MediaEnded(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
-            BehavioralMetricRequest::TelemetrySignIn(_) => {
-                mock_metrics_response(state, msg, extracted_message).await
-            }
-            BehavioralMetricRequest::TelemetrySignOut(_) => {
-                mock_metrics_response(state, msg, extracted_message).await
-            }
-            BehavioralMetricRequest::TelemetryInternalInitialize(_) => {
-                mock_metrics_response(state, msg, extracted_message).await
-            }
-            BehavioralMetricRequest::Raw(_) => {
+            BehavioralMetricPayload::Raw(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
         }

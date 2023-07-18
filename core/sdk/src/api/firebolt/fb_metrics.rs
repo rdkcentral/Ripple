@@ -15,20 +15,18 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use async_trait::async_trait;
-use log::info;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    api::gateway::rpc_gateway_api::CallContext,
+    api::{gateway::rpc_gateway_api::CallContext, session::AccountSession},
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
 
-use super::fb_telemetry;
 //https://developer.comcast.com/firebolt/core/sdk/latest/api/metrics
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -37,16 +35,29 @@ pub struct BehavioralMetricContext {
     pub app_id: String,
     pub app_version: String,
     pub partner_id: String,
+    pub app_session_id: String,
+    pub app_user_session_id: Option<String>,
+    pub durable_app_id: String,
+    pub governance_state: Option<AppDataGovernanceState>,
 }
 
 impl From<CallContext> for BehavioralMetricContext {
     fn from(call_context: CallContext) -> Self {
         BehavioralMetricContext {
-            app_id: call_context.app_id,
-            app_version: call_context.session_id.clone(),
-            partner_id: call_context.session_id,
+            app_id: call_context.app_id.clone(),
+            app_version: String::from("app.version.not.implemented"),
+            partner_id: String::from("partner.id.not.set"),
+            app_session_id: String::from("app_session_id.not.set"),
+            durable_app_id: call_context.app_id,
+            app_user_session_id: None,
+            governance_state: None,
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct AppDataGovernanceState {
+    pub data_tags_to_apply: HashSet<String>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -185,6 +196,8 @@ pub struct MetricsError {
     pub description: String,
     pub visible: bool,
     pub parameters: Option<Vec<Param>>,
+    pub durable_app_id: String,
+    pub third_party_error: bool,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MediaLoadStart {
@@ -257,7 +270,7 @@ pub struct RawBehaviorMetricRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum BehavioralMetricRequest {
+pub enum BehavioralMetricPayload {
     Ready(Ready),
     SignIn(SignIn),
     SignOut(SignOut),
@@ -277,31 +290,7 @@ pub enum BehavioralMetricRequest {
     MediaRateChanged(MediaRateChanged),
     MediaRenditionChanged(MediaRenditionChanged),
     MediaEnded(MediaEnded),
-    TelemetrySignIn(fb_telemetry::SignIn),
-    TelemetrySignOut(fb_telemetry::SignOut),
-    TelemetryInternalInitialize(fb_telemetry::InternalInitialize),
     Raw(RawBehaviorMetricRequest),
-}
-
-impl ExtnPayloadProvider for BehavioralMetricRequest {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::BehavioralMetric(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<BehavioralMetricRequest> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::BehavioralMetric(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
-        }
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::BehaviorMetrics
-    }
 }
 
 /// all the things that are provided by platform that need to
@@ -316,11 +305,12 @@ pub struct MetricsContext {
     pub device_model: String,
     pub device_id: String,
     pub account_id: String,
-    pub device_timezone: u16,
+    pub device_timezone: String,
     pub device_name: String,
     pub platform: String,
     pub os_ver: String,
-    pub session_id: String,
+    pub distribution_tenant_id: String,
+    pub device_session_id: String,
     pub mac_address: String,
     pub serial_number: String,
 }
@@ -345,14 +335,15 @@ impl MetricsContext {
             device_language: String::from(""),
             device_model: String::from(""),
             device_id: String::from(""),
-            device_timezone: 0,
+            device_timezone: String::from(""),
             device_name: String::from(""),
             mac_address: String::from(""),
             serial_number: String::from(""),
             account_id: String::from(""),
             platform: String::from(""),
             os_ver: String::from(""),
-            session_id: String::from(""),
+            device_session_id: String::from(""),
+            distribution_tenant_id: String::from(""),
         }
     }
     pub fn set(&mut self, field: MetricsContextField, value: String) {
@@ -364,7 +355,7 @@ impl MetricsContext {
             MetricsContextField::device_timezone => self.device_timezone = value.parse().unwrap(),
             MetricsContextField::platform => self.platform = value.clone(),
             MetricsContextField::os_ver => self.os_ver = value.clone(),
-            MetricsContextField::session_id => self.session_id = value.clone(),
+            MetricsContextField::session_id => self.distribution_tenant_id = value.clone(),
             MetricsContextField::mac_address => self.mac_address = value.clone(),
             MetricsContextField::serial_number => self.serial_number = value.clone(),
             MetricsContextField::device_name => self.device_name = value.clone(),
@@ -374,7 +365,7 @@ impl MetricsContext {
 
 #[async_trait]
 pub trait BehavioralMetricsService {
-    async fn send_metric(&mut self, metrics: BehavioralMetricRequest) -> ();
+    async fn send_metric(&mut self, metrics: BehavioralMetricPayload) -> ();
 }
 #[async_trait]
 pub trait ContextualMetricsService {
@@ -382,34 +373,33 @@ pub trait ContextualMetricsService {
 }
 #[async_trait]
 pub trait MetricsManager: Send + Sync {
-    async fn send_metric(&mut self, metrics: BehavioralMetricRequest) -> ();
-}
-pub struct LoggingBehavioralMetricsManager {
-    pub metrics_context: Option<MetricsContext>,
+    async fn send_metric(&mut self, metrics: BehavioralMetricPayload) -> ();
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct LoggableBehavioralMetric {
-    context: Option<MetricsContext>,
-    payload: BehavioralMetricRequest,
+pub struct BehavioralMetricRequest {
+    pub context: Option<MetricsContext>,
+    pub payload: BehavioralMetricPayload,
+    pub session: AccountSession,
 }
 
-impl LoggingBehavioralMetricsManager {
-    pub fn new(metrics_context: Option<MetricsContext>) -> LoggingBehavioralMetricsManager {
-        LoggingBehavioralMetricsManager {
-            metrics_context: metrics_context,
-        }
+impl ExtnPayloadProvider for BehavioralMetricRequest {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(ExtnRequest::BehavioralMetric(self.clone()))
     }
-}
-impl LoggingBehavioralMetricsManager {
-    pub async fn send_metric(&mut self, metrics: BehavioralMetricRequest) -> () {
-        info!(
-            "{}",
-            serde_json::to_string(&LoggableBehavioralMetric {
-                context: self.metrics_context.clone(),
-                payload: metrics
-            })
-            .unwrap()
-        );
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<BehavioralMetricRequest> {
+        match payload {
+            ExtnPayload::Request(request) => match request {
+                ExtnRequest::BehavioralMetric(r) => return Some(r),
+                _ => {}
+            },
+            _ => {}
+        }
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::BehaviorMetrics
     }
 }
 
