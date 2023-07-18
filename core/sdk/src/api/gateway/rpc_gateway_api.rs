@@ -23,7 +23,6 @@ use crate::{
     api::firebolt::fb_openrpc::FireboltOpenRpcMethod,
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
-    log::debug,
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

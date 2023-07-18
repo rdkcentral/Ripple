@@ -15,8 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::str::FromStr;
-
 use serde::{Deserialize, Serialize};
 
 use crate::{
