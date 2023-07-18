@@ -383,10 +383,10 @@ impl DelegatedLauncherHandler {
                     };
                     if let Ok(_) = cloned_ps
                         .get_client()
-                        .send_app_request(AppRequest::new(app_method, resp_tx)) {
-                            let _ = rpc_await_oneshot(resp_rx).await.is_ok();
-                        }
-                    
+                        .send_app_request(AppRequest::new(app_method, resp_tx))
+                    {
+                        let _ = rpc_await_oneshot(resp_rx).await.is_ok();
+                    }
                 });
                 return SessionResponse::Pending(PendingSessionResponse {
                     app_id,
@@ -730,8 +730,7 @@ impl DelegatedLauncherHandler {
 
     async fn start_timer(helper: RippleClient, timeout_ms: u64, method: AppMethod) -> Timer {
         let cb = async move {
-            let (resp_tx, resp_rx) =
-                        oneshot::channel::<Result<AppManagerResponse, AppError>>();
+            let (resp_tx, resp_rx) = oneshot::channel::<Result<AppManagerResponse, AppError>>();
             let req = AppRequest::new(method, resp_tx);
             if let Err(e) = helper.send_app_request(req) {
                 error!("Failed to send app request after timer expired: {:?}", e);
@@ -746,14 +745,23 @@ impl DelegatedLauncherHandler {
 
     async fn on_unloading(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
         debug!("on_unloading: entry: app_id={}", app_id);
-        
+
         if self.platform_state.app_manager_state.exists(app_id) {
             let client = self.platform_state.get_client();
-            let timeout = self.platform_state.get_device_manifest().get_lifecycle_policy().app_finished_timeout_ms;
-            let unloading_timer = Self::start_timer(client, timeout, AppMethod::CheckFinished(app_id.to_string())).await;
+            let timeout = self
+                .platform_state
+                .get_device_manifest()
+                .get_lifecycle_policy()
+                .app_finished_timeout_ms;
+            let unloading_timer = Self::start_timer(
+                client,
+                timeout,
+                AppMethod::CheckFinished(app_id.to_string()),
+            )
+            .await;
             self.timer_map.insert(app_id.to_string(), unloading_timer);
         }
-        
+
         let timer_ms = self
             .platform_state
             .get_device_manifest()
