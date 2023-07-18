@@ -21,7 +21,7 @@ use std::{
 };
 
 use ripple_sdk::api::{
-    firebolt::fb_capabilities::{DenyReason, DenyReasonWithCap, FireboltCap},
+    firebolt::fb_capabilities::{DenyReason, DenyReasonWithCap, FireboltCap, FireboltPermission},
     manifest::device_manifest::DeviceManifest,
 };
 
@@ -69,12 +69,15 @@ impl GenericCapState {
         result
     }
 
-    pub fn check_supported(&self, request: &Vec<FireboltCap>) -> Result<(), DenyReasonWithCap> {
+    pub fn check_supported(
+        &self,
+        request: &Vec<FireboltPermission>,
+    ) -> Result<(), DenyReasonWithCap> {
         let supported = self.supported.read().unwrap();
         let mut not_supported: Vec<FireboltCap> = Vec::new();
-        for cap in request {
-            if !supported.contains(&cap.as_str()) {
-                not_supported.push(cap.clone());
+        for fb_perm in request {
+            if !supported.contains(&fb_perm.cap.as_str()) {
+                not_supported.push(fb_perm.cap.clone());
             }
         }
         if not_supported.len() > 0 {
@@ -86,12 +89,15 @@ impl GenericCapState {
         Ok(())
     }
 
-    pub fn check_available(&self, request: &Vec<FireboltCap>) -> Result<(), DenyReasonWithCap> {
+    pub fn check_available(
+        &self,
+        request: &Vec<FireboltPermission>,
+    ) -> Result<(), DenyReasonWithCap> {
         let not_available = self.not_available.read().unwrap();
         let mut result: Vec<FireboltCap> = Vec::new();
-        for cap in request {
-            if not_available.contains(&cap.as_str()) {
-                result.push(cap.clone())
+        for fb_perm in request {
+            if not_available.contains(&fb_perm.cap.as_str()) {
+                result.push(fb_perm.cap.clone())
             }
         }
         if result.len() > 0 {
@@ -100,7 +106,7 @@ impl GenericCapState {
         Ok(())
     }
 
-    pub fn check_all(&self, caps: &Vec<FireboltCap>) -> Result<(), DenyReasonWithCap> {
+    pub fn check_all(&self, caps: &Vec<FireboltPermission>) -> Result<(), DenyReasonWithCap> {
         if let Err(e) = self.check_supported(caps) {
             return Err(e);
         }
