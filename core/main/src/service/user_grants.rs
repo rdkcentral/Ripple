@@ -50,7 +50,6 @@ use ripple_sdk::{
         manifest::device_manifest::DeviceManifest,
         usergrant_entry::UserGrantInfo,
     },
-    extn::extn_client_message::{ExtnRequest, ExtnResponse},
     framework::file_store::FileStore,
     log::{debug, error},
     serde_json::Value,
