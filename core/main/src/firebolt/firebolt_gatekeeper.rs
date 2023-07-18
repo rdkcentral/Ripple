@@ -15,7 +15,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use ripple_sdk::api::firebolt::fb_capabilities::{DenyReason, DenyReasonWithCap};
+use std::collections::HashMap;
+
+use ripple_sdk::api::firebolt::fb_capabilities::{
+    DenyReason, DenyReasonWithCap, FireboltPermission,
+};
 use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
 use ripple_sdk::log::debug;
 
@@ -25,6 +29,35 @@ use crate::state::{cap::permitted_state::PermissionHandler, platform_state::Plat
 pub struct FireboltGatekeeper {}
 
 impl FireboltGatekeeper {
+    fn resolve_dependencies(
+        platform_state: &PlatformState,
+        perm_set: &Vec<FireboltPermission>,
+    ) -> Vec<FireboltPermission> {
+        let mut resolved_perm_set: Vec<FireboltPermission> = Default::default();
+        let cap_dependencies: &HashMap<FireboltPermission, Vec<FireboltPermission>> =
+            &platform_state
+                .get_device_manifest()
+                .capabilities
+                .dependencies;
+        for perm in perm_set {
+            if let Some(dep_perm) = cap_dependencies.get(perm) {
+                resolved_perm_set.append(&mut dep_perm.clone());
+            } else {
+                resolved_perm_set.push(perm.clone());
+            }
+        }
+        resolved_perm_set
+    }
+    fn get_resolved_caps_for_method(
+        platform_state: &PlatformState,
+        method: &str,
+    ) -> Vec<FireboltPermission> {
+        let perm_based_on_spec = platform_state.open_rpc_state.get_perms_for_method(method);
+        if perm_based_on_spec.len() == 0 {
+            return perm_based_on_spec;
+        }
+        Self::resolve_dependencies(platform_state, &perm_based_on_spec)
+    }
     // TODO return Deny Reason into ripple error
     pub async fn gate(state: PlatformState, request: RpcRequest) -> Result<(), DenyReasonWithCap> {
         let open_rpc_state = state.clone().open_rpc_state;
@@ -32,24 +65,22 @@ impl FireboltGatekeeper {
             debug!("Method is exluded from gating");
             return Ok(());
         }
-        if let Some(caps) = open_rpc_state.get_caps_for_method(request.clone().method) {
+        // if let Some(caps) = open_rpc_state.get_caps_for_method(&request.method) {
+        // let caps = open_rpc_state.get_perms_for_method(&request.method);
+        let caps = Self::get_resolved_caps_for_method(&state, &request.method);
+        if caps.len() > 0 {
             // Supported and Availability checks
             debug!(
                 "Required caps for method:{} Caps: [{:?}]",
                 request.method, caps
             );
-            if let Err(e) = state
-                .clone()
-                .cap_state
-                .generic
-                .check_all(&caps.clone().get_caps())
-            {
+            if let Err(e) = state.clone().cap_state.generic.check_all(&caps) {
                 debug!("check_all for caps[{:?}] failed", caps);
                 return Err(e);
             }
             // permission checks
             if let Err(e) =
-                PermissionHandler::check_permitted(&state, &request.ctx.app_id, caps.clone()).await
+                PermissionHandler::check_permitted(&state, &request.ctx.app_id, &caps).await
             {
                 debug!(
                     "check_permitted for method ({}) failed. Error: {:?}",
@@ -59,7 +90,8 @@ impl FireboltGatekeeper {
             } else {
                 debug!("check_permitted for method ({}) succeded", request.method);
                 //usergrants check
-                if let Err(e) = GrantState::check_with_roles(&state, &request.ctx, caps, true).await
+                if let Err(e) =
+                    GrantState::check_with_roles(&state, &request.ctx, &caps, true).await
                 {
                     debug!(
                         "check_with_roles for method ({}) failed. Error: {:?}",

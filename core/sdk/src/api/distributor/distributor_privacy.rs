@@ -119,7 +119,7 @@ impl ExtnPayloadProvider for PrivacySettingsStoreRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::StorePrivacySettings
+        RippleContract::PrivacySettingsLocalStore
     }
 }
 
@@ -147,7 +147,7 @@ impl ExtnPayloadProvider for PrivacySettings {
     }
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
-        RippleContract::PrivacyCloudSync
+        RippleContract::PrivacyCloudStore
     }
 }
 
@@ -177,7 +177,7 @@ impl ExtnPayloadProvider for PrivacySettingsData {
     }
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
-        RippleContract::StorePrivacySettings
+        RippleContract::PrivacySettingsLocalStore
     }
 }
 
@@ -239,7 +239,7 @@ impl ExtnPayloadProvider for PrivacyCloudRequest {
     }
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
-        RippleContract::PrivacyCloudSync
+        RippleContract::PrivacyCloudStore
     }
 }
 
@@ -291,7 +291,7 @@ impl ExtnPayloadProvider for ExclusionPolicy {
     }
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
-        RippleContract::PrivacyCloudSync
+        RippleContract::PrivacyCloudStore
     }
 }
 

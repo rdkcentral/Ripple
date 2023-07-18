@@ -28,7 +28,7 @@ use ripple_sdk::api::{
     firebolt::{
         fb_capabilities::{
             CapEvent, CapInfoRpcRequest, CapListenRPCRequest, CapRequestRpcRequest, CapabilityInfo,
-            CapabilityRole, DenyReason, FireboltCap, RoleInfo,
+            CapabilityRole, DenyReason, FireboltCap, FireboltPermission, RoleInfo,
         },
         fb_general::ListenerResponse,
         fb_openrpc::CapabilitySet,
@@ -113,7 +113,10 @@ impl CapabilityServer for CapabilityImpl {
             .state
             .cap_state
             .generic
-            .check_supported(&vec![FireboltCap::Full(cap.capability)])
+            .check_supported(&vec![FireboltPermission {
+                cap: FireboltCap::Full(cap.capability),
+                role: cap.role.unwrap_or(CapabilityRole::Use),
+            }])
             .is_ok())
     }
 
@@ -122,7 +125,10 @@ impl CapabilityServer for CapabilityImpl {
             .state
             .cap_state
             .generic
-            .check_available(&vec![FireboltCap::Full(cap.capability)])
+            .check_available(&vec![FireboltPermission {
+                cap: FireboltCap::Full(cap.capability),
+                role: cap.role.unwrap_or(CapabilityRole::Use),
+            }])
             .is_ok())
     }
 
@@ -250,10 +256,11 @@ impl CapabilityServer for CapabilityImpl {
                 );
             }
 
-            let ungranted_set = CapRequestRpcRequest { grants }.into();
+            let ungranted_set: Vec<FireboltPermission> =
+                grants.into_iter().map(|entry| entry.into()).collect();
             let mut grant_denied_caps: Vec<String> = Vec::new();
             if let Err(e) =
-                GrantState::check_with_roles(&self.state, &ctx, ungranted_set, false).await
+                GrantState::check_with_roles(&self.state, &ctx, &ungranted_set, false).await
             {
                 for cap in e.caps {
                     grant_denied_caps.push(cap.as_str());
