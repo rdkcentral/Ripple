@@ -303,12 +303,6 @@ impl GrantState {
         let grant_state = state.clone().cap_state.grant_state;
         let app_id = call_ctx.app_id.clone();
         let caps_needing_grants = grant_state.caps_needing_grants.clone();
-        // let caps_needing_grant_in_request: Vec<FireboltPermission> = capability_set
-        //     .into_firebolt_permissions_vec()
-        //     .clone()
-        //     .into_iter()
-        //     .filter(|x| caps_needing_grants.contains(&x.cap.as_str()))
-        //     .collect();
         let caps_needing_grant_in_request: Vec<FireboltPermission> = fb_perms
             .clone()
             .into_iter()
@@ -627,12 +621,6 @@ impl GrantPolicyEnforcer {
             match grant_policy.scope {
                 GrantScope::App => {
                     if let Some(_) = app_id {
-                        // UserGrantStateUtils::update_grant_entry(
-                        //     platform_state,
-                        //     Some(app.to_owned()),
-                        //     grant_entry,
-                        // )
-                        // .await;
                         platform_state
                             .cap_state
                             .grant_state
@@ -659,33 +647,6 @@ impl GrantPolicyEnforcer {
                 app_id,
             )
             .await;
-            // let session = get_distributor_session_for_dpab(&platform_state.app_auth_sessions).await;
-
-            // let cloud_grant_entry = grant_entry_c.as_cloud_grant_entry(match grant_policy.scope {
-            //     GrantScope::App => app_id.to_owned(),
-            //     GrantScope::Device => None,
-            // });
-            // if session.is_err() {
-            //     error!("Unable to send user grant info to cloud. Reason: Error in getting distributor session.")
-            // } else if cloud_grant_entry.is_err() {
-            //     error!(
-            //         "Unable to send user grant info to cloud. Reason: Failed to convert grantentry into Cloud Grant Entry: {:?}",
-            //         grant_entry_c
-            //     );
-            // } else {
-            //     let payload = DpabRequestPayload::UserGrants(UserGrantRequest {
-            //         grant_entry: cloud_grant_entry.unwrap(),
-            //         dist_session: session.unwrap(),
-            //     });
-
-            //     let response = platform_state.services.clone().send_dpab(payload).await;
-            //     if response.is_err() {
-            //         error!(
-            //             "Received Error response for sending user grant for cloud storage: {:?}",
-            //             response
-            //         );
-            //     }
-            // }
         }
         ret_val
     }
@@ -753,12 +714,7 @@ impl GrantPolicyEnforcer {
         }
         let result =
             GrantPolicyEnforcer::execute(platform_state, call_context, permission, &policy).await;
-        // platform_state.cap_state.grant_state.update(
-        //     permission,
-        //     &policy,
-        //     result.is_ok(),
-        //     &call_context.app_id,
-        // );
+
         if let Err(e) = &result {
             if e.reason == DenyReason::Ungranted || e.reason == DenyReason::GrantProviderMissing {
                 return result;

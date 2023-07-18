@@ -202,20 +202,6 @@ impl<'de> Deserialize<'de> for FireboltPermission {
     }
 }
 
-// impl TryFrom<RoleInfo> for FireboltPermission {
-//     type Error = RippleError;
-//     fn try_from(role_info: RoleInfo) -> Result<Self, Self::Error> {
-//         if let Some(role) = role_info.role {
-//             let permission = FireboltPermission {
-//                 cap: FireboltCap::Full(role_info.capability.clone()),
-//                 role: role.clone(),
-//             };
-//             return Ok(permission);
-//         }
-//         Err(RippleError::ParseError)
-//     }
-// }
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RolePermission {
     pub permitted: bool,

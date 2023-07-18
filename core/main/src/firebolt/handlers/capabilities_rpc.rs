@@ -256,7 +256,6 @@ impl CapabilityServer for CapabilityImpl {
                 );
             }
 
-            // let ungranted_set = CapRequestRpcRequest { grants }.into();
             let ungranted_set: Vec<FireboltPermission> =
                 grants.into_iter().map(|entry| entry.into()).collect();
             let mut grant_denied_caps: Vec<String> = Vec::new();
