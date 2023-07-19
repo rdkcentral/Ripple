@@ -118,9 +118,12 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
         let app_id = match app_id_opt {
             Some(a) => a,
             None => {
-                let a = cfg.app_state.exists(&session_id.clone());
-
-                if !a {
+                if let Some(app_id) = cfg
+                    .app_state
+                    .get_app_id_from_session_id(&session_id.clone())
+                {
+                    app_id
+                } else {
                     let err = tungstenite::http::response::Builder::new()
                         .status(403)
                         .body(Some(format!(
@@ -131,7 +134,6 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
                     error!("No application session found for app_id={}", session_id);
                     return Err(err);
                 }
-                session_id.clone()
             }
         };
         let cid = ClientIdentity {

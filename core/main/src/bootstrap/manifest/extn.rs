@@ -45,7 +45,7 @@ fn try_manifest_files() -> Result<ExtnManifest, RippleError> {
 }
 
 fn load_from_env() -> Result<(String, ExtnManifest), RippleError> {
-    let device_manifest_path = std::env::var("DEVICE_MANIFEST");
+    let device_manifest_path = std::env::var("EXTN_MANIFEST");
     match device_manifest_path {
         Ok(path) => ExtnManifest::load(path),
         Err(_) => Err(RippleError::MissingInput),

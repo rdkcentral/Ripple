@@ -16,6 +16,14 @@
 //
 
 use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
+use std::{
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
+};
+
+use futures::Future;
+use tokio::task::JoinHandle;
 
 /*
 Handle various types of timestamp conversion from magnitude -> String
@@ -48,4 +56,34 @@ pub fn convert_timestamp_to_iso8601(timestamp: i64) -> String {
         .unwrap()
         .to_rfc3339()
         .to_string()
+}
+
+#[derive(Debug)]
+pub struct Timer {
+    handle: JoinHandle<()>,
+    cancelled: Arc<Mutex<bool>>,
+}
+
+impl Timer {
+    pub fn start<T>(delay_ms: u64, callback: T) -> Timer
+    where
+        T: Future + Send + 'static,
+    {
+        let cancelled_flag_mutex = Arc::new(Mutex::new(false));
+        let cancelled = cancelled_flag_mutex.clone();
+        let handle = tokio::spawn(async move {
+            thread::sleep(Duration::from_millis(delay_ms));
+            let cancelled = { cancelled_flag_mutex.lock().unwrap().clone() };
+            if !cancelled {
+                callback.await;
+            }
+        });
+        Timer { handle, cancelled }
+    }
+
+    pub fn cancel(self) {
+        let mut cancelled_flag = self.cancelled.lock().unwrap();
+        *cancelled_flag = true;
+        self.handle.abort();
+    }
 }

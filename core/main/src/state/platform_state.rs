@@ -44,7 +44,10 @@ use crate::{
     },
 };
 
-use super::{cap::cap_state::CapState, openrpc_state::OpenRpcState, session_state::SessionState};
+use super::{
+    cap::cap_state::CapState, metrics_state::MetricsState, openrpc_state::OpenRpcState,
+    session_state::SessionState,
+};
 
 /// Platform state encapsulates the internal state of the Ripple Main application.
 ///
@@ -70,6 +73,7 @@ pub struct PlatformState {
     pub open_rpc_state: OpenRpcState,
     pub router_state: RouterState,
     pub data_governance: DataGovernanceState,
+    pub metrics: MetricsState,
 }
 
 impl PlatformState {
@@ -92,6 +96,7 @@ impl PlatformState {
             open_rpc_state: OpenRpcState::new(manifest.clone().configuration.exclusory),
             router_state: RouterState::new(),
             data_governance: DataGovernanceState::default(),
+            metrics: MetricsState::default(),
         }
     }
 

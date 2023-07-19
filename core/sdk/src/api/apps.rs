@@ -32,7 +32,7 @@ use super::{
     device::entertainment_data::NavigationIntent,
     firebolt::{
         fb_discovery::LaunchRequest, fb_general::ListenRequest, fb_lifecycle::LifecycleState,
-        fb_parameters::SecondScreenEvent,
+        fb_lifecycle_management::SessionResponse, fb_parameters::SecondScreenEvent,
     },
     gateway::rpc_gateway_api::CallContext,
 };
@@ -178,6 +178,7 @@ pub enum AppManagerResponse {
     SessionId(String),
     SecondScreenPayload(String),
     AppName(Option<String>),
+    Session(SessionResponse),
 }
 
 #[derive(Debug, Serialize, Deserialize, Copy, Clone)]
@@ -216,6 +217,8 @@ pub enum AppMethod {
     BrowserSession(AppSession),
     GetSecondScreenPayload(String),
     GetAppName(String),
+    NewActiveSession(AppSession),
+    NewLoadedSession(AppSession),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

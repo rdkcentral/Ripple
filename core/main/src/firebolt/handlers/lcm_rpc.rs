@@ -24,7 +24,8 @@ use ripple_sdk::{
             fb_lifecycle_management::{
                 AppSessionRequest, SessionResponse, SetStateRequest, LCM_EVENT_ON_REQUEST_CLOSE,
                 LCM_EVENT_ON_REQUEST_FINISHED, LCM_EVENT_ON_REQUEST_LAUNCH,
-                LCM_EVENT_ON_REQUEST_READY,
+                LCM_EVENT_ON_REQUEST_READY, LCM_EVENT_ON_SESSION_TRANSITION_CANCELED,
+                LCM_EVENT_ON_SESSION_TRANSITION_COMPLETED,
             },
         },
         gateway::rpc_gateway_api::CallContext,
@@ -36,7 +37,7 @@ use ripple_sdk::{
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
-    service::apps::provider_broker::ProviderBroker,
+    service::apps::{app_events::AppEvents, provider_broker::ProviderBroker},
     state::platform_state::PlatformState,
     utils::rpc_utils::{rpc_await_oneshot, rpc_err},
 };
@@ -77,6 +78,20 @@ pub trait LifecycleManagement {
         ctx: CallContext,
         session: AppSessionRequest,
     ) -> RpcResult<SessionResponse>;
+
+    #[method(name = "lifecyclemanagement.onSessionTransitionCompleted")]
+    async fn on_session_transition_completed(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
+
+    #[method(name = "lifecyclemanagement.onSessionTransitionCanceled")]
+    async fn on_session_transition_canceled(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
 }
 
 #[derive(Debug)]
@@ -181,9 +196,7 @@ impl LifecycleManagementServer for LifecycleManagementImpl {
         if let Ok(r) = app_resp_rx.await {
             if let Ok(s) = r {
                 match s {
-                    AppManagerResponse::SessionId(session_id) => {
-                        return Ok(SessionResponse { session_id })
-                    }
+                    AppManagerResponse::Session(s) => return Ok(s),
                     _ => error!("unable to register session"),
                 }
             } else {
@@ -193,6 +206,43 @@ impl LifecycleManagementServer for LifecycleManagementImpl {
             error!("Unable to register session")
         }
         Err(rpc_err("unable to register session"))
+    }
+
+    async fn on_session_transition_completed(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        let listen = request.listen;
+        AppEvents::add_listener(
+            &&self.state,
+            LCM_EVENT_ON_SESSION_TRANSITION_COMPLETED.to_string(),
+            ctx,
+            request,
+        );
+
+        Ok(ListenerResponse {
+            listening: listen,
+            event: LCM_EVENT_ON_SESSION_TRANSITION_COMPLETED.to_string(),
+        })
+    }
+    async fn on_session_transition_canceled(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        let listen = request.listen;
+        AppEvents::add_listener(
+            &&self.state,
+            LCM_EVENT_ON_SESSION_TRANSITION_CANCELED.to_string(),
+            ctx,
+            request,
+        );
+
+        Ok(ListenerResponse {
+            listening: listen,
+            event: LCM_EVENT_ON_SESSION_TRANSITION_CANCELED.to_string(),
+        })
     }
 }
 
