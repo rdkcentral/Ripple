@@ -1,18 +1,3 @@
-use std::sync::{Arc, RwLock};
-
-use ripple_sdk::{
-    api::{
-        device::device_info_request::{DeviceInfoRequest, DeviceResponse},
-        firebolt::{fb_metrics::MetricsContext, fb_openrpc::FireboltSemanticVersion},
-        storage_property::StorageProperty,
-    },
-    extn::extn_client_message::ExtnResponse,
-};
-
-use crate::processor::storage::storage_manager::StorageManager;
-
-use super::platform_state::PlatformState;
-
 // Copyright 2023 Comcast Cable Communications Management, LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,6 +14,22 @@ use super::platform_state::PlatformState;
 //
 // SPDX-License-Identifier: Apache-2.0
 //
+
+use std::sync::{Arc, RwLock};
+
+use ripple_sdk::{
+    api::{
+        device::device_info_request::{DeviceInfoRequest, DeviceResponse},
+        firebolt::{fb_metrics::MetricsContext, fb_openrpc::FireboltSemanticVersion},
+        storage_property::StorageProperty,
+    },
+    extn::extn_client_message::ExtnResponse,
+};
+
+use crate::processor::storage::storage_manager::StorageManager;
+
+use super::platform_state::PlatformState;
+
 #[derive(Debug, Clone, Default)]
 pub struct MetricsState {
     pub context: Arc<RwLock<MetricsContext>>,

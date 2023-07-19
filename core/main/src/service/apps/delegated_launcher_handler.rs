@@ -127,33 +127,12 @@ impl AppManagerState {
         }
     }
 
-    // fn update_session_id(&self, app_id: &str, session: String) {
-    //     let mut apps = self.apps.write().unwrap();
-    //     if let Some(app) = apps.get_mut(app_id) {
-    //         app.session_id = session
-    //     }
-    // }
-
-    // fn update_loaded_session_id(&self, app_id: &str, session: String) {
-    //     let mut apps = self.apps.write().unwrap();
-    //     if let Some(app) = apps.get_mut(app_id) {
-    //         app.loaded_session_id = session
-    //     }
-    // }
-
     fn set_state(&self, app_id: &str, state: LifecycleState) {
         let mut apps = self.apps.write().unwrap();
         if let Some(app) = apps.get_mut(app_id) {
             app.state = state;
         }
     }
-
-    // fn get_session_id(&self, app_id: &str) -> Option<String> {
-    //     if let Some(app) = self.apps.read().unwrap().get(app_id) {
-    //         return Some(app.session_id.clone());
-    //     }
-    //     None
-    // }
 
     fn insert(&self, app_id: String, app: App) {
         let mut apps = self.apps.write().unwrap();
