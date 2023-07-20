@@ -341,13 +341,19 @@ pub struct EntitlementsAccountLinkRequestParams {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EntitlementsAccountLinkResponse {}
 
+#[derive(Deserialize, Serialize, Debug, Clone, Hash, PartialEq, Eq)]
+pub struct DataTagInfo {
+    pub tag_name: String,
+    pub propagation_state: bool,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MediaEventsAccountLinkRequestParams {
     pub media_event: MediaEvent,
     pub content_partner_id: String,
     pub client_supports_opt_out: bool,
     pub dist_session: AccountSession,
-    pub data_tags: HashSet<String>,
+    pub data_tags: HashSet<DataTagInfo>,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MediaEventsAccountLinkResponse {}
