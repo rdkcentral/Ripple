@@ -143,7 +143,7 @@ pub struct CachedState {
 }
 
 impl CachedState {
-    fn new(state: ThunderState) -> Self {
+    pub fn new(state: ThunderState) -> Self {
         Self {
             state,
             cached: Arc::new(RwLock::new(CachedDeviceInfo::default())),

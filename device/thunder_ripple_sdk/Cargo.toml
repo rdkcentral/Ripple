@@ -37,6 +37,7 @@ pact-plugin-driver = {version = "0.4.1", optional = true}
 pact_models = {version = "1.0.9", optional = true}
 maplit = {version = "1.0.2", optional = true}
 test-log = {version = "0.2.11", optional = true}
+tokio = "1.16.1"
 
 [features]
 contract_tests = ["dep:pact_consumer", "dep:reqwest", "dep:expectest", "dep:pact-plugin-driver", "dep:pact_models", "dep:maplit", "dep:test-log"]
