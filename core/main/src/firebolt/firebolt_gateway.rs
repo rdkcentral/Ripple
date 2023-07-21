@@ -187,7 +187,10 @@ impl FireboltGateway {
                 Err(e) => {
                     let deny_reason = e.reason;
                     // return error for Api message
-                    error!("Failed gateway present error {:?}", deny_reason);
+                    error!(
+                        "Failed gateway present error {:?} {:?}",
+                        request, deny_reason
+                    );
                     let caps = e.caps.iter().map(|x| x.as_str()).collect();
                     let err = JsonRpcMessage {
                         jsonrpc: TwoPointZero {},

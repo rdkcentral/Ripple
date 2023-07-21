@@ -192,7 +192,6 @@ impl DeviceOperator for ThunderClient {
         });
         self.send_message(message).await;
         let result = rx.await.unwrap();
-        info!("received thunder message {:?}", result);
         result
     }
 

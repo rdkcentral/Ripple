@@ -244,11 +244,11 @@ impl ExtnClient {
                     _ => {}
                 },
             }
-            if index % 10000 == 0 {
+            if index % 100000 == 0 {
                 index = 0;
                 debug!("Receiver still running");
             }
-            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
         }
 
         debug!("Initialize Ended Abruptly");
@@ -482,6 +482,7 @@ impl ExtnClient {
                 Err(e) => match e {
                     TryRecvError::Disconnected => {
                         error!("Channel disconnected");
+                        break;
                     }
                     _ => {}
                 },

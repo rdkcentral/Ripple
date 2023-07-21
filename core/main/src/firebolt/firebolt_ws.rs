@@ -173,7 +173,7 @@ impl FireboltWs {
                     error!("websocket connection error {:?}", e);
                 }
                 Ok(ws_stream) => {
-                    info!("websocket connection success");
+                    trace!("websocket connection success");
                     let state_for_connection_c = state_for_connection.clone();
                     tokio::spawn(async move {
                         FireboltWs::handle_connection(

@@ -16,7 +16,7 @@
 //
 
 use crossbeam::channel::Sender as CSender;
-use log::{debug, error, trace};
+use log::{error, trace};
 
 use crate::{
     extn::{
@@ -150,7 +150,7 @@ impl ExtnSender {
         other_sender: Option<CSender<CExtnMessage>>,
     ) -> RippleResponse {
         if msg.callback.is_some() {
-            debug!("Sending message on the callback sender");
+            trace!("Sending message on the callback sender");
             if let Err(e) = msg.clone().callback.unwrap().send(msg) {
                 error!("send error for message {:?}", e);
                 return Err(RippleError::SendFailure);
