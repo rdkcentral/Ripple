@@ -19,6 +19,7 @@ use ripple_sdk::{api::session::AccountSessionRequest, framework::bootstrap::Boot
 use ripple_sdk::{async_trait::async_trait, framework::RippleResponse};
 
 use crate::state::bootstrap_state::BootstrapState;
+use crate::state::metrics_state::MetricsState;
 
 pub struct LoadDistributorValuesStep;
 
@@ -38,7 +39,9 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
         if let Some(session) = response.payload.extract() {
             s.platform_state
                 .session_state
-                .insert_account_session(session)
+                .insert_account_session(session);
+
+            MetricsState::initialize(&s.platform_state).await
         }
         Ok(())
     }

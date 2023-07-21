@@ -24,7 +24,7 @@ use ripple_sdk::{
     api::{
         distributor::distributor_permissions::PermissionRequest,
         firebolt::{
-            fb_capabilities::{DenyReasonWithCap, FireboltPermission, RoleInfo},
+            fb_capabilities::{DenyReason, DenyReasonWithCap, FireboltPermission, RoleInfo},
             fb_openrpc::CapabilitySet,
         },
         manifest::device_manifest::DeviceManifest,
@@ -155,14 +155,36 @@ impl PermissionHandler {
             })
         }
     }
+    pub fn is_all_permitted(
+        permitted: &Vec<FireboltPermission>,
+        request: &Vec<FireboltPermission>,
+    ) -> Result<(), DenyReasonWithCap> {
+        let mut unpermitted: Option<FireboltPermission> = None;
+        let all_permitted = request.iter().all(|perm| {
+            let present = permitted.contains(perm);
+            if !present {
+                unpermitted = Some(perm.clone());
+            }
+            present
+        });
+        if all_permitted {
+            return Ok(());
+        } else {
+            return Err(DenyReasonWithCap {
+                reason: DenyReason::Unpermitted,
+                caps: vec![unpermitted.unwrap().cap.clone()],
+            });
+        }
+    }
 
     pub async fn check_permitted(
         state: &PlatformState,
         app_id: &str,
-        request: CapabilitySet,
+        request: &Vec<FireboltPermission>,
     ) -> Result<(), DenyReasonWithCap> {
         if let Some(permitted) = state.cap_state.permitted_state.get_app_permissions(&app_id) {
-            return request.has_permissions(&permitted);
+            // return request.has_permissions(&permitted);
+            return Self::is_all_permitted(&permitted, request);
         } else {
             // check to retrieve it one more time
             if let Ok(_) = Self::fetch_and_store(state.clone(), app_id.into()).await {
@@ -170,14 +192,17 @@ impl PermissionHandler {
                 if let Some(permitted) =
                     state.cap_state.permitted_state.get_app_permissions(&app_id)
                 {
-                    return request.has_permissions(&permitted);
+                    return Self::is_all_permitted(&permitted, request);
                 }
             }
         }
 
         Err(DenyReasonWithCap {
             reason: ripple_sdk::api::firebolt::fb_capabilities::DenyReason::Unpermitted,
-            caps: request.get_caps(),
+            caps: request
+                .into_iter()
+                .map(|fb_perm| fb_perm.cap.to_owned())
+                .collect(),
         })
     }
 }

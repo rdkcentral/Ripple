@@ -28,7 +28,7 @@ use crate::{
     api::{
         device::{device_user_grants_data::GrantPolicies, DevicePlatformType},
         distributor::distributor_privacy::DataEventType,
-        firebolt::fb_capabilities::FireboltCap,
+        firebolt::fb_capabilities::{FireboltCap, FireboltPermission},
         storage_property::StorageProperty,
     },
     utils::error::RippleError,
@@ -73,6 +73,8 @@ fn data_governance_default() -> DataGovernanceConfig {
 pub struct CapabilityConfiguration {
     pub supported: Vec<String>,
     pub grant_policies: Option<HashMap<String, GrantPolicies>>,
+    #[serde(default)]
+    pub dependencies: HashMap<FireboltPermission, Vec<FireboltPermission>>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -207,8 +209,56 @@ pub struct DefaultValues {
     pub name: String,
     #[serde(default = "captions_default")]
     pub captions: CaptionStyle,
+    #[serde(default = "additional_info_default")]
+    pub additional_info: HashMap<String, String>,
     #[serde(default = "voice_guidance_default")]
     pub voice: VoiceGuidance,
+    #[serde(default)]
+    pub allow_acr_collection: bool,
+    #[serde(default)]
+    pub allow_app_content_ad_targeting: bool,
+    #[serde(default = "default_business_analytics")]
+    pub allow_business_analytics: bool,
+    #[serde(default)]
+    pub allow_camera_analytics: bool,
+    #[serde(default)]
+    pub allow_personalization: bool,
+    #[serde(default)]
+    pub allow_primary_browse_ad_targeting: bool,
+    #[serde(default)]
+    pub allow_primary_content_ad_targeting: bool,
+    #[serde(default)]
+    pub allow_product_analytics: bool,
+    #[serde(default)]
+    pub allow_remote_diagnostics: bool,
+    #[serde(default)]
+    pub allow_resume_points: bool,
+    #[serde(default)]
+    pub allow_unentitled_personalization: bool,
+    #[serde(default)]
+    pub allow_unentitled_resume_points: bool,
+    #[serde(default)]
+    pub allow_watch_history: bool,
+    #[serde(default = "default_skip_restriction")]
+    pub skip_restriction: String,
+    #[serde(default = "default_video_dimensions")]
+    pub video_dimensions: Vec<i32>,
+}
+
+fn additional_info_default() -> HashMap<String, String> {
+    HashMap::default()
+}
+
+pub fn default_business_analytics() -> bool {
+    true
+}
+
+pub fn default_skip_restriction() -> String {
+    "none".to_owned()
+}
+
+pub fn default_video_dimensions() -> Vec<i32> {
+    vec![1920, 1080]
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
@@ -269,6 +319,22 @@ fn default_values_default() -> DefaultValues {
         name: "Living Room".to_string(),
         captions: captions_default(),
         voice: voice_guidance_default(),
+        additional_info: additional_info_default(),
+        allow_acr_collection: false,
+        allow_app_content_ad_targeting: false,
+        allow_business_analytics: default_business_analytics(),
+        allow_camera_analytics: false,
+        allow_personalization: false,
+        allow_primary_browse_ad_targeting: false,
+        allow_primary_content_ad_targeting: false,
+        allow_product_analytics: false,
+        allow_remote_diagnostics: false,
+        allow_resume_points: false,
+        allow_unentitled_personalization: false,
+        allow_unentitled_resume_points: false,
+        allow_watch_history: false,
+        skip_restriction: "none".to_string(),
+        video_dimensions: default_video_dimensions(),
     }
 }
 
@@ -463,5 +529,9 @@ impl DeviceManifest {
 
     pub fn get_features(&self) -> RippleFeatures {
         self.configuration.features.clone()
+    }
+
+    pub fn get_settings_defaults_per_app(&self) -> HashMap<String, SettingsDefaults> {
+        self.configuration.clone().settings_defaults_per_app
     }
 }

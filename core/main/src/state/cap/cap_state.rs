@@ -25,7 +25,7 @@ use crate::{
     service::{apps::app_events::AppEvents, user_grants::GrantState},
     state::platform_state::PlatformState,
 };
-use ripple_sdk::serde_json;
+use ripple_sdk::{api::firebolt::fb_capabilities::FireboltPermission, serde_json};
 use ripple_sdk::{
     api::{
         firebolt::{
@@ -210,24 +210,25 @@ impl CapState {
     ) -> Result<Vec<CapabilityInfo>, RippleError> {
         let mut unsupported_caps = Vec::new();
         let generic_caps = cap_set.clone().get_caps();
-        if let Err(e) = GenericCapState::check_supported(&state.cap_state.generic, &generic_caps) {
+        let fb_perm_list: Vec<FireboltPermission> = cap_set.clone().into();
+        if let Err(e) = GenericCapState::check_supported(&state.cap_state.generic, &fb_perm_list) {
             unsupported_caps.extend(e.caps);
         }
 
         let mut unavailable_caps = Vec::new();
-        if let Err(e) = GenericCapState::check_supported(&state.cap_state.generic, &generic_caps) {
+        if let Err(e) = GenericCapState::check_available(&state.cap_state.generic, &fb_perm_list) {
             unavailable_caps.extend(e.caps);
         }
 
         let mut unpermitted_caps = Vec::new();
         if let Err(e) =
-            PermissionHandler::check_permitted(state, &call_context.app_id, cap_set.clone()).await
+            PermissionHandler::check_permitted(state, &call_context.app_id, &fb_perm_list).await
         {
             unpermitted_caps.extend(e.caps);
         }
 
         let mut grant_errors = None;
-        if let Err(e) = GrantState::get_info(state, &call_context, cap_set) {
+        if let Err(e) = GrantState::get_info(state, &call_context, &cap_set) {
             let _ = grant_errors.insert(e);
         }
 

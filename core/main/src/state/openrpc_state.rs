@@ -16,8 +16,11 @@
 //
 
 use ripple_sdk::api::{
-    firebolt::fb_openrpc::{
-        CapabilitySet, FireboltOpenRpc, FireboltOpenRpcMethod, FireboltVersionManifest,
+    firebolt::{
+        fb_capabilities::FireboltPermission,
+        fb_openrpc::{
+            CapabilitySet, FireboltOpenRpc, FireboltOpenRpcMethod, FireboltVersionManifest,
+        },
     },
     manifest::exclusory::{Exclusory, ExclusoryImpl},
 };
@@ -81,8 +84,8 @@ impl OpenRpcState {
         false
     }
 
-    pub fn get_caps_for_method(&self, method: String) -> Option<CapabilitySet> {
-        let c = { self.cap_map.read().unwrap().get(&method).cloned() };
+    pub fn get_caps_for_method(&self, method: &str) -> Option<CapabilitySet> {
+        let c = { self.cap_map.read().unwrap().get(method).cloned() };
         if let Some(caps) = c {
             Some(CapabilitySet {
                 use_caps: caps.use_caps.clone(),
@@ -92,6 +95,15 @@ impl OpenRpcState {
         } else {
             None
         }
+    }
+
+    pub fn get_perms_for_method(&self, method: &str) -> Vec<FireboltPermission> {
+        let mut perm_list: Vec<FireboltPermission> = Vec::new();
+        let cap_set_opt = { self.cap_map.read().unwrap().get(method).cloned() };
+        if let Some(cap_set) = cap_set_opt {
+            perm_list = cap_set.into_firebolt_permissions_vec();
+        }
+        perm_list
     }
 
     pub fn get_capability_policy(&self, cap: String) -> Option<CapabilityPolicy> {

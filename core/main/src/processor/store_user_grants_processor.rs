@@ -97,6 +97,7 @@ impl StoreUserGrantsProcessor {
         msg: ExtnMessage,
         user_grant_info: UserGrantInfo,
     ) -> bool {
+        debug!("Processor is handling set request: {:?}", user_grant_info);
         let app_id = user_grant_info.app_name.to_owned();
         let grant_entry = GrantEntry {
             role: user_grant_info.role,

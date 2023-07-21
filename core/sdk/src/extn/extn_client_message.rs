@@ -38,6 +38,7 @@ use crate::{
             distributor_privacy::{PrivacyCloudRequest, PrivacySettingsStoreRequest},
             distributor_request::DistributorRequest,
             distributor_sync::SyncAndMonitorRequest,
+            distributor_usergrants::UserGrantsCloudStoreRequest,
         },
         firebolt::{
             fb_advertising::{AdvertisingRequest, AdvertisingResponse},
@@ -263,6 +264,7 @@ pub enum ExtnRequest {
     Settings(SettingsRequest),
     PubSub(PubSubRequest),
     CloudSync(SyncAndMonitorRequest),
+    UserGrantsCloudStore(UserGrantsCloudStoreRequest),
     UserGrantsStore(UserGrantsStoreRequest),
     PrivacySettingsStore(PrivacySettingsStoreRequest),
     AuthorizedInfo(CapsRequest),

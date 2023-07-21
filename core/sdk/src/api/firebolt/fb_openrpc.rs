@@ -205,6 +205,28 @@ impl FireboltOpenRpc {
         r
     }
 
+    pub fn get_setter_method_for_getter(
+        &self,
+        getter_method: &str,
+    ) -> Option<FireboltOpenRpcMethod> {
+        let mut result = None;
+        let tokens: Vec<&str> = getter_method.split_terminator(".").collect();
+        if tokens.len() == 2 {
+            let setter = self.get_setter_method_for_property(tokens[1]);
+            if let Some(method) = setter {
+                let setter_tokens: Vec<&str> = method.name.split_terminator(".").collect();
+                if !setter_tokens[0].eq(tokens[0]) {
+                    result = None;
+                } else {
+                    result = Some(method);
+                }
+            }
+        } else {
+            result = None;
+        }
+        result
+    }
+
     pub fn get_setter_method_for_property(&self, property: &str) -> Option<FireboltOpenRpcMethod> {
         self.methods
             .iter()

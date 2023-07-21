@@ -153,20 +153,20 @@ impl DefaultStorageProperties {
                     .configuration
                     .default_values
                     .locale),
-
-                // need to implement //
+                // Not used anywhere just yet
                 // KEY_ADDITIONAL_INFO => {
                 //     let a_info_map: HashMap<String, String> = state.get_device_manifest().clone().configuration.default_values.additional_info;
                 //     Ok(serde_json::to_string(&a_info_map).unwrap())
                 // }
                 _ => Err(()),
             }
-        }
-        //  else if let Some(defaults) = state.services.cm.clone().get_settings_defaults_per_app().get(namespace)
-        // {
-        //     Ok(defaults.postal_code.clone())
-        // }
-        else {
+        } else if let Some(defaults) = state
+            .get_device_manifest()
+            .get_settings_defaults_per_app()
+            .get(namespace)
+        {
+            Ok(defaults.postal_code.clone())
+        } else {
             Err(())
         }
     }
