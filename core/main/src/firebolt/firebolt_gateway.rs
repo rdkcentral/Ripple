@@ -67,6 +67,7 @@ pub enum FireboltGatewayCommand {
     },
     UnregisterSession {
         session_id: String,
+        cid: String,
     },
     HandleRpc {
         request: RpcRequest,
@@ -105,12 +106,9 @@ impl FireboltGateway {
                         .session_state
                         .add_session(session_id, session);
                 }
-                UnregisterSession { session_id } => {
+                UnregisterSession { session_id, cid } => {
                     AppEvents::remove_session(&self.state.platform_state, session_id.clone());
-                    self.state
-                        .platform_state
-                        .session_state
-                        .clear_session(&session_id);
+                    self.state.platform_state.session_state.clear_session(&cid);
                 }
                 HandleRpc { request } => self.handle(request, None).await,
                 HandleRpcForExtn { msg } => {
@@ -130,7 +128,6 @@ impl FireboltGateway {
             request.ctx.request_id, request.method, request.params_json
         );
         // First check sender if no sender no need to process
-        let session_id = request.clone().ctx.session_id;
         let callback_c = extn_msg.clone();
         match request.clone().ctx.protocol {
             ApiProtocol::Extn => {
@@ -144,7 +141,7 @@ impl FireboltGateway {
                     .state
                     .platform_state
                     .session_state
-                    .has_session(session_id.clone())
+                    .has_session(&request.ctx)
                 {
                     error!("No sender for request {:?} ", request);
                     return;
@@ -178,7 +175,7 @@ impl FireboltGateway {
                             let session = platform_state
                                 .clone()
                                 .session_state
-                                .get_session(&session_id);
+                                .get_session(&request_c.ctx);
                             // session is already prechecked before gating so it is safe to unwrap
                             RpcRouter::route(platform_state, request_c, session.unwrap()).await;
                         }
@@ -202,12 +199,15 @@ impl FireboltGateway {
                         }),
                     };
                     let msg = serde_json::to_string(&err).unwrap();
-                    let api_msg =
-                        ApiMessage::new(request.ctx.protocol, msg, request.ctx.request_id);
+                    let api_msg = ApiMessage::new(
+                        request.clone().ctx.protocol,
+                        msg,
+                        request.clone().ctx.request_id,
+                    );
                     if let Some(session) = platform_state
                         .clone()
                         .session_state
-                        .get_session(&session_id)
+                        .get_session(&request.ctx)
                     {
                         match session.get_transport() {
                             EffectiveTransport::Websocket => {

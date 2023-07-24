@@ -21,6 +21,7 @@ use std::{
     time::Duration,
 };
 
+use chrono::Utc;
 use crossbeam::channel::{bounded, Receiver as CReceiver, Sender as CSender, TryRecvError};
 use log::{debug, error, info, trace};
 use tokio::sync::{
@@ -189,7 +190,14 @@ impl ExtnClient {
             index = index + 1;
             match receiver.try_recv() {
                 Ok(c_message) => {
-                    debug!("** receiving message {:?}", c_message);
+                    let latency = Utc::now().timestamp_millis() - c_message.ts;
+                    debug!(
+                        "** receiving message latency={} msg={:?}",
+                        latency, c_message
+                    );
+                    if latency > 1000 {
+                        error!("IEC Latency {:?}", c_message);
+                    }
                     let message_result: Result<ExtnMessage, RippleError> =
                         c_message.clone().try_into();
                     if message_result.is_err() {
@@ -445,6 +453,56 @@ impl ExtnClient {
         }
 
         Err(RippleError::ExtnError)
+    }
+
+    /// Request method which accepts a impl [ExtnPayloadProvider] and uses the capability provided by the trait to send the request.
+    /// As part of the send process it adds a callback to asynchronously respond back to the caller when the response does get
+    /// received. This method can be called synchrnously with a timeout
+    ///
+    /// # Arguments
+    /// `payload` - impl [ExtnPayloadProvider]
+    pub async fn standalone_request<T: ExtnPayloadProvider>(
+        &mut self,
+        payload: impl ExtnPayloadProvider,
+        timeout_in_msecs: u64,
+    ) -> Result<T, RippleError> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let (tx, tr) = bounded(2);
+        let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
+        let timeout_increments = 50;
+        if let Err(e) = self
+            .sender
+            .send_request(id, payload, other_sender, Some(tx))
+        {
+            return Err(e);
+        }
+        let mut current_timeout: u64 = 0;
+        loop {
+            match tr.try_recv() {
+                Ok(cmessage) => {
+                    let message: ExtnMessage = cmessage.try_into().unwrap();
+                    if let Some(v) = message.payload.clone().extract() {
+                        return Ok(v);
+                    } else {
+                        return Err(RippleError::ParseError);
+                    }
+                }
+                Err(e) => match e {
+                    TryRecvError::Disconnected => {
+                        error!("Channel disconnected");
+                        break;
+                    }
+                    _ => {}
+                },
+            }
+            current_timeout += timeout_increments;
+            if current_timeout > timeout_in_msecs {
+                break;
+            } else {
+                tokio::time::sleep(Duration::from_millis(timeout_increments)).await
+            }
+        }
+        Err(RippleError::InvalidOutput)
     }
 
     /// Request method which accepts a impl [ExtnPayloadProvider] and uses the capability provided by the trait to send the request.

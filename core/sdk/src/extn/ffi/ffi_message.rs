@@ -40,6 +40,7 @@ pub struct CExtnMessage {
     pub target: String,
     pub payload: String,
     pub callback: Option<CSender<CExtnMessage>>,
+    pub ts: i64,
 }
 
 impl From<ExtnMessage> for CExtnMessage {
@@ -51,6 +52,11 @@ impl From<ExtnMessage> for CExtnMessage {
             payload,
             requestor: value.requestor.to_string(),
             target: value.target.into(),
+            ts: if let Some(v) = value.ts {
+                v
+            } else {
+                chrono::Utc::now().timestamp_millis()
+            },
         }
     }
 }
@@ -76,13 +82,14 @@ impl TryInto<ExtnMessage> for CExtnMessage {
             return Err(RippleError::ParseError);
         }
         let payload = payload.unwrap();
-
+        let ts = Some(self.ts);
         Ok(ExtnMessage {
             callback: self.callback,
             id: self.id,
             requestor,
             target,
             payload,
+            ts,
         })
     }
 }

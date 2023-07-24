@@ -59,6 +59,14 @@ impl OpenRpcState {
         self.extend_caps(cap_map);
     }
 
+    pub fn is_app_excluded(&self, app_id: &str) -> bool {
+        if let Some(e) = &self.exclusory {
+            return e.is_app_all_excluded(app_id);
+        }
+
+        false
+    }
+
     pub fn is_excluded(&self, method: String, app_id: String) -> bool {
         if let Some(e) = &self.exclusory {
             if e.is_excluded(app_id, method.clone()) {
