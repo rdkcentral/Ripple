@@ -26,7 +26,7 @@ use ripple_sdk::{
                 LCM_EVENT_ON_REQUEST_FINISHED, LCM_EVENT_ON_REQUEST_LAUNCH,
                 LCM_EVENT_ON_REQUEST_READY, LCM_EVENT_ON_SESSION_TRANSITION_CANCELED,
                 LCM_EVENT_ON_SESSION_TRANSITION_COMPLETED,
-            },
+            }, fb_capabilities::FireboltCap,
         },
         gateway::rpc_gateway_api::CallContext,
     },
@@ -110,8 +110,7 @@ impl LifecycleManagementImpl {
         let listen = request.listen;
         ProviderBroker::register_or_unregister_provider(
             &self.state,
-            // TODO update with Firebolt Cap in later effort
-            "xrn::firebolt::app:lifecycle".into(),
+            FireboltCap::short("app:lifecycle").as_str(),
             method.into(),
             event_name,
             ctx,
