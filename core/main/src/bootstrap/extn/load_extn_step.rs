@@ -16,7 +16,7 @@
 //
 
 use ripple_sdk::{
-    api::firebolt::fb_openrpc::FireboltVersionManifest,
+    api::firebolt::fb_openrpc::OpenRPCParser,
     async_trait::async_trait,
     extn::{
         client::extn_sender::ExtnSender,
@@ -50,7 +50,7 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
         let mut deferred_channels: Vec<PreLoadedExtnChannel> = Vec::new();
         let mut device_channels: Vec<PreLoadedExtnChannel> = Vec::new();
         let mut jsonrpsee_extns: Methods = Methods::new();
-        let mut open_rpcs: Vec<FireboltVersionManifest> = Vec::new();
+        let mut open_rpcs: Vec<OpenRPCParser> = Vec::new();
         let main_sender = state.clone().extn_state.get_sender();
         for extn in loaded_extensions.iter() {
             unsafe {
@@ -105,7 +105,12 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                                 extension.clone().fulfills,
                             );
                             if let Some(open_rpc) = (builder.get_extended_capabilities)() {
-                                open_rpcs.push(open_rpc)
+                                match serde_json::from_str(&open_rpc) {
+                                    Ok(v) => open_rpcs.push(v),
+                                    Err(e) => error!("{}", e.to_string()),
+                                }
+                            } else {
+                                info!("No extended capabilities");
                             }
 
                             let _ = jsonrpsee_extns.merge((builder.build)(extn_sender, tr));
@@ -134,7 +139,10 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
         state.extn_state.extend_methods(jsonrpsee_extns);
 
         for open_rpc in open_rpcs {
-            state.platform_state.open_rpc_state.add_open_rpc(open_rpc);
+            state
+                .platform_state
+                .open_rpc_state
+                .add_open_rpc(open_rpc.into());
         }
 
         Ok(())

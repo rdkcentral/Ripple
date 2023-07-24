@@ -39,7 +39,8 @@ pub enum SettingKey {
 
 impl ToString for SettingKey {
     fn to_string(&self) -> String {
-        serde_json::to_string(self).unwrap()
+        let s = serde_json::to_string(self).unwrap();
+        s[1..s.len() - 1].into()
     }
 }
 

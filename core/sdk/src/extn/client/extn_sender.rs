@@ -15,8 +15,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use chrono::Utc;
 use crossbeam::channel::Sender as CSender;
-use log::{debug, error, trace};
+use log::{error, trace};
 
 use crate::{
     extn::{
@@ -98,6 +99,7 @@ impl ExtnSender {
             payload: c_request,
             id,
             target: payload.get_contract().into(),
+            ts: Utc::now().timestamp_millis(),
         };
         self.send(msg, other_sender)
     }
@@ -116,6 +118,7 @@ impl ExtnSender {
             payload: c_event,
             id,
             target: payload.get_contract().into(),
+            ts: Utc::now().timestamp_millis(),
         };
         self.respond(msg, other_sender)
     }
@@ -128,7 +131,7 @@ impl ExtnSender {
         if other_sender.is_some() {
             trace!("Sending message on the other sender");
             if let Err(e) = other_sender.unwrap().send(msg) {
-                error!("send error for message {:?}", e);
+                error!("send() error for message in other sender {}", e.to_string());
                 return Err(RippleError::SendFailure);
             }
             return Ok(());
@@ -137,7 +140,7 @@ impl ExtnSender {
             //tokio::spawn(async move {
             trace!("sending to main channel");
             if let Err(e) = tx.send(msg) {
-                error!("send error for message {:?}", e);
+                error!("send() error for message in main sender {}", e.to_string());
                 return Err(RippleError::SendFailure);
             }
             return Ok(());
@@ -150,9 +153,12 @@ impl ExtnSender {
         other_sender: Option<CSender<CExtnMessage>>,
     ) -> RippleResponse {
         if msg.callback.is_some() {
-            debug!("Sending message on the callback sender");
+            trace!("Sending message on the callback sender");
             if let Err(e) = msg.clone().callback.unwrap().send(msg) {
-                error!("send error for message {:?}", e);
+                error!(
+                    "respond() error for message in callback sender {}",
+                    e.to_string()
+                );
                 return Err(RippleError::SendFailure);
             }
             return Ok(());

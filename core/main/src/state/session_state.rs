@@ -23,7 +23,7 @@ use std::{
 use ripple_sdk::{
     api::{
         apps::EffectiveTransport,
-        gateway::rpc_gateway_api::ApiMessage,
+        gateway::rpc_gateway_api::{ApiMessage, CallContext},
         session::{AccountSession, ProvisionRequest},
     },
     tokio::sync::mpsc::Sender,
@@ -125,18 +125,18 @@ impl SessionState {
         None
     }
 
-    pub fn has_session(&self, session_id: String) -> bool {
-        self.session_map.read().unwrap().contains_key(&session_id)
+    pub fn has_session(&self, ctx: &CallContext) -> bool {
+        self.session_map.read().unwrap().contains_key(&ctx.get_id())
     }
 
-    pub fn add_session(&self, session_id: String, session: Session) {
+    pub fn add_session(&self, id: String, session: Session) {
         let mut session_state = self.session_map.write().unwrap();
-        session_state.insert(session_id, session);
+        session_state.insert(id, session);
     }
 
-    pub fn clear_session(&self, session_id: &str) {
+    pub fn clear_session(&self, id: &str) {
         let mut session_state = self.session_map.write().unwrap();
-        session_state.remove(session_id);
+        session_state.remove(id);
     }
 
     pub fn update_account_session(&self, provision: ProvisionRequest) {
@@ -152,8 +152,12 @@ impl SessionState {
         }
     }
 
-    pub fn get_session(&self, session_id: &str) -> Option<Session> {
+    pub fn get_session(&self, ctx: &CallContext) -> Option<Session> {
         let session_state = self.session_map.read().unwrap();
-        session_state.get(session_id).cloned()
+        if let Some(cid) = &ctx.cid {
+            session_state.get(cid).cloned()
+        } else {
+            session_state.get(&ctx.session_id).cloned()
+        }
     }
 }
