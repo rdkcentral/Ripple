@@ -20,13 +20,14 @@ use ripple_sdk::{
     api::{
         apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
         firebolt::{
+            fb_capabilities::FireboltCap,
             fb_general::{ListenRequest, ListenerResponse},
             fb_lifecycle_management::{
                 AppSessionRequest, SessionResponse, SetStateRequest, LCM_EVENT_ON_REQUEST_CLOSE,
                 LCM_EVENT_ON_REQUEST_FINISHED, LCM_EVENT_ON_REQUEST_LAUNCH,
                 LCM_EVENT_ON_REQUEST_READY, LCM_EVENT_ON_SESSION_TRANSITION_CANCELED,
                 LCM_EVENT_ON_SESSION_TRANSITION_COMPLETED,
-            }, fb_capabilities::FireboltCap,
+            },
         },
         gateway::rpc_gateway_api::CallContext,
     },
