@@ -118,6 +118,24 @@ pub struct FireboltOpenRpc {
     pub methods: Vec<FireboltOpenRpcMethod>,
 }
 
+impl From<OpenRPCParser> for FireboltOpenRpc {
+    fn from(value: OpenRPCParser) -> Self {
+        let version = value.info.version.split(".");
+        let version_vec: Vec<&str> = version.collect();
+        let patch: String = version_vec[2].chars().filter(|c| c.is_digit(10)).collect();
+        FireboltOpenRpc {
+            openrpc: value.openrpc,
+            info: FireboltSemanticVersion::new(
+                version_vec[0].parse::<u32>().unwrap(),
+                version_vec[1].parse::<u32>().unwrap(),
+                patch.parse::<u32>().unwrap(),
+                "".to_string(),
+            ),
+            methods: value.methods,
+        }
+    }
+}
+
 impl Default for FireboltOpenRpc {
     fn default() -> Self {
         Self {

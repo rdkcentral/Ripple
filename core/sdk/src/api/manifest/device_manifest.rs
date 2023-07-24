@@ -171,7 +171,7 @@ pub const DEFAULT_LIFECYCLE_POLICY: LifecyclePolicy = LifecyclePolicy {
     app_finished_timeout_ms: 2000,
 };
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct IdSalt {
     pub algorithm: Option<String>,
     pub magic: Option<String>,
@@ -533,5 +533,9 @@ impl DeviceManifest {
 
     pub fn get_settings_defaults_per_app(&self) -> HashMap<String, SettingsDefaults> {
         self.configuration.clone().settings_defaults_per_app
+    }
+
+    pub fn get_model_friendly_names(&self) -> HashMap<String, String> {
+        self.configuration.model_friendly_names.clone()
     }
 }

@@ -54,22 +54,17 @@ impl OpenRpcState {
         }
     }
 
-    pub fn add_open_rpc(&self, version_manifest: FireboltVersionManifest) {
-        let open_rpc: FireboltOpenRpc = version_manifest.clone().into();
-        let cap_policies = version_manifest.capabilities;
+    pub fn add_open_rpc(&self, open_rpc: FireboltOpenRpc) {
         let cap_map = open_rpc.clone().get_methods_caps();
+        self.extend_caps(cap_map);
+    }
 
-        {
-            self.cap_map.write().unwrap().extend(cap_map);
+    pub fn is_app_excluded(&self, app_id: &str) -> bool {
+        if let Some(e) = &self.exclusory {
+            return e.is_app_all_excluded(app_id);
         }
 
-        {
-            self.cap_policies.write().unwrap().extend(cap_policies);
-        }
-
-        {
-            self.extended_rpc.write().unwrap().push(open_rpc);
-        }
+        false
     }
 
     pub fn is_excluded(&self, method: String, app_id: String) -> bool {

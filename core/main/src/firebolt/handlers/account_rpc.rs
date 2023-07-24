@@ -101,7 +101,7 @@ impl AccountServer for AccountImpl {
         self.id().await
     }
 
-    async fn uid_rpc(&self, _ctx: CallContext) -> RpcResult<String> {
+    async fn uid_rpc(&self, ctx: CallContext) -> RpcResult<String> {
         if let Ok(id) = self.id().await {
             if self.platform_state.supports_encoding() {
                 if let Ok(resp) = self
@@ -109,6 +109,7 @@ impl AccountServer for AccountImpl {
                     .get_client()
                     .send_extn_request(EncoderRequest {
                         reference: id.clone(),
+                        scope: ctx.app_id.clone(),
                     })
                     .await
                 {

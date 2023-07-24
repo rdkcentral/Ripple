@@ -79,6 +79,13 @@ impl Exclusory for ExclusoryImpl {
         return methods.contains(&method);
     }
 
+    fn is_app_all_excluded(&self, app_id: &str) -> bool {
+        if let Some(app) = self.app_authorization_rules.app_ignore_rules.get(app_id) {
+            return app.contains(&String::from("*"));
+        }
+        false
+    }
+
     fn is_all_excluded(&self) -> bool {
         if self.method_ignore_rules.contains(&String::from("*")) {
             return true;
@@ -100,4 +107,5 @@ pub trait Exclusory {
     fn is_all_excluded(&self) -> bool;
     fn is_method_excluded(&self, method: String) -> bool;
     fn can_resolve(&self, method: String) -> bool;
+    fn is_app_all_excluded(&self, app_id: &str) -> bool;
 }
