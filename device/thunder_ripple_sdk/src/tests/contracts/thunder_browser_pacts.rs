@@ -15,25 +15,22 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use serde_json::json;
+use crate::get_pact_with_params;
 use crate::processors::thunder_browser::ThunderBrowserRequestProcessor;
 use crate::ripple_sdk::extn::client::extn_processor::ExtnRequestProcessor;
+use crate::tests::contracts::contract_utils::*;
+use crate::{client::thunder_client_pool::ThunderClientPool, thunder_state::ThunderState};
+use pact_consumer::mock_server::StartMockServerAsync;
 use ripple_sdk::{
     api::device::{
-        device_browser::{
-            BrowserDestroyParams, BrowserLaunchParams, BrowserRequest,
-        },
+        device_browser::{BrowserDestroyParams, BrowserLaunchParams, BrowserRequest},
         device_request::DeviceRequest,
     },
     crossbeam::channel::unbounded,
     extn::extn_client_message::{ExtnPayload, ExtnRequest},
     serde_json,
-
 };
-use crate::{thunder_state::ThunderState, client::thunder_client_pool::ThunderClientPool};
-use crate::get_pact_with_params;
-use crate::tests::contracts::contract_utils::*;
-use pact_consumer::mock_server::StartMockServerAsync;
+use serde_json::json;
 use std::collections::HashMap;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -61,7 +58,7 @@ async fn test_device_launch_html_app() {
     params.insert("suspend".into(), ContractMatcher::MatchBool(false));
     params.insert("visible".into(), ContractMatcher::MatchBool(true));
     params.insert("focused".into(), ContractMatcher::MatchBool(true));
-    
+
     let mut result = HashMap::new();
     result.insert(
         "launchType".into(),
@@ -109,7 +106,7 @@ async fn test_device_launch_html_app() {
         y: y,
         w: w,
         h: h,
-        properties: None
+        properties: None,
     };
     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Browser(
         BrowserRequest::Start(start_params.clone()),
@@ -124,9 +121,12 @@ async fn test_device_launch_html_app() {
 
     let state: ThunderState = ThunderState::new(extn_client, thunder_client);
 
-    let _ =
-    ThunderBrowserRequestProcessor::process_request(state, msg, BrowserRequest::Start(start_params.clone()))
-            .await;
+    let _ = ThunderBrowserRequestProcessor::process_request(
+        state,
+        msg,
+        BrowserRequest::Start(start_params.clone()),
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -139,21 +139,24 @@ async fn test_device_destroy_app() {
         "callsign".into(),
         ContractMatcher::MatchType("Html-0".into()),
     );
-    
+
     let mut result = HashMap::new();
     result.insert("success".into(), ContractMatcher::MatchBool(true));
 
     pact_builder_async
-        .synchronous_message_interaction("A request to destroy an application", |mut i| async move {
-            i.contents_from(get_pact_with_params!(
-                "org.rdk.RDKShell.1.destroy",
-                ContractResult { result },
-                ContractParams { params }
-            ))
-            .await;
-            i.test_name("destroy_application");
-            i
-        })
+        .synchronous_message_interaction(
+            "A request to destroy an application",
+            |mut i| async move {
+                i.contents_from(get_pact_with_params!(
+                    "org.rdk.RDKShell.1.destroy",
+                    ContractResult { result },
+                    ContractParams { params }
+                ))
+                .await;
+                i.test_name("destroy_application");
+                i
+            },
+        )
         .await;
 
     let mock_server = pact_builder_async
@@ -162,7 +165,7 @@ async fn test_device_destroy_app() {
 
     let browser_name = "Html-0";
     let destroy_params = BrowserDestroyParams {
-        browser_name: browser_name.to_string()
+        browser_name: browser_name.to_string(),
     };
     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Browser(
         BrowserRequest::Destroy(destroy_params.clone()),
@@ -177,7 +180,10 @@ async fn test_device_destroy_app() {
 
     let state: ThunderState = ThunderState::new(extn_client, thunder_client);
 
-    let _ =
-    ThunderBrowserRequestProcessor::process_request(state, msg, BrowserRequest::Destroy(destroy_params.clone()))
-            .await;
+    let _ = ThunderBrowserRequestProcessor::process_request(
+        state,
+        msg,
+        BrowserRequest::Destroy(destroy_params.clone()),
+    )
+    .await;
 }
