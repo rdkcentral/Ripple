@@ -36,6 +36,9 @@ use crate::{
     thunder_state::ThunderState,
 };
 use pact_consumer::mock_server::StartMockServerAsync;
+use ripple_sdk::api::device::device_accessory::AccessoryListRequest;
+use ripple_sdk::api::device::device_accessory::AccessoryListType;
+use ripple_sdk::api::device::device_accessory::AccessoryProtocolListType;
 use serde_json::json;
 use std::collections::HashMap;
 
@@ -96,6 +99,94 @@ async fn test_device_remote_start_pairing() {
         state,
         msg,
         RemoteAccessoryRequest::Pair(pair_params.clone()),
+    )
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[cfg_attr(not(feature = "contract_tests"), ignore)]
+async fn test_device_remote_network_status() {
+    let mut pact_builder_async = get_pact_builder_async_obj().await;
+
+    pact_builder_async
+        .synchronous_message_interaction("A request to get the device info", |mut i| async move {
+            i.contents_from(json!({
+                "pact:content-type": "application/json",
+                "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 0)", "method": "org.rdk.RemoteControl.1.getNetStatus", "params": {"netType": "matching(decimal, 21)"}},
+                "requestMetadata": {
+                    "path": "/jsonrpc"
+                },
+                "response": [{
+                    "jsonrpc": "matching(type, '2.0')",
+                    "id": "matching(integer, 0)",
+                    "result": {
+                        "status": {
+                            "netType": 21,
+                            "netTypeSupported": [
+                                [
+                                    21
+                                ]
+                            ],
+                            "pairingState": "matching(regex, '(INITIALISING|IDLE|SEARCHING|PAIRING|COMPLETE|FAILED)', 'COMPLETE')",
+                            "irProgState": "matching(regex, '(IDLE|WAITING|COMPLETE|FAILED)', 'COMPLETE')",
+                            "remoteData": [
+                                {
+                                    "macAddress": "matching(regex, '^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$', 'E8:1C:FD:9A:07:1E')",
+                                    "connected": "matching(boolean, true)",
+                                    "name": "matching(type, 'P073 SkyQ EC201')",
+                                    "remoteId": "matching(integer, 1)",
+                                    "deviceId": "matching(integer, 65)",
+                                    "make": "matching(type, 'Omni Remotes')",
+                                    "model": "matching(type, 'PEC201')",
+                                    "hwVersion": "matching(type, '201.2.0.0')",
+                                    "swVersion": "matching(type, '1.0.0')",
+                                    "btlVersion": "matching(type, '2.0')",
+                                    "serialNumber": "matching(type, '18464408B544')",
+                                    "batteryPercent": "matching(integer, 85)",
+                                    "tvIRCode": "matching(type, '1')",
+                                    "ampIRCode": "matching(type, '1')",
+                                    "wakeupKeyCode": "matching(integer, 65)",
+                                    "wakeupConfig": "matching(type, 'custom')",
+                                    "wakeupCustomList": "matching(type, '[3,1]')"
+                                }
+                            ]
+                        },
+                        "success": "matching(boolean, true)"
+                    }
+                }]
+            })).await;
+            i.test_name("remote_network_status");
+
+            i
+    }).await;
+
+    let mock_server = pact_builder_async
+        .start_mock_server_async(Some("websockets/transport/websockets"))
+        .await;
+
+    let _type: Option<AccessoryListType> = Some(AccessoryListType::All);
+    let protocol: Option<AccessoryProtocolListType> = Some(AccessoryProtocolListType::All);
+    let list_params = AccessoryListRequest {
+        _type: _type,
+        protocol: protocol,
+    };
+    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Accessory(
+        RemoteAccessoryRequest::List(list_params.clone()),
+    )));
+    let msg = get_extn_msg(payload);
+
+    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+
+    let (s, r) = unbounded();
+    let extn_client = get_extn_client(s.clone(), r.clone());
+
+    let state: ThunderState = ThunderState::new(extn_client, thunder_client);
+
+    let _ = ThunderRemoteAccessoryRequestProcessor::process_request(
+        state,
+        msg,
+        RemoteAccessoryRequest::List(list_params.clone()),
     )
     .await;
 }
