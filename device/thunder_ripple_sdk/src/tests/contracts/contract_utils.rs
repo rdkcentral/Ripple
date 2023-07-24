@@ -1,18 +1,18 @@
-use std::collections::HashMap;
+use pact_consumer::mock_server::StartMockServerAsync;
 use pact_consumer::prelude::PactBuilder;
 use pact_consumer::prelude::PactBuilderAsync;
-use pact_consumer::mock_server::StartMockServerAsync;
 use pact_consumer::prelude::ValidatingMockServer;
+use ripple_sdk::crossbeam::channel::Receiver;
+use ripple_sdk::crossbeam::channel::Sender;
 use ripple_sdk::extn::client::extn_client::ExtnClient;
 use ripple_sdk::extn::client::extn_sender::ExtnSender;
-use ripple_sdk::extn::extn_client_message::ExtnPayload;
-use ripple_sdk::extn::extn_id::ExtnId;
-use ripple_sdk::extn::extn_id::ExtnClassId;
 use ripple_sdk::extn::extn_client_message::ExtnMessage;
-use ripple_sdk::crossbeam::channel::Sender;
-use ripple_sdk::crossbeam::channel::Receiver;
+use ripple_sdk::extn::extn_client_message::ExtnPayload;
+use ripple_sdk::extn::extn_id::ExtnClassId;
+use ripple_sdk::extn::extn_id::ExtnId;
 use ripple_sdk::extn::ffi::ffi_message::CExtnMessage;
 use ripple_sdk::framework::ripple_contract::RippleContract;
+use std::collections::HashMap;
 
 #[macro_export]
 macro_rules! get_pact {
@@ -51,22 +51,28 @@ macro_rules! get_pact_with_params {
 }
 
 pub struct ContractResult {
-    pub result : HashMap<String, ContractMatcher>
+    pub result: HashMap<String, ContractMatcher>,
 }
 
 pub struct ContractParams {
-    pub params : HashMap<String, ContractMatcher>
+    pub params: HashMap<String, ContractMatcher>,
 }
 
 impl ContractResult {
     pub fn get(&self) -> HashMap<String, String> {
-        self.result.iter().map(|(k,c)|(k.clone(), c.get())).collect()
+        self.result
+            .iter()
+            .map(|(k, c)| (k.clone(), c.get()))
+            .collect()
     }
 }
 
 impl ContractParams {
     pub fn get(&self) -> HashMap<String, String> {
-        self.params.iter().map(|(k,c)|(k.clone(), c.get())).collect()
+        self.params
+            .iter()
+            .map(|(k, c)| (k.clone(), c.get()))
+            .collect()
     }
 }
 
@@ -96,7 +102,8 @@ impl ContractMatcher {
 
 pub async fn get_pact_builder_async_obj() -> PactBuilderAsync {
     PactBuilder::new_v4("ripple", "rdk_service")
-        .using_plugin("websockets", None).await
+        .using_plugin("websockets", None)
+        .await
 }
 
 pub async fn get_pact_mock_server(async_build: PactBuilderAsync) -> Box<dyn ValidatingMockServer> {
@@ -131,6 +138,6 @@ pub fn get_extn_msg(payload: ExtnPayload) -> ExtnMessage {
         payload: payload,
         requestor: ExtnId::new_channel(ExtnClassId::Device, "pact".into()),
         target: RippleContract::DeviceInfo,
-        ts: Some(30)
+        ts: Some(30),
     };
 }

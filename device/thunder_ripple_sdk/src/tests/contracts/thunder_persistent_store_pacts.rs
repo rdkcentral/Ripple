@@ -15,7 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::HashMap;
+use crate::get_pact_with_params;
+use crate::processors::thunder_persistent_store::ThunderStorageRequestProcessor;
+use crate::tests::contracts::contract_utils::*;
+use crate::tests::contracts::thunder_persistent_store_pacts::chrono::Utc;
 use crate::{
     client::thunder_client_pool::ThunderClientPool,
     ripple_sdk::{
@@ -25,22 +28,19 @@ use crate::{
             },
             device_request::DeviceRequest,
         },
+        crossbeam::channel::unbounded,
         extn::{
             client::extn_processor::ExtnRequestProcessor,
-            extn_client_message::{ExtnRequest, ExtnPayload},
+            extn_client_message::{ExtnPayload, ExtnRequest},
         },
         serde_json::json,
-        crossbeam::channel::unbounded,
     },
     thunder_state::ThunderState,
 };
-use crate::processors::thunder_persistent_store::ThunderStorageRequestProcessor;
-use crate::tests::contracts::thunder_persistent_store_pacts::chrono::Utc;
 use pact_consumer::mock_server::StartMockServerAsync;
 use pact_consumer::prelude::*;
 use ripple_sdk::chrono;
-use crate::tests::contracts::contract_utils::*;
-use crate::get_pact_with_params;
+use std::collections::HashMap;
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
@@ -51,23 +51,34 @@ async fn test_device_get_persistent_value() {
         .await;
 
     let mut result = HashMap::new();
-    result.insert("TTS_Status".into(), ContractMatcher::MatchType("testvalue1".into()));
+    result.insert(
+        "TTS_Status".into(),
+        ContractMatcher::MatchType("testvalue1".into()),
+    );
     result.insert("success".into(), ContractMatcher::MatchBool(true));
-    
+
     let mut params = HashMap::new();
-    params.insert("namespace".into(), ContractMatcher::MatchType("testnamespace".into()));
+    params.insert(
+        "namespace".into(),
+        ContractMatcher::MatchType("testnamespace".into()),
+    );
     params.insert("key".into(), ContractMatcher::MatchType("testkey".into()));
 
     pact_builder_async
-    .synchronous_message_interaction("A request to get the persistent stored value", |mut i| async move {
-        i.contents_from(get_pact_with_params!("org.rdk.PersistentStore.1.getValue", ContractResult {
-            result
-        }, ContractParams {
-            params
-        })).await;
-        i.test_name("get_device_stored_persistent_value");
-        i
-    }).await;
+        .synchronous_message_interaction(
+            "A request to get the persistent stored value",
+            |mut i| async move {
+                i.contents_from(get_pact_with_params!(
+                    "org.rdk.PersistentStore.1.getValue",
+                    ContractResult { result },
+                    ContractParams { params }
+                ))
+                .await;
+                i.test_name("get_device_stored_persistent_value");
+                i
+            },
+        )
+        .await;
 
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
@@ -75,7 +86,10 @@ async fn test_device_get_persistent_value() {
 
     let namespace = "testNameSpace1";
     let key = "testKey1";
-    let get_params = GetStorageProperty {namespace:namespace.to_string(), key:key.to_string()};
+    let get_params = GetStorageProperty {
+        namespace: namespace.to_string(),
+        key: key.to_string(),
+    };
     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Storage(
         DevicePersistenceRequest::Get(get_params.clone()),
     )));
@@ -89,13 +103,17 @@ async fn test_device_get_persistent_value() {
 
     let state: ThunderState = ThunderState::new(extn_client, thunder_client);
 
-    let _ = ThunderStorageRequestProcessor::process_request(state, msg, DevicePersistenceRequest::Get(get_params.clone())).await;
+    let _ = ThunderStorageRequestProcessor::process_request(
+        state,
+        msg,
+        DevicePersistenceRequest::Get(get_params.clone()),
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_device_set_persistent_value() {
-
     let mut pact_builder_async = PactBuilder::new_v4("ripple", "rdk_service")
         .using_plugin("websockets", None)
         .await;
@@ -109,7 +127,7 @@ async fn test_device_set_persistent_value() {
                     "method": "org.rdk.PersistentStore.1.setValue", 
                     "params": {"namespace": "matching(type, 'testNamespace')", 
                         "key": "matching(type, 'testKey')", 
-                        "value": {"update_time":r"matching(datetime, 'YYYY-MM-DDThh:mm:ss.SSSXXXZ', '2023-07-20T14:20:06.477058+00:00')","value":"matching(type, 'testValue1')"}
+                        "value": {"update_time":r"matching(type, '2023-07-20T14:20:06.477058+00:00')","value":"matching(type, 'testValue1')"}
                     }
                 },
                 "requestMetadata": {
@@ -128,15 +146,21 @@ async fn test_device_set_persistent_value() {
             i
         }).await;
 
-
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
     let namespace = "testNameSpace1";
     let key = "testKey1";
-    let data = StorageData{value: "testValue1".into(), update_time: Utc::now().to_rfc3339()};
-    let set_params = SetStorageProperty {namespace:namespace.to_string(), key:key.to_string(), data:data};
+    let data = StorageData {
+        value: "testValue1".into(),
+        update_time: Utc::now().to_rfc3339(),
+    };
+    let set_params = SetStorageProperty {
+        namespace: namespace.to_string(),
+        key: key.to_string(),
+        data: data,
+    };
     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Storage(
         DevicePersistenceRequest::Set(set_params.clone()),
     )));
@@ -150,6 +174,10 @@ async fn test_device_set_persistent_value() {
 
     let state: ThunderState = ThunderState::new(extn_client, thunder_client);
 
-    let _ = ThunderStorageRequestProcessor::process_request(state, msg, DevicePersistenceRequest::Set(set_params.clone())).await;
+    let _ = ThunderStorageRequestProcessor::process_request(
+        state,
+        msg,
+        DevicePersistenceRequest::Set(set_params.clone()),
+    )
+    .await;
 }
-

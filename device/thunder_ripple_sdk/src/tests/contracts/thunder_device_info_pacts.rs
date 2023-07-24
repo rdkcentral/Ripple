@@ -15,38 +15,34 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::HashMap;
 use serde_json::json;
+use std::collections::HashMap;
 
 use crate::{
     client::thunder_client_pool::ThunderClientPool,
+    get_pact_with_params,
     ripple_sdk::{
         crossbeam::channel::unbounded,
         extn::extn_client_message::{ExtnPayload, ExtnRequest},
     },
-    thunder_state::ThunderState, get_pact_with_params
+    thunder_state::ThunderState,
 };
 
-use crate:: ripple_sdk::{
-        api::device::{
-                device_info_request::DeviceInfoRequest,
-                device_request::{
-                    DeviceRequest, OnInternetConnectedRequest,
-                },
-            },
-        extn::client::extn_processor::ExtnRequestProcessor,
-        serde_json::{self},
-        tokio,
+use crate::ripple_sdk::{
+    api::device::{
+        device_info_request::DeviceInfoRequest,
+        device_request::{DeviceRequest, OnInternetConnectedRequest},
+    },
+    extn::client::extn_processor::ExtnRequestProcessor,
+    serde_json::{self},
+    tokio,
 };
 
-use crate::processors::thunder_device_info:: {
-    CachedState, ThunderDeviceInfoRequestProcessor
-};
+use crate::processors::thunder_device_info::{CachedState, ThunderDeviceInfoRequestProcessor};
 
+use crate::get_pact;
 use crate::tests::contracts::contract_utils::*;
 use pact_consumer::mock_server::StartMockServerAsync;
-use crate::get_pact;
-
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
@@ -94,15 +90,19 @@ async fn test_device_get_info_mac_address() {
 
     // Creating extn client which will send back the data to the receiver(instead of callback)
     let (s, r) = unbounded();
-    let extn_client=get_extn_client(s, r);
+    let extn_client = get_extn_client(s, r);
 
     // Create  Thunderstate which contains the extn_client for callback and thunder client for making thunder requests
     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
 
-     // Make call to method
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::MacAddress).await;
+    // Make call to method
+    let _ = ThunderDeviceInfoRequestProcessor::process_request(
+        state,
+        msg,
+        DeviceInfoRequest::MacAddress,
+    )
+    .await;
 }
-
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
@@ -110,26 +110,44 @@ async fn test_device_get_model() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
     let mut result = HashMap::new();
-    result.insert("stbVersion".into(), ContractMatcher::MatchType("AX061AEI_VBN_1911_sprint_20200109040424sdy".into()));
-    result.insert("receiverVersion".into(), ContractMatcher::MatchRegex("^[0-9]{1}.[0-9]{2}.[0-9]{1}.[0-9]{1}$".into(), "3.14.0.0".into()));
-    result.insert("stbTimestamp".into(), ContractMatcher::MatchDateTime("EEE dd MMM yyyy HH:mm:ss aaa zß".into(), "Thu 09 Jan 2020 04:04:24 AM UTC".into()));
+    result.insert(
+        "stbVersion".into(),
+        ContractMatcher::MatchType("AX061AEI_VBN_1911_sprint_20200109040424sdy".into()),
+    );
+    result.insert(
+        "receiverVersion".into(),
+        ContractMatcher::MatchRegex(
+            "^[0-9]{1}.[0-9]{2}.[0-9]{1}.[0-9]{1}$".into(),
+            "3.14.0.0".into(),
+        ),
+    );
+    result.insert(
+        "stbTimestamp".into(),
+        ContractMatcher::MatchDateTime(
+            "EEE dd MMM yyyy HH:mm:ss aaa zß".into(),
+            "Thu 09 Jan 2020 04:04:24 AM UTC".into(),
+        ),
+    );
     result.insert("success".into(), ContractMatcher::MatchBool(true));
 
     pact_builder_async
         .synchronous_message_interaction("A request to get the device model", |mut i| async move {
-            i.contents_from(get_pact!("org.rdk.System.1.getSystemVersions", ContractResult {
-                result
-            })).await;
+            i.contents_from(get_pact!(
+                "org.rdk.System.1.getSystemVersions",
+                ContractResult { result }
+            ))
+            .await;
             i.test_name("get_device_model");
             i
-    }).await;
+        })
+        .await;
 
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-            DeviceInfoRequest::Model,
+        DeviceInfoRequest::Model,
     )));
     let msg = get_extn_msg(payload);
 
@@ -141,10 +159,10 @@ async fn test_device_get_model() {
 
     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
 
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::Model).await;
-
+    let _ =
+        ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::Model)
+            .await;
 }
-
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
@@ -181,7 +199,8 @@ async fn test_device_get_interfaces_wifi() {
     }).await;
 
     let mock_server = pact_builder_async
-        .start_mock_server_async(Some("websockets/transport/websockets")).await;
+        .start_mock_server_async(Some("websockets/transport/websockets"))
+        .await;
 
     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
         DeviceInfoRequest::Network,
@@ -196,7 +215,9 @@ async fn test_device_get_interfaces_wifi() {
 
     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
 
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::Network).await;
+    let _ =
+        ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::Network)
+            .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -250,14 +271,16 @@ async fn test_device_get_interfaces_ethernet() {
 
     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
 
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::Network).await;
+    let _ =
+        ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::Network)
+            .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_device_get_audio() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
-    
+
     pact_builder_async
         .synchronous_message_interaction("A request to get the device audio", |mut i| async move {
             i.contents_from(json!({
@@ -299,7 +322,9 @@ async fn test_device_get_audio() {
 
     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
 
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::Audio).await;
+    let _ =
+        ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::Audio)
+            .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -308,18 +333,27 @@ async fn test_device_get_hdcp_supported() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
     let mut result = HashMap::new();
-    result.insert("supportedHDCPVersion".into(), ContractMatcher::MatchType("2.2".into()));
+    result.insert(
+        "supportedHDCPVersion".into(),
+        ContractMatcher::MatchType("2.2".into()),
+    );
     result.insert("isHDCPSupported".into(), ContractMatcher::MatchBool(true));
     result.insert("success".into(), ContractMatcher::MatchBool(true));
 
     pact_builder_async
-        .synchronous_message_interaction("A request to get the device hdcp support", |mut i| async move {
-            i.contents_from(get_pact!("org.rdk.HdcpProfile.1.getSettopHDCPSupport", ContractResult {
-                result
-            })).await;
-            i.test_name("get_device_hdcp_support");
-            i
-    }).await;
+        .synchronous_message_interaction(
+            "A request to get the device hdcp support",
+            |mut i| async move {
+                i.contents_from(get_pact!(
+                    "org.rdk.HdcpProfile.1.getSettopHDCPSupport",
+                    ContractResult { result }
+                ))
+                .await;
+                i.test_name("get_device_hdcp_support");
+                i
+            },
+        )
+        .await;
 
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
@@ -338,7 +372,12 @@ async fn test_device_get_hdcp_supported() {
 
     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
 
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::HdcpSupport).await;
+    let _ = ThunderDeviceInfoRequestProcessor::process_request(
+        state,
+        msg,
+        DeviceInfoRequest::HdcpSupport,
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -392,7 +431,12 @@ async fn test_device_get_hdcp_status() {
 
     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
 
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::HdcpStatus).await;
+    let _ = ThunderDeviceInfoRequestProcessor::process_request(
+        state,
+        msg,
+        DeviceInfoRequest::HdcpStatus,
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -405,13 +449,19 @@ async fn test_device_get_hdr() {
     result.insert("success".into(), ContractMatcher::MatchBool(true));
 
     pact_builder_async
-        .synchronous_message_interaction("A request to get the device hdr capabilities", |mut i| async move {
-            i.contents_from(get_pact!("org.rdk.DisplaySettings.1.getTVHDRCapabilities", ContractResult {
-                result
-            })).await;
-            i.test_name("get_device_hdr_capabilities");
-            i
-    }).await;
+        .synchronous_message_interaction(
+            "A request to get the device hdr capabilities",
+            |mut i| async move {
+                i.contents_from(get_pact!(
+                    "org.rdk.DisplaySettings.1.getTVHDRCapabilities",
+                    ContractResult { result }
+                ))
+                .await;
+                i.test_name("get_device_hdr_capabilities");
+                i
+            },
+        )
+        .await;
 
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
@@ -430,25 +480,35 @@ async fn test_device_get_hdr() {
 
     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
 
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::Hdr).await;
+    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::Hdr)
+        .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_device_get_screen_resolution_without_port() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
-    
+
     let mut result = HashMap::new();
-    result.insert("resolution".into(), ContractMatcher::MatchType("1080p".into()));
+    result.insert(
+        "resolution".into(),
+        ContractMatcher::MatchType("1080p".into()),
+    );
     result.insert("success".into(), ContractMatcher::MatchBool(true));
     pact_builder_async
-        .synchronous_message_interaction("A request to get the device current screen resolution without provided port", |mut i| async move {
-            i.contents_from(get_pact!("org.rdk.DisplaySettings.1.getCurrentResolution", ContractResult {
-                result
-            })).await;
-            i.test_name("get_device_screen_resolution_without_port");
-            i
-    }).await;
+        .synchronous_message_interaction(
+            "A request to get the device current screen resolution without provided port",
+            |mut i| async move {
+                i.contents_from(get_pact!(
+                    "org.rdk.DisplaySettings.1.getCurrentResolution",
+                    ContractResult { result }
+                ))
+                .await;
+                i.test_name("get_device_screen_resolution_without_port");
+                i
+            },
+        )
+        .await;
 
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
@@ -467,9 +527,13 @@ async fn test_device_get_screen_resolution_without_port() {
 
     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
 
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::ScreenResolution).await;
+    let _ = ThunderDeviceInfoRequestProcessor::process_request(
+        state,
+        msg,
+        DeviceInfoRequest::ScreenResolution,
+    )
+    .await;
 }
-
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
@@ -481,12 +545,15 @@ async fn test_device_get_make() {
     result.insert("success".into(), ContractMatcher::MatchBool(true));
     pact_builder_async
         .synchronous_message_interaction("A request to get the device make", |mut i| async move {
-            i.contents_from(get_pact!("org.rdk.System.1.getDeviceInfo", ContractResult {
-                result
-            })).await;
+            i.contents_from(get_pact!(
+                "org.rdk.System.1.getDeviceInfo",
+                ContractResult { result }
+            ))
+            .await;
             i.test_name("get_device_make");
             i
-    }).await;
+        })
+        .await;
 
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
@@ -505,7 +572,8 @@ async fn test_device_get_make() {
 
     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
 
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::Make).await;
+    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::Make)
+        .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -514,16 +582,25 @@ async fn test_device_get_video_resolution() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
     let mut result = HashMap::new();
-    result.insert("defaultResolution".into(), ContractMatcher::MatchType("1080p".into()));
+    result.insert(
+        "defaultResolution".into(),
+        ContractMatcher::MatchType("1080p".into()),
+    );
     result.insert("success".into(), ContractMatcher::MatchBool(true));
     pact_builder_async
-        .synchronous_message_interaction("A request to get the device video resolution", |mut i| async move {
-            i.contents_from(get_pact!("org.rdk.DisplaySettings.1.getDefaultResolution", ContractResult {
-                result
-            })).await;
-            i.test_name("get_device_video_resolution");
-            i
-    }).await;
+        .synchronous_message_interaction(
+            "A request to get the device video resolution",
+            |mut i| async move {
+                i.contents_from(get_pact!(
+                    "org.rdk.DisplaySettings.1.getDefaultResolution",
+                    ContractResult { result }
+                ))
+                .await;
+                i.test_name("get_device_video_resolution");
+                i
+            },
+        )
+        .await;
 
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
@@ -542,9 +619,13 @@ async fn test_device_get_video_resolution() {
 
     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
 
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::VideoResolution).await;
+    let _ = ThunderDeviceInfoRequestProcessor::process_request(
+        state,
+        msg,
+        DeviceInfoRequest::VideoResolution,
+    )
+    .await;
 }
-
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
@@ -556,15 +637,21 @@ async fn test_device_get_system_memory() {
     result.insert("swapRam".into(), ContractMatcher::MatchNumber(0));
     result.insert("totalRam".into(), ContractMatcher::MatchNumber(624644));
     result.insert("success".into(), ContractMatcher::MatchBool(true));
-    
+
     pact_builder_async
-        .synchronous_message_interaction("A request to get the device available system memory", |mut i| async move {
-            i.contents_from(get_pact!("org.rdk.RDKShell.1.getSystemMemory", ContractResult {
-                result
-            })).await;
-            i.test_name("get_device_system_memory");
-            i
-    }).await;
+        .synchronous_message_interaction(
+            "A request to get the device available system memory",
+            |mut i| async move {
+                i.contents_from(get_pact!(
+                    "org.rdk.RDKShell.1.getSystemMemory",
+                    ContractResult { result }
+                ))
+                .await;
+                i.test_name("get_device_system_memory");
+                i
+            },
+        )
+        .await;
 
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
@@ -583,7 +670,12 @@ async fn test_device_get_system_memory() {
 
     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
 
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::AvailableMemory).await;
+    let _ = ThunderDeviceInfoRequestProcessor::process_request(
+        state,
+        msg,
+        DeviceInfoRequest::AvailableMemory,
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -592,18 +684,30 @@ async fn test_device_get_timezone() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
     let mut result = HashMap::new();
-    result.insert("timeZone".into(), ContractMatcher::MatchType("America/New_York".into()));
-    result.insert("accuracy".into(), ContractMatcher::MatchRegex("(INITIAL|INTERIM|FINAL)".into(), "INITIAL".into()));
+    result.insert(
+        "timeZone".into(),
+        ContractMatcher::MatchType("America/New_York".into()),
+    );
+    result.insert(
+        "accuracy".into(),
+        ContractMatcher::MatchRegex("(INITIAL|INTERIM|FINAL)".into(), "INITIAL".into()),
+    );
     result.insert("success".into(), ContractMatcher::MatchBool(true));
-    
+
     pact_builder_async
-        .synchronous_message_interaction("A request to get the device timezone", |mut i| async move {
-            i.contents_from(get_pact!("org.rdk.System.1.getTimeZoneDST", ContractResult {
-                result
-            })).await;
-            i.test_name("get_device_timezone");
-            i
-    }).await;
+        .synchronous_message_interaction(
+            "A request to get the device timezone",
+            |mut i| async move {
+                i.contents_from(get_pact!(
+                    "org.rdk.System.1.getTimeZoneDST",
+                    ContractResult { result }
+                ))
+                .await;
+                i.test_name("get_device_timezone");
+                i
+            },
+        )
+        .await;
 
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
@@ -622,7 +726,12 @@ async fn test_device_get_timezone() {
 
     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
 
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::GetTimezone).await;
+    let _ = ThunderDeviceInfoRequestProcessor::process_request(
+        state,
+        msg,
+        DeviceInfoRequest::GetTimezone,
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -676,7 +785,12 @@ async fn test_device_get_available_timezone() {
 
     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
 
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::GetAvailableTimezones).await;
+    let _ = ThunderDeviceInfoRequestProcessor::process_request(
+        state,
+        msg,
+        DeviceInfoRequest::GetAvailableTimezones,
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -686,17 +800,26 @@ async fn test_device_get_voice_guidance_enabled() {
 
     let mut result = HashMap::new();
     result.insert("isenabled".into(), ContractMatcher::MatchBool(true));
-    result.insert("TTS_Status".into(), ContractMatcher::MatchRegex("(0|1|2|3)".into(), "0".into()));
+    result.insert(
+        "TTS_Status".into(),
+        ContractMatcher::MatchRegex("(0|1|2|3)".into(), "0".into()),
+    );
     result.insert("success".into(), ContractMatcher::MatchBool(true));
-    
+
     pact_builder_async
-        .synchronous_message_interaction("A request to get the device voice guidance enabled", |mut i| async move {
-            i.contents_from(get_pact!("org.rdk.TextToSpeech.1.isttsenabled", ContractResult {
-                result
-            })).await;
-            i.test_name("get_device_voice_guidance_enabled");
-            i
-    }).await;
+        .synchronous_message_interaction(
+            "A request to get the device voice guidance enabled",
+            |mut i| async move {
+                i.contents_from(get_pact!(
+                    "org.rdk.TextToSpeech.1.isttsenabled",
+                    ContractResult { result }
+                ))
+                .await;
+                i.test_name("get_device_voice_guidance_enabled");
+                i
+            },
+        )
+        .await;
 
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
@@ -714,7 +837,12 @@ async fn test_device_get_voice_guidance_enabled() {
     let extn_client = get_extn_client(s, r);
 
     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::VoiceGuidanceEnabled).await;
+    let _ = ThunderDeviceInfoRequestProcessor::process_request(
+        state,
+        msg,
+        DeviceInfoRequest::VoiceGuidanceEnabled,
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -723,23 +851,50 @@ async fn test_device_get_voice_guidance_speed() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
     let mut result = HashMap::new();
-    result.insert("ttsendpoint".into(), ContractMatcher::MatchRegex(r"^(https?://)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$".into(), "http://url_for_the_text_to_speech_processing_unit.com".into()));
-    result.insert("ttsendpointsecured".into(), ContractMatcher::MatchRegex(r"^(https?://)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$".into(), "https://url_for_the_text_to_speech_processing_unit.com".into()));
-    result.insert("language".into(), ContractMatcher::MatchType("en-US".into()));
+    result.insert(
+        "ttsendpoint".into(),
+        ContractMatcher::MatchRegex(
+            r"^(https?://)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$".into(),
+            "http://url_for_the_text_to_speech_processing_unit.com".into(),
+        ),
+    );
+    result.insert(
+        "ttsendpointsecured".into(),
+        ContractMatcher::MatchRegex(
+            r"^(https?://)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$".into(),
+            "https://url_for_the_text_to_speech_processing_unit.com".into(),
+        ),
+    );
+    result.insert(
+        "language".into(),
+        ContractMatcher::MatchType("en-US".into()),
+    );
     result.insert("voice".into(), ContractMatcher::MatchType("carol".into()));
-    result.insert("volume".into(), ContractMatcher::MatchType("100.000000".into()));
+    result.insert(
+        "volume".into(),
+        ContractMatcher::MatchType("100.000000".into()),
+    );
     result.insert("rate".into(), ContractMatcher::MatchNumber(50));
-    result.insert("TTS_Status".into(), ContractMatcher::MatchRegex("(0|1|2|3)".into(), "0".into()));
+    result.insert(
+        "TTS_Status".into(),
+        ContractMatcher::MatchRegex("(0|1|2|3)".into(), "0".into()),
+    );
     result.insert("success".into(), ContractMatcher::MatchBool(true));
-    
+
     pact_builder_async
-        .synchronous_message_interaction("A request to get the device voice guidance speed", |mut i| async move {
-            i.contents_from(get_pact!("org.rdk.TextToSpeech.1.getttsconfiguration", ContractResult {
-                result
-            })).await;
-            i.test_name("get_device_timezone");
-            i
-    }).await;
+        .synchronous_message_interaction(
+            "A request to get the device voice guidance speed",
+            |mut i| async move {
+                i.contents_from(get_pact!(
+                    "org.rdk.TextToSpeech.1.getttsconfiguration",
+                    ContractResult { result }
+                ))
+                .await;
+                i.test_name("get_device_timezone");
+                i
+            },
+        )
+        .await;
 
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
@@ -758,7 +913,12 @@ async fn test_device_get_voice_guidance_speed() {
 
     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
 
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::VoiceGuidanceSpeed).await;
+    let _ = ThunderDeviceInfoRequestProcessor::process_request(
+        state,
+        msg,
+        DeviceInfoRequest::VoiceGuidanceSpeed,
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -768,20 +928,28 @@ async fn test_device_set_timezone() {
 
     let mut result = HashMap::new();
     result.insert("success".into(), ContractMatcher::MatchBool(true));
-    
+
     let mut params = HashMap::new();
-    params.insert("timeZone".into(), ContractMatcher::MatchType("America/New_York".into()));
-    
+    params.insert(
+        "timeZone".into(),
+        ContractMatcher::MatchType("America/New_York".into()),
+    );
+
     pact_builder_async
-        .synchronous_message_interaction("A request to set the device timezone", |mut i| async move {
-            i.contents_from(get_pact_with_params!("org.rdk.System.1.setTimeZoneDST", ContractResult {
-                result
-            }, ContractParams {
-                params
-            })).await;
-            i.test_name("set_device_timezone");
-            i
-    }).await;
+        .synchronous_message_interaction(
+            "A request to set the device timezone",
+            |mut i| async move {
+                i.contents_from(get_pact_with_params!(
+                    "org.rdk.System.1.setTimeZoneDST",
+                    ContractResult { result },
+                    ContractParams { params }
+                ))
+                .await;
+                i.test_name("set_device_timezone");
+                i
+            },
+        )
+        .await;
 
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
@@ -800,7 +968,12 @@ async fn test_device_set_timezone() {
 
     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
 
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::SetTimezone("America/New_York".to_string())).await;
+    let _ = ThunderDeviceInfoRequestProcessor::process_request(
+        state,
+        msg,
+        DeviceInfoRequest::SetTimezone("America/New_York".to_string()),
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -811,20 +984,25 @@ async fn test_device_set_voice_guidance() {
     let mut result = HashMap::new();
     result.insert("TTS_Status".into(), ContractMatcher::MatchNumber(2));
     result.insert("success".into(), ContractMatcher::MatchBool(true));
-    
+
     let mut params = HashMap::new();
     params.insert("enabletts".into(), ContractMatcher::MatchBool(false));
- 
+
     pact_builder_async
-        .synchronous_message_interaction("A request to set the device voice guidance", |mut i| async move {
-            i.contents_from(get_pact_with_params!("org.rdk.TextToSpeech.1.enabletts", ContractResult {
-                result
-            }, ContractParams {
-                params
-            })).await;
-            i.test_name("set_device_voice_guidance");
-            i
-    }).await;
+        .synchronous_message_interaction(
+            "A request to set the device voice guidance",
+            |mut i| async move {
+                i.contents_from(get_pact_with_params!(
+                    "org.rdk.TextToSpeech.1.enabletts",
+                    ContractResult { result },
+                    ContractParams { params }
+                ))
+                .await;
+                i.test_name("set_device_voice_guidance");
+                i
+            },
+        )
+        .await;
 
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
@@ -843,7 +1021,12 @@ async fn test_device_set_voice_guidance() {
 
     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
 
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::SetVoiceGuidanceEnabled(false)).await;
+    let _ = ThunderDeviceInfoRequestProcessor::process_request(
+        state,
+        msg,
+        DeviceInfoRequest::SetVoiceGuidanceEnabled(false),
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -854,27 +1037,29 @@ async fn test_device_set_voice_guidance_speed() {
     let mut result = HashMap::new();
     result.insert("TTS_Status".into(), ContractMatcher::MatchNumber(0));
     result.insert("success".into(), ContractMatcher::MatchBool(true));
-    
+
     let mut params = HashMap::new();
     params.insert("rate".into(), ContractMatcher::MatchNumber(50));
- 
 
     pact_builder_async
-        .synchronous_message_interaction("A request to set the device voice guidance speed", |mut i| async move {
-            i.contents_from(get_pact_with_params!("org.rdk.TextToSpeech.1.setttsconfiguration", ContractResult {
-                result
-            }, ContractParams {
-                params
-            })).await;
-            i.test_name("set_device_voice_guidance_speed");
-            i
-    }).await;
-
+        .synchronous_message_interaction(
+            "A request to set the device voice guidance speed",
+            |mut i| async move {
+                i.contents_from(get_pact_with_params!(
+                    "org.rdk.TextToSpeech.1.setttsconfiguration",
+                    ContractResult { result },
+                    ContractParams { params }
+                ))
+                .await;
+                i.test_name("set_device_voice_guidance_speed");
+                i
+            },
+        )
+        .await;
 
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
-
 
     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
         DeviceInfoRequest::SetVoiceGuidanceSpeed(50.0),
@@ -889,7 +1074,12 @@ async fn test_device_set_voice_guidance_speed() {
 
     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
 
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::SetVoiceGuidanceSpeed(50.0)).await;
+    let _ = ThunderDeviceInfoRequestProcessor::process_request(
+        state,
+        msg,
+        DeviceInfoRequest::SetVoiceGuidanceSpeed(50.0),
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -899,20 +1089,41 @@ async fn test_device_get_internet() {
 
     let mut result = HashMap::new();
     result.insert("city".into(), ContractMatcher::MatchType("Wroclaw".into()));
-    result.insert("country".into(), ContractMatcher::MatchType("Poland".into()));
-    result.insert("region".into(), ContractMatcher::MatchType("Wroclaw".into()));
-    result.insert("timezone".into(), ContractMatcher::MatchType("CET-1CEST,M3.5.0,M10.5.0/3".into()));
-    result.insert("publicip".into(), ContractMatcher::MatchRegex("r^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$".into(), "78.11.117.118".into()));
-
+    result.insert(
+        "country".into(),
+        ContractMatcher::MatchType("Poland".into()),
+    );
+    result.insert(
+        "region".into(),
+        ContractMatcher::MatchType("Wroclaw".into()),
+    );
+    result.insert(
+        "timezone".into(),
+        ContractMatcher::MatchType("CET-1CEST,M3.5.0,M10.5.0/3".into()),
+    );
+    result.insert(
+        "publicip".into(),
+        ContractMatcher::MatchRegex(
+            "r^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+                .into(),
+            "78.11.117.118".into(),
+        ),
+    );
 
     pact_builder_async
-        .synchronous_message_interaction("A request to get the device internet", |mut i| async move {
-            i.contents_from(get_pact!("LocationSync.1.location", ContractResult {
-                result
-            })).await;
-            i.test_name("get_device_internet");
-            i
-    }).await;
+        .synchronous_message_interaction(
+            "A request to get the device internet",
+            |mut i| async move {
+                i.contents_from(get_pact!(
+                    "LocationSync.1.location",
+                    ContractResult { result }
+                ))
+                .await;
+                i.test_name("get_device_internet");
+                i
+            },
+        )
+        .await;
 
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
@@ -933,6 +1144,10 @@ async fn test_device_get_internet() {
 
     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
 
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::OnInternetConnected(time_out.clone())).await;
+    let _ = ThunderDeviceInfoRequestProcessor::process_request(
+        state,
+        msg,
+        DeviceInfoRequest::OnInternetConnected(time_out.clone()),
+    )
+    .await;
 }
-
