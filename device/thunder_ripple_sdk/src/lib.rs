@@ -54,6 +54,7 @@ pub mod tests {
         pub mod contract_utils;
         pub mod thunder_device_info_pacts;
         pub mod thunder_persistent_store_pacts;
+        pub mod thunder_browser_pacts;
     }
 }
 
