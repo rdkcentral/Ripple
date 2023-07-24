@@ -45,13 +45,13 @@ use crate::processors::thunder_device_info:: {
 
 use crate::tests::contracts::contract_utils::*;
 use pact_consumer::mock_server::StartMockServerAsync;
-use pact_consumer::prelude::*;
 use crate::get_pact;
 
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_device_get_info_mac_address() {
+    // Define Pact request and response - Start
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
     pact_builder_async
@@ -75,24 +75,31 @@ async fn test_device_get_info_mac_address() {
 
             i
     }).await;
+    // Define Pact request and response - End
 
+    // Initialize mock server
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
+    // Creating a mock extn message needed for calling method
     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
         DeviceInfoRequest::MacAddress,
     )));
     let msg = get_extn_msg(payload);
 
+    // Creating thunder client with mock server url
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
 
+    // Creating extn client which will send back the data to the receiver(instead of callback)
     let (s, r) = unbounded();
     let extn_client=get_extn_client(s, r);
 
+    // Create  Thunderstate which contains the extn_client for callback and thunder client for making thunder requests
     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
 
+     // Make call to method
     let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::MacAddress).await;
 }
 
@@ -861,7 +868,7 @@ async fn test_device_set_voice_guidance_speed() {
             })).await;
             i.test_name("set_device_voice_guidance_speed");
             i
-        }).await;
+    }).await;
 
 
     let mock_server = pact_builder_async
