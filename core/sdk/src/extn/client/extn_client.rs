@@ -213,9 +213,8 @@ impl ExtnClient {
                                 if new_message.callback.is_none() {
                                     // before forwarding check if the requestor needs to be added as callback
                                     let req_sender = if let Some(requestor_sender) = self
-                                        .get_extn_sender_with_extn_id(
-                                            message.clone().requestor.to_string(),
-                                        ) {
+                                        .get_extn_sender_with_extn_id(message.requestor.to_string())
+                                    {
                                         Some(requestor_sender)
                                     } else {
                                         None

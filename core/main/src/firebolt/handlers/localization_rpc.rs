@@ -41,7 +41,17 @@ use crate::{
     firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManager,
     service::apps::provider_broker::ProviderBroker, state::platform_state::PlatformState,
 };
+use serde::Deserialize;
 
+#[derive(Deserialize, Debug)]
+pub struct SetMapEntryProperty {
+    pub key: String,
+    pub value: String,
+}
+#[derive(Deserialize, Debug)]
+pub struct RemoveMapEntryProperty {
+    pub key: String,
+}
 #[rpc(server)]
 pub trait Localization {
     #[method(name = "localization.locality")]
@@ -121,6 +131,19 @@ pub trait Localization {
         ctx: CallContext,
         set_request: SetStringProperty,
     ) -> RpcResult<()>;
+    #[method(name = "localization.addAdditionalInfo")]
+    async fn add_additional_info(
+        &self,
+        ctx: CallContext,
+        set_map_entry_property: SetMapEntryProperty,
+    ) -> RpcResult<()>;
+    #[method(name = "localization.removeAdditionalInfo")]
+    async fn remove_additional_info(
+        &self,
+        ctx: CallContext,
+        remove_map_entry_property: RemoveMapEntryProperty,
+    ) -> RpcResult<()>;
+
     #[method(name = "localization.onAdditionalInfoChanged")]
     async fn on_additional_info_changed(
         &self,
@@ -398,6 +421,39 @@ impl LocalizationServer for LocalizationImpl {
             StorageProperty::AdditionalInfo,
             set_request.value,
             None,
+        )
+        .await
+    }
+
+    // #[instrument(skip(self))]
+    async fn add_additional_info(
+        &self,
+        _ctx: CallContext,
+        set_map_entry_property: SetMapEntryProperty,
+    ) -> RpcResult<()> {
+        /*
+        Per FIRE-189, AdditionalInfo is now individually updatable, so read the entire map out, and update
+        value in place, and then write entire map out
+
+         */
+        StorageManager::set_value_in_map(
+            &self.platform_state,
+            StorageProperty::AdditionalInfo,
+            set_map_entry_property.key,
+            set_map_entry_property.value,
+        )
+        .await
+    }
+    // #[instrument(skip(self))]
+    async fn remove_additional_info(
+        &self,
+        ctx: CallContext,
+        remove_map_entry_property: RemoveMapEntryProperty,
+    ) -> RpcResult<()> {
+        StorageManager::remove_value_in_map(
+            &self.platform_state,
+            StorageProperty::AdditionalInfo,
+            remove_map_entry_property.key,
         )
         .await
     }
