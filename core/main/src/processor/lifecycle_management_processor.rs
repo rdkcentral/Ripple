@@ -29,7 +29,6 @@ use ripple_sdk::{
     },
     log::error,
     tokio::sync::{mpsc::Sender, oneshot},
-    utils::error::RippleError,
 };
 
 use crate::service::extn::ripple_client::RippleClient;
@@ -73,12 +72,6 @@ impl ExtnRequestProcessor for LifecycleManagementProcessor {
     }
 
     async fn process_request(state: Self::STATE, msg: ExtnMessage, request: Self::VALUE) -> bool {
-        // Safety handler
-        if !msg.requestor.is_launcher_channel() {
-            return Self::handle_error(state.get_extn_client(), msg, RippleError::InvalidAccess)
-                .await;
-        }
-
         let (resp_tx, resp_rx) = oneshot::channel::<AppResponse>();
         let method = match request {
             LifecycleManagementRequest::Session(s) => AppMethod::BrowserSession(s.session),

@@ -480,6 +480,7 @@ impl ExtnClient {
         loop {
             match tr.try_recv() {
                 Ok(cmessage) => {
+                    debug!("** receiving message msg={:?}", cmessage);
                     let message: ExtnMessage = cmessage.try_into().unwrap();
                     if let Some(v) = message.payload.clone().extract() {
                         return Ok(v);
