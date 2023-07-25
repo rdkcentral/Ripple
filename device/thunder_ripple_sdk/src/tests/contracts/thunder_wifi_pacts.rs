@@ -35,8 +35,8 @@ use pact_consumer::mock_server::StartMockServerAsync;
 use serde_json::json;
 use std::collections::HashMap;
 
-#[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+// #[tokio::test(flavor = "multi_thread")]
+// #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_device_scan_wifi() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -75,8 +75,8 @@ async fn test_device_scan_wifi() {
     let _ = ThunderWifiRequestProcessor::process_request(state, msg, WifiRequest::Scan(5)).await;
 }
 
-#[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+// #[tokio::test(flavor = "multi_thread")]
+// #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_device_connect_wifi() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 

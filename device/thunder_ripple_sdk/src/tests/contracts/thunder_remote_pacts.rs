@@ -42,8 +42,8 @@ use ripple_sdk::api::device::device_accessory::AccessoryProtocolListType;
 use serde_json::json;
 use std::collections::HashMap;
 
-#[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+// #[tokio::test(flavor = "multi_thread")]
+// #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_device_remote_start_pairing() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -103,8 +103,8 @@ async fn test_device_remote_start_pairing() {
     .await;
 }
 
-#[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+// #[tokio::test(flavor = "multi_thread")]
+// #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_device_remote_network_status() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 

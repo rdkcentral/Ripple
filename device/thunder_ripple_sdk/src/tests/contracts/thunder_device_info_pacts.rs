@@ -902,7 +902,7 @@ async fn test_device_get_voice_guidance_speed() {
                     ContractResult { result }
                 ))
                 .await;
-                i.test_name("get_device_timezone");
+                i.test_name("get_voice_guidance_speed");
                 i
             },
         )
