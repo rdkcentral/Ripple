@@ -447,7 +447,7 @@ impl LocalizationServer for LocalizationImpl {
     // #[instrument(skip(self))]
     async fn remove_additional_info(
         &self,
-        ctx: CallContext,
+        _ctx: CallContext,
         remove_map_entry_property: RemoveMapEntryProperty,
     ) -> RpcResult<()> {
         StorageManager::remove_value_in_map(
