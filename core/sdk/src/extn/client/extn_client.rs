@@ -240,10 +240,20 @@ impl ExtnClient {
                                 });
                             } else {
                                 // could be main contract
-                                Self::handle_stream(message, self.request_processors.clone());
+                                if !Self::handle_stream(
+                                    message.clone(),
+                                    self.request_processors.clone(),
+                                ) {
+                                    self.handle_no_processor_error(message);
+                                }
                             }
                         } else {
-                            Self::handle_stream(message, self.request_processors.clone());
+                            if !Self::handle_stream(
+                                message.clone(),
+                                self.request_processors.clone(),
+                            ) {
+                                self.handle_no_processor_error(message);
+                            }
                         }
                     }
                 }
@@ -260,6 +270,21 @@ impl ExtnClient {
         }
 
         debug!("Initialize Ended Abruptly");
+    }
+
+    fn handle_no_processor_error(&self, message: ExtnMessage) {
+        let req_sender = if let Some(requestor_sender) =
+            self.get_extn_sender_with_extn_id(message.clone().requestor.to_string())
+        {
+            Some(requestor_sender)
+        } else {
+            None
+        };
+        if let Ok(resp) = message.get_response(ExtnResponse::Error(RippleError::ProcessorError)) {
+            if let Err(_) = self.sender.respond(resp.into(), req_sender) {
+                error!("Couldnt send no processor response");
+            }
+        }
     }
 
     fn handle_single(
@@ -286,7 +311,7 @@ impl ExtnClient {
     fn handle_stream(
         msg: ExtnMessage,
         processor: Arc<RwLock<HashMap<String, MSender<ExtnMessage>>>>,
-    ) {
+    ) -> bool {
         let id_c: String = msg.clone().target.into();
 
         let v = {
@@ -300,8 +325,10 @@ impl ExtnClient {
                     error!("Error sending the response back {:?}", e);
                 }
             });
+            true
         } else {
             error!("No Request Processor for {:?}", msg);
+            false
         }
     }
 
