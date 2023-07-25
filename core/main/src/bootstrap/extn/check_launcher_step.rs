@@ -27,10 +27,7 @@ use ripple_sdk::{
     utils::error::RippleError,
 };
 
-use crate::{
-    processor::lifecycle_management_processor::LifecycleManagementProcessor,
-    state::bootstrap_state::BootstrapState,
-};
+use crate::state::bootstrap_state::BootstrapState;
 
 /// Bootstep which checks if the given run has the launcher channel and starts,
 /// This step calls the start method on the Launcher Channel and waits for a successful Status
@@ -44,9 +41,6 @@ impl Bootstep<BootstrapState> for CheckLauncherStep {
     }
     async fn setup(&self, state: BootstrapState) -> RippleResponse {
         if state.platform_state.has_internal_launcher() {
-            state.platform_state.get_client().add_request_processor(
-                LifecycleManagementProcessor::new(state.platform_state.get_client()),
-            );
             let app = state
                 .platform_state
                 .app_library_state

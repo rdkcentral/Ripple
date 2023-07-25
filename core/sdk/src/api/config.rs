@@ -27,7 +27,7 @@ use crate::{
 
 use super::manifest::{
     app_library::AppLibraryState,
-    device_manifest::{LifecyclePolicy, RetentionPolicy},
+    device_manifest::{IdSalt, LifecyclePolicy, RetentionPolicy},
 };
 
 use super::manifest::device_manifest::AppLibraryEntry;
@@ -96,6 +96,7 @@ pub enum ConfigResponse {
     StringMap(HashMap<String, String>),
     List(Vec<String>),
     AllApps(Vec<AppLibraryEntry>),
+    IdSalt(IdSalt),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

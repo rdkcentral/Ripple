@@ -230,7 +230,7 @@ impl AppEvents {
         event_context: Option<Value>,
         decorator: Option<Box<dyn AppEventDecorator + Send + Sync>>,
     ) {
-        let session = state.session_state.get_session(&call_ctx.session_id);
+        let session = state.session_state.get_session(&call_ctx);
         if session.is_none() {
             error!("No open sessions for id '{:?}'", call_ctx.session_id);
             return;

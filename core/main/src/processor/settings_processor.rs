@@ -21,7 +21,7 @@ use ripple_sdk::{
     api::{
         device::device_events::VOICE_GUIDANCE_CHANGED,
         firebolt::{
-            fb_capabilities::{CapabilityRole, RoleInfo},
+            fb_capabilities::{CapabilityRole, FireboltCap, RoleInfo},
             fb_general::ListenRequest,
         },
         gateway::rpc_gateway_api::CallContext,
@@ -151,10 +151,11 @@ impl SettingsProcessor {
                     PowerSaving => Some(SettingValue::bool(true)),
                     LegacyMiniGuide => Some(SettingValue::bool(false)),
                 };
+
                 if let Some(v) = val {
                     let role_info = RoleInfo {
                         role: Some(CapabilityRole::Use),
-                        capability: sk.use_capability().into(),
+                        capability: FireboltCap::Short(sk.use_capability().into()).as_str(),
                     };
                     if let Ok(result) = is_permitted(state.clone(), ctx.clone(), role_info).await {
                         if result {

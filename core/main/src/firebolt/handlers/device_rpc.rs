@@ -110,10 +110,10 @@ pub trait Device {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
-    #[method(name = "device.model", aliases = ["device.sku"])]
+    #[method(name = "device.model")]
     async fn model(&self, ctx: CallContext) -> RpcResult<String>;
-    //    #[method(name = "device.sku")]
-    //    async fn sku(&self, ctx: CallContext) -> RpcResult<String>;
+    #[method(name = "device.sku")]
+    async fn sku(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "device.hdcp")]
     async fn hdcp(&self, ctx: CallContext) -> RpcResult<HashMap<HdcpProfile, bool>>;
     #[method(name = "device.onHdcpChanged")]
@@ -194,13 +194,14 @@ pub async fn get_device_id(state: &PlatformState) -> RpcResult<String> {
     }
 }
 
-pub async fn get_uid(state: &PlatformState) -> RpcResult<String> {
+pub async fn get_uid(state: &PlatformState, app_id: String) -> RpcResult<String> {
     if let Ok(device_id) = get_device_id(state).await {
         if state.supports_encoding() {
             if let Ok(resp) = state
                 .get_client()
                 .send_extn_request(EncoderRequest {
                     reference: device_id.clone(),
+                    scope: app_id,
                 })
                 .await
             {
@@ -304,8 +305,8 @@ impl DeviceServer for DeviceImpl {
         get_device_id(&self.state).await
     }
 
-    async fn uid(&self, _ctx: CallContext) -> RpcResult<String> {
-        get_uid(&self.state).await
+    async fn uid(&self, ctx: CallContext) -> RpcResult<String> {
+        get_uid(&self.state, ctx.app_id.clone()).await
     }
 
     async fn platform(&self, _ctx: CallContext) -> RpcResult<String> {
@@ -341,25 +342,33 @@ impl DeviceServer for DeviceImpl {
             .await
         {
             if let Some(ExtnResponse::String(v)) = response.payload.clone().extract() {
+                if let Some(f) = self
+                    .state
+                    .get_device_manifest()
+                    .get_model_friendly_names()
+                    .get(&v)
+                {
+                    return Ok(f.clone());
+                }
                 return Ok(v);
             }
         }
         Err(rpc_err("FB error response TBD"))
     }
 
-    // async fn sku(&self, _ctx: CallContext) -> RpcResult<String> {
-    //     if let Ok(response) = self
-    //         .state
-    //         .get_client()
-    //         .send_extn_request(DeviceInfoRequest::Model)
-    //         .await
-    //     {
-    //         if let Some(ExtnResponse::String(v)) = response.payload.clone().extract() {
-    //             return Ok(v);
-    //         }
-    //     }
-    //     Err(rpc_err("FB error response TBD"))
-    // }
+    async fn sku(&self, _ctx: CallContext) -> RpcResult<String> {
+        if let Ok(response) = self
+            .state
+            .get_client()
+            .send_extn_request(DeviceInfoRequest::Model)
+            .await
+        {
+            if let Some(ExtnResponse::String(v)) = response.payload.clone().extract() {
+                return Ok(v);
+            }
+        }
+        Err(rpc_err("FB error response TBD"))
+    }
 
     async fn hdcp(&self, _ctx: CallContext) -> RpcResult<HashMap<HdcpProfile, bool>> {
         let resp = self

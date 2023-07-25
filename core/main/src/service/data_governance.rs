@@ -20,6 +20,7 @@ use ripple_sdk::{
         distributor::distributor_privacy::{
             DataEventType, ExclusionPolicy, ExclusionPolicyData, PrivacyCloudRequest,
         },
+        firebolt::fb_discovery::DataTagInfo,
         manifest::device_manifest::DataGovernancePolicy,
         storage_property::StorageProperty,
     },
@@ -79,21 +80,25 @@ impl DataGovernance {
         app_id: String,
         data_type: DataEventType,
         policy: &DataGovernancePolicy,
-    ) -> (HashSet<String>, bool) {
+    ) -> (HashSet<DataTagInfo>, bool) {
         let mut tags = HashSet::default();
         let mut all_settings_enforced = true;
         let exclusions = DataGovernance::get_partner_exclusions(state)
             .await
             .unwrap_or_default();
         for tag in &policy.setting_tags {
-            let mut excluded = None;
+            let mut excluded = false;
+            let mut propagation_state = true;
             let data = DataGovernance::get_exclusion_data(tag.setting.clone(), exclusions.clone());
             if data.is_some() {
-                excluded = Some(DataGovernance::is_app_excluded(
-                    &app_id,
-                    &data_type,
-                    &data.unwrap(),
-                ));
+                let (excluded_tmp, propagation_state_tmp) =
+                    DataGovernance::is_app_excluded_and_get_propagation_state(
+                        &app_id,
+                        &data_type,
+                        &data.unwrap(),
+                    );
+                excluded = excluded_tmp;
+                propagation_state = propagation_state_tmp;
                 debug!(
                     "get_tags: app_id={:?} setting={:?} is_excluded={:?}",
                     app_id.clone(),
@@ -103,15 +108,31 @@ impl DataGovernance {
             }
 
             // do not get user setting if excluded
-            if excluded.is_some() && excluded.unwrap() {
-                let tags_to_add = tag.tags.clone();
+            if excluded {
+                let tags_to_add: HashSet<DataTagInfo> = tag
+                    .tags
+                    .iter()
+                    .cloned()
+                    .map(|name| DataTagInfo {
+                        tag_name: name,
+                        propagation_state,
+                    })
+                    .collect();
                 tags.extend(tags_to_add);
             } else {
                 let val = StorageManager::get_bool(state, tag.setting.clone())
                     .await
                     .unwrap_or(false);
                 if val == tag.enforcement_value {
-                    let tags_to_add = tag.tags.clone();
+                    let tags_to_add: HashSet<DataTagInfo> = tag
+                        .tags
+                        .iter()
+                        .cloned()
+                        .map(|name| DataTagInfo {
+                            tag_name: name,
+                            propagation_state: true,
+                        })
+                        .collect();
                     tags.extend(tags_to_add);
                 } else {
                     all_settings_enforced = false;
@@ -125,7 +146,7 @@ impl DataGovernance {
         platform_state: &PlatformState,
         app_id: String,
         data_type: DataEventType,
-    ) -> (HashSet<String>, bool) {
+    ) -> (HashSet<DataTagInfo>, bool) {
         let data_gov_cfg = platform_state
             .get_device_manifest()
             .configuration
@@ -219,17 +240,19 @@ impl DataGovernance {
         response
     }
 
-    pub fn is_app_excluded(
+    fn is_app_excluded_and_get_propagation_state(
         app_id: &String,
         data_type: &DataEventType,
         excl: &ExclusionPolicyData,
-    ) -> bool {
+    ) -> (bool, bool) {
         let mut app_found: bool = false;
         let mut event_found: bool = false;
+        let mut propagation_state: bool = true;
 
         for evt in &excl.data_events {
             if *evt == *data_type {
                 event_found = true;
+                propagation_state = excl.derivative_propagation;
                 break;
             }
         }
@@ -241,6 +264,6 @@ impl DataGovernance {
                 }
             }
         }
-        app_found
+        (app_found, propagation_state)
     }
 }

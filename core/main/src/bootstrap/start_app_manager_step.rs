@@ -18,6 +18,7 @@
 use ripple_sdk::async_trait::async_trait;
 use ripple_sdk::{framework::bootstrap::Bootstep, tokio, utils::error::RippleError};
 
+use crate::processor::lifecycle_management_processor::LifecycleManagementProcessor;
 use crate::{
     service::apps::delegated_launcher_handler::DelegatedLauncherHandler,
     state::bootstrap_state::BootstrapState,
@@ -33,6 +34,12 @@ impl Bootstep<BootstrapState> for StartAppManagerStep {
     }
 
     async fn setup(&self, state: BootstrapState) -> Result<(), RippleError> {
+        state
+            .platform_state
+            .get_client()
+            .add_request_processor(LifecycleManagementProcessor::new(
+                state.platform_state.get_client(),
+            ));
         let mut app_manager =
             DelegatedLauncherHandler::new(state.channels_state, state.platform_state);
         tokio::spawn(async move {

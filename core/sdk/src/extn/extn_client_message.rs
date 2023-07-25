@@ -87,6 +87,7 @@ pub struct ExtnMessage {
     pub target: RippleContract,
     pub payload: ExtnPayload,
     pub callback: Option<CSender<CExtnMessage>>,
+    pub ts: Option<i64>,
 }
 
 impl ExtnMessage {
@@ -102,6 +103,7 @@ impl ExtnMessage {
                 payload: ExtnPayload::Response(response),
                 requestor: self.requestor.clone(),
                 target: self.target.clone(),
+                ts: None,
             }),
             _ => {
                 error!("can only respond for a request message");
@@ -117,6 +119,7 @@ impl ExtnMessage {
             target: self.target.clone(),
             payload: ExtnPayload::Response(ExtnResponse::None(())),
             callback: self.callback.clone(),
+            ts: None,
         }
     }
 }
