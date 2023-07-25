@@ -22,8 +22,8 @@ use crate::ripple_sdk::api::device::device_wifi::WifiRequest;
 use crate::ripple_sdk::extn::client::extn_processor::ExtnRequestProcessor;
 use crate::ripple_sdk::{
     api::device::{
-            device_request::DeviceRequest,
-            device_wifi::{AccessPointRequest, WifiSecurityMode},
+        device_request::DeviceRequest,
+        device_wifi::{AccessPointRequest, WifiSecurityMode},
     },
     crossbeam::channel::unbounded,
     extn::extn_client_message::{ExtnPayload, ExtnRequest},

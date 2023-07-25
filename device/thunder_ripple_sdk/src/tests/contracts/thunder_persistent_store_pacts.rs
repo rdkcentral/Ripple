@@ -113,7 +113,6 @@ async fn test_device_set_persistent_value() {
     .await;
 }
 
-
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_device_get_persistent_value() {
