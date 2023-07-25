@@ -117,14 +117,14 @@ async fn test_device_get_model() {
     result.insert(
         "receiverVersion".into(),
         ContractMatcher::MatchRegex(
-            "^[0-9]{1}.[0-9]{2}.[0-9]{1}.[0-9]{1}$".into(),
+            r"^[0-9]\d*.[0-9]\d*.[0-9]\d*.[0-9]\d*$".into(),
             "3.14.0.0".into(),
         ),
     );
     result.insert(
         "stbTimestamp".into(),
         ContractMatcher::MatchDateTime(
-            "EEE dd MMM yyyy HH:mm:ss aaa zß".into(),
+            "EEE dd MMM yyyy HH:mm:ss a z".into(),
             "Thu 09 Jan 2020 04:04:24 AM UTC".into(),
         ),
     );
@@ -187,6 +187,12 @@ async fn test_device_get_interfaces_wifi() {
                             "macAddress": "matching(regex, '^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$', 'AA:AA:AA:AA:AA:AA')",
                             "enabled": "matching(boolean, true)",
                             "connected": "matching(boolean, true)"
+                        },
+                        {
+                            "interface": "matching(regex, '(WIFI|ETHERNET)', 'ETHERNET')",
+                            "macAddress": "matching(regex, '^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$', 'AA:AA:AA:AA:AA:AA')",
+                            "enabled": "matching(boolean, true)",
+                            "connected": "matching(boolean, false)"
                         }
                     ],
                     "success": true
@@ -243,6 +249,12 @@ async fn test_device_get_interfaces_ethernet() {
                             "macAddress": "matching(regex, '^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$', 'AA:AA:AA:AA:AA:AA')",
                             "enabled": "matching(boolean, true)",
                             "connected": "matching(boolean, true)"
+                        },
+                        {
+                            "interface": "matching(regex, '(WIFI|ETHERNET)', 'WIFI')",
+                            "macAddress": "matching(regex, '^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$', 'AA:AA:AA:AA:AA:AA')",
+                            "enabled": "matching(boolean, true)",
+                            "connected": "matching(boolean, false)"
                         }
                     ],
                     "success": true
@@ -294,7 +306,7 @@ async fn test_device_get_audio() {
                     "id": "matching(integer, 0)",
                     "result":  {
                         "supportedAudioFormat": [
-                            "'NONE', 'PCM', 'DOLBY AC3', 'DOLBY EAC3', 'DOLBY AC4', 'DOLBY MAT', 'DOLBY TRUEHD', 'DOLBY EAC3 ATMOS', 'DOLBY TRUEHD ATMOS', 'DOLBY MAT ATMOS', 'DOLBY AC4 ATMOS'"
+                            "NONE","PCM","AAC","VORBIS","WMA","DOLBY AC3","DOLBY EAC3","DOLBY AC4","DOLBY MAT","DOLBY TRUEHD","DOLBY EAC3 ATMOS","DOLBY TRUEHD ATMOS","DOLBY MAT ATMOS","DOLBY AC4 ATMOS","UNKNOWN"
                         ],
                         "currentAudioFormat": "matching(type,'PCM')",
                         "success": "matching(boolean, true)"
@@ -753,11 +765,11 @@ async fn test_device_get_available_timezone() {
                     "result":  {
                         "zoneinfo": {
                             "America": {
-                                "New_York": "matching(datetime, 'EEE MMM d H:mm:ss yyyy EST', 'Thu Nov 5 15:21:17 2020 EST')",
-                                "Los_Angeles": "matching (datetime, 'EEE MMM d H:mm:ss yyyy PST', 'Thu Nov 5 12:21:17 2020 PST')"
+                                "New_York": "matching(datetime, 'EEE MMM d HH:mm:ss yyyy z', 'Thu Nov 5 15:21:17 2020 EST')",
+                                "Los_Angeles": "matching (datetime, 'EEE MMM d HH:mm:ss yyyy z', 'Thu Nov 5 12:21:17 2020 PST')"
                             },
                             "Europe": {
-                                "London": "matching(datetime, 'EEE MMM d H:mm:ss yyyy CST', 'Thu Nov 5 14:21:17 2020 CST')"
+                                "London": "matching(datetime, 'EEE MMM d HH:mm:ss yyyy z', 'Thu Nov 5 14:21:17 2020 CST')"
                             }
                         },
                         "success": "matching(boolean, true)"
@@ -1104,7 +1116,7 @@ async fn test_device_get_internet() {
     result.insert(
         "publicip".into(),
         ContractMatcher::MatchRegex(
-            "r^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+            "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
                 .into(),
             "78.11.117.118".into(),
         ),
