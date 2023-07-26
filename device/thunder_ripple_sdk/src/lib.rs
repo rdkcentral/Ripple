@@ -47,7 +47,7 @@ pub mod processors {
     pub mod thunder_window_manager;
 }
 
-#[cfg(test)]
+// #[cfg(test)]
 pub mod tests {
     #[cfg(feature = "contract_tests")]
     pub mod contracts {
