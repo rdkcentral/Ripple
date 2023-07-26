@@ -222,7 +222,7 @@ impl ExtnClient {
                                     // before forwarding check if the requestor needs to be added as callback
                                     let req_sender = if let Some(requestor_sender) = self
                                         .get_extn_sender_with_extn_id(
-                                            message.clone().requestor.to_string(),
+                                            &message.requestor.to_string(),
                                         ) {
                                         Some(requestor_sender)
                                     } else {
@@ -274,7 +274,7 @@ impl ExtnClient {
 
     fn handle_no_processor_error(&self, message: ExtnMessage) {
         let req_sender = if let Some(requestor_sender) =
-            self.get_extn_sender_with_extn_id(message.clone().requestor.to_string())
+            self.get_extn_sender_with_extn_id(&message.requestor.to_string())
         {
             Some(requestor_sender)
         } else {
@@ -413,14 +413,14 @@ impl ExtnClient {
                 .cloned()
         };
         if let Some(extn_id) = id {
-            return self.get_extn_sender_with_extn_id(extn_id);
+            return self.get_extn_sender_with_extn_id(&extn_id);
         }
 
         None
     }
 
-    fn get_extn_sender_with_extn_id(&self, id: String) -> Option<CSender<CExtnMessage>> {
-        return self.extn_sender_map.read().unwrap().get(&id).cloned();
+    fn get_extn_sender_with_extn_id(&self, id: &str) -> Option<CSender<CExtnMessage>> {
+        return self.extn_sender_map.read().unwrap().get(id).cloned();
     }
 
     /// Critical method used by request processors to send response message back to the requestor
@@ -446,7 +446,7 @@ impl ExtnClient {
     pub async fn send_message(&mut self, msg: ExtnMessage) -> RippleResponse {
         self.sender.respond(
             msg.clone().into(),
-            self.get_extn_sender_with_extn_id(msg.clone().requestor.to_string()),
+            self.get_extn_sender_with_extn_id(&msg.requestor.to_string()),
         )
     }
 
