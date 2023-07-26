@@ -764,6 +764,7 @@ async fn test_device_get_available_timezone() {
                     "id": "matching(integer, 0)",
                     "result":  {
                         "zoneinfo": {
+                            "EST": "matching(datetime, 'EEE MMM d HH:mm:ss yyyy z', 'Thu Nov 5 15:21:17 2020 EST')",
                             "America": {
                                 "New_York": "matching(datetime, 'EEE MMM d HH:mm:ss yyyy z', 'Thu Nov 5 15:21:17 2020 EST')",
                                 "Los_Angeles": "matching (datetime, 'EEE MMM d HH:mm:ss yyyy z', 'Thu Nov 5 12:21:17 2020 PST')"
