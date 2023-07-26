@@ -90,7 +90,7 @@ impl JsonRpcMethodLocator {
 mod tests {
     use super::{JsonRpcMethodLocator, RpcMethodLocatorParseError};
 
-    // #[test]
+    #[test]
     pub fn test_json_rpc_method_locator() {
         let locator =
             JsonRpcMethodLocator::from_str("org.rdk.Controller.1.status@org.rdk.Network").unwrap();
@@ -137,7 +137,7 @@ mod tests {
         assert_eq!(locator.qualifier, None);
     }
 
-    // #[test]
+    #[test]
     pub fn neg_test_json_rpc_method_locator() {
         let locator_err =
             JsonRpcMethodLocator::from_str("org.rdk.Controller.status@org.rdk.Network@test3@test4")

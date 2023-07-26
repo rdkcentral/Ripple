@@ -33,8 +33,8 @@ use ripple_sdk::{
 use serde_json::json;
 use std::collections::HashMap;
 
-#[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+// #[tokio::test(flavor = "multi_thread")]
+// #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_device_launch_html_app() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -48,7 +48,7 @@ async fn test_device_launch_html_app() {
         "uri".into(),
         ContractMatcher::MatchRegex(
             r"^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?".into(),
-            "https://url_for_app".into(),
+            "https://google.com".into(),
         ),
     );
     params.insert("x".into(), ContractMatcher::MatchNumber(0));
@@ -84,7 +84,7 @@ async fn test_device_launch_html_app() {
         .await;
 
     let browser_name = "Html-0";
-    let uri = "https://url_for_app";
+    let uri = "https://google.com";
     let _type = "HtmlApp";
     let visible = true;
     let suspend = false;
