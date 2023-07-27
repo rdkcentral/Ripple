@@ -87,7 +87,11 @@ impl PermittedState {
         for role_info in request {
             map.insert(
                 role_info.clone().capability,
-                self.check_cap_role(app_id, role_info).is_ok(),
+                if let Ok(v) = self.check_cap_role(app_id, role_info) {
+                    v
+                } else {
+                    false
+                },
             );
         }
         map
