@@ -20,9 +20,7 @@ use crate::{
     ripple_sdk::{
         api::device::{
             device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
-            device_peristence::{
-                DevicePersistenceRequest, GetStorageProperty, SetStorageProperty, StorageData,
-            },
+            device_peristence::{DevicePersistenceRequest, GetStorageProperty, SetStorageProperty},
         },
         async_trait::async_trait,
         extn::{
@@ -196,7 +194,7 @@ impl ThunderStorageRequestProcessor {
                 }
 
                 let value = parsed_res.unwrap();
-                if let Ok(v) =  serde_json::from_value(value.clone()) {
+                if let Ok(v) = serde_json::from_value(value.clone()) {
                     return Self::respond(
                         state.get_client(),
                         req.clone(),
