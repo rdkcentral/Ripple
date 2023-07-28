@@ -181,6 +181,7 @@ impl FireboltWs {
                             ws_stream,
                             connect_rx,
                             state_for_connection_c.clone(),
+                            secure,
                         )
                         .await;
                     });
@@ -195,6 +196,7 @@ impl FireboltWs {
         ws_stream: WebSocketStream<TcpStream>,
         connect_rx: oneshot::Receiver<ClientIdentity>,
         state: PlatformState,
+        gateway_secure: bool,
     ) {
         let identity = connect_rx.await.unwrap();
         let client = state.get_client();
@@ -203,6 +205,7 @@ impl FireboltWs {
         let ctx = ClientContext {
             session_id: identity.session_id.clone(),
             app_id: app_id.clone(),
+            gateway_secure,
         };
         let session = Session::new(
             identity.app_id.clone(),
@@ -263,6 +266,7 @@ impl FireboltWs {
                             ctx.session_id.clone(),
                             req_id.clone(),
                             Some(connection_id.clone()),
+                            ctx.gateway_secure,
                         ) {
                             debug!(
                                 "Received Firebolt request {} {} {}",
