@@ -343,9 +343,24 @@ pub struct ContentPolicy {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum NavigationIntent {
+    NavigationIntentStrict(NavigationIntentStrict),
+    NavigationIntentLoose(NavigationIntentLoose),
+}
+
+impl Default for NavigationIntent {
+    fn default() -> Self {
+        NavigationIntent::NavigationIntentStrict(
+            NavigationIntentStrict::Home(HomeIntent::default()),
+        )
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "action", rename_all = "camelCase")]
 
-pub enum NavigationIntent {
+pub enum NavigationIntentStrict {
     Home(HomeIntent),
     Launch(LaunchIntent),
     Entity(EntityIntent),
@@ -356,9 +371,21 @@ pub enum NavigationIntent {
     ProviderRequest(ProviderRequestIntent),
 }
 
-impl Default for NavigationIntent {
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Context {
+    pub source: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct NavigationIntentLoose {
+    pub action: String,
+    pub data: Option<Value>,
+    pub context: Context,
+}
+
+impl Default for NavigationIntentStrict {
     fn default() -> Self {
-        NavigationIntent::Home(HomeIntent::default())
+        NavigationIntentStrict::Home(HomeIntent::default())
     }
 }
 

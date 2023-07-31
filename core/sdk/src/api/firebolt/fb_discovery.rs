@@ -141,6 +141,8 @@ pub struct ContentAccessRequest {
 pub const ENTITY_INFO_EVENT: &'static str = "discovery.onPullEntityInfo";
 pub const ENTITY_INFO_CAPABILITY: &'static str = "discovery:entity-info";
 pub const PURCHASED_CONTENT_EVENT: &'static str = "discovery.onPullPurchasedContent";
+pub const EVENT_ON_SIGN_IN: &'static str = "discovery.onSignIn";
+pub const EVENT_ON_SIGN_OUT: &'static str = "discovery.onSignOut";
 pub const PURCHASED_CONTENT_CAPABILITY: &'static str = "discovery:purchased-content";
 pub const EVENT_DISCOVERY_POLICY_CHANGED: &'static str = "discovery.onPolicyChanged";
 

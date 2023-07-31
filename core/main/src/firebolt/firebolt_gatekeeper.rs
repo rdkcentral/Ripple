@@ -24,6 +24,7 @@ use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
 use ripple_sdk::log::trace;
 
 use crate::service::user_grants::GrantState;
+use crate::state::openrpc_state::ApiSurface;
 use crate::state::{cap::permitted_state::PermissionHandler, platform_state::PlatformState};
 
 pub struct FireboltGatekeeper {}
@@ -51,12 +52,26 @@ impl FireboltGatekeeper {
     fn get_resolved_caps_for_method(
         platform_state: &PlatformState,
         method: &str,
-    ) -> Vec<FireboltPermission> {
-        let perm_based_on_spec = platform_state.open_rpc_state.get_perms_for_method(method);
-        if perm_based_on_spec.len() == 0 {
-            return perm_based_on_spec;
+        secure: bool,
+    ) -> Option<Vec<FireboltPermission>> {
+        let mut api_surface = vec![ApiSurface::Firebolt];
+        if !secure {
+            api_surface.push(ApiSurface::Ripple);
         }
-        Self::resolve_dependencies(platform_state, &perm_based_on_spec)
+        let perm_based_on_spec_opt = platform_state
+            .open_rpc_state
+            .get_perms_for_method(method, api_surface);
+        if perm_based_on_spec_opt.is_none() {
+            return None;
+        }
+        let perm_based_on_spec = perm_based_on_spec_opt.unwrap();
+        if perm_based_on_spec.len() == 0 {
+            return Some(perm_based_on_spec);
+        }
+        Some(Self::resolve_dependencies(
+            platform_state,
+            &perm_based_on_spec,
+        ))
     }
     // TODO return Deny Reason into ripple error
     pub async fn gate(state: PlatformState, request: RpcRequest) -> Result<(), DenyReasonWithCap> {
@@ -65,9 +80,15 @@ impl FireboltGatekeeper {
             trace!("Method is exluded from gating");
             return Ok(());
         }
-        // if let Some(caps) = open_rpc_state.get_caps_for_method(&request.method) {
-        // let caps = open_rpc_state.get_perms_for_method(&request.method);
-        let caps = Self::get_resolved_caps_for_method(&state, &request.method);
+        let caps_opt =
+            Self::get_resolved_caps_for_method(&state, &request.method, request.ctx.gateway_secure);
+        if caps_opt.is_none() {
+            return Err(DenyReasonWithCap {
+                reason: DenyReason::NotFound,
+                caps: Vec::new(),
+            });
+        }
+        let caps = caps_opt.unwrap();
         if caps.len() > 0 {
             // Supported and Availability checks
             trace!(

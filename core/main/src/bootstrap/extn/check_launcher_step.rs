@@ -18,7 +18,7 @@
 use ripple_sdk::{
     api::{
         apps::{AppMethod, AppRequest, AppResponse},
-        device::entertainment_data::{LaunchIntent, NavigationIntent},
+        device::entertainment_data::{LaunchIntent, NavigationIntent, NavigationIntentStrict},
         firebolt::fb_discovery::{DiscoveryContext, LaunchRequest},
     },
     async_trait::async_trait,
@@ -51,9 +51,11 @@ impl Bootstep<BootstrapState> for CheckLauncherStep {
             let app_request = AppRequest::new(
                 AppMethod::Launch(LaunchRequest {
                     app_id: app.app_id,
-                    intent: Some(NavigationIntent::Launch(LaunchIntent {
-                        context: DiscoveryContext::new("device"),
-                    })),
+                    intent: Some(NavigationIntent::NavigationIntentStrict(
+                        NavigationIntentStrict::Launch(LaunchIntent {
+                            context: DiscoveryContext::new("device"),
+                        }),
+                    )),
                 }),
                 app_resp_tx,
             );
