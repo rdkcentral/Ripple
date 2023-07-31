@@ -90,8 +90,13 @@ pub struct AppRuntime {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppLaunchInfo {
-    pub intent: NavigationIntent,
-    #[serde(rename = "secondScreen")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intent: Option<NavigationIntent>,
+    #[serde(
+        default,
+        rename = "secondScreen",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub second_screen: Option<SecondScreenEvent>,
     #[serde(default = "bool::default")]
     pub inactive: bool,
