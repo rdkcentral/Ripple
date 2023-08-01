@@ -21,6 +21,7 @@ use std::{
     time::Duration,
 };
 
+use chrono::Utc;
 use crossbeam::channel::{bounded, Receiver as CReceiver, Sender as CSender, TryRecvError};
 use log::{debug, error, info, trace};
 use tokio::sync::{
@@ -189,7 +190,14 @@ impl ExtnClient {
             index = index + 1;
             match receiver.try_recv() {
                 Ok(c_message) => {
-                    debug!("** receiving message {:?}", c_message);
+                    let latency = Utc::now().timestamp_millis() - c_message.ts;
+                    debug!(
+                        "** receiving message latency={} msg={:?}",
+                        latency, c_message
+                    );
+                    if latency > 1000 {
+                        error!("IEC Latency {:?}", c_message);
+                    }
                     let message_result: Result<ExtnMessage, RippleError> =
                         c_message.clone().try_into();
                     if message_result.is_err() {
@@ -214,7 +222,7 @@ impl ExtnClient {
                                     // before forwarding check if the requestor needs to be added as callback
                                     let req_sender = if let Some(requestor_sender) = self
                                         .get_extn_sender_with_extn_id(
-                                            message.clone().requestor.to_string(),
+                                            &message.requestor.to_string(),
                                         ) {
                                         Some(requestor_sender)
                                     } else {
@@ -232,10 +240,20 @@ impl ExtnClient {
                                 });
                             } else {
                                 // could be main contract
-                                Self::handle_stream(message, self.request_processors.clone());
+                                if !Self::handle_stream(
+                                    message.clone(),
+                                    self.request_processors.clone(),
+                                ) {
+                                    self.handle_no_processor_error(message);
+                                }
                             }
                         } else {
-                            Self::handle_stream(message, self.request_processors.clone());
+                            if !Self::handle_stream(
+                                message.clone(),
+                                self.request_processors.clone(),
+                            ) {
+                                self.handle_no_processor_error(message);
+                            }
                         }
                     }
                 }
@@ -244,14 +262,29 @@ impl ExtnClient {
                     _ => {}
                 },
             }
-            if index % 10000 == 0 {
+            if index % 100000 == 0 {
                 index = 0;
                 debug!("Receiver still running");
             }
-            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
         }
 
         debug!("Initialize Ended Abruptly");
+    }
+
+    fn handle_no_processor_error(&self, message: ExtnMessage) {
+        let req_sender = if let Some(requestor_sender) =
+            self.get_extn_sender_with_extn_id(&message.requestor.to_string())
+        {
+            Some(requestor_sender)
+        } else {
+            None
+        };
+        if let Ok(resp) = message.get_response(ExtnResponse::Error(RippleError::ProcessorError)) {
+            if let Err(_) = self.sender.respond(resp.into(), req_sender) {
+                error!("Couldnt send no processor response");
+            }
+        }
     }
 
     fn handle_single(
@@ -278,7 +311,7 @@ impl ExtnClient {
     fn handle_stream(
         msg: ExtnMessage,
         processor: Arc<RwLock<HashMap<String, MSender<ExtnMessage>>>>,
-    ) {
+    ) -> bool {
         let id_c: String = msg.clone().target.into();
 
         let v = {
@@ -292,8 +325,10 @@ impl ExtnClient {
                     error!("Error sending the response back {:?}", e);
                 }
             });
+            true
         } else {
             error!("No Request Processor for {:?}", msg);
+            false
         }
     }
 
@@ -378,14 +413,14 @@ impl ExtnClient {
                 .cloned()
         };
         if let Some(extn_id) = id {
-            return self.get_extn_sender_with_extn_id(extn_id);
+            return self.get_extn_sender_with_extn_id(&extn_id);
         }
 
         None
     }
 
-    fn get_extn_sender_with_extn_id(&self, id: String) -> Option<CSender<CExtnMessage>> {
-        return self.extn_sender_map.read().unwrap().get(&id).cloned();
+    fn get_extn_sender_with_extn_id(&self, id: &str) -> Option<CSender<CExtnMessage>> {
+        return self.extn_sender_map.read().unwrap().get(id).cloned();
     }
 
     /// Critical method used by request processors to send response message back to the requestor
@@ -411,7 +446,7 @@ impl ExtnClient {
     pub async fn send_message(&mut self, msg: ExtnMessage) -> RippleResponse {
         self.sender.respond(
             msg.clone().into(),
-            self.get_extn_sender_with_extn_id(msg.clone().requestor.to_string()),
+            self.get_extn_sender_with_extn_id(&msg.requestor.to_string()),
         )
     }
 
@@ -453,6 +488,57 @@ impl ExtnClient {
     ///
     /// # Arguments
     /// `payload` - impl [ExtnPayloadProvider]
+    pub async fn standalone_request<T: ExtnPayloadProvider>(
+        &mut self,
+        payload: impl ExtnPayloadProvider,
+        timeout_in_msecs: u64,
+    ) -> Result<T, RippleError> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let (tx, tr) = bounded(2);
+        let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
+        let timeout_increments = 50;
+        if let Err(e) = self
+            .sender
+            .send_request(id, payload, other_sender, Some(tx))
+        {
+            return Err(e);
+        }
+        let mut current_timeout: u64 = 0;
+        loop {
+            match tr.try_recv() {
+                Ok(cmessage) => {
+                    debug!("** receiving message msg={:?}", cmessage);
+                    let message: ExtnMessage = cmessage.try_into().unwrap();
+                    if let Some(v) = message.payload.clone().extract() {
+                        return Ok(v);
+                    } else {
+                        return Err(RippleError::ParseError);
+                    }
+                }
+                Err(e) => match e {
+                    TryRecvError::Disconnected => {
+                        error!("Channel disconnected");
+                        break;
+                    }
+                    _ => {}
+                },
+            }
+            current_timeout += timeout_increments;
+            if current_timeout > timeout_in_msecs {
+                break;
+            } else {
+                tokio::time::sleep(Duration::from_millis(timeout_increments)).await
+            }
+        }
+        Err(RippleError::InvalidOutput)
+    }
+
+    /// Request method which accepts a impl [ExtnPayloadProvider] and uses the capability provided by the trait to send the request.
+    /// As part of the send process it adds a callback to asynchronously respond back to the caller when the response does get
+    /// received. This method can be called synchrnously with a timeout
+    ///
+    /// # Arguments
+    /// `payload` - impl [ExtnPayloadProvider]
     pub fn request_sync<T: ExtnPayloadProvider>(
         &mut self,
         payload: impl ExtnPayloadProvider,
@@ -482,6 +568,7 @@ impl ExtnClient {
                 Err(e) => match e {
                     TryRecvError::Disconnected => {
                         error!("Channel disconnected");
+                        break;
                     }
                     _ => {}
                 },

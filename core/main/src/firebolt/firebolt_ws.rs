@@ -27,7 +27,6 @@ use crate::{
 };
 use futures::SinkExt;
 use futures::StreamExt;
-use ripple_sdk::tokio;
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::{ClientContext, RpcRequest},
     log::{error, info, trace},
@@ -38,6 +37,7 @@ use ripple_sdk::{
     utils::channel_utils::oneshot_send_and_log,
     uuid::Uuid,
 };
+use ripple_sdk::{log::debug, tokio};
 use tokio_tungstenite::{
     tungstenite::{self, Message},
     WebSocketStream,
@@ -173,7 +173,7 @@ impl FireboltWs {
                     error!("websocket connection error {:?}", e);
                 }
                 Ok(ws_stream) => {
-                    info!("websocket connection success");
+                    trace!("websocket connection success");
                     let state_for_connection_c = state_for_connection.clone();
                     tokio::spawn(async move {
                         FireboltWs::handle_connection(
@@ -181,6 +181,7 @@ impl FireboltWs {
                             ws_stream,
                             connect_rx,
                             state_for_connection_c.clone(),
+                            secure,
                         )
                         .await;
                     });
@@ -195,6 +196,7 @@ impl FireboltWs {
         ws_stream: WebSocketStream<TcpStream>,
         connect_rx: oneshot::Receiver<ClientIdentity>,
         state: PlatformState,
+        gateway_secure: bool,
     ) {
         let identity = connect_rx.await.unwrap();
         let client = state.get_client();
@@ -203,14 +205,25 @@ impl FireboltWs {
         let ctx = ClientContext {
             session_id: identity.session_id.clone(),
             app_id: app_id.clone(),
+            gateway_secure,
         };
         let session = Session::new(
             identity.app_id.clone(),
             Some(session_tx.clone()),
             ripple_sdk::api::apps::EffectiveTransport::Websocket,
         );
+        let app_id_c = app_id.clone();
+        let session_id_c = identity.session_id.clone();
+
+        let connection_id = Uuid::new_v4().to_string();
+        info!(
+            "Creating new connection_id={} app_id={} session_id={}",
+            connection_id, app_id_c, session_id_c
+        );
+        let connection_id_c = connection_id.clone();
+
         let msg = FireboltGatewayCommand::RegisterSession {
-            session_id: identity.session_id.clone(),
+            session_id: connection_id.clone(),
             session,
         };
         if let Err(e) = client.send_gateway_command(msg) {
@@ -228,35 +241,55 @@ impl FireboltWs {
                 let send_result = sender.send(Message::Text(rs.jsonrpc_msg.clone())).await;
                 match send_result {
                     Ok(_) => {
-                        trace!("Sent Firebolt response {}", rs.jsonrpc_msg);
+                        debug!(
+                            "Sent Firebolt response cid={} msg={}",
+                            connection_id_c, rs.jsonrpc_msg
+                        );
                     }
                     Err(err) => error!("{:?}", err),
                 }
             }
+            debug!(
+                "api msg rx closed {} {} {}",
+                app_id_c, session_id_c, connection_id_c
+            );
         });
         while let Some(msg) = receiver.next().await {
-            if let Ok(msg) = msg {
-                if msg.is_text() && !msg.is_empty() {
-                    let req_text = String::from(msg.to_text().unwrap());
-                    let req_id = Uuid::new_v4().to_string();
-                    if let Ok(request) = RpcRequest::parse(
-                        req_text.clone(),
-                        ctx.app_id.clone(),
-                        ctx.session_id.clone(),
-                        req_id.clone(),
-                    ) {
-                        let msg = FireboltGatewayCommand::HandleRpc { request };
-                        if let Err(e) = client.clone().send_gateway_command(msg) {
-                            error!("failed to send request {:?}", e);
+            match msg {
+                Ok(msg) => {
+                    if msg.is_text() && !msg.is_empty() {
+                        let req_text = String::from(msg.to_text().unwrap());
+                        let req_id = Uuid::new_v4().to_string();
+                        if let Ok(request) = RpcRequest::parse(
+                            req_text.clone(),
+                            ctx.app_id.clone(),
+                            ctx.session_id.clone(),
+                            req_id.clone(),
+                            Some(connection_id.clone()),
+                            ctx.gateway_secure,
+                        ) {
+                            debug!(
+                                "Received Firebolt request {} {} {}",
+                                connection_id, request.ctx.request_id, request.method
+                            );
+                            let msg = FireboltGatewayCommand::HandleRpc { request };
+                            if let Err(e) = client.clone().send_gateway_command(msg) {
+                                error!("failed to send request {:?}", e);
+                            }
+                        } else {
+                            error!("invalid message {}", req_text)
                         }
-                    } else {
-                        error!("invalid message {}", req_text)
                     }
+                }
+                Err(e) => {
+                    error!("ws error cid={} error={:?}", connection_id, e);
                 }
             }
         }
+        debug!("SESSION DEBUG Unregistering {}", connection_id);
         let msg = FireboltGatewayCommand::UnregisterSession {
             session_id: identity.session_id.clone(),
+            cid: connection_id,
         };
         if let Err(e) = client.send_gateway_command(msg) {
             error!("Error Unregistering {:?}", e);

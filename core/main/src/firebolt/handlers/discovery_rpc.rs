@@ -36,6 +36,7 @@ use jsonrpsee::{
 use ripple_sdk::api::{
     device::entertainment_data::*,
     firebolt::{
+        fb_discovery::{EVENT_ON_SIGN_IN, EVENT_ON_SIGN_OUT},
         fb_general::{ListenRequest, ListenerResponse},
         provider::ExternalProviderResponse,
     },
@@ -90,6 +91,18 @@ pub trait Discovery {
     async fn sign_in(&self, ctx: CallContext, sign_in_info: SignInInfo) -> RpcResult<bool>;
     #[method(name = "discovery.signOut")]
     async fn sign_out(&self, ctx: CallContext) -> RpcResult<bool>;
+    #[method(name = "discovery.onSignIn")]
+    async fn on_sign_in(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
+    #[method(name = "discovery.onSignOut")]
+    async fn on_sign_out(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
     #[method(name = "discovery.watched")]
     async fn watched(&self, ctx: CallContext, watched_info: WatchedInfo) -> RpcResult<bool>;
     #[method(name = "discovery.watchNext")]
@@ -277,7 +290,8 @@ impl DiscoveryImpl {
         ctx: CallContext,
         is_signed_in: bool,
     ) -> RpcResult<bool> {
-        Ok(self
+        let app_id = ctx.app_id.to_owned();
+        let res = self
             .state
             .get_client()
             .send_extn_request(match is_signed_in {
@@ -285,7 +299,21 @@ impl DiscoveryImpl {
                 false => AccountLinkRequest::SignOut(ctx),
             })
             .await
-            .is_ok())
+            .is_ok();
+        if res {
+            AppEvents::emit(
+                &self.state,
+                if is_signed_in {
+                    EVENT_ON_SIGN_IN
+                } else {
+                    EVENT_ON_SIGN_OUT
+                },
+                &serde_json::json!({"appId": app_id,}),
+            )
+            .await;
+            return Ok(true);
+        }
+        return Ok(false);
     }
 
     async fn content_access(
@@ -402,6 +430,33 @@ impl DiscoveryServer for DiscoveryImpl {
         info!("Discovery.signOut");
         // Note : Do NOT issue clearContentAccess for Firebolt SignOut case.
         self.process_sign_in_request(ctx.clone(), false).await
+    }
+
+    async fn on_sign_in(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        let listen = request.listen;
+        AppEvents::add_listener(&&self.state, EVENT_ON_SIGN_IN.to_string(), ctx, request);
+
+        Ok(ListenerResponse {
+            listening: listen,
+            event: EVENT_ON_SIGN_IN.to_owned(),
+        })
+    }
+    async fn on_sign_out(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        let listen = request.listen;
+        AppEvents::add_listener(&&self.state, EVENT_ON_SIGN_OUT.to_string(), ctx, request);
+
+        Ok(ListenerResponse {
+            listening: listen,
+            event: EVENT_ON_SIGN_OUT.to_owned(),
+        })
     }
 
     async fn watched(&self, ctx: CallContext, watched_info: WatchedInfo) -> RpcResult<bool> {

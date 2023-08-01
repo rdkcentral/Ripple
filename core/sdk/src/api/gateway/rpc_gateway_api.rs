@@ -33,6 +33,8 @@ pub struct CallContext {
     pub call_id: u64,
     pub protocol: ApiProtocol,
     pub method: String,
+    pub cid: Option<String>,
+    pub gateway_secure: bool,
 }
 
 impl CallContext {
@@ -43,6 +45,8 @@ impl CallContext {
         call_id: u64,
         protocol: ApiProtocol,
         method: String,
+        cid: Option<String>,
+        gateway_secure: bool,
     ) -> CallContext {
         CallContext {
             session_id,
@@ -51,7 +55,16 @@ impl CallContext {
             call_id,
             protocol,
             method,
+            cid,
+            gateway_secure,
         }
+    }
+
+    pub fn get_id(&self) -> String {
+        if let Some(cid) = &self.cid {
+            return cid.clone();
+        }
+        self.session_id.clone()
     }
 }
 
@@ -179,6 +192,8 @@ impl RpcRequest {
         app_id: String,
         session_id: String,
         request_id: String,
+        cid: Option<String>,
+        gateway_secure: bool,
     ) -> Result<RpcRequest, RequestParseError> {
         let parsed_res = serde_json::from_str(&json);
         if parsed_res.is_err() {
@@ -210,6 +225,8 @@ impl RpcRequest {
             id,
             ApiProtocol::JsonRpc,
             method.clone(),
+            cid,
+            gateway_secure,
         );
         let ps = RpcRequest::prepend_ctx(jsonrpc_req.params, &ctx);
         Ok(RpcRequest::new(method, ps, ctx))
@@ -232,6 +249,7 @@ pub enum RpcGatewayCommand {
 pub struct ClientContext {
     pub session_id: String,
     pub app_id: String,
+    pub gateway_secure: bool,
 }
 
 #[derive(Debug)]

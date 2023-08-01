@@ -20,10 +20,12 @@ use ripple_sdk::api::{
         fb_capabilities::FireboltPermission,
         fb_openrpc::{
             CapabilitySet, FireboltOpenRpc, FireboltOpenRpcMethod, FireboltVersionManifest,
+            OpenRPCParser,
         },
     },
     manifest::exclusory::{Exclusory, ExclusoryImpl},
 };
+use ripple_sdk::log::error;
 use ripple_sdk::{api::firebolt::fb_openrpc::CapabilityPolicy, serde_json};
 use std::{
     collections::HashMap,
@@ -31,45 +33,63 @@ use std::{
 };
 
 #[derive(Debug, Clone)]
+pub enum ApiSurface {
+    Firebolt,
+    Ripple,
+}
+
+#[derive(Debug, Clone)]
 pub struct OpenRpcState {
     open_rpc: FireboltOpenRpc,
     exclusory: Option<ExclusoryImpl>,
-    cap_map: Arc<RwLock<HashMap<String, CapabilitySet>>>,
+    firebolt_cap_map: Arc<RwLock<HashMap<String, CapabilitySet>>>,
+    ripple_cap_map: Arc<RwLock<HashMap<String, CapabilitySet>>>,
     cap_policies: Arc<RwLock<HashMap<String, CapabilityPolicy>>>,
     extended_rpc: Arc<RwLock<Vec<FireboltOpenRpc>>>,
 }
 
 impl OpenRpcState {
+    pub fn load_additional_rpc(rpc: &mut FireboltOpenRpc, file_contents: &'static str) {
+        let addl_rpc = serde_json::from_str::<OpenRPCParser>(&file_contents);
+        if let Err(_) = addl_rpc {
+            error!("Could not read additional RPC file");
+            return;
+        }
+
+        for m in addl_rpc.unwrap().methods {
+            rpc.methods.push(m.clone());
+        }
+    }
     pub fn new(exclusory: Option<ExclusoryImpl>) -> OpenRpcState {
         let version_manifest: FireboltVersionManifest =
             serde_json::from_str(std::include_str!("./firebolt-open-rpc.json")).unwrap();
-        let open_rpc: FireboltOpenRpc = version_manifest.clone().into();
+        let firebolt_open_rpc: FireboltOpenRpc = version_manifest.clone().into();
+        let ripple_rpc_file = std::include_str!("./ripple-rpc.json");
+        // let mut ripple_open_rpc: FireboltOpenRpc = version_manifest.clone().into();
+        let mut ripple_open_rpc: FireboltOpenRpc = FireboltOpenRpc::default();
+        Self::load_additional_rpc(&mut ripple_open_rpc, ripple_rpc_file);
 
         OpenRpcState {
-            cap_map: Arc::new(RwLock::new(open_rpc.clone().get_methods_caps())),
+            firebolt_cap_map: Arc::new(RwLock::new(firebolt_open_rpc.clone().get_methods_caps())),
+            ripple_cap_map: Arc::new(RwLock::new(ripple_open_rpc.clone().get_methods_caps())),
             exclusory,
             cap_policies: Arc::new(RwLock::new(version_manifest.capabilities)),
-            open_rpc,
+            open_rpc: firebolt_open_rpc,
             extended_rpc: Arc::new(RwLock::new(Vec::new())),
         }
     }
 
-    pub fn add_open_rpc(&self, version_manifest: FireboltVersionManifest) {
-        let open_rpc: FireboltOpenRpc = version_manifest.clone().into();
-        let cap_policies = version_manifest.capabilities;
+    pub fn add_open_rpc(&self, open_rpc: FireboltOpenRpc) {
         let cap_map = open_rpc.clone().get_methods_caps();
+        self.extend_caps(cap_map);
+    }
 
-        {
-            self.cap_map.write().unwrap().extend(cap_map);
+    pub fn is_app_excluded(&self, app_id: &str) -> bool {
+        if let Some(e) = &self.exclusory {
+            return e.is_app_all_excluded(app_id);
         }
 
-        {
-            self.cap_policies.write().unwrap().extend(cap_policies);
-        }
-
-        {
-            self.extended_rpc.write().unwrap().push(open_rpc);
-        }
+        false
     }
 
     pub fn is_excluded(&self, method: String, app_id: String) -> bool {
@@ -84,26 +104,25 @@ impl OpenRpcState {
         false
     }
 
-    pub fn get_caps_for_method(&self, method: &str) -> Option<CapabilitySet> {
-        let c = { self.cap_map.read().unwrap().get(method).cloned() };
-        if let Some(caps) = c {
-            Some(CapabilitySet {
-                use_caps: caps.use_caps.clone(),
-                manage_caps: caps.manage_caps.clone(),
-                provide_cap: caps.provide_cap.clone(),
-            })
-        } else {
-            None
+    pub fn get_perms_for_method(
+        &self,
+        method: &str,
+        api_surface: Vec<ApiSurface>,
+    ) -> Option<Vec<FireboltPermission>> {
+        let mut perm_list: Vec<FireboltPermission>;
+        let mut result = None;
+        for surface in api_surface {
+            let cap_map = match surface {
+                ApiSurface::Firebolt => self.firebolt_cap_map.clone(),
+                ApiSurface::Ripple => self.ripple_cap_map.clone(),
+            };
+            let cap_set_opt = { cap_map.read().unwrap().get(method).cloned() };
+            if let Some(cap_set) = cap_set_opt {
+                perm_list = cap_set.into_firebolt_permissions_vec();
+                result = Some(perm_list);
+            }
         }
-    }
-
-    pub fn get_perms_for_method(&self, method: &str) -> Vec<FireboltPermission> {
-        let mut perm_list: Vec<FireboltPermission> = Vec::new();
-        let cap_set_opt = { self.cap_map.read().unwrap().get(method).cloned() };
-        if let Some(cap_set) = cap_set_opt {
-            perm_list = cap_set.into_firebolt_permissions_vec();
-        }
-        perm_list
+        result
     }
 
     pub fn get_capability_policy(&self, cap: String) -> Option<CapabilityPolicy> {
@@ -111,7 +130,7 @@ impl OpenRpcState {
     }
 
     pub fn extend_caps(&self, caps: HashMap<String, CapabilitySet>) {
-        let mut cap_map = self.cap_map.write().unwrap();
+        let mut cap_map = self.firebolt_cap_map.write().unwrap();
         cap_map.extend(caps);
     }
 

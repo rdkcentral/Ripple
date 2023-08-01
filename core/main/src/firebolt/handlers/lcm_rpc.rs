@@ -20,6 +20,7 @@ use ripple_sdk::{
     api::{
         apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
         firebolt::{
+            fb_capabilities::FireboltCap,
             fb_general::{ListenRequest, ListenerResponse},
             fb_lifecycle_management::{
                 AppSessionRequest, SessionResponse, SetStateRequest, LCM_EVENT_ON_REQUEST_CLOSE,
@@ -110,8 +111,7 @@ impl LifecycleManagementImpl {
         let listen = request.listen;
         ProviderBroker::register_or_unregister_provider(
             &self.state,
-            // TODO update with Firebolt Cap in later effort
-            "xrn::firebolt::app:lifecycle".into(),
+            FireboltCap::short("app:lifecycle").as_str(),
             method.into(),
             event_name,
             ctx,

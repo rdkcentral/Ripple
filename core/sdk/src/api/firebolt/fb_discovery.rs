@@ -141,6 +141,8 @@ pub struct ContentAccessRequest {
 pub const ENTITY_INFO_EVENT: &'static str = "discovery.onPullEntityInfo";
 pub const ENTITY_INFO_CAPABILITY: &'static str = "discovery:entity-info";
 pub const PURCHASED_CONTENT_EVENT: &'static str = "discovery.onPullPurchasedContent";
+pub const EVENT_ON_SIGN_IN: &'static str = "discovery.onSignIn";
+pub const EVENT_ON_SIGN_OUT: &'static str = "discovery.onSignOut";
 pub const PURCHASED_CONTENT_CAPABILITY: &'static str = "discovery:purchased-content";
 pub const EVENT_DISCOVERY_POLICY_CHANGED: &'static str = "discovery.onPolicyChanged";
 
@@ -341,13 +343,19 @@ pub struct EntitlementsAccountLinkRequestParams {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EntitlementsAccountLinkResponse {}
 
+#[derive(Deserialize, Serialize, Debug, Clone, Hash, PartialEq, Eq)]
+pub struct DataTagInfo {
+    pub tag_name: String,
+    pub propagation_state: bool,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MediaEventsAccountLinkRequestParams {
     pub media_event: MediaEvent,
     pub content_partner_id: String,
     pub client_supports_opt_out: bool,
     pub dist_session: AccountSession,
-    pub data_tags: HashSet<String>,
+    pub data_tags: HashSet<DataTagInfo>,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MediaEventsAccountLinkResponse {}

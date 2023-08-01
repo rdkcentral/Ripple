@@ -28,7 +28,7 @@ pub struct SecondScreenEvent {
     pub data: Option<String>,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AppInitParameters {
     pub us_privacy: Option<String>,
     pub lmt: Option<u16>,
@@ -37,7 +37,7 @@ pub struct AppInitParameters {
     pub second_screen: Option<SecondScreenEvent>,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DiscoveryEvent {
     #[serde(rename = "navigateTo")]
     pub navigate_to: NavigationIntent,

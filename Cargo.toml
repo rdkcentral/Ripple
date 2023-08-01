@@ -16,7 +16,6 @@
 #
 
 [workspace]
-
 members = [
     "core/sdk",
     "device/thunder_ripple_sdk",
@@ -26,3 +25,6 @@ members = [
     "distributor/general",
     "examples/rpc_extn"
 ]
+
+[workspace.package]
+version = "0.7.0"

@@ -17,7 +17,6 @@
 
 use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::{
-    api::firebolt::fb_openrpc::FireboltVersionManifest,
     crossbeam::channel::Receiver,
     export_extn_metadata, export_jsonrpc_extn_builder,
     extn::{
@@ -67,13 +66,8 @@ fn get_rpc_extns(sender: ExtnSender, receiver: Receiver<CExtnMessage>) -> Method
     methods
 }
 
-fn get_extended_capabilities() -> Option<FireboltVersionManifest> {
-    if let Ok(version_manifest) =
-        serde_json::from_str(std::include_str!("./extended-open-rpc.json"))
-    {
-        return Some(version_manifest);
-    }
-    None
+fn get_extended_capabilities() -> Option<String> {
+    Some(String::from(std::include_str!("./extended-open-rpc.json")))
 }
 
 fn init_jsonrpsee_builder() -> JsonRpseeExtnBuilder {

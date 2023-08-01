@@ -65,7 +65,8 @@ use crate::{
     },
     utils::get_audio_profile_from_value,
 };
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use ripple_sdk::serde_json::{Map, Value};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -134,6 +135,7 @@ pub struct CachedDeviceInfo {
     hdcp_status: Option<HDCPStatus>,
     hdr_profile: Option<HashMap<HdrProfile, bool>>,
     version: Option<FireboltSemanticVersion>,
+    all_timezones: Option<ThunderAllTimezonesResponse>,
 }
 
 #[derive(Debug, Clone)]
@@ -220,39 +222,15 @@ impl CachedState {
         let mut cached = self.cached.write().unwrap();
         let _ = cached.version.insert(version);
     }
-}
 
-#[derive(Debug, Deserialize, Clone)]
-pub struct ThunderTimezonesResponse {
-    pub zoneinfo: HashMap<String, MapOrString>,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-#[serde(untagged)]
-pub enum MapOrString {
-    Map(HashMap<String, MapOrString>),
-    String(String),
-}
-
-fn get_date_time_str(map: &HashMap<String, MapOrString>, keys: Vec<String>) -> Option<String> {
-    if keys.is_empty() {
-        return None;
+    fn update_timezone(&self, timezones: ThunderAllTimezonesResponse) {
+        let mut cached = self.cached.write().unwrap();
+        let _ = cached.all_timezones.insert(timezones);
     }
 
-    let first_key = &keys[0];
-
-    if let Some(value) = map.get(first_key) {
-        if keys.len() == 1 {
-            if let MapOrString::String(date_time_str) = value {
-                return Some(date_time_str.clone());
-            }
-        } else if let MapOrString::Map(nested_map) = value {
-            let remaining_keys = keys[1..].to_vec();
-            return get_date_time_str(nested_map, remaining_keys);
-        }
+    fn get_timezone(&self) -> Option<ThunderAllTimezonesResponse> {
+        self.cached.read().unwrap().all_timezones.clone()
     }
-
-    None
 }
 
 pub struct ThunderNetworkService;
@@ -319,6 +297,81 @@ pub struct ThunderDeviceInfoRequestProcessor {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ThunderAvailableTimezonesResponse {
     pub zoneinfo: HashMap<String, HashMap<String, String>>,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct ThunderAllTimezonesResponse {
+    pub timezones: HashMap<String, String>,
+}
+
+impl ThunderAllTimezonesResponse {
+    fn recurse_timezones(
+        timezones: &mut HashMap<String, String>,
+        prefix: String,
+        source: &Map<String, Value>,
+        filter: Vec<&str>,
+    ) {
+        for (key, value) in source {
+            if filter.len() == 0 || filter.contains(&key.as_str()) {
+                let new_prefix = if prefix.len() > 0 {
+                    format!("{}/{}", prefix, key)
+                } else {
+                    key.clone()
+                };
+                match value {
+                    Value::String(s) => {
+                        timezones.insert(new_prefix.clone(), s.clone());
+                    }
+                    Value::Object(map) => {
+                        Self::recurse_timezones(timezones, new_prefix, map, Vec::new())
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    fn as_array(&self) -> Vec<String> {
+        self.timezones
+            .keys()
+            .into_iter()
+            .map(|x| x.clone())
+            .collect()
+    }
+
+    fn get_offset(&self, key: &str) -> i64 {
+        if let Some(tz) = self.timezones.get(key) {
+            if let Some(utc_tz) = self.timezones.get("Etc/UTC").cloned() {
+                if let Ok(ntz) = NaiveDateTime::parse_from_str(&tz, "%a %b %d %H:%M:%S %Y %Z") {
+                    if let Ok(nutz) =
+                        NaiveDateTime::parse_from_str(&utc_tz, "%a %b %d %H:%M:%S %Y %Z")
+                    {
+                        return (ntz - nutz).num_seconds();
+                    }
+                }
+            }
+        }
+
+        0
+    }
+}
+impl<'de> Deserialize<'de> for ThunderAllTimezonesResponse {
+    fn deserialize<D>(deserializer: D) -> Result<ThunderAllTimezonesResponse, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let tz_value: Map<String, Value> = Map::deserialize(deserializer)?;
+        let mut timezones = HashMap::new();
+        if let Some(Value::Object(zones)) = tz_value.get("zoneinfo") {
+            Self::recurse_timezones(
+                &mut timezones,
+                String::from(""),
+                &zones,
+                vec!["Etc", "Utc", "America", "Australia", "Africa", "Europe"],
+            );
+        }
+        Ok(ThunderAllTimezonesResponse { timezones })
+    }
 }
 
 impl ThunderAvailableTimezonesResponse {
@@ -921,68 +974,27 @@ impl ThunderDeviceInfoRequestProcessor {
 
     async fn get_timezone_with_offset(state: CachedState, req: ExtnMessage) -> bool {
         if let Ok(timezone) = Self::get_timezone_value(&state).await {
-            if timezone.find("/").is_some() {
-                if let Ok(timezones) = Self::get_all_timezones(&state).await {
-                    let timezones: &ThunderTimezonesResponse = &timezones;
-                    let keys: Vec<String> = timezone.split('/').map(|s| s.to_string()).collect();
-                    let parsed_utc_datetime =
-                        get_date_time_str(&timezones.zoneinfo, vec!["UTC".to_owned()])
-                            .or_else(|| {
-                                get_date_time_str(
-                                    &timezones.zoneinfo,
-                                    vec!["Etc".to_owned(), "UTC".to_owned()],
-                                )
-                            })
-                            .and_then(|date_time_str| {
-                                NaiveDateTime::parse_from_str(
-                                    &date_time_str,
-                                    "%a %b %d %H:%M:%S %Y %Z",
-                                )
-                                .ok()
-                            });
-
-                    if parsed_utc_datetime.is_some() {
-                        let parsed_datetime = get_date_time_str(&timezones.zoneinfo, keys.clone())
-                            .and_then(|date_time_str| {
-                                NaiveDateTime::parse_from_str(
-                                    &date_time_str,
-                                    "%a %b %d %H:%M:%S %Y %Z",
-                                )
-                                .ok()
-                            });
-
-                        let offset_seconds = parsed_datetime.map_or_else(
-                            || {
-                                error!(
-                                    "get_timezone_offset: Unsupported timezone: timezone={}",
-                                    timezone
-                                );
-                                Err(RippleError::ProcessorError)
-                            },
-                            |_| {
-                                let delta = parsed_datetime.unwrap() - parsed_utc_datetime.unwrap();
-                                Ok(delta.num_seconds())
-                            },
-                        );
-
-                        if let Ok(offset) = offset_seconds {
-                            return Self::respond(
-                                state.get_client(),
-                                req,
-                                ExtnResponse::TimezoneWithOffset(timezone, offset),
-                            )
-                            .await
-                            .is_ok();
-                        }
-                    }
-                }
+            if let Ok(timezones) = Self::get_all_timezones(&state).await {
+                let offset = timezones.get_offset(&timezone);
+                return Self::respond(
+                    state.get_client(),
+                    req,
+                    ExtnResponse::TimezoneWithOffset(timezone, offset),
+                )
+                .await
+                .is_ok();
             }
         }
         error!("get_timezone_offset: Unsupported timezone");
         Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
     }
 
-    async fn get_all_timezones<T: DeserializeOwned>(state: &CachedState) -> Result<T, RippleError> {
+    async fn get_all_timezones(
+        state: &CachedState,
+    ) -> Result<ThunderAllTimezonesResponse, RippleError> {
+        if let Some(t) = state.get_timezone() {
+            return Ok(t);
+        }
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -990,24 +1002,30 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-        info!("{}", response.message);
         if response.message.get("success").is_some()
             && response.message["success"].as_bool().unwrap()
         {
-            if let Ok(timezones) = serde_json::from_value::<T>(response.message) {
-                return Ok(timezones);
+            match serde_json::from_value::<ThunderAllTimezonesResponse>(response.message) {
+                Ok(timezones) => {
+                    state.update_timezone(timezones.clone());
+                    return Ok(timezones);
+                }
+                Err(e) => {
+                    error!("{}", e.to_string());
+                    Err(RippleError::ProcessorError)
+                }
             }
+        } else {
+            Err(RippleError::ProcessorError)
         }
-        Err(RippleError::ProcessorError)
     }
 
     async fn get_available_timezones(state: CachedState, req: ExtnMessage) -> bool {
         if let Ok(v) = Self::get_all_timezones(&state).await {
-            let timezones: ThunderAvailableTimezonesResponse = v;
             Self::respond(
                 state.get_client(),
                 req,
-                ExtnResponse::AvailableTimezones(timezones.as_array()),
+                ExtnResponse::AvailableTimezones(v.as_array()),
             )
             .await
             .is_ok()

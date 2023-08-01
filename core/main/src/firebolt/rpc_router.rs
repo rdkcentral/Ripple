@@ -32,6 +32,7 @@ use ripple_sdk::{
         apps::EffectiveTransport,
         gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
     },
+    chrono::Utc,
     extn::extn_client_message::{ExtnMessage, ExtnResponse},
     log::{error, info},
     serde_json::{self, Result as SResult},
@@ -126,11 +127,19 @@ impl RpcRouter {
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
         tokio::spawn(async move {
+            let method = req.method.clone();
+            let app_id = req.ctx.app_id.clone();
             let session_id = req.ctx.session_id.clone();
+            let start = Utc::now().timestamp_millis();
             if let Ok(msg) = resolve_route(methods, resources, req).await {
+                let now = Utc::now().timestamp_millis();
                 info!(
-                    "Sending Firebolt response to {} {}",
-                    session_id, msg.jsonrpc_msg
+                    "Sending Firebolt response to app_id={} method={} fbtt={} {} {}",
+                    app_id,
+                    method,
+                    now - start,
+                    session_id,
+                    msg.jsonrpc_msg
                 );
                 match session.get_transport() {
                     EffectiveTransport::Websocket => {

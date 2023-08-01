@@ -21,9 +21,10 @@ use ripple_sdk::api::firebolt::fb_capabilities::{
     DenyReason, DenyReasonWithCap, FireboltPermission,
 };
 use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
-use ripple_sdk::log::debug;
+use ripple_sdk::log::trace;
 
 use crate::service::user_grants::GrantState;
+use crate::state::openrpc_state::ApiSurface;
 use crate::state::{cap::permitted_state::PermissionHandler, platform_state::PlatformState};
 
 pub struct FireboltGatekeeper {}
@@ -51,60 +52,83 @@ impl FireboltGatekeeper {
     fn get_resolved_caps_for_method(
         platform_state: &PlatformState,
         method: &str,
-    ) -> Vec<FireboltPermission> {
-        let perm_based_on_spec = platform_state.open_rpc_state.get_perms_for_method(method);
-        if perm_based_on_spec.len() == 0 {
-            return perm_based_on_spec;
+        secure: bool,
+    ) -> Option<Vec<FireboltPermission>> {
+        let mut api_surface = vec![ApiSurface::Firebolt];
+        if !secure {
+            api_surface.push(ApiSurface::Ripple);
         }
-        Self::resolve_dependencies(platform_state, &perm_based_on_spec)
+        let perm_based_on_spec_opt = platform_state
+            .open_rpc_state
+            .get_perms_for_method(method, api_surface);
+        if perm_based_on_spec_opt.is_none() {
+            return None;
+        }
+        let perm_based_on_spec = perm_based_on_spec_opt.unwrap();
+        if perm_based_on_spec.len() == 0 {
+            return Some(perm_based_on_spec);
+        }
+        Some(Self::resolve_dependencies(
+            platform_state,
+            &perm_based_on_spec,
+        ))
     }
     // TODO return Deny Reason into ripple error
     pub async fn gate(state: PlatformState, request: RpcRequest) -> Result<(), DenyReasonWithCap> {
         let open_rpc_state = state.clone().open_rpc_state;
         if open_rpc_state.is_excluded(request.clone().method, request.clone().ctx.app_id) {
-            debug!("Method is exluded from gating");
+            trace!("Method is exluded from gating");
             return Ok(());
         }
-        // if let Some(caps) = open_rpc_state.get_caps_for_method(&request.method) {
-        // let caps = open_rpc_state.get_perms_for_method(&request.method);
-        let caps = Self::get_resolved_caps_for_method(&state, &request.method);
+        let caps_opt =
+            Self::get_resolved_caps_for_method(&state, &request.method, request.ctx.gateway_secure);
+        if caps_opt.is_none() {
+            return Err(DenyReasonWithCap {
+                reason: DenyReason::NotFound,
+                caps: Vec::new(),
+            });
+        }
+        let caps = caps_opt.unwrap();
         if caps.len() > 0 {
             // Supported and Availability checks
-            debug!(
+            trace!(
                 "Required caps for method:{} Caps: [{:?}]",
-                request.method, caps
+                request.method,
+                caps
             );
             if let Err(e) = state.clone().cap_state.generic.check_all(&caps) {
-                debug!("check_all for caps[{:?}] failed", caps);
+                trace!("check_all for caps[{:?}] failed", caps);
                 return Err(e);
             }
             // permission checks
             if let Err(e) =
                 PermissionHandler::check_permitted(&state, &request.ctx.app_id, &caps).await
             {
-                debug!(
+                trace!(
                     "check_permitted for method ({}) failed. Error: {:?}",
-                    request.method, e
+                    request.method,
+                    e
                 );
                 return Err(e);
             } else {
-                debug!("check_permitted for method ({}) succeded", request.method);
+                trace!("check_permitted for method ({}) succeded", request.method);
                 //usergrants check
                 if let Err(e) =
                     GrantState::check_with_roles(&state, &request.ctx, &caps, true).await
                 {
-                    debug!(
+                    trace!(
                         "check_with_roles for method ({}) failed. Error: {:?}",
-                        request.method, e
+                        request.method,
+                        e
                     );
                     return Err(e);
                 } else {
-                    debug!("check_with_roles for method ({}) succeded", request.method);
+                    trace!("check_with_roles for method ({}) succeded", request.method);
                 }
             }
         } else {
             // Couldnt find any capabilities for the method
-            debug!(
+            trace!(
                 "Unable to find any caps for the method ({})",
                 request.method
             );
