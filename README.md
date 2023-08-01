@@ -34,16 +34,16 @@ There are 3 Manifest files which are necessary for Ripple 2.0.
 3. Open the Plugin Manifest file `~/.ripple/firebolt-extn-manifest.json`
   Update the __*default_path*__
   ```json
-      "default_path": "[Path to your workspace]/ripple-workspace/target/debug/",
-  ```json
+    "default_path": "[Path to your workspace]/ripple-workspace/target/debug/",
+  ```
   Update __*default_extension*__ value will be `dylib` for mac, `dll` for windows and for unix it will `so`
   ```json
-  "default_extension": "dylib",
+    "default_extension": "dylib",
   ```
 4. Open the Device Manifest file `~/.ripple/firebolt-device-manifest.json`
   Update  __*default_extension*__
   ```json
-  "library": "~/.ripple/firebolt-app-library.json",
+    "library": "~/.ripple/firebolt-app-library.json",
   ```
 5. Open the App library file `~/.ripple/firebolt-app-library.json`
 
@@ -54,11 +54,11 @@ There are 3 Manifest files which are necessary for Ripple 2.0.
 
   For e.g. for refui of firebolt cert app
   ```json
-  "default_library": [
-      {
-        "app_id": "refui",
-        ....
-        "start_page": "https://firecertapp.firecert.comcast.com/prod/index.html?systemui=true&__firebolt_endpoint=ws%3A%2F%2F10.0.0.107%3A3474%3FappId%3Drefui%26session%3Drefui&systemui=true",
+    "default_library": [
+        {
+          "app_id": "refui",
+          ....
+          "start_page": "https://firecertapp.firecert.comcast.com/prod/index.html?systemui=true&__firebolt_endpoint=ws%3A%2F%2F10.0.0.107%3A3474%3FappId%3Drefui%26session%3Drefui&systemui=true",
   ```
 
 6. Find the ip address of the device which is connected to the same network router as the machine running Ripple.
