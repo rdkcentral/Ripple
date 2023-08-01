@@ -1,0 +1,404 @@
+diff --git a/core/main/src/firebolt/handlers/advertising_rpc.rs b/core/main/src/firebolt/handlers/advertising_rpc.rs
+index bcfa690..598acda 100644
+--- a/core/main/src/firebolt/handlers/advertising_rpc.rs
++++ b/core/main/src/firebolt/handlers/advertising_rpc.rs
+@@ -31,17 +31,18 @@ use ripple_sdk::{
+             fb_general::{ListenRequest, ListenerResponse},
+         },
+         gateway::rpc_gateway_api::CallContext,
+-        storage_property::EVENT_ADVERTISING_POLICY_CHANGED,
++        storage_property::{StorageProperty, EVENT_ADVERTISING_POLICY_CHANGED},
+     },
+     extn::extn_client_message::ExtnResponse,
+     log::error,
+ };
+-use serde::Serialize;
++use serde::{Deserialize, Serialize};
+ use serde_json::Value;
+ use std::collections::HashMap;
+ 
+ use crate::{
+     firebolt::rpc::RippleRPCProvider,
++    processor::storage::storage_manager::StorageManager,
+     state::platform_state::PlatformState,
+     utils::rpc_utils::{rpc_add_event_listener, rpc_err},
+ };
+@@ -68,6 +69,31 @@ pub struct AdvertisingPolicy {
+     pub limit_ad_tracking: bool,
+ }
+ 
++#[derive(Deserialize, Debug, Clone)]
++#[serde(rename_all = "camelCase")]
++pub enum SkipRestriction {
++    None,
++    AdsUnwatched,
++    AdsAll,
++    All,
++}
++
++impl SkipRestriction {
++    pub fn as_string(&self) -> &'static str {
++        match self {
++            SkipRestriction::None => "none",
++            SkipRestriction::AdsUnwatched => "adsUnwatched",
++            SkipRestriction::AdsAll => "adsAll",
++            SkipRestriction::All => "all",
++        }
++    }
++}
++
++#[derive(Deserialize, Debug, Clone)]
++pub struct SetSkipRestrictionRequest {
++    pub value: SkipRestriction,
++}
++
+ #[rpc(server)]
+ pub trait Advertising {
+     #[method(name = "advertising.advertisingId")]
+@@ -84,6 +110,12 @@ pub trait Advertising {
+     async fn device_attributes(&self, ctx: CallContext) -> RpcResult<Value>;
+     #[method(name = "advertising.policy")]
+     async fn policy(&self, ctx: CallContext) -> RpcResult<AdvertisingPolicy>;
++    #[method(name = "advertising.setSkipRestriction")]
++    async fn advertising_set_skip_restriction(
++        &self,
++        ctx: CallContext,
++        set_request: SetSkipRestrictionRequest,
++    ) -> RpcResult<()>;
+     #[method(name = "advertising.onPolicyChanged")]
+     async fn advertising_on_policy_changed(
+         &self,
+@@ -268,8 +300,16 @@ impl AdvertisingServer for AdvertisingImpl {
+ 
+     async fn policy(&self, _ctx: CallContext) -> RpcResult<AdvertisingPolicy> {
+         let limit_ad_tracking = PrivacyImpl::get_allow_app_content_ad_targeting(&self.state).await;
++        let skip_restriction =
++            StorageManager::get_string(&self.state, StorageProperty::SkipRestriction).await;
++
++        let sr = match skip_restriction {
++            Err(_) => String::from("none"),
++            Ok(_) => skip_restriction.unwrap(),
++        };
++
+         Ok(AdvertisingPolicy {
+-            skip_restriction: "adsUnwatched".to_owned(),
++            skip_restriction: sr,
+             limit_ad_tracking,
+         })
+     }
+@@ -281,6 +321,20 @@ impl AdvertisingServer for AdvertisingImpl {
+     ) -> RpcResult<ListenerResponse> {
+         rpc_add_event_listener(&self.state, ctx, request, EVENT_ADVERTISING_POLICY_CHANGED).await
+     }
++
++    async fn advertising_set_skip_restriction(
++        &self,
++        _ctx: CallContext,
++        set_request: SetSkipRestrictionRequest,
++    ) -> RpcResult<()> {
++        StorageManager::set_string(
++            &self.state,
++            StorageProperty::SkipRestriction,
++            String::from(set_request.value.as_string()),
++            None,
++        )
++        .await
++    }
+ }
+ 
+ pub struct AdvertisingRPCProvider;
+diff --git a/core/main/src/firebolt/handlers/secure_storage_rpc.rs b/core/main/src/firebolt/handlers/secure_storage_rpc.rs
+index 54862d8..ee592cb 100644
+--- a/core/main/src/firebolt/handlers/secure_storage_rpc.rs
++++ b/core/main/src/firebolt/handlers/secure_storage_rpc.rs
+@@ -23,9 +23,9 @@ use jsonrpsee::{
+ };
+ use ripple_sdk::api::{
+     firebolt::fb_secure_storage::{
+-        GetRequest, RemoveRequest, SecureStorageGetRequest, SecureStorageRemoveRequest,
+-        SecureStorageRequest, SecureStorageResponse, SecureStorageSetRequest, SetRequest,
+-        StorageSetOptions,
++        GetRequest, RemoveAppRequest, RemoveRequest, SecureStorageGetRequest,
++        SecureStorageRemoveRequest, SecureStorageRequest, SecureStorageResponse,
++        SecureStorageSetRequest, SetAppRequest, SetRequest, StorageSetOptions,
+     },
+     gateway::rpc_gateway_api::CallContext,
+ };
+@@ -35,53 +35,59 @@ use crate::{firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformSta
+ #[rpc(server)]
+ pub trait SecureStorage {
+     #[method(name = "securestorage.get")]
+-    async fn get(&self, ctx: CallContext, request: GetRequest) -> RpcResult<String>;
++    async fn get_rpc(&self, ctx: CallContext, request: GetRequest) -> RpcResult<String>;
+     #[method(name = "securestorage.set")]
+-    async fn set(&self, ctx: CallContext, request: SetRequest) -> RpcResult<()>;
++    async fn set_rpc(&self, ctx: CallContext, request: SetRequest) -> RpcResult<()>;
+     #[method(name = "securestorage.remove")]
+-    async fn remove(&self, ctx: CallContext, request: RemoveRequest) -> RpcResult<()>;
++    async fn remove_rpc(&self, ctx: CallContext, request: RemoveRequest) -> RpcResult<()>;
++    #[method(name = "securestorage.setForApp")]
++    async fn set_for_app_rpc(&self, ctx: CallContext, request: SetAppRequest) -> RpcResult<()>;
++    #[method(name = "securestorage.removeForApp")]
++    async fn remove_for_app_rpc(
++        &self,
++        ctx: CallContext,
++        request: RemoveAppRequest,
++    ) -> RpcResult<()>;
+ }
+ pub struct SecureStorageImpl {
+     pub state: PlatformState,
+ }
+ 
+-#[async_trait]
+-impl SecureStorageServer for SecureStorageImpl {
+-    async fn get(&self, ctx: CallContext, request: GetRequest) -> RpcResult<String> {
++impl SecureStorageImpl {
++    pub fn rpc(pst: &PlatformState) -> RpcModule<SecureStorageImpl> {
++        SecureStorageImpl { state: pst.clone() }.into_rpc()
++    }
++
++    async fn set(&self, app_id: String, request: SetRequest) -> RpcResult<()> {
+         match self
+             .state
+             .get_client()
+-            .send_extn_request(SecureStorageRequest::Get(SecureStorageGetRequest {
+-                app_id: ctx.app_id,
++            .send_extn_request(SecureStorageRequest::Set(SecureStorageSetRequest {
++                app_id: app_id,
++                value: request.value,
++                options: request.options.map(|op| StorageSetOptions { ttl: op.ttl }),
+                 scope: request.scope,
+                 key: request.key,
+                 distributor_session: self.state.session_state.get_account_session().unwrap(),
+             }))
+             .await
+         {
+-            Ok(response) => match response.payload.extract().unwrap() {
+-                SecureStorageResponse::Get(value) => Ok(value.value.unwrap_or(String::from(""))),
+-                _ => Err(jsonrpsee::core::Error::Custom(String::from(
+-                    "Secure Storage Response error response TBD",
+-                ))),
+-            },
++            Ok(_) => Ok(()),
+             Err(err) => {
+                 error!("error={:?}", err);
+                 Err(jsonrpsee::core::Error::Custom(
+-                    "Error getting value".to_owned(),
++                    "Error setting value".to_owned(),
+                 ))
+             }
+         }
+     }
+ 
+-    async fn set(&self, ctx: CallContext, request: SetRequest) -> RpcResult<()> {
++    async fn remove(&self, app_id: String, request: RemoveRequest) -> RpcResult<()> {
+         match self
+             .state
+             .get_client()
+-            .send_extn_request(SecureStorageRequest::Set(SecureStorageSetRequest {
+-                app_id: ctx.app_id,
+-                value: request.value,
+-                options: request.options.map(|op| StorageSetOptions { ttl: op.ttl }),
++            .send_extn_request(SecureStorageRequest::Remove(SecureStorageRemoveRequest {
++                app_id: app_id,
+                 scope: request.scope,
+                 key: request.key,
+                 distributor_session: self.state.session_state.get_account_session().unwrap(),
+@@ -97,12 +103,15 @@ impl SecureStorageServer for SecureStorageImpl {
+             }
+         }
+     }
++}
+ 
+-    async fn remove(&self, ctx: CallContext, request: RemoveRequest) -> RpcResult<()> {
++#[async_trait]
++impl SecureStorageServer for SecureStorageImpl {
++    async fn get_rpc(&self, ctx: CallContext, request: GetRequest) -> RpcResult<String> {
+         match self
+             .state
+             .get_client()
+-            .send_extn_request(SecureStorageRequest::Remove(SecureStorageRemoveRequest {
++            .send_extn_request(SecureStorageRequest::Get(SecureStorageGetRequest {
+                 app_id: ctx.app_id,
+                 scope: request.scope,
+                 key: request.key,
+@@ -110,15 +119,55 @@ impl SecureStorageServer for SecureStorageImpl {
+             }))
+             .await
+         {
+-            Ok(_) => Ok(()),
++            Ok(response) => match response.payload.extract().unwrap() {
++                SecureStorageResponse::Get(value) => Ok(value.value.unwrap_or(String::from(""))),
++                _ => Err(jsonrpsee::core::Error::Custom(String::from(
++                    "Secure Storage Response error response TBD",
++                ))),
++            },
+             Err(err) => {
+                 error!("error={:?}", err);
+                 Err(jsonrpsee::core::Error::Custom(
+-                    "Error setting value".to_owned(),
++                    "Error getting value".to_owned(),
+                 ))
+             }
+         }
+     }
++
++    async fn set_rpc(&self, ctx: CallContext, request: SetRequest) -> RpcResult<()> {
++        self.set(ctx.app_id, request).await
++    }
++
++    async fn remove_rpc(&self, ctx: CallContext, request: RemoveRequest) -> RpcResult<()> {
++        self.remove(ctx.app_id, request).await
++    }
++
++    async fn set_for_app_rpc(&self, _ctx: CallContext, request: SetAppRequest) -> RpcResult<()> {
++        self.set(
++            request.app_id,
++            SetRequest {
++                key: request.key,
++                value: request.value,
++                options: request.options,
++                scope: request.scope,
++            },
++        )
++        .await
++    }
++    async fn remove_for_app_rpc(
++        &self,
++        _ctx: CallContext,
++        request: RemoveAppRequest,
++    ) -> RpcResult<()> {
++        self.remove(
++            request.app_id,
++            RemoveRequest {
++                key: request.key,
++                scope: request.scope,
++            },
++        )
++        .await
++    }
+ }
+ 
+ pub struct SecureStorageRPCProvider;
+diff --git a/core/main/src/processor/storage/default_storage_properties.rs b/core/main/src/processor/storage/default_storage_properties.rs
+index 5efc7b1..7507e56 100644
+--- a/core/main/src/processor/storage/default_storage_properties.rs
++++ b/core/main/src/processor/storage/default_storage_properties.rs
+@@ -19,9 +19,10 @@ use ripple_sdk::{
+     api::storage_property::{
+         KEY_BACKGROUND_COLOR, KEY_BACKGROUND_OPACITY, KEY_COUNTRY_CODE, KEY_ENABLED,
+         KEY_FONT_COLOR, KEY_FONT_EDGE, KEY_FONT_EDGE_COLOR, KEY_FONT_FAMILY, KEY_FONT_OPACITY,
+-        KEY_FONT_SIZE, KEY_LANGUAGE, KEY_LOCALE, KEY_NAME, KEY_TEXT_ALIGN, KEY_TEXT_ALIGN_VERTICAL,
+-        KEY_VOICE_GUIDANCE_SPEED, NAMESPACE_CLOSED_CAPTIONS, NAMESPACE_DEVICE_NAME,
+-        NAMESPACE_LOCALIZATION, NAMESPACE_VOICE_GUIDANCE,
++        KEY_FONT_SIZE, KEY_LANGUAGE, KEY_LOCALE, KEY_NAME, KEY_SKIP_RESTRICTION, KEY_TEXT_ALIGN,
++        KEY_TEXT_ALIGN_VERTICAL, KEY_VOICE_GUIDANCE_SPEED, NAMESPACE_ADVERTISING,
++        NAMESPACE_CLOSED_CAPTIONS, NAMESPACE_DEVICE_NAME, NAMESPACE_LOCALIZATION,
++        NAMESPACE_VOICE_GUIDANCE,
+     },
+     log::debug,
+ };
+@@ -166,6 +167,16 @@ impl DefaultStorageProperties {
+             .get(namespace)
+         {
+             Ok(defaults.postal_code.clone())
++        } else if namespace.eq(NAMESPACE_ADVERTISING) {
++            match key {
++                KEY_SKIP_RESTRICTION => Ok(state
++                    .get_device_manifest()
++                    .clone()
++                    .configuration
++                    .default_values
++                    .skip_restriction),
++                _ => Err(()),
++            }
+         } else {
+             Err(())
+         }
+diff --git a/core/sdk/src/api/firebolt/fb_secure_storage.rs b/core/sdk/src/api/firebolt/fb_secure_storage.rs
+index d8eb2ee..0c950b3 100644
+--- a/core/sdk/src/api/firebolt/fb_secure_storage.rs
++++ b/core/sdk/src/api/firebolt/fb_secure_storage.rs
+@@ -101,6 +101,25 @@ pub enum SecureStorageRequest {
+     Remove(SecureStorageRemoveRequest),
+ }
+ 
++#[derive(Debug, Serialize, Deserialize, Clone)]
++#[serde(rename_all = "camelCase")]
++pub struct SetAppRequest {
++    pub scope: StorageScope,
++    pub key: String,
++    pub value: String,
++    #[serde(skip_serializing_if = "Option::is_none")]
++    pub options: Option<StorageOptions>,
++    pub app_id: String,
++}
++
++#[derive(Debug, Serialize, Deserialize, Clone)]
++#[serde(rename_all = "camelCase")]
++pub struct RemoveAppRequest {
++    pub key: String,
++    pub scope: StorageScope,
++    pub app_id: String,
++}
++
+ impl ExtnPayloadProvider for SecureStorageRequest {
+     fn get_extn_payload(&self) -> ExtnPayload {
+         ExtnPayload::Request(ExtnRequest::SecureStorage(self.clone()))
+diff --git a/core/sdk/src/api/storage_property.rs b/core/sdk/src/api/storage_property.rs
+index 53ee31b..58fb30e 100644
+--- a/core/sdk/src/api/storage_property.rs
++++ b/core/sdk/src/api/storage_property.rs
+@@ -30,6 +30,7 @@ pub const NAMESPACE_DEVICE_NAME: &'static str = "DeviceName";
+ pub const NAMESPACE_LOCALIZATION: &'static str = "Localization";
+ pub const NAMESPACE_USER_GRANT: &'static str = "UserGrant";
+ pub const NAMESPACE_VOICE_GUIDANCE: &'static str = "VoiceGuidance";
++pub const NAMESPACE_ADVERTISING: &'static str = "Advertising";
+ 
+ pub const KEY_ENABLED: &'static str = "enabled";
+ pub const KEY_FONT_FAMILY: &'static str = "fontFamily";
+@@ -69,6 +70,7 @@ pub const KEY_ALLOW_UNENTITLED_RESUME_POINTS: &'static str = "allowUnentitledRes
+ pub const KEY_ALLOW_WATCH_HISTORY: &'static str = "allowWatchHistory";
+ pub const KEY_VOICE_GUIDANCE_SPEED: &'static str = "speed";
+ pub const KEY_PARTNER_EXCLUSIONS: &'static str = "partnerExclusions";
++pub const KEY_SKIP_RESTRICTION: &'static str = "skipRestriction";
+ 
+ pub const EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED: &'static str =
+     "accessibility.onClosedCaptionsSettingsChanged";
+@@ -125,6 +127,7 @@ pub const EVENT_DEVICE_DEVICE_NAME_CHANGED: &'static str = "device.onDeviceNameC
+ pub const EVENT_SECOND_SCREEN_FRIENDLY_NAME_CHANGED: &'static str =
+     "secondscreen.onFriendlyNameChanged";
+ pub const EVENT_ADVERTISING_POLICY_CHANGED: &'static str = "advertising.onPolicyChanged";
++pub const EVENT_ADVERTISING_SKIP_RESTRICTION: &'static str = "advertising.setSkipRestriction";
+ 
+ pub const EVENT_VOICE_GUIDANCE_SETTINGS_CHANGED: &'static str =
+     "accessibility.onVoiceGuidanceSettingsChanged";
+@@ -408,6 +411,12 @@ const PROPERTY_DATA_PARTNER_EXCLUSIONS: PropertyData = PropertyData {
+     event_names: None,
+ };
+ 
++const PROPERTY_DATA_SKIP_RESTRICTION: PropertyData = PropertyData {
++    key: KEY_SKIP_RESTRICTION,
++    namespace: NAMESPACE_ADVERTISING,
++    event_names: Some(&[EVENT_ADVERTISING_SKIP_RESTRICTION]),
++};
++
+ #[derive(Debug)]
+ pub struct PropertyData {
+     pub namespace: &'static str,
+@@ -456,6 +465,7 @@ pub enum StorageProperty {
+     VoiceguidanceEnabled,
+     VoiceguidanceSpeed,
+     PartnerExclusions,
++    SkipRestriction,
+ }
+ 
+ impl StorageProperty {
+@@ -520,6 +530,7 @@ impl StorageProperty {
+             }
+             StorageProperty::AllowWatchHistory => PROPERTY_DATA_ALLOW_WATCH_HISTORY,
+             StorageProperty::PartnerExclusions => PROPERTY_DATA_PARTNER_EXCLUSIONS,
++            StorageProperty::SkipRestriction => PROPERTY_DATA_SKIP_RESTRICTION,
+         }
+     }
+ 
