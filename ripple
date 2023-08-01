@@ -44,11 +44,16 @@ function get_default_extension() {
 case ${1} in
     "init")
         cp -f ./ripple ~/.cargo/bin
+
+        if [ -e ~/.ripple ]; then
+            echo "Previous ripple config folder found. Backing it up..."
+            mv ~/.ripple ~/.ripple-$(date +"%F-%H-%M")
+        fi
         mkdir -p ~/.ripple
         cp ./examples/manifest/device-manifest-example.json ~/.ripple/firebolt-device-manifest.json
         cp ./examples/manifest/extn-manifest-example.json ~/.ripple/firebolt-extn-manifest.json
         cp ./examples/manifest/app-library-example.json ~/.ripple/firebolt-app-library.json
-        
+
         default_extension=$(get_default_extension)
         sed -i "" "s@\"default_extension\": \"so\"@\"default_extension\": \"$default_extension\"@" ~/.ripple/firebolt-extn-manifest.json
     ;;
