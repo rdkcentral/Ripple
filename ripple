@@ -30,6 +30,17 @@ function print_help() {
     echo "ripple run 10.0.0.1"
 }
 
+function get_default_extension() {
+    case "$(uname -s)" in
+        Darwin)
+            echo "dylib"
+            ;;
+        *)
+            echo "so"
+            ;;
+    esac
+}
+
 case ${1} in
     "init")
         cp -f ./ripple ~/.cargo/bin
@@ -37,6 +48,9 @@ case ${1} in
         cp ./examples/manifest/device-manifest-example.json ~/.ripple/firebolt-device-manifest.json
         cp ./examples/manifest/extn-manifest-example.json ~/.ripple/firebolt-extn-manifest.json
         cp ./examples/manifest/app-library-example.json ~/.ripple/firebolt-app-library.json
+        
+        default_extension=$(get_default_extension)
+        sed -i "" "s@\"default_extension\": \"so\"@\"default_extension\": \"$default_extension\"@" ~/.ripple/firebolt-extn-manifest.json
     ;;
     "run")
         cargo build
