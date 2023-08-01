@@ -31,17 +31,18 @@ use ripple_sdk::{
             fb_general::{ListenRequest, ListenerResponse},
         },
         gateway::rpc_gateway_api::CallContext,
-        storage_property::EVENT_ADVERTISING_POLICY_CHANGED,
+        storage_property::{StorageProperty, EVENT_ADVERTISING_POLICY_CHANGED},
     },
     extn::extn_client_message::ExtnResponse,
     log::error,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
+    processor::storage::storage_manager::StorageManager,
     state::platform_state::PlatformState,
     utils::rpc_utils::{rpc_add_event_listener, rpc_err},
 };
@@ -68,6 +69,31 @@ pub struct AdvertisingPolicy {
     pub limit_ad_tracking: bool,
 }
 
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub enum SkipRestriction {
+    None,
+    AdsUnwatched,
+    AdsAll,
+    All,
+}
+
+impl SkipRestriction {
+    pub fn as_string(&self) -> &'static str {
+        match self {
+            SkipRestriction::None => "none",
+            SkipRestriction::AdsUnwatched => "adsUnwatched",
+            SkipRestriction::AdsAll => "adsAll",
+            SkipRestriction::All => "all",
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct SetSkipRestrictionRequest {
+    pub value: SkipRestriction,
+}
+
 #[rpc(server)]
 pub trait Advertising {
     #[method(name = "advertising.advertisingId")]
@@ -84,6 +110,12 @@ pub trait Advertising {
     async fn device_attributes(&self, ctx: CallContext) -> RpcResult<Value>;
     #[method(name = "advertising.policy")]
     async fn policy(&self, ctx: CallContext) -> RpcResult<AdvertisingPolicy>;
+    #[method(name = "advertising.setSkipRestriction")]
+    async fn advertising_set_skip_restriction(
+        &self,
+        ctx: CallContext,
+        set_request: SetSkipRestrictionRequest,
+    ) -> RpcResult<()>;
     #[method(name = "advertising.onPolicyChanged")]
     async fn advertising_on_policy_changed(
         &self,
@@ -268,8 +300,16 @@ impl AdvertisingServer for AdvertisingImpl {
 
     async fn policy(&self, _ctx: CallContext) -> RpcResult<AdvertisingPolicy> {
         let limit_ad_tracking = PrivacyImpl::get_allow_app_content_ad_targeting(&self.state).await;
+        let skip_restriction =
+            StorageManager::get_string(&self.state, StorageProperty::SkipRestriction).await;
+
+        let sr = match skip_restriction {
+            Err(_) => String::from("none"),
+            Ok(_) => skip_restriction.unwrap(),
+        };
+
         Ok(AdvertisingPolicy {
-            skip_restriction: "adsUnwatched".to_owned(),
+            skip_restriction: sr,
             limit_ad_tracking,
         })
     }
@@ -280,6 +320,20 @@ impl AdvertisingServer for AdvertisingImpl {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         rpc_add_event_listener(&self.state, ctx, request, EVENT_ADVERTISING_POLICY_CHANGED).await
+    }
+
+    async fn advertising_set_skip_restriction(
+        &self,
+        _ctx: CallContext,
+        set_request: SetSkipRestrictionRequest,
+    ) -> RpcResult<()> {
+        StorageManager::set_string(
+            &self.state,
+            StorageProperty::SkipRestriction,
+            String::from(set_request.value.as_string()),
+            None,
+        )
+        .await
     }
 }
 
