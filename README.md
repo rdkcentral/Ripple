@@ -22,46 +22,47 @@ There are 3 Manifest files which are necessary for Ripple 2.0.
 
 ### Pre-requisites for running with VSCode
 1. Install [Rust](https://www.rust-lang.org/tools/install)
-1. Install [VSCode](https://code.visualstudio.com/)
-2. Install Rust Analyzer from VS Code Marketplace
+2. Install [VSCode](https://code.visualstudio.com/)
+3. Install Rust Analyzer from VS Code Marketplace
 
 ## How to run Ripple locally?
 
-1. >$git submodule update --init --recursive
+1. Initialise the repository submodules
+  > git submodule update --init --recursive
 2. Before running this command if you already have a `~/.ripple` folder take backup.
->./ripple init
+  > ./ripple init
 3. Open the Plugin Manifest file `~/.ripple/firebolt-extn-manifest.json`
-Update the __*default_path*__
-```
-    "default_path": "[Path to your workspace]/ripple-workspace/target/debug/",
-```
-Update __*default_extension*__ value will be `dylib` for mac, `dll` for windows and for unix it will `so`
-```
-"default_extension": "dylib",
-```
+  Update the __*default_path*__
+  ```json
+      "default_path": "[Path to your workspace]/ripple-workspace/target/debug/",
+  ```json
+  Update __*default_extension*__ value will be `dylib` for mac, `dll` for windows and for unix it will `so`
+  ```json
+  "default_extension": "dylib",
+  ```
 4. Open the Device Manifest file `~/.ripple/firebolt-device-manifest.json`
-Update  __*default_extension*__
-```
-"library": "~/.ripple/firebolt-app-library.json",
-```
+  Update  __*default_extension*__
+  ```json
+  "library": "~/.ripple/firebolt-app-library.json",
+  ```
 5. Open the App library file `~/.ripple/firebolt-app-library.json`
 
-Add the below parameter to the `start_page` in the app library. Replace [app_id] with actual app id and [RIPPLE_IP_ADDR] with the IP address where ripple is running
-```
-__firebolt_endpoint=ws%3A%2F%2F[RIPPLE_IP_ADDR]%3A3473%3FappId%3D[app_id]%26session%3D[app_id]
-```
+  Add the below parameter to the `start_page` in the app library. Replace [app_id] with actual app id and [RIPPLE_IP_ADDR] with the IP address where ripple is running
+  ```
+  __firebolt_endpoint=ws%3A%2F%2F[RIPPLE_IP_ADDR]%3A3473%3FappId%3D[app_id]%26session%3D[app_id]
+  ```
 
-For eg for refui of firebolt cert app
-```
-default_library": [
-        {
-          "app_id": "refui",
-          ....
-          "start_page": "https://firecertapp.firecert.comcast.com/prod/index.html?systemui=true&__firebolt_endpoint=ws%3A%2F%2F10.0.0.107%3A3474%3FappId%3Drefui%26session%3Drefui&systemui=true",
-```
+  For e.g. for refui of firebolt cert app
+  ```json
+  "default_library": [
+      {
+        "app_id": "refui",
+        ....
+        "start_page": "https://firecertapp.firecert.comcast.com/prod/index.html?systemui=true&__firebolt_endpoint=ws%3A%2F%2F10.0.0.107%3A3474%3FappId%3Drefui%26session%3Drefui&systemui=true",
+  ```
 
 6. Find the ip address of the device which is connected to the same network router as the machine running Ripple.
-> ripple run {ip address of the device} 
+  > ripple run {ip address of the device}
 
 Note: Device should be accessible bothways between the machine which is running ripple and target device.
 
