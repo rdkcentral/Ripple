@@ -19,9 +19,10 @@ use ripple_sdk::{
     api::storage_property::{
         KEY_BACKGROUND_COLOR, KEY_BACKGROUND_OPACITY, KEY_COUNTRY_CODE, KEY_ENABLED,
         KEY_FONT_COLOR, KEY_FONT_EDGE, KEY_FONT_EDGE_COLOR, KEY_FONT_FAMILY, KEY_FONT_OPACITY,
-        KEY_FONT_SIZE, KEY_LANGUAGE, KEY_LOCALE, KEY_NAME, KEY_TEXT_ALIGN, KEY_TEXT_ALIGN_VERTICAL,
-        KEY_VOICE_GUIDANCE_SPEED, NAMESPACE_CLOSED_CAPTIONS, NAMESPACE_DEVICE_NAME,
-        NAMESPACE_LOCALIZATION, NAMESPACE_VOICE_GUIDANCE,
+        KEY_FONT_SIZE, KEY_LANGUAGE, KEY_LOCALE, KEY_NAME, KEY_SKIP_RESTRICTION, KEY_TEXT_ALIGN,
+        KEY_TEXT_ALIGN_VERTICAL, KEY_VOICE_GUIDANCE_SPEED, NAMESPACE_ADVERTISING,
+        NAMESPACE_CLOSED_CAPTIONS, NAMESPACE_DEVICE_NAME, NAMESPACE_LOCALIZATION,
+        NAMESPACE_VOICE_GUIDANCE,
     },
     log::debug,
 };
@@ -166,6 +167,16 @@ impl DefaultStorageProperties {
             .get(namespace)
         {
             Ok(defaults.postal_code.clone())
+        } else if namespace.eq(NAMESPACE_ADVERTISING) {
+            match key {
+                KEY_SKIP_RESTRICTION => Ok(state
+                    .get_device_manifest()
+                    .clone()
+                    .configuration
+                    .default_values
+                    .skip_restriction),
+                _ => Err(()),
+            }
         } else {
             Err(())
         }

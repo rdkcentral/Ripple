@@ -30,7 +30,7 @@ use ripple_sdk::{
         device::{
             device_browser::{BrowserNameRequestParams, BrowserRequest},
             device_info_request::DeviceInfoRequest,
-            entertainment_data::{HomeIntent, NavigationIntent},
+            entertainment_data::{HomeIntent, NavigationIntent, NavigationIntentStrict},
         },
         firebolt::{
             fb_discovery::{DiscoveryContext, LaunchRequest},
@@ -302,7 +302,10 @@ impl AppLauncher {
             // Only add the container if app is not launching to suspend and not launched due to
             // a pending provider request.
             if !app.launch_params.suspend {
-                if let NavigationIntent::ProviderRequest(_) = app.current_intent {
+                if let NavigationIntent::NavigationIntentStrict(
+                    NavigationIntentStrict::ProviderRequest(_),
+                ) = app.current_intent
+                {
                     // Do nothing if the current intent is a provider request
                 } else {
                     let props = app.container_props.clone();
@@ -498,7 +501,10 @@ impl AppLauncher {
                 let iter_apps = state.app_launcher_state.get_apps();
                 for app in iter_apps {
                     if app.container_props.view_id == props.view_id {
-                        if let NavigationIntent::ProviderRequest(_) = app.current_intent {
+                        if let NavigationIntent::NavigationIntentStrict(
+                            NavigationIntentStrict::ProviderRequest(_),
+                        ) = app.current_intent
+                        {
                             Self::set_state(state.clone(), props.name, LifecycleState::Inactive)
                                 .await
                                 .ok();
@@ -541,7 +547,7 @@ impl AppLauncher {
                 transport: Self::get_transport(manifest.start_page),
             }),
             launch: AppLaunchInfo {
-                intent,
+                intent: Some(intent),
                 second_screen: None,
                 inactive: false,
             },
@@ -598,11 +604,15 @@ impl AppLauncher {
                 return Err(AppError::NotSupported);
             };
 
-        let intent = request.intent.unwrap_or(NavigationIntent::Home(HomeIntent {
-            context: DiscoveryContext {
-                source: "device".into(),
-            },
-        }));
+        let intent = request
+            .intent
+            .unwrap_or(NavigationIntent::NavigationIntentStrict(
+                NavigationIntentStrict::Home(HomeIntent {
+                    context: DiscoveryContext {
+                        source: "device".into(),
+                    },
+                }),
+            ));
 
         if let Err(_) = Self::pre_launch(
             &state,

@@ -100,6 +100,9 @@ impl AppManagerState {
     }
 
     pub fn get_app_id_from_session_id(&self, session_id: &str) -> Option<String> {
+        {
+            debug!("apps and sessions {:?}", self.apps.read().unwrap());
+        }
         if let Some((_, app)) = self
             .apps
             .read()
@@ -576,7 +579,7 @@ impl DelegatedLauncherHandler {
             Some(app) => {
                 let launch_request = LaunchRequest {
                     app_id: app.initial_session.app.id.clone(),
-                    intent: Some(app.initial_session.launch.intent.clone()),
+                    intent: app.initial_session.launch.intent.clone(),
                 };
                 Ok(AppManagerResponse::LaunchRequest(launch_request))
             }

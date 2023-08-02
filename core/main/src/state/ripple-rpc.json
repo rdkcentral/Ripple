@@ -1,0 +1,2474 @@
+{
+	"openrpc": "1.2.4",
+	"info": {
+		"title": "Ripple",
+		"version": "1.1.0-next.1",
+		"x-interface-names": {
+			"xrn:firebolt:capability:lifecycle:state": "StateProvider"
+		},
+		"x-module-descriptions": {
+			"LifecycleManagement": "A module for managing application lifecycle.",
+			"MetricsManagement": "Methods for managing the metrics integrations"
+		}
+	},
+	"methods": [
+		{
+			"name": "LifecycleManagement.setState",
+			"summary": "Used by provider to update the state of an application so that the state can be emitted to apps.",
+			"params": [
+				{
+					"name": "appId",
+					"required": true,
+					"schema": {
+						"type": "string"
+					}
+				},
+				{
+					"name": "state",
+					"required": true,
+					"schema": {
+						"$ref": "#/x-schemas/Lifecycle/LifecycleState"
+					}
+				}
+			],
+			"tags": [
+				{
+					"name": "capabilities",
+					"x-manages": [
+						"xrn:firebolt:capability:lifecycle:state"
+					]
+				}
+			],
+			"result": {
+				"name": "result",
+				"schema": {
+					"const": null
+				}
+			},
+			"examples": [
+				{
+					"name": "Set application lifecycle state to inactive",
+					"params": [
+						{
+							"name": "state",
+							"value": "inactive"
+						},
+						{
+							"name": "appId",
+							"value": "SomeAppId"
+						}
+					],
+					"result": {
+						"name": "defaultResult",
+						"value": null
+					}
+				}
+			]
+		},
+		{
+			"name": "LifecycleManagement.session",
+			"summary": "Called before an app is launched in order to set up the lifecycle session. The session should be given an intent that will be passed to the application. This will behave differently depending on the current state of the application. If the application is already loaded but not active then a new active session is started. The intent is given to the application via the onNavigateTo event. If the app is not loaded, then it is considered a 'cold start'. A new loaded session will be created and the intent will be stored for the app to access via Parameters.initialization. Before a session is created for the application some checks may take place. For instance, if a user grant is required for the application then the user grant will be resolved before the session is transitions to the active status. In this case, this API will return immediately with a transitionPending=true flag. The updated session will then be sent as an event in the LifecycleManagement.onSessionTransitionCompleted event. If the pre-session checks fail, such as a user deferring a grant, then the LifecycleManagement.onSessionTransitionCanceled event will be emitted.",
+			"params": [
+				{
+					"name": "session",
+					"required": true,
+					"schema": {
+						"$ref": "#/components/schemas/AppSessionRequest"
+					}
+				}
+			],
+			"tags": [
+				{
+					"name": "capabilities",
+					"x-manages": [
+						"xrn:firebolt:capability:lifecycle:state"
+					]
+				}
+			],
+			"result": {
+				"name": "result",
+				"schema": {
+					"$ref": "#/components/schemas/AppSession"
+				}
+			},
+			"examples": [
+				{
+					"name": "Starts or updates an app session",
+					"params": [
+						{
+							"name": "session",
+							"value": {
+								"app": {
+									"id": "SomeApp",
+									"url": "https://some-app.firebolt.rdkcentral.com"
+								},
+								"runtime": {
+									"id": "WebBrowser-1"
+								},
+								"launch": {
+									"intent": {
+										"action": "search",
+										"data": {
+											"query": "Dog videos"
+										},
+										"context": {
+											"source": "voice"
+										}
+									}
+								}
+							}
+						}
+					],
+					"result": {
+						"name": "defaultResult",
+						"value": {
+							"appId": "SomeApp",
+							"sessionId": "c0d012b4-0854-4bbc-82d5-ab52ac29dd94",
+							"loadedSessionId": "612f307e-8b32-412e-bcec-831779bc07ae",
+							"activeSessionId": "05b6f6af-c2f8-4761-beeb-6029590b8e8c",
+							"transitionPending": false
+						}
+					}
+				},
+				{
+					"name": "Starts an inactive app session",
+					"params": [
+						{
+							"name": "session",
+							"value": {
+								"app": {
+									"id": "SomeApp",
+									"url": "https://some-app.firebolt.rdkcentral.com"
+								},
+								"runtime": {
+									"id": "WebBrowser-1"
+								},
+								"launch": {
+									"inactive": true
+								}
+							}
+						}
+					],
+					"result": {
+						"name": "defaultResult",
+						"value": {
+							"appId": "SomeApp",
+							"sessionId": "c0d012b4-0854-4bbc-82d5-ab52ac29dd94",
+							"loadedSessionId": "612f307e-8b32-412e-bcec-831779bc07ae",
+							"transitionPending": false
+						}
+					}
+				},
+				{
+					"name": "Start a session that results in a pending session",
+					"params": [
+						{
+							"name": "session",
+							"value": {
+								"app": {
+									"id": "SomeApp",
+									"url": "https://some-app.firebolt.rdkcentral.com"
+								},
+								"runtime": {
+									"id": "WebBrowser-1"
+								},
+								"launch": {
+									"inactive": false
+								}
+							}
+						}
+					],
+					"result": {
+						"name": "pendingResult",
+						"value": {
+							"appId": "SomeApp",
+							"transitionPending": true
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "LifecycleManagement.onRequestLaunch",
+			"summary": "Tells the provider that an app should be launched",
+			"params": [
+				{
+					"name": "listen",
+					"required": true,
+					"schema": {
+						"type": "boolean"
+					}
+				}
+			],
+			"tags": [
+				{
+					"name": "rpc-only"
+				},
+				{
+					"name": "event",
+					"x-response": {
+						"$ref": "#/components/schemas/LifecycleLaunchResponse",
+						"examples": [
+							{
+								"success": true
+							},
+							{
+								"success": false
+							}
+						]
+					},
+					"x-error": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"code",
+							"message"
+						],
+						"properties": {
+							"code": {
+								"title": "errorObjectCode",
+								"description": "A Number that indicates the error type that occurred. This MUST be an integer. The error codes from and including -32768 to -32000 are reserved for pre-defined errors. These pre-defined errors SHOULD be assumed to be returned from any JSON-RPC api.",
+								"type": "integer"
+							},
+							"message": {
+								"title": "errorObjectMessage",
+								"description": "A String providing a short description of the error. The message SHOULD be limited to a concise single sentence.",
+								"type": "string"
+							},
+							"data": {
+								"title": "errorObjectData",
+								"description": "A Primitive or Structured value that contains additional information about the error. This may be omitted. The value of this member is defined by the Server (e.g. detailed error information, nested errors etc.)."
+							}
+						}
+					}
+				},
+				{
+					"name": "capabilities",
+					"x-provides": "xrn:firebolt:capability:lifecycle:launch",
+					"x-allow-focus": false
+				}
+			],
+			"result": {
+				"name": "launch",
+				"summary": "The app was requested to be launched",
+				"schema": {
+					"anyOf": [
+						{
+							"$ref": "#/x-schemas/Types/ListenResponse"
+						},
+						{
+							"$ref": "#/components/schemas/LifecycleLaunchRequest"
+						}
+					]
+				}
+			},
+			"examples": [
+				{
+					"name": "Default Example",
+					"params": [
+						{
+							"name": "listen",
+							"value": true
+						}
+					],
+					"result": {
+						"name": "Default Result",
+						"value": {
+							"correlationId": "123",
+							"parameters": {
+								"appId": "SomeAppId",
+								"intent": {
+									"action": "home",
+									"context": {
+										"source": "voice"
+									}
+								}
+							}
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "LifecycleManagement.onRequestReady",
+			"summary": "Tells the provider that an app has said they are ready",
+			"params": [
+				{
+					"name": "listen",
+					"required": true,
+					"schema": {
+						"type": "boolean"
+					}
+				}
+			],
+			"tags": [
+				{
+					"name": "rpc-only"
+				},
+				{
+					"name": "event",
+					"x-response": {
+						"const": null,
+						"examples": [
+							null
+						]
+					},
+					"x-error": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"code",
+							"message"
+						],
+						"properties": {
+							"code": {
+								"title": "errorObjectCode",
+								"description": "A Number that indicates the error type that occurred. This MUST be an integer. The error codes from and including -32768 to -32000 are reserved for pre-defined errors. These pre-defined errors SHOULD be assumed to be returned from any JSON-RPC api.",
+								"type": "integer"
+							},
+							"message": {
+								"title": "errorObjectMessage",
+								"description": "A String providing a short description of the error. The message SHOULD be limited to a concise single sentence.",
+								"type": "string"
+							},
+							"data": {
+								"title": "errorObjectData",
+								"description": "A Primitive or Structured value that contains additional information about the error. This may be omitted. The value of this member is defined by the Server (e.g. detailed error information, nested errors etc.)."
+							}
+						}
+					}
+				},
+				{
+					"name": "capabilities",
+					"x-provides": "xrn:firebolt:capability:lifecycle:state",
+					"x-allow-focus": false
+				}
+			],
+			"result": {
+				"name": "ready",
+				"summary": "The app has said they are ready",
+				"schema": {
+					"anyOf": [
+						{
+							"$ref": "#/x-schemas/Types/ListenResponse"
+						},
+						{
+							"$ref": "#/components/schemas/LifecycleReadyRequest"
+						}
+					]
+				}
+			},
+			"examples": [
+				{
+					"name": "Default Example",
+					"params": [
+						{
+							"name": "listen",
+							"value": true
+						}
+					],
+					"result": {
+						"name": "Default Result",
+						"value": {
+							"correlationId": "123",
+							"parameters": {
+								"appId": "SomeAppId"
+							}
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "LifecycleManagement.onRequestClose",
+			"summary": "Tells the provider that an app has requested closing itself",
+			"params": [
+				{
+					"name": "listen",
+					"required": true,
+					"schema": {
+						"type": "boolean"
+					}
+				}
+			],
+			"tags": [
+				{
+					"name": "rpc-only"
+				},
+				{
+					"name": "capabilities",
+					"x-provides": "xrn:firebolt:capability:lifecycle:state",
+					"x-allow-focus": false
+				},
+				{
+					"name": "event",
+					"x-response": {
+						"const": null,
+						"examples": [
+							null
+						]
+					},
+					"x-error": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"code",
+							"message"
+						],
+						"properties": {
+							"code": {
+								"title": "errorObjectCode",
+								"description": "A Number that indicates the error type that occurred. This MUST be an integer. The error codes from and including -32768 to -32000 are reserved for pre-defined errors. These pre-defined errors SHOULD be assumed to be returned from any JSON-RPC api.",
+								"type": "integer"
+							},
+							"message": {
+								"title": "errorObjectMessage",
+								"description": "A String providing a short description of the error. The message SHOULD be limited to a concise single sentence.",
+								"type": "string"
+							},
+							"data": {
+								"title": "errorObjectData",
+								"description": "A Primitive or Structured value that contains additional information about the error. This may be omitted. The value of this member is defined by the Server (e.g. detailed error information, nested errors etc.)."
+							}
+						}
+					}
+				}
+			],
+			"result": {
+				"name": "close",
+				"summary": "The app has requested to be closed",
+				"schema": {
+					"anyOf": [
+						{
+							"$ref": "#/x-schemas/Types/ListenResponse"
+						},
+						{
+							"$ref": "#/components/schemas/LifecycleCloseRequest"
+						}
+					]
+				}
+			},
+			"examples": [
+				{
+					"name": "Default Example",
+					"params": [
+						{
+							"name": "listen",
+							"value": true
+						}
+					],
+					"result": {
+						"name": "Default Result",
+						"value": {
+							"correlationId": "123",
+							"parameters": {
+								"appId": "SomeAppId",
+								"reason": "userExit"
+							}
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "LifecycleManagement.onRequestFinished",
+			"summary": "Tells the provider that an app has said they are finished cleaning up while unloading",
+			"params": [
+				{
+					"name": "listen",
+					"required": true,
+					"schema": {
+						"type": "boolean"
+					}
+				}
+			],
+			"tags": [
+				{
+					"name": "rpc-only"
+				},
+				{
+					"name": "capabilities",
+					"x-provides": "xrn:firebolt:capability:lifecycle:state",
+					"x-allow-focus": false
+				},
+				{
+					"name": "event",
+					"x-response": {
+						"const": null,
+						"examples": [
+							null
+						]
+					},
+					"x-error": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"code",
+							"message"
+						],
+						"properties": {
+							"code": {
+								"title": "errorObjectCode",
+								"description": "A Number that indicates the error type that occurred. This MUST be an integer. The error codes from and including -32768 to -32000 are reserved for pre-defined errors. These pre-defined errors SHOULD be assumed to be returned from any JSON-RPC api.",
+								"type": "integer"
+							},
+							"message": {
+								"title": "errorObjectMessage",
+								"description": "A String providing a short description of the error. The message SHOULD be limited to a concise single sentence.",
+								"type": "string"
+							},
+							"data": {
+								"title": "errorObjectData",
+								"description": "A Primitive or Structured value that contains additional information about the error. This may be omitted. The value of this member is defined by the Server (e.g. detailed error information, nested errors etc.)."
+							}
+						}
+					}
+				}
+			],
+			"result": {
+				"name": "finished",
+				"summary": "The app has said they are finished",
+				"schema": {
+					"anyOf": [
+						{
+							"$ref": "#/x-schemas/Types/ListenResponse"
+						},
+						{
+							"$ref": "#/components/schemas/LifecycleFinishedRequest"
+						}
+					]
+				}
+			},
+			"examples": [
+				{
+					"name": "Default Example",
+					"params": [
+						{
+							"name": "listen",
+							"value": true
+						}
+					],
+					"result": {
+						"name": "Default Result",
+						"value": {
+							"correlationId": "123",
+							"parameters": {
+								"appId": "SomeAppId"
+							}
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "LifecycleManagement.onSessionTransitionCompleted",
+			"summary": "Emitted when an app session completes a transition to a new status. When sessions are requested, they may result in a pending transition usually due to waiting for the user to respond to a grant.",
+			"params": [
+				{
+					"name": "listen",
+					"required": true,
+					"schema": {
+						"type": "boolean"
+					}
+				}
+			],
+			"tags": [
+				{
+					"name": "capabilities",
+					"x-manages": [
+						"xrn:firebolt:capability:lifecycle:state"
+					]
+				},
+				{
+					"name": "event"
+				}
+			],
+			"result": {
+				"name": "completed",
+				"summary": "The event containing all the session information for the app",
+				"schema": {
+					"anyOf": [
+						{
+							"$ref": "#/x-schemas/Types/ListenResponse"
+						},
+						{
+							"$ref": "#/components/schemas/AppSession"
+						}
+					]
+				}
+			},
+			"examples": [
+				{
+					"name": "Default Example",
+					"params": [
+						{
+							"name": "listen",
+							"value": true
+						}
+					],
+					"result": {
+						"name": "Default Result",
+						"value": {
+							"appId": "SomeAppId",
+							"sessionId": "c0d012b4-0854-4bbc-82d5-ab52ac29dd94",
+							"loadedSessionId": "612f307e-8b32-412e-bcec-831779bc07ae",
+							"activeSessionId": "05b6f6af-c2f8-4761-beeb-6029590b8e8c",
+							"transitionPending": false
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "LifecycleManagement.onSessionTransitionCanceled",
+			"summary": "Emitted when an app session has its transition to a new status canceled. This usually occurs when a session has a pending transition due to a user grant being evaluated and then the user defers that user grant.",
+			"params": [
+				{
+					"name": "listen",
+					"required": true,
+					"schema": {
+						"type": "boolean"
+					}
+				}
+			],
+			"tags": [
+				{
+					"name": "capabilities",
+					"x-manages": [
+						"xrn:firebolt:capability:lifecycle:state"
+					]
+				},
+				{
+					"name": "event"
+				}
+			],
+			"result": {
+				"name": "canceled",
+				"summary": "The event sent when the session is canceled",
+				"schema": {
+					"anyOf": [
+						{
+							"$ref": "#/x-schemas/Types/ListenResponse"
+						},
+						{
+							"type": "object",
+							"properties": {
+								"appId": {
+									"description": "The id of the app that this session is for",
+									"type": "string"
+								}
+							},
+							"required": [
+								"appId"
+							]
+						}
+					]
+				}
+			},
+			"examples": [
+				{
+					"name": "Default Example",
+					"params": [
+						{
+							"name": "listen",
+							"value": true
+						}
+					],
+					"result": {
+						"name": "Default Result",
+						"value": {
+							"appId": "SomeApp"
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "LifecycleManagement.launchResponse",
+			"summary": "Internal API for Launch Provider to send back response.",
+			"params": [
+				{
+					"name": "response",
+					"required": true,
+					"schema": {
+						"allOf": [
+							{
+								"$ref": "#/x-schemas/Types/ProviderResponse"
+							},
+							{
+								"type": "object",
+								"properties": {
+									"result": {
+										"$ref": "#/components/schemas/LifecycleLaunchResponse",
+										"examples": [
+											{
+												"success": true
+											},
+											{
+												"success": false
+											}
+										]
+									}
+								}
+							}
+						]
+					}
+				}
+			],
+			"tags": [
+				{
+					"name": "rpc-only"
+				},
+				{
+					"name": "capabilities",
+					"x-provides": "xrn:firebolt:capability:lifecycle:launch",
+					"x-allow-focus": false,
+					"x-response-for": "onRequestLaunch"
+				}
+			],
+			"result": {
+				"name": "result",
+				"schema": {
+					"type": "null"
+				}
+			},
+			"examples": [
+				{
+					"name": "Example #1",
+					"params": [
+						{
+							"name": "response",
+							"value": {
+								"correlationId": "123",
+								"result": {
+									"success": true
+								}
+							}
+						}
+					],
+					"result": {
+						"name": "result",
+						"value": null
+					}
+				},
+				{
+					"name": "Example #2",
+					"params": [
+						{
+							"name": "response",
+							"value": {
+								"correlationId": "123",
+								"result": {
+									"success": false
+								}
+							}
+						}
+					],
+					"result": {
+						"name": "result",
+						"value": null
+					}
+				}
+			]
+		},
+		{
+			"name": "LifecycleManagement.launchError",
+			"summary": "Internal API for Launch Provider to send back error.",
+			"params": [
+				{
+					"name": "error",
+					"required": true,
+					"schema": {
+						"allOf": [
+							{
+								"$ref": "#/x-schemas/Types/ProviderResponse"
+							},
+							{
+								"type": "object",
+								"properties": {
+									"result": {
+										"type": "object",
+										"additionalProperties": false,
+										"required": [
+											"code",
+											"message"
+										],
+										"properties": {
+											"code": {
+												"title": "errorObjectCode",
+												"description": "A Number that indicates the error type that occurred. This MUST be an integer. The error codes from and including -32768 to -32000 are reserved for pre-defined errors. These pre-defined errors SHOULD be assumed to be returned from any JSON-RPC api.",
+												"type": "integer"
+											},
+											"message": {
+												"title": "errorObjectMessage",
+												"description": "A String providing a short description of the error. The message SHOULD be limited to a concise single sentence.",
+												"type": "string"
+											},
+											"data": {
+												"title": "errorObjectData",
+												"description": "A Primitive or Structured value that contains additional information about the error. This may be omitted. The value of this member is defined by the Server (e.g. detailed error information, nested errors etc.)."
+											}
+										}
+									}
+								}
+							}
+						]
+					}
+				}
+			],
+			"tags": [
+				{
+					"name": "rpc-only"
+				},
+				{
+					"name": "capabilities",
+					"x-provides": "xrn:firebolt:capability:lifecycle:launch",
+					"x-allow-focus": false,
+					"x-error-for": "onRequestLaunch"
+				}
+			],
+			"result": {
+				"name": "result",
+				"schema": {
+					"type": "null"
+				}
+			},
+			"examples": [
+				{
+					"name": "Example 1",
+					"params": [
+						{
+							"name": "error",
+							"value": {
+								"correlationId": "123",
+								"result": {
+									"code": 1,
+									"message": "Error"
+								}
+							}
+						}
+					],
+					"result": {
+						"name": "result",
+						"value": null
+					}
+				}
+			]
+		},
+		{
+			"name": "LifecycleManagement.readyResponse",
+			"summary": "Internal API for Ready Provider to send back response.",
+			"params": [
+				{
+					"name": "response",
+					"required": true,
+					"schema": {
+						"allOf": [
+							{
+								"$ref": "#/x-schemas/Types/ProviderResponse"
+							},
+							{
+								"type": "object",
+								"properties": {
+									"result": {
+										"const": null,
+										"examples": [
+											null
+										]
+									}
+								}
+							}
+						]
+					}
+				}
+			],
+			"tags": [
+				{
+					"name": "rpc-only"
+				},
+				{
+					"name": "capabilities",
+					"x-provides": "xrn:firebolt:capability:lifecycle:state",
+					"x-allow-focus": false,
+					"x-response-for": "onRequestReady"
+				}
+			],
+			"result": {
+				"name": "result",
+				"schema": {
+					"type": "null"
+				}
+			},
+			"examples": [
+				{
+					"name": "Example",
+					"params": [
+						{
+							"name": "response",
+							"value": {
+								"correlationId": "123",
+								"result": null
+							}
+						}
+					],
+					"result": {
+						"name": "result",
+						"value": null
+					}
+				}
+			]
+		},
+		{
+			"name": "LifecycleManagement.readyError",
+			"summary": "Internal API for Ready Provider to send back error.",
+			"params": [
+				{
+					"name": "error",
+					"required": true,
+					"schema": {
+						"allOf": [
+							{
+								"$ref": "#/x-schemas/Types/ProviderResponse"
+							},
+							{
+								"type": "object",
+								"properties": {
+									"result": {
+										"type": "object",
+										"additionalProperties": false,
+										"required": [
+											"code",
+											"message"
+										],
+										"properties": {
+											"code": {
+												"title": "errorObjectCode",
+												"description": "A Number that indicates the error type that occurred. This MUST be an integer. The error codes from and including -32768 to -32000 are reserved for pre-defined errors. These pre-defined errors SHOULD be assumed to be returned from any JSON-RPC api.",
+												"type": "integer"
+											},
+											"message": {
+												"title": "errorObjectMessage",
+												"description": "A String providing a short description of the error. The message SHOULD be limited to a concise single sentence.",
+												"type": "string"
+											},
+											"data": {
+												"title": "errorObjectData",
+												"description": "A Primitive or Structured value that contains additional information about the error. This may be omitted. The value of this member is defined by the Server (e.g. detailed error information, nested errors etc.)."
+											}
+										}
+									}
+								}
+							}
+						]
+					}
+				}
+			],
+			"tags": [
+				{
+					"name": "rpc-only"
+				},
+				{
+					"name": "capabilities",
+					"x-provides": "xrn:firebolt:capability:lifecycle:state",
+					"x-allow-focus": false,
+					"x-error-for": "onRequestReady"
+				}
+			],
+			"result": {
+				"name": "result",
+				"schema": {
+					"type": "null"
+				}
+			},
+			"examples": [
+				{
+					"name": "Example 1",
+					"params": [
+						{
+							"name": "error",
+							"value": {
+								"correlationId": "123",
+								"result": {
+									"code": 1,
+									"message": "Error"
+								}
+							}
+						}
+					],
+					"result": {
+						"name": "result",
+						"value": null
+					}
+				}
+			]
+		},
+		{
+			"name": "LifecycleManagement.closeResponse",
+			"summary": "Internal API for Close Provider to send back response.",
+			"params": [
+				{
+					"name": "response",
+					"required": true,
+					"schema": {
+						"allOf": [
+							{
+								"$ref": "#/x-schemas/Types/ProviderResponse"
+							},
+							{
+								"type": "object",
+								"properties": {
+									"result": {
+										"const": null,
+										"examples": [
+											null
+										]
+									}
+								}
+							}
+						]
+					}
+				}
+			],
+			"tags": [
+				{
+					"name": "rpc-only"
+				},
+				{
+					"name": "capabilities",
+					"x-provides": "xrn:firebolt:capability:lifecycle:state",
+					"x-allow-focus": false,
+					"x-response-for": "onRequestClose"
+				}
+			],
+			"result": {
+				"name": "result",
+				"schema": {
+					"type": "null"
+				}
+			},
+			"examples": [
+				{
+					"name": "Example",
+					"params": [
+						{
+							"name": "response",
+							"value": {
+								"correlationId": "123",
+								"result": null
+							}
+						}
+					],
+					"result": {
+						"name": "result",
+						"value": null
+					}
+				}
+			]
+		},
+		{
+			"name": "LifecycleManagement.closeError",
+			"summary": "Internal API for Close Provider to send back error.",
+			"params": [
+				{
+					"name": "error",
+					"required": true,
+					"schema": {
+						"allOf": [
+							{
+								"$ref": "#/x-schemas/Types/ProviderResponse"
+							},
+							{
+								"type": "object",
+								"properties": {
+									"result": {
+										"type": "object",
+										"additionalProperties": false,
+										"required": [
+											"code",
+											"message"
+										],
+										"properties": {
+											"code": {
+												"title": "errorObjectCode",
+												"description": "A Number that indicates the error type that occurred. This MUST be an integer. The error codes from and including -32768 to -32000 are reserved for pre-defined errors. These pre-defined errors SHOULD be assumed to be returned from any JSON-RPC api.",
+												"type": "integer"
+											},
+											"message": {
+												"title": "errorObjectMessage",
+												"description": "A String providing a short description of the error. The message SHOULD be limited to a concise single sentence.",
+												"type": "string"
+											},
+											"data": {
+												"title": "errorObjectData",
+												"description": "A Primitive or Structured value that contains additional information about the error. This may be omitted. The value of this member is defined by the Server (e.g. detailed error information, nested errors etc.)."
+											}
+										}
+									}
+								}
+							}
+						]
+					}
+				}
+			],
+			"tags": [
+				{
+					"name": "rpc-only"
+				},
+				{
+					"name": "capabilities",
+					"x-provides": "xrn:firebolt:capability:lifecycle:state",
+					"x-allow-focus": false,
+					"x-error-for": "onRequestClose"
+				}
+			],
+			"result": {
+				"name": "result",
+				"schema": {
+					"type": "null"
+				}
+			},
+			"examples": [
+				{
+					"name": "Example 1",
+					"params": [
+						{
+							"name": "error",
+							"value": {
+								"correlationId": "123",
+								"result": {
+									"code": 1,
+									"message": "Error"
+								}
+							}
+						}
+					],
+					"result": {
+						"name": "result",
+						"value": null
+					}
+				}
+			]
+		},
+		{
+			"name": "LifecycleManagement.finishedResponse",
+			"summary": "Internal API for Finished Provider to send back response.",
+			"params": [
+				{
+					"name": "response",
+					"required": true,
+					"schema": {
+						"allOf": [
+							{
+								"$ref": "#/x-schemas/Types/ProviderResponse"
+							},
+							{
+								"type": "object",
+								"properties": {
+									"result": {
+										"const": null,
+										"examples": [
+											null
+										]
+									}
+								}
+							}
+						]
+					}
+				}
+			],
+			"tags": [
+				{
+					"name": "rpc-only"
+				},
+				{
+					"name": "capabilities",
+					"x-provides": "xrn:firebolt:capability:lifecycle:state",
+					"x-allow-focus": false,
+					"x-response-for": "onRequestFinished"
+				}
+			],
+			"result": {
+				"name": "result",
+				"schema": {
+					"type": "null"
+				}
+			},
+			"examples": [
+				{
+					"name": "Example",
+					"params": [
+						{
+							"name": "response",
+							"value": {
+								"correlationId": "123",
+								"result": null
+							}
+						}
+					],
+					"result": {
+						"name": "result",
+						"value": null
+					}
+				}
+			]
+		},
+		{
+			"name": "LifecycleManagement.finishedError",
+			"summary": "Internal API for Finished Provider to send back error.",
+			"params": [
+				{
+					"name": "error",
+					"required": true,
+					"schema": {
+						"allOf": [
+							{
+								"$ref": "#/x-schemas/Types/ProviderResponse"
+							},
+							{
+								"type": "object",
+								"properties": {
+									"result": {
+										"type": "object",
+										"additionalProperties": false,
+										"required": [
+											"code",
+											"message"
+										],
+										"properties": {
+											"code": {
+												"title": "errorObjectCode",
+												"description": "A Number that indicates the error type that occurred. This MUST be an integer. The error codes from and including -32768 to -32000 are reserved for pre-defined errors. These pre-defined errors SHOULD be assumed to be returned from any JSON-RPC api.",
+												"type": "integer"
+											},
+											"message": {
+												"title": "errorObjectMessage",
+												"description": "A String providing a short description of the error. The message SHOULD be limited to a concise single sentence.",
+												"type": "string"
+											},
+											"data": {
+												"title": "errorObjectData",
+												"description": "A Primitive or Structured value that contains additional information about the error. This may be omitted. The value of this member is defined by the Server (e.g. detailed error information, nested errors etc.)."
+											}
+										}
+									}
+								}
+							}
+						]
+					}
+				}
+			],
+			"tags": [
+				{
+					"name": "rpc-only"
+				},
+				{
+					"name": "capabilities",
+					"x-provides": "xrn:firebolt:capability:lifecycle:state",
+					"x-allow-focus": false,
+					"x-error-for": "onRequestFinished"
+				}
+			],
+			"result": {
+				"name": "result",
+				"schema": {
+					"type": "null"
+				}
+			},
+			"examples": [
+				{
+					"name": "Example 1",
+					"params": [
+						{
+							"name": "error",
+							"value": {
+								"correlationId": "123",
+								"result": {
+									"code": 1,
+									"message": "Error"
+								}
+							}
+						}
+					],
+					"result": {
+						"name": "result",
+						"value": null
+					}
+				}
+			]
+		},
+		{
+			"name": "MetricsManagement.addContext",
+			"tags": [
+				{
+					"name": "capabilities",
+					"x-manages": [
+						"xrn:firebolt:capability:metrics:context"
+					]
+				}
+			],
+			"summary": "Add context that can be applied to all metrics reporting",
+			"params": [
+				{
+					"name": "context",
+					"summary": "The context to add for metrics",
+					"schema": {
+						"$ref": "#/components/schemas/MetricsContext"
+					},
+					"required": true
+				}
+			],
+			"result": {
+				"name": "results",
+				"schema": {
+					"type": "null"
+				}
+			},
+			"examples": [
+				{
+					"name": "Set the deviceSessionId",
+					"params": [
+						{
+							"name": "context",
+							"value": {
+								"deviceSessionId": "ccccc-cccc-cccc-cccc-cccccccc"
+							}
+						}
+					],
+					"result": {
+						"name": "result",
+						"value": null
+					}
+				}
+			]
+		},
+		{
+			"name": "MetricsManagement.removeContext",
+			"tags": [
+				{
+					"name": "capabilities",
+					"x-manages": [
+						"xrn:firebolt:capability:metrics:context"
+					]
+				}
+			],
+			"summary": "Remove context that was previously added by Metrics.addContext",
+			"params": [
+				{
+					"name": "keys",
+					"summary": "The list of keys to clear context for",
+					"schema": {
+						"type": "array",
+						"items": {
+							"type": "string",
+							"enum": [
+								"deviceSessionId"
+							]
+						}
+					},
+					"required": true
+				}
+			],
+			"result": {
+				"name": "result",
+				"schema": {
+					"type": "null"
+				}
+			},
+			"examples": [
+				{
+					"name": "Remove the override for deviceSessionId",
+					"params": [
+						{
+							"name": "keys",
+							"value": [
+								"deviceSessionId"
+							]
+						}
+					],
+					"result": {
+						"name": "result",
+						"value": null
+					}
+				}
+			]
+		}
+	],
+	"components": {
+		"schemas": {
+			"LifecycleReadyParameters": {
+				"title": "LifecycleReadyParameters",
+				"type": "object",
+				"required": [
+					"appId"
+				],
+				"properties": {
+					"appId": {
+						"description": "The application ID",
+						"type": "string"
+					}
+				}
+			},
+			"LifecycleLaunchParameters": {
+				"title": "LifecycleLaunchParameters",
+				"type": "object",
+				"required": [
+					"appId"
+				],
+				"properties": {
+					"appId": {
+						"description": "The application ID",
+						"type": "string"
+					},
+					"intent": {
+						"description": "The navigation intent to launch the app with",
+						"$ref": "#/x-schemas/Intents/NavigationIntent"
+					}
+				}
+			},
+			"LifecycleLaunchResponse": {
+				"title": "LifecycleLaunchResponse",
+				"type": "object",
+				"required": [
+					"success"
+				],
+				"properties": {
+					"success": {
+						"description": "Whether the launch succeeded",
+						"type": "boolean"
+					}
+				}
+			},
+			"LifecycleCloseParameters": {
+				"title": "LifecycleCloseParameters",
+				"type": "object",
+				"required": [
+					"appId",
+					"reason"
+				],
+				"properties": {
+					"appId": {
+						"description": "The application ID",
+						"type": "string"
+					},
+					"reason": {
+						"description": "The close reason",
+						"$ref": "#/x-schemas/Lifecycle/CloseReason"
+					}
+				}
+			},
+			"LifecycleFinishedParameters": {
+				"title": "LifecycleFinishedParameters",
+				"type": "object",
+				"required": [
+					"appId"
+				],
+				"properties": {
+					"appId": {
+						"description": "The application ID",
+						"type": "string"
+					}
+				}
+			},
+			"LifecycleReadyRequest": {
+				"title": "LifecycleReadyRequest",
+				"type": "object",
+				"required": [
+					"parameters"
+				],
+				"properties": {
+					"parameters": {
+						"description": "The associated lifecycle parameters",
+						"$ref": "#/components/schemas/LifecycleReadyParameters"
+					}
+				}
+			},
+			"LifecycleLaunchRequest": {
+				"title": "LifecycleLaunchRequest",
+				"type": "object",
+				"required": [
+					"parameters"
+				],
+				"properties": {
+					"parameters": {
+						"description": "The associated launch parameters",
+						"$ref": "#/components/schemas/LifecycleLaunchParameters"
+					}
+				}
+			},
+			"LifecycleCloseRequest": {
+				"title": "LifecycleCloseRequest",
+				"type": "object",
+				"required": [
+					"parameters"
+				],
+				"properties": {
+					"parameters": {
+						"description": "The associated lifecycle parameters",
+						"$ref": "#/components/schemas/LifecycleCloseParameters"
+					}
+				}
+			},
+			"LifecycleFinishedRequest": {
+				"title": "LifecycleFinishedRequest",
+				"type": "object",
+				"required": [
+					"parameters"
+				],
+				"properties": {
+					"parameters": {
+						"description": "The associated lifecycle parameters",
+						"$ref": "#/components/schemas/LifecycleFinishedParameters"
+					}
+				}
+			},
+			"AppSessionRequest": {
+				"title": "AppSessionRequest",
+				"type": "object",
+				"required": [
+					"app"
+				],
+				"properties": {
+					"app": {
+						"description": "Information about the application",
+						"type": "object",
+						"required": [
+							"id"
+						],
+						"properties": {
+							"id": {
+								"description": "The identifier for the app",
+								"type": "string"
+							},
+							"url": {
+								"description": "The url that the app will be launched with",
+								"type": "string"
+							},
+							"title": {
+								"description": "The display title of the app",
+								"type": "string"
+							},
+							"catalog": {
+								"description": "The catalog id that this app's content metadata comes from",
+								"type": "string"
+							}
+						}
+					},
+					"runtime": {
+						"description": "Information about the runtime that the application is running in",
+						"type": "object",
+						"required": [],
+						"properties": {
+							"id": {
+								"description": "The identifier for the runtime",
+								"type": "string"
+							},
+							"transport": {
+								"description": "The type of transport the application container will use to communicate to Firebolt",
+								"type": "string",
+								"enum": [
+									"bridge",
+									"websocket"
+								]
+							}
+						}
+					},
+					"launch": {
+						"description": "Launch information for this app that will be loaded",
+						"type": "object",
+						"properties": {
+							"intent": {
+								"description": "The firebolt navigation intent that this app will be loaded with",
+								"$ref": "#/x-schemas/Intents/NavigationIntent"
+							},
+							"secondScreen": {
+								"description": "Any information about the app being launched from a second screen",
+								"$ref": "#/components/schemas/SecondScreenEvent"
+							},
+							"inactive": {
+								"description": "Flag on whether or not the session is meant to remain in the inactive state for this session. This will instruct Firebolt on whether to start an activeSession. Default is false.",
+								"type": "boolean"
+							}
+						}
+					}
+				}
+			},
+			"AppSession": {
+				"title": "AppSession",
+				"type": "object",
+				"required": [
+					"appId",
+					"transitionPending"
+				],
+				"properties": {
+					"appId": {
+						"description": "The id of the app that this session is for",
+						"type": "string"
+					},
+					"sessionId": {
+						"description": "An id representing the the app's gateway access to Firebolt for this loaded session. This sessionId can be used by the application to connect via websocket to Firebolt.",
+						"type": "string"
+					},
+					"loadedSessionId": {
+						"description": "The sessionId scoped to the app loaded in any state. Firebolt should clear this sessionId whenever the app moves to unloading state.",
+						"type": "string"
+					},
+					"activeSessionId": {
+						"description": "The sessionId scoped to the current active session. Firebolt should clear this sessionId whenever the app moves to the inactive state. Firebolt should generate a new one anytime the app moves from inactive to active. This may be undefined for any inactive sessions.",
+						"type": "string"
+					},
+					"transitionPending": {
+						"description": "Set to true if the session is currently pending a transition to a new status. A status can be before a session exists, an inactive session, or an active session. If this session is currently pending transition clients can subscribe to onSessionTransitionCompleted to know when the transition is complete. That event will give the new session ids that are associated with this session status. Clients should also subscribe to onSessionTransitionCanceled to know that the transition will never complete and was canceled.",
+						"type": "boolean"
+					}
+				}
+			},
+			"SecondScreenEvent": {
+				"title": "SecondScreenEvent",
+				"description": "An a message notification from a second screen device",
+				"type": "object",
+				"required": [
+					"type"
+				],
+				"properties": {
+					"type": {
+						"type": "string",
+						"enum": [
+							"dial"
+						]
+					},
+					"version": {
+						"type": "string"
+					},
+					"data": {
+						"type": "string"
+					}
+				}
+			},
+			"MetricsContext": {
+				"title": "MetricsContext",
+				"description": "Context that is used when the platform sends any metrics",
+				"type": "object",
+				"properties": {
+					"deviceSessionId": {
+						"description": "A unique id that identifies a sessionId correlating to the scope of when the user has interacted with the device. This sessionId should be reset any time the device goes to the active power state",
+						"type": "string"
+					}
+				},
+				"required": []
+			}
+		}
+	},
+	"x-schemas": {
+		"Lifecycle": {
+			"uri": "https://meta.comcast.com/firebolt/lifecycle",
+			"LifecycleState": {
+				"title": "LifecycleState",
+				"description": "The application lifecycle state",
+				"type": "string",
+				"enum": [
+					"initializing",
+					"inactive",
+					"foreground",
+					"background",
+					"unloading",
+					"suspended"
+				]
+			},
+			"CloseReason": {
+				"title": "CloseReason",
+				"description": "The application close reason",
+				"type": "string",
+				"enum": [
+					"remoteButton",
+					"userExit",
+					"done",
+					"error"
+				]
+			}
+		},
+		"Types": {
+			"uri": "https://meta.comcast.com/firebolt/types",
+			"ListenResponse": {
+				"title": "ListenResponse",
+				"type": "object",
+				"required": [
+					"event",
+					"listening"
+				],
+				"properties": {
+					"event": {
+						"type": "string",
+						"pattern": "[a-zA-Z]+\\.on[A-Z][a-zA-Z]+"
+					},
+					"listening": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": false
+			},
+			"ProviderResponse": {
+				"title": "ProviderResponse",
+				"type": "object",
+				"required": [
+					"correlationId"
+				],
+				"additionalProperties": false,
+				"properties": {
+					"correlationId": {
+						"type": "string",
+						"description": "The id that was passed in to the event that triggered a provider method to be called"
+					},
+					"result": {
+						"description": "The result of the provider response."
+					}
+				}
+			}
+		},
+		"Intents": {
+			"uri": "https://meta.comcast.com/firebolt/intents",
+			"NavigationIntent": {
+				"title": "NavigationIntent",
+				"description": "A Firebolt compliant representation of a user intention to navigate to a specific place in an app.",
+				"anyOf": [
+					{
+						"$ref": "#/x-schemas/Intents/HomeIntent"
+					},
+					{
+						"$ref": "#/x-schemas/Intents/LaunchIntent"
+					},
+					{
+						"$ref": "#/x-schemas/Intents/EntityIntent"
+					},
+					{
+						"$ref": "#/x-schemas/Intents/PlaybackIntent"
+					},
+					{
+						"$ref": "#/x-schemas/Intents/SearchIntent"
+					},
+					{
+						"$ref": "#/x-schemas/Intents/SectionIntent"
+					},
+					{
+						"$ref": "#/x-schemas/Intents/TuneIntent"
+					}
+				]
+			},
+			"HomeIntent": {
+				"description": "A Firebolt compliant representation of a user intention to navigate an app to it's home screen, and bring that app to the foreground if needed.",
+				"title": "HomeIntent",
+				"allOf": [
+					{
+						"title": "HomeIntent",
+						"$ref": "#/x-schemas/Intents/Intent"
+					},
+					{
+						"title": "HomeIntent",
+						"$ref": "#/x-schemas/Intents/IntentProperties"
+					},
+					{
+						"title": "HomeIntent",
+						"type": "object",
+						"properties": {
+							"action": {
+								"const": "home"
+							}
+						}
+					}
+				],
+				"examples": [
+					{
+						"action": "home",
+						"context": {
+							"source": "voice"
+						}
+					}
+				]
+			},
+			"LaunchIntent": {
+				"description": "A Firebolt compliant representation of a user intention to launch an app.",
+				"title": "LaunchIntent",
+				"allOf": [
+					{
+						"$ref": "#/x-schemas/Intents/Intent"
+					},
+					{
+						"$ref": "#/x-schemas/Intents/IntentProperties"
+					},
+					{
+						"type": "object",
+						"properties": {
+							"action": {
+								"const": "launch"
+							}
+						}
+					}
+				],
+				"examples": [
+					{
+						"action": "launch",
+						"context": {
+							"source": "voice"
+						}
+					}
+				]
+			},
+			"EntityIntent": {
+				"description": "A Firebolt compliant representation of a user intention to navigate an app to a specific entity page, and bring that app to the foreground if needed.",
+				"title": "EntityIntent",
+				"allOf": [
+					{
+						"$ref": "#/x-schemas/Intents/Intent"
+					},
+					{
+						"$ref": "#/x-schemas/Intents/IntentProperties"
+					},
+					{
+						"type": "object",
+						"required": [
+							"data"
+						],
+						"properties": {
+							"action": {
+								"const": "entity"
+							},
+							"data": {
+								"anyOf": [
+									{
+										"$ref": "#/x-schemas/Intents/MovieEntity"
+									},
+									{
+										"$ref": "#/x-schemas/Intents/TVEpisodeEntity"
+									},
+									{
+										"$ref": "#/x-schemas/Intents/TVSeriesEntity"
+									},
+									{
+										"$ref": "#/x-schemas/Intents/TVSeasonEntity"
+									},
+									{
+										"$ref": "#/x-schemas/Intents/AdditionalEntity"
+									},
+									{
+										"$ref": "#/x-schemas/Intents/UntypedEntity"
+									}
+								]
+							}
+						}
+					}
+				],
+				"examples": [
+					{
+						"action": "entity",
+						"context": {
+							"source": "voice"
+						},
+						"data": {
+							"entityType": "program",
+							"programType": "movie",
+							"entityId": "el-camino"
+						}
+					}
+				]
+			},
+			"PlaybackIntent": {
+				"description": "A Firebolt compliant representation of a user intention to navigate an app to a the video player for a specific, playable entity, and bring that app to the foreground if needed.",
+				"title": "PlaybackIntent",
+				"allOf": [
+					{
+						"$ref": "#/x-schemas/Intents/Intent"
+					},
+					{
+						"$ref": "#/x-schemas/Intents/IntentProperties"
+					},
+					{
+						"type": "object",
+						"required": [
+							"data"
+						],
+						"properties": {
+							"action": {
+								"const": "playback"
+							},
+							"data": {
+								"anyOf": [
+									{
+										"$ref": "#/x-schemas/Intents/MovieEntity"
+									},
+									{
+										"$ref": "#/x-schemas/Intents/TVEpisodeEntity"
+									},
+									{
+										"$ref": "#/x-schemas/Intents/AdditionalEntity"
+									}
+								]
+							}
+						}
+					}
+				],
+				"examples": [
+					{
+						"action": "playback",
+						"data": {
+							"entityType": "program",
+							"programType": "episode",
+							"entityId": "breaking-bad-pilot",
+							"seriesId": "breaking-bad",
+							"seasonId": "breaking-bad-season-1"
+						},
+						"context": {
+							"source": "voice"
+						}
+					}
+				]
+			},
+			"SearchIntent": {
+				"description": "A Firebolt compliant representation of a user intention to navigate an app to it's search UI with a search term populated, and bring that app to the foreground if needed.",
+				"title": "SearchIntent",
+				"allOf": [
+					{
+						"$ref": "#/x-schemas/Intents/Intent"
+					},
+					{
+						"$ref": "#/x-schemas/Intents/IntentProperties"
+					},
+					{
+						"type": "object",
+						"properties": {
+							"action": {
+								"const": "search"
+							},
+							"data": {
+								"type": "object",
+								"required": [
+									"query"
+								],
+								"properties": {
+									"query": {
+										"type": "string"
+									}
+								},
+								"additionalProperties": false
+							}
+						}
+					}
+				],
+				"examples": [
+					{
+						"action": "search",
+						"data": {
+							"query": "walter white"
+						},
+						"context": {
+							"source": "voice"
+						}
+					}
+				]
+			},
+			"SectionIntent": {
+				"description": "A Firebolt compliant representation of a user intention to navigate an app to a section not covered by `home`, `entity`, `player`, or `search`, and bring that app to the foreground if needed.",
+				"title": "SectionIntent",
+				"allOf": [
+					{
+						"$ref": "#/x-schemas/Intents/Intent"
+					},
+					{
+						"$ref": "#/x-schemas/Intents/IntentProperties"
+					},
+					{
+						"type": "object",
+						"properties": {
+							"action": {
+								"const": "section"
+							},
+							"data": {
+								"type": "object",
+								"required": [
+									"sectionName"
+								],
+								"properties": {
+									"sectionName": {
+										"type": "string"
+									}
+								},
+								"additionalProperties": false
+							}
+						}
+					}
+				],
+				"examples": [
+					{
+						"action": "section",
+						"data": {
+							"sectionName": "settings"
+						},
+						"context": {
+							"source": "voice"
+						}
+					}
+				]
+			},
+			"TuneIntent": {
+				"description": "A Firebolt compliant representation of a user intention to 'tune' to a traditional over-the-air broadcast, or an OTT Stream from an OTT or vMVPD App.",
+				"title": "TuneIntent",
+				"allOf": [
+					{
+						"$ref": "#/x-schemas/Intents/Intent"
+					},
+					{
+						"$ref": "#/x-schemas/Intents/IntentProperties"
+					},
+					{
+						"type": "object",
+						"required": [
+							"data"
+						],
+						"properties": {
+							"action": {
+								"const": "tune"
+							},
+							"data": {
+								"type": "object",
+								"required": [
+									"entity"
+								],
+								"additionalProperties": false,
+								"properties": {
+									"entity": {
+										"$ref": "#/x-schemas/Intents/ChannelEntity"
+									},
+									"options": {
+										"description": "The options property of the data property MUST have only one of the following fields.",
+										"type": "object",
+										"required": [],
+										"additionalProperties": false,
+										"minProperties": 1,
+										"maxProperties": 1,
+										"properties": {
+											"assetId": {
+												"type": "string",
+												"description": "The ID of a specific 'listing', as scoped by the target App's ID-space, which the App should begin playback from."
+											},
+											"restartCurrentProgram": {
+												"type": "boolean",
+												"description": "Denotes that the App should start playback at the most recent program boundary, rather than 'live.'"
+											},
+											"time": {
+												"type": "string",
+												"format": "date-time",
+												"description": "ISO 8601 Date/Time where the App should begin playback from."
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				],
+				"examples": [
+					{
+						"action": "tune",
+						"data": {
+							"entity": {
+								"entityType": "channel",
+								"channelType": "streaming",
+								"entityId": "an-ott-channel"
+							},
+							"options": {
+								"restartCurrentProgram": true
+							}
+						},
+						"context": {
+							"source": "voice"
+						}
+					}
+				]
+			},
+			"Intent": {
+				"description": "A Firebolt compliant representation of a user intention.",
+				"type": "object",
+				"required": [
+					"action",
+					"context"
+				],
+				"properties": {
+					"action": {
+						"type": "string"
+					},
+					"context": {
+						"type": "object",
+						"required": [
+							"source"
+						],
+						"properties": {
+							"source": {
+								"type": "string",
+								"enum": [
+									"voice",
+									"channel-lineup",
+									"editorial",
+									"device"
+								]
+							}
+						}
+					}
+				}
+			},
+			"IntentProperties": {
+				"type": "object",
+				"propertyNames": {
+					"enum": [
+						"action",
+						"data",
+						"context"
+					]
+				}
+			},
+			"MovieEntity": {
+				"title": "MovieEntity",
+				"allOf": [
+					{
+						"$ref": "#/x-schemas/Intents/ProgramEntity"
+					},
+					{
+						"description": "A Firebolt compliant representation of a Movie entity.",
+						"title": "MovieEntity",
+						"type": "object",
+						"required": [
+							"entityType",
+							"programType",
+							"entityId"
+						],
+						"properties": {
+							"entityType": {
+								"const": "program"
+							},
+							"programType": {
+								"const": "movie"
+							},
+							"entityId": {
+								"$ref": "#/x-schemas/Intents/Identifier"
+							},
+							"assetId": {
+								"$ref": "#/x-schemas/Intents/Identifier"
+							},
+							"appContentData": {
+								"type": "string",
+								"maxLength": 256
+							}
+						},
+						"additionalProperties": false
+					}
+				],
+				"examples": [
+					{
+						"entityType": "program",
+						"programType": "movie",
+						"entityId": "el-camino"
+					}
+				]
+			},
+			"TVEpisodeEntity": {
+				"title": "TVEpisodeEntity",
+				"allOf": [
+					{
+						"$ref": "#/x-schemas/Intents/ProgramEntity"
+					},
+					{
+						"description": "A Firebolt compliant representation of a TV Episode entity.",
+						"title": "TVEpisodeEntity",
+						"type": "object",
+						"required": [
+							"entityType",
+							"programType",
+							"entityId",
+							"seriesId",
+							"seasonId"
+						],
+						"properties": {
+							"entityType": {
+								"const": "program"
+							},
+							"programType": {
+								"const": "episode"
+							},
+							"entityId": {
+								"$ref": "#/x-schemas/Intents/Identifier"
+							},
+							"seriesId": {
+								"$ref": "#/x-schemas/Intents/Identifier"
+							},
+							"seasonId": {
+								"$ref": "#/x-schemas/Intents/Identifier"
+							},
+							"assetId": {
+								"$ref": "#/x-schemas/Intents/Identifier"
+							},
+							"appContentData": {
+								"type": "string",
+								"maxLength": 256
+							}
+						},
+						"additionalProperties": false
+					}
+				],
+				"examples": [
+					{
+						"entityType": "program",
+						"programType": "episode",
+						"entityId": "breaking-bad-pilot",
+						"seriesId": "breaking-bad",
+						"seasonId": "breaking-bad-season-1"
+					}
+				]
+			},
+			"TVSeriesEntity": {
+				"title": "TVSeriesEntity",
+				"allOf": [
+					{
+						"$ref": "#/x-schemas/Intents/ProgramEntity"
+					},
+					{
+						"description": "A Firebolt compliant representation of a TV Series entity.",
+						"type": "object",
+						"required": [
+							"entityType",
+							"programType",
+							"entityId"
+						],
+						"properties": {
+							"entityType": {
+								"const": "program"
+							},
+							"programType": {
+								"const": "series"
+							},
+							"entityId": {
+								"$ref": "#/x-schemas/Intents/Identifier"
+							},
+							"assetId": {
+								"$ref": "#/x-schemas/Intents/Identifier"
+							},
+							"appContentData": {
+								"type": "string",
+								"maxLength": 256
+							}
+						},
+						"additionalProperties": false
+					}
+				],
+				"examples": [
+					{
+						"entityType": "program",
+						"programType": "series",
+						"entityId": "breaking-bad"
+					}
+				]
+			},
+			"TVSeasonEntity": {
+				"title": "TVSeasonEntity",
+				"description": "A Firebolt compliant representation of a TV Season entity.",
+				"allOf": [
+					{
+						"$ref": "#/x-schemas/Intents/ProgramEntity"
+					},
+					{
+						"type": "object",
+						"required": [
+							"entityType",
+							"programType",
+							"entityId",
+							"seriesId"
+						],
+						"properties": {
+							"entityType": {
+								"const": "program"
+							},
+							"programType": {
+								"const": "season"
+							},
+							"entityId": {
+								"$ref": "#/x-schemas/Intents/Identifier"
+							},
+							"seriesId": {
+								"$ref": "#/x-schemas/Intents/Identifier"
+							},
+							"assetId": {
+								"$ref": "#/x-schemas/Intents/Identifier"
+							},
+							"appContentData": {
+								"type": "string",
+								"maxLength": 256
+							}
+						},
+						"additionalProperties": false
+					}
+				],
+				"examples": [
+					{
+						"entityType": "program",
+						"programType": "season",
+						"entityId": "breaking-bad-season-1",
+						"seriesId": "breaking-bad"
+					}
+				]
+			},
+			"AdditionalEntity": {
+				"title": "AdditionalEntity",
+				"allOf": [
+					{
+						"$ref": "#/x-schemas/Intents/ProgramEntity"
+					},
+					{
+						"description": "A Firebolt compliant representation of the remaining entity types.",
+						"type": "object",
+						"required": [
+							"entityType",
+							"entityId"
+						],
+						"properties": {
+							"entityType": {
+								"const": "program"
+							},
+							"programType": {
+								"type": "string",
+								"enum": [
+									"concert",
+									"sportingEvent",
+									"preview",
+									"other",
+									"advertisement",
+									"musicVideo",
+									"minisode",
+									"extra"
+								]
+							},
+							"entityId": {
+								"$ref": "#/x-schemas/Intents/Identifier"
+							},
+							"assetId": {
+								"$ref": "#/x-schemas/Intents/Identifier"
+							},
+							"appContentData": {
+								"type": "string",
+								"maxLength": 256
+							}
+						},
+						"additionalProperties": false
+					}
+				],
+				"examples": [
+					{
+						"entityType": "program",
+						"programType": "concert",
+						"entityId": "live-aid"
+					}
+				]
+			},
+			"UntypedEntity": {
+				"title": "UntypedEntity",
+				"allOf": [
+					{
+						"description": "A Firebolt compliant representation of the remaining entity types.",
+						"type": "object",
+						"required": [
+							"entityId"
+						],
+						"properties": {
+							"entityId": {
+								"$ref": "#/x-schemas/Intents/Identifier"
+							},
+							"assetId": {
+								"$ref": "#/x-schemas/Intents/Identifier"
+							},
+							"appContentData": {
+								"type": "string",
+								"maxLength": 256
+							}
+						},
+						"additionalProperties": false
+					}
+				],
+				"examples": [
+					{
+						"entityId": "an-entity"
+					}
+				]
+			},
+			"ChannelEntity": {
+				"title": "ChannelEntity",
+				"type": "object",
+				"properties": {
+					"entityType": {
+						"const": "channel"
+					},
+					"channelType": {
+						"type": "string",
+						"enum": [
+							"streaming",
+							"overTheAir"
+						]
+					},
+					"entityId": {
+						"type": "string",
+						"description": "ID of the channel, in the target App's scope."
+					},
+					"appContentData": {
+						"type": "string",
+						"maxLength": 256
+					}
+				},
+				"required": [
+					"entityType",
+					"channelType",
+					"entityId"
+				],
+				"additionalProperties": false
+			},
+			"ProgramEntity": {
+				"title": "ProgramEntity",
+				"type": "object",
+				"properties": {
+					"entityType": {
+						"const": "program"
+					},
+					"programType": {
+						"$ref": "#/x-schemas/Entertainment/ProgramType"
+					},
+					"entityId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"entityType",
+					"programType",
+					"entityId"
+				]
+			},
+			"Identifier": {
+				"type": "string"
+			}
+		},
+		"Entertainment": {
+			"uri": "https://meta.comcast.com/firebolt/entertainment",
+			"ProgramType": {
+				"title": "ProgramType",
+				"type": "string",
+				"description": "In the case of a program `entityType`, specifies the program type.",
+				"enum": [
+					"movie",
+					"episode",
+					"season",
+					"series",
+					"other",
+					"preview",
+					"extra",
+					"concert",
+					"sportingEvent",
+					"advertisement",
+					"musicVideo",
+					"minisode"
+				]
+			}
+		}
+	}
+}

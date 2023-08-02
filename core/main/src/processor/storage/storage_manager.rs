@@ -30,6 +30,7 @@ use ripple_sdk::{
     tokio,
     utils::error::RippleError,
 };
+use std::collections::HashMap;
 
 use crate::{
     processor::storage::storage_manager_utils::{
@@ -108,6 +109,87 @@ impl StorageManager {
             .await
         {
             Ok(resp) => Ok(resp.as_value()),
+            Err(_) => Err(StorageManager::get_firebolt_error(&property)),
+        }
+    }
+
+    pub async fn get_map(
+        state: &PlatformState,
+        property: StorageProperty,
+    ) -> RpcResult<HashMap<String, Value>> {
+        match StorageManager::get_string(state, property.clone()).await {
+            Ok(raw_value) => match serde_json::from_str(&raw_value) {
+                Ok(raw_map) => {
+                    let the_map: HashMap<String, serde_json::Value> = raw_map;
+                    Ok(the_map)
+                }
+                Err(_) => Err(StorageManager::get_firebolt_error(&property)),
+            },
+            Err(_) => Err(StorageManager::get_firebolt_error(&property)),
+        }
+    }
+
+    pub async fn set_value_in_map(
+        state: &PlatformState,
+        property: StorageProperty,
+        key: String,
+        value: String,
+    ) -> RpcResult<()> {
+        match StorageManager::get_map(state, property.clone()).await {
+            Ok(the_map) => {
+                let mut mutant: HashMap<String, serde_json::Value> = the_map;
+                mutant.insert(key, serde_json::Value::String(value));
+                match StorageManager::set_string(
+                    state,
+                    property.clone(),
+                    serde_json::to_string(&mutant).unwrap(),
+                    None,
+                )
+                .await
+                {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err(StorageManager::get_firebolt_error(&property)),
+                }
+            }
+            Err(_) => {
+                let mut map: HashMap<String, serde_json::Value> = Default::default();
+                map.insert(key, serde_json::Value::String(value));
+                match StorageManager::set_string(
+                    state,
+                    property.clone(),
+                    serde_json::to_string(&map).unwrap(),
+                    None,
+                )
+                .await
+                {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err(StorageManager::get_firebolt_error(&property)),
+                }
+            }
+        }
+    }
+
+    pub async fn remove_value_in_map(
+        state: &PlatformState,
+        property: StorageProperty,
+        key: String,
+    ) -> RpcResult<()> {
+        match StorageManager::get_map(state, property.clone()).await {
+            Ok(the_map) => {
+                let mut mutant: HashMap<String, serde_json::Value> = the_map;
+                mutant.remove(&key);
+                match StorageManager::set_string(
+                    state,
+                    property.clone(),
+                    serde_json::to_string(&mutant).unwrap(),
+                    None,
+                )
+                .await
+                {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err(StorageManager::get_firebolt_error(&property)),
+                }
+            }
             Err(_) => Err(StorageManager::get_firebolt_error(&property)),
         }
     }

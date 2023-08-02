@@ -293,6 +293,7 @@ impl CapabilityInfo {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum DenyReason {
+    NotFound,
     Unpermitted,
     Unsupported,
     Disabled,
@@ -312,6 +313,8 @@ pub const CAPABILITY_NOT_PERMITTED: i32 = -40300;
 
 pub const JSON_RPC_STANDARD_ERROR_INVALID_PARAMS: i32 = -32602;
 
+pub const JSON_RPC_STANDARD_ERROR_METHOD_NOT_FOUND: i32 = -32601;
+
 impl RpcError for DenyReason {
     type E = Vec<String>;
     fn get_rpc_error_code(&self) -> i32 {
@@ -320,6 +323,7 @@ impl RpcError for DenyReason {
             Self::Unsupported => CAPABILITY_NOT_SUPPORTED,
             Self::GrantDenied => CAPABILITY_NOT_PERMITTED,
             Self::Unpermitted => CAPABILITY_NOT_PERMITTED,
+            Self::NotFound => JSON_RPC_STANDARD_ERROR_METHOD_NOT_FOUND,
             _ => CAPABILITY_GET_ERROR,
         }
     }
@@ -331,6 +335,7 @@ impl RpcError for DenyReason {
             Self::Unsupported => format!("{} is not supported", caps_disp),
             Self::GrantDenied => format!("The user denied access to {}", caps_disp),
             Self::Unpermitted => format!("{} is not permitted", caps_disp),
+            Self::NotFound => format!("Method not Found"),
             _ => format!("Error with {}", caps_disp),
         }
     }
