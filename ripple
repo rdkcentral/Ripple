@@ -43,6 +43,13 @@ function get_default_extension() {
 
 case ${1} in
     "init")
+        workspace_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+        if [[ $workspace_dir == *".cargo/bin" ]]; then
+            echo "ripple init can only be run from the script in the Ripple project root"
+            exit 1;
+        fi
+
+        echo "Adding ripple command to .cargo/bin"
         cp -f ./ripple ~/.cargo/bin
 
         if [ -e ~/.ripple ]; then
