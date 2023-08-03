@@ -35,7 +35,10 @@ function get_default_extension() {
         Darwin)
             echo "dylib"
             ;;
-        *)
+        CYGWIN*|MINGW32*|MSYS*|MINGW*)
+            echo "dll"
+            ;;
+        Linux)
             echo "so"
             ;;
     esac
