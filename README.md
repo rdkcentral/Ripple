@@ -69,7 +69,7 @@ Note: Device should be accessible bothways between the machine which is running 
 
 Only follow the below steps, if all the above instructions to run the app locally were successfully executed.
 
-1. Install LLVM Debugger from the VS Code Marketplace.
+1. Install LLVM Debugger from the VS Code Marketplace. [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb) is recommended.
 2. Open `main.rs` in `core/main/`
 3. Set some breakpoints in code.
 4. Upon clicking on the main method in the file. There would be an option to `Run` or `Debug`. Select Debug.
