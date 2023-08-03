@@ -41,6 +41,21 @@ function get_default_extension() {
     esac
 }
 
+function backup_dot_ripple() {
+    echo "Would you like to back it up? (Y/n)"
+    read -r confirm
+    if [ $confirm == "Y" ]; then
+        local backup_name="~/.ripple-$(date +"%F-%H-%M")"
+        echo "Copying existing .ripple directory to $backup_name"
+        mv ~/.ripple $backup_name
+    elif [ $confirm == "n" ]; then
+        return
+    else
+        echo "Please choose Y or n"
+        backup_dot_ripple
+    fi;
+}
+
 case ${1} in
     "init")
         workspace_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
@@ -53,8 +68,8 @@ case ${1} in
         cp -f ./ripple ~/.cargo/bin
 
         if [ -e ~/.ripple ]; then
-            echo "Previous ripple config folder found. Backing it up..."
-            mv ~/.ripple ~/.ripple-$(date +"%F-%H-%M")
+            echo "Previous ripple config folder found."
+            backup_dot_ripple
         fi
 
         echo "Setup Ripple manifests"
