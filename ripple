@@ -45,9 +45,9 @@ function backup_dot_ripple() {
     echo "Would you like to back it up? (Y/n)"
     read -r confirm
     if [ $confirm == "Y" ]; then
-        local backup_name="~/.ripple-$(date +"%F-%H-%M")"
-        echo "Copying existing .ripple directory to $backup_name"
-        mv ~/.ripple $backup_name
+        local backup_name=".ripple-$(date +"%F-%H-%M")"
+        echo "Copying existing ~/.ripple directory to ~/$backup_name"
+        mv ~/.ripple ~/$backup_name
     elif [ $confirm == "n" ]; then
         return
     else
@@ -74,14 +74,17 @@ case ${1} in
 
         echo "Setup Ripple manifests"
         mkdir -p ~/.ripple
+        cp ./examples/manifest/app-library-example.json ~/.ripple/firebolt-app-library.json
         cp ./examples/manifest/device-manifest-example.json ~/.ripple/firebolt-device-manifest.json
         cp ./examples/manifest/extn-manifest-example.json ~/.ripple/firebolt-extn-manifest.json
-        cp ./examples/manifest/app-library-example.json ~/.ripple/firebolt-app-library.json
 
-
+        ## Update firebolt-extn-manifest.json
         sed -i "" "s@\"default_path\": \"/usr/lib/rust/\"@\"default_path\": \"$workspace_dir/target/debug\"@" ~/.ripple/firebolt-extn-manifest.json
         default_extension=$(get_default_extension)
         sed -i "" "s@\"default_extension\": \"so\"@\"default_extension\": \"$default_extension\"@" ~/.ripple/firebolt-extn-manifest.json
+
+        ## Update firebolt-device-manifest.json
+        sed -i "" "s@\"/etc/firebolt-app-library.json\"@\"library\": \"~/.ripple/firebolt-app-library.json\"@" ~/.ripple/firebolt-device-manifest.json
 
         echo "All Done!"
     ;;
