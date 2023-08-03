@@ -30,6 +30,7 @@ pub const NAMESPACE_DEVICE_NAME: &'static str = "DeviceName";
 pub const NAMESPACE_LOCALIZATION: &'static str = "Localization";
 pub const NAMESPACE_USER_GRANT: &'static str = "UserGrant";
 pub const NAMESPACE_VOICE_GUIDANCE: &'static str = "VoiceGuidance";
+pub const NAMESPACE_ADVERTISING: &'static str = "Advertising";
 
 pub const KEY_ENABLED: &'static str = "enabled";
 pub const KEY_FONT_FAMILY: &'static str = "fontFamily";
@@ -69,6 +70,7 @@ pub const KEY_ALLOW_UNENTITLED_RESUME_POINTS: &'static str = "allowUnentitledRes
 pub const KEY_ALLOW_WATCH_HISTORY: &'static str = "allowWatchHistory";
 pub const KEY_VOICE_GUIDANCE_SPEED: &'static str = "speed";
 pub const KEY_PARTNER_EXCLUSIONS: &'static str = "partnerExclusions";
+pub const KEY_SKIP_RESTRICTION: &'static str = "skipRestriction";
 
 pub const EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED: &'static str =
     "accessibility.onClosedCaptionsSettingsChanged";
@@ -125,6 +127,7 @@ pub const EVENT_DEVICE_DEVICE_NAME_CHANGED: &'static str = "device.onDeviceNameC
 pub const EVENT_SECOND_SCREEN_FRIENDLY_NAME_CHANGED: &'static str =
     "secondscreen.onFriendlyNameChanged";
 pub const EVENT_ADVERTISING_POLICY_CHANGED: &'static str = "advertising.onPolicyChanged";
+pub const EVENT_ADVERTISING_SKIP_RESTRICTION: &'static str = "advertising.setSkipRestriction";
 
 pub const EVENT_VOICE_GUIDANCE_SETTINGS_CHANGED: &'static str =
     "accessibility.onVoiceGuidanceSettingsChanged";
@@ -408,6 +411,12 @@ const PROPERTY_DATA_PARTNER_EXCLUSIONS: PropertyData = PropertyData {
     event_names: None,
 };
 
+const PROPERTY_DATA_SKIP_RESTRICTION: PropertyData = PropertyData {
+    key: KEY_SKIP_RESTRICTION,
+    namespace: NAMESPACE_ADVERTISING,
+    event_names: Some(&[EVENT_ADVERTISING_SKIP_RESTRICTION]),
+};
+
 #[derive(Debug)]
 pub struct PropertyData {
     pub namespace: &'static str,
@@ -456,6 +465,7 @@ pub enum StorageProperty {
     VoiceguidanceEnabled,
     VoiceguidanceSpeed,
     PartnerExclusions,
+    SkipRestriction,
 }
 
 impl StorageProperty {
@@ -520,6 +530,7 @@ impl StorageProperty {
             }
             StorageProperty::AllowWatchHistory => PROPERTY_DATA_ALLOW_WATCH_HISTORY,
             StorageProperty::PartnerExclusions => PROPERTY_DATA_PARTNER_EXCLUSIONS,
+            StorageProperty::SkipRestriction => PROPERTY_DATA_SKIP_RESTRICTION,
         }
     }
 
