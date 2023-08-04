@@ -30,13 +30,66 @@ function print_help() {
     echo "ripple run 10.0.0.1"
 }
 
+function get_default_extension() {
+    case "$(uname -s)" in
+        Darwin)
+            echo "dylib"
+            ;;
+        CYGWIN*|MINGW32*|MSYS*|MINGW*)
+            echo "dll"
+            ;;
+        Linux)
+            echo "so"
+            ;;
+    esac
+}
+
+function backup_dot_ripple() {
+    echo "Would you like to back it up? (Y/n)"
+    read -r confirm
+    if [ $confirm == "Y" ]; then
+        local backup_name=".ripple-$(date +"%F-%H-%M")"
+        echo "Copying existing ~/.ripple directory to ~/$backup_name"
+        mv ~/.ripple ~/$backup_name
+    elif [ $confirm == "n" ]; then
+        return
+    else
+        echo "Please choose Y or n"
+        backup_dot_ripple
+    fi;
+}
+
 case ${1} in
     "init")
+        workspace_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+        if [[ $workspace_dir == *".cargo/bin" ]]; then
+            echo "ripple init can only be run from the script in the Ripple project root"
+            exit 1;
+        fi
+
+        echo "Adding ripple command to .cargo/bin"
         cp -f ./ripple ~/.cargo/bin
+
+        if [ -e ~/.ripple ]; then
+            echo "Previous ripple config folder found."
+            backup_dot_ripple
+        fi
+
+        echo "Setup Ripple manifests"
         mkdir -p ~/.ripple
+        cp ./examples/manifest/app-library-example.json ~/.ripple/firebolt-app-library.json
         cp ./examples/manifest/device-manifest-example.json ~/.ripple/firebolt-device-manifest.json
         cp ./examples/manifest/extn-manifest-example.json ~/.ripple/firebolt-extn-manifest.json
-        cp ./examples/manifest/app-library-example.json ~/.ripple/firebolt-app-library.json
+
+        ## Update firebolt-extn-manifest.json
+        sed -i "" "s@\"default_path\": \"/usr/lib/rust/\"@\"default_path\": \"$workspace_dir/target/debug\"@" ~/.ripple/firebolt-extn-manifest.json
+        default_extension=$(get_default_extension)
+        sed -i "" "s@\"default_extension\": \"so\"@\"default_extension\": \"$default_extension\"@" ~/.ripple/firebolt-extn-manifest.json
+
+        ## Update firebolt-device-manifest.json
+        sed -i "" "s@\"/etc/firebolt-app-library.json\"@\"library\": \"~/.ripple/firebolt-app-library.json\"@" ~/.ripple/firebolt-device-manifest.json
+
+        echo "All Done!"
     ;;
     "run")
         cargo build
