@@ -116,17 +116,20 @@ impl CapState {
     ) -> bool {
         let r = ps.cap_state.primed_listeners.read().unwrap();
         debug!("primed entries {:?}", r);
-        if r.iter().find(|x| {
-            if x.event == event && x.cap == cap {
-                if let Some(a) = app_id.clone() {
-                    x.app_id.eq(&a)
+        if r.iter()
+            .find(|x| {
+                if x.event == event && x.cap == cap {
+                    if let Some(a) = app_id.clone() {
+                        x.app_id.eq(&a)
+                    } else {
+                        true
+                    }
                 } else {
-                    true
+                    false
                 }
-            } else {
-                false
-            }
-        }).is_some() {
+            })
+            .is_some()
+        {
             return true;
         }
         false
@@ -178,14 +181,14 @@ impl CapState {
             for listener in listeners {
                 let cc = listener.call_ctx.clone();
                 // Step 2: Check if the given event is valid for the app
-                if is_app_check_necessary && !Self::check_primed(ps, event.clone(), cap.clone(), Some(cc.clone().app_id)) {
+                if is_app_check_necessary
+                    && !Self::check_primed(ps, event.clone(), cap.clone(), Some(cc.clone().app_id))
+                {
                     continue;
                 }
                 let caps = vec![cap.clone()];
-                let request = CapabilitySet::get_from_role(
-                    caps,
-                    Some(role.unwrap_or(CapabilityRole::Use)),
-                );
+                let request =
+                    CapabilitySet::get_from_role(caps, Some(role.unwrap_or(CapabilityRole::Use)));
 
                 // Step 3: Get Capability info for each app based on context available in listener
                 if let Ok(r) = Self::get_cap_info(ps, cc, request).await {

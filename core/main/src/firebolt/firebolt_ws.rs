@@ -115,10 +115,7 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
         let app_id = match app_id_opt {
             Some(a) => a,
             None => {
-                if let Some(app_id) = cfg
-                    .app_state
-                    .get_app_id_from_session_id(&session_id)
-                {
+                if let Some(app_id) = cfg.app_state.get_app_id_from_session_id(&session_id) {
                     app_id
                 } else {
                     let err = tungstenite::http::response::Builder::new()
@@ -133,10 +130,7 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
                 }
             }
         };
-        let cid = ClientIdentity {
-            session_id,
-            app_id,
-        };
+        let cid = ClientIdentity { session_id, app_id };
         oneshot_send_and_log(cfg.next, cid, "ResolveClientIdentity");
         Ok(response)
     }

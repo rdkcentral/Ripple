@@ -239,11 +239,8 @@ impl AppEvents {
         let event_ctx_string = event_context.map(|x| x.to_string());
 
         if listen_request.listen {
-            let event_listeners = AppEvents::get_or_create_listener_vec(
-                &mut listeners,
-                event_name,
-                event_ctx_string,
-            );
+            let event_listeners =
+                AppEvents::get_or_create_listener_vec(&mut listeners, event_name, event_ctx_string);
             //The last listener wins if there is already a listener exists with same session id
             AppEvents::remove_session_from_events(event_listeners, &call_ctx.session_id);
             event_listeners.push(EventListener {

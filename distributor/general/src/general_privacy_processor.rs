@@ -76,47 +76,29 @@ impl PrivacyState {
         let data = self.privacy_data.read().unwrap();
         match params.setting {
             PrivacySetting::AppDataCollection(a) => data.value.get_data_collections(a),
-            PrivacySetting::AppEntitlementCollection(e) => {
-                data.value.get_ent_collections(e)
-            }
-            PrivacySetting::ContinueWatching => {
-                data.value.settings.allow_resume_points
-            }
+            PrivacySetting::AppEntitlementCollection(e) => data.value.get_ent_collections(e),
+            PrivacySetting::ContinueWatching => data.value.settings.allow_resume_points,
             PrivacySetting::UnentitledContinueWatching => {
                 data.value.settings.allow_unentitled_resume_points
             }
             PrivacySetting::WatchHistory => data.value.settings.allow_watch_history,
-            PrivacySetting::ProductAnalytics => {
-                data.value.settings.allow_product_analytics
-            }
-            PrivacySetting::Personalization => {
-                data.value.settings.allow_personalization
-            }
+            PrivacySetting::ProductAnalytics => data.value.settings.allow_product_analytics,
+            PrivacySetting::Personalization => data.value.settings.allow_personalization,
             PrivacySetting::UnentitledPersonalization => {
                 data.value.settings.allow_unentitled_personalization
             }
-            PrivacySetting::RemoteDiagnostics => {
-                data.value.settings.allow_remote_diagnostics
-            }
+            PrivacySetting::RemoteDiagnostics => data.value.settings.allow_remote_diagnostics,
             PrivacySetting::PrimaryContentAdTargeting => {
-                data
-                    .value
-                    .settings
-                    .allow_primary_content_ad_targeting
+                data.value.settings.allow_primary_content_ad_targeting
             }
             PrivacySetting::PrimaryBrowseAdTargeting => {
-                data
-                    .value
-                    .settings
-                    .allow_primary_browse_ad_targeting
+                data.value.settings.allow_primary_browse_ad_targeting
             }
             PrivacySetting::AppContentAdTargeting => {
                 data.value.settings.allow_app_content_ad_targeting
             }
             PrivacySetting::Acr => data.value.settings.allow_acr_collection,
-            PrivacySetting::CameraAnalytics => {
-                data.value.settings.allow_camera_analytics
-            }
+            PrivacySetting::CameraAnalytics => data.value.settings.allow_camera_analytics,
         }
     }
 

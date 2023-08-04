@@ -51,7 +51,6 @@ pub struct DataGovernanceState {
 
 impl Default for DataGovernanceState {
     fn default() -> Self {
-        
         DataGovernanceState {
             exclusions: Arc::new(RwLock::new(None)),
         }
@@ -232,7 +231,6 @@ impl DataGovernance {
         setting: StorageProperty,
         exclusions: ExclusionPolicy,
     ) -> Option<ExclusionPolicyData> {
-        
         match setting {
             StorageProperty::AllowPersonalization => exclusions.personalization,
             StorageProperty::AllowProductAnalytics => exclusions.product_analytics,

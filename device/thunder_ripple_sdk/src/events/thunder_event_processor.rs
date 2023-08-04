@@ -215,7 +215,9 @@ impl ThunderEventHandler {
                 ExtnEvent::AppEvent(a) => state.get_client().request_transient(a),
                 ExtnEvent::PowerState(p) => state.get_client().request_transient(p),
                 _ => Err(RippleError::InvalidOutput),
-            }).is_err() {
+            })
+            .is_err()
+            {
                 error!("Error while forwarding app event");
             }
         } else {

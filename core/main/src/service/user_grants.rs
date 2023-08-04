@@ -264,7 +264,6 @@ impl GrantState {
         let caps_needing_grants = grant_state.caps_needing_grants.clone();
         let caps_needing_grant_in_request: Vec<FireboltPermission> = cap_set
             .into_firebolt_permissions_vec()
-            
             .into_iter()
             .filter(|x| caps_needing_grants.contains(&x.cap.as_str()))
             .collect();
@@ -381,8 +380,7 @@ impl GrantState {
         app_id: &str,
     ) {
         debug!("Update called to store user grant with grant = {is_allowed}");
-        let mut grant_entry =
-            GrantEntry::get(permission.role, permission.cap.as_str());
+        let mut grant_entry = GrantEntry::get(permission.role, permission.cap.as_str());
         grant_entry.lifespan = Some(grant_policy.lifespan.clone());
         if grant_policy.lifespan_ttl.is_some() {
             grant_entry.lifespan_ttl_in_secs = grant_policy.lifespan_ttl;
@@ -518,7 +516,6 @@ impl GrantHandler {
         let user_grant = state.clone().cap_state.grant_state;
         let permissions = request.into_firebolt_permissions_vec();
         let caps_needing_grant_in_request: Vec<FireboltPermission> = permissions
-            
             .into_iter()
             .filter(|x| caps_needing_grants.contains(&x.cap.as_str()))
             .collect();
@@ -602,8 +599,7 @@ impl GrantPolicyEnforcer {
         grant_policy: &GrantPolicy,
     ) -> bool {
         let mut ret_val = false;
-        let mut grant_entry =
-            GrantEntry::get(permission.role, permission.cap.as_str());
+        let mut grant_entry = GrantEntry::get(permission.role, permission.cap.as_str());
         grant_entry.lifespan = Some(grant_policy.lifespan.clone());
         if grant_policy.lifespan_ttl.is_some() {
             grant_entry.lifespan_ttl_in_secs = grant_policy.lifespan_ttl;
@@ -875,8 +871,7 @@ impl GrantPolicyEnforcer {
         debug!("Resolved method_name: {}", &method_name);
         let set_request = SetBoolProperty { value: set_value };
         let _res =
-            PrivacyImpl::handle_allow_set_requests(&method_name, platform_state, set_request)
-                .await;
+            PrivacyImpl::handle_allow_set_requests(&method_name, platform_state, set_request).await;
     }
 
     pub fn get_setter_method_name(
@@ -966,8 +961,6 @@ impl GrantPolicyEnforcer {
                 });
             }
         }
-
-        
 
         Self::evaluate_options(platform_state, call_ctx, permission, policy).await
     }

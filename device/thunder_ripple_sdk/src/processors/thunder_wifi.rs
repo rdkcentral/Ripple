@@ -300,7 +300,7 @@ impl ThunderWifiRequestProcessor {
         });
 
         // Receive the access point list sent from the Tokio task
-        
+
         rx.recv().await.unwrap()
     }
 
@@ -496,7 +496,7 @@ info!("Unsubscribing to onError events");
             "connected ssid response : {:?}",
             get_connected_ssid_response
         );
-        
+
         get_connected_ssid_response.to_access_point()
     }
 }

@@ -191,7 +191,7 @@ impl DeviceOperator for ThunderClient {
             callback: tx,
         });
         self.send_message(message).await;
-        
+
         rx.await.unwrap()
     }
 

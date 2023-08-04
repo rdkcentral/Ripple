@@ -203,9 +203,7 @@ impl DelegatedLauncherHandler {
                         resp = self
                             .send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Ready(
                                 LifecycleManagementReadyEvent {
-                                    parameters: LifecycleManagementReadyParameters {
-                                        app_id,
-                                    },
+                                    parameters: LifecycleManagementReadyParameters { app_id },
                                 },
                             ))
                             .await;
@@ -215,10 +213,7 @@ impl DelegatedLauncherHandler {
                     resp = self
                         .send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Close(
                             LifecycleManagementCloseEvent {
-                                parameters: LifecycleManagementCloseParameters {
-                                    app_id,
-                                    reason,
-                                },
+                                parameters: LifecycleManagementCloseParameters { app_id, reason },
                             },
                         ))
                         .await;
@@ -703,9 +698,7 @@ impl DelegatedLauncherHandler {
 
     async fn get_start_page(&mut self, app_id: String) -> Result<AppManagerResponse, AppError> {
         match self.platform_state.app_manager_state.get(&app_id) {
-            Some(app) => Ok(AppManagerResponse::StartPage(
-                app.initial_session.app.url,
-            )),
+            Some(app) => Ok(AppManagerResponse::StartPage(app.initial_session.app.url)),
             None => Err(AppError::NotFound),
         }
     }
@@ -764,9 +757,7 @@ impl DelegatedLauncherHandler {
                 );
                 self.end_session(app_id).await
             }
-            None => {
-                Ok(AppManagerResponse::None)
-            }
+            None => Ok(AppManagerResponse::None),
         }
     }
 
@@ -797,9 +788,7 @@ impl DelegatedLauncherHandler {
 
     fn get_app_name(&mut self, app_id: String) -> Result<AppManagerResponse, AppError> {
         match self.platform_state.app_manager_state.get(&app_id) {
-            Some(app) => Ok(AppManagerResponse::AppName(
-                app.initial_session.app.title,
-            )),
+            Some(app) => Ok(AppManagerResponse::AppName(app.initial_session.app.title)),
             None => Err(AppError::NotFound),
         }
     }

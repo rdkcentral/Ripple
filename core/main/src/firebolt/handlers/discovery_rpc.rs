@@ -468,9 +468,7 @@ impl DiscoveryServer for DiscoveryImpl {
             .await
         {
             Ok(response) => {
-                if let Some(ExtnResponse::Boolean(v)) =
-                    response.payload.extract::<ExtnResponse>()
-                {
+                if let Some(ExtnResponse::Boolean(v)) = response.payload.extract::<ExtnResponse>() {
                     return Ok(v);
                 }
             }

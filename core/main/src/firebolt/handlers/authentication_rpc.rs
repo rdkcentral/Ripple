@@ -88,7 +88,8 @@ impl AuthenticationServer for AuthenticationImpl {
                 //error!("distributor token type is unsupported");
                 return Err(jsonrpsee::core::Error::Call(CallError::Custom {
                     code: CAPABILITY_NOT_SUPPORTED,
-                    message: "capability xrn:firebolt:capability:token:session is not supported".to_string(),
+                    message: "capability xrn:firebolt:capability:token:session is not supported"
+                        .to_string(),
                     data: None,
                 }));
             }

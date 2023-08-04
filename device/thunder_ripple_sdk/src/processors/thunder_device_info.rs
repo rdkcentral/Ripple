@@ -332,9 +332,7 @@ impl ThunderAllTimezonesResponse {
     }
 
     fn as_array(&self) -> Vec<String> {
-        self.timezones
-            .keys().cloned()
-            .collect()
+        self.timezones.keys().cloned().collect()
     }
 
     fn get_offset(&self, key: &str) -> i64 {
@@ -1093,7 +1091,9 @@ impl ThunderDeviceInfoRequestProcessor {
                 params,
             })
             .await;
-        if response.message.get("success").is_some() && response.message["success"].as_bool().is_some() {
+        if response.message.get("success").is_some()
+            && response.message["success"].as_bool().is_some()
+        {
             return Self::ack(state.get_client(), request).await.is_ok();
         }
         Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
@@ -1137,7 +1137,9 @@ impl ThunderDeviceInfoRequestProcessor {
                 params,
             })
             .await;
-        if response.message.get("success").is_some() && response.message["success"].as_bool().is_some() {
+        if response.message.get("success").is_some()
+            && response.message["success"].as_bool().is_some()
+        {
             return Self::ack(state.get_client(), request).await.is_ok();
         }
         Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await

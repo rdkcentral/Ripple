@@ -278,7 +278,7 @@ impl ThunderRemoteAccessoryRequestProcessor {
         }
         })
         .await;
-        
+
         rx.recv().await.unwrap()
     }
 
@@ -344,8 +344,6 @@ impl ThunderRemoteAccessoryRequestProcessor {
         make: String,
         model: String,
     ) -> AccessoryDeviceResponse {
-        
-
         AccessoryDeviceResponse {
             _type: AccessoryType::Remote,
             make,

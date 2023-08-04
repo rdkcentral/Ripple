@@ -77,7 +77,6 @@ impl WifiServer for WifiImpl {
         let client = self.state.get_client();
         let scan_process = client.send_extn_request(WifiRequest::Connect(connect_request));
 
-        
         match scan_process.await {
             Ok(response) => match response.payload.extract() {
                 Some(WifiResponse::WifiConnectSuccessResponse(v)) => Ok(v),
