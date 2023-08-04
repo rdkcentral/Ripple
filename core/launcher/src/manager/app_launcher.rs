@@ -133,8 +133,7 @@ impl AppLauncherState {
     fn get_app_by_id(&self, app_id: &str) -> Option<App> {
         let v = self.apps.read().unwrap();
         let r = v.get(app_id);
-        if r.is_some() {
-            let r = r.unwrap();
+        if let Some(r) = r {
             let v = r.clone();
             return Some(v);
         }
@@ -149,24 +148,24 @@ impl AppLauncherState {
     fn set_app_state(&self, container_id: &str, lifecycle_state: LifecycleState) {
         let mut v = self.apps.write().unwrap();
         let r = v.get_mut(container_id);
-        if r.is_some() {
-            r.unwrap().state = lifecycle_state
+        if let Some(r) = r {
+            r.state = lifecycle_state
         }
     }
 
     fn set_app_ready(&self, app_id: &str) {
         let mut v = self.apps.write().unwrap();
         let r = v.get_mut(app_id);
-        if r.is_some() {
-            r.unwrap().ready = true;
+        if let Some(r) = r {
+            r.ready = true;
         }
     }
 
     fn set_app_viewid(&self, container_id: &str, view_id: Uuid) {
         let mut v = self.apps.write().unwrap();
         let r = v.get_mut(container_id);
-        if r.is_some() {
-            r.unwrap().container_props.view_id = view_id
+        if let Some(r) = r {
+            r.container_props.view_id = view_id
         }
     }
 
@@ -208,23 +207,8 @@ impl AppLauncher {
                 .clone()
                 .app_launcher_state
                 .get_app_by_id(&container_id);
-            if item.is_none() {
-                // Container ID for app not found, check registered providers to
-                // see if it's a provider container ID.
-                let app_library_state = state.clone().config.app_library_state;
-                let resp = AppLibrary::get_provider(&app_library_state, container_id.to_string());
-                if resp.is_none() {
-                    warn!("set_state: Not found {:?}", container_id);
-                    final_resp = Err(AppError::NotFound);
-                }
-                let provider = resp.unwrap();
-                item = state.clone().app_launcher_state.get_app_by_id(&provider);
-                if item.is_none() {
-                    warn!("set_state: Not found {:?}", container_id);
-                    final_resp = Err(AppError::NotFound);
-                }
-            } else {
-                let app = item.unwrap();
+
+            if let Some(app) = item {
                 let previous_state = app.state;
                 if previous_state == lc_state {
                     warn!(
@@ -271,6 +255,21 @@ impl AppLauncher {
                         container_props: app.container_props.clone(),
                     };
                     Self::on_state_changed(&state, state_change).await;
+                }
+            } else {
+                // Container ID for app not found, check registered providers to
+                // see if it's a provider container ID.
+                let app_library_state = state.clone().config.app_library_state;
+                let resp = AppLibrary::get_provider(&app_library_state, container_id.to_string());
+                if resp.is_none() {
+                    warn!("set_state: Not found {:?}", container_id);
+                    final_resp = Err(AppError::NotFound);
+                }
+                let provider = resp.unwrap();
+                item = state.clone().app_launcher_state.get_app_by_id(&provider);
+                if item.is_none() {
+                    warn!("set_state: Not found {:?}", container_id);
+                    final_resp = Err(AppError::NotFound);
                 }
             }
 
@@ -360,18 +359,15 @@ impl AppLauncher {
     }
 
     async fn get_available_mem_kb(state: &LauncherState) -> Result<u64, AppError> {
-        match state
+        if let Ok(msg) = state
             .send_extn_request(DeviceInfoRequest::AvailableMemory)
             .await
         {
-            Ok(msg) => {
-                if let Some(ExtnResponse::Value(v)) = msg.payload.extract() {
-                    if let Some(memory) = v.as_u64() {
-                        return Ok(memory);
-                    }
+            if let Some(ExtnResponse::Value(v)) = msg.payload.extract() {
+                if let Some(memory) = v.as_u64() {
+                    return Ok(memory);
                 }
             }
-            _ => {}
         }
 
         Err(AppError::OsError)
@@ -404,9 +400,7 @@ impl AppLauncher {
                 ContainerManager::remove(state, &name).await.ok();
                 true
             }
-            None => {
-                false
-            }
+            None => false,
         }
     }
 
@@ -435,9 +429,7 @@ impl AppLauncher {
                 );
                 Self::destroy(state, app_id).await
             }
-            None => {
-                Ok(AppManagerResponse::None)
-            }
+            None => Ok(AppManagerResponse::None),
         }
     }
 
@@ -614,13 +606,14 @@ impl AppLauncher {
                 }),
             ));
 
-        if let Err(_) = Self::pre_launch(
+        if Self::pre_launch(
             state,
             app_manifest.clone(),
             callsign.clone(),
             intent.clone(),
         )
         .await
+        .is_err()
         {
             return Err(AppError::IoError);
         }
@@ -820,11 +813,12 @@ impl AppLauncher {
             LifecycleManagementProviderEvent::Add(id) => {
                 let existing_app = state.app_launcher_state.get_app_by_id(&id);
                 if let Some(existing) = existing_app {
-                    if let Ok(_) = ContainerManager::bring_to_front(
+                    if ContainerManager::bring_to_front(
                         state,
                         existing.container_props.name.as_str(),
                     )
                     .await
+                    .is_ok()
                     {
                         return Ok(AppManagerResponse::None);
                     }
@@ -833,11 +827,9 @@ impl AppLauncher {
             LifecycleManagementProviderEvent::Remove(id) => {
                 let existing_app = state.app_launcher_state.get_app_by_id(&id);
                 if let Some(existing) = existing_app {
-                    if let Ok(_) = ContainerManager::send_to_back(
-                        state,
-                        existing.container_props.name.as_str(),
-                    )
-                    .await
+                    if ContainerManager::send_to_back(state, existing.container_props.name.as_str())
+                        .await
+                        .is_ok()
                     {
                         return Ok(AppManagerResponse::None);
                     }
