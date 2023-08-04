@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::extn::client::extn_sender::ExtnSender;
+use crate::{api::apps::AppError, extn::client::extn_sender::ExtnSender};
 use crossbeam::channel::Receiver as CReceiver;
 use jsonrpsee_core::server::rpc_module::Methods;
 use libloading::{Library, Symbol};
@@ -56,4 +56,10 @@ pub unsafe fn load_jsonrpsee_methods(lib: &Library) -> Option<Box<JsonRpseeExtnB
         Err(e) => error!("Jsonrpsee Extn Builder symbol loading failed {:?}", e),
     }
     None
+}
+
+impl From<AppError> for jsonrpsee_core::Error {
+    fn from(err: AppError) -> Self {
+        jsonrpsee_core::Error::Custom(format!("Internal failure: {:?}", err))
+    }
 }
