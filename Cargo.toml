@@ -23,8 +23,11 @@ members = [
     "core/launcher",
     "device/thunder",
     "distributor/general",
-    "examples/rpc_extn"
+    "examples/rpc_extn",
 ]
 
 [workspace.package]
 version = "0.7.0"
+
+[workspace.dev-dependencies]
+rusty-hook = "0.11.2"

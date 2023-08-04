@@ -76,6 +76,27 @@ Only follow the below steps, if all the above instructions to run the app locall
 4. Upon clicking on the main method in the file. There would be an option to `Run` or `Debug`. Select Debug.
 5. VSCode will pause at the breakpoint and allows access for Debug Playback and ability to inspect the values.
 
+### Using Clippy in VSCode
+
+By default the VSCode rust-analyzer extension runs cargo check on the Rust files that you have open once they have been saved. This is good, but it can be improved by adjusting the command to use `clippy` instead. This gives you the benefit of seeing both `cargo check` and `cargo clippy` results and code hints in the code editor window directly.
+
+To achieve this you need to add the following to your user-settings.json file.
+```json
+  "rust-analyzer.check.overrideCommand": [
+    "~/.cargo/bin/cargo",
+    "clippy",
+    "--workspace",
+    "--all-targets",
+    "--all-features",
+    "--tests",
+    "--examples",
+    "--benches",
+    "--message-format=json-diagnostic-rendered-ansi"
+  ],
+```
+
+** Note: `~/.cargo/bin/cargo` might need expanding to be the absolute full path on your system **
+
 ## Folder structure
 
 Ripple folder structure has the below layers

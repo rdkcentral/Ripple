@@ -1,0 +1,5 @@
+[hooks]
+pre-commit = "cargo clippy --examples --tests --all-targets --all-features && cargo +nightly fmt"
+
+[logging]
+verbose = true
