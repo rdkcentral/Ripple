@@ -20,8 +20,7 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 use chrono::Utc;
-use jsonrpsee_core::Serialize;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::device_request::DeviceRequest;

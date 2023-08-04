@@ -4,13 +4,13 @@ Requires=wpeframework.service
 After=wpeframework.service
 
 [Service]
-Type=simple
+Type=notify
 Environment="RUST_LOG=debug"
 EnvironmentFile=-/opt/ripple.conf
 ExecStart=/usr/bin/ripple
 ExecStop=/bin/kill -TERM $MAINPID
-Restart=always
-RestartSec=10
+Restart=on-failure
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target

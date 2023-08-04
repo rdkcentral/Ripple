@@ -199,12 +199,6 @@ pub enum AppError {
     AppNotReady,
 }
 
-impl From<AppError> for jsonrpsee_core::Error {
-    fn from(err: AppError) -> Self {
-        jsonrpsee_core::Error::Custom(format!("Internal failure: {:?}", err))
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum AppMethod {
     Launch(LaunchRequest),
