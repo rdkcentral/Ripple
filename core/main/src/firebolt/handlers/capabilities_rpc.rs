@@ -140,19 +140,17 @@ impl CapabilityServer for CapabilityImpl {
             .check_cap_role(&ctx.app_id, cap.clone())
         {
             return Ok(v);
-        } else {
-            if let Ok(_) =
-                PermissionHandler::fetch_and_store(self.state.clone(), ctx.clone().app_id).await
+        } else if let Ok(_) =
+            PermissionHandler::fetch_and_store(self.state.clone(), ctx.clone().app_id).await
+        {
+            //successful fetch retry
+            if let Ok(v) = self
+                .state
+                .cap_state
+                .permitted_state
+                .check_cap_role(&ctx.app_id, cap)
             {
-                //successful fetch retry
-                if let Ok(v) = self
-                    .state
-                    .cap_state
-                    .permitted_state
-                    .check_cap_role(&ctx.app_id, cap)
-                {
-                    return Ok(v);
-                }
+                return Ok(v);
             }
         }
         Ok(false)
@@ -237,14 +235,14 @@ impl CapabilityServer for CapabilityImpl {
                     x.details.is_some()
                         && x.details.clone().unwrap().contains(&DenyReason::Ungranted)
                 })
-                .map(|x| x.capability.clone())
+                .map(|x| x.capability)
                 .collect();
             let grants: Vec<RoleInfo> = grants
                 .grants
                 .into_iter()
                 .filter(|x| caps.contains(&x.capability))
                 .collect();
-            if grants.len() == 0 {
+            if grants.is_empty() {
                 return Ok(result);
             }
 
@@ -252,7 +250,7 @@ impl CapabilityServer for CapabilityImpl {
             for role_info in &grants {
                 cap_role.insert(
                     role_info.capability.clone(),
-                    role_info.role.clone().unwrap_or(CapabilityRole::Use),
+                    role_info.role.unwrap_or(CapabilityRole::Use),
                 );
             }
 
@@ -304,16 +302,14 @@ pub async fn is_permitted(
         .check_cap_role(&ctx.app_id, cap.clone())
     {
         return Ok(v);
-    } else {
-        if let Ok(_) = PermissionHandler::fetch_and_store(state.clone(), ctx.clone().app_id).await {
-            //successful fetch retry
-            if let Ok(v) = state
-                .cap_state
-                .permitted_state
-                .check_cap_role(&ctx.app_id, cap)
-            {
-                return Ok(v);
-            }
+    } else if let Ok(_) = PermissionHandler::fetch_and_store(state.clone(), ctx.clone().app_id).await {
+        //successful fetch retry
+        if let Ok(v) = state
+            .cap_state
+            .permitted_state
+            .check_cap_role(&ctx.app_id, cap)
+        {
+            return Ok(v);
         }
     }
     Ok(false)

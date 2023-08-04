@@ -59,7 +59,7 @@ impl WifiServer for WifiImpl {
             .send_extn_request(WifiRequest::Scan(scan_time.timeout))
             .await
         {
-            match response.payload.clone().extract() {
+            match response.payload.extract() {
                 Some(WifiResponse::WifiScanListResponse(v)) => Ok(v),
                 _ => Err(rpc_err("Wifi scan error response TBD")),
             }
@@ -77,15 +77,15 @@ impl WifiServer for WifiImpl {
         let client = self.state.get_client();
         let scan_process = client.send_extn_request(WifiRequest::Connect(connect_request));
 
-        let response = match scan_process.await {
-            Ok(response) => match response.payload.clone().extract() {
+        
+        match scan_process.await {
+            Ok(response) => match response.payload.extract() {
                 Some(WifiResponse::WifiConnectSuccessResponse(v)) => Ok(v),
                 Some(WifiResponse::CustomError(s)) => Err(rpc_err(s)),
                 _ => Err(rpc_err("Wifi scan response unknown format")),
             },
             Err(_) => Err(rpc_err("Wifi scan error response TBD")),
-        };
-        response
+        }
     }
 }
 

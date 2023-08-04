@@ -31,7 +31,7 @@ use ripple_sdk::{
 use serde::Deserialize;
 pub struct ThunderGetConfigStep;
 
-const GATEWAY_DEFAULT: &'static str = "ws://127.0.0.1:9998/jsonrpc";
+const GATEWAY_DEFAULT: &str = "ws://127.0.0.1:9998/jsonrpc";
 const POOL_SIZE_DEFAULT: u32 = 5;
 
 #[derive(Deserialize, Clone)]
@@ -63,7 +63,7 @@ impl ThunderGetConfigStep {
         let extn_message_response: Result<ExtnMessage, RippleError> =
             state.request(Config::PlatformParameters).await;
         if let Ok(message) = extn_message_response {
-            if let Some(ExtnResponse::Value(v)) = message.payload.clone().extract() {
+            if let Some(ExtnResponse::Value(v)) = message.payload.extract() {
                 let mut pool_size = POOL_SIZE_DEFAULT;
                 let tp_res: Result<ThunderPlatformParameters, Error> = serde_json::from_value(v);
                 let mut gateway_url = url::Url::parse(GATEWAY_DEFAULT).unwrap();

@@ -203,7 +203,7 @@ pub async fn get_content_partner_id(
     let resp = rpc_await_oneshot(app_resp_rx).await?;
 
     if let AppManagerResponse::AppContentCatalog(content_catalog) = resp? {
-        content_partner_id = content_catalog.map_or(ctx.app_id.to_owned(), |x| x.to_owned())
+        content_partner_id = content_catalog.map_or(ctx.app_id.to_owned(), |x| x)
     }
     Ok(content_partner_id)
 }
@@ -224,9 +224,9 @@ impl DiscoveryImpl {
                         String::from("")
                     }
                 })
-                .filter(|val| val.len() > 0)
+                .filter(|val| !val.is_empty())
                 .collect();
-            if apis.len() > 0 {
+            if !apis.is_empty() {
                 content_providers.push(ContentProvider { id: key, apis });
             }
         }
@@ -266,7 +266,7 @@ impl DiscoveryImpl {
                     .extract()
                     .unwrap_or(ExtnResponse::String("en".to_owned()))
                 {
-                    ExtnResponse::String(value) => value.to_owned(),
+                    ExtnResponse::String(value) => value,
                     _ => "en".to_owned(),
                 }
             }
@@ -313,7 +313,7 @@ impl DiscoveryImpl {
             .await;
             return Ok(true);
         }
-        return Ok(false);
+        Ok(false)
     }
 
     async fn content_access(
@@ -361,7 +361,7 @@ impl AppEventDecorator for DiscoveryPolicyEventDecorator {
         _event_name: &str,
         _val_in: &Value,
     ) -> Result<Value, AppEventDecorationError> {
-        match DiscoveryImpl::get_content_policy(&ctx, &ps, &ctx.app_id).await {
+        match DiscoveryImpl::get_content_policy(ctx, ps, &ctx.app_id).await {
             Ok(cp) => Ok(serde_json::to_value(cp).unwrap()),
             Err(_) => Err(AppEventDecorationError {}),
         }
@@ -438,7 +438,7 @@ impl DiscoveryServer for DiscoveryImpl {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
-        AppEvents::add_listener(&&self.state, EVENT_ON_SIGN_IN.to_string(), ctx, request);
+        AppEvents::add_listener(&self.state, EVENT_ON_SIGN_IN.to_string(), ctx, request);
 
         Ok(ListenerResponse {
             listening: listen,
@@ -451,7 +451,7 @@ impl DiscoveryServer for DiscoveryImpl {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
-        AppEvents::add_listener(&&self.state, EVENT_ON_SIGN_OUT.to_string(), ctx, request);
+        AppEvents::add_listener(&self.state, EVENT_ON_SIGN_OUT.to_string(), ctx, request);
 
         Ok(ListenerResponse {
             listening: listen,
@@ -469,7 +469,7 @@ impl DiscoveryServer for DiscoveryImpl {
         {
             Ok(response) => {
                 if let Some(ExtnResponse::Boolean(v)) =
-                    response.payload.clone().extract::<ExtnResponse>()
+                    response.payload.extract::<ExtnResponse>()
                 {
                     return Ok(v);
                 }
@@ -564,7 +564,7 @@ impl DiscoveryServer for DiscoveryImpl {
         let listen = request.listen;
 
         AppEvents::add_listener(
-            &&self.state,
+            &self.state,
             DISCOVERY_EVENT_ON_NAVIGATE_TO.into(),
             ctx,
             request,
@@ -627,7 +627,7 @@ impl DiscoveryServer for DiscoveryImpl {
         match result.as_entity_info_result() {
             Some(res) => Ok(ContentEntityResponse {
                 provider: entity_request.provider.to_owned(),
-                data: res.clone(),
+                data: res,
             }),
             None => Err(Error::Custom(String::from(
                 "Invalid response back from provider",
@@ -707,7 +707,7 @@ impl DiscoveryServer for DiscoveryImpl {
         match result.as_purchased_content_result() {
             Some(res) => Ok(ProvidedPurchasedContentResult {
                 provider: entity_request.provider.to_owned(),
-                data: res.clone(),
+                data: res,
             }),
             None => Err(Error::Custom(String::from(
                 "Invalid response back from provider",

@@ -63,7 +63,7 @@ impl AccountServer for AccountImpl {
             .get_client()
             .send_extn_request(AccountSessionRequest::SetAccessToken(a_t_r))
             .await;
-        if let Err(_) = resp {
+        if resp.is_err() {
             error!("Error in session {:?}", resp);
             return Err(rpc_err("session error response TBD"));
         }
@@ -113,7 +113,7 @@ impl AccountServer for AccountImpl {
                     })
                     .await
                 {
-                    if let Some(ExtnResponse::String(s)) = resp.payload.clone().extract() {
+                    if let Some(ExtnResponse::String(s)) = resp.payload.extract() {
                         return Ok(s);
                     }
                 }
@@ -127,7 +127,7 @@ impl AccountServer for AccountImpl {
 impl AccountImpl {
     pub async fn id(&self) -> RpcResult<String> {
         if let Some(session) = self.platform_state.session_state.get_account_session() {
-            Ok(session.account_id.to_owned())
+            Ok(session.account_id)
         } else {
             Err(rpc_err("Account.id: some failure"))
         }

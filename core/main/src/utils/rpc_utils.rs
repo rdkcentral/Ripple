@@ -60,7 +60,7 @@ pub async fn rpc_add_event_listener(
 ) -> RpcResult<ListenerResponse> {
     let listen = request.listen;
 
-    AppEvents::add_listener(&&state, event_name.to_string(), ctx, request);
+    AppEvents::add_listener(state, event_name.to_string(), ctx, request);
     Ok(ListenerResponse {
         listening: listen,
         event: event_name.into(),
@@ -78,7 +78,7 @@ pub async fn rpc_add_event_listener_with_decorator(
     let listen = request.listen;
 
     AppEvents::add_listener_with_decorator(
-        &&state,
+        state,
         event_name.to_string(),
         ctx,
         request,

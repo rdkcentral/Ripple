@@ -76,7 +76,7 @@ impl ThunderClientPool {
                 });
             }
         }
-        if clients.len() == 0 {
+        if clients.is_empty() {
             return Err(RippleError::BootstrapError);
         }
         let sender_for_thread = s.clone();
@@ -87,7 +87,7 @@ impl ThunderClientPool {
                 match cmd {
                     ThunderPoolCommand::ThunderMessage(msg) => {
                         let c_opt = pool.get_client();
-                        if let None = c_opt {
+                        if c_opt.is_none() {
                             error!("Thunder pool had no clients!");
                             return;
                         }

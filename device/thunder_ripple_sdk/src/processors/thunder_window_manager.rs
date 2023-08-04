@@ -64,7 +64,7 @@ impl ThunderVisibilityRequestParams {
     fn new(header: WindowManagerRequestHeader, visible: bool) -> ThunderVisibilityRequestParams {
         ThunderVisibilityRequestParams {
             callsign: header.callsign.clone(),
-            client: header.client.clone(),
+            client: header.client,
             visible,
         }
     }
@@ -93,7 +93,7 @@ impl ThunderDimensionsRequestParams {
     ) -> ThunderDimensionsRequestParams {
         ThunderDimensionsRequestParams {
             callsign: header.callsign.clone(),
-            client: header.client.clone(),
+            client: header.client,
             x: dimensions.x,
             y: dimensions.y,
             w: dimensions.w,
@@ -130,11 +130,11 @@ impl ThunderWindowManagerRequestProcessor {
         let window_name = req.window_name();
         let request_header = WindowManagerRequestHeader {
             callsign: window_name.clone(),
-            client: window_name.clone(),
+            client: window_name,
         };
         match req {
             WindowManagerRequest::Visibility(_, visible) => {
-                ThunderVisibilityRequestParams::new(request_header, visible.clone()).into()
+                ThunderVisibilityRequestParams::new(request_header, *visible).into()
             }
             WindowManagerRequest::Dimensions(_, dimensions) => {
                 ThunderDimensionsRequestParams::new(request_header, dimensions.clone()).into()

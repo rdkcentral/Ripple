@@ -76,7 +76,7 @@ impl CapState {
         if let Some(cap) = FireboltCap::parse(request.clone().capability) {
             let check = CapEventEntry {
                 app_id: call_context.clone().app_id,
-                cap: cap,
+                cap,
                 event: event.clone(),
                 role: request.role,
             };
@@ -98,9 +98,9 @@ impl CapState {
             );
             debug!("setup event listener {}", event_name);
             AppEvents::add_listener(
-                &ps,
+                ps,
                 event_name,
-                call_context.clone(),
+                call_context,
                 ListenRequest {
                     listen: request.listen,
                 },
@@ -116,17 +116,17 @@ impl CapState {
     ) -> bool {
         let r = ps.cap_state.primed_listeners.read().unwrap();
         debug!("primed entries {:?}", r);
-        if let Some(_) = r.iter().find(|x| {
+        if r.iter().find(|x| {
             if x.event == event && x.cap == cap {
                 if let Some(a) = app_id.clone() {
                     x.app_id.eq(&a)
                 } else {
-                    return true;
+                    true
                 }
             } else {
-                return false;
+                false
             }
-        }) {
+        }).is_some() {
             return true;
         }
         false
@@ -178,16 +178,13 @@ impl CapState {
             for listener in listeners {
                 let cc = listener.call_ctx.clone();
                 // Step 2: Check if the given event is valid for the app
-                if is_app_check_necessary {
-                    if !Self::check_primed(ps, event.clone(), cap.clone(), Some(cc.clone().app_id))
-                    {
-                        continue;
-                    }
+                if is_app_check_necessary && !Self::check_primed(ps, event.clone(), cap.clone(), Some(cc.clone().app_id)) {
+                    continue;
                 }
                 let caps = vec![cap.clone()];
                 let request = CapabilitySet::get_from_role(
                     caps,
-                    Some(role.clone().unwrap_or(CapabilityRole::Use)),
+                    Some(role.unwrap_or(CapabilityRole::Use)),
                 );
 
                 // Step 3: Get Capability info for each app based on context available in listener
@@ -261,7 +258,7 @@ impl CapState {
             })
             .collect();
 
-        return Ok(cap_infos);
+        Ok(cap_infos)
     }
 }
 

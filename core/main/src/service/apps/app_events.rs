@@ -89,24 +89,22 @@ impl std::fmt::Debug for AppEventsState {
                         let new_value = if cur_value.is_some() {
                             if context.is_some() {
                                 cur_value.unwrap().to_string()
-                                    + " , [".into()
+                                    + " , ["
                                     + &x
-                                    + " with event context ".into()
+                                    + " with event context "
                                     + &context.clone().unwrap()
-                                    + "]".into()
+                                    + "]"
                             } else {
-                                cur_value.unwrap().to_string() + " , ".into() + &x
+                                cur_value.unwrap().to_string() + " , " + &x
                             }
+                        } else if context.is_some() {
+                            "[".to_string()
+                                + &x
+                                + " with event context "
+                                + &context.clone().unwrap()
+                                + "]"
                         } else {
-                            if context.is_some() {
-                                "[".to_string()
-                                    + &x
-                                    + " with event context ".into()
-                                    + &context.clone().unwrap()
-                                    + "]".into()
-                            } else {
-                                x
-                            }
+                            x
                         };
                         listeners_debug.insert(event_name.clone(), new_value);
                     })
@@ -134,13 +132,13 @@ impl EventListener {
         event_name: &str,
         result: &Value,
     ) -> Result<Value, AppEventDecorationError> {
-        if let None = self.decorator {
+        if self.decorator.is_none() {
             return Ok(result.clone());
         }
         self.decorator
             .as_ref()
             .unwrap()
-            .decorate(&state, &self.call_ctx, event_name, &result)
+            .decorate(state, &self.call_ctx, event_name, result)
             .await
     }
 }
@@ -244,15 +242,15 @@ impl AppEvents {
             let event_listeners = AppEvents::get_or_create_listener_vec(
                 &mut listeners,
                 event_name,
-                event_ctx_string.clone(),
+                event_ctx_string,
             );
             //The last listener wins if there is already a listener exists with same session id
             AppEvents::remove_session_from_events(event_listeners, &call_ctx.session_id);
             event_listeners.push(EventListener {
-                call_ctx: call_ctx,
+                call_ctx,
                 session_tx: session.get_sender(),
                 transport: session.get_transport(),
-                decorator: decorator,
+                decorator,
             });
         } else if let Some(entry) = listeners.get_mut(&event_name) {
             if let Some(event_listeners) = entry.get_mut(&event_ctx_string) {

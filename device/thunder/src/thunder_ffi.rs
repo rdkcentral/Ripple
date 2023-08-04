@@ -65,7 +65,7 @@ pub fn start(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     let _ = init_logger("device_channel".into());
     info!("Starting device channel");
     let runtime = Runtime::new().unwrap();
-    let client = ExtnClient::new(receiver.clone(), sender);
+    let client = ExtnClient::new(receiver, sender);
     runtime.block_on(async move {
         let client_for_receiver = client.clone();
         let client_for_thunder = client.clone();
@@ -75,11 +75,11 @@ pub fn start(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
 }
 
 fn build(extn_id: String) -> Result<Box<ExtnChannel>, RippleError> {
-    if let Ok(id) = ExtnId::try_from(extn_id.clone()) {
+    if let Ok(id) = ExtnId::try_from(extn_id) {
         let current_id = ExtnId::new_channel(ExtnClassId::Device, "thunder".into());
 
         if id.eq(&current_id) {
-            return Ok(Box::new(ExtnChannel { start }));
+            Ok(Box::new(ExtnChannel { start }))
         } else {
             Err(RippleError::ExtnError)
         }

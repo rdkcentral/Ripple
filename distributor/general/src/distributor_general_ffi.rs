@@ -82,7 +82,7 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     let _ = init_logger("distributor_general".into());
     info!("Starting distributor channel");
     let runtime = Runtime::new().unwrap();
-    let mut client = ExtnClient::new(receiver.clone(), sender);
+    let mut client = ExtnClient::new(receiver, sender);
     runtime.block_on(async move {
         let client_c = client.clone();
         tokio::spawn(async move {
@@ -94,7 +94,7 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
                     ));
                     client.add_request_processor(DistributorSessionProcessor::new(
                         client.clone(),
-                        value.clone(),
+                        value,
                     ));
                 }
             }
@@ -114,13 +114,13 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
 }
 
 fn build(extn_id: String) -> Result<Box<ExtnChannel>, RippleError> {
-    if let Ok(id) = ExtnId::try_from(extn_id.clone()) {
+    if let Ok(id) = ExtnId::try_from(extn_id) {
         let current_id = ExtnId::new_channel(ExtnClassId::Distributor, "general".into());
 
         if id.eq(&current_id) {
-            return Ok(Box::new(ExtnChannel {
+            Ok(Box::new(ExtnChannel {
                 start: start_launcher,
-            }));
+            }))
         } else {
             Err(RippleError::ExtnError)
         }

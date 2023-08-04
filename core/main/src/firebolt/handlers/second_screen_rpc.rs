@@ -36,8 +36,8 @@ use ripple_sdk::api::{
 
 use super::device_rpc::{get_device_id, get_device_name};
 
-pub const EVENT_SECOND_SCREEN_ON_CLOSE_REQUEST: &'static str = "secondscreen.onCloseRequest";
-pub const EVENT_SECOND_SCREEN_ON_FRIENDLY_NAME_CHANGED: &'static str =
+pub const EVENT_SECOND_SCREEN_ON_CLOSE_REQUEST: &str = "secondscreen.onCloseRequest";
+pub const EVENT_SECOND_SCREEN_ON_FRIENDLY_NAME_CHANGED: &str =
     "secondscreen.onFriendlyNameChanged";
 
 #[rpc(server)]

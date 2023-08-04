@@ -113,25 +113,25 @@ impl RippleClient {
 
     pub fn add_request_processor(&self, stream_processor: impl ExtnRequestProcessor) {
         self.get_extn_client()
-            .clone()
+            
             .add_request_processor(stream_processor)
     }
 
     pub fn add_event_processor(&self, stream_processor: impl ExtnEventProcessor) {
         self.get_extn_client()
-            .clone()
+            
             .add_event_processor(stream_processor)
     }
 
     pub fn add_extn_sender(&self, id: ExtnId, symbol: ExtnSymbol, sender: CSender<CExtnMessage>) {
         self.get_extn_client()
-            .clone()
+            
             .add_sender(id, symbol, sender);
     }
 
     pub fn cleanup_event_processor(&self, capability: ExtnId) {
         self.get_extn_client()
-            .clone()
+            
             .cleanup_event_stream(capability);
     }
 

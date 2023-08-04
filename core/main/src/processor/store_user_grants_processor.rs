@@ -72,7 +72,7 @@ impl StoreUserGrantsProcessor {
             .grant_state
             .get_grant_status(&app_id, &permission);
         if let Some(granted) = result {
-            return Self::respond(
+            Self::respond(
                 state.get_client().get_extn_client(),
                 msg,
                 ExtnResponse::Boolean(match granted {
@@ -81,15 +81,15 @@ impl StoreUserGrantsProcessor {
                 }),
             )
             .await
-            .is_ok();
+            .is_ok()
         } else {
-            return Self::respond(
+            Self::respond(
                 state.get_client().get_extn_client(),
                 msg,
                 ExtnResponse::None(()),
             )
             .await
-            .is_ok();
+            .is_ok()
         }
     }
     async fn process_set_request(
@@ -116,13 +116,13 @@ impl StoreUserGrantsProcessor {
             .cap_state
             .grant_state
             .update_grant_entry(app_id, grant_entry);
-        return Self::respond(
+        Self::respond(
             state.get_client().get_extn_client(),
             msg,
             ExtnResponse::None(()),
         )
         .await
-        .is_ok();
+        .is_ok()
     }
 }
 

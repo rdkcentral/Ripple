@@ -60,8 +60,8 @@ impl AppEventDecorator for VGEventDecorator {
         _event_name: &str,
         _val_in: &Value,
     ) -> Result<Value, AppEventDecorationError> {
-        let enabled = voice_guidance_settings_enabled(&ps).await?;
-        let speed = voice_guidance_settings_speed(&ps).await?;
+        let enabled = voice_guidance_settings_enabled(ps).await?;
+        let speed = voice_guidance_settings_speed(ps).await?;
         Ok(serde_json::to_value(VoiceGuidanceSettings { enabled, speed }).unwrap())
     }
 
@@ -187,7 +187,7 @@ pub async fn voice_guidance_settings_enabled_changed(
     /*
     Add decorated listener after call to voice_guidance_settings_enabled_changed to make decorated listener current  */
     AppEvents::add_listener_with_decorator(
-        &platform_state,
+        platform_state,
         event_name.to_string(),
         ctx.clone(),
         request.clone(),

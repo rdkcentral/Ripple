@@ -99,7 +99,7 @@ impl MetricsState {
             .await
         {
             if let Some(ExtnResponse::TimezoneWithOffset(tz, offset)) = resp.payload.extract() {
-                timezone = Some(format!("{} {}", tz, offset.to_string()));
+                timezone = Some(format!("{} {}", tz, offset));
             }
         }
 

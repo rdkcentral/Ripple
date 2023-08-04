@@ -50,7 +50,7 @@ pub struct OpenRpcState {
 
 impl OpenRpcState {
     pub fn load_additional_rpc(rpc: &mut FireboltOpenRpc, file_contents: &'static str) {
-        let addl_rpc = serde_json::from_str::<OpenRPCParser>(&file_contents);
+        let addl_rpc = serde_json::from_str::<OpenRPCParser>(file_contents);
         if let Err(_) = addl_rpc {
             error!("Could not read additional RPC file");
             return;
@@ -80,7 +80,7 @@ impl OpenRpcState {
     }
 
     pub fn add_open_rpc(&self, open_rpc: FireboltOpenRpc) {
-        let cap_map = open_rpc.clone().get_methods_caps();
+        let cap_map = open_rpc.get_methods_caps();
         self.extend_caps(cap_map);
     }
 
@@ -187,8 +187,7 @@ impl OpenRpcState {
                         .as_ref()
                         .unwrap()
                         .iter()
-                        .find(|tag| tag.name == "property" && tag.allow_value.is_some())
-                        .is_some()
+                        .any(|tag| tag.name == "property" && tag.allow_value.is_some())
             })
             .cloned()
         {
@@ -207,8 +206,7 @@ impl OpenRpcState {
                                 .as_ref()
                                 .unwrap()
                                 .iter()
-                                .find(|tag| tag.name == "property" && tag.allow_value.is_some())
-                                .is_some()
+                                .any(|tag| tag.name == "property" && tag.allow_value.is_some())
                     })
                     .cloned()
                 {

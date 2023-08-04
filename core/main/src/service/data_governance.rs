@@ -51,10 +51,10 @@ pub struct DataGovernanceState {
 
 impl Default for DataGovernanceState {
     fn default() -> Self {
-        let state = DataGovernanceState {
+        
+        DataGovernanceState {
             exclusions: Arc::new(RwLock::new(None)),
-        };
-        state
+        }
     }
 }
 
@@ -166,7 +166,7 @@ impl DataGovernance {
                 HashSet::default()
             }
         };
-        return (data_tags, false);
+        (data_tags, false)
     }
 
     pub async fn refresh_partner_exclusions(state: &PlatformState) -> bool {
@@ -232,12 +232,12 @@ impl DataGovernance {
         setting: StorageProperty,
         exclusions: ExclusionPolicy,
     ) -> Option<ExclusionPolicyData> {
-        let response = match setting {
-            StorageProperty::AllowPersonalization => exclusions.personalization.clone(),
-            StorageProperty::AllowProductAnalytics => exclusions.product_analytics.clone(),
+        
+        match setting {
+            StorageProperty::AllowPersonalization => exclusions.personalization,
+            StorageProperty::AllowProductAnalytics => exclusions.product_analytics,
             _ => None,
-        };
-        response
+        }
     }
 
     fn is_app_excluded_and_get_propagation_state(

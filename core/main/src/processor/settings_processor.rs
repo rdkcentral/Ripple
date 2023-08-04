@@ -125,19 +125,19 @@ impl SettingsProcessor {
         ctx: CallContext,
         request: Vec<SettingKey>,
     ) -> bool {
-        if let Ok(cp) = DiscoveryImpl::get_content_policy(&ctx, &state, &ctx.app_id).await {
+        if let Ok(cp) = DiscoveryImpl::get_content_policy(&ctx, state, &ctx.app_id).await {
             let mut settings = HashMap::default();
             for sk in request {
                 use SettingKey::*;
                 let val = match sk.clone() {
                     VoiceGuidanceEnabled => {
-                        let enabled = voice_guidance_settings_enabled(&state)
+                        let enabled = voice_guidance_settings_enabled(state)
                             .await
                             .unwrap_or(false);
                         Some(SettingValue::bool(enabled))
                     }
                     ClosedCaptions => {
-                        let enabled = ClosedcaptionsImpl::closed_captions_settings_enabled(&state)
+                        let enabled = ClosedcaptionsImpl::closed_captions_settings_enabled(state)
                             .await
                             .unwrap_or(false);
                         Some(SettingValue::bool(enabled))
@@ -146,7 +146,7 @@ impl SettingsProcessor {
                     AllowWatchHistory => Some(SettingValue::bool(cp.remember_watched_programs)),
                     ShareWatchHistory => Some(SettingValue::bool(cp.share_watch_history)),
                     DeviceName => Some(SettingValue::string(
-                        get_device_name(&state).await.unwrap_or("".into()),
+                        get_device_name(state).await.unwrap_or("".into()),
                     )),
                     PowerSaving => Some(SettingValue::bool(true)),
                     LegacyMiniGuide => Some(SettingValue::bool(false)),
@@ -173,12 +173,12 @@ impl SettingsProcessor {
             .is_ok();
         }
 
-        return Self::handle_error(
+        Self::handle_error(
             state.get_client().get_extn_client(),
             msg,
             RippleError::ProcessorError,
         )
-        .await;
+        .await
     }
 
     fn subscribe_event(
@@ -190,7 +190,7 @@ impl SettingsProcessor {
         AppEvents::add_listener_with_decorator(
             state,
             event_name.to_string(),
-            ctx.clone(),
+            ctx,
             ListenRequest { listen: true },
             Some(Box::new(SettingsChangeEventDecorator { keys })),
         );
@@ -219,7 +219,7 @@ impl SettingsProcessor {
                     Self::subscribe_event(
                         state,
                         ctx.clone(),
-                        VOICE_GUIDANCE_CHANGED.into(),
+                        VOICE_GUIDANCE_CHANGED,
                         vg_keys.clone(),
                     )
                 }
@@ -228,32 +228,32 @@ impl SettingsProcessor {
                     Self::subscribe_event(
                         state,
                         ctx.clone(),
-                        EVENT_CLOSED_CAPTIONS_ENABLED.into(),
+                        EVENT_CLOSED_CAPTIONS_ENABLED,
                         cc_keys.clone(),
                     )
                 }
                 SettingKey::AllowPersonalization => Self::subscribe_event(
                     state,
                     ctx.clone(),
-                    EVENT_ALLOW_PERSONALIZATION_CHANGED.into(),
+                    EVENT_ALLOW_PERSONALIZATION_CHANGED,
                     vec![key.to_string()],
                 ),
                 SettingKey::AllowWatchHistory => Self::subscribe_event(
                     state,
                     ctx.clone(),
-                    EVENT_ALLOW_WATCH_HISTORY_CHANGED.into(),
+                    EVENT_ALLOW_WATCH_HISTORY_CHANGED,
                     vec![key.to_string()],
                 ),
                 SettingKey::ShareWatchHistory => Self::subscribe_event(
                     state,
                     ctx.clone(),
-                    EVENT_SHARE_WATCH_HISTORY.into(),
+                    EVENT_SHARE_WATCH_HISTORY,
                     vec![key.to_string()],
                 ),
                 SettingKey::DeviceName => Self::subscribe_event(
                     state,
                     ctx.clone(),
-                    EVENT_DEVICE_NAME_CHANGED.into(),
+                    EVENT_DEVICE_NAME_CHANGED,
                     vec![key.to_string()],
                 ),
                 SettingKey::PowerSaving | SettingKey::LegacyMiniGuide => {

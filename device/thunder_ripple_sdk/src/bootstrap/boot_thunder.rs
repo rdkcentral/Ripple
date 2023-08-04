@@ -30,10 +30,10 @@ pub async fn boot_thunder(
     info!("Booting thunder");
     let state = ThunderGetConfigStep::setup(state, plugin_param)
         .await
-        .expect(&ThunderGetConfigStep::get_name());
+        .unwrap_or_else(|_| { panic!("{}", ThunderGetConfigStep::get_name()) });
     let state = ThunderPoolStep::setup(state)
         .await
-        .expect(&ThunderPoolStep::get_name());
+        .unwrap_or_else(|_| { panic!("{}", ThunderPoolStep::get_name()) });
     SetupThunderProcessor::setup(state.clone()).await;
     state
 }

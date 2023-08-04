@@ -86,10 +86,7 @@ fn get_query(
             .unwrap();
         return Err(err);
     }
-    Ok(match found_q {
-        Some(q) => Some(String::from(q.1)),
-        None => None,
-    })
+    Ok(found_q.map(|q| String::from(q.1)))
 }
 
 impl tungstenite::handshake::server::Callback for ConnectionCallback {
@@ -120,7 +117,7 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
             None => {
                 if let Some(app_id) = cfg
                     .app_state
-                    .get_app_id_from_session_id(&session_id.clone())
+                    .get_app_id_from_session_id(&session_id)
                 {
                     app_id
                 } else {
@@ -137,7 +134,7 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
             }
         };
         let cid = ClientIdentity {
-            session_id: String::from(session_id),
+            session_id,
             app_id,
         };
         oneshot_send_and_log(cfg.next, cid, "ResolveClientIdentity");
@@ -155,7 +152,7 @@ impl FireboltWs {
     ) {
         // Create the event loop and TCP listener we'll accept connections on.
         let try_socket = TcpListener::bind(&server_addr).await; //create the server on the address
-        let listener = try_socket.expect(format!("Failed to bind {:?}", server_addr).as_str());
+        let listener = try_socket.unwrap_or_else(|_| panic!("Failed to bind {:?}", server_addr));
         info!("Listening on: {} secure={}", server_addr, secure);
         let state_for_connection = state.clone();
         let app_state = state.app_manager_state.clone();
@@ -165,7 +162,7 @@ impl FireboltWs {
             let cfg = ConnectionCallbackConfig {
                 next: connect_tx,
                 app_state: app_state.clone(),
-                secure: secure,
+                secure,
                 internal_app_id: internal_app_id.clone(),
             };
             match tokio_tungstenite::accept_hdr_async(stream, ConnectionCallback(cfg)).await {

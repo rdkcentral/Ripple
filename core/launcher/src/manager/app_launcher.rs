@@ -66,7 +66,7 @@ use super::{
 
 use ripple_sdk::futures::future::{BoxFuture, FutureExt};
 
-pub const NAVIGATION_INTENT_PROVIDER_REQUEST: &'static str = "providerRequest";
+pub const NAVIGATION_INTENT_PROVIDER_REQUEST: &str = "providerRequest";
 #[derive(Debug, Clone)]
 struct App {
     #[allow(dead_code)]
@@ -97,7 +97,7 @@ pub struct AppLauncherState {
 
 pub struct AppLauncher;
 
-const OFFLINE_APP_CAP: &'static str = "xrn:firebolt:capability:app:offline";
+const OFFLINE_APP_CAP: &str = "xrn:firebolt:capability:app:offline";
 fn get_app_type(manifest: &AppManifest) -> Option<String> {
     match manifest.runtime.as_str() {
         "web" => Some("HtmlApp".into()),
@@ -208,18 +208,18 @@ impl AppLauncher {
                 .clone()
                 .app_launcher_state
                 .get_app_by_id(&container_id);
-            if let None = item {
+            if item.is_none() {
                 // Container ID for app not found, check registered providers to
                 // see if it's a provider container ID.
                 let app_library_state = state.clone().config.app_library_state;
                 let resp = AppLibrary::get_provider(&app_library_state, container_id.to_string());
-                if let None = resp {
+                if resp.is_none() {
                     warn!("set_state: Not found {:?}", container_id);
                     final_resp = Err(AppError::NotFound);
                 }
                 let provider = resp.unwrap();
                 item = state.clone().app_launcher_state.get_app_by_id(&provider);
-                if let None = item {
+                if item.is_none() {
                     warn!("set_state: Not found {:?}", container_id);
                     final_resp = Err(AppError::NotFound);
                 }
@@ -236,7 +236,7 @@ impl AppLauncher {
                     state
                         .clone()
                         .app_launcher_state
-                        .set_app_state(&container_id, lc_state.clone());
+                        .set_app_state(&container_id, lc_state);
 
                     if lc_state == LifecycleState::Inactive || lc_state == LifecycleState::Unloading
                     {
@@ -256,7 +256,7 @@ impl AppLauncher {
                     if let Err(e) = state
                         .send_extn_request(LifecycleManagementRequest::SetState(SetStateRequest {
                             app_id,
-                            state: lc_state.clone(),
+                            state: lc_state,
                         }))
                         .await
                     {
@@ -284,7 +284,7 @@ impl AppLauncher {
         let entry = state
             .app_launcher_state
             .get_app_by_id(&state_change.container_props.name);
-        if let None = entry {
+        if entry.is_none() {
             error!(
                 "on_app_state_change: app_id={} Not found",
                 state_change.container_props.name
@@ -294,7 +294,7 @@ impl AppLauncher {
         let app = entry.unwrap();
         let app_id = app.container_props.name.clone();
 
-        ContainerManager::on_state_changed(&state, state_change.clone()).await;
+        ContainerManager::on_state_changed(state, state_change.clone()).await;
 
         if state_change.states.previous == LifecycleState::Initializing
             && state_change.states.state == LifecycleState::Inactive
@@ -392,7 +392,7 @@ impl AppLauncher {
             "get_oldest_removeable_app={} Not enough removeable apps",
             count
         );
-        return None;
+        None
     }
 
     async fn remove_oldest_app(state: &LauncherState) -> bool {
@@ -401,11 +401,11 @@ impl AppLauncher {
                 Self::close(state, &name, CloseReason::ResourceContention)
                     .await
                     .ok();
-                ContainerManager::remove(&state, &name).await.ok();
-                return true;
+                ContainerManager::remove(state, &name).await.ok();
+                true
             }
             None => {
-                return false;
+                false
             }
         }
     }
@@ -433,10 +433,10 @@ impl AppLauncher {
                     "check_finished={} App not finished unloading, forcing",
                     app_id
                 );
-                return Self::destroy(state, app_id).await;
+                Self::destroy(state, app_id).await
             }
             None => {
-                return Ok(AppManagerResponse::None);
+                Ok(AppManagerResponse::None)
             }
         }
     }
@@ -522,7 +522,7 @@ impl AppLauncher {
     }
 
     fn get_transport(url: String) -> AppRuntimeTransport {
-        if url.as_str().find("__firebolt_endpoint").is_none() {
+        if !url.as_str().contains("__firebolt_endpoint") {
             AppRuntimeTransport::Bridge
         } else {
             AppRuntimeTransport::Websocket
@@ -570,14 +570,14 @@ impl AppLauncher {
         request: LaunchRequest,
     ) -> Result<AppManagerResponse, AppError> {
         let resp = AppLibrary::get_manifest(&state.config.app_library_state, &request.app_id);
-        if let None = resp {
+        if resp.is_none() {
             return Err(AppError::NotFound);
         }
 
         let app_manifest = resp.unwrap();
 
         let app_type = get_app_type(&app_manifest);
-        if let None = app_type {
+        if app_type.is_none() {
             return Err(AppError::NotSupported);
         }
         let instances = state
@@ -585,8 +585,8 @@ impl AppLauncher {
             .app_launcher_state
             .get_active_instances(&app_manifest);
         let bnrp = BrowserNameRequestParams {
-            name: String::from(app_manifest.name.clone()),
-            runtime: String::from(app_manifest.runtime.clone()),
+            name: app_manifest.name.clone(),
+            runtime: app_manifest.runtime.clone(),
             instances,
         };
 
@@ -615,7 +615,7 @@ impl AppLauncher {
             ));
 
         if let Err(_) = Self::pre_launch(
-            &state,
+            state,
             app_manifest.clone(),
             callsign.clone(),
             intent.clone(),
@@ -686,7 +686,7 @@ impl AppLauncher {
             state
                 .app_launcher_state
                 .add_app(request.app_id.clone(), app);
-            match ContainerManager::add(&state, container_props).await {
+            match ContainerManager::add(state, container_props).await {
                 Ok(_) => return Ok(AppManagerResponse::None),
                 Err(_) => return Err(AppError::IoError),
             }
@@ -706,7 +706,7 @@ impl AppLauncher {
             .add_app(request.app_id.clone(), app);
         // TODO move logic for permission store to Delegated app launcher
 
-        match ViewManager::acquire_view(&state, launch_params.clone()).await {
+        match ViewManager::acquire_view(state, launch_params.clone()).await {
             Ok(view_id) => {
                 state
                     .app_launcher_state
@@ -753,11 +753,11 @@ impl AppLauncher {
                         .ok();
                     return Err(AppError::AppNotReady);
                 }
-                return Ok(AppManagerResponse::None);
+                Ok(AppManagerResponse::None)
             }
             None => {
                 error!("check_ready: App={} not found", app_id);
-                return Err(AppError::NotFound);
+                Err(AppError::NotFound)
             }
         }
     }
@@ -798,11 +798,11 @@ impl AppLauncher {
         let app = state.app_launcher_state.remove_app(app_id).unwrap();
         let view_id = app.container_props.view_id;
 
-        let resp = ViewManager::release_view(&state, view_id).await;
+        let resp = ViewManager::release_view(state, view_id).await;
         if let Some(action) = app.on_destroyed_action {
             match action {
                 OnDestroyedAction::Launch(request) => {
-                    Self::launch(&state, request).await.ok();
+                    Self::launch(state, request).await.ok();
                 }
             }
         }

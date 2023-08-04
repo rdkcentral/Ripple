@@ -191,7 +191,7 @@ impl ThunderEventHandler {
 
     pub fn remove_listener(&mut self, id: String) -> bool {
         self.listeners.retain(|x| !x.eq(&id));
-        self.listeners.len() == 0
+        self.listeners.is_empty()
     }
 
     pub fn process(
@@ -211,11 +211,11 @@ impl ThunderEventHandler {
     pub fn callback_device_event(state: ThunderState, event_name: String, event: ExtnEvent) {
         if state.event_processor.check_last_event(&event_name, &event) {
             state.event_processor.add_last_event(&event_name, &event);
-            if let Err(_) = match event {
+            if (match event {
                 ExtnEvent::AppEvent(a) => state.get_client().request_transient(a),
                 ExtnEvent::PowerState(p) => state.get_client().request_transient(p),
                 _ => Err(RippleError::InvalidOutput),
-            } {
+            }).is_err() {
                 error!("Error while forwarding app event");
             }
         } else {
