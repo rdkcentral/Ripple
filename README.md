@@ -22,8 +22,9 @@ There are 3 Manifest files which are necessary for Ripple 2.0.
 
 ### Pre-requisites for running with VSCode
 1. Install [Rust](https://www.rust-lang.org/tools/install)
-1. Install [VSCode](https://code.visualstudio.com/)
-2. Install Rust Analyzer from VS Code Marketplace
+2. Install [VSCode](https://code.visualstudio.com/)
+3. Install [Rust Analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer) from VS Code Marketplace
+4. Install [Crates](https://marketplace.visualstudio.com/items?itemName=serayuzgur.crates) VSCode extension (Optional)
 
 ## How to run Ripple locally?
 
