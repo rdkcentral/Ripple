@@ -24,7 +24,7 @@ repository = "https://github.com/rdkcentral/Ripple"
 
 [features]
 default=[]
-rpc=["dep:jsonrpsee-core"]
+rpc=["jsonrpsee-core"]
 full=["rpc"]
 sysd=[]
 
