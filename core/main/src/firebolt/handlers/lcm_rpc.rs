@@ -215,7 +215,7 @@ impl LifecycleManagementServer for LifecycleManagementImpl {
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
         AppEvents::add_listener(
-            &&self.state,
+            &self.state,
             LCM_EVENT_ON_SESSION_TRANSITION_COMPLETED.to_string(),
             ctx,
             request,
@@ -233,7 +233,7 @@ impl LifecycleManagementServer for LifecycleManagementImpl {
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
         AppEvents::add_listener(
-            &&self.state,
+            &self.state,
             LCM_EVENT_ON_SESSION_TRANSITION_CANCELED.to_string(),
             ctx,
             request,

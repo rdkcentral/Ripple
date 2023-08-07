@@ -279,7 +279,7 @@ impl ThunderWifiRequestProcessor {
                 }
 
                 list.sort_by(|a, b| b.signal_strength.cmp(&a.signal_strength));
-                let access_point_list = AccessPointList { list: list };
+                let access_point_list = AccessPointList { list };
                 info!("access point list {:#?}", access_point_list);
                 // Send the access point list to the main thread
                 tx.send(access_point_list).await.unwrap();
@@ -300,8 +300,8 @@ impl ThunderWifiRequestProcessor {
         });
 
         // Receive the access point list sent from the Tokio task
-        let access_point_list = rx.recv().await.unwrap();
-        access_point_list
+
+        rx.recv().await.unwrap()
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -459,22 +459,22 @@ info!("Unsubscribing to onError events");
             match msg {
                 WifiResponse::CustomError(s) => {
                     info!("Received string: {}", s);
-                    return WifiResponse::CustomError(s);
+                    WifiResponse::CustomError(s)
                     // handle string response here
                 }
                 WifiResponse::WifiConnectSuccessResponse(ap_list) => {
                     info!("Received access point list: {:?}", ap_list);
-                    return WifiResponse::WifiConnectSuccessResponse(ap_list);
+                    WifiResponse::WifiConnectSuccessResponse(ap_list)
                     // handle access point list response here
                 }
                 _ => {
                     info!("Received unknown message type");
                     // handle unknown message type here
-                    return WifiResponse::CustomError("out Received unknown message type".into());
+                    WifiResponse::CustomError("out Received unknown message type".into())
                 }
             }
         } else {
-            return WifiResponse::CustomError("Unknown Error".into());
+            WifiResponse::CustomError("Unknown Error".into())
         }
     }
 
@@ -496,8 +496,8 @@ info!("Unsubscribing to onError events");
             "connected ssid response : {:?}",
             get_connected_ssid_response
         );
-        let accesspoint = get_connected_ssid_response.to_access_point();
-        accesspoint
+
+        get_connected_ssid_response.to_access_point()
     }
 }
 

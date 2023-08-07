@@ -108,8 +108,8 @@ impl UserGrantsImpl {
             None => None,
         };
         grant_entries
-            .into_iter()
-            .map(move |x| UserGrantsImpl::transform(app_id.clone(), app_name.clone(), &x))
+            .iter()
+            .map(move |x| UserGrantsImpl::transform(app_id.clone(), app_name.clone(), x))
             .collect()
     }
 
@@ -121,14 +121,14 @@ impl UserGrantsImpl {
     ) -> GrantInfo {
         GrantInfo {
             app: app_id.map(|x| AppInfo {
-                id: x.to_owned(),
+                id: x,
                 title: app_name,
             }),
             state: entry.status.as_ref().unwrap().as_string().to_owned(),
             capability: entry.capability.to_owned(),
             role: entry.role.as_string().to_owned(),
             lifespan: entry.lifespan.as_ref().unwrap().as_string().to_owned(),
-            expires: (|| {
+            expires: {
                 entry.lifespan_ttl_in_secs.map(|ttl_secs| {
                     let expiry_system_time: SystemTime = SystemTime::UNIX_EPOCH
                         + entry.last_modified_time
@@ -136,7 +136,7 @@ impl UserGrantsImpl {
                     let expiry_date_time: DateTime<Utc> = DateTime::from(expiry_system_time);
                     expiry_date_time.to_rfc3339()
                 })
-            })(),
+            },
         }
     }
 }

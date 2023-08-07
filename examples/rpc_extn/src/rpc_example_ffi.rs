@@ -60,7 +60,7 @@ export_extn_metadata!(CExtnMetadata, init_library);
 
 fn get_rpc_extns(sender: ExtnSender, receiver: Receiver<CExtnMessage>) -> Methods {
     let mut methods = Methods::new();
-    let client = ExtnClient::new(receiver.clone(), sender);
+    let client = ExtnClient::new(receiver, sender);
     let _ = methods.merge(CustomImpl::new(client.clone()).into_rpc());
     let _ = methods.merge(LegacyImpl::new(client).into_rpc());
     methods

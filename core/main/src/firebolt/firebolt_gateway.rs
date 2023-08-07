@@ -129,7 +129,7 @@ impl FireboltGateway {
         );
         // First check sender if no sender no need to process
         let callback_c = extn_msg.clone();
-        match request.clone().ctx.protocol {
+        match request.ctx.protocol {
             ApiProtocol::Extn => {
                 if callback_c.is_none() || callback_c.unwrap().callback.is_none() {
                     error!("No callback for request {:?} ", request);

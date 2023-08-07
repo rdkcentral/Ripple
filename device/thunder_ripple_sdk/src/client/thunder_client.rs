@@ -191,8 +191,8 @@ impl DeviceOperator for ThunderClient {
             callback: tx,
         });
         self.send_message(message).await;
-        let result = rx.await.unwrap();
-        result
+
+        rx.await.unwrap()
     }
 
     async fn subscribe(
@@ -205,7 +205,7 @@ impl DeviceOperator for ThunderClient {
             module: request.module,
             event_name: request.event_name,
             params: request.params,
-            handler: handler,
+            handler,
             callback: Some(tx),
             sub_id: request.sub_id,
         };
@@ -305,7 +305,7 @@ impl ThunderClient {
 
         let msg = DeviceResponseMessage::sub(response, sub_id.clone());
         let mut tsub = ThunderSubscription {
-            handle: handle,
+            handle,
             listeners: HashMap::default(),
             rpc_response: msg.clone(),
         };
@@ -475,7 +475,7 @@ impl ThunderClientBuilder {
         Ok(ThunderClient {
             sender: Some(s),
             pooled_sender: None,
-            id: id,
+            id,
             plugin_manager_tx: pmtx_c,
         })
     }

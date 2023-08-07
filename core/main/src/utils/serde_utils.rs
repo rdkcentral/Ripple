@@ -72,7 +72,7 @@ pub mod language_code_serde {
         S: Serializer,
     {
         if pattern_matches(Patterns::Language, str) {
-            serializer.serialize_str(&str)
+            serializer.serialize_str(str)
         } else {
             Err(serde::ser::Error::custom(
                 "Language code is not of the format specified in ISO 639",
@@ -103,7 +103,7 @@ pub mod timezone_serde {
         S: Serializer,
     {
         if pattern_matches(Patterns::Timezone, str) {
-            serializer.serialize_str(&str)
+            serializer.serialize_str(str)
         } else {
             Err(serde::ser::Error::custom(
                 "Timezone is not in a format supported by the IANA TZ database",

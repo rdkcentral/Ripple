@@ -526,7 +526,7 @@ impl LocalizationServer for LocalizationImpl {
             .send_extn_request(DeviceInfoRequest::GetTimezone)
             .await
         {
-            if let Some(ExtnResponse::String(v)) = response.payload.clone().extract() {
+            if let Some(ExtnResponse::String(v)) = response.payload.extract() {
                 return Ok(v);
             }
         }

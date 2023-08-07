@@ -29,7 +29,7 @@ impl LoadAppLibraryStep {
     pub fn load_app_library(path: String) -> Result<Vec<AppLibraryEntry>, RippleError> {
         info!("Trying to load app library from {}", path);
         if let Some(p) = Path::new(&path).to_str() {
-            let result = match fs::read_to_string(&p) {
+            let result = match fs::read_to_string(p) {
                 Ok(contents) => match serde_json::from_str::<DefaultLibrary>(&contents) {
                     Ok(al) => Ok(al.default_library),
                     Err(_) => {

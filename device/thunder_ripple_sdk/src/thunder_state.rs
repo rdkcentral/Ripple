@@ -116,7 +116,7 @@ impl ThunderState {
             module: handler.request.module,
             event_name: handler.request.event_name,
         };
-        let _ = client.unsubscribe(request).await;
+        client.unsubscribe(request).await;
     }
 
     pub fn start_event_thread(&self) {

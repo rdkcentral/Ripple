@@ -47,7 +47,7 @@ impl PermittedState {
         let store = if let Ok(v) = FileStore::load(path.clone()) {
             v
         } else {
-            FileStore::new(path.clone(), HashMap::new())
+            FileStore::new(path, HashMap::new())
         };
 
         PermittedState {
@@ -149,9 +149,9 @@ impl PermissionHandler {
         app_id: &str,
         request: CapabilitySet,
     ) -> Result<(), DenyReasonWithCap> {
-        if let Some(permitted) = state.cap_state.permitted_state.get_app_permissions(&app_id) {
-            let permission_set: CapabilitySet = permitted.clone().into();
-            return permission_set.check(request);
+        if let Some(permitted) = state.cap_state.permitted_state.get_app_permissions(app_id) {
+            let permission_set: CapabilitySet = permitted.into();
+            permission_set.check(request)
         } else {
             Err(DenyReasonWithCap {
                 reason: ripple_sdk::api::firebolt::fb_capabilities::DenyReason::Unpermitted,
@@ -172,12 +172,12 @@ impl PermissionHandler {
             present
         });
         if all_permitted {
-            return Ok(());
+            Ok(())
         } else {
-            return Err(DenyReasonWithCap {
+            Err(DenyReasonWithCap {
                 reason: DenyReason::Unpermitted,
-                caps: vec![unpermitted.unwrap().cap.clone()],
-            });
+                caps: vec![unpermitted.unwrap().cap],
+            })
         }
     }
 
@@ -186,15 +186,14 @@ impl PermissionHandler {
         app_id: &str,
         request: &Vec<FireboltPermission>,
     ) -> Result<(), DenyReasonWithCap> {
-        if let Some(permitted) = state.cap_state.permitted_state.get_app_permissions(&app_id) {
+        if let Some(permitted) = state.cap_state.permitted_state.get_app_permissions(app_id) {
             // return request.has_permissions(&permitted);
             return Self::is_all_permitted(&permitted, request);
         } else {
             // check to retrieve it one more time
             if let Ok(_) = Self::fetch_and_store(state.clone(), app_id.into()).await {
                 // cache primed try again
-                if let Some(permitted) =
-                    state.cap_state.permitted_state.get_app_permissions(&app_id)
+                if let Some(permitted) = state.cap_state.permitted_state.get_app_permissions(app_id)
                 {
                     return Self::is_all_permitted(&permitted, request);
                 }
@@ -204,7 +203,7 @@ impl PermissionHandler {
         Err(DenyReasonWithCap {
             reason: ripple_sdk::api::firebolt::fb_capabilities::DenyReason::Unpermitted,
             caps: request
-                .into_iter()
+                .iter()
                 .map(|fb_perm| fb_perm.cap.to_owned())
                 .collect(),
         })

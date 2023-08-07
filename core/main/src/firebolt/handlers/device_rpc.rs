@@ -181,7 +181,7 @@ pub trait Device {
 }
 
 pub fn filter_mac(mac_address: String) -> String {
-    String::from(mac_address.replace(":", ""))
+    mac_address.replace(':', "")
 }
 
 pub async fn get_device_id(state: &PlatformState) -> RpcResult<String> {
@@ -190,7 +190,7 @@ pub async fn get_device_id(state: &PlatformState) -> RpcResult<String> {
     }
     match get_ll_mac_addr(state.clone()).await {
         Ok(device_id) => Ok(device_id),
-        Err(_) => Err(rpc_err("parse error").into()),
+        Err(_) => Err(rpc_err("parse error")),
     }
 }
 
@@ -206,7 +206,7 @@ pub async fn get_uid(state: &PlatformState, app_id: String) -> RpcResult<String>
                 .await
             {
                 if let Some(ExtnResponse::String(enc_device_id)) =
-                    resp.payload.clone().extract::<ExtnResponse>()
+                    resp.payload.extract::<ExtnResponse>()
                 {
                     return Ok(enc_device_id);
                 }
@@ -214,7 +214,7 @@ pub async fn get_uid(state: &PlatformState, app_id: String) -> RpcResult<String>
         }
         Ok(device_id)
     } else {
-        Err(rpc_err("parse error").into())
+        Err(rpc_err("parse error"))
     }
 }
 
@@ -325,7 +325,7 @@ impl DeviceServer for DeviceImpl {
         let firmware = self.firmware_info(ctx.clone()).await?;
 
         let open_rpc_state = self.state.clone().open_rpc_state;
-        let api = open_rpc_state.get_open_rpc().info.clone();
+        let api = open_rpc_state.get_open_rpc().info;
         Ok(DeviceVersionResponse {
             api,
             firmware,
@@ -341,7 +341,7 @@ impl DeviceServer for DeviceImpl {
             .send_extn_request(DeviceInfoRequest::Model)
             .await
         {
-            if let Some(ExtnResponse::String(v)) = response.payload.clone().extract() {
+            if let Some(ExtnResponse::String(v)) = response.payload.extract() {
                 if let Some(f) = self
                     .state
                     .get_device_manifest()
@@ -363,7 +363,7 @@ impl DeviceServer for DeviceImpl {
             .send_extn_request(DeviceInfoRequest::Model)
             .await
         {
-            if let Some(ExtnResponse::String(v)) = response.payload.clone().extract() {
+            if let Some(ExtnResponse::String(v)) = response.payload.extract() {
                 return Ok(v);
             }
         }
@@ -398,7 +398,7 @@ impl DeviceServer for DeviceImpl {
         let listen = request.listen;
 
         AppEvents::add_listener(
-            &&self.state,
+            &self.state,
             HDCP_CHANGED_EVENT.to_string(),
             ctx.clone(),
             request,
@@ -451,7 +451,7 @@ impl DeviceServer for DeviceImpl {
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
         AppEvents::add_listener(
-            &&self.state,
+            &self.state,
             HDR_CHANGED_EVENT.to_string(),
             ctx.clone(),
             request,
@@ -505,7 +505,7 @@ impl DeviceServer for DeviceImpl {
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
         AppEvents::add_listener(
-            &&self.state,
+            &self.state,
             SCREEN_RESOLUTION_CHANGED_EVENT.to_string(),
             ctx.clone(),
             request,
@@ -559,7 +559,7 @@ impl DeviceServer for DeviceImpl {
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
         AppEvents::add_listener(
-            &&self.state,
+            &self.state,
             VIDEO_RESOLUTION_CHANGED_EVENT.to_string(),
             ctx.clone(),
             request,
@@ -592,7 +592,7 @@ impl DeviceServer for DeviceImpl {
             .send_extn_request(DeviceInfoRequest::Make)
             .await
         {
-            if let Some(ExtnResponse::String(v)) = response.payload.clone().extract() {
+            if let Some(ExtnResponse::String(v)) = response.payload.extract() {
                 return Ok(v);
             }
         }
@@ -634,7 +634,7 @@ impl DeviceServer for DeviceImpl {
         let listen = request.listen;
 
         AppEvents::add_listener(
-            &&self.state,
+            &self.state,
             AUDIO_CHANGED_EVENT.to_string(),
             ctx.clone(),
             request,
@@ -687,7 +687,7 @@ impl DeviceServer for DeviceImpl {
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
         AppEvents::add_listener(
-            &&self.state,
+            &self.state,
             NETWORK_CHANGED_EVENT.to_string(),
             ctx.clone(),
             request,
