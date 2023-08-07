@@ -38,7 +38,7 @@ impl Bootstep<BootstrapState> for StartWsStep {
         let internal_ws_enabled = manifest.get_internal_ws_enabled();
         let iai_c = iai.clone();
         if ws_enabled {
-            let ws_addr = manifest.clone().get_ws_gateway_host();
+            let ws_addr = manifest.get_ws_gateway_host();
             let state_for_ws = state.platform_state.clone();
             tokio::spawn(async move {
                 FireboltWs::start(ws_addr.as_str(), state_for_ws, true, iai.clone()).await;
@@ -46,8 +46,8 @@ impl Bootstep<BootstrapState> for StartWsStep {
         }
 
         if internal_ws_enabled {
-            let ws_addr = manifest.clone().get_internal_gateway_host();
-            let state_for_ws = state.platform_state.clone();
+            let ws_addr = manifest.get_internal_gateway_host();
+            let state_for_ws = state.platform_state;
             tokio::spawn(async move {
                 FireboltWs::start(ws_addr.as_str(), state_for_ws, false, iai_c).await;
             });

@@ -180,7 +180,7 @@ impl ExtnState {
     }
 
     pub fn get_sender(self) -> CSender<CExtnMessage> {
-        self.sender.clone()
+        self.sender
     }
 
     pub fn start_channel(
@@ -203,7 +203,7 @@ impl ExtnState {
             (extn_channel.start)(extn_sender, extn_rx);
         });
         client.add_extn_sender(extn_id, symbol, extn_tx);
-        return Ok(());
+        Ok(())
     }
 
     pub fn extend_methods(&self, methods: Methods) {

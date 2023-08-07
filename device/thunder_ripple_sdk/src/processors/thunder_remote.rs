@@ -112,7 +112,7 @@ impl RemoteStatusEvent {
     }
 
     pub fn get_protocol(self: Box<Self>) -> (Box<Self>, Option<AccessoryProtocol>) {
-        let status = self.status.net_type.clone();
+        let status = self.status.net_type;
         (
             self,
             match status {
@@ -237,7 +237,7 @@ impl ThunderRemoteAccessoryRequestProcessor {
                         "CONFIGURATION_COMPLETE" => {
                             info!("successfully paired");
                             let success_accessory_response: AccessoryDeviceResponse;
-                            if remote_status_event.status.remote_data.len() > 0 {
+                            if !remote_status_event.status.remote_data.is_empty() {
                                 let remote = remote_status_event.status.remote_data.get(0).unwrap();
                                 success_accessory_response =
                                 ThunderRemoteAccessoryRequestProcessor::get_accessory_response(
@@ -278,8 +278,8 @@ impl ThunderRemoteAccessoryRequestProcessor {
         }
         })
         .await;
-        let remote_accessory_device = rx.recv().await.unwrap();
-        remote_accessory_device
+
+        rx.recv().await.unwrap()
     }
 
     pub async fn list(
@@ -344,14 +344,12 @@ impl ThunderRemoteAccessoryRequestProcessor {
         make: String,
         model: String,
     ) -> AccessoryDeviceResponse {
-        let accessory_response = AccessoryDeviceResponse {
+        AccessoryDeviceResponse {
             _type: AccessoryType::Remote,
             make,
             model,
             protocol,
-        };
-
-        accessory_response
+        }
     }
 
     pub async fn unsubscribe_pairing(client: ThunderClient) {

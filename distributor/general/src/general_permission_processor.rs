@@ -48,7 +48,7 @@ pub struct DistributorPermissionProcessor {
 
 fn get_permissions_map() -> HashMap<String, Vec<FireboltPermission>> {
     if let Some(p) = Path::new("/opt/ripple/permissions_map.json").to_str() {
-        if let Ok(contents) = fs::read_to_string(&p) {
+        if let Ok(contents) = fs::read_to_string(p) {
             if let Ok(r) = serde_json::from_str(contents.as_str()) {
                 return r;
             }
@@ -140,8 +140,8 @@ mod tests {
     #[test]
     fn test_permissions_map() {
         let v = get_permissions_map();
-        assert!(v.len() > 0);
-        assert!(v.get("refui").unwrap().len() > 0);
+        assert!(!v.is_empty());
+        assert!(!v.get("refui").unwrap().is_empty());
         let permission = v.get("refui").unwrap().get(0).unwrap().clone();
         println!("permission {}", permission.cap.as_str());
         assert!(FireboltCap::short("input:keyboard").eq(&permission.cap))

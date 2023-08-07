@@ -38,7 +38,7 @@ impl ThunderPoolStep {
     pub async fn setup(
         mut state: ThunderBootstrapStateWithConfig,
     ) -> Result<ThunderBootstrapStateWithClient, RippleError> {
-        let pool_size = state.pool_size.clone();
+        let pool_size = state.pool_size;
         let url = state.url.clone();
         if pool_size < 2 {
             warn!("Pool size of 1 is not recommended, there will be no dedicated connection for Controller events");

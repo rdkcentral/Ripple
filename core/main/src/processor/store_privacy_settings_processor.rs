@@ -121,7 +121,7 @@ impl StorePrivacySettingsProcessor {
         let mut err = false;
         if let Some(allow_acr_collection) = privacy_settings_data.allow_acr_collection {
             let res = StorageManager::set_bool(
-                &state,
+                state,
                 StorageProperty::AllowAcrCollection,
                 allow_acr_collection,
                 None,
@@ -134,7 +134,7 @@ impl StorePrivacySettingsProcessor {
         }
         if let Some(allow_resume_points) = privacy_settings_data.allow_resume_points {
             let res = StorageManager::set_bool(
-                &state,
+                state,
                 StorageProperty::AllowResumePoints,
                 allow_resume_points,
                 None,
@@ -149,7 +149,7 @@ impl StorePrivacySettingsProcessor {
             privacy_settings_data.allow_app_content_ad_targeting
         {
             let res = StorageManager::set_bool(
-                &state,
+                state,
                 StorageProperty::AllowAppContentAdTargeting,
                 allow_app_content_ad_targeting,
                 None,
@@ -165,7 +165,7 @@ impl StorePrivacySettingsProcessor {
         }
         if let Some(allow_camera_analytics) = privacy_settings_data.allow_camera_analytics {
             let res = StorageManager::set_bool(
-                &state,
+                state,
                 StorageProperty::AllowCameraAnalytics,
                 allow_camera_analytics,
                 None,
@@ -181,7 +181,7 @@ impl StorePrivacySettingsProcessor {
         }
         if let Some(allow_personalization) = privacy_settings_data.allow_personalization {
             let res = StorageManager::set_bool(
-                &state,
+                state,
                 StorageProperty::AllowPersonalization,
                 allow_personalization,
                 None,
@@ -196,7 +196,7 @@ impl StorePrivacySettingsProcessor {
             privacy_settings_data.allow_primary_browse_ad_targeting
         {
             let res = StorageManager::set_bool(
-                &state,
+                state,
                 StorageProperty::AllowPrimaryBrowseAdTargeting,
                 allow_primary_browse_ad_targeting,
                 None,
@@ -214,7 +214,7 @@ impl StorePrivacySettingsProcessor {
             privacy_settings_data.allow_primary_content_ad_targeting
         {
             let res = StorageManager::set_bool(
-                &state,
+                state,
                 StorageProperty::AllowPrimaryContentAdTargeting,
                 allow_primary_content_ad_targeting,
                 None,
@@ -230,7 +230,7 @@ impl StorePrivacySettingsProcessor {
         }
         if let Some(allow_product_analytics) = privacy_settings_data.allow_product_analytics {
             let res = StorageManager::set_bool(
-                &state,
+                state,
                 StorageProperty::AllowProductAnalytics,
                 allow_product_analytics,
                 None,
@@ -243,7 +243,7 @@ impl StorePrivacySettingsProcessor {
         }
         if let Some(allow_remote_diagnostics) = privacy_settings_data.allow_remote_diagnostics {
             let res = StorageManager::set_bool(
-                &state,
+                state,
                 StorageProperty::AllowRemoteDiagnostics,
                 allow_remote_diagnostics,
                 None,
@@ -261,7 +261,7 @@ impl StorePrivacySettingsProcessor {
             privacy_settings_data.allow_unentitled_personalization
         {
             let res = StorageManager::set_bool(
-                &state,
+                state,
                 StorageProperty::AllowUnentitledPersonalization,
                 allow_unentitled_personalization,
                 None,
@@ -279,7 +279,7 @@ impl StorePrivacySettingsProcessor {
             privacy_settings_data.allow_unentitled_resume_points
         {
             let res = StorageManager::set_bool(
-                &state,
+                state,
                 StorageProperty::AllowUnentitledResumePoints,
                 allow_unentitled_resume_points,
                 None,
@@ -292,7 +292,7 @@ impl StorePrivacySettingsProcessor {
         }
         if let Some(allow_watch_history) = privacy_settings_data.allow_watch_history {
             let res = StorageManager::set_bool(
-                &state,
+                state,
                 StorageProperty::AllowWatchHistory,
                 allow_watch_history,
                 None,
@@ -315,13 +315,13 @@ impl StorePrivacySettingsProcessor {
             )
             .await;
         }
-        return Self::respond(
+        Self::respond(
             state.get_client().get_extn_client(),
             msg,
             ExtnResponse::None(()),
         )
         .await
-        .is_ok();
+        .is_ok()
     }
 }
 

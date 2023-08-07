@@ -306,7 +306,7 @@ impl StorageManager {
         match storage_to_bool_rpc_result(resp) {
             Ok(value) => Ok(StorageManagerResponse::Ok(value)),
             Err(_) => {
-                if let Ok(value) = DefaultStorageProperties::get_bool(state, &namespace, &key) {
+                if let Ok(value) = DefaultStorageProperties::get_bool(state, &namespace, key) {
                     return Ok(StorageManagerResponse::Default(value));
                 }
                 Err(StorageManagerError::NotFound)
@@ -354,7 +354,7 @@ impl StorageManager {
         {
             Ok(_) => {
                 if let Some(events) = event_names {
-                    let val = Value::from(value.clone());
+                    let val = value.clone();
                     for event in events.iter() {
                         let state_for_event = state.clone();
                         let result = val.clone();
@@ -385,7 +385,7 @@ impl StorageManager {
         match storage_to_string_rpc_result(resp) {
             Ok(value) => Ok(StorageManagerResponse::Ok(value)),
             Err(_) => {
-                if let Ok(value) = DefaultStorageProperties::get_string(state, &namespace, &key) {
+                if let Ok(value) = DefaultStorageProperties::get_string(state, &namespace, key) {
                     return Ok(StorageManagerResponse::Default(value));
                 }
                 Err(StorageManagerError::NotFound)
@@ -407,7 +407,7 @@ impl StorageManager {
             Ok(value) => Ok(StorageManagerResponse::Ok(value)),
             Err(_) => {
                 if let Ok(value) =
-                    DefaultStorageProperties::get_number_as_u32(state, &namespace, &key)
+                    DefaultStorageProperties::get_number_as_u32(state, &namespace, key)
                 {
                     return Ok(StorageManagerResponse::Default(value));
                 }
@@ -432,7 +432,7 @@ impl StorageManager {
 
         storage_to_f32_rpc_result(resp).map_or_else(
             |_| {
-                DefaultStorageProperties::get_number_as_f32(state, &namespace, &key)
+                DefaultStorageProperties::get_number_as_f32(state, &namespace, key)
                     .map_or(Err(StorageManagerError::NotFound), |val| {
                         Ok(StorageManagerResponse::Ok(val))
                     })
@@ -458,13 +458,13 @@ impl StorageManager {
 
         match result {
             Ok(msg) => {
-                if let Some(m) = msg.payload.clone().extract() {
-                    return Ok(m);
+                if let Some(m) = msg.payload.extract() {
+                    Ok(m)
                 } else {
-                    return Err(RippleError::ParseError);
+                    Err(RippleError::ParseError)
                 }
             }
-            Err(e) => return Err(e),
+            Err(e) => Err(e),
         }
     }
 

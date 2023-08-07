@@ -93,7 +93,7 @@ impl PlatformState {
             app_events_state: AppEventsState::default(),
             provider_broker_state: ProviderBrokerState::default(),
             app_manager_state: AppManagerState::default(),
-            open_rpc_state: OpenRpcState::new(manifest.clone().configuration.exclusory),
+            open_rpc_state: OpenRpcState::new(manifest.configuration.exclusory),
             router_state: RouterState::new(),
             data_governance: DataGovernanceState::default(),
             metrics: MetricsState::default(),
@@ -149,9 +149,7 @@ impl PlatformState {
 
     pub async fn send_to_bridge(&self, id: String, msg: ApiMessage) -> RippleResponse {
         let request = BridgeProtocolRequest::Send(id, msg);
-        if let Err(e) = self.get_client().send_extn_request(request).await {
-            return Err(e);
-        }
+        self.get_client().send_extn_request(request).await?;
         Ok(())
     }
 }

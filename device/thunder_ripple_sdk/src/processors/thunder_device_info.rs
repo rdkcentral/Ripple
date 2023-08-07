@@ -279,7 +279,7 @@ impl ThunderNetworkService {
         if let Some(ip) = response.message["publicip"].as_str() {
             return !ip.is_empty();
         };
-        return false;
+        false
     }
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -312,8 +312,8 @@ impl ThunderAllTimezonesResponse {
         filter: Vec<&str>,
     ) {
         for (key, value) in source {
-            if filter.len() == 0 || filter.contains(&key.as_str()) {
-                let new_prefix = if prefix.len() > 0 {
+            if filter.is_empty() || filter.contains(&key.as_str()) {
+                let new_prefix = if !prefix.is_empty() {
                     format!("{}/{}", prefix, key)
                 } else {
                     key.clone()
@@ -332,17 +332,13 @@ impl ThunderAllTimezonesResponse {
     }
 
     fn as_array(&self) -> Vec<String> {
-        self.timezones
-            .keys()
-            .into_iter()
-            .map(|x| x.clone())
-            .collect()
+        self.timezones.keys().cloned().collect()
     }
 
     fn get_offset(&self, key: &str) -> i64 {
         if let Some(tz) = self.timezones.get(key) {
             if let Some(utc_tz) = self.timezones.get("Etc/UTC").cloned() {
-                if let Ok(ntz) = NaiveDateTime::parse_from_str(&tz, "%a %b %d %H:%M:%S %Y %Z") {
+                if let Ok(ntz) = NaiveDateTime::parse_from_str(tz, "%a %b %d %H:%M:%S %Y %Z") {
                     if let Ok(nutz) =
                         NaiveDateTime::parse_from_str(&utc_tz, "%a %b %d %H:%M:%S %Y %Z")
                     {
@@ -366,7 +362,7 @@ impl<'de> Deserialize<'de> for ThunderAllTimezonesResponse {
             Self::recurse_timezones(
                 &mut timezones,
                 String::from(""),
-                &zones,
+                zones,
                 vec!["Etc", "Utc", "America", "Australia", "Africa", "Europe"],
             );
         }
@@ -417,7 +413,7 @@ impl ThunderDeviceInfoRequestProcessor {
                 info!("{}", resp.message);
 
                 let mac_value_option = resp.message["estb_mac"].as_str();
-                if let None = mac_value_option {
+                if mac_value_option.is_none() {
                     response = "".to_string();
                 } else {
                     response = mac_value_option.unwrap().to_string();
@@ -452,7 +448,7 @@ impl ThunderDeviceInfoRequestProcessor {
 
                 let full_firmware_version =
                     String::from(resp.message["stbVersion"].as_str().unwrap());
-                let split_string: Vec<&str> = full_firmware_version.split("_").collect();
+                let split_string: Vec<&str> = full_firmware_version.split('_').collect();
                 response = String::from(split_string[0]);
                 state.update_model(response.clone());
             }
@@ -513,7 +509,7 @@ impl ThunderDeviceInfoRequestProcessor {
             .await;
         info!("{}", response.message);
         if response.message.get("success").is_none()
-            || response.message["success"].as_bool().unwrap() == false
+            || !response.message["success"].as_bool().unwrap()
         {
             error!("{}", response.message);
             return HashMap::new();
@@ -700,14 +696,14 @@ impl ThunderDeviceInfoRequestProcessor {
         info!("{}", response.message);
 
         if response.message.get("success").is_none()
-            || response.message["success"].as_bool().unwrap() == false
+            || !response.message["success"].as_bool().unwrap()
         {
             error!("{}", response.message);
             return Vec::new();
         }
         info!("{}", response.message);
         let resol = response.message["resolution"].as_str().unwrap();
-        get_dimension_from_resolution(&resol)
+        get_dimension_from_resolution(resol)
     }
 
     async fn screen_resolution(state: CachedState, req: ExtnMessage) -> bool {
@@ -737,14 +733,14 @@ impl ThunderDeviceInfoRequestProcessor {
             })
             .await;
         if response.message.get("success").is_none()
-            || response.message["success"].as_bool().unwrap() == false
+            || !response.message["success"].as_bool().unwrap()
         {
             error!("{}", response.message);
             return Vec::new();
         }
         info!("{}", response.message);
         let resol = response.message["defaultResolution"].as_str().unwrap();
-        get_dimension_from_resolution(&resol)
+        get_dimension_from_resolution(resol)
     }
 
     async fn video_resolution(state: CachedState, req: ExtnMessage) -> bool {
@@ -770,7 +766,7 @@ impl ThunderDeviceInfoRequestProcessor {
             ThunderNetworkService::get_connected_interface(state.clone()).await;
         NetworkResponse {
             _type: Box::new(interface_response.clone()).to_network_type(),
-            state: match interface_response.clone() {
+            state: match interface_response {
                 ThunderInterfaceType::Ethernet | ThunderInterfaceType::Wifi => {
                     NetworkState::Connected
                 }
@@ -843,9 +839,9 @@ impl ThunderDeviceInfoRequestProcessor {
             .await
             .is_ok();
         }
-        return Self::respond(state.get_client().clone(), req, ExtnResponse::None(()))
+        Self::respond(state.get_client().clone(), req, ExtnResponse::None(()))
             .await
-            .is_ok();
+            .is_ok()
     }
 
     async fn get_version(state: &CachedState) -> FireboltSemanticVersion {
@@ -862,13 +858,13 @@ impl ThunderDeviceInfoRequestProcessor {
                     .await;
                 info!("{}", resp.message);
                 let tsv: SystemVersion = serde_json::from_value(resp.message).unwrap();
-                let tsv_split = tsv.receiver_version.split(".");
+                let tsv_split = tsv.receiver_version.split('.');
                 let tsv_vec: Vec<&str> = tsv_split.collect();
 
                 if tsv_vec.len() >= 3 {
-                    let major: String = tsv_vec[0].chars().filter(|c| c.is_digit(10)).collect();
-                    let minor: String = tsv_vec[1].chars().filter(|c| c.is_digit(10)).collect();
-                    let patch: String = tsv_vec[2].chars().filter(|c| c.is_digit(10)).collect();
+                    let major: String = tsv_vec[0].chars().filter(|c| c.is_ascii_digit()).collect();
+                    let minor: String = tsv_vec[1].chars().filter(|c| c.is_ascii_digit()).collect();
+                    let patch: String = tsv_vec[2].chars().filter(|c| c.is_ascii_digit()).collect();
 
                     response = FireboltSemanticVersion {
                         major: major.parse::<u32>().unwrap(),
@@ -915,7 +911,7 @@ impl ThunderDeviceInfoRequestProcessor {
             .await;
         info!("{}", response.message);
         if response.message.get("success").is_some()
-            && response.message["success"].as_bool().unwrap() == true
+            && response.message["success"].as_bool().unwrap()
         {
             if let Some(v) = response.message["freeRam"].as_u64() {
                 return Self::respond(state.get_client(), req, ExtnResponse::Value(json!(v)))
@@ -953,10 +949,10 @@ impl ThunderDeviceInfoRequestProcessor {
 
         info!("{}", response.message);
         if response.message.get("success").is_none()
-            || response.message["success"].as_bool().unwrap() == true
+            || response.message["success"].as_bool().unwrap()
         {
             if let Ok(v) = serde_json::from_value::<ThunderTimezoneResponse>(response.message) {
-                return Ok(v.time_zone.to_owned());
+                return Ok(v.time_zone);
             }
         }
         Err(RippleError::ProcessorError)
@@ -1008,7 +1004,7 @@ impl ThunderDeviceInfoRequestProcessor {
             match serde_json::from_value::<ThunderAllTimezonesResponse>(response.message) {
                 Ok(timezones) => {
                     state.update_timezone(timezones.clone());
-                    return Ok(timezones);
+                    Ok(timezones)
                 }
                 Err(e) => {
                     error!("{}", e.to_string());
@@ -1046,13 +1042,13 @@ impl ThunderDeviceInfoRequestProcessor {
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::System.method("setTimeZoneDST"),
-                params: params,
+                params,
             })
             .await;
         info!("{}", response.message);
 
         if response.message.get("success").is_none()
-            || response.message["success"].as_bool().unwrap() == true
+            || response.message["success"].as_bool().unwrap()
         {
             return Self::respond(state.get_client(), request, ExtnResponse::None(()))
                 .await
@@ -1095,10 +1091,10 @@ impl ThunderDeviceInfoRequestProcessor {
                 params,
             })
             .await;
-        if response.message.get("success").is_some() {
-            if let Some(_) = response.message["success"].as_bool() {
-                return Self::ack(state.get_client(), request).await.is_ok();
-            }
+        if response.message.get("success").is_some()
+            && response.message["success"].as_bool().is_some()
+        {
+            return Self::ack(state.get_client(), request).await.is_ok();
         }
         Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
     }
@@ -1141,10 +1137,10 @@ impl ThunderDeviceInfoRequestProcessor {
                 params,
             })
             .await;
-        if response.message.get("success").is_some() {
-            if let Some(_) = response.message["success"].as_bool() {
-                return Self::ack(state.get_client(), request).await.is_ok();
-            }
+        if response.message.get("success").is_some()
+            && response.message["success"].as_bool().is_some()
+        {
+            return Self::ack(state.get_client(), request).await.is_ok();
         }
         Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
     }
