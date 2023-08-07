@@ -26,10 +26,9 @@ use ripple_sdk::{
         device_browser::{BrowserDestroyParams, BrowserLaunchParams, BrowserRequest},
         device_request::DeviceRequest,
     },
-    tokio,
     crossbeam::channel::unbounded,
     extn::extn_client_message::{ExtnPayload, ExtnRequest},
-    serde_json,
+    serde_json, tokio,
 };
 use serde_json::json;
 use std::collections::HashMap;

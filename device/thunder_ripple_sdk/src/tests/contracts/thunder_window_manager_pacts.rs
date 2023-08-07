@@ -20,8 +20,7 @@ use crate::ripple_sdk::{
     crossbeam::channel::unbounded,
     extn::client::extn_processor::ExtnRequestProcessor,
     extn::extn_client_message::{ExtnPayload, ExtnRequest},
-    serde_json,
-    tokio,
+    serde_json, tokio,
 };
 
 use crate::get_pact_with_params;
