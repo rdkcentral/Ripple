@@ -30,7 +30,7 @@ path = "src/main.rs"
 
 [features]
 local_dev=[]
-sysd=["dep:sd-notify"]
+sysd=["sd-notify"]
 
 [dependencies]
 ripple_sdk = { path = "../sdk", features = ["full"] }
