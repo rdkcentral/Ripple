@@ -33,7 +33,6 @@ serde = { version = "1.0", features = ["derive"] }
 url = "2.2.2"
 strum = "0.24"
 strum_macros = "0.24"
-tokio = "1.16.1"
 
 [dev-dependencies]
 pact_consumer = "=0.10.4"
