@@ -479,9 +479,7 @@ impl DelegatedLauncherHandler {
         let app_id_c = app_id.clone();
         // Fetch permissions on separate thread
         tokio::spawn(async move {
-            if let Err(_) =
-                PermissionHandler::fetch_and_store(platform_state_c, app_id_c.clone()).await
-            {
+            if let Err(_) = PermissionHandler::fetch_and_store(platform_state_c, &app_id_c).await {
                 error!("Couldnt load permissions for app {}", app_id_c)
             }
         });
