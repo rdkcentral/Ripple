@@ -509,7 +509,7 @@ impl ThunderDeviceInfoRequestProcessor {
             .await;
         info!("{}", response.message);
         if response.message.get("success").is_none()
-            || !response.message["success"].as_bool().unwrap()
+            || !response.message["success"].as_bool().unwrap_or_default()
         {
             error!("{}", response.message);
             return HashMap::new();
@@ -696,7 +696,7 @@ impl ThunderDeviceInfoRequestProcessor {
         info!("{}", response.message);
 
         if response.message.get("success").is_none()
-            || !response.message["success"].as_bool().unwrap()
+            || !response.message["success"].as_bool().unwrap_or_default()
         {
             error!("{}", response.message);
             return Vec::new();
@@ -733,7 +733,7 @@ impl ThunderDeviceInfoRequestProcessor {
             })
             .await;
         if response.message.get("success").is_none()
-            || !response.message["success"].as_bool().unwrap()
+            || !response.message["success"].as_bool().unwrap_or_default()
         {
             error!("{}", response.message);
             return Vec::new();

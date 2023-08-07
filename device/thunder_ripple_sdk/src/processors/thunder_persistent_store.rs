@@ -96,7 +96,7 @@ impl ThunderStorageRequestProcessor {
             })
             .await;
         if response.message.get("success").is_none()
-            || !response.message["success"].as_bool().unwrap()
+            || !response.message["success"].as_bool().unwrap_or_default()
         {
             error!("{}", response.message);
             return false;
@@ -122,7 +122,7 @@ impl ThunderStorageRequestProcessor {
             })
             .await;
         if response.message.get("success").is_none()
-            || !response.message["success"].as_bool().unwrap()
+            || !response.message["success"].as_bool().unwrap_or_default()
         {
             error!("{}", response.message);
             return false;
@@ -143,7 +143,7 @@ impl ThunderStorageRequestProcessor {
             .await;
 
         if response.message.get("success").is_none()
-            || !response.message["success"].as_bool().unwrap()
+            || !response.message["success"].as_bool().unwrap_or_default()
         {
             error!("{}", response.message);
             return false;
