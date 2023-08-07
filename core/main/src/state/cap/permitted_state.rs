@@ -112,7 +112,7 @@ fn get_permissions_path(saved_dir: String) -> String {
 pub struct PermissionHandler;
 
 impl PermissionHandler {
-    pub async fn fetch_and_store(state: PlatformState, app_id: &str) -> RippleResponse {
+    pub async fn fetch_and_store(state: &PlatformState, app_id: &str) -> RippleResponse {
         if state
             .cap_state
             .permitted_state
@@ -191,7 +191,7 @@ impl PermissionHandler {
             return Self::is_all_permitted(&permitted, request);
         } else {
             // check to retrieve it one more time
-            if let Ok(_) = Self::fetch_and_store(state.clone(), app_id).await {
+            if let Ok(_) = Self::fetch_and_store(&state, app_id).await {
                 // cache primed try again
                 if let Some(permitted) = state.cap_state.permitted_state.get_app_permissions(app_id)
                 {
