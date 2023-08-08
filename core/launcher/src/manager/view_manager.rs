@@ -56,7 +56,7 @@ pub enum Position {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LaunchParams {
-    // TODO: LaunchParams is a temporary struct until app manifast support is added. For now this simply
+    // TODO: LaunchParams is a temporary struct until app manifst support is added. For now this simply
     // reflects the JSON contents of a file in order to demonstrate app launches.
     pub uri: String,
     pub browser_name: String,
@@ -188,17 +188,14 @@ impl ViewManager {
                 properties: params.properties.clone().map(|r| r.get_browser_props()),
             }))
             .await;
-        let result;
+
         match dab_resp {
             Ok(_resp) => {
                 state.view_state.insert_view(params.browser_name, view_id);
-                result = Ok(view_id);
+                Ok(view_id)
             }
-            Err(_e) => {
-                result = Err(ViewError::General);
-            }
+            Err(_e) => Err(ViewError::General),
         }
-        result
     }
 
     pub async fn release_view(state: &LauncherState, id: ViewId) -> Result<ViewId, ViewError> {
@@ -228,11 +225,10 @@ impl ViewManager {
         let result;
         match state.view_state.get_name(id) {
             Some(name) => {
-                let method;
-                match position {
-                    Position::Front => method = WindowManagerRequest::MoveToFront(name),
-                    Position::Back => method = WindowManagerRequest::MoveToBack(name),
-                }
+                let method = match position {
+                    Position::Front => WindowManagerRequest::MoveToFront(name),
+                    Position::Back => WindowManagerRequest::MoveToBack(name),
+                };
 
                 let dab_resp = state.send_extn_request(method).await;
 

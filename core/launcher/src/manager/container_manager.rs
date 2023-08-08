@@ -92,7 +92,7 @@ impl ContainerState {
     }
 
     fn stack_len(&self) -> usize {
-        let mut stack = self.stack.write().unwrap();
+        let stack = self.stack.write().unwrap();
         stack.len()
     }
 
