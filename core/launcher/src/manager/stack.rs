@@ -57,7 +57,11 @@ impl Stack {
         debug!("dump_stack: {:?}", self.stack);
     }
 
-    pub fn len(&mut self) -> usize {
+    pub fn len(&self) -> usize {
         self.stack.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.stack.len() == 0
     }
 }
