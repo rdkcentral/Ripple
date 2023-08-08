@@ -140,8 +140,9 @@ impl CapabilityServer for CapabilityImpl {
             .check_cap_role(&ctx.app_id, cap.clone())
         {
             return Ok(v);
-        } else if let Ok(_) =
-            PermissionHandler::fetch_and_store(self.state.clone(), ctx.clone().app_id).await
+        } else if PermissionHandler::fetch_and_store(self.state.clone(), ctx.clone().app_id)
+            .await
+            .is_ok()
         {
             //successful fetch retry
             if let Ok(v) = self
@@ -302,8 +303,9 @@ pub async fn is_permitted(
         .check_cap_role(&ctx.app_id, cap.clone())
     {
         return Ok(v);
-    } else if let Ok(_) =
-        PermissionHandler::fetch_and_store(state.clone(), ctx.clone().app_id).await
+    } else if PermissionHandler::fetch_and_store(state.clone(), ctx.clone().app_id)
+        .await
+        .is_ok()
     {
         //successful fetch retry
         if let Ok(v) = state
