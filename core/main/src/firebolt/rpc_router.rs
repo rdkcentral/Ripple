@@ -69,6 +69,12 @@ impl RouterState {
     }
 }
 
+impl Default for RouterState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 async fn resolve_route(
     methods: Methods,
     resources: Resources,
