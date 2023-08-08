@@ -99,10 +99,10 @@ impl Bootstep<BootstrapState> for FireboltGatewayStep {
             .add_request_processor(RpcGatewayProcessor::new(state.platform_state.get_client()));
         debug!("Adding RPC gateway processor");
         #[cfg(feature = "sysd")]
-        if let Ok(_) = sd_notify::booted() {
-            if let Err(_) = sd_notify::notify(false, &[sd_notify::NotifyState::Ready]) {
-                return Err(RippleError::BootstrapError);
-            }
+        if sd_notify::booted().is_ok()
+            && sd_notify::notify(false, &[sd_notify::NotifyState::Ready]).is_err()
+        {
+            return Err(RippleError::BootstrapError);
         }
 
         gateway.start().await;
