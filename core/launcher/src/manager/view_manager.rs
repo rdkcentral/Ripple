@@ -185,10 +185,7 @@ impl ViewManager {
                 y: params.y,
                 w: params.w,
                 h: params.h,
-                properties: match params.properties.clone() {
-                    Some(r) => Some(r.get_browser_props()),
-                    None => None,
-                },
+                properties: params.properties.clone().map(|r| r.get_browser_props()),
             }))
             .await;
         let result;

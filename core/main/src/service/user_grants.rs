@@ -81,14 +81,14 @@ impl GrantState {
         let dev_grant_store = if let Ok(v) = FileStore::load(device_grant_path.clone()) {
             v
         } else {
-            FileStore::new(device_grant_path.clone(), HashSet::new())
+            FileStore::new(device_grant_path, HashSet::new())
         };
 
         let app_grant_path = format!("{}app_grants", saved_dir);
         let app_grant_store = if let Ok(v) = FileStore::load(app_grant_path.clone()) {
             v
         } else {
-            FileStore::new(app_grant_path.clone(), HashMap::new())
+            FileStore::new(app_grant_path, HashMap::new())
         };
 
         GrantState {
@@ -200,9 +200,9 @@ impl GrantState {
         app_id: &str,
         permission: &FireboltPermission,
     ) -> Option<GrantStatus> {
-        let role = permission.role.clone();
+        let role = permission.role;
         let capability = permission.cap.as_str();
-        let result = self.get_generic_grant_status(role.clone(), &capability);
+        let result = self.get_generic_grant_status(role, &capability);
         if result.is_some() {
             return result;
         }
@@ -264,7 +264,6 @@ impl GrantState {
         let caps_needing_grants = grant_state.caps_needing_grants.clone();
         let caps_needing_grant_in_request: Vec<FireboltPermission> = cap_set
             .into_firebolt_permissions_vec()
-            .clone()
             .into_iter()
             .filter(|x| caps_needing_grants.contains(&x.cap.as_str()))
             .collect();
@@ -324,8 +323,7 @@ impl GrantState {
                 }
                 GrantActiveState::PendingGrant => {
                     let result = GrantPolicyEnforcer::determine_grant_policies_for_permission(
-                        &state,
-                        // &call_ctx,
+                        state,
                         caller_session,
                         app_requested_for,
                         &permission,
@@ -342,7 +340,7 @@ impl GrantState {
             }
         }
 
-        if denied_caps.len() > 0 {
+        if !denied_caps.is_empty() {
             return Err(DenyReasonWithCap {
                 reason: DenyReason::GrantDenied,
                 caps: denied_caps,
@@ -359,7 +357,7 @@ impl GrantState {
         }
 
         if let Ok(permission) = FireboltPermission::try_from(role_info) {
-            let result = self.get_grant_state(&app_id, &permission);
+            let result = self.get_grant_state(app_id, &permission);
 
             match result {
                 GrantActiveState::ActiveGrant(grant) => {
@@ -374,7 +372,7 @@ impl GrantState {
                 }
             }
         }
-        return Err(RippleError::Permission(DenyReason::Ungranted));
+        Err(RippleError::Permission(DenyReason::Ungranted))
     }
 
     pub fn update(
@@ -385,11 +383,10 @@ impl GrantState {
         app_id: &str,
     ) {
         debug!("Update called to store user grant with grant = {is_allowed}");
-        let mut grant_entry =
-            GrantEntry::get(permission.role.clone(), permission.cap.as_str().to_owned());
+        let mut grant_entry = GrantEntry::get(permission.role, permission.cap.as_str());
         grant_entry.lifespan = Some(grant_policy.lifespan.clone());
         if grant_policy.lifespan_ttl.is_some() {
-            grant_entry.lifespan_ttl_in_secs = grant_policy.lifespan_ttl.clone();
+            grant_entry.lifespan_ttl_in_secs = grant_policy.lifespan_ttl;
         }
         if is_allowed {
             grant_entry.status = Some(GrantStatus::Allowed);
@@ -458,7 +455,7 @@ impl GrantState {
         // retrieve the grant policy for the given cap and role.
         let permission = FireboltPermission {
             cap: FireboltCap::Full(capability.clone()),
-            role: role.clone(),
+            role,
         };
 
         if let Some(grant_policy_map) = platform_state.get_device_manifest().get_grant_policies() {
@@ -522,13 +519,12 @@ impl GrantHandler {
         let user_grant = state.clone().cap_state.grant_state;
         let permissions = request.into_firebolt_permissions_vec();
         let caps_needing_grant_in_request: Vec<FireboltPermission> = permissions
-            .clone()
             .into_iter()
             .filter(|x| caps_needing_grants.contains(&x.cap.as_str()))
             .collect();
         let mut denied_caps = Vec::new();
         for permission in caps_needing_grant_in_request {
-            let grant_entry = GrantEntry::get(permission.role.clone(), permission.cap.as_str());
+            let grant_entry = GrantEntry::get(permission.role, permission.cap.as_str());
             if let Some(v) = user_grant.check_device_grants(&grant_entry) {
                 if let GrantStatus::Denied = v {
                     denied_caps.push(permission.cap.clone())
@@ -540,7 +536,7 @@ impl GrantHandler {
             }
         }
 
-        if denied_caps.len() > 0 {
+        if !denied_caps.is_empty() {
             return Err(DenyReasonWithCap {
                 reason: ripple_sdk::api::firebolt::fb_capabilities::DenyReason::GrantDenied,
                 caps: denied_caps,
@@ -606,11 +602,10 @@ impl GrantPolicyEnforcer {
         grant_policy: &GrantPolicy,
     ) -> bool {
         let mut ret_val = false;
-        let mut grant_entry =
-            GrantEntry::get(permission.role.clone(), permission.cap.as_str().to_owned());
+        let mut grant_entry = GrantEntry::get(permission.role, permission.cap.as_str());
         grant_entry.lifespan = Some(grant_policy.lifespan.clone());
         if grant_policy.lifespan_ttl.is_some() {
-            grant_entry.lifespan_ttl_in_secs = grant_policy.lifespan_ttl.clone();
+            grant_entry.lifespan_ttl_in_secs = grant_policy.lifespan_ttl;
         }
         if result.is_ok() {
             grant_entry.status = Some(GrantStatus::Allowed);
@@ -624,7 +619,7 @@ impl GrantPolicyEnforcer {
         if grant_policy.lifespan != GrantLifespan::Once {
             match grant_policy.scope {
                 GrantScope::App => {
-                    if let Some(_) = app_id {
+                    if app_id.is_some() {
                         platform_state
                             .cap_state
                             .grant_state
@@ -633,7 +628,7 @@ impl GrantPolicyEnforcer {
                     }
                 }
                 GrantScope::Device => {
-                    if let None = app_id {
+                    if app_id.is_none() {
                         platform_state
                             .cap_state
                             .grant_state
@@ -671,7 +666,7 @@ impl GrantPolicyEnforcer {
         {
             Self::update_privacy_settings_with_grant(
                 platform_state,
-                &grant_policy.privacy_setting.as_ref().unwrap(),
+                grant_policy.privacy_setting.as_ref().unwrap(),
                 result.is_ok(),
             )
             .await;
@@ -750,19 +745,17 @@ impl GrantPolicyEnforcer {
             return platform_state
                 .open_rpc_state
                 .check_privacy_property(privacy_property);
-        } else {
-            if let Some(grant_steps) = policy.get_steps_without_grant() {
-                for step in grant_steps {
-                    if platform_state
-                        .open_rpc_state
-                        .get_capability_policy(step.capability.clone())
-                        .is_some()
-                    {
-                        return false;
-                    }
+        } else if let Some(grant_steps) = policy.get_steps_without_grant() {
+            for step in grant_steps {
+                if platform_state
+                    .open_rpc_state
+                    .get_capability_policy(step.capability.clone())
+                    .is_some()
+                {
+                    return false;
                 }
-                return true;
             }
+            return true;
         }
 
         false
@@ -884,8 +877,7 @@ impl GrantPolicyEnforcer {
         debug!("Resolved method_name: {}", &method_name);
         let set_request = SetBoolProperty { value: set_value };
         let _res =
-            PrivacyImpl::handle_allow_set_requests(&method_name, &platform_state, set_request)
-                .await;
+            PrivacyImpl::handle_allow_set_requests(&method_name, platform_state, set_request).await;
     }
 
     pub fn get_setter_method_name(
@@ -938,7 +930,7 @@ impl GrantPolicyEnforcer {
                                 platform_state,
                                 CapEvent::OnGranted,
                                 cap,
-                                Some(permission.role.clone()),
+                                Some(permission.role),
                             )
                             .await;
                             return Ok(());
@@ -948,7 +940,7 @@ impl GrantPolicyEnforcer {
                                 platform_state,
                                 CapEvent::OnRevoked,
                                 cap,
-                                Some(permission.role.clone()),
+                                Some(permission.role),
                             )
                             .await;
                             return Err(e);
@@ -974,7 +966,7 @@ impl GrantPolicyEnforcer {
         {
             if let Some(priv_sett_response) = Self::evaluate_privacy_settings(
                 platform_state,
-                &policy.privacy_setting.as_ref().unwrap(),
+                policy.privacy_setting.as_ref().unwrap(),
             )
             .await
             {

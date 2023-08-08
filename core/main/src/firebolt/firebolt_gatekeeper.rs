@@ -65,11 +65,9 @@ impl FireboltGatekeeper {
         let perm_based_on_spec_opt = platform_state
             .open_rpc_state
             .get_perms_for_method(method, api_surface);
-        if perm_based_on_spec_opt.is_none() {
-            return None;
-        }
+        perm_based_on_spec_opt.as_ref()?;
         let perm_based_on_spec = perm_based_on_spec_opt.unwrap();
-        if perm_based_on_spec.len() == 0 {
+        if perm_based_on_spec.is_empty() {
             return Some(perm_based_on_spec);
         }
         Some(Self::resolve_dependencies(
@@ -95,7 +93,7 @@ impl FireboltGatekeeper {
             });
         }
         let caps = caps_opt.unwrap();
-        if caps.len() > 0 {
+        if !caps.is_empty() {
             // Supported and Availability checks
             trace!(
                 "Required caps for method:{} Caps: [{:?}]",

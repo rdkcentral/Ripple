@@ -43,7 +43,6 @@ impl DefaultStorageProperties {
             match key {
                 KEY_ENABLED => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
@@ -54,7 +53,6 @@ impl DefaultStorageProperties {
             match key {
                 KEY_ENABLED => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .voice
@@ -75,49 +73,42 @@ impl DefaultStorageProperties {
             match key {
                 KEY_FONT_FAMILY => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
                     .font_family),
                 KEY_FONT_COLOR => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
                     .font_color),
                 KEY_FONT_EDGE => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
                     .font_edge),
                 KEY_FONT_EDGE_COLOR => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
                     .font_edge_color),
                 KEY_BACKGROUND_COLOR => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
                     .background_color),
                 KEY_TEXT_ALIGN => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
                     .text_align),
                 KEY_TEXT_ALIGN_VERTICAL => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
@@ -128,7 +119,6 @@ impl DefaultStorageProperties {
             match key {
                 KEY_NAME => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .name),
@@ -138,19 +128,16 @@ impl DefaultStorageProperties {
             match key {
                 KEY_COUNTRY_CODE => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .country_code),
                 KEY_LANGUAGE => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .language),
                 KEY_LOCALE => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .locale),
@@ -171,7 +158,6 @@ impl DefaultStorageProperties {
             match key {
                 KEY_SKIP_RESTRICTION => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .skip_restriction),
@@ -192,14 +178,12 @@ impl DefaultStorageProperties {
             match key {
                 KEY_FONT_OPACITY => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
                     .font_opacity),
                 KEY_BACKGROUND_OPACITY => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
@@ -221,22 +205,20 @@ impl DefaultStorageProperties {
             match key {
                 KEY_FONT_SIZE => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
-                    .font_size as f32),
+                    .font_size),
                 _ => Err(()),
             }
         } else if namespace.eq(NAMESPACE_VOICE_GUIDANCE) {
             match key {
                 KEY_VOICE_GUIDANCE_SPEED => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .voice
-                    .speed as f32),
+                    .speed),
                 _ => Err(()),
             }
         } else {

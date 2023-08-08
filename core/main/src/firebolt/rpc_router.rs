@@ -179,12 +179,10 @@ impl RpcRouter {
                 if let Ok(resp) = r {
                     let response_value = if resp.result.is_some() {
                         resp.result.unwrap()
+                    } else if resp.error.is_some() {
+                        resp.error.unwrap()
                     } else {
-                        if resp.error.is_some() {
-                            resp.error.unwrap()
-                        } else {
-                            serde_json::to_value(RippleError::InvalidOutput).unwrap()
-                        }
+                        serde_json::to_value(RippleError::InvalidOutput).unwrap()
                     };
                     let return_value = ExtnResponse::Value(response_value);
                     if let Ok(response) = extn_msg.get_response(return_value) {

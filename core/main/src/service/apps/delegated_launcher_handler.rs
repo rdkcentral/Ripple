@@ -213,9 +213,7 @@ impl DelegatedLauncherHandler {
                         resp = self
                             .send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Ready(
                                 LifecycleManagementReadyEvent {
-                                    parameters: LifecycleManagementReadyParameters {
-                                        app_id: app_id,
-                                    },
+                                    parameters: LifecycleManagementReadyParameters { app_id },
                                 },
                             ))
                             .await;
@@ -225,10 +223,7 @@ impl DelegatedLauncherHandler {
                     resp = self
                         .send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Close(
                             LifecycleManagementCloseEvent {
-                                parameters: LifecycleManagementCloseParameters {
-                                    app_id: app_id,
-                                    reason: reason,
-                                },
+                                parameters: LifecycleManagementCloseParameters { app_id, reason },
                             },
                         ))
                         .await;
@@ -313,16 +308,16 @@ impl DelegatedLauncherHandler {
         debug!("start_session: entry: app_id={}", app_id);
         match self.platform_state.app_manager_state.get(&app_id) {
             Some(app) if (app.state != LifecycleState::Unloading) => {
-                return Ok(AppManagerResponse::Session(
+                Ok(AppManagerResponse::Session(
                     self.precheck_then_load_or_activate(session, false).await,
-                ));
+                ))
             }
             _ => {
                 // New loaded Session, Caller must provide Intent.
                 // app is unloading
-                return Ok(AppManagerResponse::Session(
+                Ok(AppManagerResponse::Session(
                     self.precheck_then_load_or_activate(session, true).await,
-                ));
+                ))
             }
         }
     }
@@ -353,11 +348,7 @@ impl DelegatedLauncherHandler {
                 return SessionResponse::Completed(Self::to_completed_session(&app));
             }
             session_id = Some(app.session_id.clone());
-            loaded_session_id = Some(app.loaded_session_id.clone());
-            debug!(
-                "app_id: {}, session_id: {:?}, loaded_session: {:?}",
-                app_id, session_id, loaded_session_id
-            );
+            loaded_session_id = Some(app.loaded_session_id);
         }
         let perms_with_grants_opt = if !session.launch.inactive {
             Self::check_user_grants_for_active_session(&self.platform_state, session.app.id.clone())
@@ -408,12 +399,12 @@ impl DelegatedLauncherHandler {
                         }
                     }
                 });
-                return SessionResponse::Pending(PendingSessionResponse {
+                SessionResponse::Pending(PendingSessionResponse {
                     app_id,
                     transition_pending: true,
                     session_id,
                     loaded_session_id,
-                });
+                })
             }
             None => {
                 // No grants required, transition immediately
@@ -438,7 +429,7 @@ impl DelegatedLauncherHandler {
     async fn new_active_session(&mut self, session: AppSession, emit_event: bool) {
         let app_id = session.app.id.clone();
         let app_opt = self.platform_state.app_manager_state.get(&app_id);
-        if let None = app_opt {
+        if app_opt.is_none() {
             return;
         }
         let app = app_opt.unwrap();
@@ -633,7 +624,7 @@ impl DelegatedLauncherHandler {
 
     async fn emit_completed(&self, app_id: String) {
         let app_opt = self.platform_state.app_manager_state.get(&app_id);
-        if let None = app_opt {
+        if app_opt.is_none() {
             return;
         }
         let app = app_opt.unwrap();
@@ -678,7 +669,7 @@ impl DelegatedLauncherHandler {
             Some(app) => {
                 let launch_request = LaunchRequest {
                     app_id: app.initial_session.app.id.clone(),
-                    intent: app.initial_session.launch.intent.clone(),
+                    intent: app.initial_session.launch.intent,
                 };
                 Ok(AppManagerResponse::LaunchRequest(launch_request))
             }
@@ -722,7 +713,7 @@ impl DelegatedLauncherHandler {
             .app_manager_state
             .set_state(app_id, state);
         let state_change = StateChange {
-            state: state.clone(),
+            state,
             previous: previous_state,
         };
         let event_name = state.as_event();
@@ -735,8 +726,7 @@ impl DelegatedLauncherHandler {
         .await;
 
         if LifecycleState::Unloading == state {
-            debug!("unloading app: {:?}", app_id);
-            self.on_unloading(&app_id).await.ok();
+            self.on_unloading(app_id).await.ok();
         }
         Ok(AppManagerResponse::None)
     }
@@ -807,9 +797,7 @@ impl DelegatedLauncherHandler {
 
     async fn get_start_page(&mut self, app_id: String) -> Result<AppManagerResponse, AppError> {
         match self.platform_state.app_manager_state.get(&app_id) {
-            Some(app) => Ok(AppManagerResponse::StartPage(
-                app.initial_session.app.url.clone(),
-            )),
+            Some(app) => Ok(AppManagerResponse::StartPage(app.initial_session.app.url)),
             None => Err(AppError::NotFound),
         }
     }
@@ -866,11 +854,9 @@ impl DelegatedLauncherHandler {
                     "check_finished app_id:{} App not finished unloading, forcing",
                     app_id
                 );
-                return self.end_session(app_id).await;
+                self.end_session(app_id).await
             }
-            None => {
-                return Ok(AppManagerResponse::None);
-            }
+            None => Ok(AppManagerResponse::None),
         }
     }
 
@@ -893,7 +879,7 @@ impl DelegatedLauncherHandler {
     ) -> Result<AppManagerResponse, AppError> {
         match self.platform_state.app_manager_state.get(&app_id) {
             Some(app) => Ok(AppManagerResponse::AppContentCatalog(
-                app.initial_session.app.catalog.clone(),
+                app.initial_session.app.catalog,
             )),
             None => Err(AppError::NotFound),
         }
@@ -901,9 +887,7 @@ impl DelegatedLauncherHandler {
 
     fn get_app_name(&mut self, app_id: String) -> Result<AppManagerResponse, AppError> {
         match self.platform_state.app_manager_state.get(&app_id) {
-            Some(app) => Ok(AppManagerResponse::AppName(
-                app.initial_session.app.title.clone(),
-            )),
+            Some(app) => Ok(AppManagerResponse::AppName(app.initial_session.app.title)),
             None => Err(AppError::NotFound),
         }
     }

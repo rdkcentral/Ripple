@@ -87,7 +87,7 @@ impl ExtnRequestProcessor for KeyboardProcessor {
         let (session_tx, session_rx) = oneshot::channel::<ProviderResponsePayload>();
         let pr_msg = ProviderBrokerRequest {
             capability: KEYBOARD_PROVIDER_CAPABILITY.to_string(),
-            method: method,
+            method,
             caller: extracted_message.clone().ctx.into(),
             request: ProviderRequestPayload::KeyboardSession(extracted_message),
             tx: session_tx,

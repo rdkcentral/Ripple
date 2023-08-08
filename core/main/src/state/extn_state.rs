@@ -18,6 +18,7 @@
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
+    thread,
 };
 
 use jsonrpsee::core::server::rpc_module::Methods;
@@ -34,7 +35,7 @@ use ripple_sdk::{
     },
     libloading::Library,
     log::info,
-    tokio::{self, sync::mpsc},
+    tokio::sync::mpsc,
     utils::error::RippleError,
 };
 
@@ -179,7 +180,7 @@ impl ExtnState {
     }
 
     pub fn get_sender(self) -> CSender<CExtnMessage> {
-        self.sender.clone()
+        self.sender
     }
 
     pub fn start_channel(
@@ -198,11 +199,11 @@ impl ExtnState {
         );
         let (extn_tx, extn_rx) = ChannelsState::get_crossbeam_channel();
         let extn_channel = channel.channel;
-        tokio::spawn(async move {
+        thread::spawn(move || {
             (extn_channel.start)(extn_sender, extn_rx);
         });
         client.add_extn_sender(extn_id, symbol, extn_tx);
-        return Ok(());
+        Ok(())
     }
 
     pub fn extend_methods(&self, methods: Methods) {

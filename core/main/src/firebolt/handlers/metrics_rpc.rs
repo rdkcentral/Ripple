@@ -108,7 +108,7 @@ implement this: https://developer.comcast.com/firebolt-apis/core-sdk/v0.9.0/metr
 fn convert_to_media_position_type(media_position: Option<f32>) -> RpcResult<MediaPositionType> {
     match media_position {
         Some(position) => {
-            if position >= 0.0 && position <= 0.999 {
+            if (0.0..=0.999).contains(&position) {
                 Ok(MediaPositionType::PercentageProgress(position))
             } else {
                 if position.fract() != 0.0 {
@@ -120,14 +120,14 @@ fn convert_to_media_position_type(media_position: Option<f32>) -> RpcResult<Medi
                 };
                 let abs_position = position.round() as i32;
 
-                if abs_position >= 1 && abs_position <= 86400 {
+                if (1..=86400).contains(&abs_position) {
                     Ok(MediaPositionType::AbsolutePosition(abs_position))
                 } else {
-                    return Err(jsonrpsee::core::Error::Call(CallError::Custom {
+                    Err(jsonrpsee::core::Error::Call(CallError::Custom {
                         code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
                         message: ERROR_MEDIA_POSITION_OUT_OF_RANGE.to_string(),
                         data: None,
-                    }));
+                    }))
                 }
             }
         }
@@ -331,7 +331,7 @@ impl MetricsServer for MetricsImpl {
         trace!("metrics.startContent={:?}", start_content);
         match send_metric(&self.state, start_content, &ctx).await {
             Ok(_) => Ok(true),
-            Err(_) => Err(rpc_err("parse error").into()),
+            Err(_) => Err(rpc_err("parse error")),
         }
     }
 
@@ -347,7 +347,7 @@ impl MetricsServer for MetricsImpl {
         trace!("metrics.stopContent={:?}", stop_content);
         match send_metric(&self.state, stop_content, &ctx).await {
             Ok(_) => Ok(true),
-            Err(_) => Err(rpc_err("parse error").into()),
+            Err(_) => Err(rpc_err("parse error")),
         }
     }
     async fn page(&self, ctx: CallContext, page_params: PageParams) -> RpcResult<bool> {
@@ -358,7 +358,7 @@ impl MetricsServer for MetricsImpl {
         trace!("metrics.page={:?}", page);
         match send_metric(&self.state, page, &ctx).await {
             Ok(_) => Ok(true),
-            Err(_) => Err(rpc_err("parse error").into()),
+            Err(_) => Err(rpc_err("parse error")),
         }
     }
     async fn action(&self, ctx: CallContext, action_params: ActionParams) -> RpcResult<bool> {
@@ -376,7 +376,7 @@ impl MetricsServer for MetricsImpl {
 
         match send_metric(&self.state, action, &ctx).await {
             Ok(_) => Ok(true),
-            Err(_) => Err(rpc_err("parse error").into()),
+            Err(_) => Err(rpc_err("parse error")),
         }
     }
     async fn ready(&self, ctx: CallContext) -> RpcResult<bool> {
@@ -387,7 +387,7 @@ impl MetricsServer for MetricsImpl {
         trace!("metrics.action = {:?}", data);
         match send_metric(&self.state, data, &ctx).await {
             Ok(_) => Ok(true),
-            Err(_) => Err(rpc_err("parse error").into()),
+            Err(_) => Err(rpc_err("parse error")),
         }
     }
 
@@ -398,7 +398,7 @@ impl MetricsServer for MetricsImpl {
             error_type: error_params.clone().into(),
             code: error_params.code.clone(),
             description: error_params.description.clone(),
-            visible: error_params.visible.clone(),
+            visible: error_params.visible,
             parameters: error_params.parameters.clone(),
             durable_app_id: app_id.clone(),
             third_party_error: true,
@@ -406,7 +406,7 @@ impl MetricsServer for MetricsImpl {
         trace!("metrics.error={:?}", error_message);
         match send_metric(&self.state, error_message, &ctx).await {
             Ok(_) => Ok(true),
-            Err(_) => Err(rpc_err("parse error").into()),
+            Err(_) => Err(rpc_err("parse error")),
         }
     }
     async fn sign_in(&self, ctx: CallContext) -> RpcResult<bool> {
@@ -466,7 +466,7 @@ impl MetricsServer for MetricsImpl {
         trace!("metrics.media_load_start={:?}", media_load_start_message);
         match send_metric(&self.state, media_load_start_message, &ctx).await {
             Ok(_) => Ok(true),
-            Err(_) => Err(rpc_err("parse error").into()),
+            Err(_) => Err(rpc_err("parse error")),
         }
     }
     async fn media_play(
@@ -481,7 +481,7 @@ impl MetricsServer for MetricsImpl {
         trace!("metrics.media_play={:?}", media_play_message);
         match send_metric(&self.state, media_play_message, &ctx).await {
             Ok(_) => Ok(true),
-            Err(_) => Err(rpc_err("parse error").into()),
+            Err(_) => Err(rpc_err("parse error")),
         }
     }
     async fn media_playing(
@@ -496,7 +496,7 @@ impl MetricsServer for MetricsImpl {
         trace!("metrics.media_playing={:?}", media_playing);
         match send_metric(&self.state, media_playing, &ctx).await {
             Ok(_) => Ok(true),
-            Err(_) => Err(rpc_err("parse error").into()),
+            Err(_) => Err(rpc_err("parse error")),
         }
     }
     async fn media_pause(
@@ -511,7 +511,7 @@ impl MetricsServer for MetricsImpl {
         trace!("metrics.media_pause={:?}", media_pause);
         match send_metric(&self.state, media_pause, &ctx).await {
             Ok(_) => Ok(true),
-            Err(_) => Err(rpc_err("parse error").into()),
+            Err(_) => Err(rpc_err("parse error")),
         }
     }
     async fn media_waiting(
@@ -526,7 +526,7 @@ impl MetricsServer for MetricsImpl {
         trace!("metrics.media_waiting={:?}", media_waiting);
         match send_metric(&self.state, media_waiting, &ctx).await {
             Ok(_) => Ok(true),
-            Err(_) => Err(rpc_err("parse error").into()),
+            Err(_) => Err(rpc_err("parse error")),
         }
     }
     async fn media_progress(
@@ -543,7 +543,7 @@ impl MetricsServer for MetricsImpl {
         trace!("metrics.media_progress={:?}", media_progress);
         match send_metric(&self.state, media_progress, &ctx).await {
             Ok(_) => Ok(true),
-            Err(_) => Err(rpc_err("parse error").into()),
+            Err(_) => Err(rpc_err("parse error")),
         }
     }
     async fn media_seeking(
@@ -561,7 +561,7 @@ impl MetricsServer for MetricsImpl {
         trace!("metrics.media_seeking={:?}", media_seeking);
         match send_metric(&self.state, media_seeking, &ctx).await {
             Ok(_) => Ok(true),
-            Err(_) => Err(rpc_err("parse error").into()),
+            Err(_) => Err(rpc_err("parse error")),
         }
     }
     async fn media_seeked(
@@ -578,7 +578,7 @@ impl MetricsServer for MetricsImpl {
         trace!("metrics.media_seeked={:?}", media_seeked);
         match send_metric(&self.state, media_seeked, &ctx).await {
             Ok(_) => Ok(true),
-            Err(_) => Err(rpc_err("parse error").into()),
+            Err(_) => Err(rpc_err("parse error")),
         }
     }
     async fn media_rate_change(
@@ -594,7 +594,7 @@ impl MetricsServer for MetricsImpl {
         trace!("metrics.media_seeked={:?}", media_rate_change);
         match send_metric(&self.state, media_rate_change, &ctx).await {
             Ok(_) => Ok(true),
-            Err(_) => Err(rpc_err("parse error").into()),
+            Err(_) => Err(rpc_err("parse error")),
         }
     }
     async fn media_rendition_change(
@@ -617,7 +617,7 @@ impl MetricsServer for MetricsImpl {
         );
         match send_metric(&self.state, media_rendition_change, &ctx).await {
             Ok(_) => Ok(true),
-            Err(_) => Err(rpc_err("parse error").into()),
+            Err(_) => Err(rpc_err("parse error")),
         }
     }
     async fn media_ended(
@@ -633,7 +633,7 @@ impl MetricsServer for MetricsImpl {
 
         match send_metric(&self.state, media_ended, &ctx).await {
             Ok(_) => Ok(true),
-            Err(_) => Err(rpc_err("parse error").into()),
+            Err(_) => Err(rpc_err("parse error")),
         }
     }
 }

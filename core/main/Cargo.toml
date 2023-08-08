@@ -17,7 +17,7 @@
 
 [package]
 name = "main"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2021"
 repository = "https://github.com/rdkcentral/Ripple"
 build = "build.rs"
@@ -28,8 +28,12 @@ build = "build.rs"
 name = "ripple"
 path = "src/main.rs"
 
+[features]
+local_dev=[]
+sysd=["sd-notify"]
+
 [dependencies]
-ripple_sdk = { path = "../sdk" }
+ripple_sdk = { path = "../sdk", features = ["full"] }
 jsonrpsee = { version = "0.9.0", features = ["macros", "ws-server"] }
 futures-channel = "0.3.21"
 futures = "0.3.21"
@@ -40,6 +44,7 @@ arrayvec = "0.7.2"
 regex = "=1.7.3"
 serde_json = "1.0"
 base64 = "0.13.0"
+sd-notify = { version = "0.4.1", optional = true }
 
 [build-dependencies]
 vergen = "1"

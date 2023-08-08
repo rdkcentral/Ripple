@@ -80,7 +80,7 @@ impl GenericCapState {
                 not_supported.push(fb_perm.cap.clone());
             }
         }
-        if not_supported.len() > 0 {
+        if !not_supported.is_empty() {
             return Err(DenyReasonWithCap::new(
                 DenyReason::Unsupported,
                 not_supported,
@@ -100,16 +100,14 @@ impl GenericCapState {
                 result.push(fb_perm.cap.clone())
             }
         }
-        if result.len() > 0 {
+        if !result.is_empty() {
             return Err(DenyReasonWithCap::new(DenyReason::Unavailable, result));
         }
         Ok(())
     }
 
     pub fn check_all(&self, caps: &Vec<FireboltPermission>) -> Result<(), DenyReasonWithCap> {
-        if let Err(e) = self.check_supported(caps) {
-            return Err(e);
-        }
+        self.check_supported(caps)?;
 
         self.check_available(caps)
     }

@@ -92,11 +92,11 @@ impl ThunderStorageRequestProcessor {
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: thunder_method,
-                params: params,
+                params,
             })
             .await;
         if response.message.get("success").is_none()
-            || response.message["success"].as_bool().unwrap() == false
+            || !response.message["success"].as_bool().unwrap()
         {
             error!("{}", response.message);
             return false;
@@ -118,11 +118,11 @@ impl ThunderStorageRequestProcessor {
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: thunder_method,
-                params: params,
+                params,
             })
             .await;
         if response.message.get("success").is_none()
-            || response.message["success"].as_bool().unwrap() == false
+            || !response.message["success"].as_bool().unwrap()
         {
             error!("{}", response.message);
             return false;
@@ -143,7 +143,7 @@ impl ThunderStorageRequestProcessor {
             .await;
 
         if response.message.get("success").is_none()
-            || response.message["success"].as_bool().unwrap() == false
+            || !response.message["success"].as_bool().unwrap()
         {
             error!("{}", response.message);
             return false;
@@ -165,7 +165,7 @@ impl ThunderStorageRequestProcessor {
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: thunder_method,
-                params: params,
+                params,
             })
             .await;
         info!("{}", response.message);
@@ -227,7 +227,7 @@ impl ThunderStorageRequestProcessor {
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: thunder_method,
-                params: params,
+                params,
             })
             .await;
         info!("{}", response.message);

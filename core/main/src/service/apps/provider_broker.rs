@@ -151,7 +151,7 @@ impl ProviderBroker {
             if method.provider.session_id == provider.session_id {
                 provider_methods.remove(&cap_method);
             }
-            ProviderBroker::remove_request(&pst, &capability);
+            ProviderBroker::remove_request(pst, &capability);
         }
 
         // TODO Add permissions
@@ -172,7 +172,7 @@ impl ProviderBroker {
         let cap_method = format!("{}:{}", capability, method);
         let provider_app_id = provider.app_id.clone();
         AppEvents::add_listener(
-            &pst,
+            pst,
             event_name.to_string(),
             provider.clone(),
             listen_request,
@@ -187,10 +187,10 @@ impl ProviderBroker {
                 },
             );
         }
-        let existing = ProviderBroker::remove_request(&pst, &capability);
+        let existing = ProviderBroker::remove_request(pst, &capability);
         if let Some(request) = existing {
             info!("register_provider: Found pending provider request, invoking");
-            ProviderBroker::invoke_method(&pst, request).await;
+            ProviderBroker::invoke_method(pst, request).await;
         }
 
         CapState::emit(
@@ -234,11 +234,11 @@ impl ProviderBroker {
             let event_name = provider.event_name.clone();
             let req_params = request.request.clone();
             let app_id_opt = request.app_id.clone();
-            let c_id = ProviderBroker::start_provider_session(&pst, request, provider);
+            let c_id = ProviderBroker::start_provider_session(pst, request, provider);
             if let Some(app_id) = app_id_opt {
                 debug!("Sending request to specific app {}", app_id);
                 AppEvents::emit_to_app(
-                    &pst,
+                    pst,
                     app_id,
                     event_name,
                     &serde_json::to_value(ProviderRequest {
@@ -280,7 +280,7 @@ impl ProviderBroker {
                     session: request.caller,
                     tx: request.tx,
                 },
-                provider: provider.clone(),
+                provider,
                 _capability: request.capability,
                 focused: false,
             },
@@ -306,7 +306,7 @@ impl ProviderBroker {
             Some(session) => {
                 oneshot_send_and_log(session.caller.tx, resp.result, "ProviderResponse");
                 if session.focused {
-                    let app_id = session.provider.provider.app_id.clone();
+                    let app_id = session.provider.provider.app_id;
                     let event = LifecycleManagementEventRequest::Provide(
                         LifecycleManagementProviderEvent::Remove(app_id),
                     );

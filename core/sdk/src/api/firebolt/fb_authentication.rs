@@ -15,8 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use jsonrpsee_core::Serialize;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     api::session::TokenType,

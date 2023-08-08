@@ -47,6 +47,6 @@ impl SetupThunderProcessor {
         extn_client.add_request_processor(ThunderRemoteAccessoryRequestProcessor::new(
             state.clone().state,
         ));
-        extn_client.add_request_processor(ThunderOpenEventsProcessor::new(state.clone().state));
+        extn_client.add_request_processor(ThunderOpenEventsProcessor::new(state.state));
     }
 }

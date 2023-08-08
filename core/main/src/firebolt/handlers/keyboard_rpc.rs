@@ -268,7 +268,7 @@ impl KeyboardImpl {
         let pr_msg = ProviderBrokerRequest {
             // TODO which capability this rpc method providers should come from firebolt spec
             capability: KEYBOARD_PROVIDER_CAPABILITY.to_string(),
-            method: method,
+            method,
             caller: ctx.into(),
             request: ProviderRequestPayload::KeyboardSession(session),
             tx: session_tx,

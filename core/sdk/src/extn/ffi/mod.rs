@@ -16,6 +16,7 @@
 //
 
 pub mod ffi_channel;
+#[cfg(feature = "rpc")]
 pub mod ffi_jsonrpsee;
 pub mod ffi_library;
 pub mod ffi_message;

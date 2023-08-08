@@ -69,13 +69,8 @@ impl FireboltGatewayStep {
         let _ = methods.merge(AccountRPCProvider::provide_with_alias(state.clone()));
 
         // LCM Api(s) not required for internal launcher
-        if state.has_internal_launcher() {
-            debug!("Adding LCM methods");
-            let _ = methods.merge(LifecycleManagementProvider::provide_with_alias(
-                state.clone(),
-            ));
-        } else {
-            debug!(" Not Adding LCM methods");
+        if !state.has_internal_launcher() {
+            let _ = methods.merge(LifecycleManagementProvider::provide_with_alias(state));
         }
         let _ = methods.merge(extn_methods);
         methods
@@ -103,8 +98,14 @@ impl Bootstep<BootstrapState> for FireboltGatewayStep {
             .get_client()
             .add_request_processor(RpcGatewayProcessor::new(state.platform_state.get_client()));
         debug!("Adding RPC gateway processor");
+        #[cfg(feature = "sysd")]
+        if let Ok(_) = sd_notify::booted() {
+            if let Err(_) = sd_notify::notify(false, &[sd_notify::NotifyState::Ready]) {
+                return Err(RippleError::BootstrapError);
+            }
+        }
+
         gateway.start().await;
-        debug!("Handlers initialized");
         Ok(())
     }
 }

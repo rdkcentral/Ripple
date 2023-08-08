@@ -62,25 +62,25 @@ impl AppEventDecorator for CCEventDecorator {
     ) -> Result<Value, AppEventDecorationError> {
         use crate::processor::storage::storage_manager::StorageManager as SM;
         use StorageProperty::*;
-        let enabled_res = ClosedcaptionsImpl::closed_captions_settings_enabled(&ps).await;
+        let enabled_res = ClosedcaptionsImpl::closed_captions_settings_enabled(ps).await;
         if let Err(_) = enabled_res {
             return Err(AppEventDecorationError {});
         }
         let styles: ClosedCaptionStyle = ClosedCaptionStyle {
-            font_family: SM::get_string(&ps, ClosedCaptionsFontFamily).await?,
-            font_size: SM::get_number_as_f32(&ps, ClosedCaptionsFontSize).await?,
-            font_color: SM::get_string(&ps, ClosedCaptionsFontColor).await?,
-            font_edge: SM::get_string(&ps, ClosedCaptionsFontEdge).await?,
-            font_edge_color: SM::get_string(&ps, ClosedCaptionsFontEdgeColor).await?,
-            font_opacity: SM::get_number_as_u32(&ps, ClosedCaptionsFontOpacity).await?,
-            background_color: SM::get_string(&ps, ClosedCaptionsBackgroundColor).await?,
-            background_opacity: SM::get_number_as_u32(&ps, ClosedCaptionsBackgroundOpacity).await?,
-            text_align: SM::get_string(&ps, ClosedCaptionsTextAlign).await?,
-            text_align_vertical: SM::get_string(&ps, ClosedCaptionsTextAlignVertical).await?,
+            font_family: SM::get_string(ps, ClosedCaptionsFontFamily).await?,
+            font_size: SM::get_number_as_f32(ps, ClosedCaptionsFontSize).await?,
+            font_color: SM::get_string(ps, ClosedCaptionsFontColor).await?,
+            font_edge: SM::get_string(ps, ClosedCaptionsFontEdge).await?,
+            font_edge_color: SM::get_string(ps, ClosedCaptionsFontEdgeColor).await?,
+            font_opacity: SM::get_number_as_u32(ps, ClosedCaptionsFontOpacity).await?,
+            background_color: SM::get_string(ps, ClosedCaptionsBackgroundColor).await?,
+            background_opacity: SM::get_number_as_u32(ps, ClosedCaptionsBackgroundOpacity).await?,
+            text_align: SM::get_string(ps, ClosedCaptionsTextAlign).await?,
+            text_align_vertical: SM::get_string(ps, ClosedCaptionsTextAlignVertical).await?,
         };
         Ok(serde_json::to_value(ClosedCaptionsSettings {
             enabled: enabled_res.unwrap(),
-            styles: styles,
+            styles,
         })
         .unwrap())
     }
