@@ -36,9 +36,11 @@ use ripple_sdk::{
 
 use crate::state::platform_state::PlatformState;
 
+type FireboltPermissionStore = Arc<RwLock<FileStore<HashMap<String, Vec<FireboltPermission>>>>>;
+
 #[derive(Debug, Clone)]
 pub struct PermittedState {
-    permitted: Arc<RwLock<FileStore<HashMap<String, Vec<FireboltPermission>>>>>,
+    permitted: FireboltPermissionStore,
 }
 
 impl PermittedState {
@@ -160,8 +162,8 @@ impl PermissionHandler {
         }
     }
     pub fn is_all_permitted(
-        permitted: &Vec<FireboltPermission>,
-        request: &Vec<FireboltPermission>,
+        permitted: &[FireboltPermission],
+        request: &[FireboltPermission],
     ) -> Result<(), DenyReasonWithCap> {
         let mut unpermitted: Option<FireboltPermission> = None;
         let all_permitted = request.iter().all(|perm| {
@@ -184,14 +186,14 @@ impl PermissionHandler {
     pub async fn check_permitted(
         state: &PlatformState,
         app_id: &str,
-        request: &Vec<FireboltPermission>,
+        request: &[FireboltPermission],
     ) -> Result<(), DenyReasonWithCap> {
         if let Some(permitted) = state.cap_state.permitted_state.get_app_permissions(app_id) {
             // return request.has_permissions(&permitted);
             return Self::is_all_permitted(&permitted, request);
         } else {
             // check to retrieve it one more time
-            if let Ok(_) = Self::fetch_and_store(state.clone(), app_id.into()).await {
+            if (Self::fetch_and_store(state.clone(), app_id.into()).await).is_ok() {
                 // cache primed try again
                 if let Some(permitted) = state.cap_state.permitted_state.get_app_permissions(app_id)
                 {

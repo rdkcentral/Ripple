@@ -21,8 +21,8 @@ enum Patterns {
     Timezone,
 }
 
-fn pattern_matches(pattern: Patterns, str: &String) -> bool {
-    Regex::new(pattern.as_str()).unwrap().is_match(str.as_str())
+fn pattern_matches(pattern: Patterns, str: &str) -> bool {
+    Regex::new(pattern.as_str()).unwrap().is_match(str)
 }
 
 impl Patterns {
@@ -67,7 +67,7 @@ pub mod language_code_serde {
     use crate::utils::serde_utils::{pattern_matches, Patterns};
     use serde::{Deserialize, Deserializer, Serializer};
 
-    pub fn serialize<S>(str: &String, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(str: &str, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -98,7 +98,7 @@ pub mod timezone_serde {
     use crate::utils::serde_utils::{pattern_matches, Patterns};
     use serde::{Deserialize, Deserializer, Serializer};
 
-    pub fn serialize<S>(str: &String, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(str: &str, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {

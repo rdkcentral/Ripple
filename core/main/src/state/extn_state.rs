@@ -144,16 +144,13 @@ impl ExtnState {
     }
 
     pub fn is_extn_ready(&self, extn_id: ExtnId) -> bool {
-        if let Some(v) = self
+        if let Some(ExtnStatus::Ready) = self
             .extn_status_map
             .read()
             .unwrap()
             .get(extn_id.to_string().as_str())
         {
-            match v {
-                ExtnStatus::Ready => return true,
-                _ => {}
-            }
+            return true;
         }
         false
     }
