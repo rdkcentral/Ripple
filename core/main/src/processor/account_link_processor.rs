@@ -295,7 +295,7 @@ impl AccountLinkProcessor {
                     data_tags,
                 });
 
-            if let Ok(_) = state.get_client().send_extn_request(request).await {
+            if state.get_client().send_extn_request(request).await.is_ok() {
                 return Self::respond(
                     state.get_client().get_extn_client(),
                     msg,

@@ -56,7 +56,7 @@ fn get_value(resp: Result<ExtnResponse, RippleError>) -> Result<Value, Error> {
             Ok(value) => Ok(value),
             Err(_) => Err(storage_error()),
         },
-        ExtnResponse::None(()) | _ => Err(storage_error()),
+        _ => Err(storage_error()),
     }
 }
 

@@ -88,7 +88,7 @@ impl StorageManager {
         context: Option<Value>,
     ) -> RpcResult<()> {
         let data = property.as_data();
-        if let Err(_) = StorageManager::set_in_namespace(
+        if StorageManager::set_in_namespace(
             state,
             data.namespace.to_string(),
             data.key.to_string(),
@@ -97,6 +97,7 @@ impl StorageManager {
             context,
         )
         .await
+        .is_err()
         {
             return Err(StorageManager::get_firebolt_error(&property));
         }
@@ -201,7 +202,7 @@ impl StorageManager {
         context: Option<Value>,
     ) -> RpcResult<()> {
         let data = property.as_data();
-        if let Err(_) = StorageManager::set_in_namespace(
+        if StorageManager::set_in_namespace(
             state,
             data.namespace.to_string(),
             data.key.to_string(),
@@ -210,6 +211,7 @@ impl StorageManager {
             context,
         )
         .await
+        .is_err()
         {
             return Err(StorageManager::get_firebolt_error(&property));
         }
@@ -256,7 +258,7 @@ impl StorageManager {
         context: Option<Value>,
     ) -> RpcResult<()> {
         let data = property.as_data();
-        if let Err(_) = StorageManager::set_in_namespace(
+        if StorageManager::set_in_namespace(
             state,
             data.namespace.to_string(),
             data.key.to_string(),
@@ -265,6 +267,7 @@ impl StorageManager {
             context,
         )
         .await
+        .is_err()
         {
             return Err(StorageManager::get_firebolt_error(&property));
         }
@@ -278,7 +281,7 @@ impl StorageManager {
         context: Option<Value>,
     ) -> RpcResult<()> {
         let data = property.as_data();
-        if let Err(_) = StorageManager::set_in_namespace(
+        if StorageManager::set_in_namespace(
             state,
             data.namespace.to_string(),
             data.key.to_string(),
@@ -287,6 +290,7 @@ impl StorageManager {
             context,
         )
         .await
+        .is_err()
         {
             return Err(StorageManager::get_firebolt_error(&property));
         }
@@ -325,11 +329,11 @@ impl StorageManager {
         event_names: Option<&'static [&'static str]>,
         context: Option<Value>,
     ) -> Result<StorageManagerResponse<()>, StorageManagerError> {
-        if let Ok(payload) = StorageManager::get(state, &namespace, &key).await {
-            if let ExtnResponse::StorageData(storage_data) = payload {
-                if storage_data.value.eq(&value) {
-                    return Ok(StorageManagerResponse::NoChange(()));
-                }
+        if let Ok(ExtnResponse::StorageData(storage_data)) =
+            StorageManager::get(state, &namespace, &key).await
+        {
+            if storage_data.value.eq(&value) {
+                return Ok(StorageManagerResponse::NoChange(()));
             }
 
             // The stored value may have preceeded StorageData implementation, if so
