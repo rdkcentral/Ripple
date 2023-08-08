@@ -29,7 +29,7 @@ use ripple_sdk::{
                 ProviderResponsePayload,
             },
         },
-        gateway::rpc_gateway_api::CallContext,
+        gateway::rpc_gateway_api::{CallContext, CallerSession},
     },
     log::{debug, error, info, warn},
     serde_json,
@@ -90,14 +90,14 @@ struct ProviderSession {
 pub struct ProviderBrokerRequest {
     pub capability: String,
     pub method: String,
-    pub caller: CallContext,
+    pub caller: CallerSession,
     pub request: ProviderRequestPayload,
     pub tx: oneshot::Sender<ProviderResponsePayload>,
     pub app_id: Option<String>,
 }
 
 struct ProviderCaller {
-    identity: CallContext,
+    session: CallerSession,
     tx: oneshot::Sender<ProviderResponsePayload>,
 }
 
@@ -151,7 +151,7 @@ impl ProviderBroker {
             if method.provider.session_id == provider.session_id {
                 provider_methods.remove(&cap_method);
             }
-            ProviderBroker::remove_request(&pst, &provider.app_id.clone(), &capability);
+            ProviderBroker::remove_request(&pst, &capability);
         }
 
         // TODO Add permissions
@@ -187,7 +187,7 @@ impl ProviderBroker {
                 },
             );
         }
-        let existing = ProviderBroker::remove_request(&pst, &provider_app_id, &capability);
+        let existing = ProviderBroker::remove_request(&pst, &capability);
         if let Some(request) = existing {
             info!("register_provider: Found pending provider request, invoking");
             ProviderBroker::invoke_method(&pst, request).await;
@@ -277,7 +277,7 @@ impl ProviderBroker {
             c_id.clone(),
             ProviderSession {
                 caller: ProviderCaller {
-                    identity: request.caller,
+                    session: request.caller,
                     tx: request.tx,
                 },
                 provider: provider.clone(),
@@ -290,7 +290,7 @@ impl ProviderBroker {
 
     fn queue_provider_request(pst: &PlatformState, request: ProviderBrokerRequest) {
         // Remove any duplicate requests.
-        ProviderBroker::remove_request(pst, &request.caller.app_id, &request.capability);
+        ProviderBroker::remove_request(pst, &request.capability);
 
         let mut request_queue = pst.provider_broker_state.request_queue.write().unwrap();
         if request_queue.is_full() {
@@ -331,10 +331,17 @@ impl ProviderBroker {
         // the oneshot for the caller should then get descoped and called with an error
         for cid in all_cids {
             if let Some(session) = active_sessions.get(&cid) {
-                if session.caller.identity.session_id == session_id
-                    || session.provider.provider.session_id == session_id
-                {
-                    clear_cids.push(cid);
+                // if session.caller.identity.session_id == session_id
+                //     || session.provider.provider.session_id == session_id
+                // {
+                //     clear_cids.push(cid);
+                if session.provider.provider.session_id == session_id {
+                    clear_cids.push(cid.clone());
+                }
+                if let Some(caller_session_id) = &session.caller.session.session_id {
+                    if *caller_session_id == session_id {
+                        clear_cids.push(cid);
+                    }
                 }
             }
         }
@@ -372,12 +379,7 @@ impl ProviderBroker {
         }
     }
 
-    fn remove_request(
-        pst: &PlatformState,
-        provider_id: &String,
-        capability: &String,
-    ) -> Option<ProviderBrokerRequest> {
-        info!("Remove request {}", provider_id);
+    fn remove_request(pst: &PlatformState, capability: &String) -> Option<ProviderBrokerRequest> {
         let mut request_queue = pst.provider_broker_state.request_queue.write().unwrap();
         let mut iter = request_queue.iter();
         let cap = iter.position(|request| request.capability.eq(capability));

@@ -46,7 +46,7 @@ use ripple_sdk::{
                 Challenge, ChallengeRequestor, ProviderRequestPayload, ProviderResponsePayload,
             },
         },
-        gateway::rpc_gateway_api::CallContext,
+        gateway::rpc_gateway_api::{AppIdentification, CallContext, CallerSession},
         manifest::device_manifest::DeviceManifest,
         usergrant_entry::UserGrantInfo,
     },
@@ -292,7 +292,9 @@ impl GrantState {
 
     pub async fn check_with_roles(
         state: &PlatformState,
-        call_ctx: &CallContext,
+        // call_ctx: &CallContext,
+        caller_session: &CallerSession,
+        app_requested_for: &AppIdentification,
         fb_perms: &Vec<FireboltPermission>,
         fail_on_first_error: bool,
     ) -> Result<(), DenyReasonWithCap> {
@@ -301,7 +303,7 @@ impl GrantState {
          * we are taking necessary steps to get the user grant and send back the result.
          */
         let grant_state = state.clone().cap_state.grant_state;
-        let app_id = call_ctx.app_id.clone();
+        let app_id = app_requested_for.app_id.to_owned();
         let caps_needing_grants = grant_state.caps_needing_grants.clone();
         let caps_needing_grant_in_request: Vec<FireboltPermission> = fb_perms
             .clone()
@@ -323,7 +325,9 @@ impl GrantState {
                 GrantActiveState::PendingGrant => {
                     let result = GrantPolicyEnforcer::determine_grant_policies_for_permission(
                         &state,
-                        &call_ctx,
+                        // &call_ctx,
+                        caller_session,
+                        app_requested_for,
                         &permission,
                     )
                     .await;
@@ -652,7 +656,6 @@ impl GrantPolicyEnforcer {
     }
     pub async fn update_privacy_settings_and_user_grants(
         platform_state: &PlatformState,
-        call_ctx: &CallContext,
         permission: &FireboltPermission,
         result: &Result<(), DenyReasonWithCap>,
         app_id: &Option<String>,
@@ -668,7 +671,6 @@ impl GrantPolicyEnforcer {
         {
             Self::update_privacy_settings_with_grant(
                 platform_state,
-                call_ctx,
                 &grant_policy.privacy_setting.as_ref().unwrap(),
                 result.is_ok(),
             )
@@ -678,7 +680,9 @@ impl GrantPolicyEnforcer {
     }
     pub async fn determine_grant_policies_for_permission(
         platform_state: &PlatformState,
-        call_context: &CallContext,
+        // call_context: &CallContext,
+        caller_session: &CallerSession,
+        app_requested_for: &AppIdentification,
         permission: &FireboltPermission,
     ) -> Result<(), DenyReasonWithCap> {
         let grant_policy_opt = platform_state.get_device_manifest().get_grant_policies();
@@ -712,8 +716,14 @@ impl GrantPolicyEnforcer {
                 reason: DenyReason::Disabled,
             });
         }
-        let result =
-            GrantPolicyEnforcer::execute(platform_state, call_context, permission, &policy).await;
+        let result = GrantPolicyEnforcer::execute(
+            platform_state,
+            caller_session,
+            app_requested_for,
+            permission,
+            &policy,
+        )
+        .await;
 
         if let Err(e) = &result {
             if e.reason == DenyReason::Ungranted || e.reason == DenyReason::GrantProviderMissing {
@@ -724,10 +734,9 @@ impl GrantPolicyEnforcer {
         }
         Self::update_privacy_settings_and_user_grants(
             platform_state,
-            call_context,
             permission,
             &result,
-            &Some(call_context.app_id.clone()),
+            &Some(app_requested_for.app_id.to_owned()),
             &policy,
         )
         .await;
@@ -770,7 +779,6 @@ impl GrantPolicyEnforcer {
     async fn evaluate_privacy_settings(
         platform_state: &PlatformState,
         privacy_setting: &GrantPrivacySetting,
-        _call_ctx: &CallContext,
     ) -> Option<Result<(), DenyReason>> {
         let allow_value_opt =
             Self::get_allow_value(platform_state, privacy_setting.property.as_str());
@@ -840,7 +848,6 @@ impl GrantPolicyEnforcer {
 
     pub async fn update_privacy_settings_with_grant(
         platform_state: &PlatformState,
-        _call_ctx: &CallContext,
         privacy_setting: &GrantPrivacySetting,
         grant: bool,
     ) {
@@ -896,7 +903,9 @@ impl GrantPolicyEnforcer {
 
     async fn evaluate_options(
         platform_state: &PlatformState,
-        call_ctx: &CallContext,
+        // call_ctx: &CallContext,
+        caller_session: &CallerSession,
+        app_requested_for: &AppIdentification,
         permission: &FireboltPermission,
         policy: &GrantPolicy,
     ) -> Result<(), DenyReasonWithCap> {
@@ -915,8 +924,14 @@ impl GrantPolicyEnforcer {
                         reason: DenyReason::GrantDenied,
                     });
                 } else {
-                    match GrantStepExecutor::execute(step, platform_state, call_ctx, permission)
-                        .await
+                    match GrantStepExecutor::execute(
+                        step,
+                        platform_state,
+                        caller_session,
+                        app_requested_for,
+                        permission,
+                    )
+                    .await
                     {
                         Ok(_) => {
                             CapState::emit(
@@ -948,7 +963,9 @@ impl GrantPolicyEnforcer {
 
     async fn execute(
         platform_state: &PlatformState,
-        call_ctx: &CallContext,
+        // call_ctx: &CallContext,
+        caller_session: &CallerSession,
+        app_requested_for: &AppIdentification,
         permission: &FireboltPermission,
         policy: &GrantPolicy,
     ) -> Result<(), DenyReasonWithCap> {
@@ -958,7 +975,6 @@ impl GrantPolicyEnforcer {
             if let Some(priv_sett_response) = Self::evaluate_privacy_settings(
                 platform_state,
                 &policy.privacy_setting.as_ref().unwrap(),
-                call_ctx,
             )
             .await
             {
@@ -969,7 +985,14 @@ impl GrantPolicyEnforcer {
             }
         }
 
-        let result = Self::evaluate_options(platform_state, call_ctx, permission, policy).await;
+        let result = Self::evaluate_options(
+            platform_state,
+            caller_session,
+            app_requested_for,
+            permission,
+            policy,
+        )
+        .await;
 
         return result;
     }
@@ -983,7 +1006,9 @@ impl GrantStepExecutor {
     pub async fn execute(
         step: &GrantStep,
         platform_state: &PlatformState,
-        call_ctx: &CallContext,
+        // call_ctx: &CallContext,
+        caller_session: &CallerSession,
+        app_requested_for: &AppIdentification,
         permission: &FireboltPermission,
     ) -> Result<(), DenyReasonWithCap> {
         let capability = step.capability.clone();
@@ -1012,7 +1037,9 @@ impl GrantStepExecutor {
 
         Self::invoke_capability(
             platform_state,
-            call_ctx,
+            // call_ctx,
+            caller_session,
+            app_requested_for,
             &firebolt_cap,
             &configuration,
             permission,
@@ -1040,7 +1067,9 @@ impl GrantStepExecutor {
 
     pub async fn invoke_capability(
         platform_state: &PlatformState,
-        call_ctx: &CallContext,
+        // call_ctx: &CallContext,
+        caller_session: &CallerSession,
+        app_requested_for: &AppIdentification,
         cap: &FireboltCap,
         param: &Option<Value>,
         permission: &FireboltPermission,
@@ -1057,20 +1086,21 @@ impl GrantStepExecutor {
          * this might be weird looking as_str().as_str(), FireboltCap returns String but has a function named as_str.
          * We call as_str on String to convert String to str to perform our match
          */
-        let app_name = Self::get_app_name(platform_state, call_ctx.app_id.clone()).await;
+        let for_app_id = &app_requested_for.app_id;
+        let app_name = Self::get_app_name(platform_state, for_app_id.clone()).await;
         let pr_msg_opt = match p_cap.as_str().as_str() {
             "xrn:firebolt:capability:usergrant:acknowledgechallenge" => {
                 let challenge = Challenge {
                     capability: permission.cap.as_str(),
                     requestor: ChallengeRequestor {
-                        id: call_ctx.app_id.clone(),
+                        id: for_app_id.clone(),
                         name: app_name,
                     },
                 };
                 Some(ProviderBrokerRequest {
                     capability: p_cap.as_str(),
                     method: String::from("challenge"),
-                    caller: call_ctx.clone(),
+                    caller: caller_session.to_owned(),
                     request: ProviderRequestPayload::AckChallenge(challenge),
                     tx: session_tx,
                     app_id: None,
@@ -1084,11 +1114,11 @@ impl GrantStepExecutor {
                     Some(ProviderBrokerRequest {
                         capability: p_cap.as_str(),
                         method: "challenge".to_owned(),
-                        caller: call_ctx.clone(),
+                        caller: caller_session.clone(),
                         request: ProviderRequestPayload::PinChallenge(PinChallengeRequest {
                             pin_space: pin_conf.pin_space,
                             requestor: ChallengeRequestor {
-                                id: call_ctx.app_id.clone(),
+                                id: for_app_id.clone(),
                                 name: app_name,
                             },
                             capability: Some(p_cap.as_str()),
@@ -1110,7 +1140,7 @@ impl GrantStepExecutor {
                 Some(ProviderBrokerRequest {
                     capability: p_cap.as_str(),
                     method: String::from("challenge"),
-                    caller: call_ctx.clone(),
+                    caller: caller_session.clone(),
                     request: ProviderRequestPayload::Generic(param_str),
                     tx: session_tx,
                     app_id: None,

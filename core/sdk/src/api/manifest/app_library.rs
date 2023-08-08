@@ -19,7 +19,7 @@ use super::{
     apps::AppManifest,
     device_manifest::{AppLibraryEntry, AppManifestLoad, BootState},
 };
-use log::{error, warn};
+use log::{debug, error, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -77,6 +77,7 @@ impl AppLibrary {
     }
 
     pub fn get_manifest(state: &AppLibraryState, app_id: &str) -> Option<AppManifest> {
+        debug!("Getting manifest for app_id: {}", app_id);
         let mut itr = state.default_apps.iter();
         let i = itr.position(|x| x.app_id == *app_id);
         if let None = i {

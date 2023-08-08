@@ -25,7 +25,7 @@ use ripple_sdk::api::{
     },
     manifest::exclusory::{Exclusory, ExclusoryImpl},
 };
-use ripple_sdk::log::error;
+use ripple_sdk::log::{debug, error};
 use ripple_sdk::{api::firebolt::fb_openrpc::CapabilityPolicy, serde_json};
 use std::{
     collections::HashMap,
@@ -65,7 +65,6 @@ impl OpenRpcState {
             serde_json::from_str(std::include_str!("./firebolt-open-rpc.json")).unwrap();
         let firebolt_open_rpc: FireboltOpenRpc = version_manifest.clone().into();
         let ripple_rpc_file = std::include_str!("./ripple-rpc.json");
-        // let mut ripple_open_rpc: FireboltOpenRpc = version_manifest.clone().into();
         let mut ripple_open_rpc: FireboltOpenRpc = FireboltOpenRpc::default();
         Self::load_additional_rpc(&mut ripple_open_rpc, ripple_rpc_file);
 
@@ -104,11 +103,25 @@ impl OpenRpcState {
         false
     }
 
+    // pub fn get_caps_for_method(&self, method: &str) -> Option<CapabilitySet> {
+    //     let c = { self.cap_map.read().unwrap().get(method).cloned() };
+    //     if let Some(caps) = c {
+    //         Some(CapabilitySet {
+    //             use_caps: caps.use_caps.clone(),
+    //             manage_caps: caps.manage_caps.clone(),
+    //             provide_cap: caps.provide_cap.clone(),
+    //         })
+    //     } else {
+    //         None
+    //     }
+    // }
+
     pub fn get_perms_for_method(
         &self,
         method: &str,
         api_surface: Vec<ApiSurface>,
     ) -> Option<Vec<FireboltPermission>> {
+        debug!("Inside get_perms_for_method");
         let mut perm_list: Vec<FireboltPermission>;
         let mut result = None;
         for surface in api_surface {

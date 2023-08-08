@@ -259,8 +259,14 @@ impl CapabilityServer for CapabilityImpl {
             let ungranted_set: Vec<FireboltPermission> =
                 grants.into_iter().map(|entry| entry.into()).collect();
             let mut grant_denied_caps: Vec<String> = Vec::new();
-            if let Err(e) =
-                GrantState::check_with_roles(&self.state, &ctx, &ungranted_set, false).await
+            if let Err(e) = GrantState::check_with_roles(
+                &self.state,
+                &ctx.clone().into(),
+                &ctx.clone().into(),
+                &ungranted_set,
+                false,
+            )
+            .await
             {
                 for cap in e.caps {
                     grant_denied_caps.push(cap.as_str());

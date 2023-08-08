@@ -113,7 +113,7 @@ pub enum PolicyPersistenceType {
     Device,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum EvaluateAt {
     Invocation,
@@ -123,6 +123,8 @@ pub enum EvaluateAt {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GrantPolicy {
+    #[serde(default = "default_evaluate_at")]
+    pub evaluate_at: Vec<EvaluateAt>,
     pub options: Vec<GrantRequirements>,
     pub scope: GrantScope,
     pub lifespan: GrantLifespan,
@@ -131,8 +133,6 @@ pub struct GrantPolicy {
     pub privacy_setting: Option<GrantPrivacySetting>,
     #[serde(default = "default_policy_persistence_type")]
     pub persistence: PolicyPersistenceType,
-    #[serde(default = "default_evaluate_at")]
-    pub evaluate_at: Vec<EvaluateAt>,
 }
 pub fn default_evaluate_at() -> Vec<EvaluateAt> {
     vec![EvaluateAt::Invocation]

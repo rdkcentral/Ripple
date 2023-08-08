@@ -25,16 +25,19 @@ use ripple_sdk::{
         apps::{
             AppError, AppManagerResponse, AppMethod, AppSession, EffectiveTransport, StateChange,
         },
+        device::device_user_grants_data::{EvaluateAt, GrantPolicy},
         firebolt::{
             fb_capabilities::FireboltPermission,
             fb_discovery::DISCOVERY_EVENT_ON_NAVIGATE_TO,
             fb_lifecycle::LifecycleState,
             fb_lifecycle_management::{
                 CompletedSessionResponse, PendingSessionResponse, SessionResponse,
+                LCM_EVENT_ON_SESSION_TRANSITION_CANCELED,
                 LCM_EVENT_ON_SESSION_TRANSITION_COMPLETED,
             },
             fb_secondscreen::SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST,
         },
+        gateway::rpc_gateway_api::{AppIdentification, CallerSession},
     },
     log::{debug, error, warn},
     serde_json::{self},
@@ -67,9 +70,12 @@ use ripple_sdk::{
         time::{sleep, Duration},
     },
 };
+use serde_json::json;
 
 use crate::{
-    service::{apps::app_events::AppEvents, extn::ripple_client::RippleClient},
+    service::{
+        apps::app_events::AppEvents, extn::ripple_client::RippleClient, user_grants::GrantState,
+    },
     state::{
         bootstrap_state::ChannelsState, cap::permitted_state::PermissionHandler,
         platform_state::PlatformState, session_state::Session,
@@ -126,6 +132,10 @@ impl AppManagerState {
     fn update_active_session(&self, app_id: &str, session: Option<String>) {
         let mut apps = self.apps.write().unwrap();
         if let Some(app) = apps.get_mut(app_id) {
+            debug!(
+                "Setting session : {{ appId:{} , session:{:?} }}",
+                app_id, session
+            );
             app.active_session_id = session
         }
     }
@@ -344,6 +354,10 @@ impl DelegatedLauncherHandler {
             }
             session_id = Some(app.session_id.clone());
             loaded_session_id = Some(app.loaded_session_id.clone());
+            debug!(
+                "app_id: {}, session_id: {:?}, loaded_session: {:?}",
+                app_id, session_id, loaded_session_id
+            );
         }
         let perms_with_grants_opt = if !session.launch.inactive {
             Self::check_user_grants_for_active_session(&self.platform_state, session.app.id.clone())
@@ -352,22 +366,46 @@ impl DelegatedLauncherHandler {
             None
         };
         match perms_with_grants_opt {
-            Some(_perms_with_grants) => {
+            Some(perms_with_grants) => {
                 // Grants required, spawn a thread to handle the response from grants
+
                 let cloned_ps = self.platform_state.clone();
+                let cloned_app_id = app_id.to_owned();
                 tokio::spawn(async move {
-                    let (resp_tx, resp_rx) =
-                        oneshot::channel::<Result<AppManagerResponse, AppError>>();
-                    let app_method = if loading {
-                        AppMethod::NewLoadedSession(session)
+                    let resolved_result = GrantState::check_with_roles(
+                        &cloned_ps,
+                        &CallerSession { session_id: None },
+                        &AppIdentification {
+                            app_id: cloned_app_id.to_owned(),
+                        },
+                        &perms_with_grants,
+                        false,
+                    )
+                    .await;
+                    if let Err(_deny_reason) = resolved_result {
+                        debug!("handle session for deferred grant");
+                        AppEvents::emit(
+                            &cloned_ps,
+                            LCM_EVENT_ON_SESSION_TRANSITION_CANCELED,
+                            &json!({
+                                "app_id": cloned_app_id
+                            }),
+                        )
+                        .await;
                     } else {
-                        AppMethod::NewActiveSession(session)
-                    };
-                    if let Ok(_) = cloned_ps
-                        .get_client()
-                        .send_app_request(AppRequest::new(app_method, resp_tx))
-                    {
-                        let _ = rpc_await_oneshot(resp_rx).await.is_ok();
+                        let (resp_tx, resp_rx) =
+                            oneshot::channel::<Result<AppManagerResponse, AppError>>();
+                        let app_method = if loading {
+                            AppMethod::NewLoadedSession(session)
+                        } else {
+                            AppMethod::NewActiveSession(session)
+                        };
+                        if let Ok(_) = cloned_ps
+                            .get_client()
+                            .send_app_request(AppRequest::new(app_method, resp_tx))
+                        {
+                            let _ = rpc_await_oneshot(resp_rx).await.is_ok();
+                        }
                     }
                 });
                 return SessionResponse::Pending(PendingSessionResponse {
@@ -454,6 +492,10 @@ impl DelegatedLauncherHandler {
                     .session_state
                     .add_session(session_id.clone(), session_state);
                 let id = container_id.clone();
+                debug!(
+                    "App session details: appId: {} session: {}",
+                    app_id, session_id
+                );
                 // Step 2: Start the session using contract
                 let request = BridgeSessionParams {
                     container_id,
@@ -516,10 +558,67 @@ impl DelegatedLauncherHandler {
     }
 
     async fn check_user_grants_for_active_session(
-        _ps: &PlatformState,
-        _app_id: String,
+        ps: &PlatformState,
+        app_id: String,
     ) -> Option<Vec<FireboltPermission>> {
-        None
+        // Get the list of permissions that the calling app currently has
+        debug!(" Get the list of permissions that the calling app currently has {app_id}");
+        let app_perms = PermissionHandler::get_app_permission(ps, &app_id).await;
+        if app_perms.len() == 0 {
+            return None;
+        }
+        debug!("list of permission that {} has {:?}", &app_id, app_perms);
+        // Get the list of grant policies from device manifest.
+        let grant_polices_map_opt = ps.get_device_manifest().capabilities.grant_policies;
+        debug!(
+            "get the list of grant policies from device manifest file:{:?}",
+            grant_polices_map_opt
+        );
+        if grant_polices_map_opt.is_none() {
+            return None;
+        }
+        let grant_polices_map = grant_polices_map_opt.unwrap();
+        //Filter out the caps only that has evaluate at
+        let final_perms: Vec<FireboltPermission> = app_perms
+            .iter()
+            .filter(|perm| {
+                let filtered_policy_opt = grant_polices_map.get(&perm.cap.as_str());
+                debug!("permission: {:?}", perm);
+                debug!("filtered_policy_opt: {:?}", filtered_policy_opt);
+                if filtered_policy_opt.is_none() {
+                    return false;
+                }
+                if let Some(filtered_policy) = filtered_policy_opt {
+                    let policy = match perm.role {
+                        ripple_sdk::api::firebolt::fb_capabilities::CapabilityRole::Use => {
+                            filtered_policy._use.as_ref()
+                        }
+                        ripple_sdk::api::firebolt::fb_capabilities::CapabilityRole::Manage => {
+                            filtered_policy.manage.as_ref()
+                        }
+                        ripple_sdk::api::firebolt::fb_capabilities::CapabilityRole::Provide => {
+                            filtered_policy.provide.as_ref()
+                        }
+                    };
+                    debug!("exact policy {:?}", policy);
+                    policy.is_some_and(|policy| {
+                        policy.evaluate_at.contains(&EvaluateAt::ActiveSession)
+                    })
+                } else {
+                    false
+                }
+            })
+            .cloned()
+            .collect();
+        debug!(
+            "list of permissions that need to be evaluated: {:?}",
+            final_perms
+        );
+        if final_perms.len() > 0 {
+            Some(final_perms)
+        } else {
+            None
+        }
     }
 
     fn to_completed_session(app: &App) -> CompletedSessionResponse {
@@ -615,6 +714,10 @@ impl DelegatedLauncherHandler {
                 !(matches!(&grant_entry.lifespan, Some(entry_lifespan) if entry_lifespan == &GrantLifespan::AppActive))
             });
         }
+        warn!(
+            "set_state app_id:{} prev state:{:?} state{:?}",
+            app_id, previous_state, state
+        );
         self.platform_state
             .app_manager_state
             .set_state(app_id, state);
@@ -632,6 +735,7 @@ impl DelegatedLauncherHandler {
         .await;
 
         if LifecycleState::Unloading == state {
+            debug!("unloading app: {:?}", app_id);
             self.on_unloading(&app_id).await.ok();
         }
         Ok(AppManagerResponse::None)

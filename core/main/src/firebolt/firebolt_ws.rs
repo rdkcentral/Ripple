@@ -269,7 +269,7 @@ impl FireboltWs {
                             ctx.gateway_secure,
                         ) {
                             debug!(
-                                "Received Firebolt request {} {} {}",
+                                "firebolt_ws Received Firebolt request {} {} {}",
                                 connection_id, request.ctx.request_id, request.method
                             );
                             let msg = FireboltGatewayCommand::HandleRpc { request };

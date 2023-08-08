@@ -26,7 +26,7 @@ use ripple_sdk::{
         },
     },
     extn::extn_client_message::ExtnMessage,
-    log::{error, info},
+    log::{debug, error, info},
     serde_json::{self, Value},
     tokio,
 };
@@ -124,7 +124,7 @@ impl FireboltGateway {
 
     pub async fn handle(&self, request: RpcRequest, extn_msg: Option<ExtnMessage>) {
         info!(
-            "Received Firebolt request {} {} {}",
+            "firebolt_gateway Received Firebolt request {} {} {}",
             request.ctx.request_id, request.method, request.params_json
         );
         // First check sender if no sender no need to process
@@ -159,6 +159,7 @@ impl FireboltGateway {
         let mut request_c = request.clone();
         request_c.method = FireboltOpenRpcMethod::name_with_lowercase_module(&request.method);
         tokio::spawn(async move {
+            debug!("calling FireboltGatekeeper::gate");
             match FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await {
                 Ok(_) => {
                     // Route
@@ -177,6 +178,7 @@ impl FireboltGateway {
                                 .session_state
                                 .get_session(&request_c.ctx);
                             // session is already prechecked before gating so it is safe to unwrap
+                            debug!("Calling RpcRouter::route");
                             RpcRouter::route(platform_state, request_c, session.unwrap()).await;
                         }
                     }

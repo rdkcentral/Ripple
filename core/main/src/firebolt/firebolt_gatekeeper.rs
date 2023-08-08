@@ -21,7 +21,7 @@ use ripple_sdk::api::firebolt::fb_capabilities::{
     DenyReason, DenyReasonWithCap, FireboltPermission,
 };
 use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
-use ripple_sdk::log::trace;
+use ripple_sdk::log::{debug, trace};
 
 use crate::service::user_grants::GrantState;
 use crate::state::openrpc_state::ApiSurface;
@@ -54,6 +54,10 @@ impl FireboltGatekeeper {
         method: &str,
         secure: bool,
     ) -> Option<Vec<FireboltPermission>> {
+        debug!(
+            "get_resolved_caps_for_method called with params: method {}, secure: {}",
+            method, secure,
+        );
         let mut api_surface = vec![ApiSurface::Firebolt];
         if !secure {
             api_surface.push(ApiSurface::Ripple);
@@ -75,11 +79,13 @@ impl FireboltGatekeeper {
     }
     // TODO return Deny Reason into ripple error
     pub async fn gate(state: PlatformState, request: RpcRequest) -> Result<(), DenyReasonWithCap> {
+        debug!("entering FireboltGatekeeper::gate function");
         let open_rpc_state = state.clone().open_rpc_state;
         if open_rpc_state.is_excluded(request.clone().method, request.clone().ctx.app_id) {
-            trace!("Method is exluded from gating");
+            debug!("Method is exluded from gating");
             return Ok(());
         }
+        // if let Some(caps) = open_rpc_state.get_caps_for_method(&request.method) {
         let caps_opt =
             Self::get_resolved_caps_for_method(&state, &request.method, request.ctx.gateway_secure);
         if caps_opt.is_none() {
@@ -113,8 +119,14 @@ impl FireboltGatekeeper {
             } else {
                 trace!("check_permitted for method ({}) succeded", request.method);
                 //usergrants check
-                if let Err(e) =
-                    GrantState::check_with_roles(&state, &request.ctx, &caps, true).await
+                if let Err(e) = GrantState::check_with_roles(
+                    &state,
+                    &request.ctx.clone().into(),
+                    &request.ctx.clone().into(),
+                    &caps,
+                    true,
+                )
+                .await
                 {
                     trace!(
                         "check_with_roles for method ({}) failed. Error: {:?}",
