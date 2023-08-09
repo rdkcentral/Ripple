@@ -134,9 +134,9 @@ impl TryFrom<String> for ExtnPayload {
     }
 }
 
-impl Into<String> for ExtnPayload {
-    fn into(self) -> String {
-        serde_json::to_string(&self).unwrap()
+impl From<ExtnPayload> for String {
+    fn from(val: ExtnPayload) -> Self {
+        serde_json::to_string(&val).unwrap()
     }
 }
 
@@ -153,24 +153,15 @@ impl ExtnPayload {
     }
 
     pub fn is_request(&self) -> bool {
-        match self {
-            ExtnPayload::Request(_) => true,
-            _ => false,
-        }
+        matches!(self, ExtnPayload::Request(_))
     }
 
     pub fn is_response(&self) -> bool {
-        match self {
-            ExtnPayload::Response(_) => true,
-            _ => false,
-        }
+        matches!(self, ExtnPayload::Response(_))
     }
 
     pub fn is_event(&self) -> bool {
-        match self {
-            ExtnPayload::Event(_) => true,
-            _ => false,
-        }
+        matches!(self, ExtnPayload::Event(_))
     }
 
     pub fn as_response(&self) -> Option<ExtnResponse> {
@@ -308,10 +299,10 @@ impl ExtnPayloadProvider for ExtnResponse {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Response(r) => return Some(r),
-            _ => {}
+        if let ExtnPayload::Response(r) = payload {
+            return Some(r);
         }
+
         None
     }
 
@@ -335,10 +326,10 @@ impl ExtnPayloadProvider for ExtnEvent {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Event(r) => return Some(r),
-            _ => {}
+        if let ExtnPayload::Event(r) = payload {
+            return Some(r);
         }
+
         None
     }
 
