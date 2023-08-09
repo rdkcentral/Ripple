@@ -89,7 +89,7 @@ pub fn wifi_security_mode_from_u32(v: u32) -> WifiSecurityMode {
         12 => WifiSecurityMode::Wpa2Enterprise,
         13 => WifiSecurityMode::Wpa3PskAes,
         14 => WifiSecurityMode::Wpa3Sae,
-        0 | _ => WifiSecurityMode::None,
+        _ => WifiSecurityMode::None,
     }
 }
 
@@ -103,7 +103,7 @@ struct ConnectedSSIDResult {
 }
 
 impl ConnectedSSIDResult {
-    fn to_access_point(self) -> AccessPoint {
+    fn to_access_point(&self) -> AccessPoint {
         AccessPoint {
             ssid: self.ssid.clone(),
             security_mode: wifi_security_mode_from_u32(
@@ -132,7 +132,7 @@ struct SSIDEventResponse {
 }
 
 impl ThunderSSID {
-    fn to_access_point(self: Box<Self>) -> AccessPoint {
+    fn to_access_point(&self) -> AccessPoint {
         AccessPoint {
             ssid: self.ssid.clone(),
             security_mode: wifi_security_mode_from_u32(self.security),

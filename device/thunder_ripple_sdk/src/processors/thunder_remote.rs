@@ -236,24 +236,24 @@ impl ThunderRemoteAccessoryRequestProcessor {
                     match pairing_status.as_str() {
                         "CONFIGURATION_COMPLETE" => {
                             info!("successfully paired");
-                            let success_accessory_response: AccessoryDeviceResponse;
+                            let success_accessory_response: AccessoryDeviceResponse =
                             if !remote_status_event.status.remote_data.is_empty() {
                                 let remote = remote_status_event.status.remote_data.get(0).unwrap();
-                                success_accessory_response =
+                                
                                 ThunderRemoteAccessoryRequestProcessor::get_accessory_response(
                                         protocol,
                                         remote.make.clone(),
                                         remote.model.clone(),
-                                    );
+                                    )
                             } else {
                                 warn!("No Remote info");
-                                success_accessory_response =
+                                
                                 ThunderRemoteAccessoryRequestProcessor::get_accessory_response(
                                         protocol,
                                         "".into(),
                                         "".into(),
                                     )
-                            }
+                            };
                             info!("{:?}", success_accessory_response);
                             tx.send(RemoteAccessoryResponse::AccessoryPairResponse(success_accessory_response)).await.unwrap();
                             ThunderRemoteAccessoryRequestProcessor::unsubscribe_pairing(unsub_client).await;

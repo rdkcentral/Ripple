@@ -93,8 +93,8 @@ enum ThunderInterfaceType {
 }
 
 impl ThunderInterfaceType {
-    fn to_network_type(self: Box<Self>) -> NetworkType {
-        match *self {
+    fn to_network_type(&self) -> NetworkType {
+        match self {
             Self::Wifi => NetworkType::Wifi,
             Self::Ethernet => NetworkType::Ethernet,
             Self::None => NetworkType::Hybrid,
@@ -375,7 +375,7 @@ impl ThunderAvailableTimezonesResponse {
         let mut timezones = Vec::default();
         for (area, locations) in &self.zoneinfo {
             let mut found_location = false;
-            for (location, _local_time) in locations {
+            for location in locations.keys() {
                 timezones.push(format!("{}/{}", area, location));
                 found_location = true;
             }
@@ -812,7 +812,7 @@ impl ThunderDeviceInfoRequestProcessor {
         info!("subscribed to locationchangeChanged events");
 
         let thread_res = tokio::spawn(async move {
-            while let Some(_) = r.recv().await {
+            while r.recv().await.is_some() {
                 if ThunderNetworkService::has_internet(&cloned_state).await {
                     // Internet precondition for browsers are supposed to be met
                     // when locationchange event is given, but seems to be a short period
@@ -830,7 +830,7 @@ impl ThunderDeviceInfoRequestProcessor {
             }
         });
         let dur = Duration::from_millis(timeout);
-        if let Err(_) = tokio::time::timeout(dur, thread_res).await {
+        if tokio::time::timeout(dur, thread_res).await.is_err() {
             return Self::respond(
                 state.get_client(),
                 req,
@@ -1261,10 +1261,7 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
                     firmware_info: Self::get_version(&state).await,
                     hdcp: Self::get_hdcp_status(&state).await,
                     hdr: Self::get_cached_hdr(&state).await,
-                    is_wifi: match Self::get_network(&state).await._type {
-                        NetworkType::Wifi => true,
-                        _ => false,
-                    },
+                    is_wifi: matches!(Self::get_network(&state).await._type, NetworkType::Wifi),
                     make: Self::get_make(&state).await,
                     model: Self::get_model(&state).await,
                     video_resolution: Self::get_video_resolution(&state).await,
