@@ -118,7 +118,7 @@ impl PermissionHandler {
         if state
             .cap_state
             .permitted_state
-            .get_app_permissions(&app_id)
+            .get_app_permissions(app_id)
             .is_some()
         {
             return Ok(());
@@ -193,7 +193,7 @@ impl PermissionHandler {
             return Self::is_all_permitted(&permitted, request);
         } else {
             // check to retrieve it one more time
-            if (Self::fetch_and_store(&state, app_id).await).is_ok() {
+            if (Self::fetch_and_store(state, app_id).await).is_ok() {
                 // cache primed try again
                 if let Some(permitted) = state.cap_state.permitted_state.get_app_permissions(app_id)
                 {
