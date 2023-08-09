@@ -203,9 +203,8 @@ impl DataGovernance {
         state: &PlatformState,
     ) -> Result<ExclusionPolicy, RippleError> {
         let mut result = Err(RippleError::InvalidOutput);
-        match DataGovernance::get_local_exclusion_policy(&state.data_governance) {
-            Some(excl) => return Ok(excl),
-            _ => {}
+        if let Some(excl) = DataGovernance::get_local_exclusion_policy(&state.data_governance) {
+            return Ok(excl);
         }
 
         let resp = StorageManager::get_string(state, StorageProperty::PartnerExclusions).await;

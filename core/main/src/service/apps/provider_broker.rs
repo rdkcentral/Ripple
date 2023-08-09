@@ -231,7 +231,7 @@ impl ProviderBroker {
             provider_methods.get(&cap_method).cloned()
         };
         if let Some(provider) = provider_opt {
-            let event_name = provider.event_name.clone();
+            let event_name = provider.event_name;
             let req_params = request.request.clone();
             let app_id_opt = request.app_id.clone();
             let c_id = ProviderBroker::start_provider_session(pst, request, provider);
