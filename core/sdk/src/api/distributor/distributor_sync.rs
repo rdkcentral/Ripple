@@ -37,12 +37,8 @@ pub enum SyncAndMonitorModule {
 
 impl ExtnPayloadProvider for SyncAndMonitorRequest {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(r) => match r {
-                ExtnRequest::CloudSync(p) => return Some(p),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::CloudSync(p)) = payload {
+            return Some(p);
         }
 
         None
