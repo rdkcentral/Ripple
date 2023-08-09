@@ -162,7 +162,7 @@ impl AdvertisingServer for AdvertisingImpl {
         let payload = AdvertisingRequest::GetAdIdObject(AdIdRequestParams {
             privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(&self.state)
                 .await,
-            app_id: ctx.clone().app_id,
+            app_id: ctx.app_id.to_owned(),
             dist_session: session,
         });
         let resp = self.state.get_client().send_extn_request(payload).await;

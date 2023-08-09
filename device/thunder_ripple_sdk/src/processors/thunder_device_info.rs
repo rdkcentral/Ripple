@@ -911,7 +911,7 @@ impl ThunderDeviceInfoRequestProcessor {
             .await;
         info!("{}", response.message);
         if response.message.get("success").is_some()
-            && response.message["success"].as_bool().unwrap()
+            && response.message["success"].as_bool().unwrap_or_default()
         {
             if let Some(v) = response.message["freeRam"].as_u64() {
                 return Self::respond(state.get_client(), req, ExtnResponse::Value(json!(v)))
@@ -949,7 +949,7 @@ impl ThunderDeviceInfoRequestProcessor {
 
         info!("{}", response.message);
         if response.message.get("success").is_none()
-            || response.message["success"].as_bool().unwrap()
+            || response.message["success"].as_bool().unwrap_or_default()
         {
             if let Ok(v) = serde_json::from_value::<ThunderTimezoneResponse>(response.message) {
                 return Ok(v.time_zone);
@@ -999,7 +999,7 @@ impl ThunderDeviceInfoRequestProcessor {
             })
             .await;
         if response.message.get("success").is_some()
-            && response.message["success"].as_bool().unwrap()
+            && response.message["success"].as_bool().unwrap_or_default()
         {
             match serde_json::from_value::<ThunderAllTimezonesResponse>(response.message) {
                 Ok(timezones) => {
@@ -1048,7 +1048,7 @@ impl ThunderDeviceInfoRequestProcessor {
         info!("{}", response.message);
 
         if response.message.get("success").is_none()
-            || response.message["success"].as_bool().unwrap()
+            || response.message["success"].as_bool().unwrap_or_default()
         {
             return Self::respond(state.get_client(), request, ExtnResponse::None(()))
                 .await

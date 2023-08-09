@@ -114,7 +114,7 @@ fn get_permissions_path(saved_dir: String) -> String {
 pub struct PermissionHandler;
 
 impl PermissionHandler {
-    pub async fn fetch_and_store(state: PlatformState, app_id: String) -> RippleResponse {
+    pub async fn fetch_and_store(state: &PlatformState, app_id: &str) -> RippleResponse {
         if state
             .cap_state
             .permitted_state
@@ -127,14 +127,14 @@ impl PermissionHandler {
             if let Ok(extn_response) = state
                 .get_client()
                 .send_extn_request(PermissionRequest {
-                    app_id: app_id.clone(),
+                    app_id: app_id.to_owned(),
                     session,
                 })
                 .await
             {
                 if let Some(permission_response) = extn_response.payload.extract() {
                     let mut map = HashMap::new();
-                    map.insert(app_id.clone(), permission_response);
+                    map.insert(app_id.to_owned(), permission_response);
                     let mut permitted_state = state.cap_state.permitted_state.clone();
                     permitted_state.ingest(map);
                     info!("Permissions fetched for {}", app_id);
@@ -193,7 +193,7 @@ impl PermissionHandler {
             return Self::is_all_permitted(&permitted, request);
         } else {
             // check to retrieve it one more time
-            if (Self::fetch_and_store(state.clone(), app_id.into()).await).is_ok() {
+            if (Self::fetch_and_store(&state, app_id).await).is_ok() {
                 // cache primed try again
                 if let Some(permitted) = state.cap_state.permitted_state.get_app_permissions(app_id)
                 {

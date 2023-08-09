@@ -222,7 +222,7 @@ impl FireboltWs {
             return;
         }
 
-        if PermissionHandler::fetch_and_store(state.clone(), app_id.clone())
+        if PermissionHandler::fetch_and_store(&state, &app_id)
             .await
             .is_err()
         {
