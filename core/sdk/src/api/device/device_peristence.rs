@@ -34,7 +34,7 @@ pub struct StorageData {
 impl StorageData {
     pub fn new(value: Value) -> StorageData {
         StorageData {
-            value: value.clone(),
+            value,
             update_time: Utc::now().to_rfc3339(),
         }
     }
@@ -85,16 +85,10 @@ impl ExtnPayloadProvider for DevicePersistenceRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::Device(r) => match r {
-                    DeviceRequest::Storage(d) => return Some(d),
-                    _ => {}
-                },
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Storage(d))) = payload {
+            return Some(d);
         }
+
         None
     }
 

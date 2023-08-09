@@ -241,13 +241,10 @@ impl ExtnPayloadProvider for SystemPowerState {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<SystemPowerState> {
-        match payload {
-            ExtnPayload::Event(request) => match request {
-                ExtnEvent::PowerState(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Event(ExtnEvent::PowerState(r)) = payload {
+            return Some(r);
         }
+
         None
     }
 

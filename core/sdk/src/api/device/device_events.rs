@@ -27,14 +27,14 @@ pub trait DeviceEventProvider {
     fn get_name() -> String;
 }
 
-pub const HDCP_CHANGED_EVENT: &'static str = "device.onHdcpChanged";
-pub const HDR_CHANGED_EVENT: &'static str = "device.onHdrChanged";
-pub const SCREEN_RESOLUTION_CHANGED_EVENT: &'static str = "device.onScreenResolutionChanged";
-pub const VIDEO_RESOLUTION_CHANGED_EVENT: &'static str = "device.onVideoResolutionChanged";
-pub const NETWORK_CHANGED_EVENT: &'static str = "device.onNetworkChanged";
-pub const AUDIO_CHANGED_EVENT: &'static str = "device.onAudioChanged";
-pub const VOICE_GUIDANCE_CHANGED: &'static str = "accessibility.onVoiceGuidanceSettingsChanged";
-pub const POWER_STATE_CHANGED: &'static str = "device.onPowerStateChanged";
+pub const HDCP_CHANGED_EVENT: &str = "device.onHdcpChanged";
+pub const HDR_CHANGED_EVENT: &str = "device.onHdrChanged";
+pub const SCREEN_RESOLUTION_CHANGED_EVENT: &str = "device.onScreenResolutionChanged";
+pub const VIDEO_RESOLUTION_CHANGED_EVENT: &str = "device.onVideoResolutionChanged";
+pub const NETWORK_CHANGED_EVENT: &str = "device.onNetworkChanged";
+pub const AUDIO_CHANGED_EVENT: &str = "device.onAudioChanged";
+pub const VOICE_GUIDANCE_CHANGED: &str = "accessibility.onVoiceGuidanceSettingsChanged";
+pub const POWER_STATE_CHANGED: &str = "device.onPowerStateChanged";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DeviceEvent {
@@ -86,13 +86,10 @@ impl ExtnPayloadProvider for DeviceEventRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(response) => match response {
-                ExtnRequest::DeviceEvent(d) => return Some(d),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::DeviceEvent(d)) = payload {
+            return Some(d);
         }
+
         None
     }
 

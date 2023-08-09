@@ -188,7 +188,7 @@ impl GrantPolicy {
                 }
             }
         }
-        if grant_steps.len() > 0 {
+        if !grant_steps.is_empty() {
             return Some(grant_steps);
         }
         None
@@ -314,7 +314,7 @@ impl GrantErrors {
     }
 
     pub fn has_errors(&self) -> bool {
-        self.ungranted.len() > 0 || self.denied.len() > 0
+        !self.ungranted.is_empty() || !self.denied.is_empty()
     }
 
     pub fn get_reason(&self, cap: &FireboltCap) -> Option<DenyReason> {

@@ -48,7 +48,7 @@ impl WindowManagerRequest {
 
     pub fn visible(&self) -> Option<bool> {
         if let WindowManagerRequest::Visibility(_, params) = self {
-            return Some(if *params { true } else { false });
+            return Some(*params);
         }
         None
     }
@@ -69,16 +69,11 @@ impl ExtnPayloadProvider for WindowManagerRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::Device(r) => match r {
-                    DeviceRequest::WindowManager(d) => return Some(d),
-                    _ => {}
-                },
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::WindowManager(d))) = payload
+        {
+            return Some(d);
         }
+
         None
     }
 
