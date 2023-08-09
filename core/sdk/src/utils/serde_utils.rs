@@ -23,8 +23,8 @@ enum Patterns {
     Timezone,
 }
 
-fn pattern_matches(pattern: Patterns, str: &String) -> bool {
-    Regex::new(pattern.as_str()).unwrap().is_match(str.as_str())
+fn pattern_matches(pattern: Patterns, str: &str) -> bool {
+    Regex::new(pattern.as_str()).unwrap().is_match(str)
 }
 
 impl Patterns {
@@ -69,12 +69,12 @@ pub mod language_code_serde {
     use super::{pattern_matches, Patterns};
     use serde::{Deserialize, Deserializer, Serializer};
 
-    pub fn serialize<S>(str: &String, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(str: &str, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         if pattern_matches(Patterns::Language, str) {
-            serializer.serialize_str(&str)
+            serializer.serialize_str(str)
         } else {
             Err(serde::ser::Error::custom(
                 "Language code is not of the format specified in ISO 639",
@@ -115,7 +115,7 @@ pub mod optional_language_code_serde {
     where
         D: Deserializer<'de>,
     {
-        language_code_serde::deserialize(deserializer).map(|res| Some(res))
+        language_code_serde::deserialize(deserializer).map(Some)
     }
 }
 
@@ -158,15 +158,15 @@ pub mod date_time_str_serde {
     use chrono::{TimeZone, Utc};
     use serde::{self, Deserialize, Deserializer, Serializer};
 
-    const FORMAT: &'static str = "%Y-%m-%dT%H:%M:%S.%3fZ";
+    const FORMAT: &str = "%Y-%m-%dT%H:%M:%S.%3fZ";
 
-    pub fn serialize<S>(data: &String, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(data: &str, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let formed_date_res = Utc.datetime_from_str(&data, FORMAT);
-        if let Ok(_) = formed_date_res {
-            serializer.serialize_str(&data)
+        let formed_date_res = Utc.datetime_from_str(data, FORMAT);
+        if formed_date_res.is_ok() {
+            serializer.serialize_str(data)
         } else {
             Err(serde::ser::Error::custom(
                 "String not convertible to date-time",
@@ -180,7 +180,7 @@ pub mod date_time_str_serde {
     {
         let str = String::deserialize(deserializer)?;
         let formed_date_res = Utc.datetime_from_str(&str, FORMAT);
-        if let Ok(_) = formed_date_res {
+        if formed_date_res.is_ok() {
             Ok(str)
         } else {
             Err(serde::de::Error::custom(
@@ -209,7 +209,7 @@ pub mod optional_date_time_str_serde {
     where
         D: Deserializer<'de>,
     {
-        date_time_str_serde::deserialize(deserializer).map(|data| Some(data))
+        date_time_str_serde::deserialize(deserializer).map(Some)
     }
 }
 
@@ -217,12 +217,12 @@ pub mod timezone_serde {
     use super::{pattern_matches, Patterns};
     use serde::{Deserialize, Deserializer, Serializer};
 
-    pub fn serialize<S>(str: &String, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(str: &str, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         if pattern_matches(Patterns::Timezone, str) {
-            serializer.serialize_str(&str)
+            serializer.serialize_str(str)
         } else {
             Err(serde::ser::Error::custom(
                 "Timezone is not in a format supported by the IANA TZ database",

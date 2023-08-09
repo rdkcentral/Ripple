@@ -36,9 +36,7 @@ impl<S: Clone> Bootstrap<S> {
 
     pub async fn step(&self, s: impl Bootstep<S>) -> Result<&Self, RippleError> {
         debug!(">>>Starting Bootstep {}<<<", s.get_name());
-        if let Err(e) = s.setup(self.state.clone()).await {
-            return Err(e);
-        }
+        s.setup(self.state.clone()).await?;
 
         debug!("---Successful Bootstep {}---", s.get_name());
         Ok(self)

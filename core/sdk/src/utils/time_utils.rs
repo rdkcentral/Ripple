@@ -33,7 +33,7 @@ for ISO8601 format, e.g: 2022-06-23T16:16:10Z
 
 pub fn timestamp_2_iso8601(timestamp: i64) -> String {
     if let Some(t) = NaiveDateTime::from_timestamp_opt(timestamp, 0) {
-        DateTime::<Utc>::from_utc(t, Utc).to_rfc3339().to_string()
+        DateTime::<Utc>::from_utc(t, Utc).to_rfc3339()
     } else {
         timestamp.to_string()
     }
@@ -55,7 +55,6 @@ pub fn convert_timestamp_to_iso8601(timestamp: i64) -> String {
     Utc.timestamp_opt(timestamp_in_secs, 0)
         .unwrap()
         .to_rfc3339()
-        .to_string()
 }
 
 #[derive(Debug)]
@@ -73,7 +72,7 @@ impl Timer {
         let cancelled = cancelled_flag_mutex.clone();
         let handle = tokio::spawn(async move {
             thread::sleep(Duration::from_millis(delay_ms));
-            let cancelled = { cancelled_flag_mutex.lock().unwrap().clone() };
+            let cancelled = { *cancelled_flag_mutex.lock().unwrap() };
             if !cancelled {
                 callback.await;
             }
