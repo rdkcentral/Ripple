@@ -171,15 +171,16 @@ pub async fn voice_guidance_settings_enabled_changed(
     let listen = request.listen;
 
     // Register for individual change events (no-op if already registered), handlers emit VOICE_GUIDANCE_SETTINGS_CHANGED_EVENT.
-    if let Err(_) = platform_state
+    if platform_state
         .get_client()
         .send_extn_request(DeviceEventRequest {
             event: DeviceEvent::VoiceGuidanceChanged,
-            id: ctx.clone().app_id,
+            id: ctx.app_id.to_owned(),
             subscribe: listen,
             callback_type: DeviceEventCallback::FireboltAppEvent,
         })
         .await
+        .is_err()
     {
         error!("Error while registration");
     }
