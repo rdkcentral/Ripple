@@ -134,10 +134,10 @@ impl ThunderClientPool {
                             Some(sender_for_thread.clone()),
                         )
                         .await;
-                        if client.is_ok() {
+                        if let Ok(client) = client {
                             pool.clients.push(PooledThunderClient {
                                 in_use: Arc::new(AtomicBool::new(false)),
-                                client: client.unwrap(),
+                                client,
                             });
                         }
                     }

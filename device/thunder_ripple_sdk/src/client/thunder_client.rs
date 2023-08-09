@@ -16,6 +16,7 @@
 //
 
 use std::collections::{BTreeMap, HashMap};
+use std::str::FromStr;
 
 use jsonrpsee::core::client::{Client, ClientT, SubscriptionClientT};
 use jsonrpsee::ws_client::WsClientBuilder;
@@ -510,7 +511,7 @@ impl ThunderRawBoolRequest {
             );
             let mut start_ref_app_command = Command::new("sh");
             start_ref_app_command.arg("-c").arg(command);
-            if let Ok(_) = start_ref_app_command.output() {
+            if start_ref_app_command.output().is_ok() {
                 Value::Bool(true)
             } else {
                 Value::Bool(false)
@@ -522,7 +523,7 @@ impl ThunderRawBoolRequest {
             );
             let mut start_ref_app_command = Command::new("sh");
             start_ref_app_command.arg("-c").arg(command);
-            if let Ok(_) = start_ref_app_command.output() {
+            if start_ref_app_command.output().is_ok() {
                 Value::Bool(true)
             } else {
                 Value::Bool(false)
@@ -561,7 +562,8 @@ impl<'a> ThunderParamRequest<'a> {
         }
         result.unwrap()
     }
-    fn get_params(self: Box<Self>) -> Option<ParamsSer<'a>> {
+
+    fn get_params(self) -> Option<ParamsSer<'a>> {
         match self.json_based {
             true => {
                 let r: Result<BTreeMap<&'a str, Value>, _> = serde_json::from_str(self.params);
