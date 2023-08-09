@@ -37,6 +37,8 @@ pub struct ExtnChannelBuilder {
     pub service: String,
 }
 
+/// # Safety
+/// TODO: Why is this unsafe allowed here? https://rust-lang.github.io/rust-clippy/master/index.html#missing_safety_doc
 pub unsafe fn load_channel_builder(lib: &Library) -> Result<Box<ExtnChannelBuilder>, RippleError> {
     type LibraryFfi = unsafe fn() -> *mut ExtnChannelBuilder;
     let r = lib.get(b"channel_builder_create");

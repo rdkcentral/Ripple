@@ -44,6 +44,8 @@ pub struct JsonRpseeExtnBuilder {
     pub service: String,
 }
 
+/// # Safety
+/// TODO: Why is this unsafe allowed here? https://rust-lang.github.io/rust-clippy/master/index.html#missing_safety_doc
 pub unsafe fn load_jsonrpsee_methods(lib: &Library) -> Option<Box<JsonRpseeExtnBuilder>> {
     type LibraryFfi = unsafe fn() -> *mut JsonRpseeExtnBuilder;
     let r = lib.get(b"jsonrpsee_extn_builder_create");
