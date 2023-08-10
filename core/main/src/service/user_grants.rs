@@ -893,7 +893,17 @@ impl GrantPolicyEnforcer {
         permission: &FireboltPermission,
         policy: &GrantPolicy,
     ) -> Result<(), DenyReasonWithCap> {
-        let generic_cap_state = platform_state.clone().cap_state.generic;
+        if let Err(e) = platform_state
+            .cap_state
+            .generic
+            .check_all(&vec![permission.clone()])
+        {
+            return Err(DenyReasonWithCap {
+                caps: e.caps,
+                reason: DenyReason::GrantDenied,
+            });
+        }
+
         for grant_requirements in &policy.options {
             for step in &grant_requirements.steps {
                 let cap = FireboltCap::Full(step.capability.to_owned());
@@ -902,35 +912,27 @@ impl GrantPolicyEnforcer {
                     "checking if the cap is supported & available: {:?}",
                     firebolt_cap
                 );
-                if let Err(e) = generic_cap_state.check_all(&vec![permission.clone()]) {
-                    return Err(DenyReasonWithCap {
-                        caps: e.caps,
-                        reason: DenyReason::GrantDenied,
-                    });
-                } else {
-                    match GrantStepExecutor::execute(step, platform_state, call_ctx, permission)
-                        .await
-                    {
-                        Ok(_) => {
-                            CapState::emit(
-                                platform_state,
-                                CapEvent::OnGranted,
-                                cap,
-                                Some(permission.role),
-                            )
-                            .await;
-                            return Ok(());
-                        }
-                        Err(e) => {
-                            CapState::emit(
-                                platform_state,
-                                CapEvent::OnRevoked,
-                                cap,
-                                Some(permission.role),
-                            )
-                            .await;
-                            return Err(e);
-                        }
+
+                match GrantStepExecutor::execute(step, platform_state, call_ctx, permission).await {
+                    Ok(_) => {
+                        CapState::emit(
+                            platform_state,
+                            CapEvent::OnGranted,
+                            cap,
+                            Some(permission.role),
+                        )
+                        .await;
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        CapState::emit(
+                            platform_state,
+                            CapEvent::OnRevoked,
+                            cap,
+                            Some(permission.role),
+                        )
+                        .await;
+                        return Err(e);
                     }
                 }
             }
