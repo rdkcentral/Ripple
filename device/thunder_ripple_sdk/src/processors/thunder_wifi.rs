@@ -273,7 +273,7 @@ impl ThunderWifiRequestProcessor {
                 for ssid in ssid_response.ssids {
                     let check_ssid = ssid.ssid.clone();
                     if !dedup.contains(&check_ssid) {
-                        list.push(Box::new(ssid).to_access_point());
+                        list.push(ssid.to_access_point());
                         dedup.push(check_ssid);
                     }
                 }

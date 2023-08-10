@@ -765,7 +765,7 @@ impl ThunderDeviceInfoRequestProcessor {
         let interface_response =
             ThunderNetworkService::get_connected_interface(state.clone()).await;
         NetworkResponse {
-            _type: Box::new(interface_response.clone()).to_network_type(),
+            _type: interface_response.to_network_type(),
             state: match interface_response {
                 ThunderInterfaceType::Ethernet | ThunderInterfaceType::Wifi => {
                     NetworkState::Connected
