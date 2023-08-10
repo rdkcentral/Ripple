@@ -846,6 +846,7 @@ impl ThunderDeviceInfoRequestProcessor {
 
     async fn get_version(state: &CachedState) -> FireboltSemanticVersion {
         let response: FireboltSemanticVersion;
+        // TODO: refactor this to use return syntax and not use response variable across branches
         match state.get_version() {
             Some(v) => response = v,
             None => {
@@ -874,9 +875,10 @@ impl ThunderDeviceInfoRequestProcessor {
                     };
                     state.update_version(response.clone());
                 } else {
-                    let mut fsv = FireboltSemanticVersion::default();
-                    fsv.readable = tsv.stb_version;
-                    response = fsv;
+                    response = FireboltSemanticVersion {
+                        readable: tsv.stb_version,
+                        ..FireboltSemanticVersion::default()
+                    };
                     state.update_version(response.clone())
                 }
             }

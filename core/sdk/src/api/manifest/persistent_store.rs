@@ -40,17 +40,12 @@ impl ExtnPayloadProvider for AccessibilityResponse {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Response(response) => match response {
-                ExtnResponse::Value(value) => {
-                    if let Ok(v) = serde_json::from_value(value) {
-                        return Some(v);
-                    }
-                }
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Response(ExtnResponse::Value(value)) = payload {
+            if let Ok(v) = serde_json::from_value(value) {
+                return Some(v);
+            }
         }
+
         None
     }
 
