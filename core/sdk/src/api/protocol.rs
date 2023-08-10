@@ -44,13 +44,10 @@ impl ExtnPayloadProvider for BridgeProtocolRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<BridgeProtocolRequest> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::BridgeProtocolRequest(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::BridgeProtocolRequest(r)) = payload {
+            return Some(r);
         }
+
         None
     }
 

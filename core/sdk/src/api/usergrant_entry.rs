@@ -39,13 +39,10 @@ impl ExtnPayloadProvider for UserGrantsStoreRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::UserGrantsStore(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::UserGrantsStore(r)) = payload {
+            return Some(r);
         }
+
         None
     }
 

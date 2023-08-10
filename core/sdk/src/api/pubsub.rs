@@ -110,17 +110,10 @@ pub struct PubSubUnSubscriberResponse {
 }
 impl ExtnPayloadProvider for PubSubNotifyTopic {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Event(r) => match r {
-                ExtnEvent::String(topic) => {
-                    return Some(PubSubNotifyTopic {
-                        topic: topic.to_owned(),
-                    })
-                }
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Event(ExtnEvent::String(topic)) = payload {
+            return Some(PubSubNotifyTopic { topic });
         }
+
         None
     }
 
@@ -135,13 +128,10 @@ impl ExtnPayloadProvider for PubSubNotifyTopic {
 
 impl ExtnPayloadProvider for PubSubRequest {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(r) => match r {
-                ExtnRequest::PubSub(v) => return Some(v),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::PubSub(v)) = payload {
+            return Some(v);
         }
+
         None
     }
 
@@ -156,13 +146,10 @@ impl ExtnPayloadProvider for PubSubRequest {
 
 impl ExtnPayloadProvider for PubSubResponse {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Response(r) => match r {
-                ExtnResponse::PubSub(v) => return Some(v),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Response(ExtnResponse::PubSub(v)) = payload {
+            return Some(v);
         }
+
         None
     }
 
