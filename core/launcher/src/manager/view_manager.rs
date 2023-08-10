@@ -56,7 +56,7 @@ pub enum Position {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LaunchParams {
-    // TODO: LaunchParams is a temporary struct until app manifst support is added. For now this simply
+    // TODO: LaunchParams is a temporary struct until app manifest support is added. For now this simply
     // reflects the JSON contents of a file in order to demonstrate app launches.
     pub uri: String,
     pub browser_name: String,
