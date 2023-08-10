@@ -84,13 +84,10 @@ impl ExtnPayloadProvider for AdvertisingRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<AdvertisingRequest> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::Advertising(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::Advertising(r)) = payload {
+            return Some(r);
         }
+
         None
     }
 
@@ -133,12 +130,8 @@ impl ExtnPayloadProvider for AdvertisingResponse {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Response(r) => match r {
-                ExtnResponse::Advertising(v) => return Some(v),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Response(ExtnResponse::Advertising(v)) = payload {
+            return Some(v);
         }
 
         None
@@ -155,9 +148,10 @@ pub struct GetAdConfig {
     pub options: AdConfig,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Environment {
+    #[default]
     Prod,
     Test,
 }
@@ -168,12 +162,6 @@ impl fmt::Display for Environment {
             Environment::Prod => write!(f, "prod"),
             Environment::Test => write!(f, "test"),
         }
-    }
-}
-
-impl Default for Environment {
-    fn default() -> Self {
-        Environment::Prod
     }
 }
 

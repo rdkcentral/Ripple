@@ -19,11 +19,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::apps::CloseReason;
 
-pub const LIFECYCLE_EVENT_ON_INACTIVE: &'static str = "lifecycle.onInactive";
-pub const LIFECYCLE_EVENT_ON_FOREGROUND: &'static str = "lifecycle.onForeground";
-pub const LIFECYCLE_EVENT_ON_BACKGROUND: &'static str = "lifecycle.onBackground";
-pub const LIFECYCLE_EVENT_ON_SUSPENDED: &'static str = "lifecycle.onSuspended";
-pub const LIFECYCLE_EVENT_ON_UNLOADING: &'static str = "lifecycle.onUnloading";
+pub const LIFECYCLE_EVENT_ON_INACTIVE: &str = "lifecycle.onInactive";
+pub const LIFECYCLE_EVENT_ON_FOREGROUND: &str = "lifecycle.onForeground";
+pub const LIFECYCLE_EVENT_ON_BACKGROUND: &str = "lifecycle.onBackground";
+pub const LIFECYCLE_EVENT_ON_SUSPENDED: &str = "lifecycle.onSuspended";
+pub const LIFECYCLE_EVENT_ON_UNLOADING: &str = "lifecycle.onUnloading";
 
 #[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialEq)]
 #[serde(rename_all = "lowercase")]
