@@ -1228,9 +1228,26 @@ mod tests {
             assert!(result.is_ok());
         }
 
-        #[test]
-        #[ignore = "not implemented"]
-        fn test_evaluate_options_check_all_denied() {}
+        #[tokio::test]
+
+        async fn test_evaluate_options_check_all_denied() {
+            let (state, ctx, _) = setup();
+            let perm = FireboltPermission {
+                cap: FireboltCap::Full("xrn:firebolt:capability:something:unknown".to_owned()),
+                role: CapabilityRole::Use,
+            };
+            let policy = GrantPolicy {
+                options: vec![GrantRequirements { steps: vec![] }],
+                ..Default::default()
+            };
+
+            let result = GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy).await;
+
+            assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
+                reason: DenyReason::GrantDenied,
+                caps: vec![perm.cap.clone()]
+            })));
+        }
 
         #[test]
         #[ignore = "not implemented"]
