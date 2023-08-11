@@ -147,7 +147,7 @@ impl Default for GrantPolicy {
 #[derive(Deserialize, Debug, Clone)]
 pub struct GrantPolicies {
     #[serde(rename = "use")]
-    pub _use: Option<GrantPolicy>,
+    pub use_: Option<GrantPolicy>,
     pub manage: Option<GrantPolicy>,
     pub provide: Option<GrantPolicy>,
 }
@@ -156,8 +156,8 @@ impl GrantPolicies {
     pub fn get_policy(&self, permission: &FireboltPermission) -> Option<GrantPolicy> {
         match permission.role {
             CapabilityRole::Use => {
-                if self._use.is_some() {
-                    return Some(self._use.clone().unwrap());
+                if self.use_.is_some() {
+                    return Some(self.use_.clone().unwrap());
                 }
             }
             CapabilityRole::Manage => {
