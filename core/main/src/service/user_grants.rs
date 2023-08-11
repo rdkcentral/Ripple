@@ -1161,7 +1161,10 @@ mod tests {
             service::extn::ripple_client::RippleClient, state::bootstrap_state::ChannelsState,
         };
         use ripple_sdk::{
-            api::{gateway::rpc_gateway_api::ApiProtocol, manifest::extn_manifest::ExtnManifest},
+            api::{
+                device::device_user_grants_data::GrantRequirements,
+                gateway::rpc_gateway_api::ApiProtocol, manifest::extn_manifest::ExtnManifest,
+            },
             tokio,
         };
 
@@ -1212,9 +1215,18 @@ mod tests {
             assert!(result.is_ok());
         }
 
-        #[test]
-        #[ignore = "not implemented"]
-        fn test_evaluate_options_no_steps_for_option() {}
+        #[tokio::test]
+        async fn test_evaluate_options_no_steps_for_option() {
+            let (state, ctx, perm) = setup();
+            let policy = GrantPolicy {
+                options: vec![GrantRequirements { steps: vec![] }],
+                ..Default::default()
+            };
+
+            let result = GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy).await;
+
+            assert!(result.is_ok());
+        }
 
         #[test]
         #[ignore = "not implemented"]
