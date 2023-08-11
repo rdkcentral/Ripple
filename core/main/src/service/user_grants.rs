@@ -1024,6 +1024,7 @@ impl GrantStepExecutor {
         if let Ok(Ok(AppManagerResponse::AppName(name))) = rx.await {
             app_name = name.unwrap_or_default();
         }
+
         app_name
     }
 
@@ -1147,5 +1148,88 @@ impl GrantStepExecutor {
         } else {
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod test_grant_policy_enforcer {
+        use super::*;
+        use crate::{
+            service::extn::ripple_client::RippleClient, state::bootstrap_state::ChannelsState,
+        };
+        use ripple_sdk::{
+            api::{gateway::rpc_gateway_api::ApiProtocol, manifest::extn_manifest::ExtnManifest},
+            tokio,
+        };
+
+        fn setup() -> (PlatformState, CallContext, FireboltPermission) {
+            let channels_state = ChannelsState::new();
+            let client = RippleClient::new(channels_state.clone());
+            let (_, manifest) = DeviceManifest::load_from_content(
+                include_str!("../../../../examples/manifest/device-manifest-example.json")
+                    .to_string(),
+            )
+            .unwrap();
+            let (_, extn_manifest) = ExtnManifest::load_from_content(
+                include_str!("../../../../examples/manifest/extn-manifest-example.json")
+                    .to_string(),
+            )
+            .unwrap();
+            let platform_state = PlatformState::new(extn_manifest, manifest, client, vec![]);
+            let call_ctx = CallContext::new(
+                "sess_id".to_owned(),
+                "1".to_owned(),
+                "app_id".to_owned(),
+                1,
+                ApiProtocol::Extn,
+                "method".to_owned(),
+                None,
+                false,
+            );
+            let perm = FireboltPermission {
+                cap: FireboltCap::Full(
+                    "xrn:firebolt:capability:localization:postal-code".to_owned(),
+                ),
+                role: CapabilityRole::Use,
+            };
+
+            (platform_state, call_ctx, perm)
+        }
+
+        #[tokio::test]
+        async fn test_evaluate_options_no_options() {
+            let (state, ctx, perm) = setup();
+            let policy = GrantPolicy {
+                options: vec![],
+                ..Default::default()
+            };
+
+            let result = GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy).await;
+
+            assert!(result.is_ok());
+        }
+
+        #[test]
+        #[ignore = "not implemented"]
+        fn test_evaluate_options_no_steps_for_option() {}
+
+        #[test]
+        #[ignore = "not implemented"]
+        fn test_evaluate_options_check_all_denied() {}
+
+        #[test]
+        #[ignore = "not implemented"]
+        fn test_evaluate_options_first_option_suitable() {}
+
+        #[test]
+        #[ignore = "not implemented"]
+        fn test_evaluate_options_second_option_suitable() {}
+
+        #[test]
+        #[ignore = "not implemented"]
+        fn test_evaluate_options_no_options_suitable() {}
     }
 }
