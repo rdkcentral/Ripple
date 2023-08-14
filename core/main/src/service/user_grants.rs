@@ -1034,8 +1034,6 @@ impl GrantPolicyEnforcer {
             }
         }
 
-        
-
         Self::evaluate_options(
             platform_state,
             caller_session,
