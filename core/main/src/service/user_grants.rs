@@ -298,7 +298,6 @@ impl GrantState {
 
     pub async fn check_with_roles(
         state: &PlatformState,
-        // call_ctx: &CallContext,
         caller_session: &CallerSession,
         app_requested_for: &AppIdentification,
         fb_perms: &[FireboltPermission],
