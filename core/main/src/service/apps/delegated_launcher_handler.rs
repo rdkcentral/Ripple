@@ -25,7 +25,7 @@ use ripple_sdk::{
         apps::{
             AppError, AppManagerResponse, AppMethod, AppSession, EffectiveTransport, StateChange,
         },
-        device::device_user_grants_data::{EvaluateAt, GrantPolicy},
+        device::device_user_grants_data::EvaluateAt,
         firebolt::{
             fb_capabilities::FireboltPermission,
             fb_discovery::DISCOVERY_EVENT_ON_NAVIGATE_TO,

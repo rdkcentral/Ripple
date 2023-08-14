@@ -242,4 +242,31 @@ impl PermissionHandler {
                 .collect(),
         })
     }
+
+    pub async fn check_all_permitted(
+        platform_state: &PlatformState,
+        app_id: &str,
+        capability: &str,
+    ) -> (bool, bool, bool) {
+        let mut use_granted = false;
+        let mut manage_granted = false;
+        let mut provide_granted = false;
+        let granted_permissions = Self::get_app_permission(platform_state, app_id).await;
+        for perm in granted_permissions {
+            if &perm.cap.as_str() == capability {
+                match perm.role {
+                    ripple_sdk::api::firebolt::fb_capabilities::CapabilityRole::Use => {
+                        use_granted = true
+                    }
+                    ripple_sdk::api::firebolt::fb_capabilities::CapabilityRole::Manage => {
+                        manage_granted = true
+                    }
+                    ripple_sdk::api::firebolt::fb_capabilities::CapabilityRole::Provide => {
+                        provide_granted = true
+                    }
+                }
+            }
+        }
+        (use_granted, manage_granted, provide_granted)
+    }
 }

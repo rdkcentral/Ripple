@@ -27,9 +27,9 @@ use ripple_sdk::{
         device::{
             device_peristence::SetBoolProperty,
             device_user_grants_data::{
-                AutoApplyPolicy, GrantActiveState, GrantEntry, GrantErrors, GrantLifespan,
-                GrantPolicy, GrantPrivacySetting, GrantScope, GrantStateModify, GrantStatus,
-                GrantStep, PolicyPersistenceType,
+                AutoApplyPolicy, GrantActiveState, GrantEntry, GrantLifespan, GrantPolicy,
+                GrantPrivacySetting, GrantScope, GrantStateModify, GrantStatus, GrantStep,
+                PolicyPersistenceType,
             },
         },
         distributor::distributor_usergrants::{
@@ -46,7 +46,7 @@ use ripple_sdk::{
                 Challenge, ChallengeRequestor, ProviderRequestPayload, ProviderResponsePayload,
             },
         },
-        gateway::rpc_gateway_api::{AppIdentification, CallContext, CallerSession},
+        gateway::rpc_gateway_api::{AppIdentification, CallerSession},
         manifest::device_manifest::DeviceManifest,
         usergrant_entry::UserGrantInfo,
     },
@@ -250,44 +250,52 @@ impl GrantState {
         }
     }
 
-    pub fn get_info(
-        state: &PlatformState,
-        call_ctx: &CallContext,
-        cap_set: &CapabilitySet,
-    ) -> Result<(), GrantErrors> {
-        /*
-         * Instead of just checking for grants previously, if the user grants are not present,
-         * we are taking necessary steps to get the user grant and send back the result.
-         */
-        let grant_state = state.clone().cap_state.grant_state;
-        let app_id = call_ctx.app_id.clone();
-        let caps_needing_grants = grant_state.caps_needing_grants.clone();
-        let caps_needing_grant_in_request: Vec<FireboltPermission> = cap_set
-            .into_firebolt_permissions_vec()
-            .into_iter()
-            .filter(|x| caps_needing_grants.contains(&x.cap.as_str()))
-            .collect();
-        let mut grant_errors = GrantErrors::default();
-        for permission in caps_needing_grant_in_request {
-            let result = grant_state.get_grant_state(&app_id, &permission);
-            match result {
-                GrantActiveState::ActiveGrant(grant) => {
-                    if grant.is_err() {
-                        grant_errors.add_denied(permission.cap.clone())
-                    }
-                }
-                GrantActiveState::PendingGrant => {
-                    grant_errors.add_ungranted(permission.cap.clone())
-                }
-            }
-        }
-        if grant_errors.has_errors() {
-            Err(grant_errors)
-        } else {
-            Ok(())
-        }
-        // UserGrants::determine_grant_policies(&self.ps.clone(), call_ctx, &r).await
-    }
+    // pub fn get_info(
+    //     state: &PlatformState,
+    //     call_ctx: &CallContext,
+    //     // cap_set: &CapabilitySet,
+    //     firebolt_permission: &FireboltPermission,
+    // ) -> Result<(), GrantErrors> {
+    //     /*
+    //      * Instead of just checking for grants previously, if the user grants are not present,
+    //      * we are taking necessary steps to get the user grant and send back the result.
+    //      */
+    //     let grant_state = state.clone().cap_state.grant_state;
+    //     let app_id = call_ctx.app_id.clone();
+    //     let caps_needing_grants = grant_state.caps_needing_grants.clone();
+    //     // let caps_needing_grant_in_request: Vec<FireboltPermission> = cap_set
+    //     //     .into_firebolt_permissions_vec()
+    //     //     .into_iter()
+    //     //     .filter(|x| caps_needing_grants.contains(&x.cap.as_str()))
+    //     //     .collect();
+    //     if !caps_needing_grants.contains(&firebolt_permission.cap.as_str()) {
+    //         return Ok(());
+    //     }
+    //     let caps_needing_grant_in_request = firebolt_permission
+    //         .iter()
+    //         .filter(|x| caps_needing_grants.contains(&x.cap.as_str()))
+    //         .collect();
+    //     let mut grant_errors = GrantErrors::default();
+    //     for permission in caps_needing_grant_in_request {
+    //         let result = grant_state.get_grant_state(&app_id, &permission);
+    //         match result {
+    //             GrantActiveState::ActiveGrant(grant) => {
+    //                 if grant.is_err() {
+    //                     grant_errors.add_denied(permission.cap.clone())
+    //                 }
+    //             }
+    //             GrantActiveState::PendingGrant => {
+    //                 grant_errors.add_ungranted(permission.cap.clone())
+    //             }
+    //         }
+    //     }
+    //     if grant_errors.has_errors() {
+    //         Err(grant_errors)
+    //     } else {
+    //         Ok(())
+    //     }
+    //     // UserGrants::determine_grant_policies(&self.ps.clone(), call_ctx, &r).await
+    // }
 
     pub async fn check_with_roles(
         state: &PlatformState,
@@ -439,7 +447,57 @@ impl GrantState {
                 }
             }
         }
+        let device_grants = self.device_grants.read().unwrap();
+        let grant_sets = device_grants
+            .value
+            .iter()
+            .filter(|elem| &elem.capability == capability)
+            .cloned()
+            .collect();
+        grant_entry_map.insert("device".to_owned(), grant_sets);
         grant_entry_map
+    }
+
+    fn get_mapped_grant_status(
+        platform_state: &PlatformState,
+        app_id: &str,
+        capability: &str,
+        role: CapabilityRole,
+    ) -> Option<bool> {
+        let grant_state = &platform_state.cap_state.grant_state;
+        grant_state
+            .get_grant_status(
+                app_id,
+                &FireboltPermission {
+                    cap: FireboltCap::Full(capability.to_owned()),
+                    role,
+                },
+            )
+            .map(|grant_status| match grant_status {
+                GrantStatus::Allowed => true,
+                GrantStatus::Denied => false,
+            })
+    }
+    pub fn check_all_granted(
+        platform_state: &PlatformState,
+        app_id: &str,
+        capability: &str,
+    ) -> (Option<bool>, Option<bool>, Option<bool>) {
+        let use_granted =
+            Self::get_mapped_grant_status(platform_state, app_id, capability, CapabilityRole::Use);
+        let manage_granted = Self::get_mapped_grant_status(
+            platform_state,
+            app_id,
+            capability,
+            CapabilityRole::Manage,
+        );
+        let provide_granted = Self::get_mapped_grant_status(
+            platform_state,
+            app_id,
+            capability,
+            CapabilityRole::Provide,
+        );
+        (use_granted, manage_granted, provide_granted)
     }
 
     pub fn grant_modify(
