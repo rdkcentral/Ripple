@@ -239,14 +239,14 @@ impl CapState {
                 capability_info._use.permitted,
                 capability_info.manage.permitted,
                 capability_info.provide.permitted,
-            ) = PermissionHandler::check_all_permitted(&state, &call_context.app_id, &cap.as_str())
+            ) = PermissionHandler::check_all_permitted(state, &call_context.app_id, &cap.as_str())
                 .await;
 
             (
                 capability_info._use.granted,
                 capability_info.manage.granted,
                 capability_info.provide.granted,
-            ) = GrantState::check_all_granted(&state, &call_context.app_id, &cap.as_str());
+            ) = GrantState::check_all_granted(state, &call_context.app_id, &cap.as_str());
             let mut deny_reasons = Vec::new();
             if !capability_info.supported {
                 deny_reasons.push(DenyReason::Unsupported);

@@ -451,7 +451,7 @@ impl GrantState {
         let grant_sets = device_grants
             .value
             .iter()
-            .filter(|elem| &elem.capability == capability)
+            .filter(|elem| elem.capability == capability)
             .cloned()
             .collect();
         grant_entry_map.insert("device".to_owned(), grant_sets);
@@ -1035,16 +1035,16 @@ impl GrantPolicyEnforcer {
             }
         }
 
-        let result = Self::evaluate_options(
+        
+
+        Self::evaluate_options(
             platform_state,
             caller_session,
             app_requested_for,
             permission,
             policy,
         )
-        .await;
-
-        return result;
+        .await
     }
 }
 

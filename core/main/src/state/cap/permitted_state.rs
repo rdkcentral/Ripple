@@ -188,29 +188,27 @@ impl PermissionHandler {
         app_id: &str,
     ) -> Vec<FireboltPermission> {
         let result = Vec::new();
-        if let Some(permitted_caps) = state.cap_state.permitted_state.get_app_permissions(&app_id) {
+        if let Some(permitted_caps) = state.cap_state.permitted_state.get_app_permissions(app_id) {
             return permitted_caps;
-        } else {
-            if let Some(session) = state.session_state.get_account_session() {
-                if let Ok(extn_response) = state
-                    .get_client()
-                    .send_extn_request(PermissionRequest {
-                        app_id: app_id.to_owned(),
-                        session,
-                    })
-                    .await
+        } else if let Some(session) = state.session_state.get_account_session() {
+            if let Ok(extn_response) = state
+                .get_client()
+                .send_extn_request(PermissionRequest {
+                    app_id: app_id.to_owned(),
+                    session,
+                })
+                .await
+            {
+                if let Some(permission_response) =
+                    extn_response.payload.extract::<PermissionResponse>()
                 {
-                    if let Some(permission_response) =
-                        extn_response.payload.extract::<PermissionResponse>()
-                    {
-                        return permission_response;
-                        // let mut map = HashMap::new();
-                        // map.insert(app_id.clone(), permission_response);
-                        // let mut permitted_state = state.cap_state.permitted_state.clone();
-                        // permitted_state.ingest(map);
-                        // info!("Permissions fetched for {}", app_id);
-                        // return Ok(());
-                    }
+                    return permission_response;
+                    // let mut map = HashMap::new();
+                    // map.insert(app_id.clone(), permission_response);
+                    // let mut permitted_state = state.cap_state.permitted_state.clone();
+                    // permitted_state.ingest(map);
+                    // info!("Permissions fetched for {}", app_id);
+                    // return Ok(());
                 }
             }
         }
@@ -255,7 +253,7 @@ impl PermissionHandler {
         let mut provide_granted = false;
         let granted_permissions = Self::get_app_permission(platform_state, app_id).await;
         for perm in granted_permissions {
-            if &perm.cap.as_str() == capability {
+            if perm.cap.as_str() == capability {
                 match perm.role {
                     ripple_sdk::api::firebolt::fb_capabilities::CapabilityRole::Use => {
                         use_granted = true

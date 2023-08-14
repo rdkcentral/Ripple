@@ -554,7 +554,7 @@ impl DelegatedLauncherHandler {
         // Get the list of permissions that the calling app currently has
         debug!(" Get the list of permissions that the calling app currently has {app_id}");
         let app_perms = PermissionHandler::get_app_permission(ps, &app_id).await;
-        if app_perms.len() == 0 {
+        if app_perms.is_empty() {
             return None;
         }
         debug!("list of permission that {} has {:?}", &app_id, app_perms);
@@ -564,9 +564,7 @@ impl DelegatedLauncherHandler {
             "get the list of grant policies from device manifest file:{:?}",
             grant_polices_map_opt
         );
-        if grant_polices_map_opt.is_none() {
-            return None;
-        }
+        grant_polices_map_opt.as_ref()?;
         let grant_polices_map = grant_polices_map_opt.unwrap();
         //Filter out the caps only that has evaluate at
         let final_perms: Vec<FireboltPermission> = app_perms
@@ -604,7 +602,7 @@ impl DelegatedLauncherHandler {
             "list of permissions that need to be evaluated: {:?}",
             final_perms
         );
-        if final_perms.len() > 0 {
+        if !final_perms.is_empty() {
             Some(final_perms)
         } else {
             None
