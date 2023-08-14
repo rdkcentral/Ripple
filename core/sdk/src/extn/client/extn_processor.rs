@@ -43,6 +43,12 @@ impl DefaultExtnStreamer {
     }
 }
 
+impl Default for DefaultExtnStreamer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ExtnStreamer for DefaultExtnStreamer {
     fn sender(&self) -> MSender<ExtnMessage> {
         self.tx.clone().unwrap()
@@ -191,16 +197,14 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
                 let extracted_message = Self::get(msg.clone().payload);
                 if extracted_message.is_none() {
                     Self::handle_error(extn_client.clone(), msg, RippleError::ParseError).await;
-                } else {
-                    if !Self::process_request(
-                        state.clone(),
-                        msg.clone(),
-                        extracted_message.unwrap(),
-                    )
-                    .await
-                    {
-                        debug!("Error processing request {:?}", msg);
-                    }
+                } else if !Self::process_request(
+                    state.clone(),
+                    msg.clone(),
+                    extracted_message.unwrap(),
+                )
+                .await
+                {
+                    debug!("Error processing request {:?}", msg);
                 }
             }
         });

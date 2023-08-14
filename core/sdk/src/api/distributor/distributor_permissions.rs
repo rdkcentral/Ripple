@@ -31,12 +31,8 @@ pub struct PermissionRequest {
 
 impl ExtnPayloadProvider for PermissionRequest {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(r) => match r {
-                ExtnRequest::Permission(p) => return Some(p),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::Permission(p)) = payload {
+            return Some(p);
         }
 
         None
@@ -55,12 +51,8 @@ pub type PermissionResponse = Vec<FireboltPermission>;
 
 impl ExtnPayloadProvider for PermissionResponse {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Response(r) => match r {
-                ExtnResponse::Permission(v) => return Some(v),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Response(ExtnResponse::Permission(v)) = payload {
+            return Some(v);
         }
 
         None

@@ -404,7 +404,7 @@ impl DeviceServer for DeviceImpl {
             request,
         );
 
-        if let Err(_) = self
+        if self
             .state
             .get_client()
             .send_extn_request(DeviceEventRequest {
@@ -414,6 +414,7 @@ impl DeviceServer for DeviceImpl {
                 callback_type: DeviceEventCallback::FireboltAppEvent,
             })
             .await
+            .is_err()
         {
             error!("Error while registration");
         }
@@ -457,7 +458,7 @@ impl DeviceServer for DeviceImpl {
             request,
         );
 
-        if let Err(_) = self
+        if self
             .state
             .get_client()
             .send_extn_request(DeviceEventRequest {
@@ -467,6 +468,7 @@ impl DeviceServer for DeviceImpl {
                 callback_type: DeviceEventCallback::FireboltAppEvent,
             })
             .await
+            .is_err()
         {
             error!("Error while registration");
         }
@@ -478,7 +480,7 @@ impl DeviceServer for DeviceImpl {
     }
 
     async fn screen_resolution(&self, _ctx: CallContext) -> RpcResult<Vec<i32>> {
-        if let Ok(resp) = timeout(
+        if let Ok(Ok(resp)) = timeout(
             Duration::from_secs(DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS),
             self.state
                 .get_client()
@@ -486,13 +488,11 @@ impl DeviceServer for DeviceImpl {
         )
         .await
         {
-            if let Ok(r) = resp {
-                match r.payload.extract().unwrap() {
-                    DeviceResponse::ScreenResolutionResponse(value) => return Ok(value),
-                    _ => {}
-                };
+            if let Some(DeviceResponse::ScreenResolutionResponse(value)) = resp.payload.extract() {
+                return Ok(value);
             }
         }
+
         Err(jsonrpsee::core::Error::Custom(String::from(
             "screen_resolution error response TBD",
         )))
@@ -511,7 +511,7 @@ impl DeviceServer for DeviceImpl {
             request,
         );
 
-        if let Err(_) = self
+        if self
             .state
             .get_client()
             .send_extn_request(DeviceEventRequest {
@@ -521,6 +521,7 @@ impl DeviceServer for DeviceImpl {
                 callback_type: DeviceEventCallback::FireboltAppEvent,
             })
             .await
+            .is_err()
         {
             error!("Error while registration");
         }
@@ -532,7 +533,7 @@ impl DeviceServer for DeviceImpl {
     }
 
     async fn video_resolution(&self, _ctx: CallContext) -> RpcResult<Vec<i32>> {
-        if let Ok(resp) = timeout(
+        if let Ok(Ok(resp)) = timeout(
             Duration::from_secs(DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS),
             self.state
                 .get_client()
@@ -540,13 +541,11 @@ impl DeviceServer for DeviceImpl {
         )
         .await
         {
-            if let Ok(r) = resp {
-                match r.payload.extract().unwrap() {
-                    DeviceResponse::VideoResolutionResponse(value) => return Ok(value),
-                    _ => {}
-                };
+            if let Some(DeviceResponse::VideoResolutionResponse(value)) = resp.payload.extract() {
+                return Ok(value);
             }
         }
+
         Err(jsonrpsee::core::Error::Custom(String::from(
             "video_resolution error response TBD",
         )))
@@ -565,7 +564,7 @@ impl DeviceServer for DeviceImpl {
             request,
         );
 
-        if let Err(_) = self
+        if self
             .state
             .get_client()
             .send_extn_request(DeviceEventRequest {
@@ -575,6 +574,7 @@ impl DeviceServer for DeviceImpl {
                 callback_type: DeviceEventCallback::FireboltAppEvent,
             })
             .await
+            .is_err()
         {
             error!("Error while registration");
         }
@@ -694,7 +694,7 @@ impl DeviceServer for DeviceImpl {
             request,
         );
 
-        if let Err(_) = self
+        if self
             .state
             .get_client()
             .send_extn_request(DeviceEventRequest {
@@ -704,6 +704,7 @@ impl DeviceServer for DeviceImpl {
                 callback_type: DeviceEventCallback::FireboltAppEvent,
             })
             .await
+            .is_err()
         {
             error!("Error while registration");
         }

@@ -45,13 +45,10 @@ impl ExtnPayloadProvider for TokenResult {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<TokenResult> {
-        match payload {
-            ExtnPayload::Response(response) => match response {
-                ExtnResponse::Token(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Response(ExtnResponse::Token(r)) = payload {
+            return Some(r);
         }
+
         None
     }
 

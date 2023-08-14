@@ -80,6 +80,12 @@ impl PrivacySettings {
     }
 }
 
+impl Default for PrivacySettings {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PrivacySettingsStoreRequest {
     GetPrivacySettings(StorageProperty),
@@ -106,10 +112,9 @@ pub struct PrivacySettingsData {
 impl ExtnPayloadProvider for PrivacySettingsStoreRequest {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         match payload {
-            ExtnPayload::Request(req) => match req {
-                ExtnRequest::PrivacySettingsStore(storage_request) => Some(storage_request),
-                _ => None,
-            },
+            ExtnPayload::Request(ExtnRequest::PrivacySettingsStore(storage_request)) => {
+                Some(storage_request)
+            }
             _ => None,
         }
     }
@@ -125,16 +130,10 @@ impl ExtnPayloadProvider for PrivacySettingsStoreRequest {
 
 impl ExtnPayloadProvider for PrivacySettings {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Response(r) => match r {
-                ExtnResponse::Value(v) => {
-                    if let Ok(v) = serde_json::from_value(v) {
-                        return Some(v);
-                    }
-                }
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Response(ExtnResponse::Value(v)) = payload {
+            if let Ok(v) = serde_json::from_value(v) {
+                return Some(v);
+            }
         }
 
         None
@@ -153,18 +152,11 @@ impl ExtnPayloadProvider for PrivacySettings {
 
 impl ExtnPayloadProvider for PrivacySettingsData {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(r) => match r {
-                ExtnRequest::PrivacySettingsStore(storage_request) => {
-                    if let PrivacySettingsStoreRequest::SetAllPrivacySettings(settings) =
-                        storage_request
-                    {
-                        return Some(settings);
-                    }
-                }
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::PrivacySettingsStore(
+            PrivacySettingsStoreRequest::SetAllPrivacySettings(settings),
+        )) = payload
+        {
+            return Some(settings);
         }
 
         None
@@ -223,12 +215,8 @@ impl PrivacyCloudRequest {
 
 impl ExtnPayloadProvider for PrivacyCloudRequest {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(r) => match r {
-                ExtnRequest::PrivacySettings(p) => return Some(p),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::PrivacySettings(p)) = payload {
+            return Some(p);
         }
 
         None
@@ -269,16 +257,10 @@ pub struct ExclusionPolicy {
 
 impl ExtnPayloadProvider for ExclusionPolicy {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Response(r) => match r {
-                ExtnResponse::Value(v) => {
-                    if let Ok(v) = serde_json::from_value(v) {
-                        return Some(v);
-                    }
-                }
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Response(ExtnResponse::Value(v)) = payload {
+            if let Ok(v) = serde_json::from_value(v) {
+                return Some(v);
+            }
         }
 
         None

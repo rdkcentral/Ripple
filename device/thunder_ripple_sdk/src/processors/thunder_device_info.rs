@@ -93,8 +93,8 @@ enum ThunderInterfaceType {
 }
 
 impl ThunderInterfaceType {
-    fn to_network_type(self: Box<Self>) -> NetworkType {
-        match *self {
+    fn to_network_type(&self) -> NetworkType {
+        match self {
             Self::Wifi => NetworkType::Wifi,
             Self::Ethernet => NetworkType::Ethernet,
             Self::None => NetworkType::Hybrid,
@@ -375,7 +375,7 @@ impl ThunderAvailableTimezonesResponse {
         let mut timezones = Vec::default();
         for (area, locations) in &self.zoneinfo {
             let mut found_location = false;
-            for (location, _local_time) in locations {
+            for location in locations.keys() {
                 timezones.push(format!("{}/{}", area, location));
                 found_location = true;
             }
@@ -765,7 +765,7 @@ impl ThunderDeviceInfoRequestProcessor {
         let interface_response =
             ThunderNetworkService::get_connected_interface(state.clone()).await;
         NetworkResponse {
-            _type: Box::new(interface_response.clone()).to_network_type(),
+            _type: interface_response.to_network_type(),
             state: match interface_response {
                 ThunderInterfaceType::Ethernet | ThunderInterfaceType::Wifi => {
                     NetworkState::Connected
@@ -812,7 +812,7 @@ impl ThunderDeviceInfoRequestProcessor {
         info!("subscribed to locationchangeChanged events");
 
         let thread_res = tokio::spawn(async move {
-            while let Some(_) = r.recv().await {
+            while r.recv().await.is_some() {
                 if ThunderNetworkService::has_internet(&cloned_state).await {
                     // Internet precondition for browsers are supposed to be met
                     // when locationchange event is given, but seems to be a short period
@@ -830,7 +830,7 @@ impl ThunderDeviceInfoRequestProcessor {
             }
         });
         let dur = Duration::from_millis(timeout);
-        if let Err(_) = tokio::time::timeout(dur, thread_res).await {
+        if tokio::time::timeout(dur, thread_res).await.is_err() {
             return Self::respond(
                 state.get_client(),
                 req,
@@ -846,6 +846,7 @@ impl ThunderDeviceInfoRequestProcessor {
 
     async fn get_version(state: &CachedState) -> FireboltSemanticVersion {
         let response: FireboltSemanticVersion;
+        // TODO: refactor this to use return syntax and not use response variable across branches
         match state.get_version() {
             Some(v) => response = v,
             None => {
@@ -874,9 +875,10 @@ impl ThunderDeviceInfoRequestProcessor {
                     };
                     state.update_version(response.clone());
                 } else {
-                    let mut fsv = FireboltSemanticVersion::default();
-                    fsv.readable = tsv.stb_version;
-                    response = fsv;
+                    response = FireboltSemanticVersion {
+                        readable: tsv.stb_version,
+                        ..FireboltSemanticVersion::default()
+                    };
                     state.update_version(response.clone())
                 }
             }
@@ -1261,17 +1263,15 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
                     firmware_info: Self::get_version(&state).await,
                     hdcp: Self::get_hdcp_status(&state).await,
                     hdr: Self::get_cached_hdr(&state).await,
-                    is_wifi: match Self::get_network(&state).await._type {
-                        NetworkType::Wifi => true,
-                        _ => false,
-                    },
+                    is_wifi: matches!(Self::get_network(&state).await._type, NetworkType::Wifi),
                     make: Self::get_make(&state).await,
                     model: Self::get_model(&state).await,
                     video_resolution: Self::get_video_resolution(&state).await,
                     screen_resolution: Self::get_screen_resolution(&state).await,
                 };
                 if let ExtnPayload::Response(r) =
-                    DeviceResponse::FullCapabilities(device_capabilities).get_extn_payload()
+                    DeviceResponse::FullCapabilities(Box::new(device_capabilities))
+                        .get_extn_payload()
                 {
                     Self::respond(state.get_client(), msg, r).await.is_ok()
                 } else {

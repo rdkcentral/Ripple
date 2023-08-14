@@ -85,13 +85,10 @@ impl ExtnPayloadProvider for SettingsRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(response) => match response {
-                ExtnRequest::Settings(value) => return Some(value),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::Settings(value)) = payload {
+            return Some(value);
         }
+
         None
     }
 

@@ -92,9 +92,9 @@ impl From<ExtnMetadata> for CExtnMetadata {
             });
         }
         let symbols = serde_json::to_string(&metadata).unwrap();
-        info!("exported symbols in library {}", symbols.clone());
+        info!("exported symbols in library {}", symbols);
         CExtnMetadata {
-            name: value.name.clone(),
+            name: value.name,
             metadata: symbols,
         }
     }
@@ -166,6 +166,8 @@ macro_rules! export_extn_metadata {
 }
 
 /// Used by Ripple main to load the metadata for a given dynamic library.
+/// # Safety
+/// TODO: Why is this unsafe allowed here? https://rust-lang.github.io/rust-clippy/master/index.html#missing_safety_doc
 pub unsafe fn load_extn_library_metadata(lib: &Library) -> Option<Box<ExtnMetadata>> {
     type LibraryFfi = unsafe fn() -> *mut CExtnMetadata;
     let r = lib.get(b"extn_library_create_metadata");
@@ -175,8 +177,8 @@ pub unsafe fn load_extn_library_metadata(lib: &Library) -> Option<Box<ExtnMetada
             let constructor: Symbol<LibraryFfi> = r;
             let r = Box::from_raw(constructor());
             let metadata: Result<ExtnMetadata, RippleError> = r.try_into();
-            if metadata.is_ok() {
-                return Some(Box::new(metadata.unwrap()));
+            if let Ok(metadata) = metadata {
+                return Some(Box::new(metadata));
             }
             //return Some();
         }

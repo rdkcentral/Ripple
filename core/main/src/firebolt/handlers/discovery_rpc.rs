@@ -238,11 +238,11 @@ impl DiscoveryImpl {
         _state: &PlatformState,
         _app_id: &str,
     ) -> RpcResult<ContentPolicy> {
-        let mut content_policy: ContentPolicy = Default::default();
-        content_policy.enable_recommendations = false; // TODO: Need to replace with PrivacyImpl
-        content_policy.share_watch_history = false; // TODO: Need to replace with PrivacyImpl
-        content_policy.remember_watched_programs = false; // TODO: Need to replace with PrivacyImpl
-        Ok(content_policy)
+        Ok(ContentPolicy {
+            enable_recommendations: false, // TODO: Need to replace with PrivacyImpl
+            share_watch_history: false,    // TODO: Need to replace with PrivacyImpl
+            remember_watched_programs: false, // TODO: Need to replace with PrivacyImpl
+        })
     }
 
     pub fn get_share_watch_history() -> bool {
@@ -461,23 +461,23 @@ impl DiscoveryServer for DiscoveryImpl {
 
     async fn watched(&self, ctx: CallContext, watched_info: WatchedInfo) -> RpcResult<bool> {
         info!("Discovery.watched");
-        match self
+
+        if let Ok(response) = self
             .state
             .get_client()
             .send_extn_request(AccountLinkRequest::Watched(ctx, watched_info))
             .await
         {
-            Ok(response) => {
-                if let Some(ExtnResponse::Boolean(v)) = response.payload.extract::<ExtnResponse>() {
-                    return Ok(v);
-                }
+            if let Some(ExtnResponse::Boolean(v)) = response.payload.extract() {
+                return Ok(v);
             }
-            Err(_) => {}
         }
+
         Err(rpc_err(
             "Did not receive a valid resposne from platform when notifying watched info",
         ))
     }
+
     async fn watch_next(
         &self,
         ctx: CallContext,
@@ -543,10 +543,14 @@ impl DiscoveryServer for DiscoveryImpl {
 
         let app_request = AppRequest::new(AppMethod::Launch(request.clone()), app_resp_tx);
 
-        if let Ok(_) = self.state.get_client().send_app_request(app_request) {
-            if let Ok(_) = app_resp_rx.await {
-                return Ok(true);
-            }
+        if self
+            .state
+            .get_client()
+            .send_app_request(app_request)
+            .is_ok()
+            && app_resp_rx.await.is_ok()
+        {
+            return Ok(true);
         }
 
         Err(jsonrpsee::core::Error::Custom(String::from(
@@ -639,7 +643,7 @@ impl DiscoveryServer for DiscoveryImpl {
     ) -> RpcResult<bool> {
         let response = ProviderResponse {
             correlation_id: entity_info.correlation_id,
-            result: ProviderResponsePayload::EntityInfoResponse(entity_info.result),
+            result: ProviderResponsePayload::EntityInfoResponse(Box::new(entity_info.result)),
         };
         ProviderBroker::provider_response(&self.state, response).await;
         Ok(true)

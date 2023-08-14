@@ -222,7 +222,10 @@ impl FireboltWs {
             return;
         }
 
-        if let Err(_) = PermissionHandler::fetch_and_store(&state, &app_id).await {
+        if PermissionHandler::fetch_and_store(&state, &app_id)
+            .await
+            .is_err()
+        {
             error!("Couldnt pre cache permissions");
         }
 

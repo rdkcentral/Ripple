@@ -128,13 +128,13 @@ impl ExtnSender {
         msg: CExtnMessage,
         other_sender: Option<CSender<CExtnMessage>>,
     ) -> Result<(), RippleError> {
-        if other_sender.is_some() {
+        if let Some(other_sender) = other_sender {
             trace!("Sending message on the other sender");
-            if let Err(e) = other_sender.unwrap().send(msg) {
+            if let Err(e) = other_sender.send(msg) {
                 error!("send() error for message in other sender {}", e.to_string());
                 return Err(RippleError::SendFailure);
             }
-            return Ok(());
+            Ok(())
         } else {
             let tx = self.tx.clone();
             //tokio::spawn(async move {
@@ -143,7 +143,7 @@ impl ExtnSender {
                 error!("send() error for message in main sender {}", e.to_string());
                 return Err(RippleError::SendFailure);
             }
-            return Ok(());
+            Ok(())
         }
     }
 
@@ -161,9 +161,9 @@ impl ExtnSender {
                 );
                 return Err(RippleError::SendFailure);
             }
-            return Ok(());
+            Ok(())
         } else {
-            return self.send(msg, other_sender);
+            self.send(msg, other_sender)
         }
     }
 }

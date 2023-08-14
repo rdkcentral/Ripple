@@ -24,21 +24,22 @@ pub struct LoadDeviceManifestStep;
 impl LoadDeviceManifestStep {
     pub fn get_manifest() -> DeviceManifest {
         let r = try_manifest_files();
-        if r.is_ok() {
-            return r.unwrap();
+        if let Ok(r) = r {
+            return r;
         }
 
         r.expect("Need valid Device Manifest")
     }
 }
 
+type DeviceManifestLoader = Vec<fn() -> Result<(String, DeviceManifest), RippleError>>;
+
 fn try_manifest_files() -> Result<DeviceManifest, RippleError> {
-    let dm_arr: Vec<fn() -> Result<(String, DeviceManifest), RippleError>>;
-    if cfg!(test) {
-        dm_arr = vec![load_from_env];
+    let dm_arr: DeviceManifestLoader = if cfg!(test) {
+        vec![load_from_env]
     } else {
-        dm_arr = vec![load_from_env, load_from_home, load_from_opt, load_from_etc];
-    }
+        vec![load_from_env, load_from_home, load_from_opt, load_from_etc]
+    };
 
     for dm_provider in dm_arr {
         if let Ok((p, m)) = dm_provider() {

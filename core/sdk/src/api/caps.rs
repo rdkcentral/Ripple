@@ -36,13 +36,10 @@ impl ExtnPayloadProvider for CapsRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(response) => match response {
-                ExtnRequest::AuthorizedInfo(value) => return Some(value),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::AuthorizedInfo(value)) = payload {
+            return Some(value);
         }
+
         None
     }
 

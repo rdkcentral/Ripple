@@ -25,11 +25,11 @@ use crate::{
 
 use super::provider::{ProviderResponse, ProviderResponsePayload};
 
-pub const EMAIL_EVENT_PREFIX: &'static str = "keyboard.onRequestEmail";
-pub const PASSWORD_EVENT_PREFIX: &'static str = "keyboard.onRequestPassword";
-pub const STANDARD_EVENT_PREFIX: &'static str = "keyboard.onRequestStandard";
+pub const EMAIL_EVENT_PREFIX: &str = "keyboard.onRequestEmail";
+pub const PASSWORD_EVENT_PREFIX: &str = "keyboard.onRequestPassword";
+pub const STANDARD_EVENT_PREFIX: &str = "keyboard.onRequestStandard";
 
-pub const KEYBOARD_PROVIDER_CAPABILITY: &'static str = "xrn:firebolt:capability:input:keyboard";
+pub const KEYBOARD_PROVIDER_CAPABILITY: &str = "xrn:firebolt:capability:input:keyboard";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "lowercase")]
@@ -105,13 +105,10 @@ impl ExtnPayloadProvider for KeyboardSessionRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::Keyboard(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::Keyboard(r)) = payload {
+            return Some(r);
         }
+
         None
     }
 
@@ -132,13 +129,10 @@ impl ExtnPayloadProvider for KeyboardSessionResponse {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Response(r) => match r {
-                ExtnResponse::Keyboard(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Response(ExtnResponse::Keyboard(r)) = payload {
+            return Some(r);
         }
+
         None
     }
 

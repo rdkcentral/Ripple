@@ -47,6 +47,11 @@ pub mod processors {
     pub mod thunder_window_manager;
 }
 
+pub mod utils;
+
+pub mod thunder_state;
+pub extern crate ripple_sdk;
+
 #[cfg(test)]
 pub mod tests {
     #[cfg(feature = "contract_tests")]
@@ -60,8 +65,3 @@ pub mod tests {
         pub mod thunder_window_manager_pacts;
     }
 }
-
-pub mod utils;
-
-pub mod thunder_state;
-pub extern crate ripple_sdk;

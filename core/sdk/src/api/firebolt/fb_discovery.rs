@@ -27,7 +27,7 @@ use crate::{
     utils::serde_utils::{optional_date_time_str_serde, progress_value_deserialize},
 };
 
-pub const DISCOVERY_EVENT_ON_NAVIGATE_TO: &'static str = "discovery.onNavigateTo";
+pub const DISCOVERY_EVENT_ON_NAVIGATE_TO: &str = "discovery.onNavigateTo";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct DiscoveryContext {
@@ -36,9 +36,9 @@ pub struct DiscoveryContext {
 
 impl DiscoveryContext {
     pub fn new(source: &str) -> DiscoveryContext {
-        return DiscoveryContext {
+        DiscoveryContext {
             source: source.to_string(),
-        };
+        }
     }
 }
 
@@ -138,13 +138,13 @@ pub struct ContentAccessRequest {
     pub ids: ContentAccessIdentifiers,
 }
 
-pub const ENTITY_INFO_EVENT: &'static str = "discovery.onPullEntityInfo";
-pub const ENTITY_INFO_CAPABILITY: &'static str = "discovery:entity-info";
-pub const PURCHASED_CONTENT_EVENT: &'static str = "discovery.onPullPurchasedContent";
-pub const EVENT_ON_SIGN_IN: &'static str = "discovery.onSignIn";
-pub const EVENT_ON_SIGN_OUT: &'static str = "discovery.onSignOut";
-pub const PURCHASED_CONTENT_CAPABILITY: &'static str = "discovery:purchased-content";
-pub const EVENT_DISCOVERY_POLICY_CHANGED: &'static str = "discovery.onPolicyChanged";
+pub const ENTITY_INFO_EVENT: &str = "discovery.onPullEntityInfo";
+pub const ENTITY_INFO_CAPABILITY: &str = "discovery:entity-info";
+pub const PURCHASED_CONTENT_EVENT: &str = "discovery.onPullPurchasedContent";
+pub const EVENT_ON_SIGN_IN: &str = "discovery.onSignIn";
+pub const EVENT_ON_SIGN_OUT: &str = "discovery.onSignOut";
+pub const PURCHASED_CONTENT_CAPABILITY: &str = "discovery:purchased-content";
+pub const EVENT_DISCOVERY_POLICY_CHANGED: &str = "discovery.onPolicyChanged";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
@@ -194,7 +194,7 @@ impl From<SignInInfo> for ContentAccessIdentifiers {
     fn from(sign_in_info: SignInInfo) -> Self {
         ContentAccessIdentifiers {
             availabilities: None,
-            entitlements: sign_in_info.entitlements.clone(),
+            entitlements: sign_in_info.entitlements,
         }
     }
 }
@@ -203,7 +203,7 @@ impl From<EntitlementsInfo> for ContentAccessIdentifiers {
     fn from(entitlements_info: EntitlementsInfo) -> Self {
         ContentAccessIdentifiers {
             availabilities: None,
-            entitlements: Some(entitlements_info.entitlements.clone()),
+            entitlements: Some(entitlements_info.entitlements),
         }
     }
 }
@@ -280,18 +280,18 @@ pub struct SignInRequestParams {
 //     SignIn(SignInRequestParams),
 // }
 
-pub const PROGRESS_UNIT_SECONDS: &'static str = "Seconds";
-pub const PROGRESS_UNIT_PERCENT: &'static str = "Percent";
+pub const PROGRESS_UNIT_SECONDS: &str = "Seconds";
+pub const PROGRESS_UNIT_PERCENT: &str = "Percent";
 
-pub const ACCOUNT_LINK_TYPE_ACCOUNT_LINK: &'static str = "AccountLink";
-pub const ACCOUNT_LINK_TYPE_ENTITLEMENT_UPDATES: &'static str = "EntitlementUpdates";
-pub const ACCOUNT_LINK_TYPE_LAUNCH_PAD: &'static str = "LaunchPad";
+pub const ACCOUNT_LINK_TYPE_ACCOUNT_LINK: &str = "AccountLink";
+pub const ACCOUNT_LINK_TYPE_ENTITLEMENT_UPDATES: &str = "EntitlementUpdates";
+pub const ACCOUNT_LINK_TYPE_LAUNCH_PAD: &str = "LaunchPad";
 
-pub const ACCOUNT_LINK_ACTION_SIGN_IN: &'static str = "SignIn";
-pub const ACCOUNT_LINK_ACTION_SIGN_OUT: &'static str = "SignOut";
-pub const ACCOUNT_LINK_ACTION_APP_LAUNCH: &'static str = "AppLaunch";
-pub const ACCOUNT_LINK_ACTION_CREATE: &'static str = "Create";
-pub const ACCOUNT_LINK_ACTION_DELETE: &'static str = "Delete";
+pub const ACCOUNT_LINK_ACTION_SIGN_IN: &str = "SignIn";
+pub const ACCOUNT_LINK_ACTION_SIGN_OUT: &str = "SignOut";
+pub const ACCOUNT_LINK_ACTION_APP_LAUNCH: &str = "AppLaunch";
+pub const ACCOUNT_LINK_ACTION_CREATE: &str = "Create";
+pub const ACCOUNT_LINK_ACTION_DELETE: &str = "Delete";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DiscoveryEntitlement {

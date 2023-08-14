@@ -15,6 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::str::FromStr;
+
 #[derive(Debug)]
 pub struct JsonRpcMethodLocator {
     pub module: Option<String>,
@@ -26,7 +28,10 @@ pub struct JsonRpcMethodLocator {
 #[derive(Debug, PartialEq)]
 pub struct RpcMethodLocatorParseError {}
 
-impl JsonRpcMethodLocator {
+impl JsonRpcMethodLocator {}
+
+impl FromStr for JsonRpcMethodLocator {
+    type Err = RpcMethodLocatorParseError;
     /// Parses a string into a locator object
     /// org.rdk.Controller.1.status@org.rdk.Network
     /// Would result into {
@@ -39,7 +44,7 @@ impl JsonRpcMethodLocator {
     /// There might be no version
     /// There might be no qualifier
     /// There might only be a method_name
-    pub fn from_str(s: &str) -> Result<JsonRpcMethodLocator, RpcMethodLocatorParseError> {
+    fn from_str(s: &str) -> Result<JsonRpcMethodLocator, RpcMethodLocatorParseError> {
         let mut parts = s.split('@').collect::<Vec<&str>>();
         let q = match parts.len() {
             1 => None,
@@ -89,6 +94,7 @@ impl JsonRpcMethodLocator {
 #[cfg(test)]
 mod tests {
     use super::{JsonRpcMethodLocator, RpcMethodLocatorParseError};
+    use std::str::FromStr;
 
     #[test]
     pub fn test_json_rpc_method_locator() {

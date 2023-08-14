@@ -84,6 +84,12 @@ impl ChannelsState {
     }
 }
 
+impl Default for ChannelsState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct BootstrapState {
     pub platform_state: PlatformState,

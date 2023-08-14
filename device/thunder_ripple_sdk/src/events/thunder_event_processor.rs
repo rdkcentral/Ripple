@@ -303,3 +303,9 @@ impl ThunderEventProcessor {
         false
     }
 }
+
+impl Default for ThunderEventProcessor {
+    fn default() -> Self {
+        Self::new()
+    }
+}

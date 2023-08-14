@@ -126,13 +126,10 @@ impl ExtnPayloadProvider for SecureStorageRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<SecureStorageRequest> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::SecureStorage(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::SecureStorage(r)) = payload {
+            return Some(r);
         }
+
         None
     }
 
@@ -154,13 +151,10 @@ impl ExtnPayloadProvider for SecureStorageResponse {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Response(r) => match r {
-                ExtnResponse::SecureStorage(v) => return Some(v),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Response(ExtnResponse::SecureStorage(v)) = payload {
+            return Some(v);
         }
+
         None
     }
 

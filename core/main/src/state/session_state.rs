@@ -60,7 +60,7 @@ impl Session {
 
     pub async fn send_json_rpc(&self, msg: ApiMessage) -> Result<(), RippleError> {
         if let Some(sender) = self.get_sender() {
-            if let Ok(_) = sender.send(msg).await {
+            if sender.send(msg).await.is_ok() {
                 return Ok(());
             }
         }

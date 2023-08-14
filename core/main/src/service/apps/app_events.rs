@@ -70,9 +70,11 @@ impl Clone for Box<dyn AppEventDecorator + Send + Sync> {
 #[derive(Default, Debug)]
 pub struct AppEvents {}
 
+type ListenersMap = Arc<RwLock<HashMap<String, HashMap<Option<String>, Vec<EventListener>>>>>;
+
 #[derive(Clone, Default)]
 pub struct AppEventsState {
-    pub listeners: Arc<RwLock<HashMap<String, HashMap<Option<String>, Vec<EventListener>>>>>,
+    pub listeners: ListenersMap,
 }
 
 impl std::fmt::Debug for AppEventsState {
@@ -86,16 +88,16 @@ impl std::fmt::Debug for AppEventsState {
                     .map(|x| x.call_ctx.app_id.clone())
                     .for_each(|x| {
                         let cur_value = listeners_debug.get(&event_name.to_owned());
-                        let new_value = if cur_value.is_some() {
+                        let new_value = if let Some(cur_value) = cur_value {
                             if context.is_some() {
-                                cur_value.unwrap().to_string()
+                                cur_value.to_string()
                                     + " , ["
                                     + &x
                                     + " with event context "
                                     + &context.clone().unwrap()
                                     + "]"
                             } else {
-                                cur_value.unwrap().to_string() + " , " + &x
+                                cur_value.to_string() + " , " + &x
                             }
                         } else if context.is_some() {
                             "[".to_string()
@@ -155,12 +157,11 @@ impl AppEvents {
                 entry.insert(event_context.clone(), Vec::new());
                 listeners.insert(event_name.clone(), entry);
             }
-            Some(item) => match item.get_mut(&event_context) {
-                None => {
+            Some(item) => {
+                if item.get_mut(&event_context).is_none() {
                     item.insert(event_context.clone(), Vec::new());
                 }
-                _ => {}
-            },
+            }
         }
         // We just inserted if this was none right before this, so this should always be Some, safe to unwrap
         listeners
@@ -299,17 +300,14 @@ impl AppEvents {
         let listeners = state.listeners.read().unwrap();
         let mut vec = Vec::new();
 
-        match listeners.get(event_name) {
-            Some(entry) => match entry.get(&context) {
-                Some(v) => {
-                    for i in v {
-                        vec.push(i.clone());
-                    }
+        if let Some(entry) = listeners.get(event_name) {
+            if let Some(v) = entry.get(&context) {
+                for i in v {
+                    vec.push(i.clone());
                 }
-                None => {}
-            },
-            None => {}
+            }
         }
+
         vec
     }
 

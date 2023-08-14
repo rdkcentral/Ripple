@@ -37,7 +37,7 @@ where
 {
     pub fn new(path: String, value: S) -> FileStore<S> {
         FileStore {
-            value: value.clone(),
+            value,
             path: Path::new(&path).to_str().unwrap().into(),
         }
     }
@@ -78,13 +78,13 @@ where
         if let Ok(contents) = fs::read_to_string(&path) {
             if let Ok(s) = Self::load_from_content(contents.clone()) {
                 debug!("valid filestore content {} from {}", contents, path);
-                return Ok(FileStore { value: s, path });
+                Ok(FileStore { value: s, path })
             } else {
-                return Err(RippleError::InvalidAccess);
+                Err(RippleError::InvalidAccess)
             }
         } else {
             info!("No file found in {}", path);
-            return Err(RippleError::MissingInput);
+            Err(RippleError::MissingInput)
         }
     }
 }

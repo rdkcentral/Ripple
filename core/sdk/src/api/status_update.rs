@@ -34,13 +34,10 @@ impl ExtnPayloadProvider for ExtnStatus {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<ExtnStatus> {
-        match payload {
-            ExtnPayload::Event(request) => match request {
-                ExtnEvent::Status(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Event(ExtnEvent::Status(r)) = payload {
+            return Some(r);
         }
+
         None
     }
 

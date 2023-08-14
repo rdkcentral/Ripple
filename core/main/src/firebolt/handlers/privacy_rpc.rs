@@ -361,7 +361,7 @@ impl PrivacyImpl {
     }
 
     pub fn to_storage_property(method: &str) -> Option<StorageProperty> {
-        let mut parts: Vec<&str> = method.clone().split('.').collect();
+        let mut parts: Vec<&str> = method.split('.').collect();
         if parts.len() < 2 {
             return None;
         }
@@ -542,7 +542,7 @@ impl PrivacyImpl {
                     value,
                     dist_session,
                 });
-                if let Ok(_) = platform_state.get_client().send_extn_request(request).await {
+                if (platform_state.get_client().send_extn_request(request).await).is_ok() {
                     return Ok(());
                 }
                 Err(jsonrpsee::core::Error::Custom(String::from(

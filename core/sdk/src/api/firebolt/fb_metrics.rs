@@ -141,10 +141,7 @@ pub fn hashmap_to_param_vec(the_map: Option<HashMap<String, String>>) -> Vec<Par
     let params_map = the_map.unwrap();
 
     for (key, value) in params_map {
-        result.push(Param {
-            name: key,
-            value: value,
-        });
+        result.push(Param { name: key, value });
     }
     result
 }
@@ -349,18 +346,18 @@ impl MetricsContext {
     }
     pub fn set(&mut self, field: MetricsContextField, value: String) {
         match field {
-            MetricsContextField::device_language => self.device_language = value.clone(),
-            MetricsContextField::device_model => self.device_model = value.clone(),
-            MetricsContextField::device_id => self.device_id = value.clone(),
-            MetricsContextField::account_id => self.account_id = value.clone(),
+            MetricsContextField::device_language => self.device_language = value,
+            MetricsContextField::device_model => self.device_model = value,
+            MetricsContextField::device_id => self.device_id = value,
+            MetricsContextField::account_id => self.account_id = value,
             MetricsContextField::device_timezone => self.device_timezone = value.parse().unwrap(),
-            MetricsContextField::platform => self.platform = value.clone(),
-            MetricsContextField::os_ver => self.os_ver = value.clone(),
-            MetricsContextField::distributor_id => self.distribution_tenant_id = value.clone(),
-            MetricsContextField::session_id => self.device_session_id = value.clone(),
-            MetricsContextField::mac_address => self.mac_address = value.clone(),
-            MetricsContextField::serial_number => self.serial_number = value.clone(),
-            MetricsContextField::device_name => self.device_name = value.clone(),
+            MetricsContextField::platform => self.platform = value,
+            MetricsContextField::os_ver => self.os_ver = value,
+            MetricsContextField::distributor_id => self.distribution_tenant_id = value,
+            MetricsContextField::session_id => self.device_session_id = value,
+            MetricsContextField::mac_address => self.mac_address = value,
+            MetricsContextField::serial_number => self.serial_number = value,
+            MetricsContextField::device_name => self.device_name = value,
         };
     }
 }
@@ -390,13 +387,10 @@ impl ExtnPayloadProvider for BehavioralMetricRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<BehavioralMetricRequest> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::BehavioralMetric(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::BehavioralMetric(r)) = payload {
+            return Some(r);
         }
+
         None
     }
 
@@ -419,17 +413,12 @@ impl ExtnPayloadProvider for MetricsResponse {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Response(response) => match response {
-                ExtnResponse::Value(value) => {
-                    if let Ok(v) = serde_json::from_value(value) {
-                        return Some(v);
-                    }
-                }
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Response(ExtnResponse::Value(value)) = payload {
+            if let Ok(v) = serde_json::from_value(value) {
+                return Some(v);
+            }
         }
+
         None
     }
 
