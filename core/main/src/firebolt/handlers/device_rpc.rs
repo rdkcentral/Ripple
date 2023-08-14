@@ -640,16 +640,17 @@ impl DeviceServer for DeviceImpl {
             request,
         );
 
-        if let Err(_) = self
+        if self
             .state
             .get_client()
             .send_extn_request(DeviceEventRequest {
                 event: DeviceEvent::AudioChanged,
-                id: ctx.clone().app_id,
+                id: ctx.app_id.to_owned(),
                 subscribe: listen,
                 callback_type: DeviceEventCallback::FireboltAppEvent,
             })
             .await
+            .is_err()
         {
             error!("Error while registration");
         }

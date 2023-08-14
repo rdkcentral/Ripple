@@ -77,7 +77,7 @@ impl AccountLinkProcessor {
 
         let payload = DiscoveryRequest::SignIn(SignInRequestParams {
             session_info: SessionParams {
-                app_id: ctx.clone().app_id,
+                app_id: ctx.app_id.to_owned(),
                 dist_session: session,
             },
             is_signed_in,
@@ -285,7 +285,7 @@ impl AccountLinkProcessor {
                             ProgressUnit::Percent
                         },
                         watched_on: watched_info.watched_on.clone(),
-                        app_id: ctx.clone().app_id.to_owned(),
+                        app_id: ctx.app_id.to_owned(),
                     },
                     content_partner_id: Self::get_content_partner_id(state, &ctx)
                         .await
