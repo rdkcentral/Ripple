@@ -20,6 +20,8 @@
 name = "thunder"
 version = "0.8.0"
 edition = "2021"
+repository = "https://github.com/rdkcentral/Ripple"
+resolver = "2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

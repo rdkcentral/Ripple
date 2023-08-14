@@ -21,6 +21,7 @@ version = "0.8.0"
 edition = "2021"
 repository = "https://github.com/rdkcentral/Ripple"
 build = "build.rs"
+resolver = "2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -29,8 +30,8 @@ name = "ripple"
 path = "src/main.rs"
 
 [features]
-local_dev=[]
-sysd=["sd-notify"]
+local_dev = []
+sysd = ["sd-notify"]
 
 [dependencies]
 ripple_sdk = { path = "../sdk", features = ["full"] }
@@ -48,3 +49,6 @@ sd-notify = { version = "0.4.1", optional = true }
 
 [build-dependencies]
 vergen = "1"
+
+[dev-dependencies]
+ripple_tdk = { path = "../tdk" }
