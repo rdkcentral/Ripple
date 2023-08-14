@@ -35,6 +35,7 @@ use crate::{
         rpc::RippleRPCProvider,
     },
     processor::rpc_gateway_processor::RpcGatewayProcessor,
+    service::telemetry_builder::TelemetryBuilder,
     state::{bootstrap_state::BootstrapState, platform_state::PlatformState},
 };
 use jsonrpsee::core::{async_trait, server::rpc_module::Methods};
@@ -104,7 +105,7 @@ impl Bootstep<BootstrapState> for FireboltGatewayStep {
         {
             return Err(RippleError::BootstrapError);
         }
-
+        TelemetryBuilder::send_ripple_telemetry(&state.platform_state);
         gateway.start().await;
         Ok(())
     }

@@ -193,6 +193,7 @@ impl ExtnState {
             extn_id.clone(),
             symbol.clone().uses,
             symbol.clone().fulfills,
+            symbol.clone().config,
         );
         let (extn_tx, extn_rx) = ChannelsState::get_crossbeam_channel();
         let extn_channel = channel.channel;

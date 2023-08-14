@@ -18,6 +18,13 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::{
+    extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider, ExtnRequest},
+    framework::ripple_contract::RippleContract,
+};
+
+use super::fb_metrics::{ErrorParams, ErrorType, Param};
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppLoadStart {
     pub app_id: String,
@@ -46,7 +53,7 @@ pub struct AppSDKLoaded {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AppError {
+pub struct TelemetryAppError {
     pub app_id: String,
     pub error_type: String,
     pub code: String,
@@ -55,6 +62,40 @@ pub struct AppError {
     pub parameters: Option<HashMap<String, String>>,
     pub ripple_session_id: String,
 }
+
+impl From<ErrorParams> for TelemetryAppError {
+    fn from(error: ErrorParams) -> Self {
+        TelemetryAppError {
+            app_id: String::from(""),
+            error_type: get_error_type(error.error_type),
+            code: error.code.clone(),
+            description: error.description.clone(),
+            visible: error.visible,
+            parameters: get_params(error.parameters),
+            ripple_session_id: String::from(""),
+        }
+    }
+}
+
+fn get_params(error_params: Option<Vec<Param>>) -> Option<HashMap<String, String>> {
+    error_params.map(|params| {
+        params
+            .into_iter()
+            .map(|x| (x.name.clone(), x.value))
+            .collect::<HashMap<_, _>>()
+    })
+}
+
+fn get_error_type(error_type: ErrorType) -> String {
+    match error_type {
+        ErrorType::network => String::from("network"),
+        ErrorType::media => String::from("media"),
+        ErrorType::restriction => String::from("restriction"),
+        ErrorType::entitlement => String::from("entitlement"),
+        ErrorType::other => String::from("other"),
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SystemError {
     pub error_name: String,
@@ -66,14 +107,14 @@ pub struct SystemError {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SignIn {
+pub struct TelemetrySignIn {
     pub app_id: String,
     pub ripple_session_id: String,
     pub app_session_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SignOut {
+pub struct TelemetrySignOut {
     pub app_id: String,
     pub ripple_session_id: String,
     pub app_session_id: Option<String>,
@@ -87,14 +128,69 @@ pub struct InternalInitialize {
     pub semantic_version: String,
 }
 
-// #[derive(Debug, Serialize, Deserialize, Clone)]
-// pub enum TelemetryRequest {
-//     AppLoadStart(AppLoadStart),
-//     AppLoadStop(AppLoadStop),
-//     AppSDKLoaded(AppSDKLoaded),
-//     AppError(AppError),
-//     SystemError(SystemError),
-//     SignIn(SignIn),
-//     SignOut(SignOut),
-//     InternalInitialize(InternalInitialize),
-// }
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum TelemetryPayload {
+    AppLoadStart(AppLoadStart),
+    AppLoadStop(AppLoadStop),
+    AppSDKLoaded(AppSDKLoaded),
+    AppError(TelemetryAppError),
+    SystemError(SystemError),
+    SignIn(TelemetrySignIn),
+    SignOut(TelemetrySignOut),
+    InternalInitialize(InternalInitialize),
+}
+
+impl TelemetryPayload {
+    pub fn update_session_id(&mut self, session_id: String) {
+        match self {
+            Self::AppLoadStart(a) => a.ripple_session_id = session_id,
+            Self::AppLoadStop(a) => a.ripple_session_id = session_id,
+            Self::AppSDKLoaded(a) => a.ripple_session_id = session_id,
+            Self::AppError(a) => a.ripple_session_id = session_id,
+            Self::SystemError(s) => s.ripple_session_id = session_id,
+            Self::SignIn(s) => s.ripple_session_id = session_id,
+            Self::SignOut(s) => s.ripple_session_id = session_id,
+            Self::InternalInitialize(i) => i.ripple_session_id = session_id,
+        }
+    }
+}
+
+impl ExtnPayloadProvider for TelemetryPayload {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Event(ExtnEvent::OperationalMetrics(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<TelemetryPayload> {
+        if let ExtnPayload::Event(ExtnEvent::OperationalMetrics(r)) = payload {
+            return Some(r);
+        }
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::OperationalMetricListener
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum OperationalMetricRequest {
+    Subscribe,
+    UnSubscribe,
+}
+
+impl ExtnPayloadProvider for OperationalMetricRequest {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(ExtnRequest::OperationalMetricsRequest(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<OperationalMetricRequest> {
+        if let ExtnPayload::Request(ExtnRequest::OperationalMetricsRequest(r)) = payload {
+            return Some(r);
+        }
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::OperationalMetricListener
+    }
+}

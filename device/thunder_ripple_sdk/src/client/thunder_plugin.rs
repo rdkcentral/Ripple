@@ -33,6 +33,7 @@ pub enum ThunderPlugin {
     Wifi,
     TextToSpeech,
     Hdcp,
+    Telemetry,
 }
 const CONTROLLER_CFG: Cfg = Cfg::new("Controller", false, true);
 const DEVICE_INFO_CFG: Cfg = Cfg::new("DeviceInfo", true, false);
@@ -46,6 +47,7 @@ const SYSTEM_CFG: Cfg = Cfg::new("org.rdk.System", true, false);
 const WIFI_CFG: Cfg = Cfg::new("org.rdk.Wifi", false, false);
 const LOCATION_SYNC: Cfg = Cfg::new("LocationSync", false, false);
 const TTS_CFG: Cfg = Cfg::new("org.rdk.TextToSpeech", false, true);
+const TELEMETRY_CFG: Cfg = Cfg::new("org.rdk.Telemetry", true, true);
 
 impl ThunderPlugin {
     pub fn cfg(&self) -> Cfg {
@@ -63,6 +65,7 @@ impl ThunderPlugin {
             Wifi => WIFI_CFG,
             LocationSync => LOCATION_SYNC,
             TextToSpeech => TTS_CFG,
+            Telemetry => TELEMETRY_CFG,
         }
     }
     pub fn callsign(&self) -> &str {
@@ -95,6 +98,10 @@ impl ThunderPlugin {
     }
     pub fn method_version(&self, method_name: &str, version: u32) -> String {
         format!("{}.{}.{}", self.callsign(), version, method_name)
+    }
+
+    pub fn unversioned_method(&self, method_name: &str) -> String {
+        format!("{}.{}", self.callsign(), method_name)
     }
 }
 

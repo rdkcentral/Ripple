@@ -53,6 +53,7 @@ pub struct ExtnSymbol {
     pub id: String,
     pub uses: Vec<String>,
     pub fulfills: Vec<String>,
+    pub config: Option<HashMap<String, String>>,
 }
 
 impl ExtnSymbol {

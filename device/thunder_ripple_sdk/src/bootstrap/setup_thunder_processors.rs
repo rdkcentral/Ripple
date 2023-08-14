@@ -15,6 +15,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use ripple_sdk::framework::ripple_contract::RippleContract;
+
+use crate::processors::thunder_telemetry::ThunderTelemetryProcessor;
 use crate::thunder_state::ThunderBootstrapStateWithClient;
 
 use crate::processors::{
@@ -47,6 +50,12 @@ impl SetupThunderProcessor {
         extn_client.add_request_processor(ThunderRemoteAccessoryRequestProcessor::new(
             state.clone().state,
         ));
-        extn_client.add_request_processor(ThunderOpenEventsProcessor::new(state.state));
+        extn_client.add_request_processor(ThunderOpenEventsProcessor::new(state.clone().state));
+
+        if extn_client.check_contract_fulfillment(RippleContract::OperationalMetricListener)
+            && extn_client.get_bool_config("rdk_telemetry")
+        {
+            extn_client.add_event_processor(ThunderTelemetryProcessor::new(state.state))
+        }
     }
 }

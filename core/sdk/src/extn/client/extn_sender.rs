@@ -15,6 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::collections::HashMap;
+
 use chrono::Utc;
 use crossbeam::channel::Sender as CSender;
 use log::{error, trace};
@@ -44,6 +46,7 @@ pub struct ExtnSender {
     id: ExtnId,
     permitted: Vec<String>,
     fulfills: Vec<String>,
+    config: Option<HashMap<String, String>>,
 }
 
 impl ExtnSender {
@@ -56,12 +59,14 @@ impl ExtnSender {
         id: ExtnId,
         context: Vec<String>,
         fulfills: Vec<String>,
+        config: Option<HashMap<String, String>>,
     ) -> Self {
         ExtnSender {
             tx,
             id,
             permitted: context,
             fulfills,
+            config,
         }
     }
     fn check_contract_permission(&self, contract: RippleContract) -> bool {
@@ -78,6 +83,15 @@ impl ExtnSender {
         } else {
             self.fulfills.contains(&contract.as_clear_string())
         }
+    }
+
+    pub fn get_config(&self, key: &str) -> Option<String> {
+        if let Some(c) = self.config.clone() {
+            if let Some(v) = c.get(key) {
+                return Some(v.clone());
+            }
+        }
+        None
     }
 
     pub fn send_request(
