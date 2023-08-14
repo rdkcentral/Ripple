@@ -16,7 +16,7 @@
 //
 
 use ripple_sdk::{
-    api::status_update::ExtnStatus,
+    api::{firebolt::fb_telemetry::OperationalMetricRequest, status_update::ExtnStatus},
     crossbeam::channel::Receiver as CReceiver,
     export_channel_builder, export_extn_metadata,
     extn::{
@@ -73,18 +73,21 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
         runtime.block_on(async move {
             let client_c = client.clone();
             tokio::spawn(async move {
-                if let Ok((mut socket, _r)) = connect(Url::parse(&ws_url).unwrap()) {
+                if (client.request(OperationalMetricRequest::Subscribe).await).is_ok() {
                     let (tx, mut tr) = channel(3);
                     client.add_event_processor(TelemetryProcessor::new(tx));
-                    while let Some(v) = tr.recv().await {
-                        if let Err(e) = socket.write_message(Message::Text(v)) {
-                            error!("Error sending to socket {:?}", e);
+                    if let Ok((mut socket, _r)) = connect(Url::parse(&ws_url).unwrap()) {
+                        while let Some(v) = tr.recv().await {
+                            if let Err(e) = socket.write_message(Message::Text(v)) {
+                                error!("Error sending to socket {:?}", e);
+                            }
                         }
                     }
+                    // Lets Main know that the distributor channel is ready
+                    let _ = client.event(ExtnStatus::Ready);
+                } else {
+                    let _ = client.event(ExtnStatus::Error);
                 }
-
-                // Lets Main know that the distributor channel is ready
-                let _ = client.event(ExtnStatus::Ready);
             });
             client_c.initialize().await;
         });
