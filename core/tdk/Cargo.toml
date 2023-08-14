@@ -15,17 +15,17 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-[workspace]
-members = [
-    "core/sdk",
-    "core/tdk",
-    "device/thunder_ripple_sdk",
-    "core/main",
-    "core/launcher",
-    "device/thunder",
-    "distributor/general",
-    "examples/rpc_extn",
-]
-
-[workspace.package]
+[package]
+name = "ripple_tdk"
 version = "0.8.0"
+edition = "2021"
+repository = "https://github.com/rdkcentral/Ripple"
+resolver = "2"
+
+# See more keys and their definitions at https:#doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = []
+
+[dependencies]
+ripple_sdk = { path = "../sdk", features = ["full"] }
