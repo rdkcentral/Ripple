@@ -79,7 +79,7 @@ impl ExtnManifestEntry {
     pub fn get_path(&self, default_path: &str, default_extn: &str) -> String {
         let path = self.path.clone();
         // has absolute path
-        let path = match path.starts_with("/") {
+        let path = match path.starts_with('/') {
             true => path,
             false => format!("{}{}", default_path, path),
         };
@@ -94,11 +94,7 @@ impl ExtnManifestEntry {
 
     pub fn get_symbol(&self, capability: ExtnId) -> Option<ExtnSymbol> {
         let ref_cap = capability.to_string();
-        self.symbols
-            .clone()
-            .into_iter()
-            .find(|x| x.id.eq(&ref_cap))
-            .clone()
+        self.symbols.clone().into_iter().find(|x| x.id.eq(&ref_cap))
     }
 }
 
@@ -116,7 +112,7 @@ impl ExtnManifest {
 
     pub fn load_from_content(contents: String) -> Result<(String, ExtnManifest), RippleError> {
         match serde_json::from_str::<ExtnManifest>(&contents) {
-            Ok(manifest) => Ok((String::from(contents), manifest)),
+            Ok(manifest) => Ok((contents, manifest)),
             Err(err) => {
                 warn!("{:?} could not load device manifest", err);
                 Err(RippleError::InvalidInput)
@@ -132,7 +128,8 @@ impl ExtnManifest {
                 }
             }
         }
-        return None;
+
+        None
     }
 
     pub fn get_distributor_capability(&self) -> Option<ExtnId> {
@@ -143,7 +140,8 @@ impl ExtnManifest {
                 }
             }
         }
-        return None;
+
+        None
     }
 
     pub fn get_extn_permissions(&self) -> HashMap<String, Vec<String>> {
@@ -151,7 +149,7 @@ impl ExtnManifest {
         self.extns.clone().into_iter().for_each(|x| {
             x.symbols.into_iter().for_each(|y| {
                 if let Ok(cap) = ExtnId::try_from(y.id) {
-                    map.insert(cap.to_string(), y.uses.clone());
+                    map.insert(cap.to_string(), y.uses);
                 }
             })
         });

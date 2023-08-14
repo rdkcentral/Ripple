@@ -27,13 +27,14 @@ impl LoadExtnManifestStep {
     }
 }
 
+type ExtnManifestLoader = Vec<fn() -> Result<(String, ExtnManifest), RippleError>>;
+
 fn try_manifest_files() -> Result<ExtnManifest, RippleError> {
-    let dm_arr: Vec<fn() -> Result<(String, ExtnManifest), RippleError>>;
-    if cfg!(test) {
-        dm_arr = vec![load_from_env];
+    let dm_arr: ExtnManifestLoader = if cfg!(test) {
+        vec![load_from_env]
     } else {
-        dm_arr = vec![load_from_env, load_from_home, load_from_opt, load_from_etc];
-    }
+        vec![load_from_env, load_from_home, load_from_opt, load_from_etc]
+    };
 
     for dm_provider in dm_arr {
         if let Ok((p, m)) = dm_provider() {

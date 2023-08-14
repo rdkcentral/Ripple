@@ -172,22 +172,19 @@ impl AdvertisingServer for AdvertisingImpl {
             return Err(rpc_err("Could not get ad init object from the device"));
         }
 
-        match resp {
-            Ok(payload) => match payload.payload.extract::<AdvertisingResponse>() {
-                Some(response) => {
-                    if let AdvertisingResponse::AdIdObject(obj) = response {
-                        let ad_init_object = AdvertisingId {
-                            ifa: obj.ifa,
-                            ifa_type: obj.ifa_type,
-                            lmt: obj.lmt,
-                        };
-                        return Ok(ad_init_object);
-                    }
-                }
-                None => {}
-            },
-            Err(_) => {}
+        if let Ok(payload) = resp {
+            if let Some(AdvertisingResponse::AdIdObject(obj)) =
+                payload.payload.extract::<AdvertisingResponse>()
+            {
+                let ad_init_object = AdvertisingId {
+                    ifa: obj.ifa,
+                    ifa_type: obj.ifa_type,
+                    lmt: obj.lmt,
+                };
+                return Ok(ad_init_object);
+            }
         }
+
         Err(jsonrpsee::core::Error::Custom(String::from(
             "Failed to extract ad init object from response",
         )))

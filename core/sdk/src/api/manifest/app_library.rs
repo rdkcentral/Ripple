@@ -70,20 +70,14 @@ impl AppLibraryState {
 impl AppLibrary {
     pub fn get_provider(state: &AppLibraryState, capability: String) -> Option<String> {
         let provider = state.providers.get(&capability);
-        match provider {
-            Some(p) => Some(p.clone()),
-            None => None,
-        }
+        provider.cloned()
     }
 
     pub fn get_manifest(state: &AppLibraryState, app_id: &str) -> Option<AppManifest> {
         debug!("Getting manifest for app_id: {}", app_id);
         let mut itr = state.default_apps.iter();
-        let i = itr.position(|x| x.app_id == *app_id);
-        if let None = i {
-            return None;
-        }
-        let library_entry = state.default_apps.get(i.unwrap()).unwrap();
+        let i = itr.position(|x| x.app_id == *app_id)?;
+        let library_entry = state.default_apps.get(i).unwrap();
         match &library_entry.manifest {
             AppManifestLoad::Remote(_) => {
                 error!("Remote manifests not supported yet");
@@ -93,11 +87,11 @@ impl AppLibrary {
                 error!("Local manifests not supported yet");
                 None
             }
-            AppManifestLoad::Embedded(manifest) => Some(manifest.clone()),
+            AppManifestLoad::Embedded(manifest) => Some(*manifest.clone()),
         }
     }
 
-    fn generate_provider_map(apps: &Vec<AppLibraryEntry>) -> HashMap<String, String> {
+    fn generate_provider_map(apps: &[AppLibraryEntry]) -> HashMap<String, String> {
         let mut map = HashMap::new();
 
         for app in apps.iter() {

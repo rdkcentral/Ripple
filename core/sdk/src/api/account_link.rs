@@ -34,7 +34,8 @@ pub enum AccountLinkRequest {
     ContentAccess(CallContext, ContentAccessRequest),
     ClearContentAccess(CallContext),
     Watched(CallContext, WatchedInfo),
-    WatchedNext(CallContext, WatchNextInfo),
+    // TODO: assess if boxing this is a productive move: https://rust-lang.github.io/rust-clippy/master/index.html#/large_enum_variant
+    WatchedNext(CallContext, Box<WatchNextInfo>),
 }
 
 impl ExtnPayloadProvider for AccountLinkRequest {
@@ -43,13 +44,10 @@ impl ExtnPayloadProvider for AccountLinkRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(response) => match response {
-                ExtnRequest::AccountLink(value) => return Some(value),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::AccountLink(value)) = payload {
+            return Some(value);
         }
+
         None
     }
 

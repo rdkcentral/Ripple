@@ -121,8 +121,7 @@ impl GrantState {
         app_id: Option<String>, // None is for device
         new_entry: GrantEntry,
     ) {
-        if app_id.is_some() {
-            let app_id = app_id.unwrap();
+        if let Some(app_id) = app_id {
             let mut grant_state = self.grant_app_map.write().unwrap();
             //Get a mutable reference to the value associated with a key, create it if it doesn't exist,
             let entries = grant_state.value.entry(app_id).or_insert(HashSet::new());
@@ -302,7 +301,7 @@ impl GrantState {
         // call_ctx: &CallContext,
         caller_session: &CallerSession,
         app_requested_for: &AppIdentification,
-        fb_perms: &Vec<FireboltPermission>,
+        fb_perms: &[FireboltPermission],
         fail_on_first_error: bool,
     ) -> Result<(), DenyReasonWithCap> {
         /*
@@ -313,8 +312,8 @@ impl GrantState {
         let app_id = app_requested_for.app_id.to_owned();
         let caps_needing_grants = grant_state.caps_needing_grants.clone();
         let caps_needing_grant_in_request: Vec<FireboltPermission> = fb_perms
-            .clone()
-            .into_iter()
+            .iter()
+            .cloned()
             .filter(|x| caps_needing_grants.contains(&x.cap.as_str()))
             .collect();
         let mut denied_caps = Vec::new();
@@ -354,6 +353,7 @@ impl GrantState {
                 caps: denied_caps,
             });
         }
+
         Ok(())
 
         // UserGrants::determine_grant_policies(&self.ps.clone(), call_ctx, &r).await
@@ -585,12 +585,12 @@ impl GrantHandler {
             let grant_entry = GrantEntry::get(permission.role, permission.cap.as_str());
             if let Some(v) = user_grant.check_device_grants(&grant_entry) {
                 if let GrantStatus::Denied = v {
-                    denied_caps.push(permission.cap.clone())
+                    denied_caps.push(permission.cap.clone());
                 }
-            } else if let Some(v) = user_grant.check_app_grants(&grant_entry, &app_id) {
-                if let GrantStatus::Denied = v {
-                    denied_caps.push(permission.cap.clone())
-                }
+            } else if let Some(GrantStatus::Denied) =
+                user_grant.check_app_grants(&grant_entry, &app_id)
+            {
+                denied_caps.push(permission.cap.clone());
             }
         }
 
@@ -1105,12 +1105,8 @@ impl GrantStepExecutor {
         if send_result.is_err() {
             return app_name;
         }
-        if let Ok(app_response_res) = rx.await {
-            if let Ok(app_response) = app_response_res {
-                if let AppManagerResponse::AppName(name) = app_response {
-                    app_name = name.unwrap_or_default();
-                }
-            }
+        if let Ok(Ok(AppManagerResponse::AppName(name))) = rx.await {
+            app_name = name.unwrap_or_default();
         }
         app_name
     }

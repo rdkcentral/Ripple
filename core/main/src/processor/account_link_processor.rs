@@ -295,7 +295,7 @@ impl AccountLinkProcessor {
                     data_tags,
                 });
 
-            if let Ok(_) = state.get_client().send_extn_request(request).await {
+            if state.get_client().send_extn_request(request).await.is_ok() {
                 return Self::respond(
                     state.get_client().get_extn_client(),
                     msg,
@@ -358,7 +358,7 @@ impl ExtnRequestProcessor for AccountLinkProcessor {
                 Self::watched(&state, msg, ctx, request).await
             }
             AccountLinkRequest::WatchedNext(ctx, watch_next) => {
-                Self::watch_next(&state, msg, ctx, watch_next).await
+                Self::watch_next(&state, msg, ctx, *watch_next).await
             }
         }
     }

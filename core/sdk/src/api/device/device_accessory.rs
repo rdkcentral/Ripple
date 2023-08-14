@@ -36,15 +36,8 @@ impl ExtnPayloadProvider for RemoteAccessoryRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::Device(r) => match r {
-                    DeviceRequest::Accessory(d) => return Some(d),
-                    _ => {}
-                },
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Accessory(d))) = payload {
+            return Some(d);
         }
         None
     }

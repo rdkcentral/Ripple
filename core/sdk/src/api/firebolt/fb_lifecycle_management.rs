@@ -28,13 +28,13 @@ use crate::{
 
 use super::fb_lifecycle::LifecycleState;
 
-pub const LCM_EVENT_ON_REQUEST_READY: &'static str = "lifecyclemanagement.onRequestReady";
-pub const LCM_EVENT_ON_REQUEST_CLOSE: &'static str = "lifecyclemanagement.onRequestClose";
-pub const LCM_EVENT_ON_REQUEST_FINISHED: &'static str = "lifecyclemanagement.onRequestFinished";
-pub const LCM_EVENT_ON_REQUEST_LAUNCH: &'static str = "lifecyclemanagement.onRequestLaunch";
-pub const LCM_EVENT_ON_SESSION_TRANSITION_COMPLETED: &'static str =
+pub const LCM_EVENT_ON_REQUEST_READY: &str = "lifecyclemanagement.onRequestReady";
+pub const LCM_EVENT_ON_REQUEST_CLOSE: &str = "lifecyclemanagement.onRequestClose";
+pub const LCM_EVENT_ON_REQUEST_FINISHED: &str = "lifecyclemanagement.onRequestFinished";
+pub const LCM_EVENT_ON_REQUEST_LAUNCH: &str = "lifecyclemanagement.onRequestLaunch";
+pub const LCM_EVENT_ON_SESSION_TRANSITION_COMPLETED: &str =
     "lifecyclemanagement.onSessionTransitionCompleted";
-pub const LCM_EVENT_ON_SESSION_TRANSITION_CANCELED: &'static str =
+pub const LCM_EVENT_ON_SESSION_TRANSITION_CANCELED: &str =
     "lifecyclemanagement.onSessionTransitionCanceled";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -52,18 +52,13 @@ impl ExtnPayloadProvider for LifecycleManagementEventRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Event(event) => match event {
-                ExtnEvent::Value(value) => {
-                    let result: Result<Self, serde_json::Error> = serde_json::from_value(value);
-                    if result.is_ok() {
-                        return Some(result.unwrap());
-                    }
-                }
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Event(ExtnEvent::Value(value)) = payload {
+            let result: Result<Self, serde_json::Error> = serde_json::from_value(value);
+            if let Ok(result) = result {
+                return Some(result);
+            }
         }
+
         None
     }
 
@@ -88,13 +83,10 @@ impl ExtnPayloadProvider for LifecycleManagementRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(event) => match event {
-                ExtnRequest::LifecycleManagement(value) => return Some(value),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::LifecycleManagement(value)) = payload {
+            return Some(value);
         }
+
         None
     }
 

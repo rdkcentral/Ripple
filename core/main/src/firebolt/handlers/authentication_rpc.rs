@@ -98,11 +98,8 @@ impl AuthenticationServer for AuthenticationImpl {
 
     async fn root(&self, ctx: CallContext) -> RpcResult<String> {
         let r = self.root_token(ctx).await;
-        if r.is_ok() {
-            return Ok(r.unwrap().value);
-        } else {
-            return Err(r.err().unwrap());
-        }
+
+        r.map(|r| r.value)
     }
 
     async fn device(&self, ctx: CallContext) -> RpcResult<String> {
@@ -112,11 +109,8 @@ impl AuthenticationServer for AuthenticationImpl {
         } else {
             self.root_token(ctx).await
         };
-        if r.is_ok() {
-            return Ok(r.unwrap().value);
-        } else {
-            return Err(r.err().unwrap());
-        }
+
+        r.map(|r| r.value)
     }
 
     async fn session(&self, _ctx: CallContext) -> RpcResult<String> {

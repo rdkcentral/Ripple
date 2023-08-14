@@ -76,17 +76,17 @@ fn add_stream_processor<P>(id: String, context: P, map: Arc<RwLock<HashMap<Strin
 
 fn add_vec_stream_processor<P>(id: String, context: P, map: Arc<RwLock<HashMap<String, Vec<P>>>>) {
     let mut processor_state = map.write().unwrap();
-    if processor_state.contains_key(&id) {
-        processor_state.get_mut(&id).unwrap().push(context)
+    if let std::collections::hash_map::Entry::Vacant(e) = processor_state.entry(id.clone()) {
+        e.insert(vec![context]);
     } else {
-        processor_state.insert(id, vec![context]);
+        processor_state.get_mut(&id).unwrap().push(context)
     }
 }
 
 fn add_single_processor<P>(id: String, processor: Option<P>, map: Arc<RwLock<HashMap<String, P>>>) {
-    if processor.is_some() {
+    if let Some(processor) = processor {
         let mut processor_state = map.write().unwrap();
-        processor_state.insert(id, processor.unwrap());
+        processor_state.insert(id, processor);
     }
 }
 
@@ -122,10 +122,7 @@ impl ExtnClient {
     /// Also starts the thread in the processor to accept incoming requests.
     pub fn add_request_processor(&mut self, mut processor: impl ExtnRequestProcessor) {
         // Dont add and start a request processor if there is no contract fulfillment
-        if self
-            .sender
-            .check_contract_fulfillment(processor.contract().clone())
-        {
+        if self.sender.check_contract_fulfillment(processor.contract()) {
             let processor_string: String = processor.contract().into();
             info!("adding request processor {}", processor_string);
             add_stream_processor(
@@ -187,7 +184,7 @@ impl ExtnClient {
         let receiver = self.receiver.clone();
         let mut index: u32 = 0;
         loop {
-            index = index + 1;
+            index += 1;
             match receiver.try_recv() {
                 Ok(c_message) => {
                     let latency = Utc::now().timestamp_millis() - c_message.ts;
@@ -220,14 +217,10 @@ impl ExtnClient {
                                 let mut new_message = message.clone();
                                 if new_message.callback.is_none() {
                                     // before forwarding check if the requestor needs to be added as callback
-                                    let req_sender = if let Some(requestor_sender) = self
-                                        .get_extn_sender_with_extn_id(
-                                            &message.requestor.to_string(),
-                                        ) {
-                                        Some(requestor_sender)
-                                    } else {
-                                        None
-                                    };
+                                    let req_sender = self.get_extn_sender_with_extn_id(
+                                        &message.requestor.to_string(),
+                                    );
+
                                     if req_sender.is_some() {
                                         let _ = new_message.callback.insert(req_sender.unwrap());
                                     }
@@ -247,20 +240,19 @@ impl ExtnClient {
                                     self.handle_no_processor_error(message);
                                 }
                             }
-                        } else {
-                            if !Self::handle_stream(
-                                message.clone(),
-                                self.request_processors.clone(),
-                            ) {
-                                self.handle_no_processor_error(message);
-                            }
+                        } else if !Self::handle_stream(
+                            message.clone(),
+                            self.request_processors.clone(),
+                        ) {
+                            self.handle_no_processor_error(message);
                         }
                     }
                 }
-                Err(e) => match e {
-                    TryRecvError::Disconnected => break,
-                    _ => {}
-                },
+                Err(e) => {
+                    if let TryRecvError::Disconnected = e {
+                        break;
+                    }
+                }
             }
             if index % 100000 == 0 {
                 index = 0;
@@ -273,15 +265,10 @@ impl ExtnClient {
     }
 
     fn handle_no_processor_error(&self, message: ExtnMessage) {
-        let req_sender = if let Some(requestor_sender) =
-            self.get_extn_sender_with_extn_id(&message.requestor.to_string())
-        {
-            Some(requestor_sender)
-        } else {
-            None
-        };
+        let req_sender = self.get_extn_sender_with_extn_id(&message.requestor.to_string());
+
         if let Ok(resp) = message.get_response(ExtnResponse::Error(RippleError::ProcessorError)) {
-            if let Err(_) = self.sender.respond(resp.into(), req_sender) {
+            if self.sender.respond(resp.into(), req_sender).is_err() {
                 error!("Couldnt send no processor response");
             }
         }
@@ -297,9 +284,9 @@ impl ExtnClient {
             processors.remove(&id_c)
         };
 
-        if processor_result.is_some() {
+        if let Some(processor_result) = processor_result {
             tokio::spawn(async move {
-                if let Err(e) = processor_result.unwrap().send(msg) {
+                if let Err(e) = processor_result.send(msg) {
                     error!("Error sending the response back {:?}", e);
                 }
             });
@@ -318,8 +305,7 @@ impl ExtnClient {
             let processors = processor.read().unwrap();
             processors.get(&id_c).cloned()
         };
-        if v.is_some() {
-            let sender = v.clone().unwrap();
+        if let Some(sender) = v {
             tokio::spawn(async move {
                 if let Err(e) = sender.send(msg.clone()).await {
                     error!("Error sending the response back {:?}", e);
@@ -343,8 +329,7 @@ impl ExtnClient {
             let read_processor = processor.clone();
             let processors = read_processor.read().unwrap();
             let v = processors.get(&id_c).cloned();
-            if v.is_some() {
-                let v = v.clone().unwrap();
+            if let Some(v) = v {
                 for (index, s) in v.iter().enumerate() {
                     if !s.is_closed() {
                         let _ = sender.insert(s.clone());
@@ -355,9 +340,9 @@ impl ExtnClient {
                 }
             }
         };
-        if sender.is_some() {
+        if let Some(sender) = sender {
             tokio::spawn(async move {
-                if let Err(e) = sender.unwrap().clone().try_send(msg) {
+                if let Err(e) = sender.clone().try_send(msg) {
                     error!("Error sending the response back {:?}", e);
                 }
             });
@@ -375,20 +360,16 @@ impl ExtnClient {
     ) {
         let indices = match gc_sender_indexes {
             Some(i) => Some(i),
-            None => match processor.read().unwrap().get(&id_c.clone()) {
-                Some(v) => Some(
-                    v.iter()
-                        .filter(|x| x.is_closed())
-                        .enumerate()
-                        .map(|(i, _)| i)
-                        .collect(),
-                ),
-                None => None,
-            },
+            None => processor.read().unwrap().get(&id_c).map(|v| {
+                v.iter()
+                    .filter(|x| x.is_closed())
+                    .enumerate()
+                    .map(|(i, _)| i)
+                    .collect()
+            }),
         };
-        if indices.is_some() {
-            let indices = indices.unwrap();
-            if indices.len() > 0 {
+        if let Some(indices) = indices {
+            if !indices.is_empty() {
                 let mut gc_cleanup = processor.write().unwrap();
                 if let Some(sender_list) = gc_cleanup.get_mut(&id_c) {
                     for index in indices {
@@ -433,7 +414,7 @@ impl ExtnClient {
         response: ExtnResponse,
     ) -> Result<(), RippleError> {
         if !req.payload.is_request() {
-            return Err(RippleError::InvalidInput);
+            Err(RippleError::InvalidInput)
         } else {
             let msg = req.get_response(response).unwrap();
             self.send_message(msg).await
@@ -472,9 +453,7 @@ impl ExtnClient {
         let (tx, rx) = oneshot::channel();
         add_single_processor(id.clone(), Some(tx), self.response_processors.clone());
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
-        if let Err(e) = self.sender.send_request(id, payload, other_sender, None) {
-            return Err(e);
-        }
+        self.sender.send_request(id, payload, other_sender, None)?;
         if let Ok(r) = rx.await {
             return Ok(r);
         }
@@ -497,31 +476,26 @@ impl ExtnClient {
         let (tx, tr) = bounded(2);
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
         let timeout_increments = 50;
-        if let Err(e) = self
-            .sender
-            .send_request(id, payload, other_sender, Some(tx))
-        {
-            return Err(e);
-        }
+        self.sender
+            .send_request(id, payload, other_sender, Some(tx))?;
         let mut current_timeout: u64 = 0;
         loop {
             match tr.try_recv() {
                 Ok(cmessage) => {
                     debug!("** receiving message msg={:?}", cmessage);
                     let message: ExtnMessage = cmessage.try_into().unwrap();
-                    if let Some(v) = message.payload.clone().extract() {
+                    if let Some(v) = message.payload.extract() {
                         return Ok(v);
                     } else {
                         return Err(RippleError::ParseError);
                     }
                 }
-                Err(e) => match e {
-                    TryRecvError::Disconnected => {
+                Err(e) => {
+                    if let TryRecvError::Disconnected = e {
                         error!("Channel disconnected");
                         break;
                     }
-                    _ => {}
-                },
+                }
             }
             current_timeout += timeout_increments;
             if current_timeout > timeout_in_msecs {
@@ -548,30 +522,25 @@ impl ExtnClient {
         let (tx, tr) = bounded(2);
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
         let timeout_increments = 50;
-        if let Err(e) = self
-            .sender
-            .send_request(id, payload, other_sender, Some(tx))
-        {
-            return Err(e);
-        }
+        self.sender
+            .send_request(id, payload, other_sender, Some(tx))?;
         let mut current_timeout: u64 = 0;
         loop {
             match tr.try_recv() {
                 Ok(cmessage) => {
                     let message: ExtnMessage = cmessage.try_into().unwrap();
-                    if let Some(v) = message.payload.clone().extract() {
+                    if let Some(v) = message.payload.extract() {
                         return Ok(v);
                     } else {
                         return Err(RippleError::ParseError);
                     }
                 }
-                Err(e) => match e {
-                    TryRecvError::Disconnected => {
+                Err(e) => {
+                    if let TryRecvError::Disconnected = e {
                         error!("Channel disconnected");
                         break;
                     }
-                    _ => {}
-                },
+                }
             }
             current_timeout += timeout_increments;
             if current_timeout > timeout_in_msecs {

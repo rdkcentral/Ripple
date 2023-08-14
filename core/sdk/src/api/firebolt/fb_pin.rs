@@ -25,8 +25,8 @@ use crate::{
 
 use super::provider::ChallengeRequestor;
 
-pub const PIN_CHALLENGE_EVENT: &'static str = "pinchallenge.onRequestChallenge";
-pub const PIN_CHALLENGE_CAPABILITY: &'static str = "xrn:firebolt:capability:usergrant:pinchallenge";
+pub const PIN_CHALLENGE_EVENT: &str = "pinchallenge.onRequestChallenge";
+pub const PIN_CHALLENGE_CAPABILITY: &str = "xrn:firebolt:capability:usergrant:pinchallenge";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -40,7 +40,7 @@ impl From<PinChallengeRequestWithContext> for PinChallengeRequest {
         PinChallengeRequest {
             pin_space: pin_req.pin_space,
             requestor: pin_req.requestor.to_owned(),
-            capability: pin_req.capability.to_owned(),
+            capability: pin_req.capability,
         }
     }
 }
@@ -60,13 +60,10 @@ impl ExtnPayloadProvider for PinChallengeRequestWithContext {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::PinChallenge(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::PinChallenge(r)) = payload {
+            return Some(r);
         }
+
         None
     }
 
@@ -115,13 +112,10 @@ impl ExtnPayloadProvider for PinChallengeResponse {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Response(request) => match request {
-                ExtnResponse::PinChallenge(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Response(ExtnResponse::PinChallenge(r)) = payload {
+            return Some(r);
         }
+
         None
     }
 

@@ -110,13 +110,15 @@ impl LifecycleServer for LifecycleImpl {
         let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
 
         let app_request = AppRequest::new(AppMethod::Ready(ctx.app_id), app_resp_tx);
-        if let Err(_) = self
+        if self
             .platform_state
             .get_client()
             .send_app_request(app_request)
+            .is_err()
         {
             return Err(rpc_err("Error sending app request"));
         }
+
         rpc_await_oneshot(app_resp_rx).await??;
         Ok(())
     }
@@ -126,17 +128,20 @@ impl LifecycleServer for LifecycleImpl {
 
         let app_request = AppRequest::new(AppMethod::State(ctx.app_id), app_resp_tx);
 
-        if let Err(_) = self
+        if self
             .platform_state
             .get_client()
             .send_app_request(app_request)
+            .is_err()
         {
             return Err(rpc_err("Error sending app request"));
         }
+
         let resp = rpc_await_oneshot(app_resp_rx).await?;
         if let AppManagerResponse::State(state) = resp? {
             return Ok(state.as_string().to_string());
         }
+
         Err(jsonrpsee::core::Error::Custom(String::from(
             "Internal Error",
         )))
@@ -148,13 +153,15 @@ impl LifecycleServer for LifecycleImpl {
         let app_request =
             AppRequest::new(AppMethod::Close(ctx.app_id, request.reason), app_resp_tx);
 
-        if let Err(_) = self
+        if self
             .platform_state
             .get_client()
             .send_app_request(app_request)
+            .is_err()
         {
             return Err(rpc_err("Error sending app request"));
         }
+
         rpc_await_oneshot(app_resp_rx).await??;
         Ok(())
     }
@@ -163,13 +170,15 @@ impl LifecycleServer for LifecycleImpl {
         let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
 
         let app_request = AppRequest::new(AppMethod::Finished(ctx.app_id), app_resp_tx);
-        if let Err(_) = self
+        if self
             .platform_state
             .get_client()
             .send_app_request(app_request)
+            .is_err()
         {
             return Err(rpc_err("Error sending app request"));
         }
+
         rpc_await_oneshot(app_resp_rx).await??;
         Ok(())
     }

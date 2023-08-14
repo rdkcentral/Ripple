@@ -1,7 +1,4 @@
-// If not stated otherwise in this file or this component's license file the
-// following copyright and licenses apply:
-//
-// Copyright 2023 RDK Management
+// Copyright 2023 Comcast Cable Communications Management, LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+//
 
 use serde::{Deserialize, Serialize};
 
@@ -110,17 +110,10 @@ pub struct PubSubUnSubscriberResponse {
 }
 impl ExtnPayloadProvider for PubSubNotifyTopic {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Event(r) => match r {
-                ExtnEvent::String(topic) => {
-                    return Some(PubSubNotifyTopic {
-                        topic: topic.to_owned(),
-                    })
-                }
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Event(ExtnEvent::String(topic)) = payload {
+            return Some(PubSubNotifyTopic { topic });
         }
+
         None
     }
 
@@ -135,13 +128,10 @@ impl ExtnPayloadProvider for PubSubNotifyTopic {
 
 impl ExtnPayloadProvider for PubSubRequest {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(r) => match r {
-                ExtnRequest::PubSub(v) => return Some(v),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::PubSub(v)) = payload {
+            return Some(v);
         }
+
         None
     }
 
@@ -156,13 +146,10 @@ impl ExtnPayloadProvider for PubSubRequest {
 
 impl ExtnPayloadProvider for PubSubResponse {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Response(r) => match r {
-                ExtnResponse::PubSub(v) => return Some(v),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Response(ExtnResponse::PubSub(v)) = payload {
+            return Some(v);
         }
+
         None
     }
 

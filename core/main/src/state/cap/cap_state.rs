@@ -116,20 +116,17 @@ impl CapState {
     ) -> bool {
         let r = ps.cap_state.primed_listeners.read().unwrap();
         debug!("primed entries {:?}", r);
-        if r.iter()
-            .find(|x| {
-                if x.event == event && x.cap == cap {
-                    if let Some(a) = app_id.clone() {
-                        x.app_id.eq(&a)
-                    } else {
-                        true
-                    }
+        if r.iter().any(|x| {
+            if x.event == event && x.cap == cap {
+                if let Some(a) = app_id.clone() {
+                    x.app_id.eq(&a)
                 } else {
-                    false
+                    true
                 }
-            })
-            .is_some()
-        {
+            } else {
+                false
+            }
+        }) {
             return true;
         }
         false
@@ -160,10 +157,8 @@ impl CapState {
             debug!("preparing cap event emit {}", f);
             // if its a grant or revoke it could be done per app
             // these require additional
-            let is_app_check_necessary = match event.clone() {
-                CapEvent::OnGranted | CapEvent::OnRevoked => true,
-                _ => false,
-            };
+            let is_app_check_necessary =
+                matches!(event.clone(), CapEvent::OnGranted | CapEvent::OnRevoked);
             let event_name = format!(
                 "{}.{}",
                 "capabilities",

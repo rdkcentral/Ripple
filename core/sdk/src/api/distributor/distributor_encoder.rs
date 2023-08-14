@@ -32,17 +32,10 @@ pub struct EncoderRequest {
 
 impl ExtnPayloadProvider for EncoderRequest {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(r) => match r {
-                ExtnRequest::Distributor(v) => match v {
-                    DistributorRequest::Encoder(d) => {
-                        return Some(d);
-                    }
-                    _ => {}
-                },
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::Distributor(DistributorRequest::Encoder(d))) =
+            payload
+        {
+            return Some(d);
         }
         None
     }

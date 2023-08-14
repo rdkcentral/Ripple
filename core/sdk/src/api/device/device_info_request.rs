@@ -62,16 +62,10 @@ impl ExtnPayloadProvider for DeviceInfoRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::Device(r) => match r {
-                    DeviceRequest::DeviceInfo(d) => return Some(d),
-                    _ => {}
-                },
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(d))) = payload {
+            return Some(d);
         }
+
         None
     }
 
@@ -104,7 +98,8 @@ pub enum DeviceResponse {
     FirmwareInfo(FireboltSemanticVersion),
     ScreenResolutionResponse(Vec<i32>),
     VideoResolutionResponse(Vec<i32>),
-    FullCapabilities(DeviceCapabilities),
+    // TODO: assess if boxing this is a productive move: https://rust-lang.github.io/rust-clippy/master/index.html#/large_enum_variant
+    FullCapabilities(Box<DeviceCapabilities>),
 }
 
 impl ExtnPayloadProvider for DeviceResponse {
@@ -115,17 +110,12 @@ impl ExtnPayloadProvider for DeviceResponse {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Response(response) => match response {
-                ExtnResponse::Value(value) => {
-                    if let Ok(v) = serde_json::from_value(value) {
-                        return Some(v);
-                    }
-                }
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Response(ExtnResponse::Value(value)) = payload {
+            if let Ok(v) = serde_json::from_value(value) {
+                return Some(v);
+            }
         }
+
         None
     }
 

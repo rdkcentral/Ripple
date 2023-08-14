@@ -51,7 +51,7 @@ pub struct OpenRpcState {
 impl OpenRpcState {
     pub fn load_additional_rpc(rpc: &mut FireboltOpenRpc, file_contents: &'static str) {
         let addl_rpc = serde_json::from_str::<OpenRPCParser>(file_contents);
-        if let Err(_) = addl_rpc {
+        if addl_rpc.is_err() {
             error!("Could not read additional RPC file");
             return;
         }

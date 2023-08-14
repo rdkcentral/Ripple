@@ -63,7 +63,7 @@ impl AppEventDecorator for CCEventDecorator {
         use crate::processor::storage::storage_manager::StorageManager as SM;
         use StorageProperty::*;
         let enabled_res = ClosedcaptionsImpl::closed_captions_settings_enabled(ps).await;
-        if let Err(_) = enabled_res {
+        if enabled_res.is_err() {
             return Err(AppEventDecorationError {});
         }
         let styles: ClosedCaptionStyle = ClosedCaptionStyle {

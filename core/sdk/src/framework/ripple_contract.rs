@@ -105,11 +105,11 @@ impl TryFrom<String> for RippleContract {
     }
 }
 
-impl Into<String> for RippleContract {
+impl From<RippleContract> for String {
     /// Mainly used for [ExtnMessage] passing between Extensions
     /// Use `as_clear_string` method for plain string for references
-    fn into(self) -> String {
-        serde_json::to_string(&self).unwrap()
+    fn from(val: RippleContract) -> Self {
+        serde_json::to_string(&val).unwrap()
     }
 }
 
@@ -138,10 +138,8 @@ impl TryFrom<String> for ContractFulfiller {
     fn try_from(value: String) -> Result<Self, Self::Error> {
         let r = serde_json::from_str(&value);
         let contracts_string: Vec<String>;
-        if r.is_err() {
-            Err(RippleError::ParseError)
-        } else {
-            contracts_string = r.unwrap();
+        if let Ok(r) = r {
+            contracts_string = r;
             let mut contracts = Vec::new();
             for contract_string in contracts_string {
                 if let Ok(contract) = RippleContract::try_from(contract_string) {
@@ -149,14 +147,16 @@ impl TryFrom<String> for ContractFulfiller {
                 }
             }
             Ok(ContractFulfiller { contracts })
+        } else {
+            Err(RippleError::ParseError)
         }
     }
 }
 
-impl Into<String> for ContractFulfiller {
-    fn into(self) -> String {
+impl From<ContractFulfiller> for String {
+    fn from(val: ContractFulfiller) -> Self {
         let mut contracts: Vec<Value> = Vec::new();
-        for contract in self.contracts {
+        for contract in val.contracts {
             contracts.push(Value::String(contract.into()));
         }
         Value::Array(contracts).to_string()
@@ -173,10 +173,6 @@ mod tests {
         assert!(value.eq("\"device_info\""));
         let result = RippleContract::try_from(value);
         assert!(result.is_ok());
-        assert!(if let Ok(RippleContract::DeviceInfo) = result {
-            true
-        } else {
-            false
-        });
+        assert!(matches!(result, Ok(RippleContract::DeviceInfo)));
     }
 }

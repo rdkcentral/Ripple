@@ -62,6 +62,8 @@ pub struct CallContext {
 }
 
 impl CallContext {
+    // TODO: refactor this to use less arguments
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         session_id: String,
         request_id: String,
@@ -127,10 +129,7 @@ struct ApiBaseRequest {
 
 impl ApiBaseRequest {
     fn is_jsonrpc(&self) -> bool {
-        match self.jsonrpc {
-            Some(_) => true,
-            None => false,
-        }
+        self.jsonrpc.is_some()
     }
 }
 
@@ -197,7 +196,7 @@ impl RpcRequest {
         let mut ps = Vec::<Value>::new();
         ps.push(json!(ctx));
         if let Some(params) = req_params {
-            ps.push(json!(params.clone()));
+            ps.push(json!(params));
         }
         json!(ps).to_string()
     }
@@ -237,10 +236,7 @@ impl RpcRequest {
             return Err(RequestParseError {});
         }
         let jsonrpc_req: JsonRpcApiRequest = jsonrpc_req_res.unwrap();
-        let id = match jsonrpc_req.id {
-            Some(n) => n,
-            None => 0,
-        };
+        let id = jsonrpc_req.id.unwrap_or(0);
         let method = FireboltOpenRpcMethod::name_with_lowercase_module(&jsonrpc_req.method);
         let ctx = CallContext::new(
             session_id,

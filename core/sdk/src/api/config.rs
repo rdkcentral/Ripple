@@ -72,13 +72,10 @@ impl ExtnPayloadProvider for Config {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Config> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::Config(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::Config(r)) = payload {
+            return Some(r);
         }
+
         None
     }
 
@@ -114,17 +111,12 @@ impl ExtnPayloadProvider for LauncherConfig {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Response(response) => match response {
-                ExtnResponse::Value(value) => {
-                    if let Ok(v) = serde_json::from_value(value) {
-                        return Some(v);
-                    }
-                }
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Response(ExtnResponse::Value(value)) = payload {
+            if let Ok(v) = serde_json::from_value(value) {
+                return Some(v);
+            }
         }
+
         None
     }
 

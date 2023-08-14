@@ -293,14 +293,11 @@ impl DelegatedLauncherHandler {
 
     async fn start_session(&mut self, session: AppSession) -> Result<AppManagerResponse, AppError> {
         let transport = session.get_transport();
-        match transport.clone() {
-            EffectiveTransport::Bridge(_) => {
-                if !self.platform_state.supports_bridge() {
-                    error!("Bridge is not a supported contract");
-                    return Err(AppError::NotSupported);
-                }
+        if let EffectiveTransport::Bridge(_) = transport.clone() {
+            if !self.platform_state.supports_bridge() {
+                error!("Bridge is not a supported contract");
+                return Err(AppError::NotSupported);
             }
-            _ => {}
         }
         // TODO: Add metrics helper for app loading
 
@@ -391,9 +388,10 @@ impl DelegatedLauncherHandler {
                         } else {
                             AppMethod::NewActiveSession(session)
                         };
-                        if let Ok(_) = cloned_ps
+                        if cloned_ps
                             .get_client()
                             .send_app_request(AppRequest::new(app_method, resp_tx))
+                            .is_ok()
                         {
                             let _ = rpc_await_oneshot(resp_rx).await.is_ok();
                         }
@@ -517,7 +515,10 @@ impl DelegatedLauncherHandler {
         let app_id_c = app_id.clone();
         // Fetch permissions on separate thread
         tokio::spawn(async move {
-            if let Err(_) = PermissionHandler::fetch_and_store(&platform_state_c, &app_id_c).await {
+            if PermissionHandler::fetch_and_store(&platform_state_c, &app_id_c)
+                .await
+                .is_err()
+            {
                 error!("Couldnt load permissions for app {}", app_id_c)
             }
         });

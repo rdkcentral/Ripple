@@ -121,9 +121,7 @@ impl ApplicationDefaultsConfiguration {
         match field_name {
             "xrn:firebolt:application-type:main" => Some(&self.main),
             "xrn:firebolt:application-type:settings" => Some(&self.settings),
-            "xrn:firebolt:application-type:player" => {
-                self.player.as_ref().map(|p| p.as_str()).or(Some(""))
-            }
+            "xrn:firebolt:application-type:player" => self.player.as_deref().or(Some("")),
             _ => None,
         }
     }
@@ -198,7 +196,8 @@ pub struct AppLibraryEntry {
 pub enum AppManifestLoad {
     Remote(String),
     Local(String),
-    Embedded(AppManifest),
+    // TODO: assess if boxing this is a productive move: https://rust-lang.github.io/rust-clippy/master/index.html#/large_enum_variant
+    Embedded(Box<AppManifest>),
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
@@ -439,7 +438,7 @@ impl DeviceManifest {
     pub fn load(path: String) -> Result<(String, DeviceManifest), RippleError> {
         info!("Trying to load device manifest from path={}", path);
         if let Some(p) = Path::new(&path).to_str() {
-            if let Ok(contents) = fs::read_to_string(&p) {
+            if let Ok(contents) = fs::read_to_string(p) {
                 return Self::load_from_content(contents);
             }
         }
@@ -449,7 +448,7 @@ impl DeviceManifest {
 
     pub fn load_from_content(contents: String) -> Result<(String, DeviceManifest), RippleError> {
         match serde_json::from_str::<DeviceManifest>(&contents) {
-            Ok(manifest) => Ok((String::from(contents), manifest)),
+            Ok(manifest) => Ok((contents, manifest)),
             Err(err) => {
                 warn!("{:?} could not load device manifest", err);
                 Err(RippleError::InvalidInput)
@@ -515,7 +514,7 @@ impl DeviceManifest {
 
     pub fn get_caps_requiring_grant(&self) -> Vec<String> {
         if let Some(policies) = self.clone().capabilities.grant_policies {
-            return policies.clone().into_keys().collect();
+            return policies.into_keys().collect();
         }
         Vec::new()
     }

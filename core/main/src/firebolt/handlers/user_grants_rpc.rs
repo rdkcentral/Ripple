@@ -76,16 +76,18 @@ impl UserGrantsImpl {
 
         let app_request = AppRequest::new(AppMethod::GetAppName(app_id.into()), app_resp_tx);
 
-        if let Err(_) = self
+        if self
             .platform_state
             .get_client()
             .send_app_request(app_request)
+            .is_err()
         {
             return Err(rpc_err(format!(
                 "Failed to get App Name for {}",
                 app_id.to_owned()
             )));
         }
+
         let resp = rpc_await_oneshot(app_resp_rx).await?;
 
         if let AppManagerResponse::AppName(app_title) = resp? {

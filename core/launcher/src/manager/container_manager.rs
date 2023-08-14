@@ -64,13 +64,7 @@ impl ContainerState {
     fn get_prev_stack(&self) -> Option<String> {
         let prev_container = {
             let stack = self.stack.read().unwrap();
-            let r = stack.peek();
-            if r.is_none() {
-                None
-            } else {
-                let v = r.unwrap().clone();
-                Some(v)
-            }
+            stack.peek().cloned()
         };
         prev_container
     }
@@ -78,13 +72,7 @@ impl ContainerState {
     fn get_container_by_name(&self, id: &String) -> Option<ContainerProperties> {
         {
             let container = self.containers.read().unwrap();
-            let r = container.get(id);
-            if r.is_none() {
-                None
-            } else {
-                let v = r.unwrap().clone();
-                Some(v)
-            }
+            container.get(id).cloned()
         }
     }
 
@@ -104,7 +92,7 @@ impl ContainerState {
     }
 
     fn stack_len(&self) -> usize {
-        let mut stack = self.stack.write().unwrap();
+        let stack = self.stack.write().unwrap();
         stack.len()
     }
 
@@ -113,7 +101,7 @@ impl ContainerState {
         stack.push(id);
     }
 
-    fn pop_stack_by_name(&self, name: &String) {
+    fn pop_stack_by_name(&self, name: &str) {
         let mut stack = self.stack.write().unwrap();
         stack.pop_item(name);
     }
@@ -171,7 +159,7 @@ impl ContainerManager {
             if let Some(pp) = state.container_state.get_container_by_name(&name.into()) {
                 prev_props = Some(pp);
             }
-            state.container_state.pop_stack_by_name(&name.into());
+            state.container_state.pop_stack_by_name(name);
             let mut next_props = None;
             if let Some(nc) = state.container_state.get_prev_stack() {
                 if let Some(np) = state.container_state.get_container_by_name(&nc) {
@@ -304,8 +292,6 @@ impl ContainerManager {
         name: &str,
         visible: bool,
     ) -> Result<ResultType, ContainerError> {
-        let result;
-
         if !state
             .container_state
             .contains_stack_by_name(&name.to_string())
@@ -324,16 +310,12 @@ impl ContainerManager {
         let view_id = props.view_id;
         let resp = ViewManager::set_visibility(state, view_id, visible).await;
         match resp {
-            Ok(_) => {
-                result = Ok(ResultType::None);
-            }
+            Ok(_) => Ok(ResultType::None),
             Err(_) => {
                 error!("set_visible: error: req_id={:?}", resp);
-                result = Err(ContainerError::General);
+                Err(ContainerError::General)
             }
         }
-
-        result
     }
 
     pub async fn on_state_changed(state: &LauncherState, state_change: StateChangeInternal) {

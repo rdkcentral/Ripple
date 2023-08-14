@@ -80,16 +80,14 @@ impl ExtnEventProcessor for WaitForStatusReadyEventProcessor {
         extracted_message: Self::VALUE,
     ) -> Option<bool> {
         if msg.requestor.to_string().eq(&state.capability.to_string()) {
-            match extracted_message {
-                ExtnStatus::Ready => {
-                    if let Err(_) = state.sender.send(ExtnStatus::Ready).await {
-                        error!("Failure to wait status message")
-                    }
-                    return Some(true);
+            if let ExtnStatus::Ready = extracted_message {
+                if state.sender.send(ExtnStatus::Ready).await.is_err() {
+                    error!("Failure to wait status message")
                 }
-                _ => {}
+                return Some(true);
             }
         }
+
         None
     }
 }

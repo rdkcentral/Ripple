@@ -62,13 +62,10 @@ pub enum AccountSessionRequest {
 
 impl ExtnPayloadProvider for AccountSessionRequest {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(r) => match r {
-                ExtnRequest::AccountSession(v) => return Some(v),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::AccountSession(v)) = payload {
+            return Some(v);
         }
+
         None
     }
 
@@ -92,12 +89,8 @@ pub struct AccountSession {
 
 impl ExtnPayloadProvider for AccountSession {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Response(r) => match r {
-                ExtnResponse::AccountSession(v) => return Some(v),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Response(ExtnResponse::AccountSession(v)) = payload {
+            return Some(v);
         }
 
         None
@@ -165,13 +158,10 @@ impl ExtnPayloadProvider for SessionTokenRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<SessionTokenRequest> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::SessionToken(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::SessionToken(r)) = payload {
+            return Some(r);
         }
+
         None
     }
 

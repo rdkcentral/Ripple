@@ -65,7 +65,7 @@ impl Bootstep<BootstrapState> for CheckLauncherStep {
                 .send_app_request(app_request)
                 .expect("App Request to be sent successfully");
 
-            if let Err(_) = app_resp_rx.await {
+            if app_resp_rx.await.is_err() {
                 return Err(RippleError::BootstrapError);
             }
         }

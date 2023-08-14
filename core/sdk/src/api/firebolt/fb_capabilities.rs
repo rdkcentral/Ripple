@@ -66,9 +66,9 @@ impl FireboltCap {
 
     pub fn parse(cap: String) -> Option<FireboltCap> {
         let prefix = vec!["xrn", "firebolt", "capability"];
-        let c_a = cap.split(":");
+        let c_a = cap.split(':');
         if c_a.count() > 1 {
-            let c_a = cap.split(":");
+            let c_a = cap.split(':');
             let mut cap_vec = Vec::<String>::new();
             for c in c_a.into_iter() {
                 if !prefix.contains(&c) {
@@ -87,7 +87,7 @@ impl FireboltCap {
         cap_strings
             .into_iter()
             .filter(|x| FireboltCap::parse(x.clone()).is_some())
-            .map(|x| FireboltCap::Full(x.clone()))
+            .map(FireboltCap::Full)
             .collect()
     }
 }
@@ -177,7 +177,7 @@ impl From<CapabilitySet> for Vec<FireboltPermission> {
         }
         if let Some(provide_cap) = cap_set.provide_cap {
             fb_perm_list.push(FireboltPermission {
-                cap: provide_cap.clone(),
+                cap: provide_cap,
                 role: CapabilityRole::Provide,
             });
         }
@@ -254,7 +254,7 @@ impl CapabilityInfo {
         let (mut supported, mut available, mut permitted, mut granted) =
             (true, true, true, Some(true));
         let mut details = None;
-        if let Some(r) = reason.clone() {
+        if let Some(r) = reason {
             details = Some(vec![r.clone()]);
             match r {
                 DenyReason::Unsupported => {
@@ -283,8 +283,8 @@ impl CapabilityInfo {
         }
         CapabilityInfo {
             capability: cap,
-            supported: supported,
-            available: available,
+            supported,
+            available,
             _use: RolePermission::new(permitted, granted),
             manage: RolePermission::new(permitted, granted),
             provide: RolePermission::new(permitted, granted),
@@ -352,13 +352,13 @@ impl RpcError for DenyReason {
     }
 
     fn get_rpc_error_message(&self, caps: Vec<String>) -> String {
-        let caps_disp = caps.clone().join(",");
+        let caps_disp = caps.join(",");
         match self {
             Self::Unavailable => format!("{} is not available", caps_disp),
             Self::Unsupported => format!("{} is not supported", caps_disp),
             Self::GrantDenied => format!("The user denied access to {}", caps_disp),
             Self::Unpermitted => format!("{} is not permitted", caps_disp),
-            Self::NotFound => format!("Method not Found"),
+            Self::NotFound => "Method not Found".to_string(),
             _ => format!("Error with {}", caps_disp),
         }
     }

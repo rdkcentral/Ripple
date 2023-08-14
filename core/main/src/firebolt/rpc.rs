@@ -46,8 +46,8 @@ where
             // we need to leak it so it exists for the lifetime of the running application
             let existing_method = Box::leak(alias.method.into_boxed_str());
             for a in alias.aliases {
-                if let Err(_) =
-                    r.register_alias(Box::leak(a.clone().into_boxed_str()), existing_method)
+                if r.register_alias(Box::leak(a.clone().into_boxed_str()), existing_method)
+                    .is_err()
                 {
                     error!(
                         "Error registering alias {} for method {}",

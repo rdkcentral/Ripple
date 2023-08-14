@@ -156,10 +156,10 @@ impl TryFrom<String> for ExtnId {
     type Error = RippleError;
 
     fn try_from(cap: String) -> Result<Self, Self::Error> {
-        let c_a = cap.split(":");
+        let c_a = cap.split(':');
         if c_a.count() > 3 {
-            let c_a: Vec<&str> = cap.split(":").collect();
-            match c_a.get(0).unwrap().to_lowercase().as_str() {
+            let c_a: Vec<&str> = cap.split(':').collect();
+            match c_a.first().unwrap().to_lowercase().as_str() {
                 "ripple" => {}
                 _ => return Err(RippleError::ParseError),
             }

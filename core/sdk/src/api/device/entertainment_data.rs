@@ -167,7 +167,7 @@ impl Default for EntityInfo {
 
 #[cfg(test)]
 #[allow(dead_code)]
-pub const SYNOPSIS: &'static str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Pulvinar sapien et ligula ullamcorper malesuada proin libero nunc.";
+pub const SYNOPSIS: &str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Pulvinar sapien et ligula ullamcorper malesuada proin libero nunc.";
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -437,13 +437,14 @@ where
         serde_json::from_value(val.clone()).map_err(serde::de::Error::custom)?;
     match base.entity_type {
         Some(et) if et == "program" => {
-            let pgm = serde_json::from_value(val.clone()).map_err(serde::de::Error::custom)?;
+            let pgm = serde_json::from_value(val).map_err(serde::de::Error::custom)?;
             return Ok(EntityIntentData::Program(pgm));
         }
         _ => {}
     }
-    let ut = serde_json::from_value(val.clone()).map_err(serde::de::Error::custom)?;
-    return Ok(EntityIntentData::Untyped(ut));
+    let ut = serde_json::from_value(val).map_err(serde::de::Error::custom)?;
+
+    Ok(EntityIntentData::Untyped(ut))
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

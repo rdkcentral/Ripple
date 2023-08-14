@@ -37,18 +37,12 @@ pub enum DiscoveryRequest {
 
 impl ExtnPayloadProvider for DiscoveryRequest {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(r) => match r {
-                ExtnRequest::Distributor(v) => match v {
-                    DistributorRequest::Discovery(d) => {
-                        return Some(d);
-                    }
-                    _ => {}
-                },
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::Distributor(DistributorRequest::Discovery(d))) =
+            payload
+        {
+            return Some(d);
         }
+
         None
     }
 
@@ -70,18 +64,12 @@ pub enum MediaEventRequest {
 
 impl ExtnPayloadProvider for MediaEventRequest {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(r) => match r {
-                ExtnRequest::Distributor(v) => match v {
-                    DistributorRequest::MediaEvent(d) => {
-                        return Some(d);
-                    }
-                    _ => {}
-                },
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::Distributor(DistributorRequest::MediaEvent(d))) =
+            payload
+        {
+            return Some(d);
         }
+
         None
     }
 

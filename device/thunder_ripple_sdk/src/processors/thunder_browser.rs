@@ -164,8 +164,9 @@ impl ThunderBrowserRequestProcessor {
 
         if let Some(status) = response.message["success"].as_bool() {
             if status {
-                if let Err(_) =
-                    Self::respond(state.get_client(), req.clone(), ExtnResponse::None(())).await
+                if Self::respond(state.get_client(), req.clone(), ExtnResponse::None(()))
+                    .await
+                    .is_err()
                 {
                     error!("Sending back response for browser.destroy");
                 }
