@@ -66,6 +66,69 @@ pub struct ProviderBrokerState {
     request_queue: Arc<RwLock<ArrayVec<ProviderBrokerRequest, REQUEST_QUEUE_CAPACITY>>>,
 }
 
+#[cfg(test)]
+use ripple_sdk::api::firebolt::fb_pin::{PinChallengeResponse, PinChallengeResultReason};
+
+impl ProviderBrokerState {
+    #[cfg(test)]
+    pub async fn send_pinchallenge_success(&self, state: &PlatformState) {
+        self.send_pinchallenge_response(
+            state,
+            PinChallengeResponse {
+                granted: true,
+                reason: PinChallengeResultReason::CorrectPin,
+            },
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    pub async fn send_pinchallenge_failure(
+        &self,
+        state: &PlatformState,
+        reason: PinChallengeResultReason,
+    ) {
+        if let PinChallengeResultReason::CorrectPin = reason {
+            error!("CorrectPin is not a failure reason");
+            return;
+        }
+
+        self.send_pinchallenge_response(
+            state,
+            PinChallengeResponse {
+                granted: true,
+                reason,
+            },
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    async fn send_pinchallenge_response(
+        &self,
+        state: &PlatformState,
+        response: PinChallengeResponse,
+    ) {
+        debug!("sending pinchallenge provider response = {:#?}", response);
+        let active_session = {
+            let sessions = self.active_sessions.read().unwrap();
+            sessions.iter().next().map(|(c_id, _)| c_id.clone())
+        };
+
+        let c_id = active_session.unwrap();
+        debug!("pinchallenge session correlation id={}", c_id);
+        ProviderBroker::provider_response(
+            state,
+            ProviderResponse {
+                correlation_id: c_id.to_owned(),
+                result: ProviderResponsePayload::PinChallengeResponse(response),
+            },
+        )
+        .await;
+        debug!("pinchallenge provider response sent");
+    }
+}
+
 impl std::fmt::Debug for ProviderBrokerState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ProviderBrokerState").finish()
@@ -74,12 +137,13 @@ impl std::fmt::Debug for ProviderBrokerState {
 
 pub struct ProviderBroker {}
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct ProviderMethod {
     event_name: &'static str,
     provider: CallContext,
 }
 
+#[derive(Debug)]
 struct ProviderSession {
     caller: ProviderCaller,
     provider: ProviderMethod,
@@ -87,6 +151,7 @@ struct ProviderSession {
     focused: bool,
 }
 
+#[derive(Debug)]
 pub struct ProviderBrokerRequest {
     pub capability: String,
     pub method: String,
@@ -96,6 +161,7 @@ pub struct ProviderBrokerRequest {
     pub app_id: Option<String>,
 }
 
+#[derive(Debug)]
 struct ProviderCaller {
     identity: CallContext,
     tx: oneshot::Sender<ProviderResponsePayload>,
@@ -262,6 +328,7 @@ impl ProviderBroker {
                 .await;
             }
         } else {
+            debug!("queuing provider request");
             ProviderBroker::queue_provider_request(pst, request);
         }
     }
@@ -285,6 +352,7 @@ impl ProviderBroker {
                 focused: false,
             },
         );
+        debug!("started provider session {}", c_id);
         c_id
     }
 

@@ -893,6 +893,7 @@ impl GrantPolicyEnforcer {
         permission: &FireboltPermission,
         policy: &GrantPolicy,
     ) -> Result<(), DenyReasonWithCap> {
+        // TODO: is this check duplicated on line 997?
         if let Err(e) = platform_state
             .cap_state
             .generic
@@ -1157,49 +1158,38 @@ mod tests {
 
     mod test_grant_policy_enforcer {
         use super::*;
-        use crate::{
-            service::extn::ripple_client::RippleClient, state::bootstrap_state::ChannelsState,
-        };
+        use crate::utils::test_utils::{fb_perm, MockRuntime};
         use ripple_sdk::{
             api::{
                 device::device_user_grants_data::GrantRequirements,
-                gateway::rpc_gateway_api::ApiProtocol, manifest::extn_manifest::ExtnManifest,
+                firebolt::{
+                    fb_general::ListenRequest,
+                    fb_pin::{PIN_CHALLENGE_CAPABILITY, PIN_CHALLENGE_EVENT},
+                },
             },
-            tokio,
+            tokio::{self, join},
+            utils::logger::init_logger,
         };
+        use serde_json::json;
 
         fn setup() -> (PlatformState, CallContext, FireboltPermission) {
-            let channels_state = ChannelsState::new();
-            let client = RippleClient::new(channels_state.clone());
-            let (_, manifest) = DeviceManifest::load_from_content(
-                include_str!("../../../../examples/manifest/device-manifest-example.json")
-                    .to_string(),
-            )
-            .unwrap();
-            let (_, extn_manifest) = ExtnManifest::load_from_content(
-                include_str!("../../../../examples/manifest/extn-manifest-example.json")
-                    .to_string(),
-            )
-            .unwrap();
-            let platform_state = PlatformState::new(extn_manifest, manifest, client, vec![]);
-            let call_ctx = CallContext::new(
-                "sess_id".to_owned(),
-                "1".to_owned(),
-                "app_id".to_owned(),
-                1,
-                ApiProtocol::Extn,
-                "method".to_owned(),
-                None,
-                false,
-            );
-            let perm = FireboltPermission {
-                cap: FireboltCap::Full(
-                    "xrn:firebolt:capability:localization:postal-code".to_owned(),
-                ),
-                role: CapabilityRole::Use,
-            };
+            let _ = init_logger("tests".into());
+            let runtime = MockRuntime::new();
+            let perm = fb_perm("xrn:firebolt:capability:localization:postal-code", None);
 
-            (platform_state, call_ctx, perm)
+            (runtime.platform_state, runtime.call_context, perm)
+        }
+
+        async fn register_provider(state: &PlatformState, ctx: CallContext) {
+            ProviderBroker::register_provider(
+                &state,
+                PIN_CHALLENGE_CAPABILITY.to_owned(),
+                "challenge".to_owned(),
+                PIN_CHALLENGE_EVENT,
+                ctx,
+                ListenRequest { listen: true },
+            )
+            .await;
         }
 
         #[tokio::test]
@@ -1249,9 +1239,36 @@ mod tests {
             })));
         }
 
-        #[test]
-        #[ignore = "not implemented"]
-        fn test_evaluate_options_first_option_suitable() {}
+        #[tokio::test]
+        async fn test_evaluate_options_first_option_suitable() {
+            let (state, ctx, perm) = setup();
+            let policy = GrantPolicy {
+                options: vec![GrantRequirements {
+                    steps: vec![
+                        GrantStep {
+                            capability: PIN_CHALLENGE_CAPABILITY.to_owned(),
+                            configuration: Some(json!({ "pinSpace": "purchase" })),
+                        },
+                        GrantStep {
+                            capability: "xrn:firebolt:capability:usergrant:notavailableonplatform"
+                                .to_owned(),
+                            configuration: None,
+                        },
+                    ],
+                }],
+                ..Default::default()
+            };
+            register_provider(&state, ctx.clone()).await;
+            let pinchallenge_response = state
+                .provider_broker_state
+                .send_pinchallenge_success(&state);
+            let evaluate_options =
+                GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy);
+
+            let (result, _) = join!(evaluate_options, pinchallenge_response);
+            assert!(result.is_ok());
+            assert!(state.cap_state.generic.check_available(&vec![perm]).is_ok());
+        }
 
         #[test]
         #[ignore = "not implemented"]
