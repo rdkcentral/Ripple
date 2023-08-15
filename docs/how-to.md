@@ -125,7 +125,6 @@ Create a new rust repo and setup the cargo.toml like below
 name = "distributor_general"
 version = "0.1.0"
 edition = "2021"
-resolver = "2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
