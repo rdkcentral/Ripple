@@ -110,22 +110,25 @@ impl ProviderBrokerState {
         response: PinChallengeResponse,
     ) {
         debug!("sending pinchallenge provider response = {:#?}", response);
-        let active_session = {
+        let active_c_id: String;
+        loop {
             let sessions = self.active_sessions.read().unwrap();
-            sessions.iter().next().map(|(c_id, _)| c_id.clone())
-        };
+            if let Some((c_id, _)) = sessions.iter().next() {
+                active_c_id = c_id.clone();
+                break;
+            }
+            debug!("waiting for active session for pinchallenge");
+        }
 
-        let c_id = active_session.unwrap();
-        debug!("pinchallenge session correlation id={}", c_id);
+        debug!("pinchallenge session correlation id={}", active_c_id);
         ProviderBroker::provider_response(
             state,
             ProviderResponse {
-                correlation_id: c_id.to_owned(),
+                correlation_id: active_c_id.to_owned(),
                 result: ProviderResponsePayload::PinChallengeResponse(response),
             },
         )
         .await;
-        debug!("pinchallenge provider response sent");
     }
 }
 

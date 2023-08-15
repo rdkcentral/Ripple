@@ -51,7 +51,7 @@ use ripple_sdk::{
         usergrant_entry::UserGrantInfo,
     },
     framework::file_store::FileStore,
-    log::{debug, error},
+    log::{debug, error, warn},
     serde_json::Value,
     tokio::sync::oneshot,
     utils::error::RippleError,
@@ -894,42 +894,55 @@ impl GrantPolicyEnforcer {
         policy: &GrantPolicy,
     ) -> Result<(), DenyReasonWithCap> {
         // TODO: is this check duplicated on line 997?
-        if let Err(e) = platform_state
-            .cap_state
-            .generic
-            .check_all(&vec![permission.clone()])
-        {
-            return Err(DenyReasonWithCap {
-                caps: e.caps,
-                reason: DenyReason::GrantDenied,
-            });
+        // if let Err(e) = platform_state
+        //     .cap_state
+        //     .generic
+        //     .check_all(&vec![permission.clone()])
+        // {
+        //     return Err(DenyReasonWithCap {
+        //         caps: e.caps,
+        //         reason: DenyReason::GrantDenied,
+        //     });
+        // }
+
+        if policy.options.is_empty() {
+            return Ok(());
         }
 
-        for grant_requirements in &policy.options {
-            for step in &grant_requirements.steps {
-                let cap = FireboltCap::Full(step.capability.to_owned());
-                let firebolt_cap = vec![cap.clone()];
-                debug!(
-                    "checking if the cap is supported & available: {:?}",
-                    firebolt_cap
-                );
+        let first_supported_option = policy.options.iter().find(|grant_requirements| {
+            let step_caps = grant_requirements
+                .steps
+                .iter()
+                .map(|step| FireboltPermission {
+                    cap: step.capability_as_fb_cap(),
+                    role: CapabilityRole::Use,
+                })
+                .collect();
 
+            platform_state
+                .cap_state
+                .generic
+                .check_all(&step_caps)
+                .is_ok()
+        });
+
+        if let Some(first_supported_option) = first_supported_option {
+            for step in &first_supported_option.steps {
                 match GrantStepExecutor::execute(step, platform_state, call_ctx, permission).await {
                     Ok(_) => {
                         CapState::emit(
                             platform_state,
                             CapEvent::OnGranted,
-                            cap,
+                            step.capability_as_fb_cap(),
                             Some(permission.role),
                         )
                         .await;
-                        return Ok(());
                     }
                     Err(e) => {
                         CapState::emit(
                             platform_state,
                             CapEvent::OnRevoked,
-                            cap,
+                            step.capability_as_fb_cap(),
                             Some(permission.role),
                         )
                         .await;
@@ -937,6 +950,25 @@ impl GrantPolicyEnforcer {
                     }
                 }
             }
+        } else {
+            let unsupported_caps = policy
+                .options
+                .iter()
+                .flat_map(|grant_requirements| {
+                    grant_requirements
+                        .steps
+                        .iter()
+                        .map(|step| step.capability_as_fb_cap())
+                })
+                .collect();
+            warn!(
+                "capabilities are not supported on this device. {:?}",
+                unsupported_caps
+            );
+            return Err(DenyReasonWithCap {
+                caps: unsupported_caps,
+                reason: DenyReason::Unsupported,
+            });
         }
 
         Ok(())
@@ -1177,12 +1209,17 @@ mod tests {
             let runtime = MockRuntime::new();
             let perm = fb_perm("xrn:firebolt:capability:localization:postal-code", None);
 
+            debug!(
+                "Cap State = {:#?}",
+                runtime.platform_state.cap_state.generic
+            );
+
             (runtime.platform_state, runtime.call_context, perm)
         }
 
         async fn register_provider(state: &PlatformState, ctx: CallContext) {
             ProviderBroker::register_provider(
-                &state,
+                state,
                 PIN_CHALLENGE_CAPABILITY.to_owned(),
                 "challenge".to_owned(),
                 PIN_CHALLENGE_EVENT,
@@ -1243,19 +1280,54 @@ mod tests {
         async fn test_evaluate_options_first_option_suitable() {
             let (state, ctx, perm) = setup();
             let policy = GrantPolicy {
-                options: vec![GrantRequirements {
-                    steps: vec![
-                        GrantStep {
+                options: vec![
+                    GrantRequirements {
+                        steps: vec![GrantStep {
                             capability: PIN_CHALLENGE_CAPABILITY.to_owned(),
                             configuration: Some(json!({ "pinSpace": "purchase" })),
-                        },
-                        GrantStep {
+                        }],
+                    },
+                    GrantRequirements {
+                        steps: vec![GrantStep {
                             capability: "xrn:firebolt:capability:usergrant:notavailableonplatform"
                                 .to_owned(),
                             configuration: None,
-                        },
-                    ],
-                }],
+                        }],
+                    },
+                ],
+                ..Default::default()
+            };
+            register_provider(&state, ctx.clone()).await;
+            let pinchallenge_response = state
+                .provider_broker_state
+                .send_pinchallenge_success(&state);
+            let evaluate_options =
+                GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy);
+
+            let (result, _) = join!(evaluate_options, pinchallenge_response);
+            assert!(result.is_ok());
+            assert!(state.cap_state.generic.check_available(&vec![perm]).is_ok());
+        }
+
+        #[tokio::test]
+        async fn test_evaluate_options_second_option_suitable() {
+            let (state, ctx, perm) = setup();
+            let policy = GrantPolicy {
+                options: vec![
+                    GrantRequirements {
+                        steps: vec![GrantStep {
+                            capability: "xrn:firebolt:capability:usergrant:notavailableonplatform"
+                                .to_owned(),
+                            configuration: None,
+                        }],
+                    },
+                    GrantRequirements {
+                        steps: vec![GrantStep {
+                            capability: PIN_CHALLENGE_CAPABILITY.to_owned(),
+                            configuration: Some(json!({ "pinSpace": "purchase" })),
+                        }],
+                    },
+                ],
                 ..Default::default()
             };
             register_provider(&state, ctx.clone()).await;
@@ -1272,10 +1344,18 @@ mod tests {
 
         #[test]
         #[ignore = "not implemented"]
-        fn test_evaluate_options_second_option_suitable() {}
+        fn test_evaluate_options_no_options_supported() {}
 
         #[test]
         #[ignore = "not implemented"]
-        fn test_evaluate_options_no_options_suitable() {}
+        fn test_evaluate_options_first_step_denied() {}
+
+        #[test]
+        #[ignore = "not implemented"]
+        fn test_evaluate_options_second_step_denied() {}
+
+        #[test]
+        #[ignore = "not implemented"]
+        fn test_evaluate_options_all_steps_granted() {}
     }
 }

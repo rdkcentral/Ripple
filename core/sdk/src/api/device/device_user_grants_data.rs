@@ -33,6 +33,12 @@ pub struct GrantStep {
     pub configuration: Option<Value>,
 }
 
+impl GrantStep {
+    pub fn capability_as_fb_cap(&self) -> FireboltCap {
+        FireboltCap::Full(self.capability.clone())
+    }
+}
+
 #[derive(Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct GrantRequirements {
