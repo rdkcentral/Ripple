@@ -41,7 +41,10 @@ use ripple_sdk::{
 };
 use std::sync::{Arc, RwLock};
 
-use crate::state::{platform_state::PlatformState, session_state::Session};
+use crate::{
+    service::telemetry_builder::TelemetryBuilder,
+    state::{platform_state::PlatformState, session_state::Session},
+};
 
 pub struct RpcRouter;
 
@@ -137,8 +140,9 @@ impl RpcRouter {
             let app_id = req.ctx.app_id.clone();
             let session_id = req.ctx.session_id.clone();
             let start = Utc::now().timestamp_millis();
-            if let Ok(msg) = resolve_route(methods, resources, req).await {
+            if let Ok(msg) = resolve_route(methods, resources, req.clone()).await {
                 let now = Utc::now().timestamp_millis();
+                let success = !msg.is_error();
                 info!(
                     "Sending Firebolt response to app_id={} method={} fbtt={} {} {}",
                     app_id,
@@ -147,6 +151,7 @@ impl RpcRouter {
                     session_id,
                     msg.jsonrpc_msg
                 );
+                TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start, success);
                 match session.get_transport() {
                     EffectiveTransport::Websocket => {
                         if let Err(e) = session.send_json_rpc(msg).await {

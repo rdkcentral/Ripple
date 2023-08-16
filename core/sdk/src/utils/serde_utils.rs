@@ -258,3 +258,15 @@ where
         Ok(value)
     }
 }
+
+pub struct SerdeClearString;
+
+impl SerdeClearString {
+    pub fn as_clear_string<T>(t: &T) -> String
+    where
+        T: ?Sized + serde::ser::Serialize,
+    {
+        let s: String = serde_json::to_string(t).unwrap();
+        s[1..s.len() - 1].into()
+    }
+}

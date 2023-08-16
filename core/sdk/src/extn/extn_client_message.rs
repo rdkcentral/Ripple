@@ -45,9 +45,10 @@ use crate::{
             fb_authentication::TokenResult,
             fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
             fb_lifecycle_management::LifecycleManagementRequest,
-            fb_metrics::BehavioralMetricRequest,
+            fb_metrics::{BehavioralMetricRequest, MetricsRequest},
             fb_pin::{PinChallengeRequestWithContext, PinChallengeResponse},
             fb_secure_storage::{SecureStorageRequest, SecureStorageResponse},
+            fb_telemetry::{OperationalMetricRequest, TelemetryPayload},
         },
         gateway::rpc_gateway_api::RpcRequest,
         manifest::device_manifest::AppLibraryEntry,
@@ -262,6 +263,8 @@ pub enum ExtnRequest {
     UserGrantsStore(UserGrantsStoreRequest),
     PrivacySettingsStore(PrivacySettingsStoreRequest),
     AuthorizedInfo(CapsRequest),
+    Metrics(MetricsRequest),
+    OperationalMetricsRequest(OperationalMetricRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -318,6 +321,7 @@ pub enum ExtnEvent {
     Status(ExtnStatus),
     AppEvent(AppEventRequest),
     PowerState(SystemPowerState),
+    OperationalMetrics(TelemetryPayload),
 }
 
 impl ExtnPayloadProvider for ExtnEvent {

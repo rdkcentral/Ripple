@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::utils::error::RippleError;
+use crate::utils::{error::RippleError, serde_utils::SerdeClearString};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -92,6 +92,10 @@ pub enum RippleContract {
     PrivacySettingsLocalStore,
     Caps,
     Encoder,
+    /// Contract for Main to forward behavior and operational metrics to processors
+    Metrics,
+    /// Contract for Extensions to recieve Telemetry events from Main
+    OperationalMetricListener,
 }
 
 impl TryFrom<String> for RippleContract {
@@ -117,8 +121,7 @@ impl RippleContract {
     /// This method gets the clear string of the contract without the quotes added
     /// by serde deserializer.
     pub fn as_clear_string(self) -> String {
-        let s: String = self.into();
-        s[1..s.len() - 1].into()
+        SerdeClearString::as_clear_string(&self)
     }
 }
 

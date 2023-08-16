@@ -96,6 +96,11 @@ impl ApiMessage {
             request_id,
         }
     }
+
+    pub fn is_error(&self) -> bool {
+        // currently only these json rpsee errors are used in Ripple
+        self.jsonrpc_msg.contains("Custom error:") || self.jsonrpc_msg.contains("Method not found")
+    }
 }
 
 #[derive(Deserialize)]
