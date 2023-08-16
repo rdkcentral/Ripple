@@ -34,5 +34,14 @@ async fn main() {
     }
     let bootstate = BootstrapState::build().expect("Failure to init state for bootstrap");
     // bootstrap
-    boot(bootstate).await
+    match boot(bootstate).await {
+        Ok(_) => {
+            println!("Done!");
+            std::process::exit(exitcode::OK);
+        }
+        Err(e) => {
+            eprintln!("Error: {:?}", e);
+            std::process::exit(exitcode::SOFTWARE);
+        }
+    }
 }
