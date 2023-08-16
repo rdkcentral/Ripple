@@ -142,6 +142,7 @@ impl RpcRouter {
             let start = Utc::now().timestamp_millis();
             if let Ok(msg) = resolve_route(methods, resources, req.clone()).await {
                 let now = Utc::now().timestamp_millis();
+                let success = !msg.is_error();
                 info!(
                     "Sending Firebolt response to app_id={} method={} fbtt={} {} {}",
                     app_id,
@@ -150,7 +151,7 @@ impl RpcRouter {
                     session_id,
                     msg.jsonrpc_msg
                 );
-                TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start);
+                TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start, success);
                 match session.get_transport() {
                     EffectiveTransport::Websocket => {
                         if let Err(e) = session.send_json_rpc(msg).await {

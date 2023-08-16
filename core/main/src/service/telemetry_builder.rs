@@ -160,7 +160,7 @@ impl TelemetryBuilder {
         }
     }
 
-    pub fn send_fb_tt(ps: &PlatformState, req: RpcRequest, tt: i64) {
+    pub fn send_fb_tt(ps: &PlatformState, req: RpcRequest, tt: i64, success: bool) {
         let ctx = req.ctx;
         let method = req.method;
         let params = if let Ok(mut p) = serde_json::from_str::<Vec<Value>>(&req.params_json) {
@@ -183,6 +183,7 @@ impl TelemetryBuilder {
                 tt,
                 method,
                 params,
+                success
             }),
         ) {
             error!("send_telemetry={:?}", e)

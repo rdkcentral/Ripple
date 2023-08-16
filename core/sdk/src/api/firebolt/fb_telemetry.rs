@@ -134,6 +134,7 @@ pub struct FireboltInteraction {
     pub method: String,
     pub params: Option<String>,
     pub tt: i64,
+    pub success: bool,
     pub ripple_session_id: String,
     pub app_session_id: Option<String>,
 }
