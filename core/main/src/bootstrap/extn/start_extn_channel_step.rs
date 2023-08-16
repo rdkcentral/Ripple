@@ -77,14 +77,14 @@ impl Bootstep<BootstrapState> for StartExtnChannelsStep {
                 }
             }
         }
-
+        let t = state.platform_state.get_manifest().get_timeout();
         for extn_id in extn_ids {
             let (tx, mut tr) = mpsc::channel(1);
             if !state
                 .extn_state
                 .add_extn_status_listener(extn_id.clone(), tx)
             {
-                match timeout(Duration::from_millis(10000), tr.recv()).await {
+                match timeout(Duration::from_millis(t), tr.recv()).await {
                     Ok(Some(v)) => {
                         state.extn_state.clear_status_listener(extn_id);
                         match v {

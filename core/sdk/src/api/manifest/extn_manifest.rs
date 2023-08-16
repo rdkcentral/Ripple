@@ -31,6 +31,7 @@ pub struct ExtnManifest {
     pub extns: Vec<ExtnManifestEntry>,
     pub required_contracts: Vec<String>,
     pub rpc_aliases: HashMap<String, Vec<String>>,
+    pub timeout: Option<u64>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -155,5 +156,9 @@ impl ExtnManifest {
             })
         });
         map
+    }
+
+    pub fn get_timeout(&self) -> u64 {
+        self.timeout.unwrap_or(10000)
     }
 }

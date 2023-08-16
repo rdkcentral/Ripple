@@ -1,6 +1,7 @@
 {
     "default_path": "/usr/lib/rust/",
     "default_extension": "so",
+    "timeout": 2000,
     "extns": [
         {
             "path": "libthunder",
