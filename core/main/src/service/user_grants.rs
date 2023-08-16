@@ -1148,11 +1148,6 @@ impl GrantStepExecutor {
         };
         let result = if let Some(pr_msg) = pr_msg_opt {
             ProviderBroker::invoke_method(&platform_state.clone(), pr_msg).await;
-            debug!("waiting for session_rx");
-            // #[cfg(test)]
-            // {
-            //     Self::provider_response_callback(platform_state).await;
-            // }
             match session_rx.await {
                 Ok(result) => match result.as_challenge_response() {
                     Some(res) => match res.granted {
@@ -1206,11 +1201,7 @@ mod tests {
         use ripple_sdk::{
             api::{
                 device::device_user_grants_data::GrantRequirements,
-                firebolt::{
-                    fb_general::ListenRequest,
-                    fb_pin::{PIN_CHALLENGE_CAPABILITY, PIN_CHALLENGE_EVENT},
-                    provider::{ACK_CHALLENGE_CAPABILITY, ACK_CHALLENGE_EVENT},
-                },
+                firebolt::{fb_pin::PIN_CHALLENGE_CAPABILITY, provider::ACK_CHALLENGE_CAPABILITY},
             },
             tokio::{self, join},
             utils::logger::init_logger,
@@ -1302,6 +1293,7 @@ mod tests {
                 GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy);
 
             let (result, _) = join!(evaluate_options, pinchallenge_response);
+
             assert!(result.is_ok());
             assert!(state.cap_state.generic.check_available(&vec![perm]).is_ok());
         }
@@ -1334,13 +1326,56 @@ mod tests {
                 GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy);
 
             let (result, _) = join!(evaluate_options, pinchallenge_response);
+
             assert!(result.is_ok());
             assert!(state.cap_state.generic.check_available(&vec![perm]).is_ok());
         }
 
-        #[test]
-        #[ignore = "not implemented"]
-        fn test_evaluate_options_no_options_supported() {}
+        #[tokio::test]
+        async fn test_evaluate_options_no_options_supported() {
+            let (state, ctx, perm) = setup();
+            let policy = GrantPolicy {
+                options: vec![
+                    GrantRequirements {
+                        steps: vec![GrantStep {
+                            capability: "xrn:firebolt:capability:usergrant:notavailableonplatform"
+                                .to_owned(),
+                            configuration: None,
+                        }],
+                    },
+                    GrantRequirements {
+                        steps: vec![
+                            GrantStep {
+                                capability:
+                                    "xrn:firebolt:capability:usergrant:notavailableonplatform"
+                                        .to_owned(),
+                                configuration: None,
+                            },
+                            GrantStep {
+                                capability: ACK_CHALLENGE_CAPABILITY.to_owned(),
+                                configuration: None,
+                            },
+                        ],
+                    },
+                ],
+                ..Default::default()
+            };
+
+            let result = GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy).await;
+
+            assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
+                reason: DenyReason::Unsupported,
+                caps: vec![
+                    FireboltCap::Full(
+                        "xrn:firebolt:capability:usergrant:notavailableonplatform".to_owned()
+                    ),
+                    FireboltCap::Full(
+                        "xrn:firebolt:capability:usergrant:notavailableonplatform".to_owned()
+                    ),
+                    FireboltCap::Full(ACK_CHALLENGE_CAPABILITY.to_owned())
+                ]
+            })));
+        }
 
         #[test]
         #[ignore = "not implemented"]
@@ -1374,7 +1409,7 @@ mod tests {
                 .send_pinchallenge_success(&state, &ctx)
                 .then(|_| async {
                     // TODO: workout how to do this without sleep
-                    tokio::time::sleep(tokio::time::Duration::new(1, 0)).await;
+                    tokio::time::sleep(tokio::time::Duration::new(0, 500)).await;
                     state
                         .provider_broker_state
                         .send_ackchallenge_success(&state, &ctx)
@@ -1384,6 +1419,7 @@ mod tests {
                 GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy);
 
             let (result, _) = join!(evaluate_options, challenge_responses);
+
             assert!(result.is_ok());
             assert!(state.cap_state.generic.check_available(&vec![perm]).is_ok());
         }
