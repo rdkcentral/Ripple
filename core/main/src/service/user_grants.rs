@@ -1388,9 +1388,41 @@ mod tests {
             })));
         }
 
-        #[test]
-        #[ignore = "not implemented"]
-        fn test_evaluate_options_second_step_denied() {}
+        #[tokio::test]
+        async fn test_evaluate_options_second_step_denied() {
+            let (state, ctx, perm, policy) = setup(vec![GrantRequirements {
+                steps: vec![
+                    GrantStep {
+                        capability: PIN_CHALLENGE_CAPABILITY.to_owned(),
+                        configuration: Some(json!({ "pinSpace": "purchase" })),
+                    },
+                    GrantStep {
+                        capability: ACK_CHALLENGE_CAPABILITY.to_owned(),
+                        configuration: None,
+                    },
+                ],
+            }]);
+            let challenge_responses = state
+                .provider_broker_state
+                .send_pinchallenge_success(&state, &ctx)
+                .then(|_| async {
+                    // TODO: workout how to do this without sleep
+                    tokio::time::sleep(tokio::time::Duration::new(0, 500)).await;
+                    state
+                        .provider_broker_state
+                        .send_ackchallenge_failure(&state, &ctx)
+                        .await;
+                });
+            let evaluate_options =
+                GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy);
+
+            let (result, _) = join!(evaluate_options, challenge_responses);
+
+            assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
+                reason: DenyReason::GrantDenied,
+                caps: vec![FireboltCap::Full(ACK_CHALLENGE_CAPABILITY.to_owned())]
+            })));
+        }
 
         #[tokio::test]
         async fn test_evaluate_options_all_steps_granted() {
