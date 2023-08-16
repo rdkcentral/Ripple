@@ -51,8 +51,11 @@ use crate::{
 
 #[cfg(test)]
 use ripple_sdk::api::firebolt::{
-    fb_pin::{PinChallengeResponse, PinChallengeResultReason},
-    provider::ChallengeResponse,
+    fb_pin::{
+        PinChallengeResponse, PinChallengeResultReason, PIN_CHALLENGE_CAPABILITY,
+        PIN_CHALLENGE_EVENT,
+    },
+    provider::{ChallengeResponse, ACK_CHALLENGE_CAPABILITY, ACK_CHALLENGE_EVENT},
 };
 
 const REQUEST_QUEUE_CAPACITY: usize = 3;
@@ -116,7 +119,6 @@ impl ProviderBrokerState {
         ctx: &CallContext,
         response: PinChallengeResponse,
     ) {
-        use ripple_sdk::api::firebolt::fb_pin::{PIN_CHALLENGE_CAPABILITY, PIN_CHALLENGE_EVENT};
         ProviderBroker::register_provider(
             state,
             PIN_CHALLENGE_CAPABILITY.to_owned(),
@@ -126,7 +128,6 @@ impl ProviderBrokerState {
             ListenRequest { listen: true },
         )
         .await;
-
         self.send_challenge_response(
             state,
             ProviderResponsePayload::PinChallengeResponse(response),
@@ -154,8 +155,6 @@ impl ProviderBrokerState {
         ctx: &CallContext,
         response: ChallengeResponse,
     ) {
-        use ripple_sdk::api::firebolt::provider::{ACK_CHALLENGE_CAPABILITY, ACK_CHALLENGE_EVENT};
-
         ProviderBroker::register_provider(
             state,
             ACK_CHALLENGE_CAPABILITY.to_owned(),
@@ -165,7 +164,6 @@ impl ProviderBrokerState {
             ListenRequest { listen: true },
         )
         .await;
-
         self.send_challenge_response(
             state,
             ProviderResponsePayload::ChallengeResponse(response),
