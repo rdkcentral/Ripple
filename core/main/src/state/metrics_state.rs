@@ -157,4 +157,10 @@ impl MetricsState {
             .map(|x| x.to_owned())
             .collect()
     }
+
+    pub fn update_session_id(&self, value: Option<String>) {
+        let value = value.unwrap_or_default();
+        let mut context = self.context.write().unwrap();
+        context.device_session_id = value;
+    }
 }
