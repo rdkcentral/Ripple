@@ -67,10 +67,12 @@ use super::apps::provider_broker::{ProviderBroker, ProviderBrokerRequest};
 
 pub struct UserGrants {}
 
+type GrantAppMap = Arc<RwLock<FileStore<HashMap<String, HashSet<GrantEntry>>>>>;
+
 #[derive(Debug, Clone)]
 pub struct GrantState {
     device_grants: Arc<RwLock<FileStore<HashSet<GrantEntry>>>>,
-    grant_app_map: Arc<RwLock<FileStore<HashMap<String, HashSet<GrantEntry>>>>>,
+    grant_app_map: GrantAppMap,
     caps_needing_grants: Vec<String>,
 }
 
@@ -1241,8 +1243,7 @@ mod tests {
         }
 
         #[tokio::test]
-
-        async fn test_evaluate_options_check_all_denied() {
+        async fn test_evaluate_options_fb_perm_denied() {
             let (state, ctx, _, policy) = setup(vec![GrantRequirements { steps: vec![] }]);
             let perm = FireboltPermission {
                 cap: FireboltCap::Full("xrn:firebolt:capability:something:unknown".to_owned()),
@@ -1371,24 +1372,20 @@ mod tests {
                     },
                 ],
             }]);
-            let challenge_responses = state
-                .provider_broker_state
-                .send_pinchallenge_success(&state, &ctx)
-                .then(|_| async {
-                    // TODO: workout how to do this without sleep
-                    tokio::time::sleep(tokio::time::Duration::new(0, 500)).await;
-                    state
-                        .provider_broker_state
-                        .send_ackchallenge_success(&state, &ctx)
-                        .await;
-                });
+            let challenge_responses = state.provider_broker_state.send_pinchallenge_failure(
+                &state,
+                &ctx,
+                ripple_sdk::api::firebolt::fb_pin::PinChallengeResultReason::ExceededPinFailures,
+            );
             let evaluate_options =
                 GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy);
 
             let (result, _) = join!(evaluate_options, challenge_responses);
 
-            assert!(result.is_ok());
-            assert!(state.cap_state.generic.check_available(&vec![perm]).is_ok());
+            assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
+                reason: DenyReason::GrantDenied,
+                caps: vec![FireboltCap::Full(PIN_CHALLENGE_CAPABILITY.to_owned())]
+            })));
         }
 
         #[test]

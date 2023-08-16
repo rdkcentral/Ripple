@@ -113,7 +113,7 @@ impl CapabilityServer for CapabilityImpl {
             .state
             .cap_state
             .generic
-            .check_supported(&vec![FireboltPermission {
+            .check_supported(&[FireboltPermission {
                 cap: FireboltCap::Full(cap.capability),
                 role: cap.role.unwrap_or(CapabilityRole::Use),
             }])

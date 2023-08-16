@@ -50,12 +50,9 @@ use crate::{
 };
 
 #[cfg(test)]
-use ripple_sdk::{
-    api::firebolt::{
-        fb_pin::{PinChallengeResponse, PinChallengeResultReason},
-        provider::ChallengeResponse,
-    },
-    tokio,
+use ripple_sdk::api::firebolt::{
+    fb_pin::{PinChallengeResponse, PinChallengeResultReason},
+    provider::ChallengeResponse,
 };
 
 const REQUEST_QUEUE_CAPACITY: usize = 3;
@@ -105,7 +102,7 @@ impl ProviderBrokerState {
             state,
             ctx,
             PinChallengeResponse {
-                granted: true,
+                granted: false,
                 reason,
             },
         )
