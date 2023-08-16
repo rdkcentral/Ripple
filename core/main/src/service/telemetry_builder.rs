@@ -164,7 +164,7 @@ impl TelemetryBuilder {
         let ctx = req.ctx;
         let method = req.method;
         let params = if let Ok(mut p) = serde_json::from_str::<Vec<Value>>(&req.params_json) {
-            if p.len()>0 {
+            if p.len() > 0 {
                 // remove call context
                 let _ = p.remove(0);
                 Some(serde_json::to_string(&p).unwrap())
@@ -183,7 +183,7 @@ impl TelemetryBuilder {
                 tt,
                 method,
                 params,
-                success
+                success,
             }),
         ) {
             error!("send_telemetry={:?}", e)
