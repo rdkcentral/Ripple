@@ -29,6 +29,7 @@ name = "ripple"
 path = "src/main.rs"
 
 [features]
+default=[]
 local_dev=[]
 sysd=["sd-notify"]
 

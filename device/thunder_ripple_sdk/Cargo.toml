@@ -24,6 +24,7 @@ repository = "https://github.com/rdkcentral/Ripple"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
+default = []
 contract_tests = ["pact_consumer", "reqwest", "expectest", "pact-plugin-driver", "pact_models", "maplit", "test-log"]
 
 [dependencies]
