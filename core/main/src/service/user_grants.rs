@@ -898,17 +898,17 @@ impl GrantPolicyEnforcer {
         permission: &FireboltPermission,
         policy: &GrantPolicy,
     ) -> Result<(), DenyReasonWithCap> {
-        // TODO: is this check duplicated on line 997?
-        // if let Err(e) = platform_state
-        //     .cap_state
-        //     .generic
-        //     .check_all(&vec![permission.clone()])
-        // {
-        //     return Err(DenyReasonWithCap {
-        //         caps: e.caps,
-        //         reason: DenyReason::GrantDenied,
-        //     });
-        // }
+        // TODO: is this check duplicated on line 1032?
+        if let Err(e) = platform_state
+            .cap_state
+            .generic
+            .check_all(&vec![permission.clone()])
+        {
+            return Err(DenyReasonWithCap {
+                caps: e.caps,
+                reason: DenyReason::GrantDenied,
+            });
+        }
 
         if policy.options.is_empty() {
             return Ok(());
