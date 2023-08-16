@@ -1208,21 +1208,23 @@ mod tests {
         };
         use serde_json::json;
 
-        fn setup() -> (PlatformState, CallContext, FireboltPermission) {
+        fn setup(
+            policy_options: Vec<GrantRequirements>,
+        ) -> (PlatformState, CallContext, FireboltPermission, GrantPolicy) {
             let _ = init_logger("tests".into());
             let runtime = MockRuntime::new();
             let perm = fb_perm("xrn:firebolt:capability:localization:postal-code", None);
+            let policy = GrantPolicy {
+                options: policy_options,
+                ..Default::default()
+            };
 
-            (runtime.platform_state, runtime.call_context, perm)
+            (runtime.platform_state, runtime.call_context, perm, policy)
         }
 
         #[tokio::test]
         async fn test_evaluate_options_no_options() {
-            let (state, ctx, perm) = setup();
-            let policy = GrantPolicy {
-                options: vec![],
-                ..Default::default()
-            };
+            let (state, ctx, perm, policy) = setup(vec![]);
 
             let result = GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy).await;
 
@@ -1231,11 +1233,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_evaluate_options_no_steps_for_option() {
-            let (state, ctx, perm) = setup();
-            let policy = GrantPolicy {
-                options: vec![GrantRequirements { steps: vec![] }],
-                ..Default::default()
-            };
+            let (state, ctx, perm, policy) = setup(vec![GrantRequirements { steps: vec![] }]);
 
             let result = GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy).await;
 
@@ -1245,14 +1243,10 @@ mod tests {
         #[tokio::test]
 
         async fn test_evaluate_options_check_all_denied() {
-            let (state, ctx, _) = setup();
+            let (state, ctx, _, policy) = setup(vec![GrantRequirements { steps: vec![] }]);
             let perm = FireboltPermission {
                 cap: FireboltCap::Full("xrn:firebolt:capability:something:unknown".to_owned()),
                 role: CapabilityRole::Use,
-            };
-            let policy = GrantPolicy {
-                options: vec![GrantRequirements { steps: vec![] }],
-                ..Default::default()
             };
 
             let result = GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy).await;
@@ -1266,26 +1260,21 @@ mod tests {
 
         #[tokio::test]
         async fn test_evaluate_options_first_option_suitable() {
-            let (state, ctx, perm) = setup();
-            let policy = GrantPolicy {
-                options: vec![
-                    GrantRequirements {
-                        steps: vec![GrantStep {
-                            capability: PIN_CHALLENGE_CAPABILITY.to_owned(),
-                            configuration: Some(json!({ "pinSpace": "purchase" })),
-                        }],
-                    },
-                    GrantRequirements {
-                        steps: vec![GrantStep {
-                            capability: "xrn:firebolt:capability:usergrant:notavailableonplatform"
-                                .to_owned(),
-                            configuration: None,
-                        }],
-                    },
-                ],
-                ..Default::default()
-            };
-
+            let (state, ctx, perm, policy) = setup(vec![
+                GrantRequirements {
+                    steps: vec![GrantStep {
+                        capability: PIN_CHALLENGE_CAPABILITY.to_owned(),
+                        configuration: Some(json!({ "pinSpace": "purchase" })),
+                    }],
+                },
+                GrantRequirements {
+                    steps: vec![GrantStep {
+                        capability: "xrn:firebolt:capability:usergrant:notavailableonplatform"
+                            .to_owned(),
+                        configuration: None,
+                    }],
+                },
+            ]);
             let pinchallenge_response = state
                 .provider_broker_state
                 .send_pinchallenge_success(&state, &ctx);
@@ -1300,25 +1289,21 @@ mod tests {
 
         #[tokio::test]
         async fn test_evaluate_options_second_option_suitable() {
-            let (state, ctx, perm) = setup();
-            let policy = GrantPolicy {
-                options: vec![
-                    GrantRequirements {
-                        steps: vec![GrantStep {
-                            capability: "xrn:firebolt:capability:usergrant:notavailableonplatform"
-                                .to_owned(),
-                            configuration: None,
-                        }],
-                    },
-                    GrantRequirements {
-                        steps: vec![GrantStep {
-                            capability: PIN_CHALLENGE_CAPABILITY.to_owned(),
-                            configuration: Some(json!({ "pinSpace": "purchase" })),
-                        }],
-                    },
-                ],
-                ..Default::default()
-            };
+            let (state, ctx, perm, policy) = setup(vec![
+                GrantRequirements {
+                    steps: vec![GrantStep {
+                        capability: "xrn:firebolt:capability:usergrant:notavailableonplatform"
+                            .to_owned(),
+                        configuration: None,
+                    }],
+                },
+                GrantRequirements {
+                    steps: vec![GrantStep {
+                        capability: PIN_CHALLENGE_CAPABILITY.to_owned(),
+                        configuration: Some(json!({ "pinSpace": "purchase" })),
+                    }],
+                },
+            ]);
             let pinchallenge_response = state
                 .provider_broker_state
                 .send_pinchallenge_success(&state, &ctx);
@@ -1333,33 +1318,28 @@ mod tests {
 
         #[tokio::test]
         async fn test_evaluate_options_no_options_supported() {
-            let (state, ctx, perm) = setup();
-            let policy = GrantPolicy {
-                options: vec![
-                    GrantRequirements {
-                        steps: vec![GrantStep {
+            let (state, ctx, perm, policy) = setup(vec![
+                GrantRequirements {
+                    steps: vec![GrantStep {
+                        capability: "xrn:firebolt:capability:usergrant:notavailableonplatform"
+                            .to_owned(),
+                        configuration: None,
+                    }],
+                },
+                GrantRequirements {
+                    steps: vec![
+                        GrantStep {
                             capability: "xrn:firebolt:capability:usergrant:notavailableonplatform"
                                 .to_owned(),
                             configuration: None,
-                        }],
-                    },
-                    GrantRequirements {
-                        steps: vec![
-                            GrantStep {
-                                capability:
-                                    "xrn:firebolt:capability:usergrant:notavailableonplatform"
-                                        .to_owned(),
-                                configuration: None,
-                            },
-                            GrantStep {
-                                capability: ACK_CHALLENGE_CAPABILITY.to_owned(),
-                                configuration: None,
-                            },
-                        ],
-                    },
-                ],
-                ..Default::default()
-            };
+                        },
+                        GrantStep {
+                            capability: ACK_CHALLENGE_CAPABILITY.to_owned(),
+                            configuration: None,
+                        },
+                    ],
+                },
+            ]);
 
             let result = GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy).await;
 
@@ -1377,9 +1357,39 @@ mod tests {
             })));
         }
 
-        #[test]
-        #[ignore = "not implemented"]
-        fn test_evaluate_options_first_step_denied() {}
+        #[tokio::test]
+        async fn test_evaluate_options_first_step_denied() {
+            let (state, ctx, perm, policy) = setup(vec![GrantRequirements {
+                steps: vec![
+                    GrantStep {
+                        capability: PIN_CHALLENGE_CAPABILITY.to_owned(),
+                        configuration: Some(json!({ "pinSpace": "purchase" })),
+                    },
+                    GrantStep {
+                        capability: ACK_CHALLENGE_CAPABILITY.to_owned(),
+                        configuration: None,
+                    },
+                ],
+            }]);
+            let challenge_responses = state
+                .provider_broker_state
+                .send_pinchallenge_success(&state, &ctx)
+                .then(|_| async {
+                    // TODO: workout how to do this without sleep
+                    tokio::time::sleep(tokio::time::Duration::new(0, 500)).await;
+                    state
+                        .provider_broker_state
+                        .send_ackchallenge_success(&state, &ctx)
+                        .await;
+                });
+            let evaluate_options =
+                GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy);
+
+            let (result, _) = join!(evaluate_options, challenge_responses);
+
+            assert!(result.is_ok());
+            assert!(state.cap_state.generic.check_available(&vec![perm]).is_ok());
+        }
 
         #[test]
         #[ignore = "not implemented"]
@@ -1387,23 +1397,18 @@ mod tests {
 
         #[tokio::test]
         async fn test_evaluate_options_all_steps_granted() {
-            let (state, ctx, perm) = setup();
-            let policy = GrantPolicy {
-                options: vec![GrantRequirements {
-                    steps: vec![
-                        GrantStep {
-                            capability: PIN_CHALLENGE_CAPABILITY.to_owned(),
-                            configuration: Some(json!({ "pinSpace": "purchase" })),
-                        },
-                        GrantStep {
-                            capability: ACK_CHALLENGE_CAPABILITY.to_owned(),
-                            configuration: None,
-                        },
-                    ],
-                }],
-                ..Default::default()
-            };
-
+            let (state, ctx, perm, policy) = setup(vec![GrantRequirements {
+                steps: vec![
+                    GrantStep {
+                        capability: PIN_CHALLENGE_CAPABILITY.to_owned(),
+                        configuration: Some(json!({ "pinSpace": "purchase" })),
+                    },
+                    GrantStep {
+                        capability: ACK_CHALLENGE_CAPABILITY.to_owned(),
+                        configuration: None,
+                    },
+                ],
+            }]);
             let challenge_responses = state
                 .provider_broker_state
                 .send_pinchallenge_success(&state, &ctx)
