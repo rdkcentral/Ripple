@@ -69,7 +69,7 @@ impl ExtnSender {
             config,
         }
     }
-    fn check_contract_permission(&self, contract: RippleContract) -> bool {
+    pub fn check_contract_permission(&self, contract: RippleContract) -> bool {
         if self.id.is_main() {
             true
         } else {

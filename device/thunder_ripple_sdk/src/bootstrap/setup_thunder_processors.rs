@@ -16,7 +16,6 @@
 //
 
 use ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest;
-use ripple_sdk::framework::ripple_contract::RippleContract;
 use ripple_sdk::log::error;
 
 use crate::processors::thunder_telemetry::ThunderTelemetryProcessor;
@@ -54,9 +53,7 @@ impl SetupThunderProcessor {
         ));
         extn_client.add_request_processor(ThunderOpenEventsProcessor::new(state.clone().state));
 
-        if extn_client.check_contract_fulfillment(RippleContract::OperationalMetricListener)
-            && extn_client.get_bool_config("rdk_telemetry")
-        {
+        if extn_client.get_bool_config("rdk_telemetry") {
             match extn_client
                 .request(OperationalMetricRequest::Subscribe)
                 .await

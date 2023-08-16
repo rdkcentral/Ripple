@@ -91,6 +91,7 @@ fn get_event_name(event: &TelemetryPayload) -> &'static str {
         TelemetryPayload::SignIn(_) => "app_sign_in_split",
         TelemetryPayload::SignOut(_) => "app_sign_out_split",
         TelemetryPayload::InternalInitialize(_) => "app_internal_initialize_split",
+        TelemetryPayload::FireboltInteraction(_) => "app_firebolt_split",
     }
 }
 

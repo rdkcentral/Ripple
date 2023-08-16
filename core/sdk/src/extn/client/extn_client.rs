@@ -592,4 +592,9 @@ impl ExtnClient {
     pub fn check_contract_fulfillment(&self, contract: RippleContract) -> bool {
         self.sender.check_contract_fulfillment(contract)
     }
+
+    // Method to check if contract is permitted
+    pub fn check_contract_permitted(&self, contract: RippleContract) -> bool {
+        self.sender.check_contract_permission(contract)
+    }
 }

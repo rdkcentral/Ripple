@@ -15,12 +15,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::time::Duration;
+
 use ripple_sdk::{
     api::status_update::ExtnStatus,
     async_trait::async_trait,
     framework::{bootstrap::Bootstep, RippleResponse},
     log::error,
-    tokio::sync::mpsc,
+    tokio::{sync::mpsc, time::timeout},
     utils::error::RippleError,
 };
 
@@ -82,11 +84,20 @@ impl Bootstep<BootstrapState> for StartExtnChannelsStep {
                 .extn_state
                 .add_extn_status_listener(extn_id.clone(), tx)
             {
-                if let Some(v) = tr.recv().await {
-                    state.extn_state.clear_status_listener(extn_id);
-                    match v {
-                        ExtnStatus::Ready => continue,
-                        _ => return Err(RippleError::BootstrapError),
+                match timeout(Duration::from_millis(10000), tr.recv()).await {
+                    Ok(Some(v)) => {
+                        state.extn_state.clear_status_listener(extn_id);
+                        match v {
+                            ExtnStatus::Ready => continue,
+                            _ => return Err(RippleError::BootstrapError),
+                        }
+                    }
+                    Ok(None) => {
+                        error!("Extn={:?} dropped its memory", extn_id);
+                    }
+                    Err(_) => {
+                        error!("Extn={:?} failed to load timeout occurred", extn_id);
+                        return Err(RippleError::BootstrapError);
                     }
                 }
             }

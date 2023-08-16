@@ -129,6 +129,16 @@ pub struct InternalInitialize {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FireboltInteraction {
+    pub app_id: String,
+    pub method: String,
+    pub params: String,
+    pub tt: i64,
+    pub ripple_session_id: String,
+    pub app_session_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum TelemetryPayload {
     AppLoadStart(AppLoadStart),
     AppLoadStop(AppLoadStop),
@@ -138,6 +148,7 @@ pub enum TelemetryPayload {
     SignIn(TelemetrySignIn),
     SignOut(TelemetrySignOut),
     InternalInitialize(InternalInitialize),
+    FireboltInteraction(FireboltInteraction), // External Service failures (service, error)
 }
 
 impl TelemetryPayload {
@@ -151,6 +162,7 @@ impl TelemetryPayload {
             Self::SignIn(s) => s.ripple_session_id = session_id,
             Self::SignOut(s) => s.ripple_session_id = session_id,
             Self::InternalInitialize(i) => i.ripple_session_id = session_id,
+            Self::FireboltInteraction(f) => f.ripple_session_id = session_id,
         }
     }
 }

@@ -63,11 +63,12 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     info!("Starting tm channel");
     let mut client = ExtnClient::new(receiver, sender);
 
-    if !client.check_contract_fulfillment(RippleContract::OperationalMetricListener) {
+    if !client.check_contract_permitted(RippleContract::OperationalMetricListener) {
         let _ = client.event(ExtnStatus::Error);
         return;
     }
     if let Some(ws_url) = client.get_config("ws_url") {
+        info!("ws_url={}", ws_url);
         let runtime = Runtime::new().unwrap();
 
         runtime.block_on(async move {
@@ -77,14 +78,14 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
                     let (tx, mut tr) = channel(3);
                     client.add_event_processor(TelemetryProcessor::new(tx));
                     if let Ok((mut socket, _r)) = connect(Url::parse(&ws_url).unwrap()) {
+                        // Lets Main know that the distributor channel is ready
+                        let _ = client.event(ExtnStatus::Ready);
                         while let Some(v) = tr.recv().await {
                             if let Err(e) = socket.write_message(Message::Text(v)) {
                                 error!("Error sending to socket {:?}", e);
                             }
                         }
                     }
-                    // Lets Main know that the distributor channel is ready
-                    let _ = client.event(ExtnStatus::Ready);
                 } else {
                     let _ = client.event(ExtnStatus::Error);
                 }
@@ -92,6 +93,7 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
             client_c.initialize().await;
         });
     } else {
+        error!("no ws_url");
         let _ = client.event(ExtnStatus::Error);
     }
 }

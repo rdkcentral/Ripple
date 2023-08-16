@@ -65,7 +65,7 @@ pub async fn boot(state: BootstrapState) {
         .expect("Extn load failure")
         .step(StartExtnChannelsStep)
         .await
-        .expect("Start Device channel failure")
+        .expect("Start Extns failure")
         .step(StartAppManagerStep)
         .await
         .expect("App Manager start")

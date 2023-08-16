@@ -118,7 +118,6 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                         }
                     }
                 }
-                debug!("loading symbols from {}", extn.get_metadata().name);
             }
         }
 
