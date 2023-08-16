@@ -721,6 +721,7 @@ impl GrantPolicyEnforcer {
                 return result;
             }
         } else {
+            // TODO: This debug statement looks incorrect as it would trigger if all grants were successful
             debug!("No grant policies configured");
         }
         Self::update_privacy_settings_and_user_grants(
