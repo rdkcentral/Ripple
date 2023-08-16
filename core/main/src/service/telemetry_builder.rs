@@ -30,6 +30,7 @@ use ripple_sdk::{
     framework::RippleResponse,
     log::error,
 };
+use serde_json::Value;
 
 use crate::state::platform_state::PlatformState;
 
@@ -162,7 +163,17 @@ impl TelemetryBuilder {
     pub fn send_fb_tt(ps: &PlatformState, req: RpcRequest, tt: i64) {
         let ctx = req.ctx;
         let method = req.method;
-        let params = req.params_json;
+        let params = if let Ok(mut p) = serde_json::from_str::<Vec<Value>>(&req.params_json) {
+            if p.len()>0 {
+                // remove call context
+                let _ = p.remove(0);
+                Some(serde_json::to_string(&p).unwrap())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
         if let Err(e) = Self::send_telemetry(
             ps,
             TelemetryPayload::FireboltInteraction(FireboltInteraction {
