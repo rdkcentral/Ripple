@@ -167,13 +167,6 @@ impl CapabilityServer for CapabilityImpl {
         ctx: CallContext,
         request: CapInfoRpcRequest,
     ) -> RpcResult<Vec<CapabilityInfo>> {
-        // let mut caps = Vec::new();
-        // for cap in request.capabilities {
-        //     if let Some(firebolt_cap) = FireboltCap::parse(cap) {
-        //         caps.push(firebolt_cap);
-        //     }
-        // }
-        // let cap_set = CapabilitySet::get_from_role(caps, Some(CapabilityRole::Use));
         let cap_set = request
             .capabilities
             .iter()
@@ -255,96 +248,6 @@ impl CapabilityServer for CapabilityImpl {
                 "Error retreiving Capability Info TBD",
             )))
         }
-        // if let Ok(mut result) = CapState::get_cap_info(&self.state, ctx.clone(), request).await {
-        //     // filter out Ungranted
-        //     let intersect_firebolt_perm: Vec<FireboltPermission> = req_list
-        //         .iter()
-        //         .filter(|perm| {
-        //             for cap_info in &result {
-        //                 if &cap_info.capability == perm.cap.as_str().as_str() {
-        //                     match perm.role {
-        //                         CapabilityRole::Use => {
-        //                             return cap_info._use.permitted
-        //                                 && cap_info._use.granted.is_none()
-        //                         }
-        //                         CapabilityRole::Manage => {
-        //                             return cap_info.manage.permitted
-        //                                 && cap_info.manage.granted.is_none()
-        //                         }
-        //                         CapabilityRole::Provide => {
-        //                             return cap_info.provide.permitted
-        //                                 && cap_info.provide.granted.is_none()
-        //                         }
-        //                     }
-        //                 }
-        //             }
-        //             return false;
-        //         })
-        //         .collect();
-        //     let result = GrantState::check_with_roles(
-        //         &self.state,
-        //         &ctx.clone().into(),
-        //         &ctx.clone().into(),
-        //         &intersect_firebolt_perm,
-        //         false,
-        //     )
-        //     .await;
-        //     // let caps: Vec<String> = result
-        //     //     .clone()
-        //     //     .into_iter()
-        //     //     .filter(|x| {
-        //     //         x.details.is_some()
-        //     //             && x.details.clone().unwrap().contains(&DenyReason::Ungranted)
-        //     //     })
-        //     //     .map(|x| x.capability)
-        //     //     .collect();
-        //     // let grants: Vec<RoleInfo> = grants
-        //     //     .grants
-        //     //     .into_iter()
-        //     //     .filter(|x| caps.contains(&x.capability))
-        //     //     .collect();
-        //     // if grants.is_empty() {
-        //     //     return Ok(result);
-        //     // }
-
-        //     // let mut cap_role = HashMap::new();
-        //     // for role_info in &grants {
-        //     //     cap_role.insert(
-        //     //         role_info.capability.clone(),
-        //     //         role_info.role.unwrap_or(CapabilityRole::Use),
-        //     //     );
-        //     // }
-
-        //     // let ungranted_set: Vec<FireboltPermission> =
-        //     //     grants.into_iter().map(|entry| entry.into()).collect();
-        //     // let mut grant_denied_caps: Vec<String> = Vec::new();
-        //     // if let Err(e) = GrantState::check_with_roles(
-        //     //     &self.state,
-        //     //     &ctx.clone().into(),
-        //     //     &ctx.clone().into(),
-        //     //     &ungranted_set,
-        //     //     false,
-        //     // )
-        //     // .await
-        //     // {
-        //     //     for cap in e.caps {
-        //     //         grant_denied_caps.push(cap.as_str());
-        //     //     }
-        //     // }
-
-        //     // for info in result.iter_mut() {
-        //     //     let capability = info.capability.clone();
-        //     //     if let Some(role) = cap_role.get(&capability) {
-        //     //         info.update_ungranted(role, grant_denied_caps.contains(&capability));
-        //     //     }
-        //     // }
-
-        //     return Ok(result);
-        // }
-
-        // Err(jsonrpsee::core::Error::Custom(String::from(
-        //     "Error retreiving Capability Info TBD",
-        // )))
     }
 }
 

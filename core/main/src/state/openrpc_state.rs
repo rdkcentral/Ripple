@@ -121,7 +121,6 @@ impl OpenRpcState {
         method: &str,
         api_surface: Vec<ApiSurface>,
     ) -> Option<Vec<FireboltPermission>> {
-        debug!("Inside get_perms_for_method");
         let mut perm_list: Vec<FireboltPermission>;
         let mut result = None;
         for surface in api_surface {

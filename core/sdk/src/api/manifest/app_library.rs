@@ -74,7 +74,6 @@ impl AppLibrary {
     }
 
     pub fn get_manifest(state: &AppLibraryState, app_id: &str) -> Option<AppManifest> {
-        debug!("Getting manifest for app_id: {}", app_id);
         let mut itr = state.default_apps.iter();
         let i = itr.position(|x| x.app_id == *app_id)?;
         let library_entry = state.default_apps.get(i).unwrap();

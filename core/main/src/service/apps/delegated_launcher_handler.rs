@@ -568,7 +568,7 @@ impl DelegatedLauncherHandler {
         let grant_polices_map = grant_polices_map_opt.unwrap();
         //Filter out the caps only that has evaluate at
         let final_perms: Vec<FireboltPermission> = app_perms
-            .iter()
+            .into_iter()
             .filter(|perm| {
                 let filtered_policy_opt = grant_polices_map.get(&perm.cap.as_str());
                 debug!("permission: {:?}", perm);
@@ -596,7 +596,7 @@ impl DelegatedLauncherHandler {
                     false
                 }
             })
-            .cloned()
+            .filter(|perm| ps.cap_state.generic.check_all(&vec![perm.clone()]).is_ok())
             .collect();
         debug!(
             "list of permissions that need to be evaluated: {:?}",

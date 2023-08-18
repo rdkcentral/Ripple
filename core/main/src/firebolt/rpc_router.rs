@@ -137,7 +137,6 @@ impl RpcRouter {
             let app_id = req.ctx.app_id.clone();
             let session_id = req.ctx.session_id.clone();
             let start = Utc::now().timestamp_millis();
-            debug!("Calling resolve_route via RpcRouter::route");
             if let Ok(msg) = resolve_route(methods, resources, req).await {
                 let now = Utc::now().timestamp_millis();
                 info!(
@@ -178,7 +177,6 @@ impl RpcRouter {
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
         tokio::spawn(async move {
-            debug!("resolve_route via route_extn_protocol ");
             if let Ok(msg) = resolve_route(methods, resources, req).await {
                 let r: SResult<JsonRpcApiResponse> = serde_json::from_str(&msg.jsonrpc_msg);
 
