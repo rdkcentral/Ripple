@@ -74,7 +74,7 @@ impl ExtnPayloadProvider for AccountSessionRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::AccountSession
+        RippleContract::Session(SessionAdjective::Account)
     }
 }
 
@@ -101,7 +101,7 @@ impl ExtnPayloadProvider for AccountSession {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::AccountSession
+        RippleContract::Session(SessionAdjective::Account)
     }
 }
 

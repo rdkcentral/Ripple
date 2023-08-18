@@ -34,10 +34,6 @@ use serde_json::Value;
 pub enum RippleContract {
     /// Used by Main application to provide internal contracts for Extensions
     Internal,
-    /// Provided by the distributor could be a device extension or a cloud extension.
-    /// Distributor gets the ability to configure and customize the generation of
-    /// the Session information based on their policies. Used by [crate::api::session::AccountSession]
-    AccountSession,
     /// Provided by the distributor useful for adding Governance implementation for handling
     /// privacy information and other sensitive data.
     Governance,
@@ -73,7 +69,6 @@ pub enum RippleContract {
     BridgeProtocol,
     RemoteAccessory,
     Keyboard,
-    SessionToken,
     AppEvents,
     DeviceEvents,
     PowerStateEvent,
@@ -93,6 +88,9 @@ pub enum RippleContract {
     /// Contract for Extensions to recieve Telemetry events from Main
     OperationalMetricListener,
     Storage(StorageAdjective),
+    /// Provided by the distributor could be a device extension or a cloud extension.
+    /// Distributor gets the ability to configure and customize the generation of
+    /// the Session information based on their policies. Used by [crate::api::session::AccountSession]
     Session(SessionAdjective),
 }
 

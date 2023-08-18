@@ -58,7 +58,7 @@ fn init_library() -> CExtnMetadata {
         ExtnId::new_channel(ExtnClassId::Distributor, "general".into()),
         ContractFulfiller::new(vec![
             RippleContract::Permissions,
-            RippleContract::AccountSession,
+            RippleContract::Session(SessionAdjective::Account),
             RippleContract::Storage(StorageAdjective::Secure),
             RippleContract::Advertising,
             RippleContract::Storage(StorageAdjective::PrivacyCloud),
