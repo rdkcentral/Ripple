@@ -25,7 +25,7 @@ use ripple_sdk::api::{
     },
     manifest::exclusory::{Exclusory, ExclusoryImpl},
 };
-use ripple_sdk::log::{debug, error};
+use ripple_sdk::log::error;
 use ripple_sdk::{api::firebolt::fb_openrpc::CapabilityPolicy, serde_json};
 use std::{
     collections::HashMap,

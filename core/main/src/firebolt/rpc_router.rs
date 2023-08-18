@@ -34,7 +34,7 @@ use ripple_sdk::{
     },
     chrono::Utc,
     extn::extn_client_message::{ExtnMessage, ExtnResponse},
-    log::{debug, error, info},
+    log::{error, info},
     serde_json::{self, Result as SResult},
     tokio::{self},
     utils::error::RippleError,

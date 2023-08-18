@@ -74,8 +74,8 @@ use serde_json::json;
 
 use crate::{
     service::{
-        apps::app_events::AppEvents, extn::ripple_client::RippleClient, user_grants::GrantState,
-        telemetry_builder::TelemetryBuilder,
+        apps::app_events::AppEvents, extn::ripple_client::RippleClient,
+        telemetry_builder::TelemetryBuilder, user_grants::GrantState,
     },
     state::{
         bootstrap_state::ChannelsState, cap::permitted_state::PermissionHandler,

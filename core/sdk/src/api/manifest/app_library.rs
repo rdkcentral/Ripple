@@ -19,7 +19,7 @@ use super::{
     apps::AppManifest,
     device_manifest::{AppLibraryEntry, AppManifestLoad, BootState},
 };
-use log::{debug, error, warn};
+use log::{error, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
