@@ -16,6 +16,7 @@
 //
 
 use thunder_ripple_sdk::ripple_sdk::{
+    api::storage_property::StorageAdjective,
     crossbeam::channel::Receiver as CReceiver,
     export_channel_builder, export_extn_metadata,
     extn::{
@@ -31,7 +32,7 @@ use thunder_ripple_sdk::ripple_sdk::{
     log::{debug, info},
     semver::Version,
     tokio::{self, runtime::Runtime},
-    utils::{error::RippleError, logger::init_logger}, api::storage_property::StorageAdjective,
+    utils::{error::RippleError, logger::init_logger},
 };
 
 use crate::bootstrap::boot_thunder_channel::boot_thunder_channel;

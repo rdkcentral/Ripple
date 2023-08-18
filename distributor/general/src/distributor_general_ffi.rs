@@ -16,7 +16,10 @@
 //
 
 use ripple_sdk::{
-    api::{config::Config, status_update::ExtnStatus, storage_property::StorageAdjective, session::SessionAdjective},
+    api::{
+        config::Config, session::SessionAdjective, status_update::ExtnStatus,
+        storage_property::StorageAdjective,
+    },
     crossbeam::channel::Receiver as CReceiver,
     export_channel_builder, export_extn_metadata,
     extn::{

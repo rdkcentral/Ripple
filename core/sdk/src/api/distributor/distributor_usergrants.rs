@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     api::{
         firebolt::fb_capabilities::FireboltPermission, session::AccountSession,
-        usergrant_entry::UserGrantInfo, storage_property::StorageAdjective,
+        storage_property::StorageAdjective, usergrant_entry::UserGrantInfo,
     },
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,

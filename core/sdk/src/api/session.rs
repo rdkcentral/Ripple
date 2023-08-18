@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
-    framework::ripple_contract::{RippleContract, ContractAdjective}
+    framework::ripple_contract::{ContractAdjective, RippleContract},
 };
 
 pub fn deserialize_expiry<'de, D>(deserializer: D) -> Result<Expiry, D::Error>
@@ -170,7 +170,7 @@ impl ExtnPayloadProvider for SessionTokenRequest {
             TokenType::Root => RippleContract::Session(SessionAdjective::Root),
             TokenType::Device => RippleContract::Session(SessionAdjective::Device),
             TokenType::Platform => RippleContract::Session(SessionAdjective::Platform),
-            TokenType::Distributor => RippleContract::Session(SessionAdjective::Distributor)
+            TokenType::Distributor => RippleContract::Session(SessionAdjective::Distributor),
         }
     }
 
@@ -181,12 +181,12 @@ impl ExtnPayloadProvider for SessionTokenRequest {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case")]
-pub enum SessionAdjective{
+pub enum SessionAdjective {
     Account,
     Platform,
     Device,
     Distributor,
-    Root
+    Root,
 }
 
 impl ContractAdjective for SessionAdjective {
@@ -194,4 +194,3 @@ impl ContractAdjective for SessionAdjective {
         RippleContract::Session(self.clone())
     }
 }
-

@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
-    framework::ripple_contract::{RippleContract, ContractAdjective}
+    framework::ripple_contract::{ContractAdjective, RippleContract},
 };
 
 use super::distributor::distributor_privacy::PrivacySetting;
@@ -588,7 +588,7 @@ pub enum StorageAdjective {
     UsergrantLocal,
     Local,
     Manager,
-    Secure
+    Secure,
 }
 
 impl ContractAdjective for StorageAdjective {

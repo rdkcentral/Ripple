@@ -20,7 +20,10 @@ use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::{session::AccountSession, storage_property::{StorageProperty, StorageAdjective}},
+    api::{
+        session::AccountSession,
+        storage_property::{StorageAdjective, StorageProperty},
+    },
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };

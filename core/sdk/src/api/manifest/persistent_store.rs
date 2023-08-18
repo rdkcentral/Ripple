@@ -18,9 +18,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    api::storage_property::StorageAdjective,
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     framework::ripple_contract::RippleContract,
-    utils::error::RippleError, api::storage_property::StorageAdjective,
+    utils::error::RippleError,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

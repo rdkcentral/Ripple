@@ -144,7 +144,10 @@ impl ExtnClient {
         // Dont add and start a request processor if there is no contract fulfillment
         if atleast_one_contract_satisfied {
             tokio::spawn(async move {
-                trace!("starting request processor green tokio thread for {:?}", contracts_supported);
+                trace!(
+                    "starting request processor green tokio thread for {:?}",
+                    contracts_supported
+                );
                 processor.run().await
             });
         }
