@@ -17,7 +17,7 @@
 
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
-    framework::ripple_contract::RippleContract,
+    framework::ripple_contract::RippleContract, api::storage_property::StorageAdjective,
 };
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -93,6 +93,6 @@ impl ExtnPayloadProvider for DevicePersistenceRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::DevicePersistence
+        RippleContract::Storage(StorageAdjective::Local)
     }
 }

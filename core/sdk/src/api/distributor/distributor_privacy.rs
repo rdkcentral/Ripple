@@ -20,7 +20,7 @@ use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::{session::AccountSession, storage_property::StorageProperty},
+    api::{session::AccountSession, storage_property::{StorageProperty, StorageAdjective}},
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
@@ -124,7 +124,7 @@ impl ExtnPayloadProvider for PrivacySettingsStoreRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::PrivacySettingsLocalStore
+        RippleContract::Storage(StorageAdjective::PrivacyLocal)
     }
 }
 
@@ -146,7 +146,7 @@ impl ExtnPayloadProvider for PrivacySettings {
     }
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
-        RippleContract::PrivacyCloudStore
+        RippleContract::Storage(StorageAdjective::PrivacyCloud)
     }
 }
 
@@ -169,7 +169,7 @@ impl ExtnPayloadProvider for PrivacySettingsData {
     }
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
-        RippleContract::PrivacySettingsLocalStore
+        RippleContract::Storage(StorageAdjective::PrivacyLocal)
     }
 }
 
@@ -227,7 +227,7 @@ impl ExtnPayloadProvider for PrivacyCloudRequest {
     }
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
-        RippleContract::PrivacyCloudStore
+        RippleContract::Storage(StorageAdjective::PrivacyCloud)
     }
 }
 
@@ -273,7 +273,7 @@ impl ExtnPayloadProvider for ExclusionPolicy {
     }
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
-        RippleContract::PrivacyCloudStore
+        RippleContract::Storage(StorageAdjective::PrivacyCloud)
     }
 }
 

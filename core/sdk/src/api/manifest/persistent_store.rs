@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     framework::ripple_contract::RippleContract,
-    utils::error::RippleError,
+    utils::error::RippleError, api::storage_property::StorageAdjective,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,6 +50,6 @@ impl ExtnPayloadProvider for AccessibilityResponse {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::DevicePersistence
+        RippleContract::Storage(StorageAdjective::Local)
     }
 }

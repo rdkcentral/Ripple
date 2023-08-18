@@ -31,7 +31,7 @@ use thunder_ripple_sdk::ripple_sdk::{
     log::{debug, info},
     semver::Version,
     tokio::{self, runtime::Runtime},
-    utils::{error::RippleError, logger::init_logger},
+    utils::{error::RippleError, logger::init_logger}, api::storage_property::StorageAdjective,
 };
 
 use crate::bootstrap::boot_thunder_channel::boot_thunder_channel;
@@ -45,7 +45,7 @@ fn init_library() -> CExtnMetadata {
             RippleContract::WindowManager,
             RippleContract::Browser,
             RippleContract::DeviceEvents,
-            RippleContract::DevicePersistence,
+            RippleContract::Storage(StorageAdjective::Local),
             RippleContract::RemoteAccessory,
             RippleContract::Wifi,
         ]),
