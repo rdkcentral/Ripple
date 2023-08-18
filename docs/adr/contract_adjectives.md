@@ -27,7 +27,7 @@ For easier linking and references we are going to denote the problems with a `P:
 Just like `Common Nouns` some contracts have a common feature theme but are horizontally added into contracts.
 These contracts increase the number of enumerations in the `RippleContracts`.
 
-Number of contracts are growing(mostly horizontally) for a related feature.
+Number of contracts is growing(mostly horizontally) for a related feature.
 
 | Feature        | Contract           | 
 | ------------- |-------------|
@@ -41,13 +41,13 @@ This can continue to grow further for example
 |Accessory|`RemoteAccesory`,`SpeakerAccessory`,`CameraAccessory`|
 
 #### [P:B] Loaded Contracts causing Extension and processor exclusivity
-Some contracts like `SessionToken` are loaded to restric processors to fulfill a common contract across Extensions. For eg `SessionToken` can only be implemented in one Extension and it has to provide all tokens for a given distributor. So if a distributor uses a Device Channel for one token, and a distributor channel for another token it cannot be done.
+Some contracts like `SessionToken` are loaded to restrict processors to fulfill a common contract across Extensions. For eg `SessionToken` can only be implemented in one Extension and it has to provide all tokens for a given distributor. So if a distributor uses a Device Channel for one token and a distributor channel for another token it cannot be done.
 
 #### [P:C] Doesnt offer Processor and Request Resuability
-Extn Request objects are also growing because an `ExtnRequestProcessor` usually offers support for only one `ExtnRequest`. These requests are similar in nature and processor should be able to offer multiple contracts.
+Extn Request objects are also growing because an `ExtnRequestProcessor` usually offers support for only one `ExtnRequest`. These requests are similar in nature and the processor should be able to offer multiple contracts.
 
 #### [P:D] Lack of future readiness
-Future Firebolt API versions would have Capabiliity Provider based API(s). If we need extensions we need a better way to identify the Contracts based on Firebolt Capability.
+Future Firebolt API versions would have Capability Provider-based API(s). If we need extensions we need a better way to identify the Contracts based on Firebolt Capability.
 
 
 ## Proposed Solution
