@@ -75,6 +75,7 @@ use serde_json::json;
 use crate::{
     service::{
         apps::app_events::AppEvents, extn::ripple_client::RippleClient, user_grants::GrantState,
+        telemetry_builder::TelemetryBuilder,
     },
     state::{
         bootstrap_state::ChannelsState, cap::permitted_state::PermissionHandler,
@@ -152,7 +153,7 @@ impl AppManagerState {
         let _ = apps.insert(app_id, app);
     }
 
-    fn get(&self, app_id: &str) -> Option<App> {
+    pub fn get(&self, app_id: &str) -> Option<App> {
         self.apps.read().unwrap().get(app_id).cloned()
     }
 
@@ -213,11 +214,14 @@ impl DelegatedLauncherHandler {
                         resp = self
                             .send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Ready(
                                 LifecycleManagementReadyEvent {
-                                    parameters: LifecycleManagementReadyParameters { app_id },
+                                    parameters: LifecycleManagementReadyParameters {
+                                        app_id: app_id.clone(),
+                                    },
                                 },
                             ))
                             .await;
                     }
+                    TelemetryBuilder::send_app_load_stop(&self.platform_state, app_id, resp.is_ok())
                 }
                 AppMethod::Close(app_id, reason) => {
                     resp = self
@@ -302,6 +306,7 @@ impl DelegatedLauncherHandler {
         // TODO: Add metrics helper for app loading
 
         let app_id = session.app.id.clone();
+        TelemetryBuilder::send_app_load_start(&self.platform_state, app_id.clone(), None, None);
         debug!("start_session: entry: app_id={}", app_id);
         match self.platform_state.app_manager_state.get(&app_id) {
             Some(app) if (app.state != LifecycleState::Unloading) => {

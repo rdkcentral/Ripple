@@ -23,7 +23,8 @@ members = [
     "core/launcher",
     "device/thunder",
     "distributor/general",
-    "examples/rpc_extn"
+    "examples/rpc_extn",
+    "examples/tm_extn"
 ]
 
 [workspace.package]

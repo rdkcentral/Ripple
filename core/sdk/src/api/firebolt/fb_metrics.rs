@@ -27,6 +27,8 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
+use super::fb_telemetry::TelemetryPayload;
+
 //https://developer.comcast.com/firebolt/core/sdk/latest/api/metrics
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -290,6 +292,33 @@ pub enum BehavioralMetricPayload {
     Raw(RawBehaviorMetricRequest),
 }
 
+impl BehavioralMetricPayload {
+    pub fn update_context(&mut self, context: BehavioralMetricContext) {
+        match self {
+            Self::Ready(r) => r.context = context,
+            Self::SignIn(s) => s.context = context,
+            Self::SignOut(s) => s.context = context,
+            Self::StartContent(s) => s.context = context,
+            Self::StopContent(s) => s.context = context,
+            Self::Page(p) => p.context = context,
+            Self::Action(a) => a.context = context,
+            Self::Error(e) => e.context = context,
+            Self::MediaLoadStart(m) => m.context = context,
+            Self::MediaPlay(m) => m.context = context,
+            Self::MediaPlaying(m) => m.context = context,
+            Self::MediaPause(m) => m.context = context,
+            Self::MediaWaiting(m) => m.context = context,
+            Self::MediaProgress(m) => m.context = context,
+            Self::MediaSeeking(m) => m.context = context,
+            Self::MediaSeeked(m) => m.context = context,
+            Self::MediaRateChanged(m) => m.context = context,
+            Self::MediaRenditionChanged(m) => m.context = context,
+            Self::MediaEnded(m) => m.context = context,
+            Self::Raw(r) => r.context = context,
+        }
+    }
+}
+
 /// all the things that are provided by platform that need to
 /// be updated, and eventually in/outjected into/out of a payload
 /// These items may (or may not) be available when the ripple
@@ -424,5 +453,51 @@ impl ExtnPayloadProvider for MetricsResponse {
 
     fn contract() -> RippleContract {
         RippleContract::BehaviorMetrics
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum MetricsPayload {
+    BehaviorMetric(BehavioralMetricPayload, CallContext),
+    OperationalMetric(TelemetryPayload),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MetricsRequest {
+    pub payload: MetricsPayload,
+    /// Additional info extensions want to send which can be appended to the context of the Metrics data
+    pub context: Option<HashMap<String, String>>,
+}
+
+impl ExtnPayloadProvider for MetricsRequest {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(ExtnRequest::Metrics(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<MetricsRequest> {
+        if let ExtnPayload::Request(ExtnRequest::Metrics(r)) = payload {
+            return Some(r);
+        }
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::Metrics
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct ErrorParams {
+    #[serde(rename = "type")]
+    pub error_type: ErrorType,
+    pub code: String,
+    pub description: String,
+    pub visible: bool,
+    pub parameters: Option<Vec<Param>>,
+}
+
+impl From<ErrorParams> for ErrorType {
+    fn from(params: ErrorParams) -> Self {
+        params.error_type
     }
 }

@@ -29,13 +29,12 @@ use ripple_sdk::{
             fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
             fb_metrics::{
                 self, hashmap_to_param_vec, Action, BehavioralMetricContext,
-                BehavioralMetricPayload, CategoryType, ErrorType, InternalInitializeParams,
+                BehavioralMetricPayload, CategoryType, ErrorParams, InternalInitializeParams,
                 InternalInitializeResponse, MediaEnded, MediaLoadStart, MediaPause, MediaPlay,
                 MediaPlaying, MediaPositionType, MediaProgress, MediaRateChanged,
                 MediaRenditionChanged, MediaSeeked, MediaSeeking, MediaWaiting, MetricsError, Page,
-                Param, SignIn, SignOut, StartContent, StopContent, Version,
+                SignIn, SignOut, StartContent, StopContent, Version,
             },
-            fb_telemetry::{self},
         },
         gateway::rpc_gateway_api::CallContext,
     },
@@ -46,7 +45,8 @@ use serde::Deserialize;
 
 use crate::{
     firebolt::rpc::RippleRPCProvider, processor::metrics_processor::send_metric,
-    state::platform_state::PlatformState, utils::rpc_utils::rpc_err,
+    service::telemetry_builder::TelemetryBuilder, state::platform_state::PlatformState,
+    utils::rpc_utils::rpc_err,
 };
 
 use ripple_sdk::api::firebolt::fb_metrics::SemanticVersion;
@@ -76,16 +76,6 @@ pub struct StartContentParams {
 pub struct StopContentParams {
     #[serde(rename = "entityId")]
     pub entity_id: Option<String>,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub struct ErrorParams {
-    #[serde(rename = "type")]
-    pub error_type: ErrorType,
-    pub code: String,
-    pub description: String,
-    pub visible: bool,
-    pub parameters: Option<Vec<Param>>,
 }
 // fn validate_metrics_action_type(metrics_action: &str) -> RpcResult<bool> {
 //     match metrics_action.len() {
@@ -310,12 +300,6 @@ impl From<ActionParams> for CategoryType {
     }
 }
 
-impl From<ErrorParams> for ErrorType {
-    fn from(params: ErrorParams) -> Self {
-        params.error_type
-    }
-}
-
 #[async_trait]
 impl MetricsServer for MetricsImpl {
     async fn start_content(
@@ -404,6 +388,7 @@ impl MetricsServer for MetricsImpl {
             third_party_error: true,
         });
         trace!("metrics.error={:?}", error_message);
+        TelemetryBuilder::send_error(&self.state, ctx.app_id.to_owned(), error_params);
         match send_metric(&self.state, error_message, &ctx).await {
             Ok(_) => Ok(true),
             Err(_) => Err(rpc_err("parse error")),
@@ -430,13 +415,7 @@ impl MetricsServer for MetricsImpl {
         ctx: CallContext,
         internal_initialize_params: InternalInitializeParams,
     ) -> RpcResult<InternalInitializeResponse> {
-        let data = fb_telemetry::InternalInitialize {
-            app_id: ctx.app_id,
-            ripple_session_id: ctx.session_id.clone(),
-            app_session_id: Some(ctx.session_id),
-            semantic_version: internal_initialize_params.value.to_string(),
-        };
-        trace!("metrics.action = {:?}", data);
+        TelemetryBuilder::internal_initialize(&self.state, &ctx, &internal_initialize_params);
         let readable_result = internal_initialize_params
             .value
             .readable

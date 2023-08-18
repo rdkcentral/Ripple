@@ -15,7 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::HashSet,
+    sync::{Arc, RwLock},
+};
 
 use ripple_sdk::{
     api::{
@@ -23,6 +26,7 @@ use ripple_sdk::{
         firebolt::{fb_metrics::MetricsContext, fb_openrpc::FireboltSemanticVersion},
         storage_property::StorageProperty,
     },
+    chrono::{DateTime, Utc},
     extn::extn_client_message::ExtnResponse,
 };
 
@@ -32,7 +36,9 @@ use super::platform_state::PlatformState;
 
 #[derive(Debug, Clone, Default)]
 pub struct MetricsState {
+    pub start_time: DateTime<Utc>,
     pub context: Arc<RwLock<MetricsContext>>,
+    operational_telemetry_listeners: Arc<RwLock<HashSet<String>>>,
 }
 
 impl MetricsState {
@@ -131,5 +137,30 @@ impl MetricsState {
         if let Some(t) = timezone {
             context.device_timezone = t;
         }
+    }
+
+    pub fn operational_telemetry_listener(&self, target: &str, listen: bool) {
+        let mut listeners = self.operational_telemetry_listeners.write().unwrap();
+        if listen {
+            listeners.insert(target.to_string());
+        } else {
+            listeners.remove(target);
+        }
+    }
+
+    pub fn get_listeners(&self) -> Vec<String> {
+        self.operational_telemetry_listeners
+            .read()
+            .unwrap()
+            .clone()
+            .iter()
+            .map(|x| x.to_owned())
+            .collect()
+    }
+
+    pub fn update_session_id(&self, value: Option<String>) {
+        let value = value.unwrap_or_default();
+        let mut context = self.context.write().unwrap();
+        context.device_session_id = value;
     }
 }

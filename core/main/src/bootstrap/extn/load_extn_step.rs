@@ -103,6 +103,7 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                                 extn_id,
                                 extension.clone().uses,
                                 extension.clone().fulfills,
+                                extension.clone().config,
                             );
                             if let Some(open_rpc) = (builder.get_extended_capabilities)() {
                                 match serde_json::from_str(&open_rpc) {
@@ -117,7 +118,6 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                         }
                     }
                 }
-                debug!("loading symbols from {}", extn.get_metadata().name);
             }
         }
 

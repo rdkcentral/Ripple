@@ -15,7 +15,13 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use ripple_sdk::framework::bootstrap::Bootstrap;
+use ripple_sdk::{
+    framework::{
+        bootstrap::{Bootstep, Bootstrap},
+        RippleResponse,
+    },
+    log::error,
+};
 
 use crate::state::bootstrap_state::BootstrapState;
 
@@ -51,38 +57,30 @@ use super::{
 /// 9. [FireboltGatewayStep] - Starts the firebolt gateway and blocks the thread to keep it alive till interruption.
 
 ///
-pub async fn boot(state: BootstrapState) {
-    let bootstrap = &Bootstrap::new(state);
-    bootstrap
-        .step(SetupExtnClientStep)
-        .await
-        .expect("Extn Client setup failure")
-        .step(LoadExtensionMetadataStep)
-        .await
-        .expect("Extn Metadata load failure")
-        .step(LoadExtensionsStep)
-        .await
-        .expect("Extn load failure")
-        .step(StartExtnChannelsStep)
-        .await
-        .expect("Start Device channel failure")
-        .step(StartAppManagerStep)
-        .await
-        .expect("App Manager start")
-        .step(LoadDistributorValuesStep)
-        .await
-        .expect("Distributor values needs to be loaded")
-        .step(StartCloudSyncStep)
-        .await
-        .expect("Cloud Sync startup failed")
-        .step(CheckLauncherStep)
-        .await
-        .expect("if Launcher exists start")
-        .step(StartWsStep)
-        .await
-        .expect("Websocket startup failure")
-        .step(FireboltGatewayStep)
-        .await
-        .expect("Firebolt Gateway failure");
-    // -- User grant manager
+pub async fn boot(state: BootstrapState) -> RippleResponse {
+    let bootstrap = Bootstrap::new(state);
+    execute_step(SetupExtnClientStep, &bootstrap).await?;
+    execute_step(LoadExtensionMetadataStep, &bootstrap).await?;
+    execute_step(LoadExtensionsStep, &bootstrap).await?;
+    execute_step(StartExtnChannelsStep, &bootstrap).await?;
+    execute_step(StartAppManagerStep, &bootstrap).await?;
+    execute_step(LoadDistributorValuesStep, &bootstrap).await?;
+    execute_step(StartCloudSyncStep, &bootstrap).await?;
+    execute_step(CheckLauncherStep, &bootstrap).await?;
+    execute_step(StartWsStep, &bootstrap).await?;
+    execute_step(FireboltGatewayStep, &bootstrap).await?;
+    Ok(())
+}
+
+async fn execute_step<T: Bootstep<BootstrapState>>(
+    step: T,
+    state: &Bootstrap<BootstrapState>,
+) -> RippleResponse {
+    let name = step.get_name();
+    if let Err(e) = state.step(step).await {
+        error!("Failed at Bootstrap step {}", name);
+        Err(e)
+    } else {
+        Ok(())
+    }
 }
