@@ -18,7 +18,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::session::{TokenType, SessionAdjective},
+    api::session::{SessionAdjective, TokenType},
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
