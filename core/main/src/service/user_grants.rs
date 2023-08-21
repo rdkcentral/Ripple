@@ -895,7 +895,8 @@ impl GrantPolicyEnforcer {
     ) -> Result<(), DenyReasonWithCap> {
         let generic_cap_state = platform_state.clone().cap_state.generic;
         for grant_requirements in &policy.options {
-            for step in &grant_requirements.steps {
+            //for step in &grant_requirements.steps {
+            if let Some(step) = grant_requirements.steps.first() {
                 let cap = FireboltCap::Full(step.capability.to_owned());
                 let firebolt_cap = vec![cap.clone()];
                 debug!(
