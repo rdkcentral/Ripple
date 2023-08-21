@@ -596,15 +596,13 @@ impl AppLauncher {
                 return Err(AppError::NotSupported);
             };
 
-        let intent = request
-            .intent
-            .unwrap_or_else(|| NavigationIntent::NavigationIntentStrict(
-                NavigationIntentStrict::Home(HomeIntent {
-                    context: DiscoveryContext {
-                        source: "device".into(),
-                    },
-                }),
-            ));
+        let intent = request.intent.unwrap_or_else(|| {
+            NavigationIntent::NavigationIntentStrict(NavigationIntentStrict::Home(HomeIntent {
+                context: DiscoveryContext {
+                    source: "device".into(),
+                },
+            }))
+        });
 
         if Self::pre_launch(
             state,
