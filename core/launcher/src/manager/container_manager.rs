@@ -244,7 +244,6 @@ impl ContainerManager {
         state: &LauncherState,
         name: &str,
     ) -> Result<ResultType, ContainerError> {
-        debug!("launcher state: {:#?}", state);
         if !state
             .container_state
             .contains_stack_by_name(&name.to_string())

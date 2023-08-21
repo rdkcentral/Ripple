@@ -330,10 +330,6 @@ impl ProviderBroker {
         // the oneshot for the caller should then get descoped and called with an error
         for cid in all_cids {
             if let Some(session) = active_sessions.get(&cid) {
-                // if session.caller.identity.session_id == session_id
-                //     || session.provider.provider.session_id == session_id
-                // {
-                //     clear_cids.push(cid);
                 if session.provider.provider.session_id == session_id {
                     clear_cids.push(cid.clone());
                 }

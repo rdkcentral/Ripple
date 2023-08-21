@@ -54,9 +54,10 @@ impl FireboltGatekeeper {
         method: &str,
         secure: bool,
     ) -> Option<Vec<FireboltPermission>> {
-        debug!(
+        trace!(
             "get_resolved_caps_for_method called with params: method {}, secure: {}",
-            method, secure,
+            method,
+            secure,
         );
         let mut api_surface = vec![ApiSurface::Firebolt];
         if !secure {
@@ -77,10 +78,9 @@ impl FireboltGatekeeper {
     }
     // TODO return Deny Reason into ripple error
     pub async fn gate(state: PlatformState, request: RpcRequest) -> Result<(), DenyReasonWithCap> {
-        debug!("entering FireboltGatekeeper::gate function");
         let open_rpc_state = state.clone().open_rpc_state;
         if open_rpc_state.is_excluded(request.clone().method, request.clone().ctx.app_id) {
-            debug!("Method is exluded from gating {}", request.method);
+            trace!("Method is exluded from gating {}", request.method);
             return Ok(());
         }
         // if let Some(caps) = open_rpc_state.get_caps_for_method(&request.method) {
@@ -95,9 +95,10 @@ impl FireboltGatekeeper {
         let caps = caps_opt.unwrap();
         if !caps.is_empty() {
             // Supported and Availability checks
-            debug!(
+            trace!(
                 "Required caps for method:{} Caps: [{:?}]",
-                request.method, caps
+                request.method,
+                caps
             );
             if let Err(e) = state.clone().cap_state.generic.check_all(&caps) {
                 trace!("check_all for caps[{:?}] failed", caps);
