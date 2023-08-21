@@ -279,64 +279,6 @@ impl CapState {
             }
             capability_infos.push(capability_info);
         }
-        // let generic_caps = cap_set.get_caps();
-        // // let fb_perm_list: Vec<FireboltPermission> = cap_set.clone().into();
-        // if let Err(e) =
-        //     GenericCapState::check_supported(&state.cap_state.generic, &firebolt_permission)
-        // {
-        //     unsupported_caps.extend(e.caps);
-        // }
-
-        // let mut unavailable_caps = Vec::new();
-        // if let Err(e) =
-        //     GenericCapState::check_available(&state.cap_state.generic, &firebolt_permission)
-        // {
-        //     unavailable_caps.extend(e.caps);
-        // }
-
-        // let mut unpermitted_caps = Vec::new();
-        // if let Err(e) =
-        //     PermissionHandler::check_permitted(state, &call_context.app_id, &firebolt_permission)
-        //         .await
-        // {
-        //     unpermitted_caps.extend(e.caps);
-        // }
-
-        // let mut grant_errors = None;
-        // if let Err(e) = GrantState::get_info(state, &call_context, &cap_set) {
-        //     let _ = grant_errors.insert(e);
-        // }
-
-        // let cap_infos: Vec<CapabilityInfo> = generic_caps
-        //     .into_iter()
-        //     .map(|x| {
-        //         let reason = if unsupported_caps.contains(&x) {
-        //             // Un supported
-        //             Some(DenyReason::Unsupported)
-        //         } else if unavailable_caps.contains(&x) {
-        //             // Un Available
-        //             Some(DenyReason::Unavailable)
-        //         } else if unpermitted_caps.contains(&x) {
-        //             // Un Permitted
-        //             Some(DenyReason::Unpermitted)
-        //         } else if let Some(g) = &grant_errors {
-        //             if g.ungranted.contains(&x) {
-        //                 Some(DenyReason::Ungranted)
-        //             } else if g.denied.contains(&x) {
-        //                 // Grant denied
-        //                 Some(DenyReason::GrantDenied)
-        //             } else {
-        //                 None
-        //             }
-        //         } else {
-        //             None
-        //         };
-
-        //         CapabilityInfo::get(x.as_str(), reason)
-        //     })
-        //     .collect();
-
-        // Ok(cap_infos)
         Ok(capability_infos)
     }
 }

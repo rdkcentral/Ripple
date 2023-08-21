@@ -103,19 +103,6 @@ impl OpenRpcState {
         false
     }
 
-    // pub fn get_caps_for_method(&self, method: &str) -> Option<CapabilitySet> {
-    //     let c = { self.cap_map.read().unwrap().get(method).cloned() };
-    //     if let Some(caps) = c {
-    //         Some(CapabilitySet {
-    //             use_caps: caps.use_caps.clone(),
-    //             manage_caps: caps.manage_caps.clone(),
-    //             provide_cap: caps.provide_cap.clone(),
-    //         })
-    //     } else {
-    //         None
-    //     }
-    // }
-
     pub fn get_perms_for_method(
         &self,
         method: &str,

@@ -203,12 +203,6 @@ impl PermissionHandler {
                     extn_response.payload.extract::<PermissionResponse>()
                 {
                     return permission_response;
-                    // let mut map = HashMap::new();
-                    // map.insert(app_id.clone(), permission_response);
-                    // let mut permitted_state = state.cap_state.permitted_state.clone();
-                    // permitted_state.ingest(map);
-                    // info!("Permissions fetched for {}", app_id);
-                    // return Ok(());
                 }
             }
         }
