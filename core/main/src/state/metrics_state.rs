@@ -91,7 +91,7 @@ impl MetricsState {
             }
         };
 
-        let os_ver = serde_json::to_string(&os).unwrap_or("no.os.ver.set".to_string());
+        let os_ver = serde_json::to_string(&os).unwrap_or_else(|_| "no.os.ver.set".to_string());
 
         let mut device_name = "no.device.name.set".to_string();
         if let Ok(resp) = StorageManager::get_string(state, StorageProperty::DeviceName).await {

@@ -70,7 +70,7 @@ impl FireboltCap {
         if c_a.count() > 1 {
             let c_a = cap.split(':');
             let mut cap_vec = Vec::<String>::new();
-            for c in c_a.into_iter() {
+            for c in c_a {
                 if !prefix.contains(&c) {
                     cap_vec.push(String::from(c));
                     if cap_vec.len() == 2 {
@@ -290,7 +290,7 @@ impl CapabilityInfo {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum DenyReason {
     NotFound,

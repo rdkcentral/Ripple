@@ -242,14 +242,14 @@ impl CloseReason {
     }
 }
 
-#[derive(Debug, Serialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 pub struct StateChange {
     pub previous: LifecycleState,
     pub state: LifecycleState,
 }
 pub type ViewId = Uuid;
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct Dimensions {
     pub x: u32,
     pub y: u32,
@@ -257,7 +257,7 @@ pub struct Dimensions {
     pub h: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct AppEvent {
     pub event_name: String,
     pub result: Value,
