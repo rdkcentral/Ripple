@@ -43,7 +43,7 @@ use ripple_sdk::{
         manifest::{app_library::AppLibrary, apps::AppManifest, device_manifest::RetentionPolicy},
     },
     extn::extn_client_message::ExtnResponse,
-    framework::RippleResponse,
+    framework::{ripple_contract::RippleContract, RippleResponse},
     log::{debug, error, info, warn},
     tokio::{
         self,
@@ -67,6 +67,7 @@ use super::{
 use ripple_sdk::futures::future::{BoxFuture, FutureExt};
 
 pub const NAVIGATION_INTENT_PROVIDER_REQUEST: &str = "providerRequest";
+pub const BRIDGEPROTOCOL: &str = "BridgeProtocol";
 #[derive(Debug, Clone)]
 struct App {
     #[allow(dead_code)]
@@ -513,8 +514,12 @@ impl AppLauncher {
         }
     }
 
-    fn get_transport(url: String) -> AppRuntimeTransport {
-        if !url.as_str().contains("__firebolt_endpoint") {
+    fn get_transport(state: &LauncherState, url: String) -> AppRuntimeTransport {
+        if !url.as_str().contains("__firebolt_endpoint")
+            && state
+                .extn_client
+                .check_contract_permitted(RippleContract::BridgeProtocol)
+        {
             AppRuntimeTransport::Bridge
         } else {
             AppRuntimeTransport::Websocket
@@ -536,7 +541,7 @@ impl AppLauncher {
             },
             runtime: Some(AppRuntime {
                 id: Some(callsign),
-                transport: Self::get_transport(manifest.start_page),
+                transport: Self::get_transport(&state, manifest.start_page),
             }),
             launch: AppLaunchInfo {
                 intent: Some(intent),
