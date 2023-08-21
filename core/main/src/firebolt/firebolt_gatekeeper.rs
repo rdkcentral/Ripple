@@ -21,7 +21,7 @@ use ripple_sdk::api::firebolt::fb_capabilities::{
     DenyReason, DenyReasonWithCap, FireboltPermission,
 };
 use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
-use ripple_sdk::log::{debug, trace};
+use ripple_sdk::log::trace;
 
 use crate::service::user_grants::GrantState;
 use crate::state::openrpc_state::ApiSurface;
