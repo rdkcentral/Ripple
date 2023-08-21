@@ -37,13 +37,13 @@ use ripple_sdk::{
             fb_lifecycle::LifecycleState,
             fb_lifecycle_management::{
                 AppSessionRequest, LifecycleManagementProviderEvent, LifecycleManagementRequest,
-                SetStateRequest,
+                SessionResponse, SetStateRequest,
             },
         },
         manifest::{app_library::AppLibrary, apps::AppManifest, device_manifest::RetentionPolicy},
     },
     extn::extn_client_message::ExtnResponse,
-    framework::{ripple_contract::RippleContract, RippleResponse},
+    framework::ripple_contract::RippleContract,
     log::{debug, error, info, warn},
     tokio::{
         self,
@@ -52,6 +52,7 @@ use ripple_sdk::{
     uuid::Uuid,
 };
 use serde_json::Value;
+use url::Url;
 
 use crate::{
     launcher_state::LauncherState,
@@ -67,7 +68,6 @@ use super::{
 use ripple_sdk::futures::future::{BoxFuture, FutureExt};
 
 pub const NAVIGATION_INTENT_PROVIDER_REQUEST: &str = "providerRequest";
-pub const BRIDGEPROTOCOL: &str = "BridgeProtocol";
 #[derive(Debug, Clone)]
 struct App {
     #[allow(dead_code)]
@@ -514,6 +514,28 @@ impl AppLauncher {
         }
     }
 
+    fn get_manifest_url(manifest: AppManifest) -> String {
+        let mut url = manifest.start_page.to_string();
+        if !(url.clone().as_str().contains("__firebolt_endpoint")) {
+            if let Ok(mut parsed_url) = Url::parse(url.clone().as_str()) {
+                let firebolt_endpoint = String::from("127.0.0.0");
+                let appid = manifest.name.to_string();
+
+                let modified_query: String = format!(
+                    "__firebolt_endpoint=ws%3A%2F%2F{}%3A3473%3FappId%3D{}",
+                    firebolt_endpoint, appid
+                );
+                parsed_url.set_query(Some(&modified_query));
+
+                url = parsed_url.as_str().to_owned();
+                info!("modified manifest URL : {}", url);
+            } else {
+                info!("Invalid URL");
+            }
+        }
+        url
+    }
+
     fn get_transport(state: &LauncherState, url: String) -> AppRuntimeTransport {
         if !url.as_str().contains("__firebolt_endpoint")
             && state
@@ -531,17 +553,17 @@ impl AppLauncher {
         manifest: AppManifest,
         callsign: String,
         intent: NavigationIntent,
-    ) -> RippleResponse {
+    ) -> Result<String, AppError> {
         let session = AppSession {
             app: AppBasicInfo {
                 id: manifest.name.clone(),
                 title: Some(manifest.name.clone()),
                 catalog: manifest.content_catalog.clone(),
-                url: Some(manifest.start_page.clone()),
+                url: Some(Self::get_manifest_url(manifest.clone())),
             },
             runtime: Some(AppRuntime {
                 id: Some(callsign),
-                transport: Self::get_transport(&state, manifest.start_page),
+                transport: Self::get_transport(&state, Self::get_manifest_url(manifest.clone())),
             }),
             launch: AppLaunchInfo {
                 intent: Some(intent),
@@ -550,16 +572,39 @@ impl AppLauncher {
             },
         };
 
-        if let Err(e) = state
+        let mut modified_url = Self::get_manifest_url(manifest.clone());
+        let resp = state
             .send_extn_request(LifecycleManagementRequest::Session(AppSessionRequest {
                 session,
             }))
-            .await
-        {
-            error!("Error while prelaunching {:?}", e);
-            return Err(e);
+            .await;
+        if resp.is_err() {
+            return Err(AppError::NotSupported);
         }
-        Ok(())
+
+        match resp {
+            Ok(response) => match response.payload.extract::<AppResponse>() {
+                Some(Ok(AppManagerResponse::Session(res))) => match res {
+                    SessionResponse::Pending(val) => {
+                        let sessionid = val.session_id.unwrap();
+                        info!("session id : {:?} ", sessionid);
+                        modified_url = format!("{}%26session%3D{}", modified_url, sessionid)
+                    }
+                    _ => {
+                        return Err(AppError::NotFound);
+                    }
+                },
+                _ => {
+                    return Err(AppError::NotFound);
+                }
+            },
+            Err(_) => {
+                return Err(AppError::NotSupported);
+            }
+        }
+
+        info!("modified url with sessionid : {:?}", modified_url);
+        Ok(modified_url)
     }
 
     pub async fn launch(
@@ -611,20 +656,19 @@ impl AppLauncher {
                 }),
             ));
 
-        if Self::pre_launch(
+        let modified_url = Self::pre_launch(
             state,
             app_manifest.clone(),
             callsign.clone(),
             intent.clone(),
         )
-        .await
-        .is_err()
-        {
+        .await;
+        if modified_url.is_err() {
             return Err(AppError::IoError);
         }
 
         let launch_params = LaunchParams {
-            uri: app_manifest.start_page.to_string(),
+            uri: modified_url.unwrap(),
             browser_name: callsign,
             _type: app_type.unwrap(),
             name: app_manifest.name.to_string(),
