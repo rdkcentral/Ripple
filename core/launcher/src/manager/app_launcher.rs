@@ -598,7 +598,7 @@ impl AppLauncher {
 
         let intent = request
             .intent
-            .unwrap_or(NavigationIntent::NavigationIntentStrict(
+            .unwrap_or_else(|| NavigationIntent::NavigationIntentStrict(
                 NavigationIntentStrict::Home(HomeIntent {
                     context: DiscoveryContext {
                         source: "device".into(),

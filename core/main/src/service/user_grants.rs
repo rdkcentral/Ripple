@@ -124,7 +124,7 @@ impl GrantState {
         if let Some(app_id) = app_id {
             let mut grant_state = self.grant_app_map.write().unwrap();
             //Get a mutable reference to the value associated with a key, create it if it doesn't exist,
-            let entries = grant_state.value.entry(app_id).or_insert(HashSet::new());
+            let entries = grant_state.value.entry(app_id).or_insert_with(HashSet::new);
 
             if entries.contains(&new_entry) {
                 entries.remove(&new_entry);
