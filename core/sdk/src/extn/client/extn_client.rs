@@ -121,17 +121,32 @@ impl ExtnClient {
     ///
     /// Also starts the thread in the processor to accept incoming requests.
     pub fn add_request_processor(&mut self, mut processor: impl ExtnRequestProcessor) {
-        // Dont add and start a request processor if there is no contract fulfillment
-        if self.sender.check_contract_fulfillment(processor.contract()) {
-            let processor_string: String = processor.contract().into();
+        let contracts = if let Some(multiple_contracts) = processor.fulfills_mutiple() {
+            multiple_contracts
+        } else {
+            vec![processor.contract()]
+        };
+        let contracts_supported: Vec<RippleContract> = contracts
+            .into_iter()
+            .filter(|contract| self.sender.check_contract_fulfillment(contract.clone()))
+            .collect();
+
+        contracts_supported.iter().for_each(|contract| {
+            let processor_string: String = contract.as_clear_string();
             info!("adding request processor {}", processor_string);
             add_stream_processor(
-                processor_string.clone(),
+                processor_string,
                 processor.sender(),
                 self.request_processors.clone(),
             );
+        });
+        // Dont add and start a request processor if there is no contract fulfillment
+        if !contracts_supported.is_empty() {
             tokio::spawn(async move {
-                trace!("starting request processor thread for {}", processor_string);
+                trace!(
+                    "starting request processor green tokio thread for {:?}",
+                    contracts_supported
+                );
                 processor.run().await
             });
         }
@@ -149,7 +164,7 @@ impl ExtnClient {
     /// Also starts the thread in the processor to accept incoming events.
     pub fn add_event_processor(&mut self, mut processor: impl ExtnEventProcessor) {
         add_vec_stream_processor(
-            processor.contract().into(),
+            processor.contract().as_clear_string(),
             processor.sender(),
             self.event_processors.clone(),
         );
@@ -299,7 +314,7 @@ impl ExtnClient {
         msg: ExtnMessage,
         processor: Arc<RwLock<HashMap<String, MSender<ExtnMessage>>>>,
     ) -> bool {
-        let id_c: String = msg.clone().target.into();
+        let id_c: String = msg.target.as_clear_string();
 
         let v = {
             let processors = processor.read().unwrap();
@@ -322,7 +337,7 @@ impl ExtnClient {
         msg: ExtnMessage,
         processor: Arc<RwLock<HashMap<String, Vec<MSender<ExtnMessage>>>>>,
     ) {
-        let id_c = msg.clone().target.into();
+        let id_c = msg.target.as_clear_string();
         let mut gc_sender_indexes: Vec<usize> = Vec::new();
         let mut sender: Option<MSender<ExtnMessage>> = None;
         let read_processor = processor.clone();

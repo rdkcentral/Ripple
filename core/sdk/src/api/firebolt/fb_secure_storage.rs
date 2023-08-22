@@ -18,7 +18,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::session::AccountSession,
+    api::{session::AccountSession, storage_property::StorageAdjective},
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
@@ -134,7 +134,7 @@ impl ExtnPayloadProvider for SecureStorageRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::SecureStorage
+        RippleContract::Storage(StorageAdjective::Secure)
     }
 }
 
@@ -159,6 +159,6 @@ impl ExtnPayloadProvider for SecureStorageResponse {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::SecureStorage
+        RippleContract::Storage(StorageAdjective::Secure)
     }
 }
