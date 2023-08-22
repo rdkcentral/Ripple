@@ -128,19 +128,20 @@ impl ExtnClient {
         };
         let mut atleast_one_contract_satisfied = false;
         let mut contracts_supported = Vec::new();
-        for contract in contracts {
-            if self.sender.check_contract_fulfillment(contract) {
-                atleast_one_contract_satisfied = true;
+        let contracts_supported = contracts
+            .iter()
+            .filter(|contract| self.sender.check_contract_fulfillment(contract))
+            .collect();
+            
+        contracts_supported.for_each(|contract| {
                 let processor_string: String = processor.contract().as_clear_string();
                 info!("adding request processor {}", processor_string);
                 add_stream_processor(
-                    processor_string.clone(),
+                    processor_string,
                     processor.sender(),
                     self.request_processors.clone(),
                 );
-                contracts_supported.push(processor_string);
-            }
-        }
+        });
         // Dont add and start a request processor if there is no contract fulfillment
         if atleast_one_contract_satisfied {
             tokio::spawn(async move {
