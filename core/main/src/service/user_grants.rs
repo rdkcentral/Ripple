@@ -952,31 +952,30 @@ impl GrantPolicyEnforcer {
 
         if let Some(first_supported_option) = first_supported_option {
             for step in &first_supported_option.steps {
-                match GrantStepExecutor::execute(step, platform_state, call_ctx, permission).await {
-                    Ok(_) => {
-                        debug!("grant step execute OK. step={:?}", step);
-                        CapState::emit(
-                            platform_state,
-                            CapEvent::OnGranted,
-                            step.capability_as_fb_cap(),
-                            Some(permission.role),
-                        )
-                        .await;
-                        debug!("cap emitted");
-                    }
-                    Err(e) => {
-                        debug!("grant step execute Err. step={:?}", step);
-                        CapState::emit(
-                            platform_state,
-                            CapEvent::OnRevoked,
-                            step.capability_as_fb_cap(),
-                            Some(permission.role),
-                        )
-                        .await;
-                        return Err(e);
-                    }
+                if let Err(e) =
+                    GrantStepExecutor::execute(step, platform_state, call_ctx, permission).await
+                {
+                    debug!("grant step execute Err. step={:?}", step);
+                    CapState::emit(
+                        platform_state,
+                        CapEvent::OnRevoked,
+                        permission.cap.clone(),
+                        Some(permission.role),
+                    )
+                    .await;
+                    return Err(e);
+                } else {
+                    debug!("grant step execute OK. step={:?}", step);
                 }
             }
+
+            CapState::emit(
+                platform_state,
+                CapEvent::OnGranted,
+                permission.cap.clone(),
+                Some(permission.role),
+            )
+            .await;
 
             Ok(())
         } else {
