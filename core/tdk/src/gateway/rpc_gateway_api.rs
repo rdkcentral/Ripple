@@ -15,15 +15,18 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use ripple_sdk::api::gateway::rpc_gateway_api::{ApiProtocol, CallContext};
+use ripple_sdk::{
+    api::gateway::rpc_gateway_api::{ApiProtocol, CallContext},
+    uuid::Uuid,
+};
 
 use crate::utils::test_utils::Mockable;
 
 impl Mockable for CallContext {
     fn mock() -> Self {
         Self::new(
-            "sess_id".to_owned(),
-            "1".to_owned(),
+            Uuid::new_v4().to_string(),
+            Uuid::new_v4().to_string(),
             "app_id".to_owned(),
             1,
             ApiProtocol::Extn,

@@ -25,7 +25,7 @@ members = [
     "device/thunder",
     "distributor/general",
     "examples/rpc_extn",
-    "examples/tm_extn"
+    "examples/tm_extn",
 ]
 
 [workspace.package]

@@ -956,6 +956,14 @@ impl GrantPolicyEnforcer {
                 .await
                 {
                     debug!("grant step execute Err. step={:?}", step);
+
+                    // platform_state.cap_state.grant_state.update(
+                    //     permission,
+                    //     policy,
+                    //     false,
+                    //     call_ctx.app_id.as_str(),
+                    // );
+
                     CapState::emit(
                         platform_state,
                         CapEvent::OnRevoked,
@@ -968,6 +976,8 @@ impl GrantPolicyEnforcer {
                     debug!("grant step execute OK. step={:?}", step);
                 }
             }
+
+            debug!("all grants ok emitting cap");
 
             CapState::emit(
                 platform_state,
@@ -1230,17 +1240,28 @@ mod tests {
     use super::*;
 
     mod test_grant_policy_enforcer {
+        use std::str::FromStr;
+
         use super::*;
-        use crate::utils::test_utils::{fb_perm, MockRuntime};
+        use crate::utils::test_utils::{cap_state_listener, fb_perm, MockRuntime};
         use futures::FutureExt;
         use ripple_sdk::{
             api::{
                 device::device_user_grants_data::GrantRequirements,
-                firebolt::{fb_pin::PIN_CHALLENGE_CAPABILITY, provider::ACK_CHALLENGE_CAPABILITY},
+                firebolt::{
+                    fb_pin::{PinChallengeResultReason, PIN_CHALLENGE_CAPABILITY},
+                    provider::ACK_CHALLENGE_CAPABILITY,
+                },
                 gateway::rpc_gateway_api::CallContext,
             },
-            tokio::{self, join},
+            tokio::{
+                self, join,
+                time::{self, Duration},
+            },
             utils::logger::init_logger,
+        };
+        use ripple_tdk::utils::test_utils::{
+            cap_jsonrpc_payload_granted, cap_jsonrpc_payload_revoked,
         };
         use serde_json::json;
 
@@ -1249,13 +1270,25 @@ mod tests {
         ) -> (PlatformState, CallContext, FireboltPermission, GrantPolicy) {
             let _ = init_logger("tests".into());
             let runtime = MockRuntime::new();
-            let perm = fb_perm("xrn:firebolt:capability:localization:postal-code", None);
+            let perm = fb_perm(
+                "xrn:firebolt:capability:localization:postal-code",
+                Some(CapabilityRole::Use),
+            );
             let policy = GrantPolicy {
                 options: policy_options,
                 ..Default::default()
             };
+            let ctx = runtime.call_context;
+            let mut platform_state = runtime.platform_state;
 
-            (runtime.platform_state, runtime.call_context, perm, policy)
+            let mut permissions = HashMap::new();
+            permissions.insert(ctx.app_id.to_owned(), vec![perm.clone()]);
+            platform_state
+                .cap_state
+                .permitted_state
+                .set_permissions(permissions);
+
+            (platform_state, ctx, perm, policy)
         }
 
         #[tokio::test]
@@ -1461,7 +1494,7 @@ mod tests {
             let challenge_responses = state.provider_broker_state.send_pinchallenge_failure(
                 &state,
                 &ctx,
-                ripple_sdk::api::firebolt::fb_pin::PinChallengeResultReason::ExceededPinFailures,
+                PinChallengeResultReason::ExceededPinFailures,
             );
             let evaluate_options = GrantPolicyEnforcer::evaluate_options(
                 &state,
@@ -1500,12 +1533,13 @@ mod tests {
                 .send_pinchallenge_success(&state, &ctx)
                 .then(|_| async {
                     // TODO: workout how to do this without sleep
-                    tokio::time::sleep(tokio::time::Duration::new(0, 500)).await;
+                    time::sleep(Duration::new(0, 500)).await;
                     state
                         .provider_broker_state
                         .send_ackchallenge_failure(&state, &ctx)
                         .await;
                 });
+            let mut resp_rx = cap_state_listener(&state, &perm, CapEvent::OnRevoked).await;
             let evaluate_options = GrantPolicyEnforcer::evaluate_options(
                 &state,
                 &caller_session,
@@ -1514,12 +1548,18 @@ mod tests {
                 &policy,
             );
 
+
             let (result, _) = join!(evaluate_options, challenge_responses);
 
             assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
                 reason: DenyReason::GrantDenied,
                 caps: vec![FireboltCap::Full(ACK_CHALLENGE_CAPABILITY.to_owned())]
             })));
+            let cap_event = resp_rx.recv().await;
+            assert!(cap_event.is_some());
+            let value: serde_json::Value =
+                serde_json::Value::from_str(cap_event.unwrap().jsonrpc_msg.as_str()).unwrap();
+            assert_eq!(cap_jsonrpc_payload_revoked(perm.cap.as_str()), value);
         }
 
         #[tokio::test]
@@ -1543,12 +1583,13 @@ mod tests {
                 .send_pinchallenge_success(&state, &ctx)
                 .then(|_| async {
                     // TODO: workout how to do this without sleep
-                    tokio::time::sleep(tokio::time::Duration::new(0, 500)).await;
+                    time::sleep(Duration::new(0, 500)).await;
                     state
                         .provider_broker_state
                         .send_ackchallenge_success(&state, &ctx)
                         .await;
                 });
+            let mut resp_rx = cap_state_listener(&state, &perm, CapEvent::OnGranted).await;
             let evaluate_options = GrantPolicyEnforcer::evaluate_options(
                 &state,
                 &caller_session,
@@ -1557,10 +1598,15 @@ mod tests {
                 &policy,
             );
 
+
             let (result, _) = join!(evaluate_options, challenge_responses);
 
             assert!(result.is_ok());
-            assert!(state.cap_state.generic.check_available(&vec![perm]).is_ok());
+            let cap_event = resp_rx.recv().await;
+            assert!(cap_event.is_some());
+            let value: serde_json::Value =
+                serde_json::Value::from_str(cap_event.unwrap().jsonrpc_msg.as_str()).unwrap();
+            assert_eq!(cap_jsonrpc_payload_granted(perm.cap.as_str()), value);
         }
     }
 }

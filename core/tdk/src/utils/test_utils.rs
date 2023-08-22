@@ -15,6 +15,16 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use serde_json::json;
+
 pub trait Mockable {
     fn mock() -> Self;
+}
+
+pub fn cap_jsonrpc_payload_granted(cap: String) -> serde_json::Value {
+    json!({"id":1,"jsonrpc":"2.0","result":{"available":true,"capability":cap,"manage":{"granted":true,"permitted":true},"provide":{"granted":true,"permitted":true},"supported":true,"use":{"granted":true,"permitted":true}}})
+}
+
+pub fn cap_jsonrpc_payload_revoked(cap: String) -> serde_json::Value {
+    json!({"id":1,"jsonrpc":"2.0","result":{"available":true,"capability":cap,"details":["unpermitted"],"manage":{"granted":false,"permitted":false},"provide":{"granted":false,"permitted":false},"supported":true,"use":{"granted":false,"permitted":false}}})
 }

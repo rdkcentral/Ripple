@@ -14,13 +14,20 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-use ripple_sdk::api::{
-    firebolt::fb_capabilities::{CapabilityRole, FireboltCap, FireboltPermission},
-    gateway::rpc_gateway_api::CallContext,
+use ripple_sdk::{
+    api::{
+        firebolt::fb_capabilities::{
+            CapEvent, CapListenRPCRequest, CapabilityRole, FireboltCap, FireboltPermission,
+        },
+        gateway::rpc_gateway_api::{ApiMessage, CallContext},
+    },
+    tokio::sync::mpsc::{self, Receiver},
 };
 use ripple_tdk::utils::test_utils::Mockable;
 
-use crate::state::platform_state::PlatformState;
+use crate::state::{
+    cap::cap_state::CapState, platform_state::PlatformState, session_state::Session,
+};
 
 pub struct MockRuntime {
     pub platform_state: PlatformState,
@@ -47,4 +54,34 @@ pub fn fb_perm(cap: &str, role: Option<CapabilityRole>) -> FireboltPermission {
         cap: FireboltCap::Full(cap.to_owned()),
         role: role.unwrap_or(CapabilityRole::Use),
     }
+}
+
+pub async fn cap_state_listener(
+    state: &PlatformState,
+    perm: &FireboltPermission,
+    cap_event: CapEvent,
+) -> Receiver<ApiMessage> {
+    let ctx = CallContext::mock();
+    let (session_tx, resp_rx) = mpsc::channel(32);
+    let session = Session::new(
+        ctx.app_id.clone(),
+        Some(session_tx.clone()),
+        ripple_sdk::api::apps::EffectiveTransport::Websocket,
+    );
+    state
+        .session_state
+        .add_session(ctx.session_id.clone(), session);
+    CapState::setup_listener(
+        state,
+        ctx,
+        cap_event,
+        CapListenRPCRequest {
+            capability: perm.cap.as_str(),
+            listen: true,
+            role: Some(CapabilityRole::Use),
+        },
+    )
+    .await;
+
+    resp_rx
 }

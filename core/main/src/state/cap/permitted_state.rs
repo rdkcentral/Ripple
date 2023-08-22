@@ -63,6 +63,13 @@ impl PermittedState {
         perms.sync();
     }
 
+    #[cfg(test)]
+    pub fn set_permissions(&mut self, permissions: HashMap<String, Vec<FireboltPermission>>) {
+        let mut perms = self.permitted.write().unwrap();
+        perms.value = permissions;
+        perms.sync();
+    }
+
     fn get_all_permissions(&self) -> HashMap<String, Vec<FireboltPermission>> {
         self.permitted.read().unwrap().clone().value
     }
