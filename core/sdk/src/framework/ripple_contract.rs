@@ -142,14 +142,10 @@ impl RippleContract {
     }
 
     pub fn get_adjective(&self) -> Option<String> {
-        if let Self::Storage(s) = self {
-            return Some(s.as_string());
+        match self {
+            Self::Storage(adj) | Self::Session(adj) => Some(adj.as_string()),
+            _ => None
         }
-        if let Self::Session(s) = self {
-            return Some(s.as_string());
-        }
-
-        None
     }
 
     pub fn from_adjective_string(contract: &str, adjective: &str) -> Option<Self> {
