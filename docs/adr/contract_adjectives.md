@@ -2,7 +2,7 @@
 
 ## Status
 
-__**Proposed**__
+__**Implementation**__
 
 ## Context
 
@@ -85,10 +85,9 @@ Let us apply some adjectives to P: A.
 
 #### Metrics
 1. I want to forward **behavior** metrics.
-2. I want to forward **behavior** metrics.
-3. I want to forward **operational** metrics.
-4. I want to listen for **behavioral** metrics.
-5. I want to listen for **operational** metrics.
+2. I want to forward **operational** metrics.
+3. I want to listen for **behavioral** metrics.
+4. I want to listen for **operational** metrics.
 
 #### Session
 1. I want to get **Account Session** token.

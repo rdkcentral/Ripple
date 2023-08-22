@@ -126,24 +126,22 @@ impl ExtnClient {
         } else {
             vec![processor.contract()]
         };
-        let mut atleast_one_contract_satisfied = false;
-        let mut contracts_supported = Vec::new();
-        let contracts_supported = contracts
-            .iter()
-            .filter(|contract| self.sender.check_contract_fulfillment(contract))
+        let contracts_supported: Vec<RippleContract> = contracts
+            .into_iter()
+            .filter(|contract| self.sender.check_contract_fulfillment(contract.clone()))
             .collect();
-            
-        contracts_supported.for_each(|contract| {
-                let processor_string: String = processor.contract().as_clear_string();
-                info!("adding request processor {}", processor_string);
-                add_stream_processor(
-                    processor_string,
-                    processor.sender(),
-                    self.request_processors.clone(),
-                );
+
+        contracts_supported.iter().for_each(|contract| {
+            let processor_string: String = contract.as_clear_string();
+            info!("adding request processor {}", processor_string);
+            add_stream_processor(
+                processor_string,
+                processor.sender(),
+                self.request_processors.clone(),
+            );
         });
         // Dont add and start a request processor if there is no contract fulfillment
-        if atleast_one_contract_satisfied {
+        if !contracts_supported.is_empty() {
             tokio::spawn(async move {
                 trace!(
                     "starting request processor green tokio thread for {:?}",
@@ -316,7 +314,7 @@ impl ExtnClient {
         msg: ExtnMessage,
         processor: Arc<RwLock<HashMap<String, MSender<ExtnMessage>>>>,
     ) -> bool {
-        let id_c: String = msg.clone().target.as_clear_string();
+        let id_c: String = msg.target.as_clear_string();
 
         let v = {
             let processors = processor.read().unwrap();
@@ -339,7 +337,7 @@ impl ExtnClient {
         msg: ExtnMessage,
         processor: Arc<RwLock<HashMap<String, Vec<MSender<ExtnMessage>>>>>,
     ) {
-        let id_c = msg.clone().target.as_clear_string();
+        let id_c = msg.target.as_clear_string();
         let mut gc_sender_indexes: Vec<usize> = Vec::new();
         let mut sender: Option<MSender<ExtnMessage>> = None;
         let read_processor = processor.clone();
