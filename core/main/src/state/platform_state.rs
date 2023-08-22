@@ -153,3 +153,30 @@ impl PlatformState {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ripple_tdk::utils::test_utils::Mockable;
+
+    impl Mockable for PlatformState {
+        fn mock() -> Self {
+            use crate::state::bootstrap_state::ChannelsState;
+
+            let channels_state = ChannelsState::new();
+            let client = RippleClient::new(channels_state.clone());
+            let (_, manifest) = DeviceManifest::load_from_content(
+                include_str!("../../../../examples/manifest/device-manifest-example.json")
+                    .to_string(),
+            )
+            .unwrap();
+            let (_, extn_manifest) = ExtnManifest::load_from_content(
+                include_str!("../../../../examples/manifest/extn-manifest-example.json")
+                    .to_string(),
+            )
+            .unwrap();
+
+            Self::new(extn_manifest, manifest, client, vec![])
+        }
+    }
+}

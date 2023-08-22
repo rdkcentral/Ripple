@@ -15,8 +15,4 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-pub mod rpc_utils;
-pub mod serde_utils;
-
-#[cfg(test)]
-pub mod test_utils;
+pub mod rpc_gateway_api;

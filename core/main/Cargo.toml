@@ -29,8 +29,8 @@ name = "ripple"
 path = "src/main.rs"
 
 [features]
-local_dev=[]
-sysd=["sd-notify"]
+local_dev = []
+sysd = ["sd-notify"]
 
 [dependencies]
 ripple_sdk = { path = "../sdk", features = ["full"] }
@@ -50,3 +50,6 @@ exitcode = "1.1.2"
 
 [build-dependencies]
 vergen = "1"
+
+[dev-dependencies]
+ripple_tdk = { path = "../tdk" }

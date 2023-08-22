@@ -18,6 +18,7 @@
 [workspace]
 members = [
     "core/sdk",
+    "core/tdk",
     "device/thunder_ripple_sdk",
     "core/main",
     "core/launcher",
@@ -29,3 +30,4 @@ members = [
 
 [workspace.package]
 version = "0.8.0"
+resolver = "2"
