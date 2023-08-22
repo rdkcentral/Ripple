@@ -584,7 +584,7 @@ impl DelegatedLauncherHandler {
                 if let Some(filtered_policy) = filtered_policy_opt {
                     let policy = match perm.role {
                         ripple_sdk::api::firebolt::fb_capabilities::CapabilityRole::Use => {
-                            filtered_policy._use.as_ref()
+                            filtered_policy.use_.as_ref()
                         }
                         ripple_sdk::api::firebolt::fb_capabilities::CapabilityRole::Manage => {
                             filtered_policy.manage.as_ref()
