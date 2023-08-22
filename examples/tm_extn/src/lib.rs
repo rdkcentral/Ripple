@@ -15,8 +15,5 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-pub mod apps;
-pub mod data_governance;
-pub mod extn;
-pub mod telemetry_builder;
-pub mod user_grants;
+pub mod telemetry_processor;
+pub mod tm_ffi;

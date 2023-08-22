@@ -64,7 +64,6 @@ impl LoadedLibrary {
     }
 
     pub fn get_channels(&self) -> Vec<ExtnSymbol> {
-        info!("getting channels {}", self.metadata.symbols.len());
         let extn_ids: Vec<String> = self
             .metadata
             .symbols
@@ -72,6 +71,12 @@ impl LoadedLibrary {
             .filter(|x| x.id.is_channel())
             .map(|x| x.id.clone().to_string())
             .collect();
+        info!(
+            "getting channels {} lib_metadata={:?} extn_metadata={:?}",
+            self.metadata.symbols.len(),
+            extn_ids,
+            self.entry
+        );
         self.entry
             .clone()
             .symbols
@@ -193,6 +198,7 @@ impl ExtnState {
             extn_id.clone(),
             symbol.clone().uses,
             symbol.clone().fulfills,
+            symbol.clone().config,
         );
         let (extn_tx, extn_rx) = ChannelsState::get_crossbeam_channel();
         let extn_channel = channel.channel;

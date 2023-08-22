@@ -44,6 +44,21 @@
                     ]
                 }
             ]
+        },
+        {
+            "path": "libtm_extn",
+            "symbols": [
+                {
+                    "id": "ripple:channel:distributor:tm",
+                    "uses": [
+                        "operational_metric_listener"
+                    ],
+                    "fulfills": [],
+                    "config": {
+                        "ws_url": "ws://127.0.0.1:2658/"
+                    }
+                }
+            ]
         }
     ],
     "required_contracts": [

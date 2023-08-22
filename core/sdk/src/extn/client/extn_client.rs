@@ -325,8 +325,8 @@ impl ExtnClient {
         let id_c = msg.clone().target.into();
         let mut gc_sender_indexes: Vec<usize> = Vec::new();
         let mut sender: Option<MSender<ExtnMessage>> = None;
+        let read_processor = processor.clone();
         {
-            let read_processor = processor.clone();
             let processors = read_processor.read().unwrap();
             let v = processors.get(&id_c).cloned();
             if let Some(v) = v {
@@ -562,5 +562,39 @@ impl ExtnClient {
         let id = uuid::Uuid::new_v4().to_string();
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
         self.sender.send_request(id, payload, other_sender, None)
+    }
+
+    /// Method to get configurations on the manifest per extension
+    pub fn get_config(&self, key: &str) -> Option<String> {
+        self.sender.get_config(key)
+    }
+
+    /// Method to get configurations on the manifest per extension
+    pub fn get_bool_config(&self, key: &str) -> bool {
+        if let Some(s) = self.sender.get_config(key) {
+            if let Ok(v) = s.parse() {
+                return v;
+            }
+        }
+        false
+    }
+
+    /// Method to send event to an extension based on its Id
+    pub fn send_event_with_id(&self, id: &str, event: impl ExtnPayloadProvider) -> RippleResponse {
+        if let Some(sender) = self.get_extn_sender_with_extn_id(id) {
+            self.sender.send_event(event, Some(sender))
+        } else {
+            Err(RippleError::SendFailure)
+        }
+    }
+
+    /// Method to get configurations on the manifest per extension
+    pub fn check_contract_fulfillment(&self, contract: RippleContract) -> bool {
+        self.sender.check_contract_fulfillment(contract)
+    }
+
+    // Method to check if contract is permitted
+    pub fn check_contract_permitted(&self, contract: RippleContract) -> bool {
+        self.sender.check_contract_permission(contract)
     }
 }
