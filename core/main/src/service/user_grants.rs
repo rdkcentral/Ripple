@@ -1210,29 +1210,25 @@ mod tests {
         use std::str::FromStr;
 
         use super::*;
-        use crate::{
-            state::session_state::Session,
-            utils::test_utils::{fb_perm, MockRuntime},
-        };
+        use crate::utils::test_utils::{cap_state_listener, fb_perm, MockRuntime};
         use futures::FutureExt;
         use ripple_sdk::{
             api::{
                 device::device_user_grants_data::GrantRequirements,
                 firebolt::{
-                    fb_capabilities::CapListenRPCRequest,
                     fb_pin::{PinChallengeResultReason, PIN_CHALLENGE_CAPABILITY},
                     provider::ACK_CHALLENGE_CAPABILITY,
                 },
-                gateway::rpc_gateway_api::ApiMessage,
             },
             tokio::{
                 self, join,
-                sync::mpsc::{self, Receiver},
                 time::{self, Duration},
             },
             utils::logger::init_logger,
         };
-        use ripple_tdk::utils::test_utils::Mockable;
+        use ripple_tdk::utils::test_utils::{
+            cap_jsonrpc_payload_granted, cap_jsonrpc_payload_revoked,
+        };
         use serde_json::json;
 
         fn setup(
@@ -1259,44 +1255,6 @@ mod tests {
                 .set_permissions(permissions);
 
             (platform_state, ctx, perm, policy)
-        }
-
-        async fn cap_state_listener(
-            state: &PlatformState,
-            perm: &FireboltPermission,
-            cap_event: CapEvent,
-        ) -> Receiver<ApiMessage> {
-            let ctx = CallContext::mock();
-            let (session_tx, resp_rx) = mpsc::channel(32);
-            let session = Session::new(
-                ctx.app_id.clone(),
-                Some(session_tx.clone()),
-                ripple_sdk::api::apps::EffectiveTransport::Websocket,
-            );
-            state
-                .session_state
-                .add_session(ctx.session_id.clone(), session);
-            CapState::setup_listener(
-                state,
-                ctx,
-                cap_event,
-                CapListenRPCRequest {
-                    capability: perm.cap.as_str(),
-                    listen: true,
-                    role: Some(CapabilityRole::Use),
-                },
-            )
-            .await;
-
-            resp_rx
-        }
-
-        fn cap_jsonrpc_payload_granted(cap: String) -> serde_json::Value {
-            json!({"id":1,"jsonrpc":"2.0","result":{"available":true,"capability":cap,"manage":{"granted":true,"permitted":true},"provide":{"granted":true,"permitted":true},"supported":true,"use":{"granted":true,"permitted":true}}})
-        }
-
-        fn cap_jsonrpc_payload_revoked(cap: String) -> serde_json::Value {
-            json!({"id":1,"jsonrpc":"2.0","result":{"available":true,"capability":cap,"details":["unpermitted"],"manage":{"granted":false,"permitted":false},"provide":{"granted":false,"permitted":false},"supported":true,"use":{"granted":false,"permitted":false}}})
         }
 
         #[tokio::test]
