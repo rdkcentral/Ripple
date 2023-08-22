@@ -516,22 +516,38 @@ impl AppLauncher {
 
     fn get_manifest_url(manifest: AppManifest) -> String {
         let mut url = manifest.start_page.to_string();
-        if !(url.clone().as_str().contains("__firebolt_endpoint")) {
-            if let Ok(mut parsed_url) = Url::parse(url.clone().as_str()) {
+        if let Ok(mut modified_url) = Url::parse(&url) {
+            let mut query_params: Vec<(String, String)> = modified_url
+                .query_pairs()
+                .map(|(k, v)| (k.into_owned(), v.into_owned()))
+                .collect();
+
+            if !query_params
+                .iter()
+                .any(|(key, _)| key == "__firebolt_endpoint")
+            {
                 let firebolt_endpoint = String::from("127.0.0.0");
                 let appid = manifest.name.to_string();
-
-                let modified_query: String = format!(
-                    "__firebolt_endpoint=ws%3A%2F%2F{}%3A3473%3FappId%3D{}",
+                let value: String = format!(
+                    "ws%3A%2F%2F{}%3A3473%3FappId%3D{}",
                     firebolt_endpoint, appid
                 );
-                parsed_url.set_query(Some(&modified_query));
-
-                url = parsed_url.as_str().to_owned();
-                info!("modified manifest URL : {}", url);
-            } else {
-                info!("Invalid URL");
+                query_params.push(("__firebolt_endpoint".to_string(), value));
             }
+
+            // Modify the URL with the updated query parameters
+            modified_url.set_query(Some(
+                &query_params
+                    .iter()
+                    .map(|(key, value)| format!("{}={}", key, value))
+                    .collect::<Vec<String>>()
+                    .join("&"),
+            ));
+
+            debug!("modified URL: {}", modified_url);
+            url = modified_url.as_str().to_string();
+        } else {
+            debug!("Invalid URL");
         }
         url
     }
