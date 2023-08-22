@@ -1240,7 +1240,10 @@ mod tests {
         ) -> (PlatformState, CallContext, FireboltPermission, GrantPolicy) {
             let _ = init_logger("tests".into());
             let runtime = MockRuntime::new();
-            let perm = fb_perm("xrn:firebolt:capability:localization:postal-code", None);
+            let perm = fb_perm(
+                "xrn:firebolt:capability:localization:postal-code",
+                Some(CapabilityRole::Use),
+            );
             let policy = GrantPolicy {
                 options: policy_options,
                 ..Default::default()
