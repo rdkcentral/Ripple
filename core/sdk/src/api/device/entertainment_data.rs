@@ -371,7 +371,7 @@ pub enum NavigationIntentStrict {
     ProviderRequest(ProviderRequestIntent),
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Context {
     pub source: String,
 }
