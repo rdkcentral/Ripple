@@ -174,7 +174,12 @@ mod tests {
             )
             .unwrap();
 
-            Self::new(extn_manifest, manifest, RippleClient::new(ChannelsState::new()), vec![])
+            Self::new(
+                extn_manifest,
+                manifest,
+                RippleClient::new(ChannelsState::new()),
+                vec![],
+            )
         }
     }
 }
