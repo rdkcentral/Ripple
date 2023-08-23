@@ -8,6 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-Dwarnings"
 
 jobs:
   formatting: 
@@ -20,6 +21,12 @@ jobs:
           components: rustfmt
       - name: Rust Format Checker
         uses: actions-rust-lang/rustfmt@v1
+    clippy_check:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v3
+        - name: Run Clippy
+          run: cargo clippy --all-targets --all-features
   test:
     name: Run Unit Tests
     runs-on: ubuntu-latest
