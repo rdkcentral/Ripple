@@ -82,17 +82,7 @@ By default the VSCode rust-analyzer extension runs cargo check on the Rust files
 
 To achieve this you need to add the following to your user-settings.json file.
 ```json
-  "rust-analyzer.check.overrideCommand": [
-    "~/.cargo/bin/cargo",
-    "clippy",
-    "--workspace",
-    "--all-targets",
-    "--all-features",
-    "--tests",
-    "--examples",
-    "--benches",
-    "--message-format=json-diagnostic-rendered-ansi"
-  ],
+  "rust-analyzer.check.command": "clippy",
 ```
 
 ** Note: `~/.cargo/bin/cargo` might need expanding to be the absolute full path on your system **
