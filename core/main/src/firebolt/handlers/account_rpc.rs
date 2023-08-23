@@ -74,7 +74,7 @@ impl AccountServer for AccountImpl {
                     CapState::emit(
                         &self.platform_state,
                         CapEvent::OnAvailable,
-                        FireboltCap::Full("xrn:firebolt:capability:account:session".to_owned()),
+                        FireboltCap::Short("token:platform".to_owned()),
                         None,
                     )
                     .await;
@@ -84,7 +84,7 @@ impl AccountServer for AccountImpl {
                     CapState::emit(
                         &self.platform_state,
                         CapEvent::OnUnavailable,
-                        FireboltCap::Full("xrn:firebolt:capability:account:session".to_owned()),
+                        FireboltCap::Short("token:platform".to_owned()),
                         None,
                     )
                     .await;

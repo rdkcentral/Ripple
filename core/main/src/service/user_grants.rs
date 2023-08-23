@@ -262,7 +262,7 @@ impl GrantState {
          */
         let grant_state = state.clone().cap_state.grant_state;
         let app_id = call_ctx.app_id.clone();
-        let caps_needing_grants = grant_state.caps_needing_grants.clone();
+        let caps_needing_grants = grant_state.clone().caps_needing_grants;
         let caps_needing_grant_in_request: Vec<FireboltPermission> = cap_set
             .into_firebolt_permissions_vec()
             .into_iter()
