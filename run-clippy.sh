@@ -1,3 +1,3 @@
 #!/bin/bash
 
-cargo clippy --fix --allow-staged --tests --examples --all-targets --all-features
+cargo clippy --tests --examples --all-targets --all-features
