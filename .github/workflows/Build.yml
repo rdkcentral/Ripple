@@ -23,19 +23,19 @@ jobs:
         uses: actions-rust-lang/rustfmt@v1
 
   clippy_check:
+    name: Run Clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: clippy
-      - name: Run Clippy
-        run: cargo clippy --tests --examples --all-targets --all-features
+      - run: cargo clippy --tests --examples --all-targets --all-features
 
   test:
     name: Run Unit Tests
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions-rust-lang/setup-rust-toolchain@v1
-    - run: cargo test
+      - uses: actions/checkout@v3
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: cargo test
