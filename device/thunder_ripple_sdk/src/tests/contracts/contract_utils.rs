@@ -132,7 +132,6 @@ pub async fn get_pact_mock_server(async_build: PactBuilderAsync) -> Box<dyn Vali
 pub fn get_extn_client(s: Sender<CExtnMessage>, r: Receiver<CExtnMessage>) -> ExtnClient {
     // Creating extn client which will send back the data to the receiver(instead of callback)
     let option_map: Option<HashMap<String, String>> = Some(HashMap::new());
-    
 
     ExtnClient::new(
         r.clone(),
