@@ -35,6 +35,7 @@ use std::collections::HashMap;
 
 // #[tokio::test(flavor = "multi_thread")]
 // #[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[allow(dead_code)]
 async fn test_device_launch_html_app() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
