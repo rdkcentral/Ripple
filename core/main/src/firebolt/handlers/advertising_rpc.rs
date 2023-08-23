@@ -52,7 +52,7 @@ use super::{
     privacy_rpc::{self, PrivacyImpl},
 };
 
-const ADVERTISING_APP_BUNDLE_ID_SUFFIX: &'static str = "Comcast";
+const ADVERTISING_APP_BUNDLE_ID_SUFFIX: &str = "Comcast";
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -141,7 +141,7 @@ impl AdvertisingServer for AdvertisingImpl {
             .send_extn_request(AdvertisingRequest::ResetAdIdentifier(session))
             .await;
 
-        if let Err(_) = resp {
+        if resp.is_err() {
             error!("Error resetting ad identifier {:?}", resp);
             return Err(rpc_err("Could not reset ad identifier for the device"));
         }
@@ -162,32 +162,29 @@ impl AdvertisingServer for AdvertisingImpl {
         let payload = AdvertisingRequest::GetAdIdObject(AdIdRequestParams {
             privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(&self.state)
                 .await,
-            app_id: ctx.clone().app_id.to_string(),
+            app_id: ctx.app_id.to_owned(),
             dist_session: session,
         });
         let resp = self.state.get_client().send_extn_request(payload).await;
 
-        if let Err(_) = resp {
+        if resp.is_err() {
             error!("Error getting ad init object: {:?}", resp);
             return Err(rpc_err("Could not get ad init object from the device"));
         }
 
-        match resp {
-            Ok(payload) => match payload.payload.extract::<AdvertisingResponse>() {
-                Some(response) => {
-                    if let AdvertisingResponse::AdIdObject(obj) = response {
-                        let ad_init_object = AdvertisingId {
-                            ifa: obj.ifa,
-                            ifa_type: obj.ifa_type,
-                            lmt: obj.lmt,
-                        };
-                        return Ok(ad_init_object);
-                    }
-                }
-                None => {}
-            },
-            Err(_) => {}
+        if let Ok(payload) = resp {
+            if let Some(AdvertisingResponse::AdIdObject(obj)) =
+                payload.payload.extract::<AdvertisingResponse>()
+            {
+                let ad_init_object = AdvertisingId {
+                    ifa: obj.ifa,
+                    ifa_type: obj.ifa_type,
+                    lmt: obj.lmt,
+                };
+                return Ok(ad_init_object);
+            }
         }
+
         Err(jsonrpsee::core::Error::Custom(String::from(
             "Failed to extract ad init object from response",
         )))
@@ -232,7 +229,7 @@ impl AdvertisingServer for AdvertisingImpl {
 
         let resp = self.state.get_client().send_extn_request(payload).await;
 
-        if let Err(_) = resp {
+        if resp.is_err() {
             error!("Error getting ad init object: {:?}", resp);
             return Err(rpc_err("Could not get ad init object from the device"));
         }
@@ -285,7 +282,7 @@ impl AdvertisingServer for AdvertisingImpl {
                 from Freewheel and returning an error.
                 */
 
-                if b_string.trim().len() == 0 {
+                if b_string.trim().is_empty() {
                     b_string = "{}".to_string();
                 };
 

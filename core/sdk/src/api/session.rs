@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
-    framework::ripple_contract::RippleContract,
+    framework::ripple_contract::{ContractAdjective, RippleContract},
 };
 
 pub fn deserialize_expiry<'de, D>(deserializer: D) -> Result<Expiry, D::Error>
@@ -62,13 +62,10 @@ pub enum AccountSessionRequest {
 
 impl ExtnPayloadProvider for AccountSessionRequest {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(r) => match r {
-                ExtnRequest::AccountSession(v) => return Some(v),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::AccountSession(v)) = payload {
+            return Some(v);
         }
+
         None
     }
 
@@ -77,7 +74,7 @@ impl ExtnPayloadProvider for AccountSessionRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::AccountSession
+        RippleContract::Session(SessionAdjective::Account)
     }
 }
 
@@ -92,12 +89,8 @@ pub struct AccountSession {
 
 impl ExtnPayloadProvider for AccountSession {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Response(r) => match r {
-                ExtnResponse::AccountSession(v) => return Some(v),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Response(ExtnResponse::AccountSession(v)) = payload {
+            return Some(v);
         }
 
         None
@@ -108,7 +101,7 @@ impl ExtnPayloadProvider for AccountSession {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::AccountSession
+        RippleContract::Session(SessionAdjective::Account)
     }
 }
 
@@ -165,17 +158,39 @@ impl ExtnPayloadProvider for SessionTokenRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<SessionTokenRequest> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::SessionToken(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::SessionToken(r)) = payload {
+            return Some(r);
         }
+
         None
     }
 
+    fn get_contract(&self) -> RippleContract {
+        match self.token_type {
+            TokenType::Root => RippleContract::Session(SessionAdjective::Root),
+            TokenType::Device => RippleContract::Session(SessionAdjective::Device),
+            TokenType::Platform => RippleContract::Session(SessionAdjective::Platform),
+            TokenType::Distributor => RippleContract::Session(SessionAdjective::Distributor),
+        }
+    }
+
     fn contract() -> RippleContract {
-        RippleContract::SessionToken
+        RippleContract::Session(SessionAdjective::Device)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionAdjective {
+    Account,
+    Platform,
+    Device,
+    Distributor,
+    Root,
+}
+
+impl ContractAdjective for SessionAdjective {
+    fn get_contract(&self) -> RippleContract {
+        RippleContract::Session(self.clone())
     }
 }

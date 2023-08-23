@@ -19,121 +19,113 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
-    framework::ripple_contract::RippleContract,
+    framework::ripple_contract::{ContractAdjective, RippleContract},
 };
 
 use super::distributor::distributor_privacy::PrivacySetting;
 
-pub const NAMESPACE_CLOSED_CAPTIONS: &'static str = "ClosedCaptions";
-pub const NAMESPACE_PRIVACY: &'static str = "Privacy";
-pub const NAMESPACE_DEVICE_NAME: &'static str = "DeviceName";
-pub const NAMESPACE_LOCALIZATION: &'static str = "Localization";
-pub const NAMESPACE_USER_GRANT: &'static str = "UserGrant";
-pub const NAMESPACE_VOICE_GUIDANCE: &'static str = "VoiceGuidance";
-pub const NAMESPACE_ADVERTISING: &'static str = "Advertising";
+pub const NAMESPACE_CLOSED_CAPTIONS: &str = "ClosedCaptions";
+pub const NAMESPACE_PRIVACY: &str = "Privacy";
+pub const NAMESPACE_DEVICE_NAME: &str = "DeviceName";
+pub const NAMESPACE_LOCALIZATION: &str = "Localization";
+pub const NAMESPACE_USER_GRANT: &str = "UserGrant";
+pub const NAMESPACE_VOICE_GUIDANCE: &str = "VoiceGuidance";
+pub const NAMESPACE_ADVERTISING: &str = "Advertising";
 
-pub const KEY_ENABLED: &'static str = "enabled";
-pub const KEY_FONT_FAMILY: &'static str = "fontFamily";
-pub const KEY_FONT_SIZE: &'static str = "fontSize";
-pub const KEY_FONT_COLOR: &'static str = "fontColor";
-pub const KEY_FONT_EDGE: &'static str = "fontEdge";
-pub const KEY_FONT_EDGE_COLOR: &'static str = "fontEdgeColor";
-pub const KEY_FONT_OPACITY: &'static str = "fontOpacity";
-pub const KEY_BACKGROUND_COLOR: &'static str = "backgroundColor";
-pub const KEY_BACKGROUND_OPACITY: &'static str = "backgroundOpacity";
-pub const KEY_TEXT_ALIGN: &'static str = "textAlign";
-pub const KEY_TEXT_ALIGN_VERTICAL: &'static str = "textAlignVertical";
-pub const KEY_LIMIT_AD_TRACKING: &'static str = "limitAdTracking";
-pub const KEY_NAME: &'static str = "name";
-pub const KEY_POSTAL_CODE: &'static str = "postalCode";
-pub const KEY_LOCALITY: &'static str = "locality";
-pub const KEY_COUNTRY_CODE: &'static str = "countryCode";
-pub const KEY_LANGUAGE: &'static str = "language";
-pub const KEY_LOCALE: &'static str = "locale";
-pub const KEY_LATLON: &'static str = "latlon";
-pub const KEY_ADDITIONAL_INFO: &'static str = "additionalInfo";
-pub const KEY_ENABLE_RECOMMENDATIONS: &'static str = "enableRecommendations";
-pub const KEY_REMEMBER_WATCHED_PROGRAMS: &'static str = "rememberWatchedPrograms";
-pub const KEY_SHARE_WATCH_HISTORY: &'static str = "shareWatchHistory";
-pub const KEY_USER_GRANT: &'static str = "userGrantKey";
-pub const KEY_ALLOW_ACR_COLLECTION: &'static str = "allowACRCollection";
-pub const KEY_ALLOW_APP_CONTENT_AD_TARGETING: &'static str = "allowAppContentAdTargetting";
-pub const KEY_ALLOW_CAMERA_ANALYTICS: &'static str = "allowCameraAnalytics";
-pub const KEY_ALLOW_PERSONALIZATION: &'static str = "allowPersonalization";
-pub const KEY_ALLOW_PRIMARY_BROWSE_AD_TARGETING: &'static str = "allowPrimaryBrowseAdTargeting";
-pub const KEY_ALLOW_PRIMARY_CONTENT_AD_TARGETING: &'static str = "allowPrimaryContentAdTargeting";
-pub const KEY_ALLOW_PRODUCT_ANALYTICS: &'static str = "allowProductAnalytics";
-pub const KEY_ALLOW_REMOTE_DIAGNOSTICS: &'static str = "allowRemoteDiagnostics";
-pub const KEY_ALLOW_RESUME_POINTS: &'static str = "allowResumePoints";
-pub const KEY_ALLOW_UNENTITLED_PERSONALIZATION: &'static str = "allowUnentitledPersonalization";
-pub const KEY_ALLOW_UNENTITLED_RESUME_POINTS: &'static str = "allowUnentitledResumePoints";
-pub const KEY_ALLOW_WATCH_HISTORY: &'static str = "allowWatchHistory";
-pub const KEY_VOICE_GUIDANCE_SPEED: &'static str = "speed";
-pub const KEY_PARTNER_EXCLUSIONS: &'static str = "partnerExclusions";
-pub const KEY_SKIP_RESTRICTION: &'static str = "skipRestriction";
+pub const KEY_ENABLED: &str = "enabled";
+pub const KEY_FONT_FAMILY: &str = "fontFamily";
+pub const KEY_FONT_SIZE: &str = "fontSize";
+pub const KEY_FONT_COLOR: &str = "fontColor";
+pub const KEY_FONT_EDGE: &str = "fontEdge";
+pub const KEY_FONT_EDGE_COLOR: &str = "fontEdgeColor";
+pub const KEY_FONT_OPACITY: &str = "fontOpacity";
+pub const KEY_BACKGROUND_COLOR: &str = "backgroundColor";
+pub const KEY_BACKGROUND_OPACITY: &str = "backgroundOpacity";
+pub const KEY_TEXT_ALIGN: &str = "textAlign";
+pub const KEY_TEXT_ALIGN_VERTICAL: &str = "textAlignVertical";
+pub const KEY_LIMIT_AD_TRACKING: &str = "limitAdTracking";
+pub const KEY_NAME: &str = "name";
+pub const KEY_POSTAL_CODE: &str = "postalCode";
+pub const KEY_LOCALITY: &str = "locality";
+pub const KEY_COUNTRY_CODE: &str = "countryCode";
+pub const KEY_LANGUAGE: &str = "language";
+pub const KEY_LOCALE: &str = "locale";
+pub const KEY_LATLON: &str = "latlon";
+pub const KEY_ADDITIONAL_INFO: &str = "additionalInfo";
+pub const KEY_ENABLE_RECOMMENDATIONS: &str = "enableRecommendations";
+pub const KEY_REMEMBER_WATCHED_PROGRAMS: &str = "rememberWatchedPrograms";
+pub const KEY_SHARE_WATCH_HISTORY: &str = "shareWatchHistory";
+pub const KEY_USER_GRANT: &str = "userGrantKey";
+pub const KEY_ALLOW_ACR_COLLECTION: &str = "allowACRCollection";
+pub const KEY_ALLOW_APP_CONTENT_AD_TARGETING: &str = "allowAppContentAdTargetting";
+pub const KEY_ALLOW_CAMERA_ANALYTICS: &str = "allowCameraAnalytics";
+pub const KEY_ALLOW_PERSONALIZATION: &str = "allowPersonalization";
+pub const KEY_ALLOW_PRIMARY_BROWSE_AD_TARGETING: &str = "allowPrimaryBrowseAdTargeting";
+pub const KEY_ALLOW_PRIMARY_CONTENT_AD_TARGETING: &str = "allowPrimaryContentAdTargeting";
+pub const KEY_ALLOW_PRODUCT_ANALYTICS: &str = "allowProductAnalytics";
+pub const KEY_ALLOW_REMOTE_DIAGNOSTICS: &str = "allowRemoteDiagnostics";
+pub const KEY_ALLOW_RESUME_POINTS: &str = "allowResumePoints";
+pub const KEY_ALLOW_UNENTITLED_PERSONALIZATION: &str = "allowUnentitledPersonalization";
+pub const KEY_ALLOW_UNENTITLED_RESUME_POINTS: &str = "allowUnentitledResumePoints";
+pub const KEY_ALLOW_WATCH_HISTORY: &str = "allowWatchHistory";
+pub const KEY_VOICE_GUIDANCE_SPEED: &str = "speed";
+pub const KEY_PARTNER_EXCLUSIONS: &str = "partnerExclusions";
+pub const KEY_SKIP_RESTRICTION: &str = "skipRestriction";
 
-pub const EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED: &'static str =
+pub const EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED: &str =
     "accessibility.onClosedCaptionsSettingsChanged";
-pub const EVENT_CLOSED_CAPTIONS_ENABLED: &'static str = "closedcaptions.onEnabledChanged";
-pub const EVENT_CLOSED_CAPTIONS_FONT_FAMILY: &'static str = "closedcaptions.onFontFamilyChanged";
-pub const EVENT_CLOSED_CAPTIONS_FONT_SIZE: &'static str = "closedcaptions.onFontSizeChanged";
-pub const EVENT_CLOSED_CAPTIONS_FONT_COLOR: &'static str = "closedcaptions.onFontColorChanged";
-pub const EVENT_CLOSED_CAPTIONS_FONT_EDGE: &'static str = "closedcaptions.onFontEdgeChanged";
-pub const EVENT_CLOSED_CAPTIONS_FONT_EDGE_COLOR: &'static str =
-    "closedcaptions.onFontEdgeColorChanged";
-pub const EVENT_CLOSED_CAPTIONS_FONT_OPACITY: &'static str = "closedcaptions.onFontOpacityChanged";
-pub const EVENT_CLOSED_CAPTIONS_BACKGROUND_COLOR: &'static str =
-    "closedcaptions.onBackgroundColorChanged";
-pub const EVENT_CLOSED_CAPTIONS_BACKGROUND_OPACITY: &'static str =
+pub const EVENT_CLOSED_CAPTIONS_ENABLED: &str = "closedcaptions.onEnabledChanged";
+pub const EVENT_CLOSED_CAPTIONS_FONT_FAMILY: &str = "closedcaptions.onFontFamilyChanged";
+pub const EVENT_CLOSED_CAPTIONS_FONT_SIZE: &str = "closedcaptions.onFontSizeChanged";
+pub const EVENT_CLOSED_CAPTIONS_FONT_COLOR: &str = "closedcaptions.onFontColorChanged";
+pub const EVENT_CLOSED_CAPTIONS_FONT_EDGE: &str = "closedcaptions.onFontEdgeChanged";
+pub const EVENT_CLOSED_CAPTIONS_FONT_EDGE_COLOR: &str = "closedcaptions.onFontEdgeColorChanged";
+pub const EVENT_CLOSED_CAPTIONS_FONT_OPACITY: &str = "closedcaptions.onFontOpacityChanged";
+pub const EVENT_CLOSED_CAPTIONS_BACKGROUND_COLOR: &str = "closedcaptions.onBackgroundColorChanged";
+pub const EVENT_CLOSED_CAPTIONS_BACKGROUND_OPACITY: &str =
     "closedcaptions.onBackgroundOpacityChanged";
-pub const EVENT_CLOSED_CAPTIONS_TEXT_ALIGN: &'static str = "closedcaptions.onTextAlignChanged";
-pub const EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL: &'static str =
+pub const EVENT_CLOSED_CAPTIONS_TEXT_ALIGN: &str = "closedcaptions.onTextAlignChanged";
+pub const EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL: &str =
     "closedcaptions.onTextAlignVerticalChanged";
-pub const EVENT_LOCALITY: &'static str = "localization.onLocalityChanged";
-pub const EVENT_COUNTRY_CODE: &'static str = "localization.onCountryCodeChanged";
-pub const EVENT_LANGUAGE: &'static str = "localization.onLanguageChanged";
-pub const EVENT_POSTAL_CODE: &'static str = "localization.onPostalCodeChanged";
-pub const EVENT_LOCALE: &'static str = "localization.onLocaleChanged";
-pub const EVENT_LATLON: &'static str = "localization.onLatlonChanged";
-pub const EVENT_ADDITIONAL_INFO: &'static str = "localization.onAdditionalInfoChanged";
-pub const EVENT_ENABLE_RECOMMENDATIONS: &'static str = "privacy.onEnableRecommendationsChanged";
-pub const EVENT_LIMIT_AD_TRACKING: &'static str = "privacy.onLimitAdTrackingChanged";
-pub const EVENT_REMEMBER_WATCHED_PROGRAMS: &'static str =
-    "privacy.onRememberWatchedProgramsChanged";
-pub const EVENT_SHARE_WATCH_HISTORY: &'static str = "privacy.onShareWatchHistoryChanged";
-pub const EVENT_ALLOW_ACR_COLLECTION_CHANGED: &'static str = "privacy.onAllowACRCollectionChanged";
-pub const EVENT_ALLOW_APP_CONTENT_AD_TARGETING_CHANGED: &'static str =
+pub const EVENT_LOCALITY: &str = "localization.onLocalityChanged";
+pub const EVENT_COUNTRY_CODE: &str = "localization.onCountryCodeChanged";
+pub const EVENT_LANGUAGE: &str = "localization.onLanguageChanged";
+pub const EVENT_POSTAL_CODE: &str = "localization.onPostalCodeChanged";
+pub const EVENT_LOCALE: &str = "localization.onLocaleChanged";
+pub const EVENT_LATLON: &str = "localization.onLatlonChanged";
+pub const EVENT_ADDITIONAL_INFO: &str = "localization.onAdditionalInfoChanged";
+pub const EVENT_ENABLE_RECOMMENDATIONS: &str = "privacy.onEnableRecommendationsChanged";
+pub const EVENT_LIMIT_AD_TRACKING: &str = "privacy.onLimitAdTrackingChanged";
+pub const EVENT_REMEMBER_WATCHED_PROGRAMS: &str = "privacy.onRememberWatchedProgramsChanged";
+pub const EVENT_SHARE_WATCH_HISTORY: &str = "privacy.onShareWatchHistoryChanged";
+pub const EVENT_ALLOW_ACR_COLLECTION_CHANGED: &str = "privacy.onAllowACRCollectionChanged";
+pub const EVENT_ALLOW_APP_CONTENT_AD_TARGETING_CHANGED: &str =
     "privacy.onAllowAppContentAdTargetingChanged";
-pub const EVENT_ALLOW_CAMERA_ANALYTICS_CHANGED: &'static str =
-    "privacy.onAllowCameraAnalyticsChanged";
-pub const EVENT_ALLOW_PERSONALIZATION_CHANGED: &'static str =
-    "privacy.onAllowPersonalizationChanged";
-pub const EVENT_ALLOW_PRIMARY_BROWSE_AD_TARGETING_CHANGED: &'static str =
+pub const EVENT_ALLOW_CAMERA_ANALYTICS_CHANGED: &str = "privacy.onAllowCameraAnalyticsChanged";
+pub const EVENT_ALLOW_PERSONALIZATION_CHANGED: &str = "privacy.onAllowPersonalizationChanged";
+pub const EVENT_ALLOW_PRIMARY_BROWSE_AD_TARGETING_CHANGED: &str =
     "privacy.onAllowPrimaryBrowseAdTargetingChanged";
-pub const EVENT_ALLOW_PRIMARY_CONTENT_AD_TARGETING_CHANGED: &'static str =
+pub const EVENT_ALLOW_PRIMARY_CONTENT_AD_TARGETING_CHANGED: &str =
     "privacy.onAllowPrimaryContentAdTargetingChanged";
-pub const EVENT_ALLOW_PRODUCT_ANALYTICS_CHANGED: &'static str =
-    "privacy.onAllowProductAnalyticsChanged";
-pub const EVENT_ALLOW_REMOTE_DIAGNOSTICS_CHANGED: &'static str =
-    "privacy.onAllowRemoteDiagnosticsChanged";
-pub const EVENT_ALLOW_RESUME_POINTS_CHANGED: &'static str = "privacy.onAllowResumePointsChanged";
-pub const EVENT_ALLOW_UNENTITLED_PERSONALIZATION_CHANGED: &'static str =
+pub const EVENT_ALLOW_PRODUCT_ANALYTICS_CHANGED: &str = "privacy.onAllowProductAnalyticsChanged";
+pub const EVENT_ALLOW_REMOTE_DIAGNOSTICS_CHANGED: &str = "privacy.onAllowRemoteDiagnosticsChanged";
+pub const EVENT_ALLOW_RESUME_POINTS_CHANGED: &str = "privacy.onAllowResumePointsChanged";
+pub const EVENT_ALLOW_UNENTITLED_PERSONALIZATION_CHANGED: &str =
     "privacy.onAllowUnentitledPersonalizationChanged";
-pub const EVENT_ALLOW_UNENTITLED_RESUME_POINTS_CHANGED: &'static str =
+pub const EVENT_ALLOW_UNENTITLED_RESUME_POINTS_CHANGED: &str =
     "privacy.onAllowUnentitledResumePointsChanged";
-pub const EVENT_ALLOW_WATCH_HISTORY_CHANGED: &'static str = "privacy.onAllowWatchHistoryChanged";
-pub const EVENT_DEVICE_NAME_CHANGED: &'static str = "device.onNameChanged";
-pub const EVENT_DEVICE_DEVICE_NAME_CHANGED: &'static str = "device.onDeviceNameChanged";
-pub const EVENT_SECOND_SCREEN_FRIENDLY_NAME_CHANGED: &'static str =
-    "secondscreen.onFriendlyNameChanged";
-pub const EVENT_ADVERTISING_POLICY_CHANGED: &'static str = "advertising.onPolicyChanged";
-pub const EVENT_ADVERTISING_SKIP_RESTRICTION: &'static str = "advertising.setSkipRestriction";
+pub const EVENT_ALLOW_WATCH_HISTORY_CHANGED: &str = "privacy.onAllowWatchHistoryChanged";
+pub const EVENT_DEVICE_NAME_CHANGED: &str = "device.onNameChanged";
+pub const EVENT_DEVICE_DEVICE_NAME_CHANGED: &str = "device.onDeviceNameChanged";
+pub const EVENT_SECOND_SCREEN_FRIENDLY_NAME_CHANGED: &str = "secondscreen.onFriendlyNameChanged";
+pub const EVENT_ADVERTISING_POLICY_CHANGED: &str = "advertising.onPolicyChanged";
+pub const EVENT_ADVERTISING_SKIP_RESTRICTION: &str = "advertising.setSkipRestriction";
 
-pub const EVENT_VOICE_GUIDANCE_SETTINGS_CHANGED: &'static str =
+pub const EVENT_VOICE_GUIDANCE_SETTINGS_CHANGED: &str =
     "accessibility.onVoiceGuidanceSettingsChanged";
-pub const EVENT_VOICE_GUIDANCE_ENABLED_CHANGED: &'static str = "voiceguidance.onEnabledChanged";
-pub const EVENT_VOICE_GUIDANCE_SPEED_CHANGED: &'static str = "voiceguidance.onSpeedChanged";
-pub const EVENT_TIMEZONE_CHANGED: &'static str = "localization.onTimeZoneChanged";
+pub const EVENT_VOICE_GUIDANCE_ENABLED_CHANGED: &str = "voiceguidance.onEnabledChanged";
+pub const EVENT_VOICE_GUIDANCE_SPEED_CHANGED: &str = "voiceguidance.onSpeedChanged";
+pub const EVENT_TIMEZONE_CHANGED: &str = "localization.onTimeZoneChanged";
 
 const PROPERTY_DATA_VOICE_GUIDANCE_ENABLED: PropertyData = PropertyData {
     key: KEY_ENABLED,
@@ -575,17 +567,32 @@ impl ExtnPayloadProvider for StorageManagerRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<StorageManagerRequest> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::StorageManager(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::StorageManager(r)) = payload {
+            return Some(r);
         }
+
         None
     }
 
     fn contract() -> RippleContract {
-        RippleContract::StorageManager
+        RippleContract::Storage(StorageAdjective::Manager)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum StorageAdjective {
+    PrivacyCloud,
+    PrivacyLocal,
+    UsergrantCloud,
+    UsergrantLocal,
+    Local,
+    Manager,
+    Secure,
+}
+
+impl ContractAdjective for StorageAdjective {
+    fn get_contract(&self) -> RippleContract {
+        RippleContract::Storage(self.clone())
     }
 }

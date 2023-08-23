@@ -60,8 +60,8 @@ impl AppEventDecorator for VGEventDecorator {
         _event_name: &str,
         _val_in: &Value,
     ) -> Result<Value, AppEventDecorationError> {
-        let enabled = voice_guidance_settings_enabled(&ps).await?;
-        let speed = voice_guidance_settings_speed(&ps).await?;
+        let enabled = voice_guidance_settings_enabled(ps).await?;
+        let speed = voice_guidance_settings_speed(ps).await?;
         Ok(serde_json::to_value(VoiceGuidanceSettings { enabled, speed }).unwrap())
     }
 
@@ -171,15 +171,16 @@ pub async fn voice_guidance_settings_enabled_changed(
     let listen = request.listen;
 
     // Register for individual change events (no-op if already registered), handlers emit VOICE_GUIDANCE_SETTINGS_CHANGED_EVENT.
-    if let Err(_) = platform_state
+    if platform_state
         .get_client()
         .send_extn_request(DeviceEventRequest {
             event: DeviceEvent::VoiceGuidanceChanged,
-            id: ctx.clone().app_id,
+            id: ctx.app_id.to_owned(),
             subscribe: listen,
             callback_type: DeviceEventCallback::FireboltAppEvent,
         })
         .await
+        .is_err()
     {
         error!("Error while registration");
     }
@@ -187,7 +188,7 @@ pub async fn voice_guidance_settings_enabled_changed(
     /*
     Add decorated listener after call to voice_guidance_settings_enabled_changed to make decorated listener current  */
     AppEvents::add_listener_with_decorator(
-        &platform_state,
+        platform_state,
         event_name.to_string(),
         ctx.clone(),
         request.clone(),

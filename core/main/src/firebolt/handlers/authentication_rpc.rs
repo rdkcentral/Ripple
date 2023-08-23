@@ -88,9 +88,8 @@ impl AuthenticationServer for AuthenticationImpl {
                 //error!("distributor token type is unsupported");
                 return Err(jsonrpsee::core::Error::Call(CallError::Custom {
                     code: CAPABILITY_NOT_SUPPORTED,
-                    message: format!(
-                        "capability xrn:firebolt:capability:token:session is not supported"
-                    ),
+                    message: "capability xrn:firebolt:capability:token:session is not supported"
+                        .to_string(),
                     data: None,
                 }));
             }
@@ -99,11 +98,8 @@ impl AuthenticationServer for AuthenticationImpl {
 
     async fn root(&self, ctx: CallContext) -> RpcResult<String> {
         let r = self.root_token(ctx).await;
-        if r.is_ok() {
-            return Ok(r.unwrap().value);
-        } else {
-            return Err(r.err().unwrap());
-        }
+
+        r.map(|r| r.value)
     }
 
     async fn device(&self, ctx: CallContext) -> RpcResult<String> {
@@ -113,17 +109,14 @@ impl AuthenticationServer for AuthenticationImpl {
         } else {
             self.root_token(ctx).await
         };
-        if r.is_ok() {
-            return Ok(r.unwrap().value);
-        } else {
-            return Err(r.err().unwrap());
-        }
+
+        r.map(|r| r.value)
     }
 
     async fn session(&self, _ctx: CallContext) -> RpcResult<String> {
         Err(jsonrpsee::core::Error::Call(CallError::Custom {
             code: CAPABILITY_NOT_SUPPORTED,
-            message: format!("authentication.session is not supported"),
+            message: "authentication.session is not supported".to_string(),
             data: None,
         }))
     }
@@ -148,10 +141,10 @@ impl AuthenticationImpl {
                     expires: t.expires,
                     _type: TokenType::Platform,
                 }),
-                e => Err(jsonrpsee::core::Error::Custom(String::from(format!(
+                e => Err(jsonrpsee::core::Error::Custom(format!(
                     "unknown error getting platform token {:?}",
                     e
-                )))),
+                ))),
             },
 
             Err(_e) => {
@@ -181,10 +174,10 @@ impl AuthenticationImpl {
                     expires: t.expires,
                     _type: TokenType::Root,
                 }),
-                e => Err(jsonrpsee::core::Error::Custom(String::from(format!(
+                e => Err(jsonrpsee::core::Error::Custom(format!(
                     "unknown error getting root token {:?}",
                     e
-                )))),
+                ))),
             },
 
             Err(_e) => {
@@ -216,10 +209,10 @@ impl AuthenticationImpl {
                         expires: None,
                         _type: TokenType::Device,
                     }),
-                    e => Err(jsonrpsee::core::Error::Custom(String::from(format!(
+                    e => Err(jsonrpsee::core::Error::Custom(format!(
                         "unknown rror getting device token {:?}",
                         e
-                    )))),
+                    ))),
                 },
 
                 Err(_e) => {
@@ -230,7 +223,7 @@ impl AuthenticationImpl {
                 }
             }
         } else {
-            return Err(rpc_err("Distributor not available"));
+            Err(rpc_err("Distributor not available"))
         }
     }
 }

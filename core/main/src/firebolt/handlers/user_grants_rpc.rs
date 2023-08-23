@@ -76,16 +76,18 @@ impl UserGrantsImpl {
 
         let app_request = AppRequest::new(AppMethod::GetAppName(app_id.into()), app_resp_tx);
 
-        if let Err(_) = self
+        if self
             .platform_state
             .get_client()
             .send_app_request(app_request)
+            .is_err()
         {
             return Err(rpc_err(format!(
                 "Failed to get App Name for {}",
                 app_id.to_owned()
             )));
         }
+
         let resp = rpc_await_oneshot(app_resp_rx).await?;
 
         if let AppManagerResponse::AppName(app_title) = resp? {
@@ -108,8 +110,8 @@ impl UserGrantsImpl {
             None => None,
         };
         grant_entries
-            .into_iter()
-            .map(move |x| UserGrantsImpl::transform(app_id.clone(), app_name.clone(), &x))
+            .iter()
+            .map(move |x| UserGrantsImpl::transform(app_id.clone(), app_name.clone(), x))
             .collect()
     }
 
@@ -121,14 +123,14 @@ impl UserGrantsImpl {
     ) -> GrantInfo {
         GrantInfo {
             app: app_id.map(|x| AppInfo {
-                id: x.to_owned(),
+                id: x,
                 title: app_name,
             }),
             state: entry.status.as_ref().unwrap().as_string().to_owned(),
             capability: entry.capability.to_owned(),
             role: entry.role.as_string().to_owned(),
             lifespan: entry.lifespan.as_ref().unwrap().as_string().to_owned(),
-            expires: (|| {
+            expires: {
                 entry.lifespan_ttl_in_secs.map(|ttl_secs| {
                     let expiry_system_time: SystemTime = SystemTime::UNIX_EPOCH
                         + entry.last_modified_time
@@ -136,7 +138,7 @@ impl UserGrantsImpl {
                     let expiry_date_time: DateTime<Utc> = DateTime::from(expiry_system_time);
                     expiry_date_time.to_rfc3339()
                 })
-            })(),
+            },
         }
     }
 }

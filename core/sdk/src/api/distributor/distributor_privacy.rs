@@ -20,7 +20,10 @@ use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::{session::AccountSession, storage_property::StorageProperty},
+    api::{
+        session::AccountSession,
+        storage_property::{StorageAdjective, StorageProperty},
+    },
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
@@ -80,6 +83,12 @@ impl PrivacySettings {
     }
 }
 
+impl Default for PrivacySettings {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PrivacySettingsStoreRequest {
     GetPrivacySettings(StorageProperty),
@@ -106,10 +115,9 @@ pub struct PrivacySettingsData {
 impl ExtnPayloadProvider for PrivacySettingsStoreRequest {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         match payload {
-            ExtnPayload::Request(req) => match req {
-                ExtnRequest::PrivacySettingsStore(storage_request) => Some(storage_request),
-                _ => None,
-            },
+            ExtnPayload::Request(ExtnRequest::PrivacySettingsStore(storage_request)) => {
+                Some(storage_request)
+            }
             _ => None,
         }
     }
@@ -119,22 +127,16 @@ impl ExtnPayloadProvider for PrivacySettingsStoreRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::PrivacySettingsLocalStore
+        RippleContract::Storage(StorageAdjective::PrivacyLocal)
     }
 }
 
 impl ExtnPayloadProvider for PrivacySettings {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Response(r) => match r {
-                ExtnResponse::Value(v) => {
-                    if let Ok(v) = serde_json::from_value(v) {
-                        return Some(v);
-                    }
-                }
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Response(ExtnResponse::Value(v)) = payload {
+            if let Ok(v) = serde_json::from_value(v) {
+                return Some(v);
+            }
         }
 
         None
@@ -147,24 +149,17 @@ impl ExtnPayloadProvider for PrivacySettings {
     }
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
-        RippleContract::PrivacyCloudStore
+        RippleContract::Storage(StorageAdjective::PrivacyCloud)
     }
 }
 
 impl ExtnPayloadProvider for PrivacySettingsData {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(r) => match r {
-                ExtnRequest::PrivacySettingsStore(storage_request) => {
-                    if let PrivacySettingsStoreRequest::SetAllPrivacySettings(settings) =
-                        storage_request
-                    {
-                        return Some(settings);
-                    }
-                }
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::PrivacySettingsStore(
+            PrivacySettingsStoreRequest::SetAllPrivacySettings(settings),
+        )) = payload
+        {
+            return Some(settings);
         }
 
         None
@@ -177,7 +172,7 @@ impl ExtnPayloadProvider for PrivacySettingsData {
     }
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
-        RippleContract::PrivacySettingsLocalStore
+        RippleContract::Storage(StorageAdjective::PrivacyLocal)
     }
 }
 
@@ -223,12 +218,8 @@ impl PrivacyCloudRequest {
 
 impl ExtnPayloadProvider for PrivacyCloudRequest {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(r) => match r {
-                ExtnRequest::PrivacySettings(p) => return Some(p),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::PrivacySettings(p)) = payload {
+            return Some(p);
         }
 
         None
@@ -239,7 +230,7 @@ impl ExtnPayloadProvider for PrivacyCloudRequest {
     }
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
-        RippleContract::PrivacyCloudStore
+        RippleContract::Storage(StorageAdjective::PrivacyCloud)
     }
 }
 
@@ -269,16 +260,10 @@ pub struct ExclusionPolicy {
 
 impl ExtnPayloadProvider for ExclusionPolicy {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Response(r) => match r {
-                ExtnResponse::Value(v) => {
-                    if let Ok(v) = serde_json::from_value(v) {
-                        return Some(v);
-                    }
-                }
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Response(ExtnResponse::Value(v)) = payload {
+            if let Ok(v) = serde_json::from_value(v) {
+                return Some(v);
+            }
         }
 
         None
@@ -291,7 +276,7 @@ impl ExtnPayloadProvider for ExclusionPolicy {
     }
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
-        RippleContract::PrivacyCloudStore
+        RippleContract::Storage(StorageAdjective::PrivacyCloud)
     }
 }
 

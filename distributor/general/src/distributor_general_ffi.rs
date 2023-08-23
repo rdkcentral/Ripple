@@ -16,7 +16,10 @@
 //
 
 use ripple_sdk::{
-    api::{config::Config, status_update::ExtnStatus},
+    api::{
+        config::Config, session::SessionAdjective, status_update::ExtnStatus,
+        storage_property::StorageAdjective,
+    },
     crossbeam::channel::Receiver as CReceiver,
     export_channel_builder, export_extn_metadata,
     extn::{
@@ -55,13 +58,13 @@ fn init_library() -> CExtnMetadata {
         ExtnId::new_channel(ExtnClassId::Distributor, "general".into()),
         ContractFulfiller::new(vec![
             RippleContract::Permissions,
-            RippleContract::AccountSession,
-            RippleContract::SecureStorage,
+            RippleContract::Session(SessionAdjective::Account),
+            RippleContract::Storage(StorageAdjective::Secure),
             RippleContract::Advertising,
-            RippleContract::PrivacyCloudStore,
-            RippleContract::SessionToken,
+            RippleContract::Storage(StorageAdjective::PrivacyCloud),
+            RippleContract::Session(SessionAdjective::Root),
             RippleContract::BehaviorMetrics,
-            RippleContract::SessionToken,
+            RippleContract::Session(SessionAdjective::Device),
             RippleContract::Discovery,
             RippleContract::MediaEvents,
         ]),
@@ -82,7 +85,7 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     let _ = init_logger("distributor_general".into());
     info!("Starting distributor channel");
     let runtime = Runtime::new().unwrap();
-    let mut client = ExtnClient::new(receiver.clone(), sender);
+    let mut client = ExtnClient::new(receiver, sender);
     runtime.block_on(async move {
         let client_c = client.clone();
         tokio::spawn(async move {
@@ -94,7 +97,7 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
                     ));
                     client.add_request_processor(DistributorSessionProcessor::new(
                         client.clone(),
-                        value.clone(),
+                        value,
                     ));
                 }
             }
@@ -114,13 +117,13 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
 }
 
 fn build(extn_id: String) -> Result<Box<ExtnChannel>, RippleError> {
-    if let Ok(id) = ExtnId::try_from(extn_id.clone()) {
+    if let Ok(id) = ExtnId::try_from(extn_id) {
         let current_id = ExtnId::new_channel(ExtnClassId::Distributor, "general".into());
 
         if id.eq(&current_id) {
-            return Ok(Box::new(ExtnChannel {
+            Ok(Box::new(ExtnChannel {
                 start: start_launcher,
-            }));
+            }))
         } else {
             Err(RippleError::ExtnError)
         }

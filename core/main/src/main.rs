@@ -16,7 +16,11 @@
 //
 
 use crate::bootstrap::boot::boot;
-use ripple_sdk::{tokio, utils::logger::init_logger};
+use ripple_sdk::{
+    log::{error, info},
+    tokio,
+    utils::logger::init_logger,
+};
 use state::bootstrap_state::BootstrapState;
 pub mod bootstrap;
 pub mod firebolt;
@@ -24,6 +28,7 @@ pub mod processor;
 pub mod service;
 pub mod state;
 pub mod utils;
+include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
 #[tokio::main]
 async fn main() {
@@ -32,7 +37,18 @@ async fn main() {
         println!("{:?} logger init error", e);
         return;
     }
+    info!("version {} {}", SEMVER, SHA_SHORT);
     let bootstate = BootstrapState::build().expect("Failure to init state for bootstrap");
+
     // bootstrap
-    boot(bootstate).await
+    match boot(bootstate).await {
+        Ok(_) => {
+            info!("Ripple Exited gracefully!");
+            std::process::exit(exitcode::OK);
+        }
+        Err(e) => {
+            error!("Ripple failed with Error: {:?}", e);
+            std::process::exit(exitcode::SOFTWARE);
+        }
+    }
 }

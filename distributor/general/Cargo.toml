@@ -18,8 +18,9 @@
 
 [package]
 name = "distributor_general"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2021"
+repository = "https://github.com/rdkcentral/Ripple"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

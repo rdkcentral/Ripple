@@ -16,6 +16,7 @@
 //
 
 use std::collections::{BTreeMap, HashMap};
+use std::str::FromStr;
 
 use jsonrpsee::core::client::{Client, ClientT, SubscriptionClientT};
 use jsonrpsee::ws_client::WsClientBuilder;
@@ -191,8 +192,8 @@ impl DeviceOperator for ThunderClient {
             callback: tx,
         });
         self.send_message(message).await;
-        let result = rx.await.unwrap();
-        result
+
+        rx.await.unwrap()
     }
 
     async fn subscribe(
@@ -205,7 +206,7 @@ impl DeviceOperator for ThunderClient {
             module: request.module,
             event_name: request.event_name,
             params: request.params,
-            handler: handler,
+            handler,
             callback: Some(tx),
             sub_id: request.sub_id,
         };
@@ -305,7 +306,7 @@ impl ThunderClient {
 
         let msg = DeviceResponseMessage::sub(response, sub_id.clone());
         let mut tsub = ThunderSubscription {
-            handle: handle,
+            handle,
             listeners: HashMap::default(),
             rpc_response: msg.clone(),
         };
@@ -475,7 +476,7 @@ impl ThunderClientBuilder {
         Ok(ThunderClient {
             sender: Some(s),
             pooled_sender: None,
-            id: id,
+            id,
             plugin_manager_tx: pmtx_c,
         })
     }
@@ -510,7 +511,7 @@ impl ThunderRawBoolRequest {
             );
             let mut start_ref_app_command = Command::new("sh");
             start_ref_app_command.arg("-c").arg(command);
-            if let Ok(_) = start_ref_app_command.output() {
+            if start_ref_app_command.output().is_ok() {
                 Value::Bool(true)
             } else {
                 Value::Bool(false)
@@ -522,7 +523,7 @@ impl ThunderRawBoolRequest {
             );
             let mut start_ref_app_command = Command::new("sh");
             start_ref_app_command.arg("-c").arg(command);
-            if let Ok(_) = start_ref_app_command.output() {
+            if start_ref_app_command.output().is_ok() {
                 Value::Bool(true)
             } else {
                 Value::Bool(false)
@@ -561,7 +562,8 @@ impl<'a> ThunderParamRequest<'a> {
         }
         result.unwrap()
     }
-    fn get_params(self: Box<Self>) -> Option<ParamsSer<'a>> {
+
+    fn get_params(self) -> Option<ParamsSer<'a>> {
         match self.json_based {
             true => {
                 let r: Result<BTreeMap<&'a str, Value>, _> = serde_json::from_str(self.params);

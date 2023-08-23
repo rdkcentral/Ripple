@@ -88,7 +88,7 @@ impl StorageManager {
         context: Option<Value>,
     ) -> RpcResult<()> {
         let data = property.as_data();
-        if let Err(_) = StorageManager::set_in_namespace(
+        if StorageManager::set_in_namespace(
             state,
             data.namespace.to_string(),
             data.key.to_string(),
@@ -97,6 +97,7 @@ impl StorageManager {
             context,
         )
         .await
+        .is_err()
         {
             return Err(StorageManager::get_firebolt_error(&property));
         }
@@ -201,7 +202,7 @@ impl StorageManager {
         context: Option<Value>,
     ) -> RpcResult<()> {
         let data = property.as_data();
-        if let Err(_) = StorageManager::set_in_namespace(
+        if StorageManager::set_in_namespace(
             state,
             data.namespace.to_string(),
             data.key.to_string(),
@@ -210,6 +211,7 @@ impl StorageManager {
             context,
         )
         .await
+        .is_err()
         {
             return Err(StorageManager::get_firebolt_error(&property));
         }
@@ -256,7 +258,7 @@ impl StorageManager {
         context: Option<Value>,
     ) -> RpcResult<()> {
         let data = property.as_data();
-        if let Err(_) = StorageManager::set_in_namespace(
+        if StorageManager::set_in_namespace(
             state,
             data.namespace.to_string(),
             data.key.to_string(),
@@ -265,6 +267,7 @@ impl StorageManager {
             context,
         )
         .await
+        .is_err()
         {
             return Err(StorageManager::get_firebolt_error(&property));
         }
@@ -278,7 +281,7 @@ impl StorageManager {
         context: Option<Value>,
     ) -> RpcResult<()> {
         let data = property.as_data();
-        if let Err(_) = StorageManager::set_in_namespace(
+        if StorageManager::set_in_namespace(
             state,
             data.namespace.to_string(),
             data.key.to_string(),
@@ -287,6 +290,7 @@ impl StorageManager {
             context,
         )
         .await
+        .is_err()
         {
             return Err(StorageManager::get_firebolt_error(&property));
         }
@@ -306,7 +310,7 @@ impl StorageManager {
         match storage_to_bool_rpc_result(resp) {
             Ok(value) => Ok(StorageManagerResponse::Ok(value)),
             Err(_) => {
-                if let Ok(value) = DefaultStorageProperties::get_bool(state, &namespace, &key) {
+                if let Ok(value) = DefaultStorageProperties::get_bool(state, &namespace, key) {
                     return Ok(StorageManagerResponse::Default(value));
                 }
                 Err(StorageManagerError::NotFound)
@@ -325,11 +329,11 @@ impl StorageManager {
         event_names: Option<&'static [&'static str]>,
         context: Option<Value>,
     ) -> Result<StorageManagerResponse<()>, StorageManagerError> {
-        if let Ok(payload) = StorageManager::get(state, &namespace, &key).await {
-            if let ExtnResponse::StorageData(storage_data) = payload {
-                if storage_data.value.eq(&value) {
-                    return Ok(StorageManagerResponse::NoChange(()));
-                }
+        if let Ok(ExtnResponse::StorageData(storage_data)) =
+            StorageManager::get(state, &namespace, &key).await
+        {
+            if storage_data.value.eq(&value) {
+                return Ok(StorageManagerResponse::NoChange(()));
             }
 
             // The stored value may have preceeded StorageData implementation, if so
@@ -354,7 +358,7 @@ impl StorageManager {
         {
             Ok(_) => {
                 if let Some(events) = event_names {
-                    let val = Value::from(value.clone());
+                    let val = value.clone();
                     for event in events.iter() {
                         let state_for_event = state.clone();
                         let result = val.clone();
@@ -385,7 +389,7 @@ impl StorageManager {
         match storage_to_string_rpc_result(resp) {
             Ok(value) => Ok(StorageManagerResponse::Ok(value)),
             Err(_) => {
-                if let Ok(value) = DefaultStorageProperties::get_string(state, &namespace, &key) {
+                if let Ok(value) = DefaultStorageProperties::get_string(state, &namespace, key) {
                     return Ok(StorageManagerResponse::Default(value));
                 }
                 Err(StorageManagerError::NotFound)
@@ -407,7 +411,7 @@ impl StorageManager {
             Ok(value) => Ok(StorageManagerResponse::Ok(value)),
             Err(_) => {
                 if let Ok(value) =
-                    DefaultStorageProperties::get_number_as_u32(state, &namespace, &key)
+                    DefaultStorageProperties::get_number_as_u32(state, &namespace, key)
                 {
                     return Ok(StorageManagerResponse::Default(value));
                 }
@@ -432,7 +436,7 @@ impl StorageManager {
 
         storage_to_f32_rpc_result(resp).map_or_else(
             |_| {
-                DefaultStorageProperties::get_number_as_f32(state, &namespace, &key)
+                DefaultStorageProperties::get_number_as_f32(state, &namespace, key)
                     .map_or(Err(StorageManagerError::NotFound), |val| {
                         Ok(StorageManagerResponse::Ok(val))
                     })
@@ -458,13 +462,13 @@ impl StorageManager {
 
         match result {
             Ok(msg) => {
-                if let Some(m) = msg.payload.clone().extract() {
-                    return Ok(m);
+                if let Some(m) = msg.payload.extract() {
+                    Ok(m)
                 } else {
-                    return Err(RippleError::ParseError);
+                    Err(RippleError::ParseError)
                 }
             }
-            Err(e) => return Err(e),
+            Err(e) => Err(e),
         }
     }
 

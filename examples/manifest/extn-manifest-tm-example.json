@@ -1,0 +1,87 @@
+{
+    "default_path": "/usr/lib/rust/",
+    "default_extension": "so",
+    "timeout": 2000,
+    "extns": [
+        {
+            "path": "libthunder",
+            "symbols": [
+                {
+                    "id": "ripple:channel:device:thunder",
+                    "uses": [
+                        "config"
+                    ],
+                    "fulfills": [
+                        "device_info",
+                        "window_manager",
+                        "browser",
+                        "wifi",
+                        "device_events",
+                        "device_persistence",
+                        "remote_accessory"
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "libdistributor_general",
+            "symbols": [
+                {
+                    "id": "ripple:channel:distributor:general",
+                    "uses": [
+                        "config"
+                    ],
+                    "fulfills": [
+                        "permissions",
+                        "account_session",
+                        "secure_storage",
+                        "advertising",
+                        "privacy_settings",
+                        "metrics",
+                        "session_token",
+                        "discovery",
+                        "media_events"
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "libtm_extn",
+            "symbols": [
+                {
+                    "id": "ripple:channel:distributor:tm",
+                    "uses": [
+                        "operational_metric_listener"
+                    ],
+                    "fulfills": [],
+                    "config": {
+                        "ws_url": "ws://127.0.0.1:2658/"
+                    }
+                }
+            ]
+        }
+    ],
+    "required_contracts": [
+        "rpc",
+        "lifecycle_management",
+        "device_info",
+        "window_manager",
+        "browser",
+        "permissions",
+        "account_session",
+        "wifi",
+        "device_events",
+        "device_persistence",
+        "remote_accessory",
+        "secure_storage",
+        "advertising",
+        "privacy_settings",
+        "session_token",
+        "metrics",
+        "discovery",
+        "media_events"
+    ],
+    "rpc_aliases": {
+        "device.model": ["custom.model"]
+    }
+}

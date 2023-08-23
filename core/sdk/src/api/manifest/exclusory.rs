@@ -54,7 +54,7 @@ impl ExclusoryImpl {
 impl Exclusory for ExclusoryImpl {
     fn can_resolve(&self, method: String) -> bool {
         if let Some(r) = &self.resolve_only {
-            if r.len() > 0 {
+            if !r.is_empty() {
                 return r.contains(&method);
             }
         }
@@ -76,7 +76,8 @@ impl Exclusory for ExclusoryImpl {
         if methods.contains(&String::from("*")) {
             return true;
         };
-        return methods.contains(&method);
+
+        methods.contains(&method)
     }
 
     fn is_app_all_excluded(&self, app_id: &str) -> bool {
@@ -87,19 +88,11 @@ impl Exclusory for ExclusoryImpl {
     }
 
     fn is_all_excluded(&self) -> bool {
-        if self.method_ignore_rules.contains(&String::from("*")) {
-            return true;
-        } else {
-            false
-        }
+        self.method_ignore_rules.contains(&String::from("*"))
     }
 
     fn is_method_excluded(&self, method: String) -> bool {
-        if self.method_ignore_rules.contains(&method) {
-            return true;
-        } else {
-            false
-        }
+        self.method_ignore_rules.contains(&method)
     }
 }
 pub trait Exclusory {

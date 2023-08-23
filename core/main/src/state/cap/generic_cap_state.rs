@@ -20,9 +20,14 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use ripple_sdk::api::{
-    firebolt::fb_capabilities::{DenyReason, DenyReasonWithCap, FireboltCap, FireboltPermission},
-    manifest::device_manifest::DeviceManifest,
+use ripple_sdk::{
+    api::{
+        firebolt::fb_capabilities::{
+            DenyReason, DenyReasonWithCap, FireboltCap, FireboltPermission,
+        },
+        manifest::device_manifest::DeviceManifest,
+    },
+    log::debug,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -69,18 +74,20 @@ impl GenericCapState {
         result
     }
 
-    pub fn check_supported(
-        &self,
-        request: &Vec<FireboltPermission>,
-    ) -> Result<(), DenyReasonWithCap> {
+    pub fn check_supported(&self, request: &[FireboltPermission]) -> Result<(), DenyReasonWithCap> {
         let supported = self.supported.read().unwrap();
-        let mut not_supported: Vec<FireboltCap> = Vec::new();
-        for fb_perm in request {
-            if !supported.contains(&fb_perm.cap.as_str()) {
-                not_supported.push(fb_perm.cap.clone());
-            }
-        }
-        if not_supported.len() > 0 {
+        let not_supported: Vec<FireboltCap> = request
+            .iter()
+            .filter(|fb_perm| !supported.contains(&fb_perm.cap.as_str()))
+            .map(|fb_perm| fb_perm.cap.clone())
+            .collect();
+
+        debug!(
+            "checking supported caps request={:?}, not_supported={:?}",
+            request, not_supported
+        );
+
+        if !not_supported.is_empty() {
             return Err(DenyReasonWithCap::new(
                 DenyReason::Unsupported,
                 not_supported,
@@ -100,17 +107,17 @@ impl GenericCapState {
                 result.push(fb_perm.cap.clone())
             }
         }
-        if result.len() > 0 {
+        if !result.is_empty() {
             return Err(DenyReasonWithCap::new(DenyReason::Unavailable, result));
         }
         Ok(())
     }
 
-    pub fn check_all(&self, caps: &Vec<FireboltPermission>) -> Result<(), DenyReasonWithCap> {
-        if let Err(e) = self.check_supported(caps) {
-            return Err(e);
-        }
-
-        self.check_available(caps)
+    pub fn check_all(
+        &self,
+        permissions: &Vec<FireboltPermission>,
+    ) -> Result<(), DenyReasonWithCap> {
+        self.check_supported(permissions)?;
+        self.check_available(permissions)
     }
 }

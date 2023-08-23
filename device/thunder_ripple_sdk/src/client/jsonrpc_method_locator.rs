@@ -15,6 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::str::FromStr;
+
 #[derive(Debug)]
 pub struct JsonRpcMethodLocator {
     pub module: Option<String>,
@@ -26,7 +28,10 @@ pub struct JsonRpcMethodLocator {
 #[derive(Debug, PartialEq)]
 pub struct RpcMethodLocatorParseError {}
 
-impl JsonRpcMethodLocator {
+impl JsonRpcMethodLocator {}
+
+impl FromStr for JsonRpcMethodLocator {
+    type Err = RpcMethodLocatorParseError;
     /// Parses a string into a locator object
     /// org.rdk.Controller.1.status@org.rdk.Network
     /// Would result into {
@@ -39,8 +44,8 @@ impl JsonRpcMethodLocator {
     /// There might be no version
     /// There might be no qualifier
     /// There might only be a method_name
-    pub fn from_str(s: &str) -> Result<JsonRpcMethodLocator, RpcMethodLocatorParseError> {
-        let mut parts = s.split("@").collect::<Vec<&str>>();
+    fn from_str(s: &str) -> Result<JsonRpcMethodLocator, RpcMethodLocatorParseError> {
+        let mut parts = s.split('@').collect::<Vec<&str>>();
         let q = match parts.len() {
             1 => None,
             2 => parts.pop(),
@@ -48,18 +53,18 @@ impl JsonRpcMethodLocator {
                 return Err(RpcMethodLocatorParseError {});
             }
         };
-        if let Some(v) = parts.get(0) {
+        if let Some(v) = parts.first() {
             let rest = String::from(*v);
-            let mut parts = rest.split(".").collect::<Vec<&str>>();
+            let mut parts = rest.split('.').collect::<Vec<&str>>();
             return match parts.len() {
                 1 => Ok(JsonRpcMethodLocator {
                     module: None,
                     version: None,
-                    qualifier: q.clone().map(str::to_string),
+                    qualifier: q.map(str::to_string),
                     method_name: rest.to_string(),
                 }),
                 2 => Ok(JsonRpcMethodLocator {
-                    method_name: parts.get(parts.len() - 1).unwrap().to_string(),
+                    method_name: parts.last().unwrap().to_string(),
                     module: Some(parts.get(parts.len() - 2).unwrap().to_string()),
                     version: None,
                     qualifier: q.map(str::to_string),
@@ -68,7 +73,7 @@ impl JsonRpcMethodLocator {
                     let mn = parts.pop().unwrap();
                     let v_or_mod = parts.pop().unwrap();
                     let mut v = Some(v_or_mod);
-                    if !v_or_mod.parse::<i32>().is_ok() {
+                    if v_or_mod.parse::<i32>().is_err() {
                         v = None;
                         parts.push(v_or_mod);
                     }
@@ -89,6 +94,7 @@ impl JsonRpcMethodLocator {
 #[cfg(test)]
 mod tests {
     use super::{JsonRpcMethodLocator, RpcMethodLocatorParseError};
+    use std::str::FromStr;
 
     #[test]
     pub fn test_json_rpc_method_locator() {

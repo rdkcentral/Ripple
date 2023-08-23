@@ -63,7 +63,7 @@ impl PrivacyState {
         let store = if let Ok(v) = FileStore::load(path.clone()) {
             v
         } else {
-            FileStore::new(path.clone(), PrivacyData::new())
+            FileStore::new(path, PrivacyData::new())
         };
 
         Self {
@@ -75,50 +75,30 @@ impl PrivacyState {
     fn get_property(&self, params: GetPropertyParams) -> bool {
         let data = self.privacy_data.read().unwrap();
         match params.setting {
-            PrivacySetting::AppDataCollection(a) => return data.value.get_data_collections(a),
-            PrivacySetting::AppEntitlementCollection(e) => {
-                return data.value.get_ent_collections(e)
-            }
-            PrivacySetting::ContinueWatching => {
-                return data.value.settings.allow_resume_points.clone()
-            }
+            PrivacySetting::AppDataCollection(a) => data.value.get_data_collections(a),
+            PrivacySetting::AppEntitlementCollection(e) => data.value.get_ent_collections(e),
+            PrivacySetting::ContinueWatching => data.value.settings.allow_resume_points,
             PrivacySetting::UnentitledContinueWatching => {
-                return data.value.settings.allow_unentitled_resume_points.clone()
+                data.value.settings.allow_unentitled_resume_points
             }
-            PrivacySetting::WatchHistory => return data.value.settings.allow_watch_history.clone(),
-            PrivacySetting::ProductAnalytics => {
-                return data.value.settings.allow_product_analytics.clone()
-            }
-            PrivacySetting::Personalization => {
-                return data.value.settings.allow_personalization.clone()
-            }
+            PrivacySetting::WatchHistory => data.value.settings.allow_watch_history,
+            PrivacySetting::ProductAnalytics => data.value.settings.allow_product_analytics,
+            PrivacySetting::Personalization => data.value.settings.allow_personalization,
             PrivacySetting::UnentitledPersonalization => {
-                return data.value.settings.allow_unentitled_personalization.clone()
+                data.value.settings.allow_unentitled_personalization
             }
-            PrivacySetting::RemoteDiagnostics => {
-                return data.value.settings.allow_remote_diagnostics.clone()
-            }
+            PrivacySetting::RemoteDiagnostics => data.value.settings.allow_remote_diagnostics,
             PrivacySetting::PrimaryContentAdTargeting => {
-                return data
-                    .value
-                    .settings
-                    .allow_primary_content_ad_targeting
-                    .clone()
+                data.value.settings.allow_primary_content_ad_targeting
             }
             PrivacySetting::PrimaryBrowseAdTargeting => {
-                return data
-                    .value
-                    .settings
-                    .allow_primary_browse_ad_targeting
-                    .clone()
+                data.value.settings.allow_primary_browse_ad_targeting
             }
             PrivacySetting::AppContentAdTargeting => {
-                return data.value.settings.allow_app_content_ad_targeting.clone()
+                data.value.settings.allow_app_content_ad_targeting
             }
-            PrivacySetting::Acr => return data.value.settings.allow_acr_collection.clone(),
-            PrivacySetting::CameraAnalytics => {
-                return data.value.settings.allow_camera_analytics.clone()
-            }
+            PrivacySetting::Acr => data.value.settings.allow_acr_collection,
+            PrivacySetting::CameraAnalytics => data.value.settings.allow_camera_analytics,
         }
     }
 

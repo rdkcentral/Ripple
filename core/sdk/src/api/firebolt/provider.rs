@@ -26,9 +26,8 @@ use super::{
     fb_pin::{PinChallengeRequest, PinChallengeResponse},
 };
 
-pub const ACK_CHALLENGE_EVENT: &'static str = "acknowledgechallenge.onRequestChallenge";
-pub const ACK_CHALLENGE_CAPABILITY: &'static str =
-    "xrn:firebolt:capability:usergrant:acknowledgechallenge";
+pub const ACK_CHALLENGE_EVENT: &str = "acknowledgechallenge.onRequestChallenge";
+pub const ACK_CHALLENGE_CAPABILITY: &str = "xrn:firebolt:capability:usergrant:acknowledgechallenge";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
@@ -47,7 +46,8 @@ pub enum ProviderResponsePayload {
     ChallengeResponse(ChallengeResponse),
     PinChallengeResponse(PinChallengeResponse),
     KeyboardResult(KeyboardSessionResponse),
-    EntityInfoResponse(Option<EntityInfoResult>),
+    // TODO: assess if boxing this is a productive move: https://rust-lang.github.io/rust-clippy/master/index.html#/large_enum_variant
+    EntityInfoResponse(Box<Option<EntityInfoResult>>),
     PurchasedContentResponse(PurchasedContentResult),
 }
 
@@ -78,7 +78,7 @@ impl ProviderResponsePayload {
 
     pub fn as_entity_info_result(&self) -> Option<Option<EntityInfoResult>> {
         match self {
-            ProviderResponsePayload::EntityInfoResponse(res) => Some(res.clone()),
+            ProviderResponsePayload::EntityInfoResponse(res) => Some(*res.clone()),
             _ => None,
         }
     }

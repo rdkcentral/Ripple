@@ -65,8 +65,13 @@ pub struct RippleClient {
 impl RippleClient {
     pub fn new(state: ChannelsState) -> RippleClient {
         let capability = ExtnId::get_main_target("main".into());
-        let extn_sender =
-            ExtnSender::new(state.get_extn_sender(), capability, Vec::new(), Vec::new());
+        let extn_sender = ExtnSender::new(
+            state.get_extn_sender(),
+            capability,
+            Vec::new(),
+            Vec::new(),
+            None,
+        );
         let extn_client = ExtnClient::new(state.get_extn_receiver(), extn_sender);
         RippleClient {
             gateway_sender: state.get_gateway_sender(),
@@ -113,26 +118,19 @@ impl RippleClient {
 
     pub fn add_request_processor(&self, stream_processor: impl ExtnRequestProcessor) {
         self.get_extn_client()
-            .clone()
             .add_request_processor(stream_processor)
     }
 
     pub fn add_event_processor(&self, stream_processor: impl ExtnEventProcessor) {
-        self.get_extn_client()
-            .clone()
-            .add_event_processor(stream_processor)
+        self.get_extn_client().add_event_processor(stream_processor)
     }
 
     pub fn add_extn_sender(&self, id: ExtnId, symbol: ExtnSymbol, sender: CSender<CExtnMessage>) {
-        self.get_extn_client()
-            .clone()
-            .add_sender(id, symbol, sender);
+        self.get_extn_client().add_sender(id, symbol, sender);
     }
 
     pub fn cleanup_event_processor(&self, capability: ExtnId) {
-        self.get_extn_client()
-            .clone()
-            .cleanup_event_stream(capability);
+        self.get_extn_client().cleanup_event_stream(capability);
     }
 
     pub fn send_event(&self, event: impl ExtnPayloadProvider) -> RippleResponse {

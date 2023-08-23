@@ -29,6 +29,12 @@ use ripple_sdk::{
 
 use crate::state::platform_state::PlatformState;
 
+#[derive(Debug, Clone)]
+pub enum DefaultStoragePropertiesError {
+    UnreconizedKey(String),
+    UnreconizedNamespace(String),
+}
+
 #[derive(Clone, Debug)]
 pub struct DefaultStorageProperties;
 
@@ -37,120 +43,118 @@ impl DefaultStorageProperties {
         state: &PlatformState,
         namespace: &String,
         key: &'static str,
-    ) -> Result<bool, ()> {
+    ) -> Result<bool, DefaultStoragePropertiesError> {
         debug!("get_bool: namespace={}, key={}", namespace, key);
         if namespace.eq(NAMESPACE_CLOSED_CAPTIONS) {
             match key {
                 KEY_ENABLED => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
                     .enabled),
-                _ => Err(()),
+                _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
+                    key.to_owned(),
+                )),
             }
         } else if namespace.eq(NAMESPACE_VOICE_GUIDANCE) {
             match key {
                 KEY_ENABLED => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .voice
                     .enabled),
-                _ => Err(()),
+                _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
+                    key.to_owned(),
+                )),
             }
         } else {
-            Err(())
+            Err(DefaultStoragePropertiesError::UnreconizedNamespace(
+                namespace.to_owned(),
+            ))
         }
     }
+
     pub fn get_string(
         state: &PlatformState,
         namespace: &String,
         key: &'static str,
-    ) -> Result<String, ()> {
+    ) -> Result<String, DefaultStoragePropertiesError> {
         debug!("get_string: namespace={}, key={}", namespace, key);
         if namespace.eq(NAMESPACE_CLOSED_CAPTIONS) {
             match key {
                 KEY_FONT_FAMILY => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
                     .font_family),
                 KEY_FONT_COLOR => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
                     .font_color),
                 KEY_FONT_EDGE => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
                     .font_edge),
                 KEY_FONT_EDGE_COLOR => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
                     .font_edge_color),
                 KEY_BACKGROUND_COLOR => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
                     .background_color),
                 KEY_TEXT_ALIGN => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
                     .text_align),
                 KEY_TEXT_ALIGN_VERTICAL => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
                     .text_align_vertical),
-                _ => Err(()),
+                _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
+                    key.to_owned(),
+                )),
             }
         } else if namespace.eq(NAMESPACE_DEVICE_NAME) {
             match key {
                 KEY_NAME => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .name),
-                _ => Err(()),
+                _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
+                    key.to_owned(),
+                )),
             }
         } else if namespace.eq(NAMESPACE_LOCALIZATION) {
             match key {
                 KEY_COUNTRY_CODE => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .country_code),
                 KEY_LANGUAGE => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .language),
                 KEY_LOCALE => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .locale),
@@ -159,7 +163,9 @@ impl DefaultStorageProperties {
                 //     let a_info_map: HashMap<String, String> = state.get_device_manifest().clone().configuration.default_values.additional_info;
                 //     Ok(serde_json::to_string(&a_info_map).unwrap())
                 // }
-                _ => Err(()),
+                _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
+                    key.to_owned(),
+                )),
             }
         } else if let Some(defaults) = state
             .get_device_manifest()
@@ -171,14 +177,17 @@ impl DefaultStorageProperties {
             match key {
                 KEY_SKIP_RESTRICTION => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .skip_restriction),
-                _ => Err(()),
+                _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
+                    key.to_owned(),
+                )),
             }
         } else {
-            Err(())
+            Err(DefaultStoragePropertiesError::UnreconizedNamespace(
+                namespace.to_owned(),
+            ))
         }
     }
 
@@ -186,28 +195,30 @@ impl DefaultStorageProperties {
         state: &PlatformState,
         namespace: &String,
         key: &'static str,
-    ) -> Result<u32, ()> {
+    ) -> Result<u32, DefaultStoragePropertiesError> {
         debug!("get_number_as_u32: namespace={}, key={}", namespace, key);
         if namespace.eq(NAMESPACE_CLOSED_CAPTIONS) {
             match key {
                 KEY_FONT_OPACITY => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
                     .font_opacity),
                 KEY_BACKGROUND_OPACITY => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
                     .background_opacity),
-                _ => Err(()),
+                _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
+                    key.to_owned(),
+                )),
             }
         } else {
-            Err(())
+            Err(DefaultStoragePropertiesError::UnreconizedNamespace(
+                namespace.to_owned(),
+            ))
         }
     }
 
@@ -215,32 +226,36 @@ impl DefaultStorageProperties {
         state: &PlatformState,
         namespace: &String,
         key: &'static str,
-    ) -> Result<f32, ()> {
+    ) -> Result<f32, DefaultStoragePropertiesError> {
         debug!("get_number_as_f32: namespace={}, key={}", namespace, key);
         if namespace.eq(NAMESPACE_CLOSED_CAPTIONS) {
             match key {
                 KEY_FONT_SIZE => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .captions
-                    .font_size as f32),
-                _ => Err(()),
+                    .font_size),
+                _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
+                    key.to_owned(),
+                )),
             }
         } else if namespace.eq(NAMESPACE_VOICE_GUIDANCE) {
             match key {
                 KEY_VOICE_GUIDANCE_SPEED => Ok(state
                     .get_device_manifest()
-                    .clone()
                     .configuration
                     .default_values
                     .voice
-                    .speed as f32),
-                _ => Err(()),
+                    .speed),
+                _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
+                    key.to_owned(),
+                )),
             }
         } else {
-            Err(())
+            Err(DefaultStoragePropertiesError::UnreconizedNamespace(
+                namespace.to_owned(),
+            ))
         }
     }
 }

@@ -15,11 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use jsonrpsee_core::Serialize;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::session::TokenType,
+    api::session::{SessionAdjective, TokenType},
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
@@ -46,17 +45,14 @@ impl ExtnPayloadProvider for TokenResult {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<TokenResult> {
-        match payload {
-            ExtnPayload::Response(response) => match response {
-                ExtnResponse::Token(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Response(ExtnResponse::Token(r)) = payload {
+            return Some(r);
         }
+
         None
     }
 
     fn contract() -> RippleContract {
-        RippleContract::SessionToken
+        RippleContract::Session(SessionAdjective::Device)
     }
 }

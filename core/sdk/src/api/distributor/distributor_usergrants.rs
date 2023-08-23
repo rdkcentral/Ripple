@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     api::{
         firebolt::fb_capabilities::FireboltPermission, session::AccountSession,
-        usergrant_entry::UserGrantInfo,
+        storage_property::StorageAdjective, usergrant_entry::UserGrantInfo,
     },
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
@@ -49,17 +49,13 @@ impl ExtnPayloadProvider for UserGrantsCloudStoreRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::UserGrantsCloudStore(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::UserGrantsCloudStore(r)) = payload {
+            return Some(r);
         }
         None
     }
 
     fn contract() -> RippleContract {
-        RippleContract::UserGrantsCloudStore
+        RippleContract::Storage(StorageAdjective::UsergrantCloud)
     }
 }

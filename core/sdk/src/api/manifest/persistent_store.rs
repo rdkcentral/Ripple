@@ -18,6 +18,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    api::storage_property::StorageAdjective,
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     framework::ripple_contract::RippleContract,
     utils::error::RippleError,
@@ -40,21 +41,16 @@ impl ExtnPayloadProvider for AccessibilityResponse {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Response(response) => match response {
-                ExtnResponse::Value(value) => {
-                    if let Ok(v) = serde_json::from_value(value) {
-                        return Some(v);
-                    }
-                }
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Response(ExtnResponse::Value(value)) = payload {
+            if let Ok(v) = serde_json::from_value(value) {
+                return Some(v);
+            }
         }
+
         None
     }
 
     fn contract() -> RippleContract {
-        RippleContract::DevicePersistence
+        RippleContract::Storage(StorageAdjective::Local)
     }
 }

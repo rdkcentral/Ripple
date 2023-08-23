@@ -89,7 +89,7 @@ pub fn wifi_security_mode_from_u32(v: u32) -> WifiSecurityMode {
         12 => WifiSecurityMode::Wpa2Enterprise,
         13 => WifiSecurityMode::Wpa3PskAes,
         14 => WifiSecurityMode::Wpa3Sae,
-        0 | _ => WifiSecurityMode::None,
+        _ => WifiSecurityMode::None,
     }
 }
 
@@ -103,7 +103,7 @@ struct ConnectedSSIDResult {
 }
 
 impl ConnectedSSIDResult {
-    fn to_access_point(self) -> AccessPoint {
+    fn to_access_point(&self) -> AccessPoint {
         AccessPoint {
             ssid: self.ssid.clone(),
             security_mode: wifi_security_mode_from_u32(
@@ -132,7 +132,7 @@ struct SSIDEventResponse {
 }
 
 impl ThunderSSID {
-    fn to_access_point(self: Box<Self>) -> AccessPoint {
+    fn to_access_point(&self) -> AccessPoint {
         AccessPoint {
             ssid: self.ssid.clone(),
             security_mode: wifi_security_mode_from_u32(self.security),
@@ -273,13 +273,13 @@ impl ThunderWifiRequestProcessor {
                 for ssid in ssid_response.ssids {
                     let check_ssid = ssid.ssid.clone();
                     if !dedup.contains(&check_ssid) {
-                        list.push(Box::new(ssid).to_access_point());
+                        list.push(ssid.to_access_point());
                         dedup.push(check_ssid);
                     }
                 }
 
                 list.sort_by(|a, b| b.signal_strength.cmp(&a.signal_strength));
-                let access_point_list = AccessPointList { list: list };
+                let access_point_list = AccessPointList { list };
                 info!("access point list {:#?}", access_point_list);
                 // Send the access point list to the main thread
                 tx.send(access_point_list).await.unwrap();
@@ -300,8 +300,8 @@ impl ThunderWifiRequestProcessor {
         });
 
         // Receive the access point list sent from the Tokio task
-        let access_point_list = rx.recv().await.unwrap();
-        access_point_list
+
+        rx.recv().await.unwrap()
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -459,22 +459,22 @@ info!("Unsubscribing to onError events");
             match msg {
                 WifiResponse::CustomError(s) => {
                     info!("Received string: {}", s);
-                    return WifiResponse::CustomError(s);
+                    WifiResponse::CustomError(s)
                     // handle string response here
                 }
                 WifiResponse::WifiConnectSuccessResponse(ap_list) => {
                     info!("Received access point list: {:?}", ap_list);
-                    return WifiResponse::WifiConnectSuccessResponse(ap_list);
+                    WifiResponse::WifiConnectSuccessResponse(ap_list)
                     // handle access point list response here
                 }
                 _ => {
                     info!("Received unknown message type");
                     // handle unknown message type here
-                    return WifiResponse::CustomError("out Received unknown message type".into());
+                    WifiResponse::CustomError("out Received unknown message type".into())
                 }
             }
         } else {
-            return WifiResponse::CustomError("Unknown Error".into());
+            WifiResponse::CustomError("Unknown Error".into())
         }
     }
 
@@ -496,8 +496,8 @@ info!("Unsubscribing to onError events");
             "connected ssid response : {:?}",
             get_connected_ssid_response
         );
-        let accesspoint = get_connected_ssid_response.to_access_point();
-        accesspoint
+
+        get_connected_ssid_response.to_access_point()
     }
 }
 

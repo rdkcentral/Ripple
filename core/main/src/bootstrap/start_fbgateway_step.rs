@@ -25,7 +25,8 @@ use crate::{
             closed_captions_rpc::ClosedcaptionsRPCProvider, device_rpc::DeviceRPCProvider,
             discovery_rpc::DiscoveryRPCProvider, keyboard_rpc::KeyboardRPCProvider,
             lcm_rpc::LifecycleManagementProvider, lifecycle_rpc::LifecycleRippleProvider,
-            localization_rpc::LocalizationRPCProvider, metrics_rpc::MetricsRPCProvider,
+            localization_rpc::LocalizationRPCProvider,
+            metrics_management_rpc::MetricsManagementProvider, metrics_rpc::MetricsRPCProvider,
             parameters_rpc::ParametersRPCProvider, pin_rpc::PinRPCProvider,
             privacy_rpc::PrivacyProvider, profile_rpc::ProfileRPCProvider,
             second_screen_rpc::SecondScreenRPCProvider,
@@ -35,6 +36,7 @@ use crate::{
         rpc::RippleRPCProvider,
     },
     processor::rpc_gateway_processor::RpcGatewayProcessor,
+    service::telemetry_builder::TelemetryBuilder,
     state::{bootstrap_state::BootstrapState, platform_state::PlatformState},
 };
 use jsonrpsee::core::{async_trait, server::rpc_module::Methods};
@@ -67,12 +69,11 @@ impl FireboltGatewayStep {
         let _ = methods.merge(DiscoveryRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(AuthRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(AccountRPCProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(MetricsManagementProvider::provide_with_alias(state.clone()));
 
         // LCM Api(s) not required for internal launcher
         if !state.has_internal_launcher() {
-            let _ = methods.merge(LifecycleManagementProvider::provide_with_alias(
-                state.clone(),
-            ));
+            let _ = methods.merge(LifecycleManagementProvider::provide_with_alias(state));
         }
         let _ = methods.merge(extn_methods);
         methods
@@ -100,8 +101,14 @@ impl Bootstep<BootstrapState> for FireboltGatewayStep {
             .get_client()
             .add_request_processor(RpcGatewayProcessor::new(state.platform_state.get_client()));
         debug!("Adding RPC gateway processor");
+        #[cfg(feature = "sysd")]
+        if sd_notify::booted().is_ok()
+            && sd_notify::notify(false, &[sd_notify::NotifyState::Ready]).is_err()
+        {
+            return Err(RippleError::BootstrapError);
+        }
+        TelemetryBuilder::send_ripple_telemetry(&state.platform_state);
         gateway.start().await;
-        debug!("Handlers initialized");
         Ok(())
     }
 }

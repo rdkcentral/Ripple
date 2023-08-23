@@ -16,12 +16,12 @@
 //
 
 use crate::{
+    api::storage_property::StorageAdjective,
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
 };
 use chrono::Utc;
-use jsonrpsee_core::Serialize;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::device_request::DeviceRequest;
@@ -35,7 +35,7 @@ pub struct StorageData {
 impl StorageData {
     pub fn new(value: Value) -> StorageData {
         StorageData {
-            value: value.clone(),
+            value,
             update_time: Utc::now().to_rfc3339(),
         }
     }
@@ -86,20 +86,14 @@ impl ExtnPayloadProvider for DevicePersistenceRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::Device(r) => match r {
-                    DeviceRequest::Storage(d) => return Some(d),
-                    _ => {}
-                },
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Storage(d))) = payload {
+            return Some(d);
         }
+
         None
     }
 
     fn contract() -> RippleContract {
-        RippleContract::DevicePersistence
+        RippleContract::Storage(StorageAdjective::Local)
     }
 }

@@ -77,7 +77,7 @@ impl AccountLinkProcessor {
 
         let payload = DiscoveryRequest::SignIn(SignInRequestParams {
             session_info: SessionParams {
-                app_id: ctx.clone().app_id.to_owned(),
+                app_id: ctx.app_id.to_owned(),
                 dist_session: session,
             },
             is_signed_in,
@@ -97,12 +97,12 @@ impl AccountLinkProcessor {
             }
         }
 
-        return Self::handle_error(
+        Self::handle_error(
             state.get_client().get_extn_client(),
             msg,
             RippleError::ProcessorError,
         )
-        .await;
+        .await
     }
 
     async fn content_access(
@@ -168,12 +168,12 @@ impl AccountLinkProcessor {
             }
         }
 
-        return Self::handle_error(
+        Self::handle_error(
             state.get_client().get_extn_client(),
             msg,
             RippleError::ProcessorError,
         )
-        .await;
+        .await
     }
 
     async fn clear_content_access(
@@ -203,12 +203,12 @@ impl AccountLinkProcessor {
             }
         }
 
-        return Self::handle_error(
+        Self::handle_error(
             state.get_client().get_extn_client(),
             msg,
             RippleError::ProcessorError,
         )
-        .await;
+        .await
     }
 
     pub async fn get_content_partner_id(
@@ -229,7 +229,7 @@ impl AccountLinkProcessor {
         let resp = rpc_await_oneshot(app_resp_rx).await;
 
         if let Ok(Ok(AppManagerResponse::AppContentCatalog(content_catalog))) = resp {
-            content_partner_id = content_catalog.map_or(ctx.app_id.to_owned(), |x| x.to_owned())
+            content_partner_id = content_catalog.map_or(ctx.app_id.to_owned(), |x| x)
         }
         Ok(content_partner_id)
     }
@@ -285,7 +285,7 @@ impl AccountLinkProcessor {
                             ProgressUnit::Percent
                         },
                         watched_on: watched_info.watched_on.clone(),
-                        app_id: ctx.clone().app_id.to_owned(),
+                        app_id: ctx.app_id.to_owned(),
                     },
                     content_partner_id: Self::get_content_partner_id(state, &ctx)
                         .await
@@ -295,7 +295,7 @@ impl AccountLinkProcessor {
                     data_tags,
                 });
 
-            if let Ok(_) = state.get_client().send_extn_request(request).await {
+            if state.get_client().send_extn_request(request).await.is_ok() {
                 return Self::respond(
                     state.get_client().get_extn_client(),
                     msg,
@@ -305,12 +305,12 @@ impl AccountLinkProcessor {
                 .is_ok();
             }
         }
-        return Self::handle_error(
+        Self::handle_error(
             state.get_client().get_extn_client(),
             msg,
             RippleError::ProcessorError,
         )
-        .await;
+        .await
     }
 }
 
@@ -358,7 +358,7 @@ impl ExtnRequestProcessor for AccountLinkProcessor {
                 Self::watched(&state, msg, ctx, request).await
             }
             AccountLinkRequest::WatchedNext(ctx, watch_next) => {
-                Self::watch_next(&state, msg, ctx, watch_next).await
+                Self::watch_next(&state, msg, ctx, *watch_next).await
             }
         }
     }

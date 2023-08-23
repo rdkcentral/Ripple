@@ -87,29 +87,26 @@ impl ExtnRequestProcessor for KeyboardProcessor {
         let (session_tx, session_rx) = oneshot::channel::<ProviderResponsePayload>();
         let pr_msg = ProviderBrokerRequest {
             capability: KEYBOARD_PROVIDER_CAPABILITY.to_string(),
-            method: method,
+            method,
             caller: extracted_message.clone().ctx,
             request: ProviderRequestPayload::KeyboardSession(extracted_message),
             tx: session_tx,
             app_id: None,
         };
         ProviderBroker::invoke_method(&state, pr_msg).await;
-        match session_rx.await {
-            Ok(result) => match result.as_keyboard_result() {
-                Some(keyboard_response) => {
-                    if let Ok(_) = Self::respond(
-                        state.get_client().get_extn_client(),
-                        msg.clone(),
-                        ExtnResponse::Keyboard(keyboard_response),
-                    )
-                    .await
-                    {
-                        return true;
-                    }
+        if let Ok(result) = session_rx.await {
+            if let Some(keyboard_response) = result.as_keyboard_result() {
+                if Self::respond(
+                    state.get_client().get_extn_client(),
+                    msg.clone(),
+                    ExtnResponse::Keyboard(keyboard_response),
+                )
+                .await
+                .is_ok()
+                {
+                    return true;
                 }
-                None => {}
-            },
-            Err(_) => {}
+            }
         }
         Self::handle_error(
             state.get_client().get_extn_client(),

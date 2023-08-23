@@ -86,10 +86,7 @@ fn get_query(
             .unwrap();
         return Err(err);
     }
-    Ok(match found_q {
-        Some(q) => Some(String::from(q.1)),
-        None => None,
-    })
+    Ok(found_q.map(|q| String::from(q.1)))
 }
 
 impl tungstenite::handshake::server::Callback for ConnectionCallback {
@@ -118,10 +115,7 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
         let app_id = match app_id_opt {
             Some(a) => a,
             None => {
-                if let Some(app_id) = cfg
-                    .app_state
-                    .get_app_id_from_session_id(&session_id.clone())
-                {
+                if let Some(app_id) = cfg.app_state.get_app_id_from_session_id(&session_id) {
                     app_id
                 } else {
                     let err = tungstenite::http::response::Builder::new()
@@ -136,17 +130,13 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
                 }
             }
         };
-        let cid = ClientIdentity {
-            session_id: String::from(session_id),
-            app_id,
-        };
+        let cid = ClientIdentity { session_id, app_id };
         oneshot_send_and_log(cfg.next, cid, "ResolveClientIdentity");
         Ok(response)
     }
 }
 
 impl FireboltWs {
-    #[allow(dead_code)]
     pub async fn start(
         server_addr: &str,
         state: PlatformState,
@@ -155,7 +145,7 @@ impl FireboltWs {
     ) {
         // Create the event loop and TCP listener we'll accept connections on.
         let try_socket = TcpListener::bind(&server_addr).await; //create the server on the address
-        let listener = try_socket.expect(format!("Failed to bind {:?}", server_addr).as_str());
+        let listener = try_socket.unwrap_or_else(|_| panic!("Failed to bind {:?}", server_addr));
         info!("Listening on: {} secure={}", server_addr, secure);
         let state_for_connection = state.clone();
         let app_state = state.app_manager_state.clone();
@@ -165,7 +155,7 @@ impl FireboltWs {
             let cfg = ConnectionCallbackConfig {
                 next: connect_tx,
                 app_state: app_state.clone(),
-                secure: secure,
+                secure,
                 internal_app_id: internal_app_id.clone(),
             };
             match tokio_tungstenite::accept_hdr_async(stream, ConnectionCallback(cfg)).await {
@@ -190,7 +180,6 @@ impl FireboltWs {
         }
     }
 
-    #[allow(dead_code)]
     async fn handle_connection(
         _client_addr: SocketAddr,
         ws_stream: WebSocketStream<TcpStream>,
@@ -231,7 +220,10 @@ impl FireboltWs {
             return;
         }
 
-        if let Err(_) = PermissionHandler::fetch_and_store(state.clone(), app_id.clone()).await {
+        if PermissionHandler::fetch_and_store(&state, &app_id)
+            .await
+            .is_err()
+        {
             error!("Couldnt pre cache permissions");
         }
 

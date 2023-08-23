@@ -59,8 +59,8 @@ use std::collections::HashMap;
 
 use super::capabilities_rpc::is_granted;
 
-pub const US_PRIVACY_KEY: &'static str = "us_privacy";
-pub const LMT_KEY: &'static str = "lmt";
+pub const US_PRIVACY_KEY: &str = "us_privacy";
+pub const LMT_KEY: &str = "lmt";
 
 #[derive(Debug, Clone)]
 struct AllowAppContentAdTargetingSettings {
@@ -311,7 +311,7 @@ impl PrivacyImpl {
         });
 
         AppEvents::add_listener_with_context(
-            &&self.state,
+            &self.state,
             event_name.to_owned(),
             ctx,
             ListenRequest {
@@ -361,7 +361,7 @@ impl PrivacyImpl {
     }
 
     pub fn to_storage_property(method: &str) -> Option<StorageProperty> {
-        let mut parts: Vec<&str> = method.clone().split(".").collect();
+        let mut parts: Vec<&str> = method.split('.').collect();
         if parts.len() < 2 {
             return None;
         }
@@ -420,11 +420,11 @@ impl PrivacyImpl {
     ) -> RpcResult<bool> {
         let property_opt = Self::to_storage_property(method);
         if property_opt.is_none() {
-            return Err(jsonrpsee::core::Error::Call(CallError::Custom {
+            Err(jsonrpsee::core::Error::Call(CallError::Custom {
                 code: CAPABILITY_NOT_AVAILABLE,
                 message: format!("{} is not available", method),
                 data: None,
-            }));
+            }))
         } else {
             let property = property_opt.unwrap();
             Self::get_bool(platform_state, property).await
@@ -438,11 +438,11 @@ impl PrivacyImpl {
     ) -> RpcResult<()> {
         let property_opt = Self::to_storage_property(method);
         if property_opt.is_none() {
-            return Err(jsonrpsee::core::Error::Call(CallError::Custom {
+            Err(jsonrpsee::core::Error::Call(CallError::Custom {
                 code: CAPABILITY_NOT_AVAILABLE,
                 message: format!("{} is not available", method),
                 data: None,
-            }));
+            }))
         } else {
             let property = property_opt.unwrap();
             debug!("Resolved property: {:?}", property);
@@ -542,7 +542,7 @@ impl PrivacyImpl {
                     value,
                     dist_session,
                 });
-                if let Ok(_) = platform_state.get_client().send_extn_request(request).await {
+                if (platform_state.get_client().send_extn_request(request).await).is_ok() {
                     return Ok(());
                 }
                 Err(jsonrpsee::core::Error::Custom(String::from(

@@ -83,10 +83,7 @@ pub enum PluginState {
 
 impl PluginState {
     pub fn is_activated(&self) -> bool {
-        match self {
-            PluginState::Activated => true,
-            _ => false,
-        }
+        matches!(self, PluginState::Activated)
     }
 }
 

@@ -126,8 +126,8 @@ impl ExtnPayloadProvider for AppResponse {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Response(resp) => match resp {
+        if let ExtnPayload::Response(resp) = payload {
+            match resp {
                 ExtnResponse::Value(v) => {
                     if let Ok(v) = serde_json::from_value(v) {
                         return Some(Ok(v));
@@ -135,9 +135,9 @@ impl ExtnPayloadProvider for AppResponse {
                 }
                 ExtnResponse::Error(_) => return Some(Err(AppError::General)),
                 _ => {}
-            },
-            _ => {}
+            }
         }
+
         None
     }
 
@@ -197,12 +197,6 @@ pub enum AppError {
     Timeout,
     Pending,
     AppNotReady,
-}
-
-impl From<AppError> for jsonrpsee_core::Error {
-    fn from(err: AppError) -> Self {
-        jsonrpsee_core::Error::Custom(format!("Internal failure: {:?}", err))
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -285,17 +279,12 @@ impl ExtnPayloadProvider for AppEventRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Event(resp) => match resp {
-                ExtnEvent::Value(v) => {
-                    if let Ok(v) = serde_json::from_value(v) {
-                        return Some(v);
-                    }
-                }
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Event(ExtnEvent::Value(v)) = payload {
+            if let Ok(v) = serde_json::from_value(v) {
+                return Some(v);
+            }
         }
+
         None
     }
 

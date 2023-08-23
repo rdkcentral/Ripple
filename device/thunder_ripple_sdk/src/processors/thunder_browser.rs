@@ -164,8 +164,9 @@ impl ThunderBrowserRequestProcessor {
 
         if let Some(status) = response.message["success"].as_bool() {
             if status {
-                if let Err(_) =
-                    Self::respond(state.get_client(), req.clone(), ExtnResponse::None(())).await
+                if Self::respond(state.get_client(), req.clone(), ExtnResponse::None(()))
+                    .await
+                    .is_err()
                 {
                     error!("Sending back response for browser.destroy");
                 }
@@ -185,16 +186,16 @@ impl ThunderBrowserRequestProcessor {
             "lightning" => Some(format!("FireboltMainApp-{}", bnr.name)),
             _ => None,
         };
-        if let None = browser_name {
-            return Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await;
+        if browser_name.is_none() {
+            Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
         } else {
-            return Self::respond(
+            Self::respond(
                 state.get_client(),
                 req.clone(),
                 ExtnResponse::String(browser_name.unwrap()),
             )
             .await
-            .is_ok();
+            .is_ok()
         }
     }
 }

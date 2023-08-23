@@ -63,7 +63,7 @@ impl SecureStorageImpl {
             .state
             .get_client()
             .send_extn_request(SecureStorageRequest::Set(SecureStorageSetRequest {
-                app_id: app_id,
+                app_id,
                 value: request.value,
                 options: request.options.map(|op| StorageSetOptions { ttl: op.ttl }),
                 scope: request.scope,
@@ -87,7 +87,7 @@ impl SecureStorageImpl {
             .state
             .get_client()
             .send_extn_request(SecureStorageRequest::Remove(SecureStorageRemoveRequest {
-                app_id: app_id,
+                app_id,
                 scope: request.scope,
                 key: request.key,
                 distributor_session: self.state.session_state.get_account_session().unwrap(),

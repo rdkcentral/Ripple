@@ -15,6 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest;
+use ripple_sdk::log::error;
+
+use crate::processors::thunder_telemetry::ThunderTelemetryProcessor;
 use crate::thunder_state::ThunderBootstrapStateWithClient;
 
 use crate::processors::{
@@ -48,5 +52,17 @@ impl SetupThunderProcessor {
             state.clone().state,
         ));
         extn_client.add_request_processor(ThunderOpenEventsProcessor::new(state.clone().state));
+
+        if extn_client.get_bool_config("rdk_telemetry") {
+            match extn_client
+                .request(OperationalMetricRequest::Subscribe)
+                .await
+            {
+                Ok(_) => {
+                    extn_client.add_event_processor(ThunderTelemetryProcessor::new(state.state))
+                }
+                Err(_) => error!("Telemetry not setup"),
+            }
+        }
     }
 }

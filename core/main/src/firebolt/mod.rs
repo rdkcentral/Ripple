@@ -31,6 +31,7 @@ pub mod handlers {
     pub mod lcm_rpc;
     pub mod lifecycle_rpc;
     pub mod localization_rpc;
+    pub mod metrics_management_rpc;
     pub mod metrics_rpc;
     pub mod parameters_rpc;
     pub mod pin_rpc;

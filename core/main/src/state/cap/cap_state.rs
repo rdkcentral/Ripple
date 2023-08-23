@@ -76,7 +76,7 @@ impl CapState {
         if let Some(cap) = FireboltCap::parse(request.clone().capability) {
             let check = CapEventEntry {
                 app_id: call_context.clone().app_id,
-                cap: cap,
+                cap,
                 event: event.clone(),
                 role: request.role,
             };
@@ -98,9 +98,9 @@ impl CapState {
             );
             debug!("setup event listener {}", event_name);
             AppEvents::add_listener(
-                &ps,
+                ps,
                 event_name,
-                call_context.clone(),
+                call_context,
                 ListenRequest {
                     listen: request.listen,
                 },
@@ -116,15 +116,15 @@ impl CapState {
     ) -> bool {
         let r = ps.cap_state.primed_listeners.read().unwrap();
         debug!("primed entries {:?}", r);
-        if let Some(_) = r.iter().find(|x| {
+        if r.iter().any(|x| {
             if x.event == event && x.cap == cap {
                 if let Some(a) = app_id.clone() {
                     x.app_id.eq(&a)
                 } else {
-                    return true;
+                    true
                 }
             } else {
-                return false;
+                false
             }
         }) {
             return true;
@@ -157,10 +157,8 @@ impl CapState {
             debug!("preparing cap event emit {}", f);
             // if its a grant or revoke it could be done per app
             // these require additional
-            let is_app_check_necessary = match event.clone() {
-                CapEvent::OnGranted | CapEvent::OnRevoked => true,
-                _ => false,
-            };
+            let is_app_check_necessary =
+                matches!(event.clone(), CapEvent::OnGranted | CapEvent::OnRevoked);
             let event_name = format!(
                 "{}.{}",
                 "capabilities",
@@ -178,22 +176,20 @@ impl CapState {
             for listener in listeners {
                 let cc = listener.call_ctx.clone();
                 // Step 2: Check if the given event is valid for the app
-                if is_app_check_necessary {
-                    if !Self::check_primed(ps, event.clone(), cap.clone(), Some(cc.clone().app_id))
-                    {
-                        continue;
-                    }
+                if is_app_check_necessary
+                    && !Self::check_primed(ps, event.clone(), cap.clone(), Some(cc.clone().app_id))
+                {
+                    continue;
                 }
                 let caps = vec![cap.clone()];
-                let request = CapabilitySet::get_from_role(
-                    caps,
-                    Some(role.clone().unwrap_or(CapabilityRole::Use)),
-                );
+                let request =
+                    CapabilitySet::get_from_role(caps, Some(role.unwrap_or(CapabilityRole::Use)));
 
                 // Step 3: Get Capability info for each app based on context available in listener
                 if let Ok(r) = Self::get_cap_info(ps, cc, request).await {
                     if let Some(cap_info) = r.get(0) {
                         if let Ok(data) = serde_json::to_value(cap_info) {
+                            debug!("data={:?}", data);
                             // Step 4: Send exclusive cap info data for each listener
                             AppEvents::send_event(ps, &listener, &data).await;
                         }
@@ -232,6 +228,8 @@ impl CapState {
             let _ = grant_errors.insert(e);
         }
 
+        debug!("grant errors {:?}", grant_errors);
+
         let cap_infos: Vec<CapabilityInfo> = generic_caps
             .into_iter()
             .map(|x| {
@@ -261,7 +259,7 @@ impl CapState {
             })
             .collect();
 
-        return Ok(cap_infos);
+        Ok(cap_infos)
     }
 }
 

@@ -18,4 +18,5 @@
 pub mod apps;
 pub mod data_governance;
 pub mod extn;
+pub mod telemetry_builder;
 pub mod user_grants;

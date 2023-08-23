@@ -42,8 +42,10 @@ impl FireboltSemanticVersion {
             readable: str,
         }
     }
+}
 
-    pub fn default() -> Self {
+impl Default for FireboltSemanticVersion {
+    fn default() -> Self {
         Self {
             major: 0,
             minor: 0,
@@ -68,11 +70,11 @@ pub struct FireboltVersionManifest {
 
 impl FireboltVersionManifest {
     pub fn get_latest_rpc(&self) -> Option<OpenRPCParser> {
-        if self.apis.len() == 0 {
+        if self.apis.is_empty() {
             return None;
         }
         let mut max_api_version = self.apis.keys().next().unwrap().clone();
-        for (k, _) in &self.apis {
+        for k in self.apis.keys() {
             if k.cmp(&max_api_version).is_gt() {
                 max_api_version = k.clone();
             }
@@ -120,9 +122,12 @@ pub struct FireboltOpenRpc {
 
 impl From<OpenRPCParser> for FireboltOpenRpc {
     fn from(value: OpenRPCParser) -> Self {
-        let version = value.info.version.split(".");
+        let version = value.info.version.split('.');
         let version_vec: Vec<&str> = version.collect();
-        let patch: String = version_vec[2].chars().filter(|c| c.is_digit(10)).collect();
+        let patch: String = version_vec[2]
+            .chars()
+            .filter(|c| c.is_ascii_digit())
+            .collect();
         FireboltOpenRpc {
             openrpc: value.openrpc,
             info: FireboltSemanticVersion::new(
@@ -158,12 +163,12 @@ impl From<FireboltVersionManifest> for FireboltOpenRpc {
         let parser = version_manifest.get_latest_rpc().unwrap();
 
         // Parse the version into a FireboltSemanticVersion
-        let mut rpc = FireboltOpenRpc::default();
-        rpc.methods = parser.methods;
-        rpc.openrpc = parser.openrpc;
-        let version = parser.info.version.split(".");
+        let version = parser.info.version.split('.');
         let version_vec: Vec<&str> = version.collect();
-        let patch: String = version_vec[2].chars().filter(|c| c.is_digit(10)).collect();
+        let patch: String = version_vec[2]
+            .chars()
+            .filter(|c| c.is_ascii_digit())
+            .collect();
         let mut api = FireboltSemanticVersion::new(
             version_vec[0].parse::<u32>().unwrap(),
             version_vec[1].parse::<u32>().unwrap(),
@@ -171,8 +176,12 @@ impl From<FireboltVersionManifest> for FireboltOpenRpc {
             "".to_string(),
         );
         api.readable = format!("Firebolt API v{}.{}.{}", api.major, api.minor, api.patch);
-        rpc.info = api;
-        rpc
+
+        FireboltOpenRpc {
+            methods: parser.methods,
+            openrpc: parser.openrpc,
+            info: api,
+        }
     }
 }
 
@@ -228,11 +237,11 @@ impl FireboltOpenRpc {
         getter_method: &str,
     ) -> Option<FireboltOpenRpcMethod> {
         let mut result = None;
-        let tokens: Vec<&str> = getter_method.split_terminator(".").collect();
+        let tokens: Vec<&str> = getter_method.split_terminator('.').collect();
         if tokens.len() == 2 {
             let setter = self.get_setter_method_for_property(tokens[1]);
             if let Some(method) = setter {
-                let setter_tokens: Vec<&str> = method.name.split_terminator(".").collect();
+                let setter_tokens: Vec<&str> = method.name.split_terminator('.').collect();
                 if !setter_tokens[0].eq(tokens[0]) {
                     result = None;
                 } else {
@@ -250,17 +259,11 @@ impl FireboltOpenRpc {
             .iter()
             .find(|method| {
                 method.tags.is_some()
-                    && method
-                        .tags
-                        .as_ref()
-                        .unwrap()
-                        .iter()
-                        .find(|tag| {
-                            (tag.name == "rpc-only" || tag.name == "setter")
-                                && tag.setter_for.is_some()
-                                && tag.setter_for.as_ref().unwrap().as_str() == property
-                        })
-                        .is_some()
+                    && method.tags.as_ref().unwrap().iter().any(|tag| {
+                        (tag.name == "rpc-only" || tag.name == "setter")
+                            && tag.setter_for.is_some()
+                            && tag.setter_for.as_ref().unwrap().as_str() == property
+                    })
             })
             .cloned()
     }
@@ -268,8 +271,8 @@ impl FireboltOpenRpc {
     /// Ripple Developers can use this method to create an extension open rpc based on Firebolt Schema
     /// and pass this to the main application for capability resolution
     pub fn load_additional_methods(rpc: &mut FireboltOpenRpc, file_contents: &'static str) {
-        let addl_rpc = serde_json::from_str::<OpenRPCParser>(&file_contents);
-        if let Err(_) = addl_rpc {
+        let addl_rpc = serde_json::from_str::<OpenRPCParser>(file_contents);
+        if addl_rpc.is_err() {
             warn!("Could not read additional RPC file");
             return;
         }
@@ -326,7 +329,7 @@ impl FireboltOpenRpcTag {
 
     fn get_provides(&self) -> Option<FireboltCap> {
         if let Some(caps) = self.provides.clone() {
-            return Some(FireboltCap::Full(caps.clone()));
+            return Some(FireboltCap::Full(caps));
         }
         None
     }
@@ -340,9 +343,7 @@ pub struct FireboltOpenRpcMethod {
 
 impl FireboltOpenRpcMethod {
     pub fn get_allow_value(&self) -> Option<bool> {
-        if self.tags.is_none() {
-            return None;
-        }
+        self.tags.as_ref()?;
         let allow_tag_opt = self
             .tags
             .as_ref()
@@ -354,7 +355,7 @@ impl FireboltOpenRpcMethod {
     }
 
     pub fn name_with_lowercase_module(method: &str) -> String {
-        let mut parts: Vec<&str> = method.split(".").collect();
+        let mut parts: Vec<&str> = method.split('.').collect();
         if parts.len() < 2 {
             return String::from(method);
         }
@@ -396,13 +397,13 @@ impl From<CapRequestRpcRequest> for CapabilitySet {
             }
         }
 
-        let use_caps = if use_caps_vec.len() > 0 {
+        let use_caps = if !use_caps_vec.is_empty() {
             Some(use_caps_vec)
         } else {
             None
         };
 
-        let manage_caps = if manage_caps_vec.len() > 0 {
+        let manage_caps = if !manage_caps_vec.is_empty() {
             Some(manage_caps_vec)
         } else {
             None
@@ -430,13 +431,13 @@ impl From<Vec<FireboltPermission>> for CapabilitySet {
                 }
             }
         }
-        let use_caps = if use_caps.len() == 0 {
+        let use_caps = if use_caps.is_empty() {
             None
         } else {
             Some(use_caps)
         };
 
-        let manage_caps = if manage_caps.len() == 0 {
+        let manage_caps = if manage_caps.is_empty() {
             None
         } else {
             Some(manage_caps)
@@ -505,11 +506,12 @@ impl CapabilitySet {
             if let Some(cap) = c.first() {
                 return Some(FireboltPermission {
                     cap: cap.clone(),
-                    role: role,
+                    role,
                 });
             }
         }
-        return None;
+
+        None
     }
 
     ///
@@ -528,16 +530,17 @@ impl CapabilitySet {
         }
         if let Some(c) = self.provide_cap {
             return Some(FireboltPermission {
-                cap: c.clone(),
+                cap: c,
                 role: CapabilityRole::Provide,
             });
         }
-        return None;
+
+        None
     }
 
     pub fn has_permissions(
         &self,
-        permissions: &Vec<FireboltPermission>,
+        permissions: &[FireboltPermission],
     ) -> Result<(), DenyReasonWithCap> {
         let mut result = true;
         let mut caps_not_permitted: Vec<FireboltCap> = Default::default();
@@ -600,7 +603,7 @@ impl CapabilitySet {
                     }
                 }
             } else {
-                caps_not_permitted.extend(use_caps.clone());
+                caps_not_permitted.extend(use_caps);
             }
         }
 
@@ -612,19 +615,19 @@ impl CapabilitySet {
                     }
                 }
             } else {
-                caps_not_permitted.extend(manage_caps.clone());
+                caps_not_permitted.extend(manage_caps);
             }
         }
 
         if let Some(provide_cap) = cap_set.provide_cap {
             if let Some(self_provide_cap) = self.provide_cap.clone() {
                 if !self_provide_cap.eq(&provide_cap) {
-                    caps_not_permitted.push(provide_cap.clone())
+                    caps_not_permitted.push(provide_cap)
                 }
             }
         }
 
-        if caps_not_permitted.len() > 0 {
+        if !caps_not_permitted.is_empty() {
             return Err(DenyReasonWithCap::new(
                 DenyReason::Unpermitted,
                 caps_not_permitted,
@@ -635,14 +638,8 @@ impl CapabilitySet {
     }
 
     pub fn get_from_role(caps: Vec<FireboltCap>, role: Option<CapabilityRole>) -> CapabilitySet {
-        if role.is_none() {
-            CapabilitySet {
-                use_caps: Some(caps),
-                provide_cap: None,
-                manage_caps: None,
-            }
-        } else {
-            match role.unwrap() {
+        if let Some(role) = role {
+            match role {
                 CapabilityRole::Use => CapabilitySet {
                     use_caps: Some(caps),
                     provide_cap: None,
@@ -658,6 +655,12 @@ impl CapabilitySet {
                     provide_cap: None,
                     manage_caps: Some(caps),
                 },
+            }
+        } else {
+            CapabilitySet {
+                use_caps: Some(caps),
+                provide_cap: None,
+                manage_caps: None,
             }
         }
     }

@@ -27,6 +27,8 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
+use super::fb_telemetry::TelemetryPayload;
+
 //https://developer.comcast.com/firebolt/core/sdk/latest/api/metrics
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -141,10 +143,7 @@ pub fn hashmap_to_param_vec(the_map: Option<HashMap<String, String>>) -> Vec<Par
     let params_map = the_map.unwrap();
 
     for (key, value) in params_map {
-        result.push(Param {
-            name: key,
-            value: value,
-        });
+        result.push(Param { name: key, value });
     }
     result
 }
@@ -293,6 +292,33 @@ pub enum BehavioralMetricPayload {
     Raw(RawBehaviorMetricRequest),
 }
 
+impl BehavioralMetricPayload {
+    pub fn update_context(&mut self, context: BehavioralMetricContext) {
+        match self {
+            Self::Ready(r) => r.context = context,
+            Self::SignIn(s) => s.context = context,
+            Self::SignOut(s) => s.context = context,
+            Self::StartContent(s) => s.context = context,
+            Self::StopContent(s) => s.context = context,
+            Self::Page(p) => p.context = context,
+            Self::Action(a) => a.context = context,
+            Self::Error(e) => e.context = context,
+            Self::MediaLoadStart(m) => m.context = context,
+            Self::MediaPlay(m) => m.context = context,
+            Self::MediaPlaying(m) => m.context = context,
+            Self::MediaPause(m) => m.context = context,
+            Self::MediaWaiting(m) => m.context = context,
+            Self::MediaProgress(m) => m.context = context,
+            Self::MediaSeeking(m) => m.context = context,
+            Self::MediaSeeked(m) => m.context = context,
+            Self::MediaRateChanged(m) => m.context = context,
+            Self::MediaRenditionChanged(m) => m.context = context,
+            Self::MediaEnded(m) => m.context = context,
+            Self::Raw(r) => r.context = context,
+        }
+    }
+}
+
 /// all the things that are provided by platform that need to
 /// be updated, and eventually in/outjected into/out of a payload
 /// These items may (or may not) be available when the ripple
@@ -349,18 +375,18 @@ impl MetricsContext {
     }
     pub fn set(&mut self, field: MetricsContextField, value: String) {
         match field {
-            MetricsContextField::device_language => self.device_language = value.clone(),
-            MetricsContextField::device_model => self.device_model = value.clone(),
-            MetricsContextField::device_id => self.device_id = value.clone(),
-            MetricsContextField::account_id => self.account_id = value.clone(),
+            MetricsContextField::device_language => self.device_language = value,
+            MetricsContextField::device_model => self.device_model = value,
+            MetricsContextField::device_id => self.device_id = value,
+            MetricsContextField::account_id => self.account_id = value,
             MetricsContextField::device_timezone => self.device_timezone = value.parse().unwrap(),
-            MetricsContextField::platform => self.platform = value.clone(),
-            MetricsContextField::os_ver => self.os_ver = value.clone(),
-            MetricsContextField::distributor_id => self.distribution_tenant_id = value.clone(),
-            MetricsContextField::session_id => self.device_session_id = value.clone(),
-            MetricsContextField::mac_address => self.mac_address = value.clone(),
-            MetricsContextField::serial_number => self.serial_number = value.clone(),
-            MetricsContextField::device_name => self.device_name = value.clone(),
+            MetricsContextField::platform => self.platform = value,
+            MetricsContextField::os_ver => self.os_ver = value,
+            MetricsContextField::distributor_id => self.distribution_tenant_id = value,
+            MetricsContextField::session_id => self.device_session_id = value,
+            MetricsContextField::mac_address => self.mac_address = value,
+            MetricsContextField::serial_number => self.serial_number = value,
+            MetricsContextField::device_name => self.device_name = value,
         };
     }
 }
@@ -390,13 +416,10 @@ impl ExtnPayloadProvider for BehavioralMetricRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<BehavioralMetricRequest> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::BehavioralMetric(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::BehavioralMetric(r)) = payload {
+            return Some(r);
         }
+
         None
     }
 
@@ -419,21 +442,62 @@ impl ExtnPayloadProvider for MetricsResponse {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Response(response) => match response {
-                ExtnResponse::Value(value) => {
-                    if let Ok(v) = serde_json::from_value(value) {
-                        return Some(v);
-                    }
-                }
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Response(ExtnResponse::Value(value)) = payload {
+            if let Ok(v) = serde_json::from_value(value) {
+                return Some(v);
+            }
         }
+
         None
     }
 
     fn contract() -> RippleContract {
         RippleContract::BehaviorMetrics
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum MetricsPayload {
+    BehaviorMetric(BehavioralMetricPayload, CallContext),
+    OperationalMetric(TelemetryPayload),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MetricsRequest {
+    pub payload: MetricsPayload,
+    /// Additional info extensions want to send which can be appended to the context of the Metrics data
+    pub context: Option<HashMap<String, String>>,
+}
+
+impl ExtnPayloadProvider for MetricsRequest {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(ExtnRequest::Metrics(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<MetricsRequest> {
+        if let ExtnPayload::Request(ExtnRequest::Metrics(r)) = payload {
+            return Some(r);
+        }
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::Metrics
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct ErrorParams {
+    #[serde(rename = "type")]
+    pub error_type: ErrorType,
+    pub code: String,
+    pub description: String,
+    pub visible: bool,
+    pub parameters: Option<Vec<Param>>,
+}
+
+impl From<ErrorParams> for ErrorType {
+    fn from(params: ErrorParams) -> Self {
+        params.error_type
     }
 }

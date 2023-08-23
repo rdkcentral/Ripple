@@ -15,12 +15,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::time::Duration;
+
 use ripple_sdk::{
     api::status_update::ExtnStatus,
     async_trait::async_trait,
     framework::{bootstrap::Bootstep, RippleResponse},
     log::error,
-    tokio::sync::mpsc,
+    tokio::{sync::mpsc, time::timeout},
     utils::error::RippleError,
 };
 
@@ -32,11 +34,7 @@ fn start_preloaded_channel(
 ) -> RippleResponse {
     let client = state.platform_state.get_client();
 
-    if let Err(e) = state
-        .clone()
-        .extn_state
-        .start_channel(channel, client.clone())
-    {
+    if let Err(e) = state.clone().extn_state.start_channel(channel, client) {
         error!("Error during Device channel bootstrap");
         return Err(e);
     }
@@ -79,18 +77,27 @@ impl Bootstep<BootstrapState> for StartExtnChannelsStep {
                 }
             }
         }
-
+        let t = state.platform_state.get_manifest().get_timeout();
         for extn_id in extn_ids {
             let (tx, mut tr) = mpsc::channel(1);
             if !state
                 .extn_state
                 .add_extn_status_listener(extn_id.clone(), tx)
             {
-                if let Some(v) = tr.recv().await {
-                    state.extn_state.clear_status_listener(extn_id);
-                    match v {
-                        ExtnStatus::Ready => continue,
-                        _ => return Err(RippleError::BootstrapError),
+                match timeout(Duration::from_millis(t), tr.recv()).await {
+                    Ok(Some(v)) => {
+                        state.extn_state.clear_status_listener(extn_id);
+                        match v {
+                            ExtnStatus::Ready => continue,
+                            _ => return Err(RippleError::BootstrapError),
+                        }
+                    }
+                    Ok(None) => {
+                        error!("Extn={:?} dropped its memory", extn_id);
+                    }
+                    Err(_) => {
+                        error!("Extn={:?} failed to load timeout occurred", extn_id);
+                        return Err(RippleError::BootstrapError);
                     }
                 }
             }

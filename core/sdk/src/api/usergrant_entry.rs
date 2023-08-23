@@ -26,6 +26,7 @@ use serde::{Deserialize, Serialize};
 
 use super::device::device_user_grants_data::{GrantLifespan, GrantStatus};
 use super::firebolt::fb_capabilities::FireboltPermission;
+use super::storage_property::StorageAdjective;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum UserGrantsStoreRequest {
@@ -39,18 +40,15 @@ impl ExtnPayloadProvider for UserGrantsStoreRequest {
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        match payload {
-            ExtnPayload::Request(request) => match request {
-                ExtnRequest::UserGrantsStore(r) => return Some(r),
-                _ => {}
-            },
-            _ => {}
+        if let ExtnPayload::Request(ExtnRequest::UserGrantsStore(r)) = payload {
+            return Some(r);
         }
+
         None
     }
 
     fn contract() -> RippleContract {
-        RippleContract::UserGrantsLocalStore
+        RippleContract::Storage(StorageAdjective::UsergrantLocal)
     }
 }
 

@@ -18,6 +18,7 @@
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
+    thread,
 };
 
 use jsonrpsee::core::server::rpc_module::Methods;
@@ -34,7 +35,7 @@ use ripple_sdk::{
     },
     libloading::Library,
     log::info,
-    tokio::{self, sync::mpsc},
+    tokio::sync::mpsc,
     utils::error::RippleError,
 };
 
@@ -63,7 +64,6 @@ impl LoadedLibrary {
     }
 
     pub fn get_channels(&self) -> Vec<ExtnSymbol> {
-        info!("getting channels {}", self.metadata.symbols.len());
         let extn_ids: Vec<String> = self
             .metadata
             .symbols
@@ -71,6 +71,12 @@ impl LoadedLibrary {
             .filter(|x| x.id.is_channel())
             .map(|x| x.id.clone().to_string())
             .collect();
+        info!(
+            "getting channels {} lib_metadata={:?} extn_metadata={:?}",
+            self.metadata.symbols.len(),
+            extn_ids,
+            self.entry
+        );
         self.entry
             .clone()
             .symbols
@@ -143,16 +149,13 @@ impl ExtnState {
     }
 
     pub fn is_extn_ready(&self, extn_id: ExtnId) -> bool {
-        if let Some(v) = self
+        if let Some(ExtnStatus::Ready) = self
             .extn_status_map
             .read()
             .unwrap()
             .get(extn_id.to_string().as_str())
         {
-            match v {
-                ExtnStatus::Ready => return true,
-                _ => {}
-            }
+            return true;
         }
         false
     }
@@ -179,7 +182,7 @@ impl ExtnState {
     }
 
     pub fn get_sender(self) -> CSender<CExtnMessage> {
-        self.sender.clone()
+        self.sender
     }
 
     pub fn start_channel(
@@ -195,14 +198,15 @@ impl ExtnState {
             extn_id.clone(),
             symbol.clone().uses,
             symbol.clone().fulfills,
+            symbol.clone().config,
         );
         let (extn_tx, extn_rx) = ChannelsState::get_crossbeam_channel();
         let extn_channel = channel.channel;
-        tokio::spawn(async move {
+        thread::spawn(move || {
             (extn_channel.start)(extn_sender, extn_rx);
         });
         client.add_extn_sender(extn_id, symbol, extn_tx);
-        return Ok(());
+        Ok(())
     }
 
     pub fn extend_methods(&self, methods: Methods) {

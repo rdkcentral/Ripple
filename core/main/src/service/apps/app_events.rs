@@ -70,9 +70,11 @@ impl Clone for Box<dyn AppEventDecorator + Send + Sync> {
 #[derive(Default, Debug)]
 pub struct AppEvents {}
 
+type ListenersMap = Arc<RwLock<HashMap<String, HashMap<Option<String>, Vec<EventListener>>>>>;
+
 #[derive(Clone, Default)]
 pub struct AppEventsState {
-    pub listeners: Arc<RwLock<HashMap<String, HashMap<Option<String>, Vec<EventListener>>>>>,
+    pub listeners: ListenersMap,
 }
 
 impl std::fmt::Debug for AppEventsState {
@@ -86,27 +88,25 @@ impl std::fmt::Debug for AppEventsState {
                     .map(|x| x.call_ctx.app_id.clone())
                     .for_each(|x| {
                         let cur_value = listeners_debug.get(&event_name.to_owned());
-                        let new_value = if cur_value.is_some() {
+                        let new_value = if let Some(cur_value) = cur_value {
                             if context.is_some() {
-                                cur_value.unwrap().to_string()
-                                    + " , [".into()
+                                cur_value.to_string()
+                                    + " , ["
                                     + &x
-                                    + " with event context ".into()
+                                    + " with event context "
                                     + &context.clone().unwrap()
-                                    + "]".into()
+                                    + "]"
                             } else {
-                                cur_value.unwrap().to_string() + " , ".into() + &x
+                                cur_value.to_string() + " , " + &x
                             }
+                        } else if context.is_some() {
+                            "[".to_string()
+                                + &x
+                                + " with event context "
+                                + &context.clone().unwrap()
+                                + "]"
                         } else {
-                            if context.is_some() {
-                                "[".to_string()
-                                    + &x
-                                    + " with event context ".into()
-                                    + &context.clone().unwrap()
-                                    + "]".into()
-                            } else {
-                                x
-                            }
+                            x
                         };
                         listeners_debug.insert(event_name.clone(), new_value);
                     })
@@ -134,13 +134,13 @@ impl EventListener {
         event_name: &str,
         result: &Value,
     ) -> Result<Value, AppEventDecorationError> {
-        if let None = self.decorator {
+        if self.decorator.is_none() {
             return Ok(result.clone());
         }
         self.decorator
             .as_ref()
             .unwrap()
-            .decorate(&state, &self.call_ctx, event_name, &result)
+            .decorate(state, &self.call_ctx, event_name, result)
             .await
     }
 }
@@ -157,12 +157,11 @@ impl AppEvents {
                 entry.insert(event_context.clone(), Vec::new());
                 listeners.insert(event_name.clone(), entry);
             }
-            Some(item) => match item.get_mut(&event_context) {
-                None => {
+            Some(item) => {
+                if item.get_mut(&event_context).is_none() {
                     item.insert(event_context.clone(), Vec::new());
                 }
-                _ => {}
-            },
+            }
         }
         // We just inserted if this was none right before this, so this should always be Some, safe to unwrap
         listeners
@@ -241,18 +240,15 @@ impl AppEvents {
         let event_ctx_string = event_context.map(|x| x.to_string());
 
         if listen_request.listen {
-            let event_listeners = AppEvents::get_or_create_listener_vec(
-                &mut listeners,
-                event_name,
-                event_ctx_string.clone(),
-            );
+            let event_listeners =
+                AppEvents::get_or_create_listener_vec(&mut listeners, event_name, event_ctx_string);
             //The last listener wins if there is already a listener exists with same session id
             AppEvents::remove_session_from_events(event_listeners, &call_ctx.session_id);
             event_listeners.push(EventListener {
-                call_ctx: call_ctx,
+                call_ctx,
                 session_tx: session.get_sender(),
                 transport: session.get_transport(),
-                decorator: decorator,
+                decorator,
             });
         } else if let Some(entry) = listeners.get_mut(&event_name) {
             if let Some(event_listeners) = entry.get_mut(&event_ctx_string) {
@@ -304,17 +300,14 @@ impl AppEvents {
         let listeners = state.listeners.read().unwrap();
         let mut vec = Vec::new();
 
-        match listeners.get(event_name) {
-            Some(entry) => match entry.get(&context) {
-                Some(v) => {
-                    for i in v {
-                        vec.push(i.clone());
-                    }
+        if let Some(entry) = listeners.get(event_name) {
+            if let Some(v) = entry.get(&context) {
+                for i in v {
+                    vec.push(i.clone());
                 }
-                None => {}
-            },
-            None => {}
+            }
         }
+
         vec
     }
 

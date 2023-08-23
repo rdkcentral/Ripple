@@ -52,7 +52,7 @@ impl DistSessionState {
             v
         } else {
             FileStore::new(
-                path.clone(),
+                path,
                 AccountSession {
                     id: "general".into(),
                     token: "general".into(),

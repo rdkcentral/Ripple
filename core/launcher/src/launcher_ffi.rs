@@ -62,7 +62,7 @@ fn start_launcher(sender: ExtnSender, receiver: Receiver<CExtnMessage>) {
     let _ = init_logger("launcher_channel".into());
     info!("Starting launcher channel");
     let runtime = Runtime::new().unwrap();
-    let client = ExtnClient::new(receiver.clone(), sender);
+    let client = ExtnClient::new(receiver, sender);
     let client_for_receiver = client.clone();
     runtime.block_on(async move {
         tokio::spawn(async move {
@@ -84,13 +84,13 @@ fn start_launcher(sender: ExtnSender, receiver: Receiver<CExtnMessage>) {
 }
 
 fn build(extn_id: String) -> Result<Box<ExtnChannel>, RippleError> {
-    if let Ok(id) = ExtnId::try_from(extn_id.clone()) {
+    if let Ok(id) = ExtnId::try_from(extn_id) {
         let current_id = ExtnId::new_channel(ExtnClassId::Launcher, "internal".into());
 
         if id.eq(&current_id) {
-            return Ok(Box::new(ExtnChannel {
+            Ok(Box::new(ExtnChannel {
                 start: start_launcher,
-            }));
+            }))
         } else {
             Err(RippleError::ExtnError)
         }
