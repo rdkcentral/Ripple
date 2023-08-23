@@ -53,6 +53,7 @@ use ripple_sdk::{
 };
 use serde_json::Value;
 use url::Url;
+use urlencoding::encode;
 
 use crate::{
     launcher_state::LauncherState,
@@ -514,7 +515,7 @@ impl AppLauncher {
         }
     }
 
-    fn get_manifest_url(manifest: AppManifest) -> String {
+    fn get_modified_url(manifest: AppManifest, sessionid: &str) -> String {
         let mut url = manifest.start_page.to_string();
         if let Ok(mut modified_url) = Url::parse(&url) {
             let mut query_params: Vec<(String, String)> = modified_url
@@ -529,22 +530,19 @@ impl AppLauncher {
                 let firebolt_endpoint = String::from("127.0.0.0");
                 let appid = manifest.name.to_string();
                 let value: String = format!(
-                    "ws%3A%2F%2F{}%3A3473%3FappId%3D{}",
-                    firebolt_endpoint, appid
+                    "ws%3A%2F%2F{}%3A3473%3FappId%3D{}%26session%3D{}",
+                    firebolt_endpoint, appid, sessionid
                 );
                 query_params.push(("__firebolt_endpoint".to_string(), value));
             }
-
             // Modify the URL with the updated query parameters
             modified_url.set_query(Some(
                 &query_params
                     .iter()
-                    .map(|(key, value)| format!("{}={}", key, value))
+                    .map(|(key, value)| format!("{}={}", key, encode(value).to_string()))
                     .collect::<Vec<String>>()
                     .join("&"),
             ));
-
-            debug!("modified URL: {}", modified_url);
             url = modified_url.as_str().to_string();
         } else {
             debug!("Invalid URL");
@@ -575,11 +573,11 @@ impl AppLauncher {
                 id: manifest.name.clone(),
                 title: Some(manifest.name.clone()),
                 catalog: manifest.content_catalog.clone(),
-                url: Some(Self::get_manifest_url(manifest.clone())),
+                url: Some(manifest.start_page.clone()),
             },
             runtime: Some(AppRuntime {
                 id: Some(callsign),
-                transport: Self::get_transport(&state, Self::get_manifest_url(manifest.clone())),
+                transport: Self::get_transport(&state, manifest.start_page.clone()),
             }),
             launch: AppLaunchInfo {
                 intent: Some(intent),
@@ -588,7 +586,7 @@ impl AppLauncher {
             },
         };
 
-        let mut modified_url = Self::get_manifest_url(manifest.clone());
+        let sessionid: String;
         let resp = state
             .send_extn_request(LifecycleManagementRequest::Session(AppSessionRequest {
                 session,
@@ -602,9 +600,8 @@ impl AppLauncher {
             Ok(response) => match response.payload.extract::<AppResponse>() {
                 Some(Ok(AppManagerResponse::Session(res))) => match res {
                     SessionResponse::Pending(val) => {
-                        let sessionid = val.session_id.unwrap();
-                        info!("session id : {:?} ", sessionid);
-                        modified_url = format!("{}%26session%3D{}", modified_url, sessionid)
+                        sessionid = val.session_id.unwrap();
+                        debug!("session id : {:?} ", sessionid);
                     }
                     _ => {
                         return Err(AppError::NotFound);
@@ -619,7 +616,8 @@ impl AppLauncher {
             }
         }
 
-        info!("modified url with sessionid : {:?}", modified_url);
+        let modified_url = Self::get_modified_url(manifest.clone(), &sessionid);
+        debug!("modified url with sessionid : {:?}", modified_url);
         Ok(modified_url)
     }
 
