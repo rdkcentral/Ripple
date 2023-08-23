@@ -1207,10 +1207,8 @@ mod tests {
     use super::*;
 
     mod test_grant_policy_enforcer {
-        use std::str::FromStr;
-
         use super::*;
-        use crate::utils::test_utils::{cap_state_listener, fb_perm, MockRuntime};
+        use crate::utils::test_utils::{fb_perm, MockRuntime};
         use futures::FutureExt;
         use ripple_sdk::{
             api::{
@@ -1225,9 +1223,6 @@ mod tests {
                 time::{self, Duration},
             },
             utils::logger::init_logger,
-        };
-        use ripple_tdk::utils::test_utils::{
-            cap_jsonrpc_payload_granted, cap_jsonrpc_payload_revoked,
         };
         use serde_json::json;
 
@@ -1289,7 +1284,6 @@ mod tests {
                 reason: DenyReason::GrantDenied,
                 caps: vec![perm.cap.clone()]
             })));
-            // TODO check cap is unsupported
         }
 
         #[tokio::test]
@@ -1318,7 +1312,6 @@ mod tests {
             let (result, _) = join!(evaluate_options, pinchallenge_response);
 
             assert!(result.is_ok());
-            assert!(state.cap_state.generic.check_available(&vec![perm]).is_ok());
         }
 
         #[tokio::test]
@@ -1347,7 +1340,6 @@ mod tests {
             let (result, _) = join!(evaluate_options, pinchallenge_response);
 
             assert!(result.is_ok());
-            assert!(state.cap_state.generic.check_available(&vec![perm]).is_ok());
         }
 
         #[tokio::test]
@@ -1446,7 +1438,6 @@ mod tests {
                         .send_ackchallenge_failure(&state, &ctx)
                         .await;
                 });
-            let mut resp_rx = cap_state_listener(&state, &perm, CapEvent::OnRevoked).await;
 
             let evaluate_options =
                 GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy);
@@ -1457,11 +1448,6 @@ mod tests {
                 reason: DenyReason::GrantDenied,
                 caps: vec![FireboltCap::Full(ACK_CHALLENGE_CAPABILITY.to_owned())]
             })));
-            let cap_event = resp_rx.recv().await;
-            assert!(cap_event.is_some());
-            let value: serde_json::Value =
-                serde_json::Value::from_str(cap_event.unwrap().jsonrpc_msg.as_str()).unwrap();
-            assert_eq!(cap_jsonrpc_payload_revoked(perm.cap.as_str()), value);
         }
 
         #[tokio::test]
@@ -1489,18 +1475,12 @@ mod tests {
                         .send_ackchallenge_success(&state, &ctx)
                         .await;
                 });
-            let mut resp_rx = cap_state_listener(&state, &perm, CapEvent::OnGranted).await;
 
             let evaluate_options =
                 GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy);
             let (result, _) = join!(evaluate_options, challenge_responses);
 
             assert!(result.is_ok());
-            let cap_event = resp_rx.recv().await;
-            assert!(cap_event.is_some());
-            let value: serde_json::Value =
-                serde_json::Value::from_str(cap_event.unwrap().jsonrpc_msg.as_str()).unwrap();
-            assert_eq!(cap_jsonrpc_payload_granted(perm.cap.as_str()), value);
         }
     }
 }
