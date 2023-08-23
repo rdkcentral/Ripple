@@ -27,7 +27,7 @@ use crate::ripple_sdk::{
     },
     crossbeam::channel::unbounded,
     extn::extn_client_message::{ExtnPayload, ExtnRequest},
-    serde_json, tokio,
+    serde_json,
 };
 use crate::tests::contracts::contract_utils::*;
 use crate::{client::thunder_client_pool::ThunderClientPool, thunder_state::ThunderState};

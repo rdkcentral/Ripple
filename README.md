@@ -85,8 +85,6 @@ To achieve this you need to add the following to your user-settings.json file.
   "rust-analyzer.check.command": "clippy",
 ```
 
-** Note: `~/.cargo/bin/cargo` might need expanding to be the absolute full path on your system **
-
 ## Folder structure
 
 Ripple folder structure has the below layers

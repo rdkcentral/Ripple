@@ -132,7 +132,9 @@ pub async fn get_pact_mock_server(async_build: PactBuilderAsync) -> Box<dyn Vali
 pub fn get_extn_client(s: Sender<CExtnMessage>, r: Receiver<CExtnMessage>) -> ExtnClient {
     // Creating extn client which will send back the data to the receiver(instead of callback)
     let option_map: Option<HashMap<String, String>> = Some(HashMap::new());
-    let extn_client = ExtnClient::new(
+    
+
+    ExtnClient::new(
         r.clone(),
         ExtnSender::new(
             s,
@@ -141,9 +143,7 @@ pub fn get_extn_client(s: Sender<CExtnMessage>, r: Receiver<CExtnMessage>) -> Ex
             Vec::new(),
             option_map,
         ),
-    );
-
-    return extn_client;
+    )
 }
 
 pub fn get_mock_server_url(mock_server: Box<dyn ValidatingMockServer>) -> url::Url {
@@ -151,12 +151,12 @@ pub fn get_mock_server_url(mock_server: Box<dyn ValidatingMockServer>) -> url::U
 }
 
 pub fn get_extn_msg(payload: ExtnPayload) -> ExtnMessage {
-    return ExtnMessage {
+    ExtnMessage {
         callback: None,
         id: "SomeId".into(),
-        payload: payload,
+        payload,
         requestor: ExtnId::new_channel(ExtnClassId::Device, "pact".into()),
         target: RippleContract::DeviceInfo,
         ts: Some(30),
-    };
+    }
 }

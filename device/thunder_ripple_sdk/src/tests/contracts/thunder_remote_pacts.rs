@@ -31,7 +31,6 @@ use crate::{
         crossbeam::channel::unbounded,
         extn::extn_client_message::{ExtnPayload, ExtnRequest},
         serde_json::{self},
-        tokio,
     },
     thunder_state::ThunderState,
 };
@@ -78,9 +77,9 @@ async fn test_device_remote_start_pairing() {
     let timeout = 1;
     let protocol = AccessoryProtocol::BluetoothLE;
     let pair_params = AccessoryPairRequest {
-        _type: _type,
-        timeout: timeout,
-        protocol: protocol,
+        _type,
+        timeout,
+        protocol,
     };
     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Accessory(
         RemoteAccessoryRequest::Pair(pair_params.clone()),
@@ -167,8 +166,8 @@ async fn test_device_remote_network_status() {
     let _type: Option<AccessoryListType> = Some(AccessoryListType::All);
     let protocol: Option<AccessoryProtocolListType> = Some(AccessoryProtocolListType::All);
     let list_params = AccessoryListRequest {
-        _type: _type,
-        protocol: protocol,
+        _type,
+        protocol,
     };
     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Accessory(
         RemoteAccessoryRequest::List(list_params.clone()),

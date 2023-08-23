@@ -91,7 +91,7 @@ async fn test_device_set_persistent_value() {
     let set_params = SetStorageProperty {
         namespace: namespace.to_string(),
         key: key.to_string(),
-        data: data,
+        data,
     };
     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Storage(
         DevicePersistenceRequest::Set(set_params.clone()),
