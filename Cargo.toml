@@ -31,6 +31,3 @@ members = [
 [workspace.package]
 version = "0.8.0"
 resolver = "2"
-
-[workspace.dev-dependencies]
-rusty-hook = "0.11.2"
