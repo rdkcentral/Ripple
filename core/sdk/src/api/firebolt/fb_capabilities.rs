@@ -56,6 +56,7 @@ impl Hash for FireboltCap {
 }
 
 impl FireboltCap {
+    // TODO: refactor this to use ToString trait instead of confusingly named function
     pub fn as_str(&self) -> String {
         let prefix = "xrn:firebolt:capability:";
         match self {
@@ -341,7 +342,7 @@ impl RpcError for DenyReason {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct DenyReasonWithCap {
     pub reason: DenyReason,
     pub caps: Vec<FireboltCap>,

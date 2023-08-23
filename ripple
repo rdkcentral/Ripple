@@ -87,7 +87,7 @@ case ${1} in
         sed -i "" "s@\"default_extension\": \"so\"@\"default_extension\": \"$default_extension\"@" ~/.ripple/firebolt-extn-manifest.json
 
         ## Update firebolt-device-manifest.json
-        sed -i "" "s@\"/etc/firebolt-app-library.json\"@\"library\": \"~/.ripple/firebolt-app-library.json\"@" ~/.ripple/firebolt-device-manifest.json
+        sed -i "" "s@\"library\": \"/etc/firebolt-app-library.json\"@\"library\": \"~/.ripple/firebolt-app-library.json\"@" ~/.ripple/firebolt-device-manifest.json
 
         echo "All Done!"
     ;;

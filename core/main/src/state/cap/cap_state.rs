@@ -189,6 +189,7 @@ impl CapState {
                 if let Ok(r) = Self::get_cap_info(ps, cc, request).await {
                     if let Some(cap_info) = r.get(0) {
                         if let Ok(data) = serde_json::to_value(cap_info) {
+                            debug!("data={:?}", data);
                             // Step 4: Send exclusive cap info data for each listener
                             AppEvents::send_event(ps, &listener, &data).await;
                         }
@@ -226,6 +227,8 @@ impl CapState {
         if let Err(e) = GrantState::get_info(state, &call_context, &cap_set) {
             let _ = grant_errors.insert(e);
         }
+
+        debug!("grant errors {:?}", grant_errors);
 
         let cap_infos: Vec<CapabilityInfo> = generic_caps
             .into_iter()

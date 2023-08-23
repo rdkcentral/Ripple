@@ -6,7 +6,7 @@
     },
     "internal_ws_configuration": {
       "enabled": true,
-      "gateway": "127.0.0.1:3474"  
+      "gateway": "127.0.0.1:3474"
     },
     "platform": "Thunder",
     "platform_parameters": {
