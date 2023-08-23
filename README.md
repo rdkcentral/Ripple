@@ -85,6 +85,28 @@ To achieve this you need to add the following to your user-settings.json file.
   "rust-analyzer.check.command": "clippy",
 ```
 
+### pre-commit
+
+This repository uses pre-commit to ensure that committed code is checked and formatted correctly. To set this up in your development environment please:
+1. Install pre-commit
+
+on macOS:
+```bash
+brew install pre-commit
+```
+
+elsewhere:
+```bash
+pip install pre-commit
+```
+
+2. Install the hooks for this repository:
+```bash
+pre-commit install
+```
+
+See: https://pre-commit.com/
+
 ## Folder structure
 
 Ripple folder structure has the below layers
