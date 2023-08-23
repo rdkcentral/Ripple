@@ -938,14 +938,6 @@ impl GrantPolicyEnforcer {
                     GrantStepExecutor::execute(step, platform_state, call_ctx, permission).await
                 {
                     debug!("grant step execute Err. step={:?}", step);
-
-                    // platform_state.cap_state.grant_state.update(
-                    //     permission,
-                    //     policy,
-                    //     false,
-                    //     call_ctx.app_id.as_str(),
-                    // );
-
                     CapState::emit(
                         platform_state,
                         CapEvent::OnRevoked,
