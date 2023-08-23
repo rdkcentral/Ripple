@@ -96,6 +96,7 @@ pub enum RippleContract {
     Metrics,
     /// Contract for Extensions to recieve Telemetry events from Main
     OperationalMetricListener,
+    MockedDevice,
 }
 
 impl TryFrom<String> for RippleContract {
