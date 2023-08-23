@@ -18,7 +18,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::session::TokenType,
+    api::session::{SessionAdjective, TokenType},
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
@@ -53,6 +53,6 @@ impl ExtnPayloadProvider for TokenResult {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::SessionToken
+        RippleContract::Session(SessionAdjective::Device)
     }
 }

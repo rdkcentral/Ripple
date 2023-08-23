@@ -79,6 +79,9 @@ pub trait ExtnStreamProcessor: Send + Sync + 'static {
 
     fn get_state(&self) -> Self::STATE;
     fn receiver(&mut self) -> MReceiver<ExtnMessage>;
+    fn fulfills_mutiple(&self) -> Option<Vec<RippleContract>> {
+        None
+    }
     fn contract(&self) -> RippleContract {
         Self::VALUE::contract()
     }
