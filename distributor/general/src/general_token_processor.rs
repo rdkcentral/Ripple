@@ -16,7 +16,10 @@
 //
 
 use ripple_sdk::{
-    api::{firebolt::fb_authentication::TokenResult, session::SessionTokenRequest},
+    api::{
+        firebolt::fb_authentication::TokenResult,
+        session::{SessionAdjective, SessionTokenRequest},
+    },
     async_trait::async_trait,
     extn::{
         client::{
@@ -27,6 +30,7 @@ use ripple_sdk::{
         },
         extn_client_message::ExtnResponse,
     },
+    framework::ripple_contract::RippleContract,
 };
 
 pub struct DistributorTokenProcessor {
@@ -63,6 +67,15 @@ impl ExtnStreamProcessor for DistributorTokenProcessor {
     ) -> ripple_sdk::tokio::sync::mpsc::Sender<ripple_sdk::extn::extn_client_message::ExtnMessage>
     {
         self.streamer.sender()
+    }
+
+    fn fulfills_mutiple(
+        &self,
+    ) -> Option<Vec<ripple_sdk::framework::ripple_contract::RippleContract>> {
+        Some(vec![
+            RippleContract::Session(SessionAdjective::Root),
+            RippleContract::Session(SessionAdjective::Device),
+        ])
     }
 }
 

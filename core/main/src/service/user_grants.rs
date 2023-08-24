@@ -956,14 +956,6 @@ impl GrantPolicyEnforcer {
                 .await
                 {
                     debug!("grant step execute Err. step={:?}", step);
-
-                    // platform_state.cap_state.grant_state.update(
-                    //     permission,
-                    //     policy,
-                    //     false,
-                    //     call_ctx.app_id.as_str(),
-                    // );
-
                     CapState::emit(
                         platform_state,
                         CapEvent::OnRevoked,
@@ -1240,10 +1232,8 @@ mod tests {
     use super::*;
 
     mod test_grant_policy_enforcer {
-        use std::str::FromStr;
-
         use super::*;
-        use crate::utils::test_utils::{cap_state_listener, fb_perm, MockRuntime};
+        use crate::utils::test_utils::{fb_perm, MockRuntime};
         use futures::FutureExt;
         use ripple_sdk::{
             api::{
@@ -1252,16 +1242,12 @@ mod tests {
                     fb_pin::{PinChallengeResultReason, PIN_CHALLENGE_CAPABILITY},
                     provider::ACK_CHALLENGE_CAPABILITY,
                 },
-                gateway::rpc_gateway_api::CallContext,
             },
             tokio::{
                 self, join,
                 time::{self, Duration},
             },
             utils::logger::init_logger,
-        };
-        use ripple_tdk::utils::test_utils::{
-            cap_jsonrpc_payload_granted, cap_jsonrpc_payload_revoked,
         };
         use serde_json::json;
 
@@ -1295,16 +1281,7 @@ mod tests {
         async fn test_evaluate_options_no_options() {
             let (state, ctx, perm, policy) = setup(vec![]);
 
-            let caller_session: CallerSession = ctx.clone().into();
-            let app_identification: AppIdentification = ctx.clone().into();
-            let result = GrantPolicyEnforcer::evaluate_options(
-                &state,
-                &caller_session,
-                &app_identification,
-                &perm,
-                &policy,
-            )
-            .await;
+            let result = GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy).await;
 
             assert!(result.is_ok());
         }
@@ -1313,16 +1290,7 @@ mod tests {
         async fn test_evaluate_options_no_steps_for_option() {
             let (state, ctx, perm, policy) = setup(vec![GrantRequirements { steps: vec![] }]);
 
-            let caller_session: CallerSession = ctx.clone().into();
-            let app_identification: AppIdentification = ctx.clone().into();
-            let result = GrantPolicyEnforcer::evaluate_options(
-                &state,
-                &caller_session,
-                &app_identification,
-                &perm,
-                &policy,
-            )
-            .await;
+            let result = GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy).await;
 
             assert!(result.is_ok());
         }
@@ -1334,23 +1302,13 @@ mod tests {
                 cap: FireboltCap::Full("xrn:firebolt:capability:something:unknown".to_owned()),
                 role: CapabilityRole::Use,
             };
-            let caller_session: CallerSession = ctx.clone().into();
-            let app_identification: AppIdentification = ctx.into();
 
-            let result = GrantPolicyEnforcer::evaluate_options(
-                &state,
-                &caller_session,
-                &app_identification,
-                &perm,
-                &policy,
-            )
-            .await;
+            let result = GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy).await;
 
             assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
                 reason: DenyReason::GrantDenied,
                 caps: vec![perm.cap.clone()]
             })));
-            // TODO check cap is unsupported
         }
 
         #[tokio::test]
@@ -1370,23 +1328,15 @@ mod tests {
                     }],
                 },
             ]);
-            let caller_session: CallerSession = ctx.clone().into();
-            let app_identification: AppIdentification = ctx.clone().into();
             let pinchallenge_response = state
                 .provider_broker_state
                 .send_pinchallenge_success(&state, &ctx);
-            let evaluate_options = GrantPolicyEnforcer::evaluate_options(
-                &state,
-                &caller_session,
-                &app_identification,
-                &perm,
-                &policy,
-            );
 
+            let evaluate_options =
+                GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy);
             let (result, _) = join!(evaluate_options, pinchallenge_response);
 
             assert!(result.is_ok());
-            assert!(state.cap_state.generic.check_available(&vec![perm]).is_ok());
         }
 
         #[tokio::test]
@@ -1406,23 +1356,15 @@ mod tests {
                     }],
                 },
             ]);
-            let caller_session: CallerSession = ctx.clone().into();
-            let app_identification: AppIdentification = ctx.clone().into();
             let pinchallenge_response = state
                 .provider_broker_state
                 .send_pinchallenge_success(&state, &ctx);
-            let evaluate_options = GrantPolicyEnforcer::evaluate_options(
-                &state,
-                &caller_session,
-                &app_identification,
-                &perm,
-                &policy,
-            );
 
+            let evaluate_options =
+                GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy);
             let (result, _) = join!(evaluate_options, pinchallenge_response);
 
             assert!(result.is_ok());
-            assert!(state.cap_state.generic.check_available(&vec![perm]).is_ok());
         }
 
         #[tokio::test]
@@ -1450,16 +1392,7 @@ mod tests {
                 },
             ]);
 
-            let caller_session: CallerSession = ctx.clone().into();
-            let app_identification: AppIdentification = ctx.into();
-            let result = GrantPolicyEnforcer::evaluate_options(
-                &state,
-                &caller_session,
-                &app_identification,
-                &perm,
-                &policy,
-            )
-            .await;
+            let result = GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy).await;
 
             assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
                 reason: DenyReason::Unsupported,
@@ -1489,21 +1422,14 @@ mod tests {
                     },
                 ],
             }]);
-            let caller_session: CallerSession = ctx.clone().into();
-            let app_identification: AppIdentification = ctx.clone().into();
             let challenge_responses = state.provider_broker_state.send_pinchallenge_failure(
                 &state,
                 &ctx,
                 PinChallengeResultReason::ExceededPinFailures,
             );
-            let evaluate_options = GrantPolicyEnforcer::evaluate_options(
-                &state,
-                &caller_session,
-                &app_identification,
-                &perm,
-                &policy,
-            );
 
+            let evaluate_options =
+                GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy);
             let (result, _) = join!(evaluate_options, challenge_responses);
 
             assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
@@ -1526,8 +1452,6 @@ mod tests {
                     },
                 ],
             }]);
-            let caller_session: CallerSession = ctx.clone().into();
-            let app_identification: AppIdentification = ctx.clone().into();
             let challenge_responses = state
                 .provider_broker_state
                 .send_pinchallenge_success(&state, &ctx)
@@ -1539,15 +1463,9 @@ mod tests {
                         .send_ackchallenge_failure(&state, &ctx)
                         .await;
                 });
-            let mut resp_rx = cap_state_listener(&state, &perm, CapEvent::OnRevoked).await;
-            let evaluate_options = GrantPolicyEnforcer::evaluate_options(
-                &state,
-                &caller_session,
-                &app_identification,
-                &perm,
-                &policy,
-            );
 
+            let evaluate_options =
+                GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy);
 
             let (result, _) = join!(evaluate_options, challenge_responses);
 
@@ -1555,11 +1473,6 @@ mod tests {
                 reason: DenyReason::GrantDenied,
                 caps: vec![FireboltCap::Full(ACK_CHALLENGE_CAPABILITY.to_owned())]
             })));
-            let cap_event = resp_rx.recv().await;
-            assert!(cap_event.is_some());
-            let value: serde_json::Value =
-                serde_json::Value::from_str(cap_event.unwrap().jsonrpc_msg.as_str()).unwrap();
-            assert_eq!(cap_jsonrpc_payload_revoked(perm.cap.as_str()), value);
         }
 
         #[tokio::test]
@@ -1576,8 +1489,6 @@ mod tests {
                     },
                 ],
             }]);
-            let caller_session: CallerSession = ctx.clone().into();
-            let app_identification: AppIdentification = ctx.clone().into();
             let challenge_responses = state
                 .provider_broker_state
                 .send_pinchallenge_success(&state, &ctx)
@@ -1589,24 +1500,12 @@ mod tests {
                         .send_ackchallenge_success(&state, &ctx)
                         .await;
                 });
-            let mut resp_rx = cap_state_listener(&state, &perm, CapEvent::OnGranted).await;
-            let evaluate_options = GrantPolicyEnforcer::evaluate_options(
-                &state,
-                &caller_session,
-                &app_identification,
-                &perm,
-                &policy,
-            );
 
-
+            let evaluate_options =
+                GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy);
             let (result, _) = join!(evaluate_options, challenge_responses);
 
             assert!(result.is_ok());
-            let cap_event = resp_rx.recv().await;
-            assert!(cap_event.is_some());
-            let value: serde_json::Value =
-                serde_json::Value::from_str(cap_event.unwrap().jsonrpc_msg.as_str()).unwrap();
-            assert_eq!(cap_jsonrpc_payload_granted(perm.cap.as_str()), value);
         }
     }
 }

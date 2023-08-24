@@ -15,7 +15,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::utils::{error::RippleError, serde_utils::SerdeClearString};
+use crate::{
+    api::{session::SessionAdjective, storage_property::StorageAdjective},
+    utils::{error::RippleError, serde_utils::SerdeClearString},
+};
+use log::error;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -31,10 +35,6 @@ use serde_json::Value;
 pub enum RippleContract {
     /// Used by Main application to provide internal contracts for Extensions
     Internal,
-    /// Provided by the distributor could be a device extension or a cloud extension.
-    /// Distributor gets the ability to configure and customize the generation of
-    /// the Session information based on their policies. Used by [crate::api::session::AccountSession]
-    AccountSession,
     /// Provided by the distributor useful for adding Governance implementation for handling
     /// privacy information and other sensitive data.
     Governance,
@@ -68,34 +68,38 @@ pub enum RippleContract {
     Browser,
     Permissions,
     BridgeProtocol,
-    DevicePersistence,
     RemoteAccessory,
     Keyboard,
-    SessionToken,
     AppEvents,
     DeviceEvents,
     PowerStateEvent,
     VoiceGuidance,
-    SecureStorage,
     Advertising,
-    PrivacyCloudStore,
-    UserGrantsCloudStore,
     BehaviorMetrics,
     MediaEvents,
     PrivacySettings,
-    StorageManager,
     AccountLink,
     Settings,
     PubSub,
     CloudSync,
-    UserGrantsLocalStore,
-    PrivacySettingsLocalStore,
     Caps,
     Encoder,
     /// Contract for Main to forward behavior and operational metrics to processors
     Metrics,
     /// Contract for Extensions to recieve Telemetry events from Main
     OperationalMetricListener,
+    Storage(StorageAdjective),
+    /// Provided by the distributor could be a device extension or a cloud extension.
+    /// Distributor gets the ability to configure and customize the generation of
+    /// the Session information based on their policies. Used by [crate::api::session::AccountSession]
+    Session(SessionAdjective),
+}
+
+pub trait ContractAdjective: serde::ser::Serialize {
+    fn as_string(&self) -> String {
+        SerdeClearString::as_clear_string(self)
+    }
+    fn get_contract(&self) -> RippleContract;
 }
 
 impl TryFrom<String> for RippleContract {
@@ -104,6 +108,15 @@ impl TryFrom<String> for RippleContract {
         if let Ok(v) = serde_json::from_str(&value) {
             Ok(v)
         } else {
+            // its a common contract with an adjective
+            if value.split('.').count() == 2 {
+                let mut split = value.split('.');
+                let adjective = split.next().unwrap();
+                let common_contract = split.next().unwrap();
+                if let Some(c) = RippleContract::from_adjective_string(common_contract, adjective) {
+                    return Ok(c);
+                }
+            }
             Err(RippleError::ParseError)
         }
     }
@@ -120,8 +133,37 @@ impl From<RippleContract> for String {
 impl RippleContract {
     /// This method gets the clear string of the contract without the quotes added
     /// by serde deserializer.
-    pub fn as_clear_string(self) -> String {
-        SerdeClearString::as_clear_string(&self)
+    pub fn as_clear_string(&self) -> String {
+        let contract = SerdeClearString::as_clear_string(self);
+        if let Some(adjective) = self.get_adjective() {
+            format!("{}.{}", adjective, contract)
+        } else {
+            contract
+        }
+    }
+
+    pub fn get_adjective(&self) -> Option<String> {
+        match self {
+            Self::Storage(adj) => Some(adj.as_string()),
+            Self::Session(adj) => Some(adj.as_string()),
+            _ => None,
+        }
+    }
+
+    pub fn from_adjective_string(contract: &str, adjective: &str) -> Option<Self> {
+        let adjective = format!("\"{}\"", adjective);
+        match contract {
+            "storage" => match serde_json::from_str::<StorageAdjective>(&adjective) {
+                Ok(v) => return Some(v.get_contract()),
+                Err(e) => error!("contract parser_error={:?}", e),
+            },
+            "session" => match serde_json::from_str::<SessionAdjective>(&adjective) {
+                Ok(v) => return Some(v.get_contract()),
+                Err(e) => error!("contract parser_error={:?}", e),
+            },
+            _ => {}
+        }
+        None
     }
 }
 
@@ -168,7 +210,9 @@ impl From<ContractFulfiller> for String {
 
 #[cfg(test)]
 mod tests {
-    use crate::framework::ripple_contract::RippleContract;
+    use crate::{
+        api::storage_property::StorageAdjective, framework::ripple_contract::RippleContract,
+    };
 
     #[test]
     fn test_into() {
@@ -177,5 +221,29 @@ mod tests {
         let result = RippleContract::try_from(value);
         assert!(result.is_ok());
         assert!(matches!(result, Ok(RippleContract::DeviceInfo)));
+    }
+
+    #[test]
+    fn test_adjectives_try_from_serialized() {
+        let value: String = RippleContract::Storage(StorageAdjective::Local).into();
+        assert!(value.eq("{\"storage\":\"local\"}"));
+        let result = RippleContract::try_from(value);
+        assert!(result.is_ok());
+        assert!(matches!(
+            result,
+            Ok(RippleContract::Storage(StorageAdjective::Local))
+        ));
+    }
+
+    #[test]
+    fn test_adjectives_try_from_manifested() {
+        // other way around
+        let manifest_entry = String::from("local.storage");
+        let result = RippleContract::try_from(manifest_entry);
+        assert!(result.is_ok());
+        assert!(matches!(
+            result,
+            Ok(RippleContract::Storage(StorageAdjective::Local))
+        ));
     }
 }
