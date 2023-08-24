@@ -287,7 +287,7 @@ pub struct VoiceGuidance {
     pub speed: f32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum BootState {
     Inactive,
@@ -371,7 +371,7 @@ pub struct AppAuthorizationRules {
     pub app_ignore_rules: HashMap<String, Vec<String>>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum PrivacySettingsStorageType {
     Local,

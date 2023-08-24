@@ -25,7 +25,7 @@ pub struct JsonRpcMethodLocator {
     pub qualifier: Option<String>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct RpcMethodLocatorParseError {}
 
 impl JsonRpcMethodLocator {}

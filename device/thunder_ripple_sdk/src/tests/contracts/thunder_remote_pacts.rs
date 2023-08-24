@@ -31,7 +31,6 @@ use crate::{
         crossbeam::channel::unbounded,
         extn::extn_client_message::{ExtnPayload, ExtnRequest},
         serde_json::{self},
-        tokio,
     },
     thunder_state::ThunderState,
 };
@@ -44,6 +43,7 @@ use std::collections::HashMap;
 
 // #[tokio::test(flavor = "multi_thread")]
 // #[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[allow(dead_code)]
 async fn test_device_remote_start_pairing() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -78,9 +78,9 @@ async fn test_device_remote_start_pairing() {
     let timeout = 1;
     let protocol = AccessoryProtocol::BluetoothLE;
     let pair_params = AccessoryPairRequest {
-        _type: _type,
-        timeout: timeout,
-        protocol: protocol,
+        _type,
+        timeout,
+        protocol,
     };
     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Accessory(
         RemoteAccessoryRequest::Pair(pair_params.clone()),
@@ -105,6 +105,7 @@ async fn test_device_remote_start_pairing() {
 
 // #[tokio::test(flavor = "multi_thread")]
 // #[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[allow(dead_code)]
 async fn test_device_remote_network_status() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -166,10 +167,7 @@ async fn test_device_remote_network_status() {
 
     let _type: Option<AccessoryListType> = Some(AccessoryListType::All);
     let protocol: Option<AccessoryProtocolListType> = Some(AccessoryProtocolListType::All);
-    let list_params = AccessoryListRequest {
-        _type: _type,
-        protocol: protocol,
-    };
+    let list_params = AccessoryListRequest { _type, protocol };
     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Accessory(
         RemoteAccessoryRequest::List(list_params.clone()),
     )));

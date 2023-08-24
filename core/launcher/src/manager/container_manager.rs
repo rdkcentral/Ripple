@@ -40,13 +40,13 @@ use super::{
     view_manager::{Position, ViewManager},
 };
 
-#[derive(Debug, Serialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 pub struct StateChangeInternal {
     pub states: StateChange,
     pub container_props: ContainerProperties,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct ContainerProperties {
     pub name: String,
     pub view_id: ViewId,

@@ -35,6 +35,7 @@ use std::collections::HashMap;
 
 // #[tokio::test(flavor = "multi_thread")]
 // #[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[allow(dead_code)]
 async fn test_device_launch_html_app() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -98,14 +99,14 @@ async fn test_device_launch_html_app() {
         browser_name: browser_name.to_string(),
         uri: uri.to_string(),
         _type: _type.to_string(),
-        visible: visible,
-        suspend: suspend,
-        focused: focused,
+        visible,
+        suspend,
+        focused,
         name: name.to_string(),
-        x: x,
-        y: y,
-        w: w,
-        h: h,
+        x,
+        y,
+        w,
+        h,
         properties: None,
     };
     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Browser(
