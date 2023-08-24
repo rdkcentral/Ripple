@@ -173,35 +173,27 @@ impl ThunderStorageRequestProcessor {
         if let Some(status) = response.message["success"].as_bool() {
             if status {
                 let value_resp_res = serde_json::from_value(response.message);
-                if value_resp_res.is_err() {
+                if value_resp_res.is_ok() {
                     debug!("{:?}", value_resp_res);
-                    return false;
-                }
-                let value_resp: ThunderGetValueResponse = value_resp_res.unwrap();
-                if !value_resp.success {
-                    debug!("{:?}", value_resp);
-                    return false;
-                }
-                let parsed_res: Result<Value, serde_json::Error> =
-                    serde_json::from_str(&value_resp.value);
-                if parsed_res.is_err() {
-                    debug!(
-                        "Invalid json {} stored at key {}",
-                        value_resp.value, data.key
-                    );
-                    debug!("{:?}", parsed_res);
-                    return false;
-                }
-
-                let value = parsed_res.unwrap();
-                if let Ok(v) = serde_json::from_value(value.clone()) {
-                    return Self::respond(
-                        state.get_client(),
-                        req.clone(),
-                        ExtnResponse::StorageData(v),
-                    )
-                    .await
-                    .is_ok();
+                    let value_resp: ThunderGetValueResponse = value_resp_res.unwrap();
+                    if value_resp.success {
+                        if let Ok(v) = serde_json::from_str::<Value>(&value_resp.value) {
+                            if let Ok(v) = serde_json::from_value(v.clone()) {
+                                return Self::respond(
+                                    state.get_client(),
+                                    req.clone(),
+                                    ExtnResponse::StorageData(v),
+                                )
+                                .await
+                                .is_ok();
+                            }
+                        }
+                        error!("serialization failure for Storage data");
+                    } else {
+                        error!("success failure response from thunder");
+                    }
+                } else {
+                    error!("malformed response from thunder");
                 }
             } else {
                 return Self::respond(state.get_client(), req.clone(), ExtnResponse::None(()))
