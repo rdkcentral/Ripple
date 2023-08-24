@@ -124,5 +124,3 @@ impl ExtnPayloadProvider for LauncherConfig {
         RippleContract::Config
     }
 }
-
-pub fn something() {}
