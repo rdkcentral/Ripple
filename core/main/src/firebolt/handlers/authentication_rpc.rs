@@ -25,18 +25,15 @@ use ripple_sdk::{
     api::{
         firebolt::{
             fb_authentication::{TokenRequest, TokenResult},
-            fb_capabilities::{FireboltCap, CAPABILITY_NOT_AVAILABLE, CAPABILITY_NOT_SUPPORTED},
+            fb_capabilities::{FireboltCap, CAPABILITY_NOT_AVAILABLE},
         },
         gateway::rpc_gateway_api::CallContext,
-        session::{SessionTokenRequest, TokenType},
+        session::{SessionTokenRequest, TokenContext, TokenType},
     },
     extn::extn_client_message::ExtnResponse,
 };
 
-use crate::{
-    firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState,
-    utils::rpc_utils::rpc_err,
-};
+use crate::{firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState};
 
 #[rpc(server)]
 pub trait Authentication {
@@ -59,13 +56,13 @@ impl AuthenticationServer for AuthenticationImpl {
     async fn token(&self, ctx: CallContext, token_request: TokenRequest) -> RpcResult<TokenResult> {
         match token_request._type {
             TokenType::Platform => {
-                let cap = FireboltCap::Short("token:account".into());
+                let cap = FireboltCap::Short("token:platform".into());
                 let supported_caps = self
                     .platform_state
                     .get_device_manifest()
                     .get_supported_caps();
                 if supported_caps.contains(&cap) {
-                    self.platform_token(ctx).await
+                    self.token(TokenType::Platform, ctx).await
                 } else {
                     return Err(jsonrpsee::core::Error::Call(CallError::Custom {
                         code: CAPABILITY_NOT_AVAILABLE,
@@ -74,66 +71,67 @@ impl AuthenticationServer for AuthenticationImpl {
                     }));
                 }
             }
-            TokenType::Root => self.root_token(ctx).await,
+            TokenType::Root => self.token(TokenType::Root, ctx).await,
             TokenType::Device => {
                 let feats = self.platform_state.get_device_manifest().get_features();
                 // let feats = self.helper.get_config().get_features();
                 if feats.app_scoped_device_tokens {
-                    self.device_token(ctx).await
+                    self.token(TokenType::Device, ctx).await
                 } else {
-                    self.root_token(ctx).await
+                    self.token(TokenType::Root, ctx).await
                 }
             }
-            TokenType::Distributor => {
-                //error!("distributor token type is unsupported");
-                return Err(jsonrpsee::core::Error::Call(CallError::Custom {
-                    code: CAPABILITY_NOT_SUPPORTED,
-                    message: "capability xrn:firebolt:capability:token:session is not supported"
-                        .to_string(),
-                    data: None,
-                }));
-            }
+            TokenType::Distributor => self.token(TokenType::Distributor, ctx).await,
         }
     }
 
     async fn root(&self, ctx: CallContext) -> RpcResult<String> {
-        let r = self.root_token(ctx).await;
-
-        r.map(|r| r.value)
+        match self.token(TokenType::Root, ctx).await {
+            Ok(r) => Ok(r.value),
+            Err(e) => Err(e),
+        }
     }
 
     async fn device(&self, ctx: CallContext) -> RpcResult<String> {
         let feats = self.platform_state.get_device_manifest().get_features();
         let r = if feats.app_scoped_device_tokens {
-            self.device_token(ctx).await
+            self.token(TokenType::Device, ctx).await
         } else {
-            self.root_token(ctx).await
+            self.token(TokenType::Root, ctx).await
         };
-
-        r.map(|r| r.value)
+        match r {
+            Ok(r) => Ok(r.value),
+            Err(e) => Err(e),
+        }
     }
 
-    async fn session(&self, _ctx: CallContext) -> RpcResult<String> {
-        Err(jsonrpsee::core::Error::Call(CallError::Custom {
-            code: CAPABILITY_NOT_SUPPORTED,
-            message: "authentication.session is not supported".to_string(),
-            data: None,
-        }))
+    async fn session(&self, ctx: CallContext) -> RpcResult<String> {
+        match self.token(TokenType::Root, ctx).await {
+            Ok(r) => Ok(r.value),
+            Err(e) => Err(e),
+        }
     }
 }
 
 impl AuthenticationImpl {
-    async fn platform_token(&self, _ctx: CallContext) -> RpcResult<TokenResult> {
+    async fn token(&self, token_type: TokenType, ctx: CallContext) -> RpcResult<TokenResult> {
+        let app_id = ctx.app_id;
+        let context = match self.platform_state.session_state.get_account_session() {
+            Some(v) => Some(TokenContext {
+                distributor_id: v.id,
+                app_id,
+            }),
+            None => None,
+        };
         let resp = self
             .platform_state
             .get_client()
             .send_extn_request(SessionTokenRequest {
-                token_type: TokenType::Platform,
+                token_type,
                 options: Vec::new(),
-                context: None,
+                context,
             })
             .await;
-
         match resp {
             Ok(payload) => match payload.payload.extract().unwrap() {
                 ExtnResponse::Token(t) => Ok(TokenResult {
@@ -149,81 +147,11 @@ impl AuthenticationImpl {
 
             Err(_e) => {
                 // TODO: What do error responses look like?
-                Err(jsonrpsee::core::Error::Custom(String::from(
-                    "Ripple Error getting platform token",
+                Err(jsonrpsee::core::Error::Custom(format!(
+                    "Ripple Error getting {:?} token",
+                    token_type
                 )))
             }
-        }
-    }
-
-    async fn root_token(&self, _ctx: CallContext) -> RpcResult<TokenResult> {
-        let resp = self
-            .platform_state
-            .get_client()
-            .send_extn_request(SessionTokenRequest {
-                token_type: TokenType::Root,
-                options: Vec::new(),
-                context: None,
-            })
-            .await;
-
-        match resp {
-            Ok(payload) => match payload.payload.extract().unwrap() {
-                ExtnResponse::Token(t) => Ok(TokenResult {
-                    value: t.value,
-                    expires: t.expires,
-                    _type: TokenType::Root,
-                }),
-                e => Err(jsonrpsee::core::Error::Custom(format!(
-                    "unknown error getting root token {:?}",
-                    e
-                ))),
-            },
-
-            Err(_e) => {
-                // TODO: What do error responses look like?
-                Err(jsonrpsee::core::Error::Custom(String::from(
-                    "Ripple Error getting root token",
-                )))
-            }
-        }
-    }
-
-    async fn device_token(&self, _ctx: CallContext) -> RpcResult<TokenResult> {
-        if let Some(_sess) = self.platform_state.session_state.get_account_session() {
-            let resp = self
-                .platform_state
-                .get_client()
-                .send_extn_request(SessionTokenRequest {
-                    token_type: TokenType::Device,
-                    options: Vec::new(),
-                    context: None,
-                })
-                .await;
-
-            match resp {
-                Ok(payload) => match payload.payload.extract().unwrap() {
-                    // let expires = t.expires
-                    ExtnResponse::Token(t) => Ok(TokenResult {
-                        value: t.value,
-                        expires: None,
-                        _type: TokenType::Device,
-                    }),
-                    e => Err(jsonrpsee::core::Error::Custom(format!(
-                        "unknown rror getting device token {:?}",
-                        e
-                    ))),
-                },
-
-                Err(_e) => {
-                    // TODO: What do error responses look like?
-                    Err(jsonrpsee::core::Error::Custom(String::from(
-                        "Ripple Error getting device token",
-                    )))
-                }
-            }
-        } else {
-            Err(rpc_err("Distributor not available"))
         }
     }
 }
