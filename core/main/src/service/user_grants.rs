@@ -126,7 +126,7 @@ impl GrantState {
         if let Some(app_id) = app_id {
             let mut grant_state = self.grant_app_map.write().unwrap();
             //Get a mutable reference to the value associated with a key, create it if it doesn't exist,
-            let entries = grant_state.value.entry(app_id).or_insert(HashSet::new());
+            let entries = grant_state.value.entry(app_id).or_insert_with(HashSet::new);
 
             if entries.contains(&new_entry) {
                 entries.remove(&new_entry);
@@ -1242,6 +1242,7 @@ mod tests {
                     fb_pin::{PinChallengeResultReason, PIN_CHALLENGE_CAPABILITY},
                     provider::ACK_CHALLENGE_CAPABILITY,
                 },
+                gateway::rpc_gateway_api::CallContext,
             },
             tokio::{
                 self, join,
@@ -1280,8 +1281,17 @@ mod tests {
         #[tokio::test]
         async fn test_evaluate_options_no_options() {
             let (state, ctx, perm, policy) = setup(vec![]);
+            let caller_session: CallerSession = ctx.clone().into();
+            let app_identifier: AppIdentification = ctx.clone().into();
 
-            let result = GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy).await;
+            let result = GrantPolicyEnforcer::evaluate_options(
+                &state,
+                &caller_session,
+                &app_identifier,
+                &perm,
+                &policy,
+            )
+            .await;
 
             assert!(result.is_ok());
         }
@@ -1289,8 +1299,17 @@ mod tests {
         #[tokio::test]
         async fn test_evaluate_options_no_steps_for_option() {
             let (state, ctx, perm, policy) = setup(vec![GrantRequirements { steps: vec![] }]);
+            let caller_session: CallerSession = ctx.clone().into();
+            let app_identifier: AppIdentification = ctx.clone().into();
 
-            let result = GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy).await;
+            let result = GrantPolicyEnforcer::evaluate_options(
+                &state,
+                &caller_session,
+                &app_identifier,
+                &perm,
+                &policy,
+            )
+            .await;
 
             assert!(result.is_ok());
         }
@@ -1298,15 +1317,25 @@ mod tests {
         #[tokio::test]
         async fn test_evaluate_options_fb_perm_denied() {
             let (state, ctx, _, policy) = setup(vec![GrantRequirements { steps: vec![] }]);
+            let caller_session: CallerSession = ctx.clone().into();
+            let app_identifier: AppIdentification = ctx.clone().into();
             let perm = FireboltPermission {
                 cap: FireboltCap::Full("xrn:firebolt:capability:something:unknown".to_owned()),
                 role: CapabilityRole::Use,
             };
 
-            let result = GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy).await;
+            let result = GrantPolicyEnforcer::evaluate_options(
+                &state,
+                &caller_session,
+                &app_identifier,
+                &perm,
+                &policy,
+            )
+            .await;
+            println!("result: {:?}", result);
 
             assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
-                reason: DenyReason::GrantDenied,
+                reason: DenyReason::Unsupported,
                 caps: vec![perm.cap.clone()]
             })));
         }
@@ -1328,12 +1357,19 @@ mod tests {
                     }],
                 },
             ]);
+            let caller_session: CallerSession = ctx.clone().into();
+            let app_identifier: AppIdentification = ctx.clone().into();
             let pinchallenge_response = state
                 .provider_broker_state
                 .send_pinchallenge_success(&state, &ctx);
 
-            let evaluate_options =
-                GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy);
+            let evaluate_options = GrantPolicyEnforcer::evaluate_options(
+                &state,
+                &caller_session,
+                &app_identifier,
+                &perm,
+                &policy,
+            );
             let (result, _) = join!(evaluate_options, pinchallenge_response);
 
             assert!(result.is_ok());
@@ -1356,12 +1392,19 @@ mod tests {
                     }],
                 },
             ]);
+            let caller_session: CallerSession = ctx.clone().into();
+            let app_identifier: AppIdentification = ctx.clone().into();
             let pinchallenge_response = state
                 .provider_broker_state
                 .send_pinchallenge_success(&state, &ctx);
 
-            let evaluate_options =
-                GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy);
+            let evaluate_options = GrantPolicyEnforcer::evaluate_options(
+                &state,
+                &caller_session,
+                &app_identifier,
+                &perm,
+                &policy,
+            );
             let (result, _) = join!(evaluate_options, pinchallenge_response);
 
             assert!(result.is_ok());
@@ -1391,8 +1434,17 @@ mod tests {
                     ],
                 },
             ]);
+            let caller_session: CallerSession = ctx.clone().into();
+            let app_identifier: AppIdentification = ctx.clone().into();
 
-            let result = GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy).await;
+            let result = GrantPolicyEnforcer::evaluate_options(
+                &state,
+                &caller_session,
+                &app_identifier,
+                &perm,
+                &policy,
+            )
+            .await;
 
             assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
                 reason: DenyReason::Unsupported,
@@ -1422,14 +1474,21 @@ mod tests {
                     },
                 ],
             }]);
+            let caller_session: CallerSession = ctx.clone().into();
+            let app_identifier: AppIdentification = ctx.clone().into();
             let challenge_responses = state.provider_broker_state.send_pinchallenge_failure(
                 &state,
                 &ctx,
                 PinChallengeResultReason::ExceededPinFailures,
             );
 
-            let evaluate_options =
-                GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy);
+            let evaluate_options = GrantPolicyEnforcer::evaluate_options(
+                &state,
+                &caller_session,
+                &app_identifier,
+                &perm,
+                &policy,
+            );
             let (result, _) = join!(evaluate_options, challenge_responses);
 
             assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
@@ -1452,20 +1511,27 @@ mod tests {
                     },
                 ],
             }]);
+            let caller_session: CallerSession = ctx.clone().into();
+            let app_identifier: AppIdentification = ctx.clone().into();
             let challenge_responses = state
                 .provider_broker_state
                 .send_pinchallenge_success(&state, &ctx)
                 .then(|_| async {
                     // TODO: workout how to do this without sleep
-                    time::sleep(Duration::new(0, 500)).await;
+                    time::sleep(Duration::new(1, 0)).await;
                     state
                         .provider_broker_state
                         .send_ackchallenge_failure(&state, &ctx)
                         .await;
                 });
 
-            let evaluate_options =
-                GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy);
+            let evaluate_options = GrantPolicyEnforcer::evaluate_options(
+                &state,
+                &caller_session,
+                &app_identifier,
+                &perm,
+                &policy,
+            );
 
             let (result, _) = join!(evaluate_options, challenge_responses);
 
@@ -1489,20 +1555,27 @@ mod tests {
                     },
                 ],
             }]);
+            let caller_session: CallerSession = ctx.clone().into();
+            let app_identifier: AppIdentification = ctx.clone().into();
             let challenge_responses = state
                 .provider_broker_state
                 .send_pinchallenge_success(&state, &ctx)
                 .then(|_| async {
                     // TODO: workout how to do this without sleep
-                    time::sleep(Duration::new(0, 500)).await;
+                    time::sleep(Duration::new(1, 0)).await;
                     state
                         .provider_broker_state
                         .send_ackchallenge_success(&state, &ctx)
                         .await;
                 });
 
-            let evaluate_options =
-                GrantPolicyEnforcer::evaluate_options(&state, &ctx, &perm, &policy);
+            let evaluate_options = GrantPolicyEnforcer::evaluate_options(
+                &state,
+                &caller_session,
+                &app_identifier,
+                &perm,
+                &policy,
+            );
             let (result, _) = join!(evaluate_options, challenge_responses);
 
             assert!(result.is_ok());

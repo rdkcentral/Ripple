@@ -264,7 +264,7 @@ impl DiscoveryImpl {
                 match extn_message
                     .payload
                     .extract()
-                    .unwrap_or(ExtnResponse::String("en".to_owned()))
+                    .unwrap_or_else(|| ExtnResponse::String("en".to_owned()))
                 {
                     ExtnResponse::String(value) => value,
                     _ => "en".to_owned(),

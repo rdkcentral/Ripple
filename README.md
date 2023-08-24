@@ -23,7 +23,8 @@ There are 3 Manifest files which are necessary for Ripple 2.0.
 ### Pre-requisites for running with VSCode
 1. Install [Rust](https://www.rust-lang.org/tools/install)
 2. Install [VSCode](https://code.visualstudio.com/)
-3. Install Rust Analyzer from VS Code Marketplace
+3. Install [Rust Analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer) from VS Code Marketplace
+4. Install [Crates](https://marketplace.visualstudio.com/items?itemName=serayuzgur.crates) VSCode extension (Optional)
 
 ## How to run Ripple locally?
 
@@ -74,6 +75,37 @@ Only follow the below steps, if all the above instructions to run the app locall
 3. Set some breakpoints in code.
 4. Upon clicking on the main method in the file. There would be an option to `Run` or `Debug`. Select Debug.
 5. VSCode will pause at the breakpoint and allows access for Debug Playback and ability to inspect the values.
+
+### Using Clippy in VSCode
+
+By default the VSCode rust-analyzer extension runs cargo check on the Rust files that you have open once they have been saved. This is good, but it can be improved by adjusting the command to use `clippy` instead. This gives you the benefit of seeing both `cargo check` and `cargo clippy` results and code hints in the code editor window directly.
+
+To achieve this you need to add the following to your user-settings.json file.
+```json
+  "rust-analyzer.check.command": "clippy",
+```
+
+### pre-commit
+
+This repository uses pre-commit to ensure that committed code is checked and formatted correctly. To set this up in your development environment please:
+1. Install pre-commit
+
+on macOS:
+```bash
+brew install pre-commit
+```
+
+elsewhere:
+```bash
+pip install pre-commit
+```
+
+2. Install the hooks for this repository:
+```bash
+pre-commit install
+```
+
+See: https://pre-commit.com/
 
 ## Folder structure
 

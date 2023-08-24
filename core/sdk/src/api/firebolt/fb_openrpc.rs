@@ -370,7 +370,7 @@ impl FireboltOpenRpcMethod {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CapabilitySet {
     pub use_caps: Option<Vec<FireboltCap>>,
     pub provide_cap: Option<FireboltCap>,

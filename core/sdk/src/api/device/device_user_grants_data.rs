@@ -79,7 +79,7 @@ impl Hash for GrantLifespan {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum AutoApplyPolicy {
     Always,
@@ -112,7 +112,7 @@ impl Hash for GrantScope {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum PolicyPersistenceType {
     Account,
