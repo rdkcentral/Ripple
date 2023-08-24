@@ -516,7 +516,7 @@ impl AppLauncher {
     }
 
     fn get_modified_url(manifest: AppManifest, sessionid: &str) -> String {
-        let mut url = manifest.start_page.to_string();
+        let url = manifest.start_page.to_string();
         if let Ok(mut modified_url) = Url::parse(&url) {
             let mut query_params: Vec<(String, String)> = modified_url
                 .query_pairs()
@@ -530,7 +530,7 @@ impl AppLauncher {
                 let firebolt_endpoint = String::from("127.0.0.0");
                 let appid = manifest.name.to_string();
                 let value: String = format!(
-                    "ws%3A%2F%2F{}%3A3473%3FappId%3D{}%26session%3D{}",
+                    "ws://{}:3473&appId={}?session={}",
                     firebolt_endpoint, appid, sessionid
                 );
                 query_params.push(("__firebolt_endpoint".to_string(), value));
@@ -543,19 +543,15 @@ impl AppLauncher {
                     .collect::<Vec<String>>()
                     .join("&"),
             ));
-            url = modified_url.as_str().to_string();
+            modified_url.as_str().to_string()
         } else {
             debug!("Invalid URL");
+            "Invalid URL".to_string()
         }
-        url
     }
 
-    fn get_transport(state: &LauncherState, url: String) -> AppRuntimeTransport {
-        if !url.as_str().contains("__firebolt_endpoint")
-            && state
-                .extn_client
-                .check_contract_permitted(RippleContract::BridgeProtocol)
-        {
+    fn get_transport(contract_permited: bool, url: String) -> AppRuntimeTransport {
+        if !url.as_str().contains("__firebolt_endpoint") && contract_permited {
             AppRuntimeTransport::Bridge
         } else {
             AppRuntimeTransport::Websocket
@@ -568,6 +564,9 @@ impl AppLauncher {
         callsign: String,
         intent: NavigationIntent,
     ) -> Result<String, AppError> {
+        let bool_contract = state
+            .extn_client
+            .check_contract_permitted(RippleContract::BridgeProtocol);
         let session = AppSession {
             app: AppBasicInfo {
                 id: manifest.name.clone(),
@@ -577,7 +576,7 @@ impl AppLauncher {
             },
             runtime: Some(AppRuntime {
                 id: Some(callsign),
-                transport: Self::get_transport(&state, manifest.start_page.clone()),
+                transport: Self::get_transport(bool_contract, manifest.start_page.clone()),
             }),
             launch: AppLaunchInfo {
                 intent: Some(intent),
