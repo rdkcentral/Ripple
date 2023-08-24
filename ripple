@@ -82,12 +82,12 @@ case ${1} in
         cp ./examples/manifest/extn-manifest-example.json ~/.ripple/firebolt-extn-manifest.json
 
         ## Update firebolt-extn-manifest.json
-        sed -i "" "s@\"default_path\": \"/usr/lib/rust/\"@\"default_path\": \"$workspace_dir/target/debug\"@" ~/.ripple/firebolt-extn-manifest.json
+        sed -i "" "s@\"default_path\": \"/usr/lib/rust/\"@\"default_path\": \"$workspace_dir/target/debug/\"@" ~/.ripple/firebolt-extn-manifest.json
         default_extension=$(get_default_extension)
         sed -i "" "s@\"default_extension\": \"so\"@\"default_extension\": \"$default_extension\"@" ~/.ripple/firebolt-extn-manifest.json
 
         ## Update firebolt-device-manifest.json
-        sed -i "" "s@\"/etc/firebolt-app-library.json\"@\"library\": \"~/.ripple/firebolt-app-library.json\"@" ~/.ripple/firebolt-device-manifest.json
+        sed -i "" "s@\"library\": \"/etc/firebolt-app-library.json\"@\"library\": \"$HOME/.ripple/firebolt-app-library.json\"@" ~/.ripple/firebolt-device-manifest.json
 
         echo "All Done!"
     ;;
