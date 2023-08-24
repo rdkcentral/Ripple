@@ -15,5 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+pub mod boot_ws_server;
 pub mod mock_device_ffi;
 pub mod mock_device_ws_server_processor;
+pub mod mock_ws_server;

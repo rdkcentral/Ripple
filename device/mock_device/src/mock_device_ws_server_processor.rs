@@ -35,10 +35,12 @@ use ripple_sdk::{
 };
 use std::sync::{Arc, RwLock};
 
+use crate::mock_ws_server::MockWebsocketServer;
+
 #[derive(Debug, Clone)]
 pub struct MockDeviceMockWebsocketServerState {
     client: ExtnClient,
-    // session: Arc<RwLock<FileStore<AccountSession>>>,
+    server: Arc<MockWebsocketServer>, // session: Arc<RwLock<FileStore<AccountSession>>>,
 }
 
 fn get_privacy_path(saved_dir: String) -> String {
@@ -46,8 +48,11 @@ fn get_privacy_path(saved_dir: String) -> String {
 }
 
 impl MockDeviceMockWebsocketServerState {
-    fn new(client: ExtnClient) -> Self {
-        Self { client }
+    fn new(client: ExtnClient, server: MockWebsocketServer) -> Self {
+        Self {
+            client,
+            server: Arc::new(server),
+        }
     }
 }
 
@@ -57,10 +62,14 @@ pub struct MockDeviceMockWebsocketServerProcessor {
 }
 
 impl MockDeviceMockWebsocketServerProcessor {
-    pub fn new(client: ExtnClient) -> MockDeviceMockWebsocketServerProcessor {
-        // TODO:: load initial state from files
+    pub fn new(
+        client: ExtnClient,
+        server: MockWebsocketServer,
+    ) -> MockDeviceMockWebsocketServerProcessor {
+        // TODO: load initial state from files
+
         MockDeviceMockWebsocketServerProcessor {
-            state: MockDeviceMockWebsocketServerState::new(client),
+            state: MockDeviceMockWebsocketServerState::new(client, server),
             streamer: DefaultExtnStreamer::new(),
         }
     }

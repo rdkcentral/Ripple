@@ -36,7 +36,10 @@ use ripple_sdk::{
     utils::{error::RippleError, logger::init_logger},
 };
 
-use crate::mock_device_ws_server_processor::MockDeviceMockWebsocketServerProcessor;
+use crate::{
+    boot_ws_server::boot_ws_server,
+    mock_device_ws_server_processor::MockDeviceMockWebsocketServerProcessor,
+};
 
 const EXTN_NAME: &str = "mock_device";
 
@@ -67,21 +70,14 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     runtime.block_on(async move {
         let client_c = client.clone();
         tokio::spawn(async move {
-            // if let Ok(response) = client.request(Config::SavedDir).await {
-            //     if let Some(ExtnResponse::String(value)) = response.payload.extract() {
-            //         client.add_request_processor(DistributorPrivacyProcessor::new(
-            //             client.clone(),
-            //             value.clone(),
-            //         ));
-            //         client.add_request_processor(DistributorSessionProcessor::new(
-            //             client.clone(),
-            //             value,
-            //         ));
-            //     }
-            // }
-
-            client
-                .add_request_processor(MockDeviceMockWebsocketServerProcessor::new(client.clone()));
+            if let Ok(server) = boot_ws_server(client.clone()).await {
+                client.add_request_processor(MockDeviceMockWebsocketServerProcessor::new(
+                    client.clone(),
+                    server,
+                ));
+            } else {
+                panic!("Mock Device can only be used with platform using a WebSocket gateway")
+            }
 
             // Lets Main know that the distributor channel is ready
             let _ = client.event(ExtnStatus::Ready);

@@ -31,7 +31,7 @@ use tokio_tungstenite::{
     tungstenite::{handshake, Error, Message, Result},
 };
 
-struct WsServerParameters {
+pub struct WsServerParameters {
     path: Option<String>,
 
     headers: Option<HeaderMap>,
@@ -50,20 +50,29 @@ impl WsServerParameters {
             port: None,
         }
     }
-    pub fn path(&self, path: &str) {
+    pub fn path(&self, path: &str) -> &Self {
         self.path = Some(path.into());
+
+        self
     }
-    pub fn headers(&self, headers: HeaderMap) {
+    pub fn headers(&self, headers: HeaderMap) -> &Self {
         self.headers = Some(headers);
+
+        self
     }
-    pub fn query_params(&self, query_params: HashMap<String, String>) {
+    pub fn query_params(&self, query_params: HashMap<String, String>) -> &Self {
         self.query_params = Some(query_params);
+
+        self
     }
-    pub fn port(&self, port: u16) {
+    pub fn port(&self, port: u16) -> &Self {
         self.port = Some(port);
+
+        self
     }
 }
 
+#[derive(Debug)]
 pub struct MockWebsocketServer {
     mock_data: HashMap<String, Vec<String>>,
 
@@ -78,38 +87,45 @@ pub struct MockWebsocketServer {
     port: u16,
 }
 
+#[derive(Debug)]
+enum MockWebsocketServerError {
+    CantListen,
+}
+
 impl MockWebsocketServer {
     pub async fn new(
         mock_data: HashMap<String, Vec<String>>,
         server_config: WsServerParameters,
-    ) -> Self {
+    ) -> Result<Self, MockWebsocketServerError> {
         // TODO: check host
-        let listener = Self::create_listener().await;
+        let listener = Self::create_listener().await?;
         let port = listener
             .local_addr()
-            .expect("Can't get listener address")
+            .map_err(|_| MockWebsocketServerError::CantListen)?
             .port();
 
-        Self {
+        Ok(Self {
             listener,
             mock_data,
             port,
             conn_path: server_config.path.unwrap_or_else(|| "/".to_string()),
             conn_headers: server_config.headers.unwrap_or_else(|| HeaderMap::new()),
             conn_query_params: server_config.query_params.unwrap_or_else(|| HashMap::new()),
-        }
+        })
     }
 
     pub fn port(&self) -> u16 {
         self.port
     }
 
-    async fn create_listener() -> TcpListener {
+    async fn create_listener() -> Result<TcpListener, MockWebsocketServerError> {
         let addr: SocketAddr = "0.0.0.0:0".parse().unwrap();
-        let listener = TcpListener::bind(&addr).await.expect("Can't listen");
+        let listener = TcpListener::bind(&addr)
+            .await
+            .map_err(|_| MockWebsocketServerError::CantListen)?;
         debug!("Listening on: {:?}", listener.local_addr().unwrap());
 
-        listener
+        Ok(listener)
     }
 
     pub async fn start_server(self) {
@@ -166,9 +182,6 @@ impl MockWebsocketServer {
                 url::form_urlencoded::parse(request.uri().query().unwrap_or("").as_bytes())
                     .into_owned()
                     .collect::<HashMap<String, String>>();
-
-            println!("{:?}", request_query);
-            println!("{:?}", self.conn_query_params);
 
             let eq_num_params = self.conn_query_params.len() == request_query.len();
             let all_params_match =
