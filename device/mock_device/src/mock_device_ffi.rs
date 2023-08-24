@@ -43,7 +43,7 @@ fn init_library() -> CExtnMetadata {
 
     let dist_meta = ExtnSymbolMetadata::get(
         ExtnId::new_channel(ExtnClassId::Device, EXTN_NAME.into()),
-        ContractFulfiller::new(vec![RippleContract::MockedDevice]),
+        ContractFulfiller::new(vec![RippleContract::MockWebSocketServer]),
         Version::new(1, 0, 0),
     );
 
