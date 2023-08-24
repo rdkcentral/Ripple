@@ -66,7 +66,7 @@ impl FireboltCap {
     }
 
     pub fn parse(cap: String) -> Option<FireboltCap> {
-        let prefix = vec!["xrn", "firebolt", "capability"];
+        let prefix = ["xrn", "firebolt", "capability"];
         let c_a = cap.split(':');
         if c_a.count() > 1 {
             let c_a = cap.split(':');
