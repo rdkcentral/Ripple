@@ -228,7 +228,7 @@ impl CapState {
             capability_info.supported = state
                 .cap_state
                 .generic
-                .check_supported(&vec![cap.clone().into()])
+                .check_supported(&[cap.clone().into()])
                 .is_ok();
 
             capability_info.available = state
