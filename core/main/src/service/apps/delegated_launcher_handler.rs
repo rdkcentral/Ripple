@@ -380,9 +380,7 @@ impl DelegatedLauncherHandler {
                         AppEvents::emit(
                             &cloned_ps,
                             LCM_EVENT_ON_SESSION_TRANSITION_CANCELED,
-                            &json!({
-                                "app_id": cloned_app_id
-                            }),
+                            &json!({ "app_id": cloned_app_id }),
                         )
                         .await;
                     } else {
