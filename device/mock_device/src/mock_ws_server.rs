@@ -50,25 +50,31 @@ impl WsServerParameters {
             port: None,
         }
     }
-    pub fn path(&self, path: &str) -> &Self {
+    pub fn path(&mut self, path: &str) -> &mut Self {
         self.path = Some(path.into());
 
         self
     }
-    pub fn headers(&self, headers: HeaderMap) -> &Self {
+    pub fn headers(&mut self, headers: HeaderMap) -> &mut Self {
         self.headers = Some(headers);
 
         self
     }
-    pub fn query_params(&self, query_params: HashMap<String, String>) -> &Self {
+    pub fn query_params(&mut self, query_params: HashMap<String, String>) -> &mut Self {
         self.query_params = Some(query_params);
 
         self
     }
-    pub fn port(&self, port: u16) -> &Self {
+    pub fn port(&mut self, port: u16) -> &mut Self {
         self.port = Some(port);
 
         self
+    }
+}
+
+impl Default for WsServerParameters {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -88,7 +94,7 @@ pub struct MockWebsocketServer {
 }
 
 #[derive(Debug)]
-enum MockWebsocketServerError {
+pub enum MockWebsocketServerError {
     CantListen,
 }
 
@@ -97,8 +103,7 @@ impl MockWebsocketServer {
         mock_data: HashMap<String, Vec<String>>,
         server_config: WsServerParameters,
     ) -> Result<Self, MockWebsocketServerError> {
-        // TODO: check host
-        let listener = Self::create_listener().await?;
+        let listener = Self::create_listener(server_config.port.unwrap_or(0)).await?;
         let port = listener
             .local_addr()
             .map_err(|_| MockWebsocketServerError::CantListen)?
@@ -109,8 +114,8 @@ impl MockWebsocketServer {
             mock_data,
             port,
             conn_path: server_config.path.unwrap_or_else(|| "/".to_string()),
-            conn_headers: server_config.headers.unwrap_or_else(|| HeaderMap::new()),
-            conn_query_params: server_config.query_params.unwrap_or_else(|| HashMap::new()),
+            conn_headers: server_config.headers.unwrap_or_else(HeaderMap::new),
+            conn_query_params: server_config.query_params.unwrap_or_default(),
         })
     }
 
@@ -118,8 +123,8 @@ impl MockWebsocketServer {
         self.port
     }
 
-    async fn create_listener() -> Result<TcpListener, MockWebsocketServerError> {
-        let addr: SocketAddr = "0.0.0.0:0".parse().unwrap();
+    async fn create_listener(port: u16) -> Result<TcpListener, MockWebsocketServerError> {
+        let addr: SocketAddr = format!("0.0.0.0:{}", port).parse().unwrap();
         let listener = TcpListener::bind(&addr)
             .await
             .map_err(|_| MockWebsocketServerError::CantListen)?;
@@ -128,10 +133,10 @@ impl MockWebsocketServer {
         Ok(listener)
     }
 
-    pub async fn start_server(self) {
+    pub async fn start_server(self: Arc<Self>) {
         debug!("Waiting for connections");
 
-        let server = Arc::new(self);
+        let server = self.clone();
 
         while let Ok((stream, peer_addr)) = server.listener.accept().await {
             let s = server.clone();

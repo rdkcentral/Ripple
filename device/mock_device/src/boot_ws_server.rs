@@ -23,19 +23,22 @@
 
 // use super::{get_config_step::ThunderGetConfigStep, setup_thunder_pool_step::ThunderPoolStep};
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use ripple_sdk::{
     api::config::Config,
     extn::{client::extn_client::ExtnClient, extn_client_message::ExtnResponse},
     log::debug,
+    tokio,
     utils::error::RippleError,
 };
 use url::{Host, Url};
 
 use crate::mock_ws_server::{MockWebsocketServer, WsServerParameters};
 
-pub async fn boot_ws_server(mut client: ExtnClient) -> Result<MockWebsocketServer, RippleError> {
+pub async fn boot_ws_server(
+    mut client: ExtnClient,
+) -> Result<Arc<MockWebsocketServer>, RippleError> {
     debug!("Booting WS Server for mock device");
     let gateway = platform_gateway(&mut client).await?;
 
@@ -43,20 +46,26 @@ pub async fn boot_ws_server(mut client: ExtnClient) -> Result<MockWebsocketServe
         // TODO:: add proper error
         return Err(RippleError::ParseError);
     }
-    // let host = gateway.host();
 
     if !is_valid_host(gateway.host()) {
-        // TODO: check host
+        // TODO:: add proper error
         return Err(RippleError::ParseError);
     }
 
-    let server_config = WsServerParameters::new();
+    let mut server_config = WsServerParameters::new();
     server_config
         .port(gateway.port().unwrap_or(0))
         .path(gateway.path());
     let ws_server = MockWebsocketServer::new(HashMap::new(), server_config)
         .await
         .map_err(|_e| RippleError::BootstrapError)?;
+
+    let ws_server = Arc::new(ws_server);
+    let server = ws_server.clone();
+
+    tokio::spawn(async move {
+        server.start_server().await;
+    });
 
     Ok(ws_server)
 }
@@ -81,6 +90,6 @@ async fn platform_gateway(client: &mut ExtnClient) -> Result<Url, RippleError> {
 fn is_valid_host(host: Option<Host<&str>>) -> bool {
     match host {
         Some(Host::Ipv4(ipv4)) => ipv4.is_loopback() || ipv4.is_unspecified(),
-        _ => return false,
+        _ => false,
     }
 }

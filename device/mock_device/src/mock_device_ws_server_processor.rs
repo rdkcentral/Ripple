@@ -16,24 +16,16 @@
 //
 
 use ripple_sdk::{
-    api::session::{
-        AccountSession, AccountSessionRequest, AccountSessionTokenRequest, ProvisionRequest,
-    },
+    api::session::AccountSessionRequest,
     async_trait::async_trait,
-    extn::{
-        client::{
-            extn_client::ExtnClient,
-            extn_processor::{
-                DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
-            },
+    extn::client::{
+        extn_client::ExtnClient,
+        extn_processor::{
+            DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
         },
-        extn_client_message::ExtnMessage,
     },
-    framework::file_store::FileStore,
-    log::error,
-    utils::error::RippleError,
 };
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use crate::mock_ws_server::MockWebsocketServer;
 
@@ -43,16 +35,9 @@ pub struct MockDeviceMockWebsocketServerState {
     server: Arc<MockWebsocketServer>, // session: Arc<RwLock<FileStore<AccountSession>>>,
 }
 
-fn get_privacy_path(saved_dir: String) -> String {
-    format!("{}/{}", saved_dir, "mock_device_ws_server")
-}
-
 impl MockDeviceMockWebsocketServerState {
-    fn new(client: ExtnClient, server: MockWebsocketServer) -> Self {
-        Self {
-            client,
-            server: Arc::new(server),
-        }
+    fn new(client: ExtnClient, server: Arc<MockWebsocketServer>) -> Self {
+        Self { client, server }
     }
 }
 
@@ -64,7 +49,7 @@ pub struct MockDeviceMockWebsocketServerProcessor {
 impl MockDeviceMockWebsocketServerProcessor {
     pub fn new(
         client: ExtnClient,
-        server: MockWebsocketServer,
+        server: Arc<MockWebsocketServer>,
     ) -> MockDeviceMockWebsocketServerProcessor {
         // TODO: load initial state from files
 

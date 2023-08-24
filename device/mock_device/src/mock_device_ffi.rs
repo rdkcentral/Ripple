@@ -16,12 +16,11 @@
 //
 
 use ripple_sdk::{
-    api::{config::Config, status_update::ExtnStatus},
+    api::status_update::ExtnStatus,
     crossbeam::channel::Receiver as CReceiver,
     export_channel_builder, export_extn_metadata,
     extn::{
         client::{extn_client::ExtnClient, extn_sender::ExtnSender},
-        extn_client_message::ExtnResponse,
         extn_id::{ExtnClassId, ExtnId},
         ffi::{
             ffi_channel::{ExtnChannel, ExtnChannelBuilder},
