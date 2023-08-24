@@ -124,7 +124,7 @@ impl FireboltGateway {
 
     pub async fn handle(&self, request: RpcRequest, extn_msg: Option<ExtnMessage>) {
         info!(
-            "Received Firebolt request {} {} {}",
+            "firebolt_gateway Received Firebolt request {} {} {}",
             request.ctx.request_id, request.method, request.params_json
         );
         // First check sender if no sender no need to process

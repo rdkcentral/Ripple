@@ -269,7 +269,7 @@ impl KeyboardImpl {
             // TODO which capability this rpc method providers should come from firebolt spec
             capability: KEYBOARD_PROVIDER_CAPABILITY.to_string(),
             method,
-            caller: ctx,
+            caller: ctx.into(),
             request: ProviderRequestPayload::KeyboardSession(session),
             tx: session_tx,
             app_id: None,

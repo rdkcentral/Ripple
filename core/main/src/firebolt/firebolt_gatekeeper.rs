@@ -54,6 +54,11 @@ impl FireboltGatekeeper {
         method: &str,
         secure: bool,
     ) -> Option<Vec<FireboltPermission>> {
+        trace!(
+            "get_resolved_caps_for_method called with params: method {}, secure: {}",
+            method,
+            secure,
+        );
         let mut api_surface = vec![ApiSurface::Firebolt];
         if !secure {
             api_surface.push(ApiSurface::Ripple);
@@ -75,9 +80,10 @@ impl FireboltGatekeeper {
     pub async fn gate(state: PlatformState, request: RpcRequest) -> Result<(), DenyReasonWithCap> {
         let open_rpc_state = state.clone().open_rpc_state;
         if open_rpc_state.is_excluded(request.clone().method, request.clone().ctx.app_id) {
-            trace!("Method is exluded from gating");
+            trace!("Method is exluded from gating {}", request.method);
             return Ok(());
         }
+        // if let Some(caps) = open_rpc_state.get_caps_for_method(&request.method) {
         let caps_opt =
             Self::get_resolved_caps_for_method(&state, &request.method, request.ctx.gateway_secure);
         if caps_opt.is_none() {
@@ -111,8 +117,14 @@ impl FireboltGatekeeper {
             } else {
                 trace!("check_permitted for method ({}) succeded", request.method);
                 //usergrants check
-                if let Err(e) =
-                    GrantState::check_with_roles(&state, &request.ctx, &caps, true).await
+                if let Err(e) = GrantState::check_with_roles(
+                    &state,
+                    &request.ctx.clone().into(),
+                    &request.ctx.clone().into(),
+                    &caps,
+                    true,
+                )
+                .await
                 {
                     trace!(
                         "check_with_roles for method ({}) failed. Error: {:?}",
