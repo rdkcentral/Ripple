@@ -223,7 +223,7 @@ impl MockWebsocketServer {
                         "Unrecognised request received. Not responding. Request: {request_message}"
                     ),
                     Some(response_messages) => {
-                        for resp in response_messages.iter() {
+                        for resp in response_messages {
                             ws_stream.send(Message::Text(resp.to_string())).await?;
                         }
                     }
@@ -232,5 +232,13 @@ impl MockWebsocketServer {
         }
 
         Ok(())
+    }
+
+    pub fn add_request_response(&mut self, request: String, responses: Vec<String>) {
+        self.mock_data.insert(request, responses);
+    }
+
+    pub fn remove_request(&mut self, request: &str) {
+        let _ = self.mock_data.remove(request);
     }
 }
