@@ -191,7 +191,10 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     }
 
     async fn run(&mut self) {
-        debug!("starting request processor for contract {}", self.contract().as_clear_string());
+        debug!(
+            "starting request processor for contract {}",
+            self.contract().as_clear_string()
+        );
         let extn_client = self.get_client();
         let mut receiver = self.receiver();
         let state = self.get_state();

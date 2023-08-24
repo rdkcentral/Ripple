@@ -187,12 +187,12 @@ impl ExtnClient {
             let mut map = HashMap::new();
             for contract in symbol.fulfills {
                 match RippleContract::from_manifest(&contract) {
-                    Some(v) => { 
+                    Some(v) => {
                         let ripple_contract_string = v.as_clear_string();
                         info!("{} will fulfill {}", id, ripple_contract_string);
-                        let _ = map.insert(ripple_contract_string, id.clone()); 
-                    },
-                    None => error!("Unknown contract {}", contract)
+                        let _ = map.insert(ripple_contract_string, id.clone());
+                    }
+                    None => error!("Unknown contract {}", contract),
                 }
             }
             let mut contract_map = self.contract_map.write().unwrap();
@@ -572,7 +572,10 @@ impl ExtnClient {
             }
             current_timeout += timeout_increments;
             if current_timeout > timeout_in_msecs {
-                error!("Timeout on request message {:?}", payload.get_extn_payload());
+                error!(
+                    "Timeout on request message {:?}",
+                    payload.get_extn_payload()
+                );
                 break;
             } else {
                 std::thread::sleep(Duration::from_millis(timeout_increments))
