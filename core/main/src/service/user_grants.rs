@@ -1424,7 +1424,7 @@ mod tests {
                 .send_pinchallenge_success(&state, &ctx)
                 .then(|_| async {
                     // TODO: workout how to do this without sleep
-                    time::sleep(Duration::new(0, 500)).await;
+                    time::sleep(Duration::new(1, 0)).await;
                     state
                         .provider_broker_state
                         .send_ackchallenge_failure(&state, &ctx)
@@ -1461,7 +1461,7 @@ mod tests {
                 .send_pinchallenge_success(&state, &ctx)
                 .then(|_| async {
                     // TODO: workout how to do this without sleep
-                    time::sleep(Duration::new(0, 500)).await;
+                    time::sleep(Duration::new(1, 0)).await;
                     state
                         .provider_broker_state
                         .send_ackchallenge_success(&state, &ctx)
