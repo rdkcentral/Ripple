@@ -269,4 +269,8 @@ impl SerdeClearString {
         let s: String = serde_json::to_string(t).unwrap();
         s[1..s.len() - 1].into()
     }
+
+    pub fn prep_clear_string(t: &str) -> String {
+        format!("\"{}\"", t)
+    }
 }

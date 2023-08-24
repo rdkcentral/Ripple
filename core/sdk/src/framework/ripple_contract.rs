@@ -63,26 +63,51 @@ pub enum RippleContract {
     /// Provided by the device channel extensino for information specific to the device.
     /// Used by [crate::api::device::device_info_request::DeviceInfoRequest]
     DeviceInfo,
+    /// Contract for supporting Wifi operations usually needed for settings
     Wifi,
+    /// Denotes launch and manage browsers capabilities, used by launcher extension would become an adjective in
+    /// the near future 
     WindowManager,
+    /// Provides options for handling Browser in terms of forwarding events and setting properties.
     Browser,
+    /// Provides list of permitted capabilities for a given application.
     Permissions,
+    /// Alternate protocol mechanism to connect to Ripple.
     BridgeProtocol,
+    /// Allows pairing and configuring hand-held remotes. Would soon become an Adjective for accessory.
     RemoteAccessory,
+    /// Provides options for triggering the Keyboard provider UI.
     Keyboard,
+    /// Forwarder for extensions to pass on Events back to the registered Applications through Main
     AppEvents,
+    /// Device channel specific events which get cascaded across Main and Extensions like Power, HDCP
     DeviceEvents,
+    /// Event specific to PowerState would become an Adjective in near future.
     PowerStateEvent,
+    /// Contract for controlling Voice guidance typically offered by the Device Channel or the browser.
     VoiceGuidance,
+    /// Distributor Contract for handling Advertising requirements.
     Advertising,
+    /// Contract focussed on Aggregating the App Behavior metrics before sending to the Distributor ingestors. 
     BehaviorMetrics,
+    /// Contract focussed on getting more real time media playback events like Pause, Play, Seek useful for
+    /// features like Continue Watching
     MediaEvents,
+    /// Contract which controls User Privacy Settings will become an Adjective in near future
     PrivacySettings,
+    /// Contract used for tracking Sign in / Sign Out across apps so Distributor can provide better discovery
+    /// of the signed in Application.
     AccountLink,
+    /// Contract to allow Extensions to  get and set Settings.
     Settings,
+    /// Bi directional channel between the device and external service can be implemented by Distributors.
+    /// Distributors can send unique topics on messages to control Privacy, Usergrants and Automation
     PubSub,
+    /// Used for synchronization enforcement between cloud and local data 
     CloudSync,
+    /// Extensions can use this contract to get more information on the firebolt capabilities  
     Caps,
+    /// Distributors can add their encoding algorithms to account and device id for security.
     Encoder,
     /// Contract for Main to forward behavior and operational metrics to processors
     Metrics,
@@ -97,7 +122,11 @@ pub enum RippleContract {
 
 pub trait ContractAdjective: serde::ser::Serialize {
     fn as_string(&self) -> String {
-        SerdeClearString::as_clear_string(self)
+        let adjective = SerdeClearString::as_clear_string(self);
+        if let Some(contract) = self.get_contract().get_adjective_contract() {
+            return format!("{}.{}", adjective, contract)
+        }
+        adjective
     }
     fn get_contract(&self) -> RippleContract;
 }
@@ -105,18 +134,18 @@ pub trait ContractAdjective: serde::ser::Serialize {
 impl TryFrom<String> for RippleContract {
     type Error = RippleError;
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        if let Ok(v) = serde_json::from_str(&value) {
-            Ok(v)
-        } else {
-            // its a common contract with an adjective
-            if value.split('.').count() == 2 {
-                let mut split = value.split('.');
+        let is_adjective = Self::is_adjective(&value);
+        if is_adjective {
+            let mut split = value.split('.');
                 let adjective = split.next().unwrap();
                 let common_contract = split.next().unwrap();
                 if let Some(c) = RippleContract::from_adjective_string(common_contract, adjective) {
                     return Ok(c);
                 }
-            }
+        }
+        if let Ok(v) = serde_json::from_str(&value) {
+            Ok(v)
+        } else {
             Err(RippleError::ParseError)
         }
     }
@@ -136,7 +165,7 @@ impl RippleContract {
     pub fn as_clear_string(&self) -> String {
         let contract = SerdeClearString::as_clear_string(self);
         if let Some(adjective) = self.get_adjective() {
-            format!("{}.{}", adjective, contract)
+            adjective
         } else {
             contract
         }
@@ -162,6 +191,32 @@ impl RippleContract {
                 Err(e) => error!("contract parser_error={:?}", e),
             },
             _ => {}
+        }
+        None
+    }
+
+    pub fn get_adjective_contract(&self) -> Option<String> {
+        match self {
+            Self::Storage(_) => Some("storage".to_owned()),
+            Self::Session(_) => Some("session".to_owned()),
+            _ => None
+        }
+    }
+
+    pub fn is_adjective(contract: &str) -> bool {
+        contract.split('.').count() == 2
+    }
+
+    pub fn from_manifest(contract: &str) -> Option<Self> {
+        // first check if its adjective
+        if Self::is_adjective(contract) {
+            if let Ok(v) = Self::try_from(contract.to_owned()) {
+                return Some(v)
+            }
+        } else {
+            if let Ok(v) = Self::try_from(SerdeClearString::prep_clear_string(contract)) {
+                return Some(v)
+            }
         }
         None
     }
@@ -245,5 +300,17 @@ mod tests {
             result,
             Ok(RippleContract::Storage(StorageAdjective::Local))
         ));
+    }
+
+    #[test]
+    fn test_as_clear_string() {
+        assert_eq!(RippleContract::AccountLink.as_clear_string(), "account_link".to_owned());
+        assert_eq!(RippleContract::Session(crate::api::session::SessionAdjective::Account).as_clear_string(), "account.session".to_owned())
+    }
+
+    #[test]
+    fn test_from_manifest() {
+        assert!( RippleContract::from_manifest("account_link").is_some());
+        assert!( RippleContract::from_manifest("account.session").is_some());
     }
 }
