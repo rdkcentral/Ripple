@@ -1,0 +1,218 @@
+// Copyright 2023 Comcast Cable Communications Management, LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+
+use http::{HeaderMap, StatusCode};
+use ripple_sdk::{
+    futures::{SinkExt, StreamExt},
+    log::{debug, error},
+    tokio::{
+        self,
+        io::{AsyncRead, AsyncWrite},
+        net::TcpListener,
+    },
+};
+use tokio_tungstenite::{
+    accept_hdr_async,
+    tungstenite::{handshake, Error, Message, Result},
+};
+
+struct WsServerParameters {
+    path: Option<String>,
+
+    headers: Option<HeaderMap>,
+
+    query_params: Option<HashMap<String, String>>,
+
+    port: Option<u16>,
+}
+
+impl WsServerParameters {
+    pub fn new() -> Self {
+        Self {
+            path: None,
+            headers: None,
+            query_params: None,
+            port: None,
+        }
+    }
+    pub fn path(&self, path: &str) {
+        self.path = Some(path.into());
+    }
+    pub fn headers(&self, headers: HeaderMap) {
+        self.headers = Some(headers);
+    }
+    pub fn query_params(&self, query_params: HashMap<String, String>) {
+        self.query_params = Some(query_params);
+    }
+    pub fn port(&self, port: u16) {
+        self.port = Some(port);
+    }
+}
+
+pub struct MockWebsocketServer {
+    mock_data: HashMap<String, Vec<String>>,
+
+    listener: TcpListener,
+
+    conn_path: String,
+
+    conn_headers: HeaderMap,
+
+    conn_query_params: HashMap<String, String>,
+
+    port: u16,
+}
+
+impl MockWebsocketServer {
+    pub async fn new(
+        mock_data: HashMap<String, Vec<String>>,
+        server_config: WsServerParameters,
+    ) -> Self {
+        // TODO: check host
+        let listener = Self::create_listener().await;
+        let port = listener
+            .local_addr()
+            .expect("Can't get listener address")
+            .port();
+
+        Self {
+            listener,
+            mock_data,
+            port,
+            conn_path: server_config.path.unwrap_or_else(|| "/".to_string()),
+            conn_headers: server_config.headers.unwrap_or_else(|| HeaderMap::new()),
+            conn_query_params: server_config.query_params.unwrap_or_else(|| HashMap::new()),
+        }
+    }
+
+    pub fn port(&self) -> u16 {
+        self.port
+    }
+
+    async fn create_listener() -> TcpListener {
+        let addr: SocketAddr = "0.0.0.0:0".parse().unwrap();
+        let listener = TcpListener::bind(&addr).await.expect("Can't listen");
+        debug!("Listening on: {:?}", listener.local_addr().unwrap());
+
+        listener
+    }
+
+    pub async fn start_server(self) {
+        debug!("Waiting for connections");
+
+        let server = Arc::new(self);
+
+        while let Ok((stream, peer_addr)) = server.listener.accept().await {
+            let s = server.clone();
+            tokio::spawn(async move {
+                s.accept_connection(peer_addr, stream).await;
+            });
+        }
+
+        debug!("Shutting down");
+    }
+
+    async fn accept_connection<S>(&self, peer: SocketAddr, stream: S)
+    where
+        S: AsyncRead + AsyncWrite + Unpin,
+    {
+        debug!("Peer address: {}", peer);
+        let connection = self.handle_connection(peer, stream).await;
+
+        if let Err(e) = connection {
+            match e {
+                Error::ConnectionClosed | Error::Protocol(_) | Error::Utf8 => (),
+                err => error!("Error processing connection: {:?}", err),
+            }
+        }
+    }
+
+    async fn handle_connection<S>(&self, peer: SocketAddr, stream: S) -> Result<()>
+    where
+        S: AsyncRead + AsyncWrite + Unpin,
+    {
+        let callback = |request: &handshake::client::Request,
+                        mut response: handshake::server::Response| {
+            let path = request.uri().path();
+            if path != self.conn_path {
+                *response.status_mut() = StatusCode::NOT_FOUND;
+                debug!("Connection response {:?}", response);
+            }
+
+            if !self.conn_headers.iter().all(|(header_name, header_value)| {
+                request.headers().get(header_name) == Some(header_value)
+            }) {
+                *response.status_mut() = StatusCode::BAD_REQUEST;
+                error!("Incompatible headers. Headers required by server: {:?}. Headers sent in request: {:?}", self.conn_headers, request.headers());
+                debug!("Connection response {:?}", response);
+            }
+
+            let request_query =
+                url::form_urlencoded::parse(request.uri().query().unwrap_or("").as_bytes())
+                    .into_owned()
+                    .collect::<HashMap<String, String>>();
+
+            println!("{:?}", request_query);
+            println!("{:?}", self.conn_query_params);
+
+            let eq_num_params = self.conn_query_params.len() == request_query.len();
+            let all_params_match =
+                self.conn_query_params
+                    .iter()
+                    .all(|(param_name, param_value)| {
+                        request_query.get(param_name) == Some(param_value)
+                    });
+
+            if !(eq_num_params && all_params_match) {
+                *response.status_mut() = StatusCode::BAD_REQUEST;
+                error!("Incompatible query params. Params required by server: {:?}. Params sent in request: {:?}", self.conn_query_params, request.uri().query());
+                debug!("Connection response {:?}", response);
+            }
+
+            Ok(response)
+        };
+        let mut ws_stream = accept_hdr_async(stream, callback)
+            .await
+            .expect("Failed to accept");
+
+        debug!("New WebSocket connection: {}", peer);
+
+        while let Some(msg) = ws_stream.next().await {
+            let msg = msg?;
+            debug!("Message: {:?}", msg);
+
+            if msg.is_text() || msg.is_binary() {
+                let request_message = msg.to_string();
+                let response = self.mock_data.get(&request_message);
+
+                match response {
+                    None => error!(
+                        "Unrecognised request received. Not responding. Request: {request_message}"
+                    ),
+                    Some(response_messages) => {
+                        for resp in response_messages.iter() {
+                            ws_stream.send(Message::Text(resp.to_string())).await?;
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
