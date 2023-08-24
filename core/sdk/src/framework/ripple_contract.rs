@@ -213,10 +213,8 @@ impl RippleContract {
             if let Ok(v) = Self::try_from(contract.to_owned()) {
                 return Some(v);
             }
-        } else {
-            if let Ok(v) = Self::try_from(SerdeClearString::prep_clear_string(contract)) {
-                return Some(v);
-            }
+        } else if let Ok(v) = Self::try_from(SerdeClearString::prep_clear_string(contract)) {
+            return Some(v);
         }
         None
     }
