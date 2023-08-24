@@ -16,3 +16,4 @@
 //
 
 pub mod mock_device_ffi;
+pub mod mock_device_ws_server_processor;

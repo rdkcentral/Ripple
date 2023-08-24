@@ -1,0 +1,89 @@
+{
+    "default_path": "/usr/lib/rust/",
+    "default_extension": "so",
+    "timeout": 2000,
+    "extns": [
+        {
+            "path": "libthunder",
+            "symbols": [
+                {
+                    "id": "ripple:channel:device:thunder",
+                    "uses": [
+                        "config"
+                    ],
+                    "fulfills": [
+                        "device_info",
+                        "window_manager",
+                        "browser",
+                        "wifi",
+                        "device_events",
+                        "device_persistence",
+                        "remote_accessory"
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "libdistributor_general",
+            "symbols": [
+                {
+                    "id": "ripple:channel:distributor:general",
+                    "uses": [
+                        "config"
+                    ],
+                    "fulfills": [
+                        "permissions",
+                        "account_session",
+                        "secure_storage",
+                        "advertising",
+                        "privacy_settings",
+                        "metrics",
+                        "session_token",
+                        "discovery",
+                        "media_events"
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "libmock_device",
+            "symbols": [
+                {
+                    "id": "ripple:channel:device:mock_device",
+                    "uses": [
+                        "config"
+                    ],
+                    "fulfills": [
+                        "mock_websocket_server"
+                    ]
+                }
+            ]
+        }
+    ],
+    "required_contracts": [
+        "rpc",
+        "lifecycle_management",
+        "device_info",
+        "window_manager",
+        "browser",
+        "permissions",
+        "account_session",
+        "wifi",
+        "device_events",
+        "device_persistence",
+        "remote_accessory",
+        "secure_storage",
+        "advertising",
+        "privacy_settings",
+        "session_token",
+        "metrics",
+        "discovery",
+        "media_events",
+        "mock_websocket_server"
+    ],
+    "rpc_aliases": {
+        "device.model": [
+            "custom.model"
+        ]
+    }
+}

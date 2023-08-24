@@ -97,7 +97,7 @@ pub enum RippleContract {
     /// Contract for Extensions to recieve Telemetry events from Main
     OperationalMetricListener,
     /// Contract for Extensions to stand in for a WebSocket server based service provider
-    MockWebSocketServer,
+    MockWebsocketServer,
 }
 
 impl TryFrom<String> for RippleContract {

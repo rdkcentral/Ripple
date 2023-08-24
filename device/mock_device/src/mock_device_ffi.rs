@@ -36,20 +36,22 @@ use ripple_sdk::{
     utils::{error::RippleError, logger::init_logger},
 };
 
+use crate::mock_device_ws_server_processor::MockDeviceMockWebsocketServerProcessor;
+
 const EXTN_NAME: &str = "mock_device";
 
 fn init_library() -> CExtnMetadata {
-    let _ = init_logger("mock_device".into());
+    let _ = init_logger(EXTN_NAME.into());
 
     let dist_meta = ExtnSymbolMetadata::get(
         ExtnId::new_channel(ExtnClassId::Device, EXTN_NAME.into()),
-        ContractFulfiller::new(vec![RippleContract::MockWebSocketServer]),
+        ContractFulfiller::new(vec![RippleContract::MockWebsocketServer]),
         Version::new(1, 0, 0),
     );
 
     debug!("Returning distributor builder");
     let extn_metadata = ExtnMetadata {
-        name: "mock_device".into(),
+        name: EXTN_NAME.into(),
         symbols: vec![dist_meta],
     };
     extn_metadata.into()
@@ -77,15 +79,10 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
             //         ));
             //     }
             // }
-            // TODO:: load initial state from files
 
-            // client.add_request_processor(DistributorPermissionProcessor::new(client.clone()));
-            // client.add_request_processor(DistributorSecureStorageProcessor::new(client.clone()));
-            // client.add_request_processor(DistributorAdvertisingProcessor::new(client.clone()));
-            // client.add_request_processor(DistributorMetricsProcessor::new(client.clone()));
-            // client.add_request_processor(DistributorTokenProcessor::new(client.clone()));
-            // client.add_request_processor(DistributorDiscoveryProcessor::new(client.clone()));
-            // client.add_request_processor(DistributorMediaEventProcessor::new(client.clone()));
+            client
+                .add_request_processor(MockDeviceMockWebsocketServerProcessor::new(client.clone()));
+
             // Lets Main know that the distributor channel is ready
             let _ = client.event(ExtnStatus::Ready);
         });
