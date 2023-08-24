@@ -902,3 +902,53 @@ impl AppLauncher {
         Err(AppError::General)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_modified_url_without_firebolt_endpoint_and_query() {
+        let mut app_lib = AppManifest::default();
+        app_lib.start_page = String::from("http://example.com");
+        let session_id = "my_session_id";
+        let modified_url = AppLauncher::get_modified_url(app_lib, session_id);
+        assert_eq!(modified_url, "http://example.com/?__firebolt_endpoint=ws%3A%2F%2F127.0.0.0%3A3473%26appId%3Dtest%3Fsession%3Dmy_session_id");
+    }
+
+    #[test]
+    fn test_get_modified_url_without_firebolt_endpoint() {
+        let mut app_lib = AppManifest::default();
+        app_lib.start_page = String::from("http://example.com/?param1=value1");
+        let session_id = "my_session_id";
+        let modified_url = AppLauncher::get_modified_url(app_lib, session_id);
+        assert_eq!(modified_url, "http://example.com/?param1=value1&__firebolt_endpoint=ws%3A%2F%2F127.0.0.0%3A3473%26appId%3Dtest%3Fsession%3Dmy_session_id");
+    }
+
+    #[test]
+    fn test_get_modified_url_without_firebolt_endpoint_with_fragment() {
+        let mut app_lib = AppManifest::default();
+        app_lib.start_page = String::from("http://example.com/?param1=value1#menu");
+        let session_id = "my_session_id";
+        let modified_url = AppLauncher::get_modified_url(app_lib, session_id);
+        assert_eq!(modified_url, "http://example.com/?param1=value1&__firebolt_endpoint=ws%3A%2F%2F127.0.0.0%3A3473%26appId%3Dtest%3Fsession%3Dmy_session_id#menu");
+    }
+
+    #[test]
+    fn test_get_modified_url_with_firebolt_endpoint() {
+        let mut app_lib = AppManifest::default();
+        app_lib.start_page = String::from("http://example.com/?param1=value1&__firebolt_endpoint=ws%253A%252F%252F127.0.0.0%253A3473%253FappId%253Dmy_app_id");
+        let session_id = "my_session_id";
+        let modified_url = AppLauncher::get_modified_url(app_lib, session_id);
+        assert_eq!(modified_url, modified_url);
+    }
+
+    #[test]
+    fn test_get_modified_url_invalid_url() {
+        let mut app_lib = AppManifest::default();
+        app_lib.start_page = String::from("test_url_example.com");
+        let session_id = "my_session_id";
+        let modified_url = AppLauncher::get_modified_url(app_lib, session_id);
+        assert_eq!(modified_url, "Invalid URL");
+    }
+}
