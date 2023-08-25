@@ -49,9 +49,36 @@ pub struct DistributorPermissionProcessor {
 fn get_permissions_map() -> HashMap<String, Vec<FireboltPermission>> {
     if let Some(p) = Path::new("/opt/ripple/permissions_map.json").to_str() {
         if let Ok(contents) = fs::read_to_string(p) {
-            if let Ok(r) = serde_json::from_str(contents.as_str()) {
-                return r;
+            match serde_json::from_str(contents.as_str()) {
+                Ok(r) => return r,
+                _ => {}
             }
+            match serde_json::from_str(contents.as_str()) {
+                Ok(r) => return r,
+                _ => {}
+            }
+            match serde_json::from_str(contents.as_str()) {
+                Ok(r) => return r,
+                _ => {}
+            }
+            match serde_json::from_str(contents.as_str()) {
+                Ok(r) => return r,
+                _ => {}
+            }
+
+            if true {}
+            {}
+
+            // let x;
+            // if true {
+            //     x = 1;
+            // } else {
+            //     x = 1;
+            // }
+            // println!("{}", x);
+            // if let Ok(r) = serde_json::from_str(contents.as_str()) {
+            //     return r;
+            // }
         }
     }
 

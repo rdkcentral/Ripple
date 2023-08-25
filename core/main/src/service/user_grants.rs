@@ -1094,8 +1094,12 @@ impl GrantStepExecutor {
         if send_result.is_err() {
             return app_name;
         }
-        if let Ok(Ok(AppManagerResponse::AppName(name))) = rx.await {
-            app_name = name.unwrap_or_default();
+        // if let Ok(Ok(AppManagerResponse::AppName(name))) = rx.await {
+        //     app_name = name.unwrap_or_default();
+        // }
+        match rx.await {
+            Ok(Ok(AppManagerResponse::AppName(name))) => return name.unwrap_or_default(),
+            _ => {}
         }
 
         app_name
