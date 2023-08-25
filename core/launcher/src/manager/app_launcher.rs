@@ -527,10 +527,10 @@ impl AppLauncher {
                 .iter()
                 .any(|(key, _)| key == "__firebolt_endpoint")
             {
-                let firebolt_endpoint = String::from("127.0.0.0");
+                let firebolt_endpoint = String::from("127.0.0.1");
                 let appid = manifest.name.to_string();
                 let value: String = format!(
-                    "ws://{}:3473&appId={}?session={}",
+                    "ws://{}:3473?appId={}&session={}",
                     firebolt_endpoint, appid, sessionid
                 );
                 query_params.push(("__firebolt_endpoint".to_string(), value));
@@ -913,7 +913,7 @@ mod tests {
         app_lib.start_page = String::from("http://example.com");
         let session_id = "my_session_id";
         let modified_url = AppLauncher::get_modified_url(app_lib, session_id);
-        assert_eq!(modified_url, "http://example.com/?__firebolt_endpoint=ws%3A%2F%2F127.0.0.0%3A3473%26appId%3Dtest%3Fsession%3Dmy_session_id");
+        assert_eq!(modified_url, "http://example.com/?__firebolt_endpoint=ws%3A%2F%2F127.0.0.1%3A3473%3FappId%3Dtest%26session%3Dmy_session_id");
     }
 
     #[test]
@@ -922,7 +922,7 @@ mod tests {
         app_lib.start_page = String::from("http://example.com/?param1=value1");
         let session_id = "my_session_id";
         let modified_url = AppLauncher::get_modified_url(app_lib, session_id);
-        assert_eq!(modified_url, "http://example.com/?param1=value1&__firebolt_endpoint=ws%3A%2F%2F127.0.0.0%3A3473%26appId%3Dtest%3Fsession%3Dmy_session_id");
+        assert_eq!(modified_url, "http://example.com/?param1=value1&__firebolt_endpoint=ws%3A%2F%2F127.0.0.1%3A3473%3FappId%3Dtest%26session%3Dmy_session_id");
     }
 
     #[test]
@@ -931,16 +931,16 @@ mod tests {
         app_lib.start_page = String::from("http://example.com/?param1=value1#menu");
         let session_id = "my_session_id";
         let modified_url = AppLauncher::get_modified_url(app_lib, session_id);
-        assert_eq!(modified_url, "http://example.com/?param1=value1&__firebolt_endpoint=ws%3A%2F%2F127.0.0.0%3A3473%26appId%3Dtest%3Fsession%3Dmy_session_id#menu");
+        assert_eq!(modified_url, "http://example.com/?param1=value1&__firebolt_endpoint=ws%3A%2F%2F127.0.0.1%3A3473%3FappId%3Dtest%26session%3Dmy_session_id#menu");
     }
 
     #[test]
     fn test_get_modified_url_with_firebolt_endpoint() {
         let mut app_lib = AppManifest::default();
-        app_lib.start_page = String::from("http://example.com/?param1=value1&__firebolt_endpoint=ws%253A%252F%252F127.0.0.0%253A3473%253FappId%253Dmy_app_id");
+        app_lib.start_page = String::from("http://example.com/?param1=value1&__firebolt_endpoint=ws%3A%2F%2F192.168.1.9%3A3474%3FappId%3Drefui");
         let session_id = "my_session_id";
-        let modified_url = AppLauncher::get_modified_url(app_lib, session_id);
-        assert_eq!(modified_url, modified_url);
+        let modified_url = AppLauncher::get_modified_url(app_lib, session_id.clone());
+        assert_eq!(modified_url, "http://example.com/?param1=value1&__firebolt_endpoint=ws%3A%2F%2F192.168.1.9%3A3474%3FappId%3Drefui");
     }
 
     #[test]
