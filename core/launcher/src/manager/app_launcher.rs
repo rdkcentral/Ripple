@@ -528,7 +528,7 @@ impl AppLauncher {
                 .any(|(key, _)| key == "__firebolt_endpoint")
             {
                 let firebolt_endpoint = String::from("127.0.0.1");
-                let appid = manifest.name.to_string();
+                let appid = manifest.name;
                 let value: String = format!(
                     "ws://{}:3473?appId={}&session={}",
                     firebolt_endpoint, appid, sessionid
@@ -539,7 +539,7 @@ impl AppLauncher {
             modified_url.set_query(Some(
                 &query_params
                     .iter()
-                    .map(|(key, value)| format!("{}={}", key, encode(value).to_string()))
+                    .map(|(key, value)| format!("{}={}", key, encode(value)))
                     .collect::<Vec<String>>()
                     .join("&"),
             ));
@@ -594,18 +594,12 @@ impl AppLauncher {
         if resp.is_err() {
             return Err(AppError::NotSupported);
         }
-
         match resp {
             Ok(response) => match response.payload.extract::<AppResponse>() {
-                Some(Ok(AppManagerResponse::Session(res))) => match res {
-                    SessionResponse::Pending(val) => {
-                        sessionid = val.session_id.unwrap();
-                        debug!("session id : {:?} ", sessionid);
-                    }
-                    _ => {
-                        return Err(AppError::NotFound);
-                    }
-                },
+                Some(Ok(AppManagerResponse::Session(SessionResponse::Pending(val)))) => {
+                    sessionid = val.session_id.unwrap();
+                    debug!("session id : {:?} ", sessionid);
+                }
                 _ => {
                     return Err(AppError::NotFound);
                 }
@@ -939,7 +933,7 @@ mod tests {
         let mut app_lib = AppManifest::default();
         app_lib.start_page = String::from("http://example.com/?param1=value1&__firebolt_endpoint=ws%3A%2F%2F192.168.1.9%3A3474%3FappId%3Drefui");
         let session_id = "my_session_id";
-        let modified_url = AppLauncher::get_modified_url(app_lib, session_id.clone());
+        let modified_url = AppLauncher::get_modified_url(app_lib, session_id);
         assert_eq!(modified_url, "http://example.com/?param1=value1&__firebolt_endpoint=ws%3A%2F%2F192.168.1.9%3A3474%3FappId%3Drefui");
     }
 
