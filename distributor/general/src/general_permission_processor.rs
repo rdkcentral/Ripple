@@ -57,10 +57,12 @@ fn get_permissions_map() -> HashMap<String, Vec<FireboltPermission>> {
                 Ok(r) => return r,
                 _ => {}
             }
+
             match serde_json::from_str(contents.as_str()) {
                 Ok(r) => return r,
                 _ => {}
             }
+
             match serde_json::from_str(contents.as_str()) {
                 Ok(r) => return r,
                 _ => {}
