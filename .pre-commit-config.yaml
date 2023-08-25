@@ -4,5 +4,5 @@ repos:
     - id: run-clippy
       verbose: true
       language: script
-      name: Running cargo clippy fix. Please wait ..
+      name: Running clippy. Please wait ..
       entry: ./run-clippy.sh
