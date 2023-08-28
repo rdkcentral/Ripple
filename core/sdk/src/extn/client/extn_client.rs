@@ -186,7 +186,14 @@ impl ExtnClient {
         {
             let mut map = HashMap::new();
             for contract in symbol.fulfills {
-                map.insert(contract, id.clone());
+                match RippleContract::from_manifest(&contract) {
+                    Some(v) => {
+                        let ripple_contract_string = v.as_clear_string();
+                        info!("{} will fulfill {}", id, ripple_contract_string);
+                        let _ = map.insert(ripple_contract_string, id.clone());
+                    }
+                    None => error!("Unknown contract {}", contract),
+                }
             }
             let mut contract_map = self.contract_map.write().unwrap();
             contract_map.extend(map);
@@ -328,7 +335,7 @@ impl ExtnClient {
             });
             true
         } else {
-            error!("No Request Processor for {:?}", msg);
+            error!("No Request Processor for {} {:?}", id_c, msg);
             false
         }
     }
@@ -536,17 +543,23 @@ impl ExtnClient {
         let id = uuid::Uuid::new_v4().to_string();
         let (tx, tr) = bounded(2);
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
-        let timeout_increments = 50;
+        let timeout_increments = 5;
         self.sender
-            .send_request(id, payload, other_sender, Some(tx))?;
+            .send_request(id, payload.clone(), other_sender, Some(tx))?;
         let mut current_timeout: u64 = 0;
         loop {
             match tr.try_recv() {
                 Ok(cmessage) => {
+                    let latency = Utc::now().timestamp_millis() - cmessage.ts;
+                    debug!(
+                        "** receiving message latency={} msg={:?}",
+                        latency, cmessage
+                    );
                     let message: ExtnMessage = cmessage.try_into().unwrap();
                     if let Some(v) = message.payload.extract() {
                         return Ok(v);
                     } else {
+                        error!("Bad response for {:?}", payload.get_extn_payload());
                         return Err(RippleError::ParseError);
                     }
                 }
@@ -559,6 +572,10 @@ impl ExtnClient {
             }
             current_timeout += timeout_increments;
             if current_timeout > timeout_in_msecs {
+                error!(
+                    "Timeout on request message {:?}",
+                    payload.get_extn_payload()
+                );
                 break;
             } else {
                 std::thread::sleep(Duration::from_millis(timeout_increments))
