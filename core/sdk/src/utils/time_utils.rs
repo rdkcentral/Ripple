@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use chrono::{DateTime, LocalResult, NaiveDateTime, TimeZone, Utc};
+use chrono::{LocalResult, TimeZone, Utc};
 use std::{
     sync::{Arc, Mutex},
     thread,
