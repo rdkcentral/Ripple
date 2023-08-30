@@ -32,6 +32,13 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
     }
 
     async fn setup(&self, s: BootstrapState) -> RippleResponse {
+        // AccountSessionRequest::Get will not always be successful,
+        // on Error, it will set the ripple context activation status as not activated.
+        // On failure call activated state and send a telemetry event conveying any provisioning issue.
+        // Start a thread which will process the session token update event.
+        // Upon receving the event, if the ripple context is not set as active, set it to active.
+        //
+        //
         let response = s
             .platform_state
             .get_client()
@@ -46,7 +53,6 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
             MetricsState::initialize(&s.platform_state).await;
             event = CapEvent::OnAvailable;
         }
-
         CapState::emit(
             &s.platform_state,
             event,

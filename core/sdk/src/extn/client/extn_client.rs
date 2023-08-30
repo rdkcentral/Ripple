@@ -45,6 +45,19 @@ use super::{
     extn_sender::ExtnSender,
 };
 
+#[derive(Clone, Debug)]
+pub enum ActivationStatus {
+    NotActivated,
+    DistributorTokenNotAvailable,
+    Activated,
+}
+
+#[derive(Clone, Debug)]
+pub enum InternetConnectionStatus {
+    FullyConnected,
+    NotConnected,
+    LimitedConnectivity,
+}
 /// Defines the SDK Client implementation of the Inter Extension communication.
 /// # Overview
 /// Core objective for the Extn client is to provide a reliable and robust communication channel between the  `Main` and its extensions. There are challenges when using Dynamic Linked libraries which needs to be carefully handled for memory, security and reliability. `Client` is built into the `core/sdk` for a better Software Delivery and Operational(SDO) performance.
@@ -67,6 +80,8 @@ pub struct ExtnClient {
     response_processors: Arc<RwLock<HashMap<String, OSender<ExtnMessage>>>>,
     request_processors: Arc<RwLock<HashMap<String, MSender<ExtnMessage>>>>,
     event_processors: Arc<RwLock<HashMap<String, Vec<MSender<ExtnMessage>>>>>,
+    activation_status: ActivationStatus,
+    internet_connectivity: InternetConnectionStatus,
 }
 
 fn add_stream_processor<P>(id: String, context: P, map: Arc<RwLock<HashMap<String, P>>>) {
@@ -112,6 +127,8 @@ impl ExtnClient {
             response_processors: Arc::new(RwLock::new(HashMap::new())),
             request_processors: Arc::new(RwLock::new(HashMap::new())),
             event_processors: Arc::new(RwLock::new(HashMap::new())),
+            activation_status: ActivationStatus::NotActivated,
+            internet_connectivity: InternetConnectionStatus::NotConnected,
         }
     }
 

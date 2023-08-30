@@ -214,6 +214,9 @@ impl ThunderEventHandler {
             if (match event {
                 ExtnEvent::AppEvent(a) => state.get_client().request_transient(a),
                 ExtnEvent::PowerState(p) => state.get_client().request_transient(p),
+                ExtnEvent::NetworkState(network_state) => {
+                    state.get_client().request_transient(network_state)
+                }
                 _ => Err(RippleError::InvalidOutput),
             })
             .is_err()

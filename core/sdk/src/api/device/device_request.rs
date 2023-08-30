@@ -252,3 +252,21 @@ impl ExtnPayloadProvider for SystemPowerState {
         RippleContract::PowerStateEvent
     }
 }
+
+impl ExtnPayloadProvider for NetworkState {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Event(ExtnEvent::NetworkState(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<NetworkState> {
+        if let ExtnPayload::Event(ExtnEvent::NetworkState(r)) = payload {
+            return Some(r);
+        }
+
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::NetworkChangeEvent
+    }
+}

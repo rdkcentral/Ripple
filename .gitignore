@@ -12,3 +12,4 @@ Cargo.lock
 /.vscode/
 
 /device/thunder_ripple_sdk/target/
+.DS_Store

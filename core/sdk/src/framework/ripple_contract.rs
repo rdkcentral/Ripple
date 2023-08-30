@@ -84,6 +84,9 @@ pub enum RippleContract {
     DeviceEvents,
     /// Event specific to PowerState would become an Adjective in near future.
     PowerStateEvent,
+
+    NetworkChangeEvent,
+    DistributorTokenChangeEvent,
     /// Contract for controlling Voice guidance typically offered by the Device Channel or the browser.
     VoiceGuidance,
     /// Distributor Contract for handling Advertising requirements.

@@ -31,7 +31,7 @@ use crate::{
         device::{
             device_events::DeviceEventRequest,
             device_peristence::StorageData,
-            device_request::{DeviceRequest, NetworkResponse, SystemPowerState},
+            device_request::{DeviceRequest, NetworkResponse, NetworkState, SystemPowerState},
         },
         distributor::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
@@ -321,6 +321,7 @@ pub enum ExtnEvent {
     Status(ExtnStatus),
     AppEvent(AppEventRequest),
     PowerState(SystemPowerState),
+    NetworkState(NetworkState),
     OperationalMetrics(TelemetryPayload),
 }
 
