@@ -592,9 +592,13 @@ impl DelegatedLauncherHandler {
                         }
                     };
                     debug!("exact policy {:?}", policy);
-                    policy.is_some_and(|policy| {
-                        policy.evaluate_at.contains(&EvaluateAt::ActiveSession)
-                    })
+                    if policy.is_none() {
+                        return false;
+                    }
+                    policy
+                        .unwrap()
+                        .evaluate_at
+                        .contains(&EvaluateAt::ActiveSession)
                 } else {
                     false
                 }
