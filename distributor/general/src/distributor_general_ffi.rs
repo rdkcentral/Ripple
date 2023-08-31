@@ -16,7 +16,10 @@
 //
 
 use ripple_sdk::{
-    api::{config::Config, status_update::ExtnStatus},
+    api::{
+        config::Config, session::SessionAdjective, status_update::ExtnStatus,
+        storage_property::StorageAdjective,
+    },
     crossbeam::channel::Receiver as CReceiver,
     export_channel_builder, export_extn_metadata,
     extn::{
@@ -55,13 +58,13 @@ fn init_library() -> CExtnMetadata {
         ExtnId::new_channel(ExtnClassId::Distributor, "general".into()),
         ContractFulfiller::new(vec![
             RippleContract::Permissions,
-            RippleContract::AccountSession,
-            RippleContract::SecureStorage,
+            RippleContract::Session(SessionAdjective::Account),
+            RippleContract::Storage(StorageAdjective::Secure),
             RippleContract::Advertising,
-            RippleContract::PrivacyCloudStore,
-            RippleContract::SessionToken,
+            RippleContract::Storage(StorageAdjective::PrivacyCloud),
+            RippleContract::Session(SessionAdjective::Root),
             RippleContract::BehaviorMetrics,
-            RippleContract::SessionToken,
+            RippleContract::Session(SessionAdjective::Device),
             RippleContract::Discovery,
             RippleContract::MediaEvents,
         ]),

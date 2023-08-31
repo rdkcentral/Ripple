@@ -121,17 +121,32 @@ impl ExtnClient {
     ///
     /// Also starts the thread in the processor to accept incoming requests.
     pub fn add_request_processor(&mut self, mut processor: impl ExtnRequestProcessor) {
-        // Dont add and start a request processor if there is no contract fulfillment
-        if self.sender.check_contract_fulfillment(processor.contract()) {
-            let processor_string: String = processor.contract().into();
+        let contracts = if let Some(multiple_contracts) = processor.fulfills_mutiple() {
+            multiple_contracts
+        } else {
+            vec![processor.contract()]
+        };
+        let contracts_supported: Vec<RippleContract> = contracts
+            .into_iter()
+            .filter(|contract| self.sender.check_contract_fulfillment(contract.clone()))
+            .collect();
+
+        contracts_supported.iter().for_each(|contract| {
+            let processor_string: String = contract.as_clear_string();
             info!("adding request processor {}", processor_string);
             add_stream_processor(
-                processor_string.clone(),
+                processor_string,
                 processor.sender(),
                 self.request_processors.clone(),
             );
+        });
+        // Dont add and start a request processor if there is no contract fulfillment
+        if !contracts_supported.is_empty() {
             tokio::spawn(async move {
-                trace!("starting request processor thread for {}", processor_string);
+                trace!(
+                    "starting request processor green tokio thread for {:?}",
+                    contracts_supported
+                );
                 processor.run().await
             });
         }
@@ -149,7 +164,7 @@ impl ExtnClient {
     /// Also starts the thread in the processor to accept incoming events.
     pub fn add_event_processor(&mut self, mut processor: impl ExtnEventProcessor) {
         add_vec_stream_processor(
-            processor.contract().into(),
+            processor.contract().as_clear_string(),
             processor.sender(),
             self.event_processors.clone(),
         );
@@ -171,7 +186,14 @@ impl ExtnClient {
         {
             let mut map = HashMap::new();
             for contract in symbol.fulfills {
-                map.insert(contract, id.clone());
+                match RippleContract::from_manifest(&contract) {
+                    Some(v) => {
+                        let ripple_contract_string = v.as_clear_string();
+                        info!("{} will fulfill {}", id, ripple_contract_string);
+                        let _ = map.insert(ripple_contract_string, id.clone());
+                    }
+                    None => error!("Unknown contract {}", contract),
+                }
             }
             let mut contract_map = self.contract_map.write().unwrap();
             contract_map.extend(map);
@@ -299,7 +321,7 @@ impl ExtnClient {
         msg: ExtnMessage,
         processor: Arc<RwLock<HashMap<String, MSender<ExtnMessage>>>>,
     ) -> bool {
-        let id_c: String = msg.clone().target.into();
+        let id_c: String = msg.target.as_clear_string();
 
         let v = {
             let processors = processor.read().unwrap();
@@ -313,7 +335,7 @@ impl ExtnClient {
             });
             true
         } else {
-            error!("No Request Processor for {:?}", msg);
+            error!("No Request Processor for {} {:?}", id_c, msg);
             false
         }
     }
@@ -322,7 +344,7 @@ impl ExtnClient {
         msg: ExtnMessage,
         processor: Arc<RwLock<HashMap<String, Vec<MSender<ExtnMessage>>>>>,
     ) {
-        let id_c = msg.clone().target.into();
+        let id_c = msg.target.as_clear_string();
         let mut gc_sender_indexes: Vec<usize> = Vec::new();
         let mut sender: Option<MSender<ExtnMessage>> = None;
         let read_processor = processor.clone();
@@ -521,17 +543,23 @@ impl ExtnClient {
         let id = uuid::Uuid::new_v4().to_string();
         let (tx, tr) = bounded(2);
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
-        let timeout_increments = 50;
+        let timeout_increments = 5;
         self.sender
-            .send_request(id, payload, other_sender, Some(tx))?;
+            .send_request(id, payload.clone(), other_sender, Some(tx))?;
         let mut current_timeout: u64 = 0;
         loop {
             match tr.try_recv() {
                 Ok(cmessage) => {
+                    let latency = Utc::now().timestamp_millis() - cmessage.ts;
+                    debug!(
+                        "** receiving message latency={} msg={:?}",
+                        latency, cmessage
+                    );
                     let message: ExtnMessage = cmessage.try_into().unwrap();
                     if let Some(v) = message.payload.extract() {
                         return Ok(v);
                     } else {
+                        error!("Bad response for {:?}", payload.get_extn_payload());
                         return Err(RippleError::ParseError);
                     }
                 }
@@ -544,6 +572,10 @@ impl ExtnClient {
             }
             current_timeout += timeout_increments;
             if current_timeout > timeout_in_msecs {
+                error!(
+                    "Timeout on request message {:?}",
+                    payload.get_extn_payload()
+                );
                 break;
             } else {
                 std::thread::sleep(Duration::from_millis(timeout_increments))

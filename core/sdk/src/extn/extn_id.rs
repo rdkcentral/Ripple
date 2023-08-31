@@ -17,7 +17,7 @@
 
 use crate::utils::error::RippleError;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExtnClassId {
     Gateway,
     Device,
@@ -60,7 +60,7 @@ impl ExtnClassId {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExtnType {
     Main,
     Channel,

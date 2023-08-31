@@ -29,7 +29,7 @@ pub enum SyncAndMonitorRequest {
     UpdateDistributorToken(String),
 }
 
-#[derive(PartialEq, Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum SyncAndMonitorModule {
     Privacy,
     UserGrants,

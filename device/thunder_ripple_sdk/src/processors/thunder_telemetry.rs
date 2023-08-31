@@ -35,7 +35,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{client::thunder_plugin::ThunderPlugin, thunder_state::ThunderState};
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ThunderTelemetryEvent {
     event_name: String,

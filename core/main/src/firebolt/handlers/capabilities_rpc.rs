@@ -28,15 +28,13 @@ use ripple_sdk::api::{
     firebolt::{
         fb_capabilities::{
             CapEvent, CapInfoRpcRequest, CapListenRPCRequest, CapRequestRpcRequest, CapabilityInfo,
-            CapabilityRole, DenyReason, FireboltCap, FireboltPermission, RoleInfo,
+            CapabilityRole, FireboltCap, FireboltPermission, RoleInfo,
         },
         fb_general::ListenerResponse,
-        fb_openrpc::CapabilitySet,
     },
     gateway::rpc_gateway_api::CallContext,
 };
 use ripple_sdk::async_trait::async_trait;
-use std::collections::HashMap;
 
 #[rpc(server)]
 pub trait Capability {
@@ -79,7 +77,7 @@ pub trait Capability {
         cap: CapListenRPCRequest,
     ) -> RpcResult<ListenerResponse>;
     #[method(name = "capabilities.request")]
-    async fn request(
+    async fn cap_set_request(
         &self,
         ctx: CallContext,
         grants: CapRequestRpcRequest,
@@ -113,7 +111,7 @@ impl CapabilityServer for CapabilityImpl {
             .state
             .cap_state
             .generic
-            .check_supported(&vec![FireboltPermission {
+            .check_supported(&[FireboltPermission {
                 cap: FireboltCap::Full(cap.capability),
                 role: cap.role.unwrap_or(CapabilityRole::Use),
             }])
@@ -169,14 +167,12 @@ impl CapabilityServer for CapabilityImpl {
         ctx: CallContext,
         request: CapInfoRpcRequest,
     ) -> RpcResult<Vec<CapabilityInfo>> {
-        let mut caps = Vec::new();
-        for cap in request.capabilities {
-            if let Some(firebolt_cap) = FireboltCap::parse(cap) {
-                caps.push(firebolt_cap);
-            }
-        }
-        let cap_set = CapabilitySet::get_from_role(caps, Some(CapabilityRole::Use));
-        if let Ok(a) = CapState::get_cap_info(&self.state, ctx, cap_set).await {
+        let cap_set = request
+            .capabilities
+            .iter()
+            .map(|cap| FireboltCap::Full(cap.to_owned()))
+            .collect();
+        if let Ok(a) = CapState::get_cap_info(&self.state, ctx, &cap_set).await {
             Ok(a)
         } else {
             Err(jsonrpsee::core::Error::Custom(String::from(
@@ -221,64 +217,37 @@ impl CapabilityServer for CapabilityImpl {
             .await
     }
 
-    async fn request(
+    async fn cap_set_request(
         &self,
         ctx: CallContext,
         grants: CapRequestRpcRequest,
     ) -> RpcResult<Vec<CapabilityInfo>> {
-        let request = grants.clone().into();
-        if let Ok(mut result) = CapState::get_cap_info(&self.state, ctx.clone(), request).await {
-            // filter out Ungranted
-            let caps: Vec<String> = result
-                .clone()
-                .into_iter()
-                .filter(|x| {
-                    x.details.is_some()
-                        && x.details.clone().unwrap().contains(&DenyReason::Ungranted)
-                })
-                .map(|x| x.capability)
-                .collect();
-            let grants: Vec<RoleInfo> = grants
-                .grants
-                .into_iter()
-                .filter(|x| caps.contains(&x.capability))
-                .collect();
-            if grants.is_empty() {
-                return Ok(result);
-            }
-
-            let mut cap_role = HashMap::new();
-            for role_info in &grants {
-                cap_role.insert(
-                    role_info.capability.clone(),
-                    role_info.role.unwrap_or(CapabilityRole::Use),
-                );
-            }
-
-            let ungranted_set: Vec<FireboltPermission> =
-                grants.into_iter().map(|entry| entry.into()).collect();
-            let mut grant_denied_caps: Vec<String> = Vec::new();
-            if let Err(e) =
-                GrantState::check_with_roles(&self.state, &ctx, &ungranted_set, false).await
-            {
-                for cap in e.caps {
-                    grant_denied_caps.push(cap.as_str());
-                }
-            }
-
-            for info in result.iter_mut() {
-                let capability = info.capability.clone();
-                if let Some(role) = cap_role.get(&capability) {
-                    info.update_ungranted(role, grant_denied_caps.contains(&capability));
-                }
-            }
-
-            return Ok(result);
+        let req_list: Vec<FireboltPermission> = grants.clone().into();
+        let permitted_result =
+            PermissionHandler::check_permitted(&self.state, &ctx.app_id, &req_list).await;
+        if permitted_result.is_ok() {
+            let _ = GrantState::check_with_roles(
+                &self.state,
+                &ctx.clone().into(),
+                &ctx.clone().into(),
+                &req_list,
+                false,
+            )
+            .await;
         }
+        let request = grants
+            .grants
+            .iter()
+            .map(|role_info| FireboltCap::Full(role_info.capability.to_owned()))
+            .collect();
 
-        Err(jsonrpsee::core::Error::Custom(String::from(
-            "Error retreiving Capability Info TBD",
-        )))
+        if let Ok(a) = CapState::get_cap_info(&self.state, ctx, &request).await {
+            Ok(a)
+        } else {
+            Err(jsonrpsee::core::Error::Custom(String::from(
+                "Error retreiving Capability Info TBD",
+            )))
+        }
     }
 }
 

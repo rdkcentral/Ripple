@@ -79,6 +79,9 @@ pub trait ExtnStreamProcessor: Send + Sync + 'static {
 
     fn get_state(&self) -> Self::STATE;
     fn receiver(&mut self) -> MReceiver<ExtnMessage>;
+    fn fulfills_mutiple(&self) -> Option<Vec<RippleContract>> {
+        None
+    }
     fn contract(&self) -> RippleContract {
         Self::VALUE::contract()
     }
@@ -188,7 +191,10 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     }
 
     async fn run(&mut self) {
-        debug!("starting request processor for {:?}", self.contract());
+        debug!(
+            "starting request processor for contract {}",
+            self.contract().as_clear_string()
+        );
         let extn_client = self.get_client();
         let mut receiver = self.receiver();
         let state = self.get_state();

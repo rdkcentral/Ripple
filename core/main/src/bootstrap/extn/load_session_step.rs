@@ -15,10 +15,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use ripple_sdk::api::firebolt::fb_capabilities::{CapEvent, FireboltCap};
 use ripple_sdk::{api::session::AccountSessionRequest, framework::bootstrap::Bootstep};
 use ripple_sdk::{async_trait::async_trait, framework::RippleResponse};
 
 use crate::state::bootstrap_state::BootstrapState;
+use crate::state::cap::cap_state::CapState;
 use crate::state::metrics_state::MetricsState;
 
 pub struct LoadDistributorValuesStep;
@@ -36,13 +38,22 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
             .send_extn_request(AccountSessionRequest::Get)
             .await
             .expect("session");
+        let mut event = CapEvent::OnUnavailable;
         if let Some(session) = response.payload.extract() {
             s.platform_state
                 .session_state
                 .insert_account_session(session);
-
-            MetricsState::initialize(&s.platform_state).await
+            MetricsState::initialize(&s.platform_state).await;
+            event = CapEvent::OnAvailable;
         }
+
+        CapState::emit(
+            &s.platform_state,
+            event,
+            FireboltCap::Short("token:platform".to_owned()),
+            None,
+        )
+        .await;
         Ok(())
     }
 }

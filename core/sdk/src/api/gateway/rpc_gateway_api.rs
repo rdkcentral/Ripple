@@ -25,6 +25,30 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
+#[derive(Debug, Clone)]
+pub struct CallerSession {
+    pub session_id: Option<String>,
+}
+
+impl From<CallContext> for CallerSession {
+    fn from(ctx: CallContext) -> Self {
+        CallerSession {
+            session_id: Some(ctx.session_id),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AppIdentification {
+    pub app_id: String,
+}
+
+impl From<CallContext> for AppIdentification {
+    fn from(ctx: CallContext) -> Self {
+        AppIdentification { app_id: ctx.app_id }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CallContext {
     pub session_id: String,

@@ -1172,19 +1172,21 @@ for
 
 */
 fn scale_voice_speed_from_thunder_to_firebolt(thunder_voice_speed: f32) -> f32 {
-    thunder_voice_speed / 50.0
+    if thunder_voice_speed >= 25.0 {
+        thunder_voice_speed / 50.0
+    } else {
+        25.0 / 50.0
+    }
 }
 /*
 Note that this returns an f32 (when it should seemingly return i32), which is to make it compatible with
 DeviceRequest::VoiceGuidanceSetSpeed(speed).
 */
 fn scale_voice_speed_from_firebolt_to_thunder(firebolt_voice_speed: f32) -> f32 {
-    if firebolt_voice_speed <= 1.0 {
+    if (0.50..=2.0).contains(&firebolt_voice_speed) {
         firebolt_voice_speed * 50.0
-    } else if firebolt_voice_speed < 2.0 {
-        (50.0 * (firebolt_voice_speed / 10.0)) + 50.0
     } else {
-        100.0
+        0.50 * 50.0
     }
 }
 

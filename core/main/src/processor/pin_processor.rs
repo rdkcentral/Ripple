@@ -88,7 +88,7 @@ impl ExtnRequestProcessor for PinProcessor {
         let pr_msg = ProviderBrokerRequest {
             capability: String::from(PIN_CHALLENGE_CAPABILITY),
             method: String::from("challenge"),
-            caller: pin_request.call_ctx.to_owned(),
+            caller: pin_request.call_ctx.clone().into(),
             request: ProviderRequestPayload::PinChallenge(pin_request.into()),
             tx: session_tx,
             app_id: None,

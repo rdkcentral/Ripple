@@ -33,6 +33,12 @@ pub struct GrantStep {
     pub configuration: Option<Value>,
 }
 
+impl GrantStep {
+    pub fn capability_as_fb_cap(&self) -> FireboltCap {
+        FireboltCap::Full(self.capability.clone())
+    }
+}
+
 #[derive(Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct GrantRequirements {
@@ -73,7 +79,7 @@ impl Hash for GrantLifespan {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum AutoApplyPolicy {
     Always,
@@ -106,16 +112,25 @@ impl Hash for GrantScope {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum PolicyPersistenceType {
     Account,
     Device,
 }
 
+#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum EvaluateAt {
+    Invocation,
+    ActiveSession,
+    LoadedSession,
+}
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GrantPolicy {
+    #[serde(default = "default_evaluate_at")]
+    pub evaluate_at: Vec<EvaluateAt>,
     pub options: Vec<GrantRequirements>,
     pub scope: GrantScope,
     pub lifespan: GrantLifespan,
@@ -124,6 +139,9 @@ pub struct GrantPolicy {
     pub privacy_setting: Option<GrantPrivacySetting>,
     #[serde(default = "default_policy_persistence_type")]
     pub persistence: PolicyPersistenceType,
+}
+pub fn default_evaluate_at() -> Vec<EvaluateAt> {
+    vec![EvaluateAt::Invocation]
 }
 
 pub fn default_policy_persistence_type() -> PolicyPersistenceType {
@@ -140,6 +158,7 @@ impl Default for GrantPolicy {
             lifespan_ttl: None,
             privacy_setting: None,
             persistence: PolicyPersistenceType::Device,
+            evaluate_at: vec![EvaluateAt::Invocation],
         }
     }
 }
@@ -147,7 +166,7 @@ impl Default for GrantPolicy {
 #[derive(Deserialize, Debug, Clone)]
 pub struct GrantPolicies {
     #[serde(rename = "use")]
-    pub _use: Option<GrantPolicy>,
+    pub use_: Option<GrantPolicy>,
     pub manage: Option<GrantPolicy>,
     pub provide: Option<GrantPolicy>,
 }
@@ -156,8 +175,8 @@ impl GrantPolicies {
     pub fn get_policy(&self, permission: &FireboltPermission) -> Option<GrantPolicy> {
         match permission.role {
             CapabilityRole::Use => {
-                if self._use.is_some() {
-                    return Some(self._use.clone().unwrap());
+                if self.use_.is_some() {
+                    return Some(self.use_.clone().unwrap());
                 }
             }
             CapabilityRole::Manage => {

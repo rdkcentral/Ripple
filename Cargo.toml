@@ -16,15 +16,17 @@
 #
 
 [workspace]
+resolver = "2"
 members = [
     "core/sdk",
+    "core/tdk",
     "device/thunder_ripple_sdk",
     "core/main",
     "core/launcher",
     "device/thunder",
     "distributor/general",
     "examples/rpc_extn",
-    "examples/tm_extn"
+    "examples/tm_extn",
 ]
 
 [workspace.package]

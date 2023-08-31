@@ -56,6 +56,7 @@ impl Hash for FireboltCap {
 }
 
 impl FireboltCap {
+    // TODO: refactor this to use ToString trait instead of confusingly named function
     pub fn as_str(&self) -> String {
         let prefix = "xrn:firebolt:capability:";
         match self {
@@ -65,12 +66,12 @@ impl FireboltCap {
     }
 
     pub fn parse(cap: String) -> Option<FireboltCap> {
-        let prefix = vec!["xrn", "firebolt", "capability"];
+        let prefix = ["xrn", "firebolt", "capability"];
         let c_a = cap.split(':');
         if c_a.count() > 1 {
             let c_a = cap.split(':');
             let mut cap_vec = Vec::<String>::new();
-            for c in c_a.into_iter() {
+            for c in c_a {
                 if !prefix.contains(&c) {
                     cap_vec.push(String::from(c));
                     if cap_vec.len() == 2 {
@@ -132,6 +133,28 @@ impl From<RoleInfo> for FireboltPermission {
             cap: FireboltCap::Full(role_info.capability.to_owned()),
             role: role_info.role.unwrap_or(CapabilityRole::Use),
         }
+    }
+}
+
+impl From<FireboltCap> for FireboltPermission {
+    fn from(value: FireboltCap) -> Self {
+        FireboltPermission {
+            cap: value,
+            role: CapabilityRole::Use,
+        }
+    }
+}
+
+impl From<CapRequestRpcRequest> for Vec<FireboltPermission> {
+    fn from(value: CapRequestRpcRequest) -> Self {
+        value
+            .grants
+            .iter()
+            .map(|role_info| FireboltPermission {
+                cap: FireboltCap::Full(role_info.capability.to_owned()),
+                role: role_info.role.unwrap_or(CapabilityRole::Use),
+            })
+            .collect()
     }
 }
 impl From<CapabilitySet> for Vec<FireboltPermission> {
@@ -205,11 +228,11 @@ impl<'de> Deserialize<'de> for FireboltPermission {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RolePermission {
     pub permitted: bool,
-    pub granted: bool,
+    pub granted: Option<bool>,
 }
 
 impl RolePermission {
-    pub fn get(permitted: bool, granted: bool) -> RolePermission {
+    pub fn new(permitted: bool, granted: Option<bool>) -> RolePermission {
         RolePermission { permitted, granted }
     }
 }
@@ -229,7 +252,8 @@ pub struct CapabilityInfo {
 
 impl CapabilityInfo {
     pub fn get(cap: String, reason: Option<DenyReason>) -> CapabilityInfo {
-        let (mut supported, mut available, mut permitted, mut granted) = (true, true, true, true);
+        let (mut supported, mut available, mut permitted, mut granted) =
+            (true, true, true, Some(true));
         let mut details = None;
         if let Some(r) = reason {
             details = Some(vec![r.clone()]);
@@ -238,22 +262,22 @@ impl CapabilityInfo {
                     supported = false;
                     available = false;
                     permitted = false;
-                    granted = false;
+                    granted = None;
                 }
                 DenyReason::Unavailable => {
                     available = false;
                     permitted = false;
-                    granted = false;
+                    granted = None;
                 }
                 DenyReason::Unpermitted => {
                     permitted = false;
-                    granted = false;
+                    granted = None;
                 }
                 DenyReason::Ungranted => {
-                    granted = false;
+                    granted = None;
                 }
                 DenyReason::GrantDenied => {
-                    granted = false;
+                    granted = Some(false);
                 }
                 _ => {}
             }
@@ -262,35 +286,15 @@ impl CapabilityInfo {
             capability: cap,
             supported,
             available,
-            _use: RolePermission::get(permitted, granted),
-            manage: RolePermission::get(permitted, granted),
-            provide: RolePermission::get(permitted, granted),
+            _use: RolePermission::new(permitted, granted),
+            manage: RolePermission::new(permitted, granted),
+            provide: RolePermission::new(permitted, granted),
             details,
-        }
-    }
-
-    pub fn update_ungranted(&mut self, role: &CapabilityRole, granted: bool) {
-        if let Some(details) = self.details.as_mut() {
-            if let Some(index) = details.iter().position(|x| x == &DenyReason::Ungranted) {
-                details.remove(index);
-                if !granted {
-                    details.push(DenyReason::GrantDenied)
-                } else {
-                    match role {
-                        CapabilityRole::Use => self._use.granted = granted,
-                        CapabilityRole::Manage => self.manage.granted = granted,
-                        CapabilityRole::Provide => self.provide.granted = granted,
-                    }
-                }
-            }
-            if details.is_empty() {
-                self.details = None;
-            }
         }
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum DenyReason {
     NotFound,
@@ -341,7 +345,7 @@ impl RpcError for DenyReason {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct DenyReasonWithCap {
     pub reason: DenyReason,
     pub caps: Vec<FireboltCap>,

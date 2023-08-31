@@ -22,7 +22,7 @@ use std::{
 
 use ripple_sdk::{
     api::{
-        distributor::distributor_permissions::PermissionRequest,
+        distributor::distributor_permissions::{PermissionRequest, PermissionResponse},
         firebolt::{
             fb_capabilities::{DenyReason, DenyReasonWithCap, FireboltPermission, RoleInfo},
             fb_openrpc::CapabilitySet,
@@ -60,6 +60,13 @@ impl PermittedState {
     fn ingest(&mut self, extend_perms: HashMap<String, Vec<FireboltPermission>>) {
         let mut perms = self.permitted.write().unwrap();
         perms.value.extend(extend_perms);
+        perms.sync();
+    }
+
+    #[cfg(test)]
+    pub fn set_permissions(&mut self, permissions: HashMap<String, Vec<FireboltPermission>>) {
+        let mut perms = self.permitted.write().unwrap();
+        perms.value = permissions;
         perms.sync();
     }
 
@@ -183,6 +190,32 @@ impl PermissionHandler {
         }
     }
 
+    pub async fn get_app_permission(
+        state: &PlatformState,
+        app_id: &str,
+    ) -> Vec<FireboltPermission> {
+        let result = Vec::new();
+        if let Some(permitted_caps) = state.cap_state.permitted_state.get_app_permissions(app_id) {
+            return permitted_caps;
+        } else if let Some(session) = state.session_state.get_account_session() {
+            if let Ok(extn_response) = state
+                .get_client()
+                .send_extn_request(PermissionRequest {
+                    app_id: app_id.to_owned(),
+                    session,
+                })
+                .await
+            {
+                if let Some(permission_response) =
+                    extn_response.payload.extract::<PermissionResponse>()
+                {
+                    return permission_response;
+                }
+            }
+        }
+        result
+    }
+
     pub async fn check_permitted(
         state: &PlatformState,
         app_id: &str,
@@ -209,5 +242,32 @@ impl PermissionHandler {
                 .map(|fb_perm| fb_perm.cap.to_owned())
                 .collect(),
         })
+    }
+
+    pub async fn check_all_permitted(
+        platform_state: &PlatformState,
+        app_id: &str,
+        capability: &str,
+    ) -> (bool, bool, bool) {
+        let mut use_granted = false;
+        let mut manage_granted = false;
+        let mut provide_granted = false;
+        let granted_permissions = Self::get_app_permission(platform_state, app_id).await;
+        for perm in granted_permissions {
+            if perm.cap.as_str() == capability {
+                match perm.role {
+                    ripple_sdk::api::firebolt::fb_capabilities::CapabilityRole::Use => {
+                        use_granted = true
+                    }
+                    ripple_sdk::api::firebolt::fb_capabilities::CapabilityRole::Manage => {
+                        manage_granted = true
+                    }
+                    ripple_sdk::api::firebolt::fb_capabilities::CapabilityRole::Provide => {
+                        provide_granted = true
+                    }
+                }
+            }
+        }
+        (use_granted, manage_granted, provide_granted)
     }
 }

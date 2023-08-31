@@ -40,13 +40,13 @@ use super::{
     view_manager::{Position, ViewManager},
 };
 
-#[derive(Debug, Serialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 pub struct StateChangeInternal {
     pub states: StateChange,
     pub container_props: ContainerProperties,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct ContainerProperties {
     pub name: String,
     pub view_id: ViewId,
@@ -248,20 +248,20 @@ impl ContainerManager {
             .container_state
             .contains_stack_by_name(&name.to_string())
         {
-            println!("send_to_back: Not found in stack: name={}", name);
+            error!("send_to_back: Not found in stack: name={}", name);
             return Err(ContainerError::NotFound);
         }
 
         let stack_size = state.container_state.stack_len();
         if stack_size < 2 {
-            println!("send_to_back: Not enough containers {}", stack_size);
+            error!("send_to_back: Not enough containers {}", stack_size);
             return Err(ContainerError::General);
         }
 
         let item = state.container_state.get_container_by_name(&name.into());
 
         if item.is_none() {
-            println!("send_to_back: Container not found:  name={}", name);
+            error!("send_to_back: Container not found:  name={}", name);
             return Err(ContainerError::NotFound);
         }
 
@@ -271,7 +271,7 @@ impl ContainerManager {
         let mut result = Ok(ResultType::None);
         let resp = ViewManager::set_position(state, view_id, Position::Back).await;
         if resp.is_err() {
-            println!("send_to_back: error: req_id={:?}", resp);
+            error!("send_to_back: error: req_id={:?}", resp);
             result = Err(ContainerError::General);
         }
 

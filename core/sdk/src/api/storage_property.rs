@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
-    framework::ripple_contract::RippleContract,
+    framework::ripple_contract::{ContractAdjective, RippleContract},
 };
 
 use super::distributor::distributor_privacy::PrivacySetting;
@@ -575,6 +575,24 @@ impl ExtnPayloadProvider for StorageManagerRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::StorageManager
+        RippleContract::Storage(StorageAdjective::Manager)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum StorageAdjective {
+    PrivacyCloud,
+    PrivacyLocal,
+    UsergrantCloud,
+    UsergrantLocal,
+    Local,
+    Manager,
+    Secure,
+}
+
+impl ContractAdjective for StorageAdjective {
+    fn get_contract(&self) -> RippleContract {
+        RippleContract::Storage(self.clone())
     }
 }

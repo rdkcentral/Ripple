@@ -29,7 +29,7 @@ use ripple_sdk::{
                 ProviderResponsePayload,
             },
         },
-        gateway::rpc_gateway_api::CallContext,
+        gateway::rpc_gateway_api::{CallContext, CallerSession},
     },
     log::{debug, error, info, warn},
     serde_json,
@@ -49,6 +49,15 @@ use crate::{
     state::{cap::cap_state::CapState, platform_state::PlatformState},
 };
 
+#[cfg(test)]
+use ripple_sdk::api::firebolt::{
+    fb_pin::{
+        PinChallengeResponse, PinChallengeResultReason, PIN_CHALLENGE_CAPABILITY,
+        PIN_CHALLENGE_EVENT,
+    },
+    provider::{ChallengeResponse, ACK_CHALLENGE_CAPABILITY, ACK_CHALLENGE_EVENT},
+};
+
 const REQUEST_QUEUE_CAPACITY: usize = 3;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -66,6 +75,133 @@ pub struct ProviderBrokerState {
     request_queue: Arc<RwLock<ArrayVec<ProviderBrokerRequest, REQUEST_QUEUE_CAPACITY>>>,
 }
 
+impl ProviderBrokerState {
+    #[cfg(test)]
+    pub async fn send_pinchallenge_success(&self, state: &PlatformState, ctx: &CallContext) {
+        self.send_pinchallenge_response(
+            state,
+            ctx,
+            PinChallengeResponse {
+                granted: true,
+                reason: PinChallengeResultReason::CorrectPin,
+            },
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    pub async fn send_pinchallenge_failure(
+        &self,
+        state: &PlatformState,
+        ctx: &CallContext,
+        reason: PinChallengeResultReason,
+    ) {
+        if let PinChallengeResultReason::CorrectPin = reason {
+            error!("CorrectPin is not a failure reason");
+            return;
+        }
+
+        self.send_pinchallenge_response(
+            state,
+            ctx,
+            PinChallengeResponse {
+                granted: false,
+                reason,
+            },
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    async fn send_pinchallenge_response(
+        &self,
+        state: &PlatformState,
+        ctx: &CallContext,
+        response: PinChallengeResponse,
+    ) {
+        ProviderBroker::register_provider(
+            state,
+            PIN_CHALLENGE_CAPABILITY.to_owned(),
+            "challenge".to_owned(),
+            PIN_CHALLENGE_EVENT,
+            ctx.clone(),
+            ListenRequest { listen: true },
+        )
+        .await;
+        self.send_challenge_response(
+            state,
+            ProviderResponsePayload::PinChallengeResponse(response),
+            PIN_CHALLENGE_CAPABILITY,
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    pub async fn send_ackchallenge_success(&self, state: &PlatformState, ctx: &CallContext) {
+        self.send_ackchallenge_response(state, ctx, ChallengeResponse { granted: true })
+            .await;
+    }
+
+    #[cfg(test)]
+    pub async fn send_ackchallenge_failure(&self, state: &PlatformState, ctx: &CallContext) {
+        self.send_ackchallenge_response(state, ctx, ChallengeResponse { granted: false })
+            .await;
+    }
+
+    #[cfg(test)]
+    async fn send_ackchallenge_response(
+        &self,
+        state: &PlatformState,
+        ctx: &CallContext,
+        response: ChallengeResponse,
+    ) {
+        ProviderBroker::register_provider(
+            state,
+            ACK_CHALLENGE_CAPABILITY.to_owned(),
+            "challenge".to_owned(),
+            ACK_CHALLENGE_EVENT,
+            ctx.clone(),
+            ListenRequest { listen: true },
+        )
+        .await;
+        self.send_challenge_response(
+            state,
+            ProviderResponsePayload::ChallengeResponse(response),
+            ACK_CHALLENGE_CAPABILITY,
+        )
+        .await;
+    }
+
+    #[cfg(test)]
+    async fn send_challenge_response(
+        &self,
+        state: &PlatformState,
+        result: ProviderResponsePayload,
+        capability: &str,
+    ) {
+        debug!("sending challenge provider response = {:#?}", result);
+
+        let c_id = {
+            let sessions = self.active_sessions.read().unwrap();
+            sessions
+                .iter()
+                .find(|(_, session)| session._capability == capability)
+                .map(|(c_id, _)| c_id.clone())
+                .unwrap()
+        };
+
+        debug!("challenge session correlation id={}", c_id);
+        ProviderBroker::provider_response(
+            state,
+            ProviderResponse {
+                correlation_id: c_id,
+                result,
+            },
+        )
+        .await;
+    }
+}
+
 impl std::fmt::Debug for ProviderBrokerState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ProviderBrokerState").finish()
@@ -74,12 +210,13 @@ impl std::fmt::Debug for ProviderBrokerState {
 
 pub struct ProviderBroker {}
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct ProviderMethod {
     event_name: &'static str,
     provider: CallContext,
 }
 
+#[derive(Debug)]
 struct ProviderSession {
     caller: ProviderCaller,
     provider: ProviderMethod,
@@ -87,17 +224,19 @@ struct ProviderSession {
     focused: bool,
 }
 
+#[derive(Debug)]
 pub struct ProviderBrokerRequest {
     pub capability: String,
     pub method: String,
-    pub caller: CallContext,
+    pub caller: CallerSession,
     pub request: ProviderRequestPayload,
     pub tx: oneshot::Sender<ProviderResponsePayload>,
     pub app_id: Option<String>,
 }
 
+#[derive(Debug)]
 struct ProviderCaller {
-    identity: CallContext,
+    session: CallerSession,
     tx: oneshot::Sender<ProviderResponsePayload>,
 }
 
@@ -151,7 +290,7 @@ impl ProviderBroker {
             if method.provider.session_id == provider.session_id {
                 provider_methods.remove(&cap_method);
             }
-            ProviderBroker::remove_request(pst, &provider.app_id, &capability);
+            ProviderBroker::remove_request(pst, &capability);
         }
 
         // TODO Add permissions
@@ -170,7 +309,6 @@ impl ProviderBroker {
             capability, method, event_name
         );
         let cap_method = format!("{}:{}", capability, method);
-        let provider_app_id = provider.app_id.clone();
         AppEvents::add_listener(
             pst,
             event_name.to_string(),
@@ -187,7 +325,7 @@ impl ProviderBroker {
                 },
             );
         }
-        let existing = ProviderBroker::remove_request(pst, &provider_app_id, &capability);
+        let existing = ProviderBroker::remove_request(pst, &capability);
         if let Some(request) = existing {
             info!("register_provider: Found pending provider request, invoking");
             ProviderBroker::invoke_method(pst, request).await;
@@ -262,6 +400,7 @@ impl ProviderBroker {
                 .await;
             }
         } else {
+            debug!("queuing provider request");
             ProviderBroker::queue_provider_request(pst, request);
         }
     }
@@ -273,11 +412,12 @@ impl ProviderBroker {
     ) -> String {
         let c_id = Uuid::new_v4().to_string();
         let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
+        debug!("started provider session {} {}", c_id, request.capability);
         active_sessions.insert(
             c_id.clone(),
             ProviderSession {
                 caller: ProviderCaller {
-                    identity: request.caller,
+                    session: request.caller,
                     tx: request.tx,
                 },
                 provider,
@@ -290,7 +430,7 @@ impl ProviderBroker {
 
     fn queue_provider_request(pst: &PlatformState, request: ProviderBrokerRequest) {
         // Remove any duplicate requests.
-        ProviderBroker::remove_request(pst, &request.caller.app_id, &request.capability);
+        ProviderBroker::remove_request(pst, &request.capability);
 
         let mut request_queue = pst.provider_broker_state.request_queue.write().unwrap();
         if request_queue.is_full() {
@@ -301,6 +441,10 @@ impl ProviderBroker {
     }
 
     pub async fn provider_response(pst: &PlatformState, resp: ProviderResponse) {
+        debug!(
+            "provider_response, {}, {:?}",
+            resp.correlation_id, resp.result
+        );
         let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
         match active_sessions.remove(&resp.correlation_id) {
             Some(session) => {
@@ -331,10 +475,13 @@ impl ProviderBroker {
         // the oneshot for the caller should then get descoped and called with an error
         for cid in all_cids {
             if let Some(session) = active_sessions.get(&cid) {
-                if session.caller.identity.session_id == session_id
-                    || session.provider.provider.session_id == session_id
-                {
-                    clear_cids.push(cid);
+                if session.provider.provider.session_id == session_id {
+                    clear_cids.push(cid.clone());
+                }
+                if let Some(caller_session_id) = &session.caller.session.session_id {
+                    if *caller_session_id == session_id {
+                        clear_cids.push(cid);
+                    }
                 }
             }
         }
@@ -372,12 +519,7 @@ impl ProviderBroker {
         }
     }
 
-    fn remove_request(
-        pst: &PlatformState,
-        provider_id: &String,
-        capability: &String,
-    ) -> Option<ProviderBrokerRequest> {
-        info!("Remove request {}", provider_id);
+    fn remove_request(pst: &PlatformState, capability: &String) -> Option<ProviderBrokerRequest> {
         let mut request_queue = pst.provider_broker_state.request_queue.write().unwrap();
         let mut iter = request_queue.iter();
         let cap = iter.position(|request| request.capability.eq(capability));
