@@ -86,10 +86,6 @@ impl AppManifest {
 
 impl Default for AppManifest {
     fn default() -> Self {
-        let capability = Capability {
-            required: [].to_vec(),
-            optional: [].to_vec(),
-        };
         AppManifest {
             app_key: String::from("xrn:firebolt:application:test"),
             name: String::from("test"),
@@ -101,9 +97,18 @@ impl Default for AppManifest {
             w: w_default(),
             h: h_default(),
             capabilities: AppCapabilities {
-                used: capability.clone(),
-                managed: capability.clone(),
-                provided: capability.clone(),
+                used: Capability {
+                    required: [].to_vec(),
+                    optional: [].to_vec(),
+                },
+                managed: Capability {
+                    required: [].to_vec(),
+                    optional: [].to_vec(),
+                },
+                provided: Capability {
+                    required: [].to_vec(),
+                    optional: [].to_vec(),
+                },
             },
             properties: None,
         }

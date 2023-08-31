@@ -903,8 +903,10 @@ mod tests {
 
     #[test]
     fn test_get_modified_url_without_firebolt_endpoint_and_query() {
-        let mut app_lib = AppManifest::default();
-        app_lib.start_page = String::from("http://example.com");
+        let app_lib = AppManifest {
+            start_page: String::from("http://example.com"),
+            ..Default::default()
+        };
         let session_id = "my_session_id";
         let modified_url = AppLauncher::get_modified_url(app_lib, session_id);
         assert_eq!(modified_url, "http://example.com/?__firebolt_endpoint=ws%3A%2F%2F127.0.0.1%3A3473%3FappId%3Dtest%26session%3Dmy_session_id");
@@ -912,8 +914,10 @@ mod tests {
 
     #[test]
     fn test_get_modified_url_without_firebolt_endpoint() {
-        let mut app_lib = AppManifest::default();
-        app_lib.start_page = String::from("http://example.com/?param1=value1");
+        let app_lib = AppManifest {
+            start_page: String::from("http://example.com/?param1=value1"),
+            ..Default::default()
+        };
         let session_id = "my_session_id";
         let modified_url = AppLauncher::get_modified_url(app_lib, session_id);
         assert_eq!(modified_url, "http://example.com/?param1=value1&__firebolt_endpoint=ws%3A%2F%2F127.0.0.1%3A3473%3FappId%3Dtest%26session%3Dmy_session_id");
@@ -921,8 +925,10 @@ mod tests {
 
     #[test]
     fn test_get_modified_url_without_firebolt_endpoint_with_fragment() {
-        let mut app_lib = AppManifest::default();
-        app_lib.start_page = String::from("http://example.com/?param1=value1#menu");
+        let app_lib = AppManifest {
+            start_page: String::from("http://example.com/?param1=value1#menu"),
+            ..Default::default()
+        };
         let session_id = "my_session_id";
         let modified_url = AppLauncher::get_modified_url(app_lib, session_id);
         assert_eq!(modified_url, "http://example.com/?param1=value1&__firebolt_endpoint=ws%3A%2F%2F127.0.0.1%3A3473%3FappId%3Dtest%26session%3Dmy_session_id#menu");
@@ -930,8 +936,7 @@ mod tests {
 
     #[test]
     fn test_get_modified_url_with_firebolt_endpoint() {
-        let mut app_lib = AppManifest::default();
-        app_lib.start_page = String::from("http://example.com/?param1=value1&__firebolt_endpoint=ws%3A%2F%2F192.168.1.9%3A3474%3FappId%3Drefui");
+        let app_lib = AppManifest { start_page: String::from("http://example.com/?param1=value1&__firebolt_endpoint=ws%3A%2F%2F192.168.1.9%3A3474%3FappId%3Drefui"), ..Default::default() };
         let session_id = "my_session_id";
         let modified_url = AppLauncher::get_modified_url(app_lib, session_id);
         assert_eq!(modified_url, "http://example.com/?param1=value1&__firebolt_endpoint=ws%3A%2F%2F192.168.1.9%3A3474%3FappId%3Drefui");
@@ -939,8 +944,10 @@ mod tests {
 
     #[test]
     fn test_get_modified_url_invalid_url() {
-        let mut app_lib = AppManifest::default();
-        app_lib.start_page = String::from("test_url_example.com");
+        let app_lib = AppManifest {
+            start_page: String::from("test_url_example.com"),
+            ..Default::default()
+        };
         let session_id = "my_session_id";
         let modified_url = AppLauncher::get_modified_url(app_lib, session_id);
         assert_eq!(modified_url, "Invalid URL");
