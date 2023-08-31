@@ -209,7 +209,7 @@ impl ThunderEventHandler {
     }
 
     pub fn callback_device_event(state: ThunderState, event_name: String, event: ExtnEvent) {
-        if state.event_processor.check_last_event(&event_name, &event) {
+        if !state.event_processor.check_last_event(&event_name, &event) {
             state.event_processor.add_last_event(&event_name, &event);
             if (match event {
                 ExtnEvent::AppEvent(a) => state.get_client().request_transient(a),
