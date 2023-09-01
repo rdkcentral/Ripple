@@ -515,9 +515,8 @@ impl AppLauncher {
         }
     }
 
-    fn get_modified_url(manifest: AppManifest, sessionid: &str) -> String {
-        let url = manifest.start_page.to_string();
-        if let Ok(mut modified_url) = Url::parse(&url) {
+    fn get_modified_url(manifest: &AppManifest, sessionid: &str) -> String {
+        if let Ok(mut modified_url) = Url::parse(&manifest.start_page) {
             let mut query_params: Vec<(String, String)> = modified_url
                 .query_pairs()
                 .map(|(k, v)| (k.into_owned(), v.into_owned()))
@@ -528,7 +527,7 @@ impl AppLauncher {
                 .any(|(key, _)| key == "__firebolt_endpoint")
             {
                 let firebolt_endpoint = String::from("127.0.0.1");
-                let appid = manifest.name;
+                let appid = &manifest.name;
                 let value: String = format!(
                     "ws://{}:3473?appId={}&session={}",
                     firebolt_endpoint, appid, sessionid
@@ -550,8 +549,8 @@ impl AppLauncher {
         }
     }
 
-    fn get_transport(contract_permited: bool, url: String) -> AppRuntimeTransport {
-        if !url.as_str().contains("__firebolt_endpoint") && contract_permited {
+    fn get_transport(contract_permited: bool, url: &str) -> AppRuntimeTransport {
+        if !url.contains("__firebolt_endpoint") && contract_permited {
             AppRuntimeTransport::Bridge
         } else {
             AppRuntimeTransport::Websocket
@@ -576,7 +575,7 @@ impl AppLauncher {
             },
             runtime: Some(AppRuntime {
                 id: Some(callsign),
-                transport: Self::get_transport(bool_contract, manifest.start_page.clone()),
+                transport: Self::get_transport(bool_contract, &manifest.start_page),
             }),
             launch: AppLaunchInfo {
                 intent: Some(intent),
@@ -609,7 +608,7 @@ impl AppLauncher {
             }
         }
 
-        let modified_url = Self::get_modified_url(manifest.clone(), &sessionid);
+        let modified_url = Self::get_modified_url(&manifest, &sessionid);
         debug!("modified url with sessionid : {:?}", modified_url);
         Ok(modified_url)
     }
@@ -908,7 +907,7 @@ mod tests {
             ..Default::default()
         };
         let session_id = "my_session_id";
-        let modified_url = AppLauncher::get_modified_url(app_lib, session_id);
+        let modified_url = AppLauncher::get_modified_url(&app_lib, session_id);
         assert_eq!(modified_url, "http://example.com/?__firebolt_endpoint=ws%3A%2F%2F127.0.0.1%3A3473%3FappId%3Dtest%26session%3Dmy_session_id");
     }
 
@@ -919,7 +918,7 @@ mod tests {
             ..Default::default()
         };
         let session_id = "my_session_id";
-        let modified_url = AppLauncher::get_modified_url(app_lib, session_id);
+        let modified_url = AppLauncher::get_modified_url(&app_lib, session_id);
         assert_eq!(modified_url, "http://example.com/?param1=value1&__firebolt_endpoint=ws%3A%2F%2F127.0.0.1%3A3473%3FappId%3Dtest%26session%3Dmy_session_id");
     }
 
@@ -930,7 +929,7 @@ mod tests {
             ..Default::default()
         };
         let session_id = "my_session_id";
-        let modified_url = AppLauncher::get_modified_url(app_lib, session_id);
+        let modified_url = AppLauncher::get_modified_url(&app_lib, session_id);
         assert_eq!(modified_url, "http://example.com/?param1=value1&__firebolt_endpoint=ws%3A%2F%2F127.0.0.1%3A3473%3FappId%3Dtest%26session%3Dmy_session_id#menu");
     }
 
@@ -938,7 +937,7 @@ mod tests {
     fn test_get_modified_url_with_firebolt_endpoint() {
         let app_lib = AppManifest { start_page: String::from("http://example.com/?param1=value1&__firebolt_endpoint=ws%3A%2F%2F192.168.1.9%3A3474%3FappId%3Drefui"), ..Default::default() };
         let session_id = "my_session_id";
-        let modified_url = AppLauncher::get_modified_url(app_lib, session_id);
+        let modified_url = AppLauncher::get_modified_url(&app_lib, session_id);
         assert_eq!(modified_url, "http://example.com/?param1=value1&__firebolt_endpoint=ws%3A%2F%2F192.168.1.9%3A3474%3FappId%3Drefui");
     }
 
@@ -949,7 +948,7 @@ mod tests {
             ..Default::default()
         };
         let session_id = "my_session_id";
-        let modified_url = AppLauncher::get_modified_url(app_lib, session_id);
+        let modified_url = AppLauncher::get_modified_url(&app_lib, session_id);
         assert_eq!(modified_url, "Invalid URL");
     }
 }
