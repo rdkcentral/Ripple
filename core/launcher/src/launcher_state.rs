@@ -48,7 +48,7 @@ pub struct LauncherState {
     pub view_state: ViewState,
     pub container_state: ContainerState,
     pub app_launcher_state: AppLauncherState,
-    extn_client: ExtnClient,
+    pub extn_client: ExtnClient,
 }
 
 impl LauncherState {
