@@ -62,6 +62,14 @@ pub struct VoiceGuidanceEvent {
     pub state: bool,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AccountChangeEvent {
+    AccountId(String),
+    DistributorToken(String),
+    Activated(bool),
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub enum ThunderEventMessage {
     ActiveInput(ActiveInputThunderEvent),
@@ -70,6 +78,7 @@ pub enum ThunderEventMessage {
     PowerState(SystemPowerState),
     VoiceGuidance(VoiceGuidanceEvent),
     Audio(HashMap<AudioProfile, bool>),
+    Custom(Value),
 }
 impl ThunderEventMessage {
     pub fn get(event: &str, value: &Value) -> Option<Self> {
@@ -124,6 +133,9 @@ impl ThunderEventMessage {
                     return Some(ThunderEventMessage::Audio(get_audio_profile_from_value(
                         value.clone(),
                     )))
+                }
+                DeviceEvent::DistributorSessionTokenChanged => {
+                    return Some(ThunderEventMessage::Custom(value.clone()))
                 }
             }
         }

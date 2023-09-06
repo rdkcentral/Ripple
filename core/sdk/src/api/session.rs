@@ -194,3 +194,23 @@ impl ContractAdjective for SessionAdjective {
         RippleContract::Session(self.clone())
     }
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum EventAdjective {
+    Account,
+    Input,
+    Hdr,
+    ScreenResolution,
+    VideoResolution,
+    VoiceGuidance,
+    Network,
+    Audio,
+    SystemPowerState,
+}
+
+impl ContractAdjective for EventAdjective {
+    fn get_contract(&self) -> RippleContract {
+        RippleContract::DeviceEvents(self.clone())
+    }
+}

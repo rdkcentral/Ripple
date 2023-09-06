@@ -15,7 +15,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use ripple_sdk::api::device::device_events::{
+    DeviceEvent, DeviceEventCallback, DeviceEventRequest,
+};
 use ripple_sdk::api::firebolt::fb_capabilities::{CapEvent, FireboltCap};
+use ripple_sdk::log::debug;
 use ripple_sdk::{api::session::AccountSessionRequest, framework::bootstrap::Bootstep};
 use ripple_sdk::{async_trait::async_trait, framework::RippleResponse};
 
@@ -39,6 +43,20 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
         // Upon receving the event, if the ripple context is not set as active, set it to active.
         //
         //
+        let resp = s
+            .platform_state
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::DistributorSessionTokenChanged,
+                id: "internal".to_owned(),
+                subscribe: true,
+                callback_type: DeviceEventCallback::ExtnEvent,
+            })
+            .await;
+        debug!(
+            "Karthick: result for registering event from device: {:?}",
+            resp
+        );
         let response = s
             .platform_state
             .get_client()

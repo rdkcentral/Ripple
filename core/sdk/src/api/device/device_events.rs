@@ -18,6 +18,7 @@
 use std::str::FromStr;
 
 use crate::{
+    api::session::EventAdjective,
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
 };
@@ -46,6 +47,7 @@ pub enum DeviceEvent {
     NetworkChanged,
     AudioChanged,
     SystemPowerStateChanged,
+    DistributorSessionTokenChanged,
 }
 
 impl FromStr for DeviceEvent {
@@ -61,6 +63,7 @@ impl FromStr for DeviceEvent {
             "device.onNetworkChanged" => Ok(Self::NetworkChanged),
             "device.onAudioChanged" => Ok(Self::AudioChanged),
             "device.onPowerStateChanged" => Ok(Self::SystemPowerStateChanged),
+            "account.onServiceAccessTokenChanged" => Ok(Self::DistributorSessionTokenChanged),
             _ => Err(()),
         }
     }
@@ -92,8 +95,31 @@ impl ExtnPayloadProvider for DeviceEventRequest {
 
         None
     }
+    fn get_contract(&self) -> RippleContract {
+        match self.event {
+            DeviceEvent::InputChanged => RippleContract::DeviceEvents(EventAdjective::Input),
+            DeviceEvent::HdrChanged => RippleContract::DeviceEvents(EventAdjective::Hdr),
+            DeviceEvent::ScreenResolutionChanged => {
+                RippleContract::DeviceEvents(EventAdjective::ScreenResolution)
+            }
+            DeviceEvent::VideoResolutionChanged => {
+                RippleContract::DeviceEvents(EventAdjective::VideoResolution)
+            }
+            DeviceEvent::VoiceGuidanceChanged => {
+                RippleContract::DeviceEvents(EventAdjective::VoiceGuidance)
+            }
+            DeviceEvent::NetworkChanged => RippleContract::DeviceEvents(EventAdjective::Network),
+            DeviceEvent::AudioChanged => RippleContract::DeviceEvents(EventAdjective::Audio),
+            DeviceEvent::SystemPowerStateChanged => {
+                RippleContract::DeviceEvents(EventAdjective::SystemPowerState)
+            }
+            DeviceEvent::DistributorSessionTokenChanged => {
+                RippleContract::DeviceEvents(EventAdjective::Account)
+            }
+        }
+    }
 
     fn contract() -> RippleContract {
-        RippleContract::DeviceEvents
+        RippleContract::DeviceEvents(EventAdjective::Input)
     }
 }

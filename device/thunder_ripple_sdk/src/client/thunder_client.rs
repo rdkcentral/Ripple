@@ -23,6 +23,7 @@ use jsonrpsee::ws_client::WsClientBuilder;
 
 use jsonrpsee::core::async_trait;
 use jsonrpsee::types::ParamsSer;
+use ripple_sdk::log::debug;
 use ripple_sdk::tokio::task::JoinHandle;
 use ripple_sdk::{
     api::device::device_operator::DeviceResponseMessage,
@@ -244,12 +245,17 @@ impl ThunderClient {
             "client.{}.events.{}",
             thunder_message.module, thunder_message.event_name
         );
+        debug!(
+            "Karthick: Actual thuder subscribe event: {}",
+            subscribe_method
+        );
         let sub_id = match &thunder_message.sub_id {
             Some(sid) => sid.clone(),
             None => Uuid::new_v4().to_string(),
         };
         if let Some(sub) = subscriptions.get_mut(&subscribe_method) {
             // rpc subscription already exists, just add a listener
+            debug!("Karthick: subscription request already present");
             sub.listeners
                 .insert(sub_id.clone(), thunder_message.handler);
             if let Some(cb) = thunder_message.callback {
@@ -258,6 +264,7 @@ impl ThunderClient {
             }
             return;
         }
+        debug!("Karthick: New Subscription request");
         // rpc subscription does not exist, set it up
         let subscription_res = client
             .subscribe_to_method::<Value>(subscribe_method.as_str())
@@ -284,13 +291,15 @@ impl ThunderClient {
         let resub_message = ThunderMessage::ThunderSubscribeMessage(thunder_message.resubscribe());
         let sub_id_c = sub_id.clone();
         let handle = ripple_sdk::tokio::spawn(async move {
-            trace!("Starting thread to listen for thunder events");
+            debug!("Karthick: Starting thread to listen for thunder events");
             while let Some(ev_res) = subscription.next().await {
                 if let Ok(ev) = ev_res {
                     let msg = DeviceResponseMessage::sub(ev, sub_id_c.clone());
+                    debug!("Karthick: Received subscription event {:?} ", msg);
                     mpsc_send_and_log(&thunder_message.handler, msg, "ThunderSubscribeEvent").await;
                 }
             }
+            debug!("Karthick: No more listening for events");
             if let Some(ptx) = pool_tx {
                 warn!(
                     "Client {} became disconnected, resubscribing to events",
@@ -302,6 +311,7 @@ impl ThunderClient {
                 let pool_msg = ThunderPoolCommand::ThunderMessage(resub_message);
                 mpsc_send_and_log(&ptx, pool_msg, "RetryThunderMessage").await;
             }
+            debug!("Karthick: End of listen events");
         });
 
         let msg = DeviceResponseMessage::sub(response, sub_id.clone());

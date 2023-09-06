@@ -16,10 +16,13 @@
 //
 
 use crate::{
-    api::{session::SessionAdjective, storage_property::StorageAdjective},
+    api::{
+        session::{EventAdjective, SessionAdjective},
+        storage_property::StorageAdjective,
+    },
     utils::{error::RippleError, serde_utils::SerdeClearString},
 };
-use log::error;
+use log::{debug, error};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -81,7 +84,7 @@ pub enum RippleContract {
     /// Forwarder for extensions to pass on Events back to the registered Applications through Main
     AppEvents,
     /// Device channel specific events which get cascaded across Main and Extensions like Power, HDCP
-    DeviceEvents,
+    DeviceEvents(EventAdjective),
     /// Event specific to PowerState would become an Adjective in near future.
     PowerStateEvent,
 
@@ -166,10 +169,14 @@ impl RippleContract {
     /// This method gets the clear string of the contract without the quotes added
     /// by serde deserializer.
     pub fn as_clear_string(&self) -> String {
+        debug!("Karthick: Ripple contract: {:?}", self);
         let contract = SerdeClearString::as_clear_string(self);
+        debug!("Karthick: contract as string: {}", contract);
         if let Some(adjective) = self.get_adjective() {
+            debug!("Karthick: contract {:?} as adjective: {}", self, adjective);
             adjective
         } else {
+            debug!("Karthick: contract {:?} as contract: {}", self, contract);
             contract
         }
     }
@@ -178,6 +185,7 @@ impl RippleContract {
         match self {
             Self::Storage(adj) => Some(adj.as_string()),
             Self::Session(adj) => Some(adj.as_string()),
+            Self::DeviceEvents(adj) => Some(adj.as_string()),
             _ => None,
         }
     }
@@ -193,6 +201,10 @@ impl RippleContract {
                 Ok(v) => return Some(v.get_contract()),
                 Err(e) => error!("contract parser_error={:?}", e),
             },
+            "device_events" => match serde_json::from_str::<EventAdjective>(&adjective) {
+                Ok(v) => return Some(v.get_contract()),
+                Err(e) => error!("contract parser_error={:?}", e),
+            },
             _ => {}
         }
         None
@@ -202,6 +214,7 @@ impl RippleContract {
         match self {
             Self::Storage(_) => Some("storage".to_owned()),
             Self::Session(_) => Some("session".to_owned()),
+            Self::DeviceEvents(_) => Some("device_events".to_owned()),
             _ => None,
         }
     }
@@ -212,13 +225,23 @@ impl RippleContract {
 
     pub fn from_manifest(contract: &str) -> Option<Self> {
         // first check if its adjective
+        debug!("Karthick: Ripple Contract: {}", contract);
         if Self::is_adjective(contract) {
             if let Ok(v) = Self::try_from(contract.to_owned()) {
+                debug!(
+                    "Karthick: Ripple Contract: {} returned as Some({:?})",
+                    contract, v
+                );
                 return Some(v);
             }
         } else if let Ok(v) = Self::try_from(SerdeClearString::prep_clear_string(contract)) {
+            debug!(
+                "Karthick: Ripple Contract: {} returned as Some({:?})",
+                contract, v
+            );
             return Some(v);
         }
+        debug!("Karthick: Ripple Contract: {} returned as None", contract);
         None
     }
 }
@@ -247,8 +270,10 @@ impl TryFrom<String> for ContractFulfiller {
                     contracts.push(contract)
                 }
             }
+            debug!("Karthick: ContractFulfiller {:?}", contracts);
             Ok(ContractFulfiller { contracts })
         } else {
+            debug!("Karthick: Error from contract fulfiller");
             Err(RippleError::ParseError)
         }
     }
