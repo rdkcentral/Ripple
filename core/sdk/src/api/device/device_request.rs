@@ -90,6 +90,11 @@ impl std::fmt::Display for AudioProfile {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DistributorToken {
+    token: String,
+    expires: u64,
+}
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DeviceVersionResponse {
     pub api: FireboltSemanticVersion,
@@ -268,5 +273,23 @@ impl ExtnPayloadProvider for NetworkState {
 
     fn contract() -> RippleContract {
         RippleContract::NetworkChangeEvent
+    }
+}
+
+impl ExtnPayloadProvider for DistributorToken {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Event(ExtnEvent::DistributorTokenChange(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<DistributorToken> {
+        if let ExtnPayload::Event(ExtnEvent::DistributorTokenChange(r)) = payload {
+            return Some(r);
+        }
+
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::Internal
     }
 }

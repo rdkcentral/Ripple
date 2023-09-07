@@ -31,7 +31,9 @@ use crate::{
         device::{
             device_events::DeviceEventRequest,
             device_peristence::StorageData,
-            device_request::{DeviceRequest, NetworkResponse, NetworkState, SystemPowerState},
+            device_request::{
+                DeviceRequest, DistributorToken, NetworkResponse, NetworkState, SystemPowerState,
+            },
         },
         distributor::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
@@ -146,6 +148,7 @@ pub enum ExtnPayload {
     Request(ExtnRequest),
     Response(ExtnResponse),
     Event(ExtnEvent),
+    Control(ControlRequest),
 }
 
 impl ExtnPayload {
@@ -323,6 +326,7 @@ pub enum ExtnEvent {
     PowerState(SystemPowerState),
     NetworkState(NetworkState),
     OperationalMetrics(TelemetryPayload),
+    DistributorTokenChange(DistributorToken),
 }
 
 impl ExtnPayloadProvider for ExtnEvent {

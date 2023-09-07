@@ -19,6 +19,7 @@ pub mod account_link_processor;
 pub mod app_events_processor;
 pub mod authorized_info_processor;
 pub mod config_processor;
+pub mod dist_token_change_processor;
 pub mod exn_status_processor;
 pub mod keyboard_processor;
 pub mod lifecycle_management_processor;
