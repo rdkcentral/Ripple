@@ -35,7 +35,7 @@ use crate::{firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformSta
 #[rpc(server)]
 pub trait SecureStorage {
     #[method(name = "securestorage.get")]
-    async fn get_rpc(&self, ctx: CallContext, request: GetRequest) -> RpcResult<String>;
+    async fn get_rpc(&self, ctx: CallContext, request: GetRequest) -> RpcResult<Option<String>>;
     #[method(name = "securestorage.set")]
     async fn set_rpc(&self, ctx: CallContext, request: SetRequest) -> RpcResult<()>;
     #[method(name = "securestorage.remove")]
@@ -107,7 +107,7 @@ impl SecureStorageImpl {
 
 #[async_trait]
 impl SecureStorageServer for SecureStorageImpl {
-    async fn get_rpc(&self, ctx: CallContext, request: GetRequest) -> RpcResult<String> {
+    async fn get_rpc(&self, ctx: CallContext, request: GetRequest) -> RpcResult<Option<String>> {
         match self
             .state
             .get_client()
@@ -120,9 +120,7 @@ impl SecureStorageServer for SecureStorageImpl {
             .await
         {
             Ok(response) => match response.payload.extract().unwrap() {
-                SecureStorageResponse::Get(value) => {
-                    Ok(value.value.unwrap_or_else(|| String::from("")))
-                }
+                SecureStorageResponse::Get(value) => Ok(value.value),
                 _ => Err(jsonrpsee::core::Error::Custom(String::from(
                     "Secure Storage Response error response TBD",
                 ))),
