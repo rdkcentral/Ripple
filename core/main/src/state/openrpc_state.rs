@@ -65,7 +65,6 @@ impl OpenRpcState {
             serde_json::from_str(std::include_str!("./firebolt-open-rpc.json")).unwrap();
         let firebolt_open_rpc: FireboltOpenRpc = version_manifest.clone().into();
         let ripple_rpc_file = std::include_str!("./ripple-rpc.json");
-        // let mut ripple_open_rpc: FireboltOpenRpc = version_manifest.clone().into();
         let mut ripple_open_rpc: FireboltOpenRpc = FireboltOpenRpc::default();
         Self::load_additional_rpc(&mut ripple_open_rpc, ripple_rpc_file);
 

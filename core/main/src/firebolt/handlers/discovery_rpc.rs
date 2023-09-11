@@ -264,7 +264,7 @@ impl DiscoveryImpl {
                 match extn_message
                     .payload
                     .extract()
-                    .unwrap_or(ExtnResponse::String("en".to_owned()))
+                    .unwrap_or_else(|| ExtnResponse::String("en".to_owned()))
                 {
                     ExtnResponse::String(value) => value,
                     _ => "en".to_owned(),
@@ -609,7 +609,7 @@ impl DiscoveryServer for DiscoveryImpl {
             app_id: Some(entity_request.provider.to_owned()),
             capability: FireboltCap::Short(ENTITY_INFO_CAPABILITY.into()).as_str(),
             method: String::from("entityInfo"),
-            caller: ctx,
+            caller: ctx.into(),
             request: ProviderRequestPayload::EntityInfoRequest(parameters),
             tx: session_tx,
         };
@@ -689,7 +689,7 @@ impl DiscoveryServer for DiscoveryImpl {
             app_id: Some(entity_request.provider.to_owned()),
             capability: FireboltCap::Short(PURCHASED_CONTENT_CAPABILITY.into()).as_str(),
             method: String::from("purchasedContent"),
-            caller: ctx,
+            caller: ctx.into(),
             request: ProviderRequestPayload::PurchasedContentRequest(parameters),
             tx: session_tx,
         };

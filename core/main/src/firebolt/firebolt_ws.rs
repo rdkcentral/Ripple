@@ -137,7 +137,6 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
 }
 
 impl FireboltWs {
-    #[allow(dead_code)]
     pub async fn start(
         server_addr: &str,
         state: PlatformState,
@@ -181,7 +180,6 @@ impl FireboltWs {
         }
     }
 
-    #[allow(dead_code)]
     async fn handle_connection(
         _client_addr: SocketAddr,
         ws_stream: WebSocketStream<TcpStream>,
@@ -263,7 +261,7 @@ impl FireboltWs {
                             ctx.gateway_secure,
                         ) {
                             debug!(
-                                "Received Firebolt request {} {} {}",
+                                "firebolt_ws Received Firebolt request {} {} {}",
                                 connection_id, request.ctx.request_id, request.method
                             );
                             let msg = FireboltGatewayCommand::HandleRpc { request };

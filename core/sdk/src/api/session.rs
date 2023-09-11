@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
-    framework::ripple_contract::RippleContract,
+    framework::ripple_contract::{ContractAdjective, RippleContract},
 };
 
 pub fn deserialize_expiry<'de, D>(deserializer: D) -> Result<Expiry, D::Error>
@@ -74,7 +74,7 @@ impl ExtnPayloadProvider for AccountSessionRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::AccountSession
+        RippleContract::Session(SessionAdjective::Account)
     }
 }
 
@@ -101,7 +101,7 @@ impl ExtnPayloadProvider for AccountSession {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::AccountSession
+        RippleContract::Session(SessionAdjective::Account)
     }
 }
 
@@ -165,7 +165,32 @@ impl ExtnPayloadProvider for SessionTokenRequest {
         None
     }
 
+    fn get_contract(&self) -> RippleContract {
+        match self.token_type {
+            TokenType::Root => RippleContract::Session(SessionAdjective::Root),
+            TokenType::Device => RippleContract::Session(SessionAdjective::Device),
+            TokenType::Platform => RippleContract::Session(SessionAdjective::Platform),
+            TokenType::Distributor => RippleContract::Session(SessionAdjective::Distributor),
+        }
+    }
+
     fn contract() -> RippleContract {
-        RippleContract::SessionToken
+        RippleContract::Session(SessionAdjective::Device)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionAdjective {
+    Account,
+    Platform,
+    Device,
+    Distributor,
+    Root,
+}
+
+impl ContractAdjective for SessionAdjective {
+    fn get_contract(&self) -> RippleContract {
+        RippleContract::Session(self.clone())
     }
 }

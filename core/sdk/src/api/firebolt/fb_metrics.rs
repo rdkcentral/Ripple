@@ -162,7 +162,7 @@ pub struct SemanticVersion {
     pub version: Version,
 }
 
-#[derive(Deserialize, Debug, Clone, Serialize, PartialEq)]
+#[derive(Deserialize, Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct Version {
     pub major: i8,
     pub minor: i8,

@@ -16,6 +16,7 @@
 //
 
 use crate::{
+    api::storage_property::StorageAdjective,
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
 };
@@ -93,6 +94,6 @@ impl ExtnPayloadProvider for DevicePersistenceRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::DevicePersistence
+        RippleContract::Storage(StorageAdjective::Local)
     }
 }

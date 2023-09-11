@@ -289,7 +289,7 @@ impl AccountLinkProcessor {
                     },
                     content_partner_id: Self::get_content_partner_id(state, &ctx)
                         .await
-                        .unwrap_or(ctx.app_id.to_owned()),
+                        .unwrap_or_else(|_| ctx.app_id.to_owned()),
                     client_supports_opt_out: DiscoveryImpl::get_share_watch_history(),
                     dist_session,
                     data_tags,

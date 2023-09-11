@@ -104,7 +104,7 @@ pub struct NetworkResponse {
     pub _type: NetworkType,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum NetworkState {
     Connected,
@@ -207,7 +207,7 @@ pub struct TimezoneProperty {
     pub value: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum PowerState {
     Standby,
     DeepSleep,

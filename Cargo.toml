@@ -16,8 +16,10 @@
 #
 
 [workspace]
+resolver = "2"
 members = [
     "core/sdk",
+    "core/tdk",
     "device/thunder_ripple_sdk",
     "core/main",
     "core/launcher",

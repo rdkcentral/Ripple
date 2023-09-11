@@ -25,7 +25,7 @@ pub const LIFECYCLE_EVENT_ON_BACKGROUND: &str = "lifecycle.onBackground";
 pub const LIFECYCLE_EVENT_ON_SUSPENDED: &str = "lifecycle.onSuspended";
 pub const LIFECYCLE_EVENT_ON_UNLOADING: &str = "lifecycle.onUnloading";
 
-#[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum LifecycleState {
     Initializing,

@@ -120,7 +120,9 @@ impl SecureStorageServer for SecureStorageImpl {
             .await
         {
             Ok(response) => match response.payload.extract().unwrap() {
-                SecureStorageResponse::Get(value) => Ok(value.value.unwrap_or(String::from(""))),
+                SecureStorageResponse::Get(value) => {
+                    Ok(value.value.unwrap_or_else(|| String::from("")))
+                }
                 _ => Err(jsonrpsee::core::Error::Custom(String::from(
                     "Secure Storage Response error response TBD",
                 ))),
