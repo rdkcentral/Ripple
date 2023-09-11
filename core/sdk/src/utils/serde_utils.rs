@@ -155,7 +155,7 @@ pub mod optional_language_code_list_serde {
 }
 
 pub mod date_time_str_serde {
-    use chrono::{TimeZone, Utc};
+    use chrono::DateTime;
     use serde::{self, Deserialize, Deserializer, Serializer};
 
     const FORMAT: &str = "%Y-%m-%dT%H:%M:%S.%3fZ";
@@ -164,7 +164,7 @@ pub mod date_time_str_serde {
     where
         S: Serializer,
     {
-        let formed_date_res = Utc.datetime_from_str(data, FORMAT);
+        let formed_date_res = DateTime::parse_from_str(data, FORMAT);
         if formed_date_res.is_ok() {
             serializer.serialize_str(data)
         } else {
@@ -179,7 +179,7 @@ pub mod date_time_str_serde {
         D: Deserializer<'de>,
     {
         let str = String::deserialize(deserializer)?;
-        let formed_date_res = Utc.datetime_from_str(&str, FORMAT);
+        let formed_date_res = DateTime::parse_from_str(&str, FORMAT);
         if formed_date_res.is_ok() {
             Ok(str)
         } else {
