@@ -539,35 +539,28 @@ impl PrivacyImpl {
                     ))
                 }
             }
-            PrivacySettingsStorageType::Cloud => {
-                let dist_session = platform_state.session_state.get_account_session().unwrap();
-                let request = PrivacyCloudRequest::SetProperty(SetPropertyParams {
-                    setting: property.as_privacy_setting().unwrap(),
-                    value,
-                    dist_session,
-                });
-                if (platform_state.get_client().send_extn_request(request).await).is_ok() {
-                    return Ok(());
+            PrivacySettingsStorageType::Cloud | PrivacySettingsStorageType::Sync => {
+                if let Some(dist_session) = platform_state.session_state.get_account_session() {
+                    let request = PrivacyCloudRequest::SetProperty(SetPropertyParams {
+                        setting: property.as_privacy_setting().unwrap(),
+                        value,
+                        dist_session,
+                    });
+                    let result = platform_state.get_client().send_extn_request(request).await;
+                    if PrivacySettingsStorageType::Sync == privacy_settings_storage_type
+                        && result.is_ok()
+                    {
+                        let _ =
+                            StorageManager::set_bool(platform_state, property, value, None).await;
+                    }
+                    if result.is_ok() {
+                        return Ok(());
+                    }
                 }
-                Err(jsonrpsee::core::Error::Custom(String::from(
-                    "PrivacySettingsStorageType::Cloud: Not Available",
-                )))
-            }
-            PrivacySettingsStorageType::Sync => {
-                let dist_session = platform_state.session_state.get_account_session().unwrap();
-                let request = PrivacyCloudRequest::SetProperty(SetPropertyParams {
-                    setting: property.as_privacy_setting().unwrap(),
-                    value,
-                    dist_session,
-                });
-                let result = platform_state.get_client().send_extn_request(request).await;
-                if result.is_ok() {
-                    let _ = StorageManager::set_bool(platform_state, property, value, None).await;
-                    return Ok(());
-                }
-                Err(jsonrpsee::core::Error::Custom(String::from(
-                    "PrivacySettingsStorageType::Sync: Not Available",
-                )))
+                Err(jsonrpsee::core::Error::Custom(String::from(&format!(
+                    "{:?}: Not Available",
+                    privacy_settings_storage_type
+                ))))
             }
         }
     }
