@@ -67,9 +67,7 @@ use crate::{
     utils::error::RippleError,
 };
 
-use super::{
-    extn_id::ExtnId, ffi::ffi_message::CExtnMessage,
-};
+use super::{extn_id::ExtnId, ffi::ffi_message::CExtnMessage};
 
 /// Default Message enum for the Communication Channel
 /// Message would be either a request or response or event
