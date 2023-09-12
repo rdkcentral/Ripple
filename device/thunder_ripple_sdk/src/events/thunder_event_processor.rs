@@ -34,7 +34,7 @@ use ripple_sdk::{
         },
     },
     extn::extn_client_message::ExtnEvent,
-    log::{debug, error, trace},
+    log::{error, trace},
     serde_json::{self, Value},
     utils::error::RippleError,
 };
@@ -83,10 +83,6 @@ pub enum ThunderEventMessage {
 }
 impl ThunderEventMessage {
     pub fn get(event: &str, value: &Value) -> Option<Self> {
-        debug!(
-            "Karthick: Getting ThunderEventMessage for event: {} with Value: {:?}",
-            event, value
-        );
         if let Ok(device_event) = DeviceEvent::from_str(event) {
             match device_event {
                 DeviceEvent::InputChanged | DeviceEvent::HdrChanged => {
@@ -143,18 +139,9 @@ impl ThunderEventMessage {
                     return Some(ThunderEventMessage::Custom(value.clone()))
                 }
                 DeviceEvent::InternetConnectionStatusChanged => {
-                    debug!(
-                        "Karthick: Identified the event as InternetConnectionStatusChanged event"
-                    );
                     if let Some(status) = value.get("status") {
-                        debug!("Karthick: Received event had status: {:?}", status);
                         if let Ok(internet_status) = serde_json::from_value(status.clone()) {
                             return Some(ThunderEventMessage::Internet(internet_status));
-                        } else {
-                            debug!(
-                            "Karthick: Unable to convert value into InternetConnectionStatus: {:?}",
-                            status
-                        );
                         }
                     }
                 }
@@ -246,26 +233,18 @@ impl ThunderEventHandler {
     pub fn callback_device_event(state: ThunderState, event_name: String, event: ExtnEvent) {
         if !state.event_processor.check_last_event(&event_name, &event) {
             state.event_processor.add_last_event(&event_name, &event);
-            debug!("Karthick: trying to send event: {:?}", event);
             if (match event {
                 ExtnEvent::AppEvent(a) => state.get_client().request_transient(a),
                 ExtnEvent::PowerState(p) => state.get_client().request_transient(p),
-                ExtnEvent::NetworkState(network_state) => {
-                    state.get_client().request_transient(network_state)
-                }
                 ExtnEvent::DistributorTokenChange(dist_token_change) => {
                     let result = state.get_client().request_transient(dist_token_change);
-                    debug!("Karthick: result of transient send: {:?}", result);
                     result
                 }
                 ExtnEvent::InternetState(internet_connection_status) => {
                     let result = state
                         .get_client()
                         .request_transient(internet_connection_status);
-                    debug!(
-                        "Karthick: result of transient send for internt connection status: {:?}",
-                        result
-                    );
+
                     result
                 }
                 _ => Err(RippleError::InvalidOutput),

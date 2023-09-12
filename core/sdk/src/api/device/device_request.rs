@@ -96,13 +96,6 @@ pub struct DistributorToken {
     expires: u64,
 }
 
-// #[derive(Debug, Clone, Serialize, Deserialize)]
-// pub enum InternetConnectionStatus {
-//     FullyConnected,
-//     NotConnected,
-//     LimitedConnectivity,
-// }
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DeviceVersionResponse {
     pub api: FireboltSemanticVersion,
@@ -272,24 +265,6 @@ impl ExtnPayloadProvider for SystemPowerState {
 
     fn contract() -> RippleContract {
         RippleContract::PowerStateEvent
-    }
-}
-
-impl ExtnPayloadProvider for NetworkState {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Event(ExtnEvent::NetworkState(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<NetworkState> {
-        if let ExtnPayload::Event(ExtnEvent::NetworkState(r)) = payload {
-            return Some(r);
-        }
-
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::NetworkChangeEvent
     }
 }
 

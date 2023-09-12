@@ -33,7 +33,7 @@ use crate::{
             device_peristence::StorageData,
             device_request::{
                 DeviceRequest, DistributorToken, InternetConnectionStatus, NetworkResponse,
-                NetworkState, SystemPowerState,
+                SystemPowerState,
             },
         },
         distributor::{
@@ -146,22 +146,17 @@ impl From<ExtnPayload> for String {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum RippleContext {
-    ActivationStatus(ActivationStatus),
-    NetworkStatus(InternetConnectionStatus),
-}
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ControlRequest {
-    Context(RippleContext),
-    HeartBeat,
-}
+// #[derive(Debug, Clone, Serialize, Deserialize)]
+// pub enum RippleContext {
+//     ActivationStatus(ActivationStatus),
+//     NetworkStatus(InternetConnectionStatus),
+// }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ExtnPayload {
     Request(ExtnRequest),
     Response(ExtnResponse),
     Event(ExtnEvent),
-    Control(ControlRequest),
 }
 
 impl ExtnPayload {
@@ -179,10 +174,6 @@ impl ExtnPayload {
 
     pub fn is_event(&self) -> bool {
         matches!(self, ExtnPayload::Event(_))
-    }
-
-    pub fn is_control(&self) -> bool {
-        matches!(self, ExtnPayload::Control(_))
     }
 
     pub fn as_response(&self) -> Option<ExtnResponse> {
@@ -341,7 +332,7 @@ pub enum ExtnEvent {
     Status(ExtnStatus),
     AppEvent(AppEventRequest),
     PowerState(SystemPowerState),
-    NetworkState(NetworkState),
+    // NetworkState(NetworkState),
     InternetState(InternetConnectionStatus),
     OperationalMetrics(TelemetryPayload),
     DistributorTokenChange(DistributorToken),

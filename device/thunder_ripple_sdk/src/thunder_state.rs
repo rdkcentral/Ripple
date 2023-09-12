@@ -98,7 +98,6 @@ impl ThunderState {
             .handle_listener(listen, app_id.clone(), handler.clone())
         {
             if listen {
-                debug!("Karthick: Sending subscribe request: {:?}", handler);
                 self.subscribe(handler).await
             } else {
                 self.unsubscribe(handler).await
@@ -122,28 +121,21 @@ impl ThunderState {
     }
 
     pub fn start_event_thread(&self) {
-        debug!("Karthick: Entry start_event_thread");
         let mut rx = self.receiver.write().unwrap();
         let rx = rx.take();
         if let Some(mut r) = rx {
             let state_c = self.clone();
             tokio::spawn(async move {
-                debug!("Karthick: Starting thunder event thread");
                 while let Some(request) = r.recv().await {
-                    debug!("Karthick: Received some event {:?}", request);
                     if let Some(id) = request.sub_id {
                         let value = request.message.clone();
-                        debug!("Karthick: sub id {}, value: {:?}", id, value);
                         if let Some(handler) = state_c.event_processor.get_handler(&id) {
-                            debug!("Karthick: Found event event handler");
                             handler.process(
                                 state_c.clone(),
                                 &id,
                                 value,
                                 handler.callback_type.clone(),
                             )
-                        } else {
-                            debug!("Karthick: No event handler found");
                         }
                     }
                 }

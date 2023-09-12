@@ -87,9 +87,6 @@ pub enum RippleContract {
     DeviceEvents(EventAdjective),
     /// Event specific to PowerState would become an Adjective in near future.
     PowerStateEvent,
-
-    NetworkChangeEvent,
-    DistributorTokenChangeEvent,
     /// Contract for controlling Voice guidance typically offered by the Device Channel or the browser.
     VoiceGuidance,
     /// Distributor Contract for handling Advertising requirements.
@@ -171,14 +168,10 @@ impl RippleContract {
     /// This method gets the clear string of the contract without the quotes added
     /// by serde deserializer.
     pub fn as_clear_string(&self) -> String {
-        debug!("Karthick: Ripple contract: {:?}", self);
         let contract = SerdeClearString::as_clear_string(self);
-        debug!("Karthick: contract as string: {}", contract);
         if let Some(adjective) = self.get_adjective() {
-            debug!("Karthick: contract {:?} as adjective: {}", self, adjective);
             adjective
         } else {
-            debug!("Karthick: contract {:?} as contract: {}", self, contract);
             contract
         }
     }
@@ -227,23 +220,13 @@ impl RippleContract {
 
     pub fn from_manifest(contract: &str) -> Option<Self> {
         // first check if its adjective
-        debug!("Karthick: Ripple Contract: {}", contract);
         if Self::is_adjective(contract) {
             if let Ok(v) = Self::try_from(contract.to_owned()) {
-                debug!(
-                    "Karthick: Ripple Contract: {} returned as Some({:?})",
-                    contract, v
-                );
                 return Some(v);
             }
         } else if let Ok(v) = Self::try_from(SerdeClearString::prep_clear_string(contract)) {
-            debug!(
-                "Karthick: Ripple Contract: {} returned as Some({:?})",
-                contract, v
-            );
             return Some(v);
         }
-        debug!("Karthick: Ripple Contract: {} returned as None", contract);
         None
     }
 }
@@ -272,10 +255,8 @@ impl TryFrom<String> for ContractFulfiller {
                     contracts.push(contract)
                 }
             }
-            debug!("Karthick: ContractFulfiller {:?}", contracts);
             Ok(ContractFulfiller { contracts })
         } else {
-            debug!("Karthick: Error from contract fulfiller");
             Err(RippleError::ParseError)
         }
     }

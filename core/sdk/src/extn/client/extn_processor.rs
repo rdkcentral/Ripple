@@ -229,33 +229,6 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     }
 }
 
-#[async_trait]
-
-pub trait ExtnControlProcessor: ExtnStreamProcessor + Send + Sync + 'static {
-    async fn process_message(
-        state: Self::STATE,
-        msg: ExtnMessage,
-        extracted_message: Self::VALUE,
-    ) -> bool;
-
-    async fn run(&mut self) {
-        debug!(
-            "starting control processor for contract {}",
-            self.contract().as_clear_string()
-        );
-        let mut receiver = self.receiver();
-        let state = self.get_state();
-        tokio::spawn(async move {
-            while let Some(msg) = receiver.recv().await {
-                let extracted_message = Self::get(msg.clone().payload);
-                if !extracted_message.is_none() {
-                    Self::process_message(state.clone(), msg.clone(), extracted_message.unwrap())
-                        .await;
-                }
-            }
-        });
-    }
-}
 /// ExtnEventProcessor extends [ExtnStreamProcessor] and is the building block for any Event processing within the Ripple IEC.
 /// Implementors of ExtnEventProcessor should implement method for processing the event
 #[async_trait]

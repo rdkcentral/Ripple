@@ -273,10 +273,6 @@ impl InternetEventHandler {
         value: ThunderEventMessage,
         callback_type: DeviceEventCallback,
     ) {
-        debug!(
-            "Karthick: Received Thunder events on Internet status: {:?}",
-            value
-        );
         if let ThunderEventMessage::Internet(v) = value {
             if let Ok(v) = Self::get_extn_event(v, callback_type) {
                 ThunderEventHandler::callback_device_event(state, Self::get_mapped_event(), v)

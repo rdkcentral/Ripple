@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use log::{debug, error, trace};
+use log::{error, trace};
 use tokio::sync::{mpsc, oneshot};
 
 pub async fn mpsc_send_and_log<T: std::fmt::Debug>(
@@ -23,10 +23,6 @@ pub async fn mpsc_send_and_log<T: std::fmt::Debug>(
     message: T,
     channel_id: &str,
 ) {
-    debug!(
-        "Karthick: trying to send message through mpsc channel {:?}, {}",
-        message, channel_id
-    );
     match tx.send(message).await {
         Ok(_) => {
             trace!("Successfully sent message through mpsc channel")
