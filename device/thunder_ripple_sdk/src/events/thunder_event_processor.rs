@@ -28,8 +28,8 @@ use ripple_sdk::{
             device_events::{DeviceEvent, DeviceEventCallback},
             device_operator::DeviceSubscribeRequest,
             device_request::{
-                AudioProfile, NetworkResponse, NetworkState, NetworkType, PowerState,
-                SystemPowerState,
+                AudioProfile, InternetConnectionStatus, NetworkResponse, NetworkState, NetworkType,
+                PowerState, SystemPowerState,
             },
         },
     },
@@ -75,6 +75,7 @@ pub enum ThunderEventMessage {
     ActiveInput(ActiveInputThunderEvent),
     Resolution(ResolutionChangedEvent),
     Network(NetworkResponse),
+    Internet(InternetConnectionStatus),
     PowerState(SystemPowerState),
     VoiceGuidance(VoiceGuidanceEvent),
     Audio(HashMap<AudioProfile, bool>),
@@ -82,6 +83,10 @@ pub enum ThunderEventMessage {
 }
 impl ThunderEventMessage {
     pub fn get(event: &str, value: &Value) -> Option<Self> {
+        debug!(
+            "Karthick: Getting ThunderEventMessage for event: {} with Value: {:?}",
+            event, value
+        );
         if let Ok(device_event) = DeviceEvent::from_str(event) {
             match device_event {
                 DeviceEvent::InputChanged | DeviceEvent::HdrChanged => {
@@ -137,7 +142,25 @@ impl ThunderEventMessage {
                 DeviceEvent::DistributorSessionTokenChanged => {
                     return Some(ThunderEventMessage::Custom(value.clone()))
                 }
+                DeviceEvent::InternetConnectionStatusChanged => {
+                    debug!(
+                        "Karthick: Identified the event as InternetConnectionStatusChanged event"
+                    );
+                    if let Some(status) = value.get("status") {
+                        debug!("Karthick: Received event had status: {:?}", status);
+                        if let Ok(internet_status) = serde_json::from_value(status.clone()) {
+                            return Some(ThunderEventMessage::Internet(internet_status));
+                        } else {
+                            debug!(
+                            "Karthick: Unable to convert value into InternetConnectionStatus: {:?}",
+                            status
+                        );
+                        }
+                    }
+                }
             }
+        } else {
+            error!("Unable to convert event {} into ThunderEventMessage", event);
         }
         None
     }
@@ -233,6 +256,16 @@ impl ThunderEventHandler {
                 ExtnEvent::DistributorTokenChange(dist_token_change) => {
                     let result = state.get_client().request_transient(dist_token_change);
                     debug!("Karthick: result of transient send: {:?}", result);
+                    result
+                }
+                ExtnEvent::InternetState(internet_connection_status) => {
+                    let result = state
+                        .get_client()
+                        .request_transient(internet_connection_status);
+                    debug!(
+                        "Karthick: result of transient send for internt connection status: {:?}",
+                        result
+                    );
                     result
                 }
                 _ => Err(RippleError::InvalidOutput),

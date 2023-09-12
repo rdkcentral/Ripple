@@ -33,10 +33,12 @@ pub const HDR_CHANGED_EVENT: &str = "device.onHdrChanged";
 pub const SCREEN_RESOLUTION_CHANGED_EVENT: &str = "device.onScreenResolutionChanged";
 pub const VIDEO_RESOLUTION_CHANGED_EVENT: &str = "device.onVideoResolutionChanged";
 pub const NETWORK_CHANGED_EVENT: &str = "device.onNetworkChanged";
+pub const INTERNET_CHANGED_EVENT: &str = "device.onInternetStatusChange";
 pub const AUDIO_CHANGED_EVENT: &str = "device.onAudioChanged";
 pub const VOICE_GUIDANCE_CHANGED: &str = "accessibility.onVoiceGuidanceSettingsChanged";
 pub const POWER_STATE_CHANGED: &str = "device.onPowerStateChanged";
 
+// Is this from the device to thunder event handler???
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DeviceEvent {
     InputChanged,
@@ -48,6 +50,7 @@ pub enum DeviceEvent {
     AudioChanged,
     SystemPowerStateChanged,
     DistributorSessionTokenChanged,
+    InternetConnectionStatusChanged,
 }
 
 impl FromStr for DeviceEvent {
@@ -64,6 +67,7 @@ impl FromStr for DeviceEvent {
             "device.onAudioChanged" => Ok(Self::AudioChanged),
             "device.onPowerStateChanged" => Ok(Self::SystemPowerStateChanged),
             "account.onServiceAccessTokenChanged" => Ok(Self::DistributorSessionTokenChanged),
+            "device.onInternetStatusChange" => Ok(Self::InternetConnectionStatusChanged),
             _ => Err(()),
         }
     }
@@ -115,6 +119,9 @@ impl ExtnPayloadProvider for DeviceEventRequest {
             }
             DeviceEvent::DistributorSessionTokenChanged => {
                 RippleContract::DeviceEvents(EventAdjective::Account)
+            }
+            DeviceEvent::InternetConnectionStatusChanged => {
+                RippleContract::DeviceEvents(EventAdjective::Internet)
             }
         }
     }

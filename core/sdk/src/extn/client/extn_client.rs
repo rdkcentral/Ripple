@@ -16,7 +16,8 @@
 //
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
+    default,
     sync::{Arc, RwLock},
     time::Duration,
 };
@@ -24,15 +25,18 @@ use std::{
 use chrono::Utc;
 use crossbeam::channel::{bounded, Receiver as CReceiver, Sender as CSender, TryRecvError};
 use log::{debug, error, info, trace};
+use serde::{Deserialize, Serialize};
 use tokio::sync::{
     mpsc::Sender as MSender,
     oneshot::{self, Sender as OSender},
 };
 
 use crate::{
-    api::manifest::extn_manifest::ExtnSymbol,
+    api::{device::device_request::InternetConnectionStatus, manifest::extn_manifest::ExtnSymbol},
     extn::{
-        extn_client_message::{ExtnMessage, ExtnPayloadProvider, ExtnResponse},
+        extn_client_message::{
+            ExtnEvent, ExtnMessage, ExtnPayload, ExtnPayloadProvider, ExtnResponse,
+        },
         extn_id::ExtnId,
         ffi::ffi_message::CExtnMessage,
     },
@@ -41,22 +45,29 @@ use crate::{
 };
 
 use super::{
-    extn_processor::{ExtnEventProcessor, ExtnRequestProcessor},
+    extn_processor::{ExtnControlProcessor, ExtnEventProcessor, ExtnRequestProcessor},
     extn_sender::ExtnSender,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ActivationStatus {
     NotActivated,
-    DistributorTokenNotAvailable,
+    DistributorTokenAvailable,
     Activated,
 }
 
 #[derive(Clone, Debug)]
-pub enum InternetConnectionStatus {
-    FullyConnected,
-    NotConnected,
-    LimitedConnectivity,
+pub struct RippleContext {
+    activation_status: ActivationStatus,
+    internet_connectivity: InternetConnectionStatus,
+}
+impl Default for RippleContext {
+    fn default() -> Self {
+        RippleContext {
+            activation_status: ActivationStatus::NotActivated,
+            internet_connectivity: InternetConnectionStatus::NoInternet,
+        }
+    }
 }
 /// Defines the SDK Client implementation of the Inter Extension communication.
 /// # Overview
@@ -80,8 +91,8 @@ pub struct ExtnClient {
     response_processors: Arc<RwLock<HashMap<String, OSender<ExtnMessage>>>>,
     request_processors: Arc<RwLock<HashMap<String, MSender<ExtnMessage>>>>,
     event_processors: Arc<RwLock<HashMap<String, Vec<MSender<ExtnMessage>>>>>,
-    activation_status: ActivationStatus,
-    internet_connectivity: InternetConnectionStatus,
+    // context_processors: Arc<RwLock<HashSet<MSender<CExtnMessage>>>>,
+    ripple_context: Arc<RwLock<RippleContext>>,
 }
 
 fn add_stream_processor<P>(id: String, context: P, map: Arc<RwLock<HashMap<String, P>>>) {
@@ -127,8 +138,8 @@ impl ExtnClient {
             response_processors: Arc::new(RwLock::new(HashMap::new())),
             request_processors: Arc::new(RwLock::new(HashMap::new())),
             event_processors: Arc::new(RwLock::new(HashMap::new())),
-            activation_status: ActivationStatus::NotActivated,
-            internet_connectivity: InternetConnectionStatus::NotConnected,
+            // context_processors: Arc::new(RwLock::new(HashSet::new())),
+            ripple_context: Arc::new(RwLock::new(RippleContext::default())),
         }
     }
 
@@ -169,6 +180,12 @@ impl ExtnClient {
             });
         }
     }
+    /// Adds a new request processor reference to the internal map of processors
+    ///
+    /// Uses the capability provided by the Processor for registration
+    ///
+    /// Also starts the thread in the processor to accept incoming requests.
+    // pub fn add_control_processor(&mut self, mut processor: impl ExtnControlProcessor) {}
 
     /// Removes a request processor reference on the internal map of processors
     pub fn remove_request_processor(&mut self, capability: ExtnId) {
@@ -245,7 +262,48 @@ impl ExtnClient {
                     if message.payload.is_response() {
                         Self::handle_single(message, self.response_processors.clone());
                     } else if message.payload.is_event() {
-                        Self::handle_vec_stream(message, self.event_processors.clone());
+                        let senders: Vec<CSender<CExtnMessage>> = self
+                            .extn_sender_map
+                            .read()
+                            .unwrap()
+                            .iter()
+                            .map(|(_, v)| v)
+                            .cloned()
+                            .collect();
+                        let is_main = self.sender.get_cap().is_main();
+
+                        if Self::is_ripple_context(&message) {
+                            debug!("Karthick: Received a ripple context message: {:?}", message);
+                            let mut ripple_context = self.ripple_context.write().unwrap();
+                            if let ExtnPayload::Event(ExtnEvent::DistributorTokenChange(
+                                _dist_token,
+                            )) = &message.payload
+                            {
+                                ripple_context.activation_status =
+                                    ActivationStatus::DistributorTokenAvailable;
+                                debug!("Karthick: Updated local ripple context in extnclient: {} with token available.", self.sender.get_cap().to_string());
+                                //TODO: Add expiry handling. Each client will handle expiry of the token on its own. Upon expiry,
+                                //      the status has to change back to activated. Need to have a timer which can be reset upon
+                                //      receiving another update request.
+                            }
+                            if let ExtnPayload::Event(ExtnEvent::InternetState(internet_state)) =
+                                &message.payload
+                            {
+                                ripple_context.internet_connectivity = internet_state.to_owned();
+                                debug!("Karthick: Updated local ripple context in extnclient: {} with interet state: {:?}.", self.sender.get_cap().to_string(), ripple_context.internet_connectivity);
+                            }
+                            if is_main {
+                                for sender in senders {
+                                    debug!("Karthick: sending ripple context to other sender:");
+                                    let send_res = sender.send(message.to_owned().into());
+                                    debug!("Karthick: Send to other client result: {:?}", send_res);
+                                }
+                            }
+                        } else {
+                            Self::handle_vec_stream(message, self.event_processors.clone());
+                        }
+                    } else if message.payload.is_control() {
+                        // Handle control message message.
                     } else {
                         let current_cap = self.sender.get_cap();
                         let target_contract = message.clone().target;
@@ -358,6 +416,19 @@ impl ExtnClient {
         }
     }
 
+    // fn update_ripple_context(
+    //     payload: &ExtnPayload,
+    //     all_senders: Vec<CSender<CExtnMessage>>,
+    //     ripple_context: &mut RippleContext,
+    // ) {
+    //     debug!(
+    //         "Karthick: Received ripple context payload: {:?} have to update context with this",
+    //         payload
+    //     );
+    // }
+    fn is_ripple_context(msg: &ExtnMessage) -> bool {
+        msg.target == RippleContract::RippleContext
+    }
     fn handle_vec_stream(
         msg: ExtnMessage,
         processor: Arc<RwLock<HashMap<String, Vec<MSender<ExtnMessage>>>>>,

@@ -179,7 +179,7 @@ impl ExtnPayloadProvider for SessionTokenRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum SessionAdjective {
     Account,
@@ -195,7 +195,7 @@ impl ContractAdjective for SessionAdjective {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum EventAdjective {
     Account,
@@ -205,6 +205,7 @@ pub enum EventAdjective {
     VideoResolution,
     VoiceGuidance,
     Network,
+    Internet,
     Audio,
     SystemPowerState,
 }

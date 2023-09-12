@@ -17,6 +17,10 @@
 
 use std::collections::HashMap;
 
+use ripple_sdk::api::device::{
+    device_events::INTERNET_CHANGED_EVENT, device_request::InternetConnectionStatus,
+};
+
 use crate::{
     client::thunder_plugin::ThunderPlugin,
     events::thunder_event_processor::{
@@ -255,6 +259,81 @@ impl ThunderEventHandlerProvider for VideoResolutionEventHandler {
 
     fn module() -> String {
         ThunderPlugin::DisplaySettings.callsign_string()
+    }
+}
+
+// -----------------------
+// Internet Changed
+
+pub struct InternetEventHandler;
+
+impl InternetEventHandler {
+    pub fn handle(
+        state: ThunderState,
+        value: ThunderEventMessage,
+        callback_type: DeviceEventCallback,
+    ) {
+        debug!(
+            "Karthick: Received Thunder events on Internet status: {:?}",
+            value
+        );
+        if let ThunderEventMessage::Internet(v) = value {
+            if let Ok(v) = Self::get_extn_event(v, callback_type) {
+                ThunderEventHandler::callback_device_event(state, Self::get_mapped_event(), v)
+            }
+        }
+    }
+
+    pub fn is_valid(message: ThunderEventMessage) -> bool {
+        if let ThunderEventMessage::Internet(_) = message {
+            return true;
+        }
+        false
+    }
+}
+
+impl ThunderEventHandlerProvider for InternetEventHandler {
+    type EVENT = InternetConnectionStatus;
+    fn provide(id: String, callback_type: DeviceEventCallback) -> ThunderEventHandler {
+        ThunderEventHandler {
+            request: Self::get_device_request(),
+            handle: Self::handle,
+            is_valid: Self::is_valid,
+            listeners: vec![id],
+            id: Self::get_mapped_event(),
+            callback_type,
+        }
+    }
+
+    // This is the thunder event name
+    fn event_name() -> String {
+        "onInternetStatusChange".into()
+    }
+
+    // This is the event at the application level
+    fn get_mapped_event() -> String {
+        INTERNET_CHANGED_EVENT.into()
+    }
+
+    fn module() -> String {
+        ThunderPlugin::Network.callsign_string()
+    }
+    fn get_extn_event(
+        r: Self::EVENT,
+        callback_type: DeviceEventCallback,
+    ) -> Result<ExtnEvent, RippleError> {
+        match callback_type {
+            DeviceEventCallback::FireboltAppEvent => {
+                let result = serde_json::to_value(r).unwrap();
+                Ok(ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
+                    event_name: Self::get_mapped_event(),
+                    context: None,
+                    result,
+                    app_id: None,
+                })))
+            }
+            DeviceEventCallback::ExtnEvent => Ok(ExtnEvent::InternetState(r)),
+        }
     }
 }
 

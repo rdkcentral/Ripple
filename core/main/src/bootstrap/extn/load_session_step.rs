@@ -54,7 +54,21 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
             })
             .await;
         debug!(
-            "Karthick: result for registering event from device: {:?}",
+            "Karthick: result for registering session token changed event from device: {:?}",
+            resp
+        );
+        let resp = s
+            .platform_state
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::InternetConnectionStatusChanged,
+                id: "internal".to_owned(),
+                subscribe: true,
+                callback_type: DeviceEventCallback::ExtnEvent,
+            })
+            .await;
+        debug!(
+            "Karthick: result for registering internet changed event from device: {:?}",
             resp
         );
         let response = s

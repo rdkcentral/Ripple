@@ -95,6 +95,14 @@ pub struct DistributorToken {
     token: String,
     expires: u64,
 }
+
+// #[derive(Debug, Clone, Serialize, Deserialize)]
+// pub enum InternetConnectionStatus {
+//     FullyConnected,
+//     NotConnected,
+//     LimitedConnectivity,
+// }
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DeviceVersionResponse {
     pub api: FireboltSemanticVersion,
@@ -107,6 +115,15 @@ pub struct NetworkResponse {
     pub state: NetworkState,
     #[serde(rename = "type")]
     pub _type: NetworkType,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum InternetConnectionStatus {
+    NoInternet,
+    LimitedInternet,
+    CaptivePortal,
+    FullyConnected,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -290,6 +307,24 @@ impl ExtnPayloadProvider for DistributorToken {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Internal
+        RippleContract::RippleContext
+    }
+}
+
+impl ExtnPayloadProvider for InternetConnectionStatus {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Event(ExtnEvent::InternetState(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<InternetConnectionStatus> {
+        if let ExtnPayload::Event(ExtnEvent::InternetState(r)) = payload {
+            return Some(r);
+        }
+
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::RippleContext
     }
 }

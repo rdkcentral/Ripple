@@ -40,9 +40,9 @@ use crate::{
 };
 
 use super::events::thunder_event_handlers::{
-    AudioChangedEvent, HDCPEventHandler, HDREventHandler, NetworkEventHandler,
-    ScreenResolutionEventHandler, SystemPowerStateChangeEventHandler, VideoResolutionEventHandler,
-    VoiceGuidanceEnabledChangedEventHandler,
+    AudioChangedEvent, HDCPEventHandler, HDREventHandler, InternetEventHandler,
+    NetworkEventHandler, ScreenResolutionEventHandler, SystemPowerStateChangeEventHandler,
+    VideoResolutionEventHandler, VoiceGuidanceEnabledChangedEventHandler,
 };
 
 #[derive(Debug)]
@@ -83,6 +83,7 @@ impl ExtnStreamProcessor for ThunderOpenEventsProcessor {
             RippleContract::DeviceEvents(EventAdjective::VideoResolution),
             RippleContract::DeviceEvents(EventAdjective::VoiceGuidance),
             RippleContract::DeviceEvents(EventAdjective::Network),
+            RippleContract::DeviceEvents(EventAdjective::Internet),
             RippleContract::DeviceEvents(EventAdjective::Audio),
             RippleContract::DeviceEvents(EventAdjective::SystemPowerState),
         ])
@@ -144,6 +145,11 @@ impl ExtnRequestProcessor for ThunderOpenEventsProcessor {
                 listen,
                 id.clone(),
                 VoiceGuidanceEnabledChangedEventHandler::provide(id, callback_type),
+            )),
+            DeviceEvent::InternetConnectionStatusChanged => Some(state.handle_listener(
+                listen,
+                id.clone(),
+                InternetEventHandler::provide(id, callback_type),
             )),
             _ => None,
         } {

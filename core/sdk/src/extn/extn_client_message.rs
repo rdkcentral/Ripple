@@ -32,7 +32,8 @@ use crate::{
             device_events::DeviceEventRequest,
             device_peristence::StorageData,
             device_request::{
-                DeviceRequest, DistributorToken, NetworkResponse, NetworkState, SystemPowerState,
+                DeviceRequest, DistributorToken, InternetConnectionStatus, NetworkResponse,
+                NetworkState, SystemPowerState,
             },
         },
         distributor::{
@@ -66,7 +67,9 @@ use crate::{
     utils::error::RippleError,
 };
 
-use super::{extn_id::ExtnId, ffi::ffi_message::CExtnMessage};
+use super::{
+    client::extn_client::ActivationStatus, extn_id::ExtnId, ffi::ffi_message::CExtnMessage,
+};
 
 /// Default Message enum for the Communication Channel
 /// Message would be either a request or response or event
@@ -144,6 +147,16 @@ impl From<ExtnPayload> for String {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum RippleContext {
+    ActivationStatus(ActivationStatus),
+    NetworkStatus(InternetConnectionStatus),
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ControlRequest {
+    Context(RippleContext),
+    HeartBeat,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ExtnPayload {
     Request(ExtnRequest),
     Response(ExtnResponse),
@@ -166,6 +179,10 @@ impl ExtnPayload {
 
     pub fn is_event(&self) -> bool {
         matches!(self, ExtnPayload::Event(_))
+    }
+
+    pub fn is_control(&self) -> bool {
+        matches!(self, ExtnPayload::Control(_))
     }
 
     pub fn as_response(&self) -> Option<ExtnResponse> {
@@ -325,6 +342,7 @@ pub enum ExtnEvent {
     AppEvent(AppEventRequest),
     PowerState(SystemPowerState),
     NetworkState(NetworkState),
+    InternetState(InternetConnectionStatus),
     OperationalMetrics(TelemetryPayload),
     DistributorTokenChange(DistributorToken),
 }

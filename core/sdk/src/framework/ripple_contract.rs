@@ -33,7 +33,7 @@ use serde_json::Value;
 /// b. Distributor Extn/Channel
 /// c. Combination of a Device + Distributor Extensions
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum RippleContract {
     /// Used by Main application to provide internal contracts for Extensions
@@ -124,6 +124,8 @@ pub enum RippleContract {
     /// Distributor gets the ability to configure and customize the generation of
     /// the Session information based on their policies. Used by [crate::api::session::AccountSession]
     Session(SessionAdjective),
+
+    RippleContext,
 }
 
 pub trait ContractAdjective: serde::ser::Serialize {
