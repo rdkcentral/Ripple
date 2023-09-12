@@ -1,6 +1,22 @@
 [
     {
         "request": {
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "Controller.1.register",
+            "params": {
+                "event": "statechange",
+                "id": "client.Controller.1.events"
+            }
+        },
+        "response": {
+            "jsonrpc": "2.0",
+            "id": 0,
+            "result": 0
+        }
+    },
+    {
+        "request": {
             "id": 1,
             "jsonrpc": "2.0",
             "method": "Controller.1.status@DeviceInfo"
