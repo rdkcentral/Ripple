@@ -237,16 +237,11 @@ impl ThunderEventHandler {
                 ExtnEvent::AppEvent(a) => state.get_client().request_transient(a),
                 ExtnEvent::PowerState(p) => state.get_client().request_transient(p),
                 ExtnEvent::DistributorTokenChange(dist_token_change) => {
-                    
                     state.get_client().request_transient(dist_token_change)
                 }
-                ExtnEvent::InternetState(internet_connection_status) => {
-                    
-
-                    state
-                        .get_client()
-                        .request_transient(internet_connection_status)
-                }
+                ExtnEvent::InternetState(internet_connection_status) => state
+                    .get_client()
+                    .request_transient(internet_connection_status),
                 _ => Err(RippleError::InvalidOutput),
             })
             .is_err()
