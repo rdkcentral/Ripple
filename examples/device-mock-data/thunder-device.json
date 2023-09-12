@@ -1,0 +1,82 @@
+[
+    {
+        "request": {
+            "id": 1,
+            "jsonrpc": "2.0",
+            "method": "Controller.1.status@DeviceInfo"
+        },
+        "response": {
+            "id": 1,
+            "jsonrpc": "2.0",
+            "result": [
+                {
+                    "state": "activated"
+                }
+            ]
+        }
+    },
+    {
+        "request": {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "Controller.1.status@org.rdk.DisplaySettings"
+        },
+        "response": {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "result": [
+                {
+                    "state": "activated"
+                }
+            ]
+        }
+    },
+    {
+        "request": {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "Controller.1.status@org.rdk.Network"
+        },
+        "response": {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "result": [
+                {
+                    "state": "activated"
+                }
+            ]
+        }
+    },
+    {
+        "request": {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "Controller.1.status@org.rdk.System"
+        },
+        "response": {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "result": [
+                {
+                    "state": "activated"
+                }
+            ]
+        }
+    },
+    {
+        "request": {
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "Controller.1.status@org.rdk.HdcpProfile"
+        },
+        "response": {
+            "jsonrpc": "2.0",
+            "id": 5,
+            "result": [
+                {
+                    "state": "activated"
+                }
+            ]
+        }
+    }
+]

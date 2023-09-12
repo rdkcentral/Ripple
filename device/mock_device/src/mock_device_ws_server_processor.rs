@@ -142,6 +142,7 @@ impl ExtnRequestProcessor for MockDeviceMockWebsocketServerProcessor {
         msg: ripple_sdk::extn::extn_client_message::ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
+        // TODO: call the get and remove for the requests
         // match extracted_message {
         //     // AccountSessionRequest::Get => Self::get_token(state.clone(), msg).await,
         //     // AccountSessionRequest::Provision(p) => Self::provision(state.clone(), msg, p).await,

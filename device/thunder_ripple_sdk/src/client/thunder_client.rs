@@ -23,6 +23,7 @@ use jsonrpsee::ws_client::WsClientBuilder;
 
 use jsonrpsee::core::async_trait;
 use jsonrpsee::types::ParamsSer;
+use ripple_sdk::log::debug;
 use ripple_sdk::tokio::task::JoinHandle;
 use ripple_sdk::{
     api::device::device_operator::DeviceResponseMessage,
@@ -429,10 +430,9 @@ impl ThunderClientBuilder {
         } else {
             url.clone()
         };
-        let client = WsClientBuilder::default()
-            .build(url_with_token.to_string())
-            .await;
+        let client = ws_client_with_retry(url_with_token.as_str(), 5).await;
         if client.is_err() {
+            debug!("client err {client:?}");
             return Err(RippleError::BootstrapError);
         }
 
@@ -488,6 +488,30 @@ impl ThunderClientBuilder {
             pooled_sender: None,
             id: Uuid::new_v4(),
             plugin_manager_tx: None,
+        }
+    }
+}
+
+async fn ws_client_with_retry(
+    url: &str,
+    max_retries: usize,
+) -> Result<jsonrpsee::core::client::Client, jsonrpsee::core::Error> {
+    let mut count = 0;
+    let mut backoff = 500;
+    loop {
+        let result = WsClientBuilder::default().build(url).await;
+
+        if result.is_ok() {
+            debug!("Connected to thunder");
+            break result;
+        } else {
+            if count > max_retries {
+                break result;
+            }
+            debug!("Retrying thunder connection");
+            count += 1;
+            tokio::time::sleep(tokio::time::Duration::from_millis(backoff)).await;
+            backoff *= 2;
         }
     }
 }

@@ -84,7 +84,7 @@ impl Bootstep<BootstrapState> for StartExtnChannelsStep {
                 .extn_state
                 .add_extn_status_listener(extn_id.clone(), tx)
             {
-                match timeout(Duration::from_millis(t), tr.recv()).await {
+                match timeout(Duration::from_millis(7000), tr.recv()).await {
                     Ok(Some(v)) => {
                         state.extn_state.clear_status_listener(extn_id);
                         match v {

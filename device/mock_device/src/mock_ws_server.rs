@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use std::{collections::HashMap, hash::Hash, net::SocketAddr, sync::Arc};
 
 use http::{HeaderMap, StatusCode};
 use ripple_sdk::{
@@ -26,10 +26,16 @@ use ripple_sdk::{
         net::TcpListener,
     },
 };
+use serde_hashkey::{from_key, to_key, Key};
+use serde_json::Value;
 use tokio_tungstenite::{
     accept_hdr_async,
     tungstenite::{handshake, Error, Message, Result},
 };
+
+// pub struct JsonRequest {
+//     value: Value,
+// }
 
 pub struct WsServerParameters {
     path: Option<String>,
@@ -80,7 +86,7 @@ impl Default for WsServerParameters {
 
 #[derive(Debug)]
 pub struct MockWebsocketServer {
-    mock_data: HashMap<String, Vec<String>>,
+    mock_data: HashMap<Key, Vec<Value>>,
 
     listener: TcpListener,
 
@@ -100,7 +106,7 @@ pub enum MockWebsocketServerError {
 
 impl MockWebsocketServer {
     pub async fn new(
-        mock_data: HashMap<String, Vec<String>>,
+        mock_data: HashMap<Key, Vec<Value>>,
         server_config: WsServerParameters,
     ) -> Result<Self, MockWebsocketServerError> {
         let listener = Self::create_listener(server_config.port.unwrap_or(0)).await?;
@@ -215,8 +221,19 @@ impl MockWebsocketServer {
             debug!("Message: {:?}", msg);
 
             if msg.is_text() || msg.is_binary() {
-                let request_message = msg.to_string();
-                let response = self.mock_data.get(&request_message);
+                let msg = msg.to_string();
+                let request_message = match serde_json::from_str::<Value>(msg.as_str()).ok() {
+                    Some(key) => key,
+                    None => {
+                        error!("Request is not valid JSON. Request: {msg}");
+                        continue;
+                    }
+                };
+
+                debug!("parsed message: {:?}", request_message);
+                debug!("key: {:?}", to_key(&request_message).unwrap());
+
+                let response = self.mock_data.get(&to_key(&request_message).unwrap());
 
                 match response {
                     None => error!(
@@ -234,11 +251,11 @@ impl MockWebsocketServer {
         Ok(())
     }
 
-    pub fn add_request_response(&mut self, request: String, responses: Vec<String>) {
-        self.mock_data.insert(request, responses);
+    pub fn add_request_response(&mut self, request: &Value, responses: Vec<Value>) {
+        self.mock_data.insert(to_key(request).unwrap(), responses);
     }
 
-    pub fn remove_request(&mut self, request: &str) {
-        let _ = self.mock_data.remove(request);
+    pub fn remove_request(&mut self, request: &Value) {
+        let _ = self.mock_data.remove(&to_key(request).unwrap());
     }
 }
