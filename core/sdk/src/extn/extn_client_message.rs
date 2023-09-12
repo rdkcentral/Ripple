@@ -68,7 +68,7 @@ use crate::{
 };
 
 use super::{
-    client::extn_client::ActivationStatus, extn_id::ExtnId, ffi::ffi_message::CExtnMessage,
+    extn_id::ExtnId, ffi::ffi_message::CExtnMessage,
 };
 
 /// Default Message enum for the Communication Channel

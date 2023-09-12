@@ -40,7 +40,7 @@ use ripple_sdk::{
     uuid::Uuid,
 };
 use ripple_sdk::{
-    log::{error, info, trace, warn},
+    log::{error, info, warn},
     utils::channel_utils::{mpsc_send_and_log, oneshot_send_and_log},
 };
 use ripple_sdk::{

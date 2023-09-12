@@ -22,7 +22,7 @@ use crate::{
     },
     utils::{error::RippleError, serde_utils::SerdeClearString},
 };
-use log::{debug, error};
+use log::{error};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 

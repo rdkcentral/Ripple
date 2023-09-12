@@ -19,7 +19,7 @@ use ripple_sdk::api::device::device_events::{
     DeviceEvent, DeviceEventCallback, DeviceEventRequest,
 };
 use ripple_sdk::api::firebolt::fb_capabilities::{CapEvent, FireboltCap};
-use ripple_sdk::log::debug;
+
 use ripple_sdk::{api::session::AccountSessionRequest, framework::bootstrap::Bootstep};
 use ripple_sdk::{async_trait::async_trait, framework::RippleResponse};
 
@@ -43,7 +43,7 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
         // Upon receving the event, if the ripple context is not set as active, set it to active.
         //
         //
-        let resp = s
+        let _resp = s
             .platform_state
             .get_client()
             .send_extn_request(DeviceEventRequest {
@@ -54,7 +54,7 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
             })
             .await;
 
-        let resp = s
+        let _resp = s
             .platform_state
             .get_client()
             .send_extn_request(DeviceEventRequest {

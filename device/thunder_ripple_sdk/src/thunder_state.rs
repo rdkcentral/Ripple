@@ -25,7 +25,6 @@ use ripple_sdk::{
         client::extn_client::ExtnClient,
         extn_client_message::{ExtnMessage, ExtnPayloadProvider},
     },
-    log::debug,
     tokio,
     tokio::sync::mpsc,
     utils::error::RippleError,
