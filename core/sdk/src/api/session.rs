@@ -89,14 +89,33 @@ pub enum AccountSessionResponse {
 }
 
 #[repr(C)]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct AccountSession {
     pub id: String,
     pub token: String,
     pub account_id: String,
     pub device_id: String,
 }
-
+impl std::fmt::Debug for AccountSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // mask token field
+        f.debug_struct("AccountSession")
+            .field("id", &self.id)
+            .field("account_id", &self.account_id)
+            .field("device_id", &self.device_id)
+            .finish()
+    }
+}
+impl std::fmt::Display for AccountSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // mask token field
+        write!(
+            f,
+            "AccountSession {{ id: {:?}, account_id: {:?}, device_id: {:?} }}",
+            self.id, self.account_id, self.device_id
+        )
+    }
+}
 impl ExtnPayloadProvider for AccountSession {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         if let ExtnPayload::Response(ExtnResponse::AccountSession(
