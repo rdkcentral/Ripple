@@ -28,12 +28,23 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct CallerSession {
     pub session_id: Option<String>,
+    pub app_id: Option<String>,
 }
 
 impl From<CallContext> for CallerSession {
     fn from(ctx: CallContext) -> Self {
         CallerSession {
             session_id: Some(ctx.session_id),
+            app_id: Some(ctx.app_id),
+        }
+    }
+}
+
+impl Default for CallerSession {
+    fn default() -> Self {
+        CallerSession {
+            session_id: None,
+            app_id: None,
         }
     }
 }

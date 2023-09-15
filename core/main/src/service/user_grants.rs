@@ -40,6 +40,7 @@ use ripple_sdk::{
                 CapEvent, CapabilityRole, DenyReason, DenyReasonWithCap, FireboltCap,
                 FireboltPermission, RoleInfo,
             },
+            fb_lifecycle::LifecycleState,
             fb_openrpc::{CapabilitySet, FireboltOpenRpcMethod},
             fb_pin::{PinChallengeConfiguration, PinChallengeRequest},
             provider::{
@@ -79,14 +80,14 @@ pub struct GrantState {
 impl GrantState {
     pub fn new(manifest: DeviceManifest) -> GrantState {
         let saved_dir = manifest.clone().configuration.saved_dir;
-        let device_grant_path = format!("{}device_grants", saved_dir);
+        let device_grant_path = format!("{}/device_grants", saved_dir);
         let dev_grant_store = if let Ok(v) = FileStore::load(device_grant_path.clone()) {
             v
         } else {
             FileStore::new(device_grant_path, HashSet::new())
         };
 
-        let app_grant_path = format!("{}app_grants", saved_dir);
+        let app_grant_path = format!("{}/app_grants", saved_dir);
         let app_grant_store = if let Ok(v) = FileStore::load(app_grant_path.clone()) {
             v
         } else {
@@ -736,7 +737,12 @@ impl GrantPolicyEnforcer {
         .await;
 
         if let Err(e) = &result {
-            if e.reason == DenyReason::Ungranted || e.reason == DenyReason::GrantProviderMissing {
+            // if the grant failed because we don't have a provider or because requested app is not in active state to
+            // fulfill the grant , do not store the result in grant state
+            if e.reason == DenyReason::Ungranted
+                || e.reason == DenyReason::GrantProviderMissing
+                || e.reason == DenyReason::AppNotInActiveState
+            {
                 return result;
             }
         } else {
@@ -756,25 +762,31 @@ impl GrantPolicyEnforcer {
     }
 
     fn is_policy_valid(platform_state: &PlatformState, policy: &GrantPolicy) -> bool {
+        let mut _result = false;
         if let Some(privacy) = &policy.privacy_setting {
             let privacy_property = &privacy.property;
             return platform_state
                 .open_rpc_state
                 .check_privacy_property(privacy_property);
-        } else if let Some(grant_steps) = policy.get_steps_without_grant() {
-            for step in grant_steps {
-                if platform_state
-                    .open_rpc_state
-                    .get_capability_policy(step.capability.clone())
-                    .is_some()
-                {
-                    return false;
+        } else {
+            _result = true;
+            if policy.options.len() > 0 {
+                if let Some(grant_steps) = policy.get_steps_without_grant() {
+                    for step in grant_steps {
+                        if platform_state
+                            .open_rpc_state
+                            .get_capability_policy(step.capability.clone())
+                            .is_some()
+                        {
+                            _result = false;
+                        }
+                    }
                 }
+            } else {
+                _result = false;
             }
-            return true;
         }
-
-        false
+        _result
     }
 
     pub fn get_allow_value(platform_state: &PlatformState, property_name: &str) -> Option<bool> {
@@ -1056,9 +1068,49 @@ impl GrantStepExecutor {
             "Reached execute phase of step for capability: {}",
             capability
         );
-        // 1. Check if the capability is supported and available.
-        // 2. Call the capability,
-        // 3. Get the user response and return
+        // 1. If the call is coming from method invocation then check if app is in active state.
+        // This check is omitted if the call is coming from Lifecyclemanagement.session because this check happens right
+        // before the app goes active, so this check would fail.
+        // 2. Check if the capability is supported and available.
+        // 3. Call the capability,
+        // 4. Get the user response and return
+
+        let CallerSession { session_id, app_id } = caller_session;
+        if session_id.is_some() && app_id.is_some() {
+            println!("^^^^ Method invoke caller, app id ={:?} session id={:?}", &app_id, &session_id);
+            // session id is some, so caller is from method invoke
+            debug!("Method invoke caller, check if app is in foreground state");
+            let app_state = platform_state
+                .ripple_client
+                .get_app_state(app_id.as_ref().unwrap().to_string())
+                .await;
+
+            match app_state {
+                Ok(state) => {
+                    if state != LifecycleState::Foreground.as_string() {
+                        debug!("App is not in foreground state");
+                        return Err(DenyReasonWithCap {
+                            reason: DenyReason::AppNotInActiveState,
+                            caps: vec![permission.cap.clone()],
+                        });
+                    }
+                }
+                Err(_) => {
+                    error!("Unable to get app state");
+                    return Err(DenyReasonWithCap {
+                        reason: DenyReason::AppNotInActiveState,
+                        caps: vec![permission.cap.clone()],
+                    });
+                }
+            }
+            debug!(
+                "Requesting app is in active state, now has to check if cap is supported and available"
+            );
+        } else {
+            // session id is None, so caller is from lifecyclemanagement.session
+            debug!("Lifecyclemanagement.session caller, skip app state check. Check if cap is supported and available")
+        }
+
         let firebolt_cap = FireboltCap::Full(capability.to_owned());
         if let Err(e) = platform_state
             .cap_state
@@ -1073,6 +1125,7 @@ impl GrantStepExecutor {
                 caps: e.caps,
             });
         }
+        debug!("Cap is supported and available, invoking capability");
 
         Self::invoke_capability(
             platform_state,
