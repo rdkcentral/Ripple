@@ -16,7 +16,6 @@
 //
 
 use std::collections::HashMap;
-
 use ripple_sdk::{
     api::{
         gateway::rpc_gateway_api::ApiMessage,
@@ -29,7 +28,7 @@ use ripple_sdk::{
     },
     extn::{extn_client_message::ExtnMessage, extn_id::ExtnId},
     framework::{ripple_contract::RippleContract, RippleResponse},
-    utils::error::RippleError,
+    utils::error::RippleError, uuid::Uuid,
 };
 
 use crate::{
@@ -59,6 +58,32 @@ use super::{
 /// println!("{}", manifest.unwrap().configuration.platform);
 /// ```
 ///
+
+#[derive(Debug, Clone)]
+pub struct DeviceSessionIdentifier {
+    pub device_session_id: Uuid,
+}
+
+impl Default for DeviceSessionIdentifier {
+    fn default() -> Self {
+        Self {
+            device_session_id: Uuid::new_v4(),
+        }
+    }
+}
+impl From<&DeviceSessionIdentifier> for String {
+    fn from(device_session_identifier: &DeviceSessionIdentifier) -> Self {
+        device_session_identifier.device_session_id.to_string()
+    }
+}
+impl From<String> for DeviceSessionIdentifier {
+    fn from(uuid_str: String) -> Self {
+        DeviceSessionIdentifier {
+            device_session_id: Uuid::parse_str(&uuid_str).unwrap_or_default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PlatformState {
     extn_manifest: ExtnManifest,
@@ -74,6 +99,7 @@ pub struct PlatformState {
     pub router_state: RouterState,
     pub data_governance: DataGovernanceState,
     pub metrics: MetricsState,
+    pub device_session_id: DeviceSessionIdentifier,
 }
 
 impl PlatformState {
@@ -97,6 +123,7 @@ impl PlatformState {
             router_state: RouterState::new(),
             data_governance: DataGovernanceState::default(),
             metrics: MetricsState::default(),
+            device_session_id: DeviceSessionIdentifier::default(),
         }
     }
 

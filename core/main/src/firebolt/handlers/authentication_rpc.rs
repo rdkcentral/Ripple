@@ -28,12 +28,13 @@ use ripple_sdk::{
             fb_capabilities::{FireboltCap, CAPABILITY_NOT_AVAILABLE},
         },
         gateway::rpc_gateway_api::CallContext,
-        session::{SessionTokenRequest, TokenContext, TokenType},
+        session::TokenType, distributor::distributor_platform::{PlatformTokenRequest, PlatformTokenContext},
     },
-    extn::extn_client_message::ExtnResponse,
+    extn::extn_client_message::ExtnResponse, log::debug,
 };
 
 use crate::{firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState};
+
 
 #[rpc(server)]
 pub trait Authentication {
@@ -115,23 +116,35 @@ impl AuthenticationServer for AuthenticationImpl {
 
 impl AuthenticationImpl {
     async fn token(&self, token_type: TokenType, ctx: CallContext) -> RpcResult<TokenResult> {
-        let app_id = ctx.app_id;
-        let context = match self.platform_state.session_state.get_account_session() {
-            Some(v) => Some(TokenContext {
-                distributor_id: v.id,
-                app_id,
-            }),
-            None => None,
+        debug!("**** fb_authentication: token");
+        let context = PlatformTokenContext {
+            app_id: ctx.app_id,
+            content_provider: String::from("xumo"),
+            device_session_id: (&self.platform_state.device_session_id).into(),
+                app_session_id: ctx.session_id.clone(),
+            dist_session: self.platform_state.session_state.get_account_session().unwrap()
         };
+        // TODO - update
+        //  let cp = get_content_partner_id(self.helper, &ctx)
+        // .await
+        // .unwrap_or(ctx.app_id.clone());
+        // let context = PlatformTokenContext {
+        //     app_id: ctx.app_id,
+        //     content_provider: cp,
+        //         device_session_id: (&self.platform_state.device_session_id).into(),
+        //         app_session_id: ctx.session_id.clone(),
+        //     dist_session: self.platform_state.session_state.get_account_session().unwrap()
+        // };
+        debug!("**** fb_authentication: token: context: {:?}", context);
         let resp = self
             .platform_state
             .get_client()
-            .send_extn_request(SessionTokenRequest {
-                token_type,
+            .send_extn_request(PlatformTokenRequest {
                 options: Vec::new(),
                 context,
             })
             .await;
+        debug!("**** fb_authentication: token: resp: {:?}", resp);
         match resp {
             Ok(payload) => match payload.payload.extract().unwrap() {
                 ExtnResponse::Token(t) => Ok(TokenResult {
@@ -140,7 +153,7 @@ impl AuthenticationImpl {
                     _type: TokenType::Platform,
                 }),
                 e => Err(jsonrpsee::core::Error::Custom(format!(
-                    "unknown error getting platform token {:?}",
+                    "**** unknown error getting platform token {:?}",
                     e
                 ))),
             },
@@ -148,7 +161,7 @@ impl AuthenticationImpl {
             Err(_e) => {
                 // TODO: What do error responses look like?
                 Err(jsonrpsee::core::Error::Custom(format!(
-                    "Ripple Error getting {:?} token",
+                    "**** Ripple Error getting {:?} token",
                     token_type
                 )))
             }
