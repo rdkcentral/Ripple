@@ -15,6 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::sync::Arc;
+
 use ripple_sdk::{
     api::status_update::ExtnStatus,
     crossbeam::channel::Receiver as CReceiver,
@@ -29,15 +31,15 @@ use ripple_sdk::{
         },
     },
     framework::ripple_contract::{ContractFulfiller, RippleContract},
-    log::{debug, info},
+    log::{debug, error, info},
     semver::Version,
-    tokio::{self, runtime::Runtime},
+    tokio::{self, runtime::Runtime, sync::Mutex},
     utils::{error::RippleError, logger::init_logger},
 };
 
 use crate::{
-    boot_ws_server::boot_ws_server,
     mock_device_ws_server_processor::MockDeviceMockWebsocketServerProcessor,
+    utils::{boot_ws_server, load_mock_data},
 };
 
 const EXTN_NAME: &str = "mock_device";
@@ -69,12 +71,25 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     runtime.block_on(async move {
         let client_c = client.clone();
         tokio::spawn(async move {
-            if let Ok(server) = boot_ws_server(client.clone()).await {
+            let mock_data = load_mock_data(client.clone())
+                .await
+                .map_err(|e| {
+                    error!("{:?}", e);
+                    e
+                })
+                .unwrap_or_default();
+            debug!("mock_data={:?}", mock_data);
+
+            let mock_data = Arc::new(Mutex::new(mock_data));
+
+            if let Ok(server) = boot_ws_server(client.clone(), mock_data.clone()).await {
                 client.add_request_processor(MockDeviceMockWebsocketServerProcessor::new(
                     client.clone(),
                     server,
+                    mock_data,
                 ));
             } else {
+                // TODO: check panic message
                 panic!("Mock Device can only be used with platform using a WebSocket gateway")
             }
 

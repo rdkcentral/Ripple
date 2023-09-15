@@ -24,6 +24,7 @@ use ripple_sdk::{
         self,
         io::{AsyncRead, AsyncWrite},
         net::TcpListener,
+        sync::Mutex,
     },
 };
 use serde_hashkey::{to_key, Key};
@@ -84,7 +85,7 @@ impl Default for WsServerParameters {
 
 #[derive(Debug)]
 pub struct MockWebsocketServer {
-    mock_data: HashMap<Key, Vec<Value>>,
+    mock_data: Arc<Mutex<HashMap<Key, Vec<Value>>>>,
 
     listener: TcpListener,
 
@@ -104,7 +105,7 @@ pub enum MockWebsocketServerError {
 
 impl MockWebsocketServer {
     pub async fn new(
-        mock_data: HashMap<Key, Vec<Value>>,
+        mock_data: Arc<Mutex<HashMap<Key, Vec<Value>>>>,
         server_config: WsServerParameters,
     ) -> Result<Self, MockWebsocketServerError> {
         let listener = Self::create_listener(server_config.port.unwrap_or(0)).await?;
@@ -140,12 +141,10 @@ impl MockWebsocketServer {
     pub async fn start_server(self: Arc<Self>) {
         debug!("Waiting for connections");
 
-        let server = self.clone();
-
-        while let Ok((stream, peer_addr)) = server.listener.accept().await {
-            let s = server.clone();
+        while let Ok((stream, peer_addr)) = self.listener.accept().await {
+            let server = self.clone();
             tokio::spawn(async move {
-                s.accept_connection(peer_addr, stream).await;
+                server.accept_connection(peer_addr, stream).await;
             });
         }
 
@@ -231,7 +230,8 @@ impl MockWebsocketServer {
                 debug!("parsed message: {:?}", request_message);
                 debug!("key: {:?}", to_key(&request_message).unwrap());
 
-                let response = self.mock_data.get(&to_key(&request_message).unwrap());
+                let mock_data = self.mock_data.lock().await;
+                let response = mock_data.get(&to_key(&request_message).unwrap());
 
                 match response {
                     None => error!(
@@ -249,11 +249,13 @@ impl MockWebsocketServer {
         Ok(())
     }
 
-    pub fn add_request_response(&mut self, request: &Value, responses: Vec<Value>) {
-        self.mock_data.insert(to_key(request).unwrap(), responses);
+    pub async fn add_request_response(&self, request: &Value, responses: Vec<Value>) {
+        let mut mock_data = self.mock_data.lock().await;
+        mock_data.insert(to_key(request).unwrap(), responses);
     }
 
-    pub fn remove_request(&mut self, request: &Value) {
-        let _ = self.mock_data.remove(&to_key(request).unwrap());
+    pub async fn remove_request(&self, request: &Value) {
+        let mut mock_data = self.mock_data.lock().await;
+        let _ = mock_data.remove(&to_key(request).unwrap());
     }
 }

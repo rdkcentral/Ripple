@@ -21,7 +21,7 @@ use ripple_sdk::{
     api::config::Config,
     extn::{client::extn_client::ExtnClient, extn_client_message::ExtnResponse},
     log::{debug, error},
-    tokio::{self},
+    tokio::{self, sync::Mutex},
     utils::error::RippleError,
 };
 use serde_hashkey::{to_key, Key};
@@ -29,6 +29,8 @@ use serde_json::Value;
 use url::{Host, Url};
 
 use crate::mock_ws_server::{MockWebsocketServer, WsServerParameters};
+
+pub type MockData = HashMap<Key, Vec<Value>>;
 
 #[derive(Clone, Debug)]
 pub enum BootWsServerError {
@@ -40,9 +42,10 @@ pub enum BootWsServerError {
 
 pub async fn boot_ws_server(
     mut client: ExtnClient,
+    mock_data: Arc<Mutex<MockData>>,
 ) -> Result<Arc<MockWebsocketServer>, BootWsServerError> {
     debug!("Booting WS Server for mock device");
-    let gateway = platform_gateway(&mut client).await?;
+    let gateway = platform_gateway_url(&mut client).await?;
 
     if gateway.scheme() != "ws" {
         return Err(BootWsServerError::BadUrlScheme);
@@ -51,15 +54,6 @@ pub async fn boot_ws_server(
     if !is_valid_host(gateway.host()) {
         return Err(BootWsServerError::BadHostname);
     }
-
-    let mock_data = load_mock_data(client.clone())
-        .await
-        .map_err(|e| {
-            error!("{:?}", e);
-            e
-        })
-        .unwrap_or_default();
-    debug!("mock_data={:?}", mock_data);
 
     let mut server_config = WsServerParameters::new();
     server_config
@@ -79,7 +73,7 @@ pub async fn boot_ws_server(
     Ok(ws_server)
 }
 
-async fn platform_gateway(client: &mut ExtnClient) -> Result<Url, BootWsServerError> {
+async fn platform_gateway_url(client: &mut ExtnClient) -> Result<Url, BootWsServerError> {
     if let Ok(response) = client.request(Config::PlatformParameters).await {
         if let Some(ExtnResponse::Value(value)) = response.payload.extract() {
             let gateway: Url = value
@@ -115,9 +109,7 @@ pub enum LoadMockDataError {
     EntryMissingResponseField,
 }
 
-async fn load_mock_data(
-    mut client: ExtnClient,
-) -> Result<HashMap<Key, Vec<Value>>, LoadMockDataError> {
+pub async fn load_mock_data(mut client: ExtnClient) -> Result<MockData, LoadMockDataError> {
     debug!("requesting saved dir");
     let saved_dir = client
         .request(Config::SavedDir)
@@ -156,7 +148,7 @@ async fn load_mock_data(
         serde_json::from_reader(reader).map_err(|_| LoadMockDataError::MockDataNotValidJson)?;
 
     if let Some(list) = json.as_array() {
-        let map = list
+        let mock_data = list
             .iter()
             .map(|req_resp| {
                 // TODO: validate as JSONRPC
@@ -179,9 +171,9 @@ async fn load_mock_data(
             })
             .collect::<Result<Vec<(Key, Vec<Value>)>, LoadMockDataError>>()?
             .into_iter()
-            .collect();
+            .collect::<HashMap<Key, Vec<Value>>>();
 
-        Ok(map)
+        Ok(mock_data)
     } else {
         Err(LoadMockDataError::MockDataNotArray)
     }

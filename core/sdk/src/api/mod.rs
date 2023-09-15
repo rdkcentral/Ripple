@@ -22,6 +22,7 @@ pub mod caps;
 pub mod config;
 pub mod device;
 pub mod manifest;
+pub mod mock_websocket_server;
 pub mod protocol;
 pub mod pubsub;
 pub mod session;

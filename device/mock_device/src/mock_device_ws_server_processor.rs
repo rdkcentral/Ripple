@@ -16,7 +16,7 @@
 //
 
 use ripple_sdk::{
-    api::session::AccountSessionRequest,
+    api::mock_websocket_server::{AddRequestResponseParams, MockWebsocketServerRequest},
     async_trait::async_trait,
     extn::client::{
         extn_client::ExtnClient,
@@ -24,20 +24,30 @@ use ripple_sdk::{
             DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
         },
     },
+    tokio::sync::Mutex,
 };
 use std::sync::Arc;
 
-use crate::mock_ws_server::MockWebsocketServer;
+use crate::{mock_ws_server::MockWebsocketServer, utils::MockData};
 
 #[derive(Debug, Clone)]
 pub struct MockDeviceMockWebsocketServerState {
     client: ExtnClient,
-    server: Arc<MockWebsocketServer>, // session: Arc<RwLock<FileStore<AccountSession>>>,
+    server: Arc<MockWebsocketServer>,
+    mock_data: Arc<Mutex<MockData>>,
 }
 
 impl MockDeviceMockWebsocketServerState {
-    fn new(client: ExtnClient, server: Arc<MockWebsocketServer>) -> Self {
-        Self { client, server }
+    fn new(
+        client: ExtnClient,
+        server: Arc<MockWebsocketServer>,
+        mock_data: Arc<Mutex<MockData>>,
+    ) -> Self {
+        Self {
+            client,
+            server,
+            mock_data,
+        }
     }
 }
 
@@ -50,9 +60,10 @@ impl MockDeviceMockWebsocketServerProcessor {
     pub fn new(
         client: ExtnClient,
         server: Arc<MockWebsocketServer>,
+        mock_data: Arc<Mutex<MockData>>,
     ) -> MockDeviceMockWebsocketServerProcessor {
         MockDeviceMockWebsocketServerProcessor {
-            state: MockDeviceMockWebsocketServerState::new(client, server),
+            state: MockDeviceMockWebsocketServerState::new(client, server, mock_data),
             streamer: DefaultExtnStreamer::new(),
         }
     }
@@ -60,7 +71,7 @@ impl MockDeviceMockWebsocketServerProcessor {
 
 impl ExtnStreamProcessor for MockDeviceMockWebsocketServerProcessor {
     type STATE = MockDeviceMockWebsocketServerState;
-    type VALUE = AccountSessionRequest;
+    type VALUE = MockWebsocketServerRequest;
 
     fn get_state(&self) -> Self::STATE {
         self.state.clone()
@@ -84,7 +95,7 @@ impl ExtnStreamProcessor for MockDeviceMockWebsocketServerProcessor {
 #[async_trait]
 impl ExtnRequestProcessor for MockDeviceMockWebsocketServerProcessor {
     fn get_client(&self) -> ExtnClient {
-        self.state.clone().client
+        self.state.client.clone()
     }
 
     async fn process_request(
@@ -93,11 +104,14 @@ impl ExtnRequestProcessor for MockDeviceMockWebsocketServerProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         // TODO: call the get and remove for the requests
-        // match extracted_message {
-        //     // AccountSessionRequest::Get => Self::get_token(state.clone(), msg).await,
-        //     // AccountSessionRequest::Provision(p) => Self::provision(state.clone(), msg, p).await,
-        //     // AccountSessionRequest::SetAccessToken(s) => Self::set_token(state, msg, s).await,
-        // }
+        match extracted_message {
+            MockWebsocketServerRequest::AddRequestResponse(params) => {
+                // state.server.
+                state.server.add_request_response(&params.request, params.responses.clone()).await
+            }
+            // AccountSessionRequest::Provision(p) => Self::provision(state.clone(), msg, p).await,
+            // AccountSessionRequest::SetAccessToken(s) => Self::set_token(state, msg, s).await,
+        }
         true
     }
 }

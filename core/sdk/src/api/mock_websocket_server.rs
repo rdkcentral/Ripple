@@ -76,6 +76,6 @@ impl ExtnPayloadProvider for MockWebsocketServerResponse {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::PubSub
+        RippleContract::MockWebsocketServer
     }
 }
