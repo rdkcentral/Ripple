@@ -478,9 +478,7 @@ impl ThunderDeviceInfoRequestProcessor {
             })
             .await;
         let value = dev_response.message.get("state").cloned();
-        if value.is_none() {
-            return None;
-        }
+        value.as_ref()?;
         let internet_status = serde_json::from_value::<u32>(value.unwrap());
         if internet_status.is_ok() {
             match internet_status.unwrap() {
