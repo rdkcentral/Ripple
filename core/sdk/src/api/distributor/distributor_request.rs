@@ -20,7 +20,8 @@ use serde::{Deserialize, Serialize};
 use super::{
     distributor_discovery::{DiscoveryRequest, MediaEventRequest},
     distributor_encoder::EncoderRequest,
-    distributor_permissions::PermissionRequest, distributor_platform::PlatformTokenRequest,
+    distributor_permissions::PermissionRequest,
+    distributor_platform::PlatformTokenRequest,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

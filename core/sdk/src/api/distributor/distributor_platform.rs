@@ -18,15 +18,16 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::{session::{AccountSession}, firebolt::fb_authentication::TokenResult},
-    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
+    api::session::AccountSession,
+    //api::{firebolt::fb_authentication::TokenResult, session::AccountSession},
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PlatformTokenRequest {
     pub options: Vec<String>,
-    pub context: PlatformTokenContext
+    pub context: PlatformTokenContext,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -56,23 +57,22 @@ impl ExtnPayloadProvider for PlatformTokenRequest {
     }
 }
 
+// pub type PlatformTokenResponse = TokenResult;
 
-    // pub type PlatformTokenResponse = TokenResult;
+// impl ExtnPayloadProvider for PlatformTokenResponse {
+//     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+//         if let ExtnPayload::Response(ExtnResponse::Token(v)) = payload {
+//             return Some(v);
+//         }
 
-    // impl ExtnPayloadProvider for PlatformTokenResponse {
-    //     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-    //         if let ExtnPayload::Response(ExtnResponse::Token(v)) = payload {
-    //             return Some(v);
-    //         }
-    
-    //         None
-    //     }
-    
-    //     fn get_extn_payload(&self) -> ExtnPayload {
-    //         ExtnPayload::Response(ExtnResponse::Token(self.clone()))
-    //     }
-    
-    //     fn contract() -> crate::framework::ripple_contract::RippleContract {
-    //         RippleContract::PlatformSessionToken
-    //     }
-    // }
+//         None
+//     }
+
+//     fn get_extn_payload(&self) -> ExtnPayload {
+//         ExtnPayload::Response(ExtnResponse::Token(self.clone()))
+//     }
+
+//     fn contract() -> crate::framework::ripple_contract::RippleContract {
+//         RippleContract::PlatformSessionToken
+//     }
+// }

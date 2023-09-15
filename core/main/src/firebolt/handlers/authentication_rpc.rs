@@ -23,18 +23,19 @@ use jsonrpsee::{
 };
 use ripple_sdk::{
     api::{
+        distributor::distributor_platform::{PlatformTokenContext, PlatformTokenRequest},
         firebolt::{
             fb_authentication::{TokenRequest, TokenResult},
             fb_capabilities::{FireboltCap, CAPABILITY_NOT_AVAILABLE},
         },
         gateway::rpc_gateway_api::CallContext,
-        session::TokenType, distributor::distributor_platform::{PlatformTokenRequest, PlatformTokenContext},
+        session::TokenType,
     },
-    extn::extn_client_message::ExtnResponse, log::debug,
+    extn::extn_client_message::ExtnResponse,
+    log::debug,
 };
 
 use crate::{firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState};
-
 
 #[rpc(server)]
 pub trait Authentication {
@@ -121,8 +122,12 @@ impl AuthenticationImpl {
             app_id: ctx.app_id,
             content_provider: String::from("xumo"),
             device_session_id: (&self.platform_state.device_session_id).into(),
-                app_session_id: ctx.session_id.clone(),
-            dist_session: self.platform_state.session_state.get_account_session().unwrap()
+            app_session_id: ctx.session_id.clone(),
+            dist_session: self
+                .platform_state
+                .session_state
+                .get_account_session()
+                .unwrap(),
         };
         // TODO - update
         //  let cp = get_content_partner_id(self.helper, &ctx)

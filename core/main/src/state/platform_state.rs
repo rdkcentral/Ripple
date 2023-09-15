@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::HashMap;
 use ripple_sdk::{
     api::{
         gateway::rpc_gateway_api::ApiMessage,
@@ -28,8 +27,10 @@ use ripple_sdk::{
     },
     extn::{extn_client_message::ExtnMessage, extn_id::ExtnId},
     framework::{ripple_contract::RippleContract, RippleResponse},
-    utils::error::RippleError, uuid::Uuid,
+    utils::error::RippleError,
+    uuid::Uuid,
 };
+use std::collections::HashMap;
 
 use crate::{
     firebolt::rpc_router::RouterState,

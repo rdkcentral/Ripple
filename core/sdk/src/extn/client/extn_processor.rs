@@ -265,7 +265,10 @@ pub trait ExtnEventProcessor: ExtnStreamProcessor + Send + Sync + 'static {
         msg: ExtnMessage,
         error: RippleError,
     ) -> Option<bool> {
-        error!("**** invalid event received {:?} for {:?}", msg.payload, error);
+        error!(
+            "**** invalid event received {:?} for {:?}",
+            msg.payload, error
+        );
         None
     }
 

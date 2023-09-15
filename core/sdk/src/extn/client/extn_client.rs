@@ -225,16 +225,10 @@ impl ExtnClient {
                     }
                     let message = message_result.unwrap();
                     if message.payload.is_response() {
-                        debug!(
-                            "**** message.payload.is_response msg={:?}",
-                            message
-                        );
+                        debug!("**** message.payload.is_response msg={:?}", message);
                         Self::handle_single(message, self.response_processors.clone());
                     } else if message.payload.is_event() {
-                        debug!(
-                            "**** message.payload.is_event msg={:?}",
-                            message
-                        );
+                        debug!("**** message.payload.is_event msg={:?}", message);
                         Self::handle_vec_stream(message, self.event_processors.clone());
                     } else {
                         let current_cap = self.sender.get_cap();
@@ -267,9 +261,7 @@ impl ExtnClient {
                                     message.clone(),
                                     self.request_processors.clone(),
                                 ) {
-                                    error!(
-                                        "**** handle_no_processor_error"
-                                    );
+                                    error!("**** handle_no_processor_error");
                                     self.handle_no_processor_error(message);
                                 }
                             }
