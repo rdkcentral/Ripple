@@ -343,7 +343,7 @@ impl RpcError for DenyReason {
             Self::Unpermitted => format!("{} is not permitted", caps_disp),
             Self::NotFound => "Method not Found".to_string(),
             Self::AppNotInActiveState => {
-                format!("Capability cannot be used when app is not in foreground state due to requiring a user grant")
+                "Capability cannot be used when app is not in foreground state due to requiring a user grant".to_string()
             }
             _ => format!("Error with {}", caps_disp),
         }

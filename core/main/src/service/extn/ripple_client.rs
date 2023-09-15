@@ -112,12 +112,15 @@ impl RippleClient {
         }
         let resp: Result<Result<AppManagerResponse, AppError>, jsonrpsee::core::Error> =
             rpc_await_oneshot(app_resp_rx).await;
-        if let Ok(result) = resp {
-            if let Ok(app_state) = result {
-                if let AppManagerResponse::State(state) = app_state {
-                    return Ok(String::from(state.as_string().to_string()));
-                }
-            }
+        // if let Ok(result) = resp {
+        //     if let Ok(app_state) = result {
+        //         if let AppManagerResponse::State(state) = app_state {
+        //             return Ok(String::from(state.as_string().to_string()));
+        //         }
+        //     }
+        // }
+        if let Ok(Ok(AppManagerResponse::State(state))) = resp {
+            return Ok(state.as_string().to_string());
         }
         Err(RippleError::SendFailure)
     }

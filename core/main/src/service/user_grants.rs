@@ -770,7 +770,7 @@ impl GrantPolicyEnforcer {
                 .check_privacy_property(privacy_property);
         } else {
             _result = true;
-            if policy.options.len() > 0 {
+            if !policy.options.is_empty() {
                 if let Some(grant_steps) = policy.get_steps_without_grant() {
                     for step in grant_steps {
                         if platform_state
@@ -1077,7 +1077,6 @@ impl GrantStepExecutor {
 
         let CallerSession { session_id, app_id } = caller_session;
         if session_id.is_some() && app_id.is_some() {
-            println!("^^^^ Method invoke caller, app id ={:?} session id={:?}", &app_id, &session_id);
             // session id is some, so caller is from method invoke
             debug!("Method invoke caller, check if app is in foreground state");
             let app_state = platform_state
