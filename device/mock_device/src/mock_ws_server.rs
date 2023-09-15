@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-use std::{collections::HashMap, hash::Hash, net::SocketAddr, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use http::{HeaderMap, StatusCode};
 use ripple_sdk::{
@@ -26,16 +26,14 @@ use ripple_sdk::{
         net::TcpListener,
     },
 };
-use serde_hashkey::{from_key, to_key, Key};
+use serde_hashkey::{to_key, Key};
 use serde_json::Value;
 use tokio_tungstenite::{
     accept_hdr_async,
     tungstenite::{handshake, Error, Message, Result},
 };
 
-// pub struct JsonRequest {
-//     value: Value,
-// }
+// TODO: look at to_key().unwrap()
 
 pub struct WsServerParameters {
     path: Option<String>,

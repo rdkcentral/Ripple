@@ -15,29 +15,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-// use crate::{
-//     bootstrap::setup_thunder_processors::SetupThunderProcessor,
-//     client::plugin_manager::ThunderPluginBootParam, thunder_state::ThunderBootstrapStateWithClient,
-// };
-// use ripple_sdk::{extn::client::extn_client::ExtnClient, log::info};
-
-// use super::{get_config_step::ThunderGetConfigStep, setup_thunder_pool_step::ThunderPoolStep};
-
-use std::{
-    collections::HashMap,
-    fs::{self, File},
-    io::BufReader,
-    path::{Path, PathBuf},
-    str::FromStr,
-    sync::Arc,
-};
+use std::{collections::HashMap, fs::File, io::BufReader, path::PathBuf, sync::Arc};
 
 use ripple_sdk::{
     api::config::Config,
-    extn::{
-        client::extn_client::ExtnClient,
-        extn_client_message::{ExtnRequest, ExtnResponse},
-    },
+    extn::{client::extn_client::ExtnClient, extn_client_message::ExtnResponse},
     log::{debug, error},
     tokio::{self},
     utils::error::RippleError,

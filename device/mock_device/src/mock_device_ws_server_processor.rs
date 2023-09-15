@@ -51,61 +51,11 @@ impl MockDeviceMockWebsocketServerProcessor {
         client: ExtnClient,
         server: Arc<MockWebsocketServer>,
     ) -> MockDeviceMockWebsocketServerProcessor {
-        // TODO: load initial state from files
-
         MockDeviceMockWebsocketServerProcessor {
             state: MockDeviceMockWebsocketServerState::new(client, server),
             streamer: DefaultExtnStreamer::new(),
         }
     }
-
-    // async fn get_token(mut state: MockDeviceMockWebsocketServerState, msg: ExtnMessage) -> bool {
-    //     let session = state.session.read().unwrap().value.clone();
-    //     if let Err(e) = state
-    //         .client
-    //         .respond(
-    //             msg.clone(),
-    //             ripple_sdk::extn::extn_client_message::ExtnResponse::AccountSession(session),
-    //         )
-    //         .await
-    //     {
-    //         error!("Error sending back response {:?}", e);
-    //         return false;
-    //     }
-
-    //     Self::handle_error(state.clone().client, msg, RippleError::ExtnError).await
-    // }
-
-    // async fn set_token(
-    //     state: MockDeviceMockWebsocketServerState,
-    //     msg: ExtnMessage,
-    //     token: AccountSessionTokenRequest,
-    // ) -> bool {
-    //     {
-    //         let mut session = state.session.write().unwrap();
-    //         session.value.token = token.token;
-    //         session.sync();
-    //     }
-    //     Self::ack(state.client, msg).await.is_ok()
-    // }
-
-    // async fn provision(
-    //     state: MockDeviceMockWebsocketServerState,
-    //     msg: ExtnMessage,
-    //     provision: ProvisionRequest,
-    // ) -> bool {
-    //     {
-    //         let mut session = state.session.write().unwrap();
-    //         session.value.account_id = provision.account_id;
-    //         session.value.device_id = provision.device_id;
-    //         if let Some(distributor) = provision.distributor_id {
-    //             session.value.id = distributor;
-    //         }
-
-    //         session.sync();
-    //     }
-    //     Self::acqk(state.client, msg).await.is_ok()
-    // }
 }
 
 impl ExtnStreamProcessor for MockDeviceMockWebsocketServerProcessor {
