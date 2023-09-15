@@ -32,8 +32,8 @@ use crate::{
             device_events::DeviceEventRequest,
             device_peristence::StorageData,
             device_request::{
-                DeviceRequest, DistributorToken, InternetConnectionStatus, NetworkResponse,
-                SystemPowerState,
+                DeviceRequest, DistributorTokenEvent, InternetConnectionStatusEvent,
+                NetworkResponse, SystemPowerState,
             },
         },
         distributor::{
@@ -57,7 +57,7 @@ use crate::{
         manifest::device_manifest::AppLibraryEntry,
         protocol::BridgeProtocolRequest,
         pubsub::{PubSubRequest, PubSubResponse},
-        session::{AccountSession, AccountSessionRequest, SessionTokenRequest},
+        session::{AccountSessionRequest, AccountSessionResponse, SessionTokenRequest},
         settings::{SettingValue, SettingsRequest},
         status_update::ExtnStatus,
         storage_property::StorageManagerRequest,
@@ -147,7 +147,7 @@ impl From<ExtnPayload> for String {
 // #[derive(Debug, Clone, Serialize, Deserialize)]
 // pub enum RippleContext {
 //     ActivationStatus(ActivationStatus),
-//     NetworkStatus(InternetConnectionStatus),
+//     NetworkStatus(InternetConnectionStatusEvent),
 // }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -290,7 +290,7 @@ pub enum ExtnResponse {
     Config(ConfigResponse),
     PinChallenge(PinChallengeResponse),
     Keyboard(KeyboardSessionResponse),
-    AccountSession(AccountSession),
+    AccountSession(AccountSessionResponse),
     Permission(PermissionResponse),
     StorageData(StorageData),
     NetworkResponse(NetworkResponse),
@@ -331,9 +331,9 @@ pub enum ExtnEvent {
     AppEvent(AppEventRequest),
     PowerState(SystemPowerState),
     // NetworkState(NetworkState),
-    InternetState(InternetConnectionStatus),
+    InternetState(InternetConnectionStatusEvent),
     OperationalMetrics(TelemetryPayload),
-    DistributorTokenChange(DistributorToken),
+    DistributorTokenChange(DistributorTokenEvent),
 }
 
 impl ExtnPayloadProvider for ExtnEvent {

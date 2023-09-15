@@ -91,9 +91,24 @@ impl std::fmt::Display for AudioProfile {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DistributorTokenEvent {
+    pub token: String,
+    pub expires: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DistributorToken {
-    token: String,
-    expires: u64,
+    pub token: String,
+    pub expires: u64,
+}
+
+impl From<DistributorToken> for DistributorTokenEvent {
+    fn from(value: DistributorToken) -> Self {
+        DistributorTokenEvent {
+            token: value.token.clone(),
+            expires: value.expires,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -117,6 +132,30 @@ pub enum InternetConnectionStatus {
     LimitedInternet,
     CaptivePortal,
     FullyConnected,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum InternetConnectionStatusEvent {
+    NoInternet,
+    LimitedInternet,
+    CaptivePortal,
+    FullyConnected,
+}
+
+impl From<InternetConnectionStatus> for InternetConnectionStatusEvent {
+    fn from(value: InternetConnectionStatus) -> Self {
+        match value {
+            InternetConnectionStatus::NoInternet => InternetConnectionStatusEvent::NoInternet,
+            InternetConnectionStatus::LimitedInternet => {
+                InternetConnectionStatusEvent::LimitedInternet
+            }
+            InternetConnectionStatus::CaptivePortal => InternetConnectionStatusEvent::CaptivePortal,
+            InternetConnectionStatus::FullyConnected => {
+                InternetConnectionStatusEvent::FullyConnected
+            }
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -268,12 +307,12 @@ impl ExtnPayloadProvider for SystemPowerState {
     }
 }
 
-impl ExtnPayloadProvider for DistributorToken {
+impl ExtnPayloadProvider for DistributorTokenEvent {
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Event(ExtnEvent::DistributorTokenChange(self.clone()))
     }
 
-    fn get_from_payload(payload: ExtnPayload) -> Option<DistributorToken> {
+    fn get_from_payload(payload: ExtnPayload) -> Option<DistributorTokenEvent> {
         if let ExtnPayload::Event(ExtnEvent::DistributorTokenChange(r)) = payload {
             return Some(r);
         }
@@ -286,12 +325,12 @@ impl ExtnPayloadProvider for DistributorToken {
     }
 }
 
-impl ExtnPayloadProvider for InternetConnectionStatus {
+impl ExtnPayloadProvider for InternetConnectionStatusEvent {
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Event(ExtnEvent::InternetState(self.clone()))
     }
 
-    fn get_from_payload(payload: ExtnPayload) -> Option<InternetConnectionStatus> {
+    fn get_from_payload(payload: ExtnPayload) -> Option<InternetConnectionStatusEvent> {
         if let ExtnPayload::Event(ExtnEvent::InternetState(r)) = payload {
             return Some(r);
         }

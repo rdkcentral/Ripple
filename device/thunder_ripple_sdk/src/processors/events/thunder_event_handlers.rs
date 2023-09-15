@@ -18,7 +18,7 @@
 use std::collections::HashMap;
 
 use ripple_sdk::api::device::{
-    device_events::INTERNET_CHANGED_EVENT, device_request::InternetConnectionStatus,
+    device_events::INTERNET_CHANGED_EVENT, device_request::InternetConnectionStatusEvent,
 };
 
 use crate::{
@@ -289,7 +289,7 @@ impl InternetEventHandler {
 }
 
 impl ThunderEventHandlerProvider for InternetEventHandler {
-    type EVENT = InternetConnectionStatus;
+    type EVENT = InternetConnectionStatusEvent;
     fn provide(id: String, callback_type: DeviceEventCallback) -> ThunderEventHandler {
         ThunderEventHandler {
             request: Self::get_device_request(),

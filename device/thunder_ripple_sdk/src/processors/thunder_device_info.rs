@@ -65,7 +65,11 @@ use crate::{
     },
     utils::get_audio_profile_from_value,
 };
-use ripple_sdk::serde_json::{Map, Value};
+use ripple_sdk::{
+    api::device::device_request::InternetConnectionStatus,
+    log::trace,
+    serde_json::{Map, Value},
+};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 
@@ -463,6 +467,33 @@ impl ThunderDeviceInfoRequestProcessor {
             .is_ok()
     }
 
+    async fn get_internet_connection_status(
+        state: &CachedState,
+    ) -> Option<InternetConnectionStatus> {
+        let dev_response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::Network.method("getInternetConnectionState"),
+                params: None,
+            })
+            .await;
+        let value = dev_response.message.get("state").cloned();
+        if value.is_none() {
+            return None;
+        }
+        let internet_status = serde_json::from_value::<u32>(value.unwrap());
+        if internet_status.is_ok() {
+            match internet_status.unwrap() {
+                0 => Some(InternetConnectionStatus::NoInternet),
+                1 => Some(InternetConnectionStatus::LimitedInternet),
+                2 => Some(InternetConnectionStatus::CaptivePortal),
+                3 => Some(InternetConnectionStatus::FullyConnected),
+                _ => None,
+            }
+        } else {
+            None
+        }
+    }
     async fn get_make(state: &CachedState) -> String {
         let response: String;
         match state.get_make() {
@@ -487,6 +518,30 @@ impl ThunderDeviceInfoRequestProcessor {
         response
     }
 
+    async fn internet_connection_status(state: CachedState, req: ExtnMessage) -> bool {
+        if let Some(response) = Self::get_internet_connection_status(&state).await {
+            trace!(
+                "Successfully got internetConnection status from thunder: {:?}",
+                response
+            );
+            Self::respond(
+                state.get_client(),
+                req,
+                if let ExtnPayload::Response(resp) =
+                    DeviceResponse::InternetConnectionStatus(response).get_extn_payload()
+                {
+                    resp
+                } else {
+                    ExtnResponse::Error(RippleError::ProcessorError)
+                },
+            )
+            .await
+            .is_ok()
+        } else {
+            error!("Unable to get internet connection status from thunder");
+            Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
+        }
+    }
     async fn make(state: CachedState, req: ExtnMessage) -> bool {
         let response: String = Self::get_make(&state).await;
 
@@ -1258,6 +1313,9 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             }
             DeviceInfoRequest::VoiceGuidanceSpeed => {
                 Self::voice_guidance_speed(state.clone(), msg).await
+            }
+            DeviceInfoRequest::InternetConnectionStatus => {
+                Self::internet_connection_status(state.clone(), msg).await
             }
             DeviceInfoRequest::FullCapabilities => {
                 let device_capabilities = DeviceCapabilities {

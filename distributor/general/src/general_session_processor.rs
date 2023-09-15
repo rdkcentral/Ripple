@@ -88,7 +88,9 @@ impl DistributorSessionProcessor {
             .client
             .respond(
                 msg.clone(),
-                ripple_sdk::extn::extn_client_message::ExtnResponse::AccountSession(session),
+                ripple_sdk::extn::extn_client_message::ExtnResponse::AccountSession(
+                    ripple_sdk::api::session::AccountSessionResponse::AccountSession(session),
+                ),
             )
             .await
         {
@@ -168,6 +170,7 @@ impl ExtnRequestProcessor for DistributorSessionProcessor {
             AccountSessionRequest::Get => Self::get_token(state.clone(), msg).await,
             AccountSessionRequest::Provision(p) => Self::provision(state.clone(), msg, p).await,
             AccountSessionRequest::SetAccessToken(s) => Self::set_token(state, msg, s).await,
+            AccountSessionRequest::GetAccessToken => todo!(),
         }
     }
 }

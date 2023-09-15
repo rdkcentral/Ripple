@@ -63,7 +63,7 @@ use super::{
 pub struct PlatformState {
     extn_manifest: ExtnManifest,
     device_manifest: DeviceManifest,
-    pub ripple_client: RippleClient,
+    ripple_client: RippleClient,
     pub app_library_state: AppLibraryState,
     pub session_state: SessionState,
     pub cap_state: CapState,

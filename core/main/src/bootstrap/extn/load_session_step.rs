@@ -18,6 +18,7 @@
 use ripple_sdk::api::device::device_events::{
     DeviceEvent, DeviceEventCallback, DeviceEventRequest,
 };
+use ripple_sdk::api::device::device_info_request::{DeviceInfoRequest, DeviceResponse};
 use ripple_sdk::api::firebolt::fb_capabilities::{CapEvent, FireboltCap};
 
 use ripple_sdk::{api::session::AccountSessionRequest, framework::bootstrap::Bootstep};
@@ -26,6 +27,7 @@ use ripple_sdk::{async_trait::async_trait, framework::RippleResponse};
 use crate::state::bootstrap_state::BootstrapState;
 use crate::state::cap::cap_state::CapState;
 use crate::state::metrics_state::MetricsState;
+use ripple_sdk::log::{error, trace};
 
 pub struct LoadDistributorValuesStep;
 
@@ -78,6 +80,39 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
                 .insert_account_session(session);
             MetricsState::initialize(&s.platform_state).await;
             event = CapEvent::OnAvailable;
+            if let Ok(message) = s
+                .platform_state
+                .get_client()
+                .send_extn_request(AccountSessionRequest::GetAccessToken)
+                .await
+            {
+                if let Some(dist_token) = message.payload.extract() {
+                    s.platform_state
+                        .get_client()
+                        .get_extn_client()
+                        .set_distributor_token(dist_token);
+                }
+            }
+            if let Ok(resp_message) = s
+                .platform_state
+                .get_client()
+                .send_extn_request(DeviceInfoRequest::InternetConnectionStatus)
+                .await
+            {
+                if let Some(DeviceResponse::InternetConnectionStatus(internet_connection_status)) =
+                    resp_message.payload.extract()
+                {
+                    trace!("Setting internet connection status in extn client");
+                    s.platform_state
+                        .get_client()
+                        .get_extn_client()
+                        .set_internet_connection_status(internet_connection_status.into());
+                } else {
+                    error!("Unable to convert response into InternetConnection Status");
+                }
+            } else {
+                error!("Unable to get InternetConnection Status");
+            }
         }
         CapState::emit(
             &s.platform_state,

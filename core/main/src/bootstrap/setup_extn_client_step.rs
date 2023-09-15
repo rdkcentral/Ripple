@@ -55,9 +55,6 @@ impl Bootstep<BootstrapState> for SetupExtnClientStep {
         client.add_request_processor(KeyboardProcessor::new(state.platform_state.clone()));
         client.add_event_processor(ExtnStatusProcessor::new(state.clone().extn_state));
         client.add_event_processor(AppEventsProcessor::new(state.platform_state.clone()));
-        // client.add_event_processor(DistTokenChangeProcessor::new(
-        //     state.platform_state.ripple_client.clone(),
-        // ));
         client.add_request_processor(StorageManagerProcessor::new(state.platform_state.clone()));
         client.add_request_processor(StoreUserGrantsProcessor::new(state.platform_state.clone()));
         client.add_request_processor(StorePrivacySettingsProcessor::new(
