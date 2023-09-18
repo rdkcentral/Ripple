@@ -62,7 +62,9 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                     extn.metadata.symbols.len()
                 );
                 let channels = extn.get_channels();
+                debug!("num channels {}", channels.len());
                 let extensions = extn.get_extns();
+                debug!("num extns {}", extensions.len());
                 for channel in channels {
                     debug!("loading channel builder for {}", channel.id);
                     if let Ok(extn_id) = ExtnId::try_from(channel.id.clone()) {

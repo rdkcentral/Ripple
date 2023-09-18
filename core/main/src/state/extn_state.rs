@@ -34,7 +34,7 @@ use ripple_sdk::{
         ffi::{ffi_channel::ExtnChannel, ffi_library::ExtnMetadata, ffi_message::CExtnMessage},
     },
     libloading::Library,
-    log::info,
+    log::{debug, info},
     tokio::sync::mpsc,
     utils::error::RippleError,
 };
@@ -86,6 +86,7 @@ impl LoadedLibrary {
     }
 
     pub fn get_extns(&self) -> Vec<ExtnSymbol> {
+        debug!("extn state {:?}", self.metadata.symbols);
         let extn_ids: Vec<String> = self
             .metadata
             .symbols

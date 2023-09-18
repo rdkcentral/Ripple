@@ -17,15 +17,17 @@
 
 use std::sync::Arc;
 
+use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::{
     api::status_update::ExtnStatus,
     crossbeam::channel::Receiver as CReceiver,
-    export_channel_builder, export_extn_metadata,
+    export_channel_builder, export_extn_metadata, export_jsonrpc_extn_builder,
     extn::{
         client::{extn_client::ExtnClient, extn_sender::ExtnSender},
         extn_id::{ExtnClassId, ExtnId},
         ffi::{
             ffi_channel::{ExtnChannel, ExtnChannelBuilder},
+            ffi_jsonrpsee::JsonRpseeExtnBuilder,
             ffi_library::{CExtnMetadata, ExtnMetadata, ExtnSymbolMetadata},
             ffi_message::CExtnMessage,
         },
@@ -38,6 +40,7 @@ use ripple_sdk::{
 };
 
 use crate::{
+    mock_device_controller::{MockDeviceController, MockDeviceControllerServer},
     mock_device_ws_server_processor::MockDeviceMockWebsocketServerProcessor,
     utils::{boot_ws_server, load_mock_data},
 };
@@ -47,17 +50,23 @@ const EXTN_NAME: &str = "mock_device";
 fn init_library() -> CExtnMetadata {
     let _ = init_logger(EXTN_NAME.into());
 
-    let dist_meta = ExtnSymbolMetadata::get(
+    let mock_device_channel = ExtnSymbolMetadata::get(
         ExtnId::new_channel(ExtnClassId::Device, EXTN_NAME.into()),
         ContractFulfiller::new(vec![RippleContract::MockWebsocketServer]),
         Version::new(1, 0, 0),
     );
+    let mock_device_extn = ExtnSymbolMetadata::get(
+        ExtnId::new_extn(ExtnClassId::Jsonrpsee, EXTN_NAME.into()),
+        ContractFulfiller::new(vec![RippleContract::JsonRpsee]),
+        Version::new(1, 0, 0),
+    );
 
-    debug!("Returning distributor builder");
+    debug!("Returning mock_device metadata builder");
     let extn_metadata = ExtnMetadata {
         name: EXTN_NAME.into(),
-        symbols: vec![dist_meta],
+        symbols: vec![mock_device_channel, mock_device_extn],
     };
+
     extn_metadata.into()
 }
 
@@ -117,6 +126,7 @@ fn build(extn_id: String) -> Result<Box<ExtnChannel>, RippleError> {
 }
 
 fn init_extn_builder() -> ExtnChannelBuilder {
+    debug!("extn build");
     ExtnChannelBuilder {
         build,
         service: EXTN_NAME.into(),
@@ -124,3 +134,28 @@ fn init_extn_builder() -> ExtnChannelBuilder {
 }
 
 export_channel_builder!(ExtnChannelBuilder, init_extn_builder);
+
+fn get_rpc_extns(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) -> Methods {
+    debug!("run rpc extns");
+    let mut methods = Methods::new();
+    let client = ExtnClient::new(receiver, sender);
+    let _ = methods.merge(MockDeviceController::new(client.clone()).into_rpc());
+    debug!("methods={methods:?}");
+    methods
+}
+
+fn get_extended_capabilities() -> Option<String> {
+    debug!("ext caps");
+    Some(String::from(std::include_str!("./extended-open-rpc.json")))
+}
+
+fn init_jsonrpsee_builder() -> JsonRpseeExtnBuilder {
+    debug!("hello");
+    JsonRpseeExtnBuilder {
+        get_extended_capabilities,
+        build: get_rpc_extns,
+        service: EXTN_NAME.into(),
+    }
+}
+
+export_jsonrpc_extn_builder!(JsonRpseeExtnBuilder, init_jsonrpsee_builder);

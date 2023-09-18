@@ -16,7 +16,7 @@
 //
 
 use ripple_sdk::{
-    api::mock_websocket_server::{AddRequestResponseParams, MockWebsocketServerRequest},
+    api::mock_websocket_server::MockWebsocketServerRequest,
     async_trait::async_trait,
     extn::client::{
         extn_client::ExtnClient,
@@ -24,6 +24,7 @@ use ripple_sdk::{
             DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
         },
     },
+    log::debug,
     tokio::sync::Mutex,
 };
 use std::sync::Arc;
@@ -103,10 +104,10 @@ impl ExtnRequestProcessor for MockDeviceMockWebsocketServerProcessor {
         msg: ripple_sdk::extn::extn_client_message::ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
+        debug!("msg={msg:?}, extracted_message={extracted_message:?}");
         // TODO: call the get and remove for the requests
         match extracted_message {
             MockWebsocketServerRequest::AddRequestResponse(params) => {
-                // state.server.
                 state.server.add_request_response(&params.request, params.responses.clone()).await
             }
             // AccountSessionRequest::Provision(p) => Self::provision(state.clone(), msg, p).await,
