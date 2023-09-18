@@ -21,13 +21,11 @@ use super::{
     distributor_discovery::{DiscoveryRequest, MediaEventRequest},
     distributor_encoder::EncoderRequest,
     distributor_permissions::PermissionRequest,
-    distributor_platform::PlatformTokenRequest,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DistributorRequest {
     Permission(PermissionRequest),
-    Platform(PlatformTokenRequest),
     Discovery(DiscoveryRequest),
     MediaEvent(MediaEventRequest),
     Encoder(EncoderRequest),

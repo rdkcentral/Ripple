@@ -19,7 +19,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     api::session::AccountSession,
-    //api::{firebolt::fb_authentication::TokenResult, session::AccountSession},
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
 };
@@ -53,26 +52,6 @@ impl ExtnPayloadProvider for PlatformTokenRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::PlatformSessionToken
+        RippleContract::Session(crate::api::session::SessionAdjective::Platform)
     }
 }
-
-// pub type PlatformTokenResponse = TokenResult;
-
-// impl ExtnPayloadProvider for PlatformTokenResponse {
-//     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-//         if let ExtnPayload::Response(ExtnResponse::Token(v)) = payload {
-//             return Some(v);
-//         }
-
-//         None
-//     }
-
-//     fn get_extn_payload(&self) -> ExtnPayload {
-//         ExtnPayload::Response(ExtnResponse::Token(self.clone()))
-//     }
-
-//     fn contract() -> crate::framework::ripple_contract::RippleContract {
-//         RippleContract::PlatformSessionToken
-//     }
-// }

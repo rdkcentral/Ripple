@@ -225,10 +225,8 @@ impl ExtnClient {
                     }
                     let message = message_result.unwrap();
                     if message.payload.is_response() {
-                        debug!("**** message.payload.is_response msg={:?}", message);
                         Self::handle_single(message, self.response_processors.clone());
                     } else if message.payload.is_event() {
-                        debug!("**** message.payload.is_event msg={:?}", message);
                         Self::handle_vec_stream(message, self.event_processors.clone());
                     } else {
                         let current_cap = self.sender.get_cap();
@@ -252,7 +250,7 @@ impl ExtnClient {
 
                                 tokio::spawn(async move {
                                     if let Err(e) = sender.send(new_message.into()) {
-                                        error!("**** Error forwarding request {:?}", e)
+                                        error!("Error forwarding request {:?}", e)
                                     }
                                 });
                             } else {
@@ -261,7 +259,6 @@ impl ExtnClient {
                                     message.clone(),
                                     self.request_processors.clone(),
                                 ) {
-                                    error!("**** handle_no_processor_error");
                                     self.handle_no_processor_error(message);
                                 }
                             }
@@ -294,7 +291,7 @@ impl ExtnClient {
 
         if let Ok(resp) = message.get_response(ExtnResponse::Error(RippleError::ProcessorError)) {
             if self.sender.respond(resp.into(), req_sender).is_err() {
-                error!("**** Couldnt send no processor response");
+                error!("Couldnt send no processor response");
             }
         }
     }
@@ -316,7 +313,7 @@ impl ExtnClient {
                 }
             });
         } else {
-            error!("**** No response processor for {:?}", msg);
+            error!("No response processor for {:?}", msg);
         }
     }
 
@@ -333,12 +330,12 @@ impl ExtnClient {
         if let Some(sender) = v {
             tokio::spawn(async move {
                 if let Err(e) = sender.send(msg.clone()).await {
-                    error!("**** Error sending the response back {:?}", e);
+                    error!("Error sending the response back {:?}", e);
                 }
             });
             true
         } else {
-            error!("**** No Request Processor for {} {:?}", id_c, msg);
+            error!("No Request Processor for {} {:?}", id_c, msg);
             false
         }
     }
