@@ -265,15 +265,12 @@ pub trait ExtnEventProcessor: ExtnStreamProcessor + Send + Sync + 'static {
         msg: ExtnMessage,
         error: RippleError,
     ) -> Option<bool> {
-        error!(
-            "**** invalid event received {:?} for {:?}",
-            msg.payload, error
-        );
+        error!("invalid event received {:?} for {:?}", msg.payload, error);
         None
     }
 
     async fn run(&mut self) {
-        debug!("**** starting event processor for {:?}", self.contract());
+        debug!("starting event processor for {:?}", self.contract());
         start_rx_stream!(
             Self,
             self,

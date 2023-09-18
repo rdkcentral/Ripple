@@ -32,7 +32,6 @@ use ripple_sdk::{
         session::TokenType,
     },
     extn::extn_client_message::ExtnResponse,
-    log::debug,
 };
 
 use crate::{
