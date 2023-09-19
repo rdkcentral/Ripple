@@ -19,8 +19,8 @@ use jsonrpsee::{core::RpcResult, types::error::CallError};
 use ripple_sdk::{
     api::{
         device::device_peristence::{
-            DevicePersistenceRequest, DeleteStorageProperty,
-            GetStorageProperty, SetStorageProperty, StorageData,
+            DeleteStorageProperty, DevicePersistenceRequest, GetStorageProperty,
+            SetStorageProperty, StorageData,
         },
         firebolt::fb_capabilities::CAPABILITY_NOT_AVAILABLE,
         storage_property::StorageProperty,
@@ -500,7 +500,7 @@ impl StorageManager {
                 } else {
                     Err(RippleError::ParseError)
                 }
-            },
+            }
             Err(e) => Err(e),
         }
     }

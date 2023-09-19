@@ -249,7 +249,6 @@ const PROPERTY_DATA_CLOSED_CAPTIONS_WINDOW_OPACITY: PropertyData = PropertyData 
     ]),
 };
 
-
 const PROPERTY_DATA_CLOSED_CAPTIONS_TEXT_ALIGN: PropertyData = PropertyData {
     key: KEY_TEXT_ALIGN,
     namespace: NAMESPACE_CLOSED_CAPTIONS,

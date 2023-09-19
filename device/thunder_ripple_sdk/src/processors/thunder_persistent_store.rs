@@ -20,7 +20,10 @@ use crate::{
     ripple_sdk::{
         api::device::{
             device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
-            device_peristence::{DevicePersistenceRequest, DeleteStorageProperty, GetStorageProperty, SetStorageProperty},
+            device_peristence::{
+                DeleteStorageProperty, DevicePersistenceRequest, GetStorageProperty,
+                SetStorageProperty,
+            },
         },
         async_trait::async_trait,
         extn::{
@@ -59,7 +62,8 @@ pub struct ThunderStorageRequestProcessor {
 
 #[async_trait]
 pub trait StorageService {
-    async fn delete_key(state: ThunderState, req: ExtnMessage, data: DeleteStorageProperty) -> bool;
+    async fn delete_key(state: ThunderState, req: ExtnMessage, data: DeleteStorageProperty)
+        -> bool;
     async fn delete_namespace(self: Box<Self>, namespace: String) -> bool;
     async fn flush_cache(self: Box<Self>) -> bool;
     // async fn get_keys(self: Box<Self>, namespace: String) -> (Vec<String>, bool);
@@ -78,7 +82,11 @@ impl ThunderStorageRequestProcessor {
     }
 
     #[allow(dead_code)]
-    async fn delete_key(state: ThunderState, req: ExtnMessage, data: DeleteStorageProperty) -> bool {
+    async fn delete_key(
+        state: ThunderState,
+        req: ExtnMessage,
+        data: DeleteStorageProperty,
+    ) -> bool {
         let thunder_method = ThunderPlugin::PersistentStorage.method("deleteKey");
         //let client = self.state.clone();
         let params = Some(DeviceChannelParams::Json(
