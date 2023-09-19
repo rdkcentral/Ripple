@@ -1089,7 +1089,7 @@ impl GrantStepExecutor {
                 Err(_) => {
                     error!("Unable to get app state");
                     return Err(DenyReasonWithCap {
-                        reason: DenyReason::AppNotInActiveState,
+                        reason: DenyReason::Unavailable,
                         caps: vec![permission.cap.clone()],
                     });
                 }
