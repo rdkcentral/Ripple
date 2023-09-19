@@ -15,8 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::sync::Arc;
-
 use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::{
     api::status_update::ExtnStatus,
@@ -89,13 +87,10 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
                 .unwrap_or_default();
             debug!("mock_data={:?}", mock_data);
 
-            let mock_data = Arc::new(Mutex::new(mock_data));
-
-            if let Ok(server) = boot_ws_server(client.clone(), mock_data.clone()).await {
+            if let Ok(server) = boot_ws_server(client.clone(), Mutex::new(mock_data)).await {
                 client.add_request_processor(MockDeviceMockWebsocketServerProcessor::new(
                     client.clone(),
                     server,
-                    mock_data,
                 ));
             } else {
                 // TODO: check panic message

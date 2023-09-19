@@ -27,12 +27,14 @@ use ripple_sdk::{
         sync::Mutex,
     },
 };
-use serde_hashkey::{to_key, Key};
+use serde_hashkey::to_key;
 use serde_json::Value;
 use tokio_tungstenite::{
     accept_hdr_async,
     tungstenite::{handshake, Error, Message, Result},
 };
+
+use crate::utils::MockData;
 
 // TODO: look at to_key().unwrap()
 
@@ -85,7 +87,7 @@ impl Default for WsServerParameters {
 
 #[derive(Debug)]
 pub struct MockWebsocketServer {
-    mock_data: Arc<Mutex<HashMap<Key, Vec<Value>>>>,
+    mock_data: Mutex<MockData>,
 
     listener: TcpListener,
 
@@ -105,7 +107,7 @@ pub enum MockWebsocketServerError {
 
 impl MockWebsocketServer {
     pub async fn new(
-        mock_data: Arc<Mutex<HashMap<Key, Vec<Value>>>>,
+        mock_data: Mutex<MockData>,
         server_config: WsServerParameters,
     ) -> Result<Self, MockWebsocketServerError> {
         let listener = Self::create_listener(server_config.port.unwrap_or(0)).await?;

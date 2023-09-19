@@ -31,33 +31,21 @@ use ripple_sdk::{
         extn_client_message::{ExtnMessage, ExtnResponse},
     },
     log::{debug, error},
-    tokio::sync::{
-        mpsc::{Receiver, Sender},
-        Mutex,
-    },
+    tokio::sync::mpsc::{Receiver, Sender},
 };
 use std::sync::Arc;
 
-use crate::{mock_ws_server::MockWebsocketServer, utils::MockData};
+use crate::mock_ws_server::MockWebsocketServer;
 
 #[derive(Debug, Clone)]
 pub struct MockDeviceMockWebsocketServerState {
     client: ExtnClient,
     server: Arc<MockWebsocketServer>,
-    mock_data: Arc<Mutex<MockData>>,
 }
 
 impl MockDeviceMockWebsocketServerState {
-    fn new(
-        client: ExtnClient,
-        server: Arc<MockWebsocketServer>,
-        mock_data: Arc<Mutex<MockData>>,
-    ) -> Self {
-        Self {
-            client,
-            server,
-            mock_data,
-        }
+    fn new(client: ExtnClient, server: Arc<MockWebsocketServer>) -> Self {
+        Self { client, server }
     }
 }
 
@@ -70,10 +58,9 @@ impl MockDeviceMockWebsocketServerProcessor {
     pub fn new(
         client: ExtnClient,
         server: Arc<MockWebsocketServer>,
-        mock_data: Arc<Mutex<MockData>>,
     ) -> MockDeviceMockWebsocketServerProcessor {
         MockDeviceMockWebsocketServerProcessor {
-            state: MockDeviceMockWebsocketServerState::new(client, server, mock_data),
+            state: MockDeviceMockWebsocketServerState::new(client, server),
             streamer: DefaultExtnStreamer::new(),
         }
     }

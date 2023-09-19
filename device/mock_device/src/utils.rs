@@ -42,7 +42,7 @@ pub enum BootWsServerError {
 
 pub async fn boot_ws_server(
     mut client: ExtnClient,
-    mock_data: Arc<Mutex<MockData>>,
+    mock_data: Mutex<MockData>,
 ) -> Result<Arc<MockWebsocketServer>, BootWsServerError> {
     debug!("Booting WS Server for mock device");
     let gateway = platform_gateway_url(&mut client).await?;
