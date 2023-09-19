@@ -762,31 +762,23 @@ impl GrantPolicyEnforcer {
     }
 
     fn is_policy_valid(platform_state: &PlatformState, policy: &GrantPolicy) -> bool {
-        let mut _result = false;
+        // Privacy settings in a policy takes higher precedence and we are
+        // evaluating first.
         if let Some(privacy) = &policy.privacy_setting {
             let privacy_property = &privacy.property;
             return platform_state
                 .open_rpc_state
                 .check_privacy_property(privacy_property);
-        } else {
-            _result = true;
-            if !policy.options.is_empty() {
-                if let Some(grant_steps) = policy.get_steps_without_grant() {
-                    for step in grant_steps {
-                        if platform_state
-                            .open_rpc_state
-                            .get_capability_policy(step.capability.clone())
-                            .is_some()
-                        {
-                            _result = false;
-                        }
-                    }
-                }
-            } else {
-                _result = false;
-            }
         }
-        _result
+        if policy.get_steps_without_grant().is_some() {
+            // If any cap in any step in a policy is not starting with
+            // "xrn:firebolt:capability:usergrant:" pattern,
+            // we should treat it as a invalid policy.
+            return false;
+        }
+        // If a policy doesn't have a privacy settings and caps in all steps starts with
+        //xrn:firebolt:capability:usergrant: then the policy deemed to be valid.
+        true
     }
 
     pub fn get_allow_value(platform_state: &PlatformState, property_name: &str) -> Option<bool> {
@@ -1409,7 +1401,7 @@ mod tests {
                     }],
                 },
             ]);
-            let caller_session: CallerSession = ctx.clone().into();
+            let caller_session: CallerSession = CallerSession::default();
             let app_identifier: AppIdentification = ctx.clone().into();
             let pinchallenge_response = state
                 .provider_broker_state
@@ -1444,7 +1436,7 @@ mod tests {
                     }],
                 },
             ]);
-            let caller_session: CallerSession = ctx.clone().into();
+            let caller_session: CallerSession = CallerSession::default();
             let app_identifier: AppIdentification = ctx.clone().into();
             let pinchallenge_response = state
                 .provider_broker_state
@@ -1526,7 +1518,7 @@ mod tests {
                     },
                 ],
             }]);
-            let caller_session: CallerSession = ctx.clone().into();
+            let caller_session: CallerSession = CallerSession::default();
             let app_identifier: AppIdentification = ctx.clone().into();
             let challenge_responses = state.provider_broker_state.send_pinchallenge_failure(
                 &state,
@@ -1563,7 +1555,7 @@ mod tests {
                     },
                 ],
             }]);
-            let caller_session: CallerSession = ctx.clone().into();
+            let caller_session: CallerSession = CallerSession::default();
             let app_identifier: AppIdentification = ctx.clone().into();
             let challenge_responses = state
                 .provider_broker_state
@@ -1594,7 +1586,7 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn test_evaluate_options_all_steps_granted() {
+        pub async fn test_evaluate_options_all_steps_granted() {
             let (state, ctx, perm, policy) = setup(vec![GrantRequirements {
                 steps: vec![
                     GrantStep {
@@ -1607,7 +1599,7 @@ mod tests {
                     },
                 ],
             }]);
-            let caller_session: CallerSession = ctx.clone().into();
+            let caller_session: CallerSession = CallerSession::default();
             let app_identifier: AppIdentification = ctx.clone().into();
             let challenge_responses = state
                 .provider_broker_state
