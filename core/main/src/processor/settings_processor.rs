@@ -137,7 +137,7 @@ impl SettingsProcessor {
                         Some(SettingValue::bool(enabled))
                     }
                     ClosedCaptions => {
-                        let enabled = ClosedcaptionsImpl::closed_captions_settings_enabled(state)
+                        let enabled = ClosedcaptionsImpl::cc_enabled(state)
                             .await
                             .unwrap_or(false);
                         Some(SettingValue::bool(enabled))

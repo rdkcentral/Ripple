@@ -74,10 +74,13 @@ pub struct SetStorageProperty {
     pub data: StorageData,
 }
 
+pub type DeleteStorageProperty = GetStorageProperty;
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum DevicePersistenceRequest {
     Get(GetStorageProperty),
     Set(SetStorageProperty),
+    Delete(DeleteStorageProperty),
 }
 
 impl ExtnPayloadProvider for DevicePersistenceRequest {

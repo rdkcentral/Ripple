@@ -20,7 +20,7 @@ use crate::{
     ripple_sdk::{
         api::device::{
             device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
-            device_peristence::{DevicePersistenceRequest, GetStorageProperty, SetStorageProperty},
+            device_peristence::{DevicePersistenceRequest, DeleteStorageProperty, GetStorageProperty, SetStorageProperty},
         },
         async_trait::async_trait,
         extn::{
@@ -59,7 +59,7 @@ pub struct ThunderStorageRequestProcessor {
 
 #[async_trait]
 pub trait StorageService {
-    async fn delete_key(self: Box<Self>, namespace: String, key: String) -> bool;
+    async fn delete_key(state: ThunderState, req: ExtnMessage, data: DeleteStorageProperty) -> bool;
     async fn delete_namespace(self: Box<Self>, namespace: String) -> bool;
     async fn flush_cache(self: Box<Self>) -> bool;
     // async fn get_keys(self: Box<Self>, namespace: String) -> (Vec<String>, bool);
@@ -78,23 +78,35 @@ impl ThunderStorageRequestProcessor {
     }
 
     #[allow(dead_code)]
-    async fn delete_key(self, namespace: String, key: String) -> bool {
+    async fn delete_key(state: ThunderState, req: ExtnMessage, data: DeleteStorageProperty) -> bool {
         let thunder_method = ThunderPlugin::PersistentStorage.method("deleteKey");
-        let client = self.state.clone();
+        //let client = self.state.clone();
         let params = Some(DeviceChannelParams::Json(
             json!({
-                "namespace": namespace,
-                "key": key,
+                "namespace": data.namespace,
+                "key": data.key,
             })
             .to_string(),
         ));
-        let response = client
+        let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: thunder_method,
                 params,
             })
             .await;
+        info!("{}", response.message);
+        let response = match response.message["success"].as_bool() {
+            Some(v) => ExtnResponse::Boolean(v),
+            None => ExtnResponse::Error(RippleError::InvalidOutput),
+        };
+        info!("thunder : {:?}", response);
+
+        Self::respond(state.get_client(), req, response)
+            .await
+            .is_ok()
+
+        /*
         if response.message.get("success").is_none()
             || !response.message["success"].as_bool().unwrap_or_default()
         {
@@ -102,6 +114,7 @@ impl ThunderStorageRequestProcessor {
             return false;
         }
         true
+        */
     }
 
     #[allow(dead_code)]
@@ -268,6 +281,9 @@ impl ExtnRequestProcessor for ThunderStorageRequestProcessor {
             }
             DevicePersistenceRequest::Set(set_params) => {
                 Self::set_value(state.clone(), msg, set_params).await
+            }
+            DevicePersistenceRequest::Delete(params) => {
+                Self::delete_key(state.clone(), msg, params).await
             }
         }
     }
