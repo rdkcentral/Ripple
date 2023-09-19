@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
+use chrono::{LocalResult, TimeZone, Utc};
 use std::{
     sync::{Arc, Mutex},
     thread,
@@ -32,8 +32,8 @@ for ISO8601 format, e.g: 2022-06-23T16:16:10Z
 */
 
 pub fn timestamp_2_iso8601(timestamp: i64) -> String {
-    if let Some(t) = NaiveDateTime::from_timestamp_opt(timestamp, 0) {
-        DateTime::<Utc>::from_utc(t, Utc).to_rfc3339()
+    if let LocalResult::Single(t) = chrono::Local.timestamp_opt(timestamp, 0) {
+        t.to_rfc3339()
     } else {
         timestamp.to_string()
     }

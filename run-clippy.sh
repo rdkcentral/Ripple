@@ -1,3 +1,4 @@
 #!/bin/bash
 
-cargo clippy --tests --examples --all-targets --all-features
+cargo fmt --all &&
+cargo clippy --tests --examples --all-targets --all-features -- -D warnings

@@ -380,9 +380,7 @@ impl DelegatedLauncherHandler {
                         AppEvents::emit(
                             &cloned_ps,
                             LCM_EVENT_ON_SESSION_TRANSITION_CANCELED,
-                            &json!({
-                                "app_id": cloned_app_id
-                            }),
+                            &json!({ "app_id": cloned_app_id }),
                         )
                         .await;
                     } else {
@@ -594,9 +592,13 @@ impl DelegatedLauncherHandler {
                         }
                     };
                     debug!("exact policy {:?}", policy);
-                    policy.is_some_and(|policy| {
-                        policy.evaluate_at.contains(&EvaluateAt::ActiveSession)
-                    })
+                    if policy.is_none() {
+                        return false;
+                    }
+                    policy
+                        .unwrap()
+                        .evaluate_at
+                        .contains(&EvaluateAt::ActiveSession)
                 } else {
                     false
                 }
@@ -685,7 +687,8 @@ impl DelegatedLauncherHandler {
         state: LifecycleState,
     ) -> Result<AppManagerResponse, AppError> {
         debug!("set_state: entry: app_id={}, state={:?}", app_id, state);
-        let app = self.platform_state.app_manager_state.get(app_id);
+        let am_state = &self.platform_state.app_manager_state;
+        let app = am_state.get(app_id);
         if app.is_none() {
             warn!("appid:{} Not found", app_id);
             return Err(AppError::NotFound);
@@ -711,9 +714,11 @@ impl DelegatedLauncherHandler {
             "set_state app_id:{} prev state:{:?} state{:?}",
             app_id, previous_state, state
         );
-        self.platform_state
-            .app_manager_state
-            .set_state(app_id, state);
+        am_state.set_state(app_id, state);
+        // remove active session id when the app is going back to inactive (not going to inactive for first time)
+        if (previous_state != LifecycleState::Initializing) && (state == LifecycleState::Inactive) {
+            am_state.update_active_session(app_id, None);
+        }
         let state_change = StateChange {
             state,
             previous: previous_state,

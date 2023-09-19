@@ -84,6 +84,37 @@ impl AppManifest {
     }
 }
 
+impl Default for AppManifest {
+    fn default() -> Self {
+        AppManifest {
+            app_key: String::from("xrn:firebolt:application:test"),
+            name: String::from("test"),
+            start_page: String::from("https://firecertapp.firecert.comcast.com/prod/index.html"),
+            content_catalog: None,
+            runtime: String::from("Web"),
+            x: x_default(),
+            y: y_default(),
+            w: w_default(),
+            h: h_default(),
+            capabilities: AppCapabilities {
+                used: Capability {
+                    required: [].to_vec(),
+                    optional: [].to_vec(),
+                },
+                managed: Capability {
+                    required: [].to_vec(),
+                    optional: [].to_vec(),
+                },
+                provided: Capability {
+                    required: [].to_vec(),
+                    optional: [].to_vec(),
+                },
+            },
+            properties: None,
+        }
+    }
+}
+
 fn x_default() -> u32 {
     X_DEFAULT
 }
