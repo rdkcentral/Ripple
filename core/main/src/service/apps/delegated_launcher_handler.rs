@@ -366,10 +366,7 @@ impl DelegatedLauncherHandler {
                 tokio::spawn(async move {
                     let resolved_result = GrantState::check_with_roles(
                         &cloned_ps,
-                        &CallerSession {
-                            session_id: None,
-                            app_id: None,
-                        },
+                        &CallerSession::default(),
                         &AppIdentification {
                             app_id: cloned_app_id.to_owned(),
                         },

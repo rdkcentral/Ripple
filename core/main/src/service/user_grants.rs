@@ -80,14 +80,14 @@ pub struct GrantState {
 impl GrantState {
     pub fn new(manifest: DeviceManifest) -> GrantState {
         let saved_dir = manifest.clone().configuration.saved_dir;
-        let device_grant_path = format!("{}/device_grants", saved_dir);
+        let device_grant_path = format!("{}device_grants", saved_dir);
         let dev_grant_store = if let Ok(v) = FileStore::load(device_grant_path.clone()) {
             v
         } else {
             FileStore::new(device_grant_path, HashSet::new())
         };
 
-        let app_grant_path = format!("{}/app_grants", saved_dir);
+        let app_grant_path = format!("{}app_grants", saved_dir);
         let app_grant_store = if let Ok(v) = FileStore::load(app_grant_path.clone()) {
             v
         } else {
