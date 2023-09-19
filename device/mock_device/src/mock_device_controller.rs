@@ -23,14 +23,15 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::CallContext,
         mock_websocket_server::{
             AddRequestResponseParams, MockWebsocketServerRequest, MockWebsocketServerResponse,
+            RemoveRequestParams,
         },
     },
     async_trait::async_trait,
     extn::client::extn_client::ExtnClient,
+    log::debug,
     tokio::runtime::Runtime,
     utils::error::RippleError,
 };
-use serde_json::Value;
 
 #[derive(Debug, Clone)]
 enum MockDeviceControllerError {
@@ -59,6 +60,13 @@ pub trait MockDeviceController {
         ctx: CallContext,
         req: AddRequestResponseParams,
     ) -> RpcResult<MockWebsocketServerResponse>;
+
+    #[method(name = "mockdevice.removeRequest")]
+    async fn remove_request(
+        &self,
+        ctx: CallContext,
+        req: RemoveRequestParams,
+    ) -> RpcResult<MockWebsocketServerResponse>;
 }
 
 pub struct MockDeviceController {
@@ -74,11 +82,11 @@ impl MockDeviceController {
         }
     }
 
-    async fn add_request_response_impl(
+    async fn request(
         &self,
-        req: AddRequestResponseParams,
+        request: MockWebsocketServerRequest,
     ) -> Result<MockWebsocketServerResponse, MockDeviceControllerError> {
-        let request = MockWebsocketServerRequest::AddRequestResponse(req);
+        debug!("request={request:?}");
         let mut client = self.client.clone();
         self.rt
             .spawn(async move {
@@ -100,7 +108,20 @@ impl MockDeviceControllerServer for MockDeviceController {
         req: AddRequestResponseParams,
     ) -> RpcResult<MockWebsocketServerResponse> {
         let res = self
-            .add_request_response_impl(req)
+            .request(MockWebsocketServerRequest::AddRequestResponse(req))
+            .await
+            .map_err(|e| jsonrpsee::core::Error::Custom(e.to_string()))?;
+
+        Ok(res)
+    }
+
+    async fn remove_request(
+        &self,
+        _ctx: CallContext,
+        req: RemoveRequestParams,
+    ) -> RpcResult<MockWebsocketServerResponse> {
+        let res = self
+            .request(MockWebsocketServerRequest::RemoveRequest(req))
             .await
             .map_err(|e| jsonrpsee::core::Error::Custom(e.to_string()))?;
 

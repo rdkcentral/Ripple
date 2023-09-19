@@ -259,6 +259,9 @@ impl MockWebsocketServer {
 
     pub async fn remove_request(&self, request: &Value) {
         let mut mock_data = self.mock_data.lock().await;
-        let _ = mock_data.remove(&to_key(request).unwrap());
+        let key = to_key(request).unwrap();
+        debug!("Removing mock data key={key:?}");
+        let resps = mock_data.remove(&key);
+        debug!("Removed mock data responses={resps:?}");
     }
 }

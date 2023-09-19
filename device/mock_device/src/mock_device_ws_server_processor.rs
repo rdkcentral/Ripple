@@ -18,6 +18,7 @@
 use ripple_sdk::{
     api::mock_websocket_server::{
         AddRequestResponseResponse, MockWebsocketServerRequest, MockWebsocketServerResponse,
+        RemoveRequestResponse,
     },
     async_trait::async_trait,
     extn::{
@@ -77,8 +78,15 @@ impl MockDeviceMockWebsocketServerProcessor {
         }
     }
 
-    async fn respond(client: ExtnClient, req: ExtnMessage, resp: ExtnResponse) -> bool {
-        let resp = client.clone().respond(req, resp).await;
+    async fn respond(
+        client: ExtnClient,
+        req: ExtnMessage,
+        resp: MockWebsocketServerResponse,
+    ) -> bool {
+        let resp = client
+            .clone()
+            .respond(req, ExtnResponse::MockWebsocketServer(resp))
+            .await;
 
         match resp {
             Ok(_) => true,
@@ -119,7 +127,6 @@ impl ExtnRequestProcessor for MockDeviceMockWebsocketServerProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         debug!("extn_request={extn_request:?}, extracted_message={extracted_message:?}");
-        // TODO: call the get and remove for the requests
         match extracted_message {
             MockWebsocketServerRequest::AddRequestResponse(params) => {
                 state
@@ -130,11 +137,21 @@ impl ExtnRequestProcessor for MockDeviceMockWebsocketServerProcessor {
                 Self::respond(
                     state.client.clone(),
                     extn_request,
-                    ExtnResponse::MockWebsocketServer(
-                        MockWebsocketServerResponse::AddRequestResponse(
-                            AddRequestResponseResponse { success: true },
-                        ),
-                    ),
+                    MockWebsocketServerResponse::AddRequestResponse(AddRequestResponseResponse {
+                        success: true,
+                    }),
+                )
+                .await
+            }
+            MockWebsocketServerRequest::RemoveRequest(params) => {
+                state.server.remove_request(&params.request).await;
+
+                Self::respond(
+                    state.client.clone(),
+                    extn_request,
+                    MockWebsocketServerResponse::RemoveRequestResponse(RemoveRequestResponse {
+                        success: true,
+                    }),
                 )
                 .await
             }

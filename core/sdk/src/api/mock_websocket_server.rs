@@ -26,11 +26,13 @@ use crate::{
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum MockWebsocketServerRequest {
     AddRequestResponse(AddRequestResponseParams),
+    RemoveRequest(RemoveRequestParams),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum MockWebsocketServerResponse {
     AddRequestResponse(AddRequestResponseResponse),
+    RemoveRequestResponse(RemoveRequestResponse),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -41,6 +43,16 @@ pub struct AddRequestResponseParams {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AddRequestResponseResponse {
+    pub success: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RemoveRequestParams {
+    pub request: Value,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RemoveRequestResponse {
     pub success: bool,
 }
 
