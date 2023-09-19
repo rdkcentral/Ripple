@@ -19,7 +19,7 @@ use std::collections::HashMap;
 
 use ripple_sdk::{
     api::{
-        device::device_events::VOICE_GUIDANCE_CHANGED,
+        device::device_events::{VOICE_GUIDANCE_ENABLED_CHANGED, VOICE_GUIDANCE_SETTINGS_CHANGED},
         firebolt::{
             fb_capabilities::{CapabilityRole, FireboltCap, RoleInfo},
             fb_general::ListenRequest,
@@ -212,14 +212,13 @@ impl SettingsProcessor {
                         state,
                         &ctx,
                         &ListenRequest { listen: true },
-                        VOICE_GUIDANCE_CHANGED,
                     )
                     .await
                     .ok();
                     Self::subscribe_event(
                         state,
                         ctx.clone(),
-                        VOICE_GUIDANCE_CHANGED,
+                        VOICE_GUIDANCE_ENABLED_CHANGED,
                         vg_keys.clone(),
                     )
                 }

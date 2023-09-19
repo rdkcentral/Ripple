@@ -1165,7 +1165,7 @@ pub fn get_dimension_from_resolution(resolution: &str) -> Vec<i32> {
 
 /*
 per https://ccp.sys.comcast.net/browse/RPPL-283
-Firebolt spec range for this value is 0 >= value <= 10
+Firebolt spec range for this value is 0.25 >= value <= 2.0
 but...
 Thunder is 1..100
 for
