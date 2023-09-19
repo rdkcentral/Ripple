@@ -28,19 +28,21 @@ use ripple_sdk::{
     async_trait::async_trait,
     extn::client::extn_client::ExtnClient,
     tokio::runtime::Runtime,
+    utils::error::RippleError,
 };
+use serde_json::Value;
 
 #[derive(Debug, Clone)]
 enum MockDeviceControllerError {
-    RequestFailed,
+    RequestFailed(RippleError),
     ExtnCommunicationFailed,
 }
 
 impl Display for MockDeviceControllerError {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::result::Result<(), ::std::fmt::Error> {
-        match *self {
-            MockDeviceControllerError::RequestFailed => {
-                f.write_str("Failed to complete the request")
+        match self.clone() {
+            MockDeviceControllerError::RequestFailed(err) => {
+                f.write_str(format!("Failed to complete the request. RippleError {err:?}").as_str())
             }
             MockDeviceControllerError::ExtnCommunicationFailed => {
                 f.write_str("Failed to communicate with the Mock Device extension")
@@ -83,7 +85,7 @@ impl MockDeviceController {
                 client
                     .standalone_request(request, 5000)
                     .await
-                    .map_err(|_e| MockDeviceControllerError::RequestFailed)
+                    .map_err(MockDeviceControllerError::RequestFailed)
             })
             .await
             .map_err(|_e| MockDeviceControllerError::ExtnCommunicationFailed)?

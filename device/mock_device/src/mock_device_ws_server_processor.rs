@@ -16,16 +16,24 @@
 //
 
 use ripple_sdk::{
-    api::mock_websocket_server::MockWebsocketServerRequest,
-    async_trait::async_trait,
-    extn::client::{
-        extn_client::ExtnClient,
-        extn_processor::{
-            DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
-        },
+    api::mock_websocket_server::{
+        AddRequestResponseResponse, MockWebsocketServerRequest, MockWebsocketServerResponse,
     },
-    log::debug,
-    tokio::sync::Mutex,
+    async_trait::async_trait,
+    extn::{
+        client::{
+            extn_client::ExtnClient,
+            extn_processor::{
+                DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
+            },
+        },
+        extn_client_message::{ExtnMessage, ExtnResponse},
+    },
+    log::{debug, error},
+    tokio::sync::{
+        mpsc::{Receiver, Sender},
+        Mutex,
+    },
 };
 use std::sync::Arc;
 
@@ -68,6 +76,18 @@ impl MockDeviceMockWebsocketServerProcessor {
             streamer: DefaultExtnStreamer::new(),
         }
     }
+
+    async fn respond(client: ExtnClient, req: ExtnMessage, resp: ExtnResponse) -> bool {
+        let resp = client.clone().respond(req, resp).await;
+
+        match resp {
+            Ok(_) => true,
+            Err(err) => {
+                error!("{err:?}");
+                false
+            }
+        }
+    }
 }
 
 impl ExtnStreamProcessor for MockDeviceMockWebsocketServerProcessor {
@@ -78,17 +98,11 @@ impl ExtnStreamProcessor for MockDeviceMockWebsocketServerProcessor {
         self.state.clone()
     }
 
-    fn receiver(
-        &mut self,
-    ) -> ripple_sdk::tokio::sync::mpsc::Receiver<ripple_sdk::extn::extn_client_message::ExtnMessage>
-    {
+    fn receiver(&mut self) -> Receiver<ExtnMessage> {
         self.streamer.receiver()
     }
 
-    fn sender(
-        &self,
-    ) -> ripple_sdk::tokio::sync::mpsc::Sender<ripple_sdk::extn::extn_client_message::ExtnMessage>
-    {
+    fn sender(&self) -> Sender<ExtnMessage> {
         self.streamer.sender()
     }
 }
@@ -101,18 +115,29 @@ impl ExtnRequestProcessor for MockDeviceMockWebsocketServerProcessor {
 
     async fn process_request(
         state: Self::STATE,
-        msg: ripple_sdk::extn::extn_client_message::ExtnMessage,
+        extn_request: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
-        debug!("msg={msg:?}, extracted_message={extracted_message:?}");
+        debug!("extn_request={extn_request:?}, extracted_message={extracted_message:?}");
         // TODO: call the get and remove for the requests
         match extracted_message {
             MockWebsocketServerRequest::AddRequestResponse(params) => {
-                state.server.add_request_response(&params.request, params.responses.clone()).await
+                state
+                    .server
+                    .add_request_response(&params.request, params.responses.clone())
+                    .await;
+
+                Self::respond(
+                    state.client.clone(),
+                    extn_request,
+                    ExtnResponse::MockWebsocketServer(
+                        MockWebsocketServerResponse::AddRequestResponse(
+                            AddRequestResponseResponse { success: true },
+                        ),
+                    ),
+                )
+                .await
             }
-            // AccountSessionRequest::Provision(p) => Self::provision(state.clone(), msg, p).await,
-            // AccountSessionRequest::SetAccessToken(s) => Self::set_token(state, msg, s).await,
         }
-        true
     }
 }

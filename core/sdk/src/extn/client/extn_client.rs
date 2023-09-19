@@ -478,7 +478,7 @@ impl ExtnClient {
 
     /// Request method which accepts a impl [ExtnPayloadProvider] and uses the capability provided by the trait to send the request.
     /// As part of the send process it adds a callback to asynchronously respond back to the caller when the response does get
-    /// received. This method can be called synchrnously with a timeout
+    /// received. This method can be called synchronously with a timeout
     ///
     /// # Arguments
     /// `payload` - impl [ExtnPayloadProvider]
@@ -524,7 +524,7 @@ impl ExtnClient {
 
     /// Request method which accepts a impl [ExtnPayloadProvider] and uses the capability provided by the trait to send the request.
     /// As part of the send process it adds a callback to asynchronously respond back to the caller when the response does get
-    /// received. This method can be called synchrnously with a timeout
+    /// received. This method can be called synchronously with a timeout
     ///
     /// # Arguments
     /// `payload` - impl [ExtnPayloadProvider]

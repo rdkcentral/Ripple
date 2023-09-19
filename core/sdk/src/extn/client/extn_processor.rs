@@ -161,6 +161,7 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     /// None - means not processed
     /// Some(true) - Successful processing with status success
     /// Some(false) - Successful processing with status error
+    /// // TODO: The implementation of this fn is not aligned with the docs. The fn returns a bool not Option<bool>. Also it might be useful if the extn could return data instead of just a bool
     async fn process_request(
         state: Self::STATE,
         msg: ExtnMessage,

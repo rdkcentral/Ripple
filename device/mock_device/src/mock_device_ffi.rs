@@ -146,7 +146,7 @@ fn get_rpc_extns(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) -> Metho
 
 fn get_extended_capabilities() -> Option<String> {
     debug!("ext caps");
-    Some(String::from(std::include_str!("./extended-open-rpc.json")))
+    None
 }
 
 fn init_jsonrpsee_builder() -> JsonRpseeExtnBuilder {

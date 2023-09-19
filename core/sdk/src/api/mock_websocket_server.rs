@@ -41,7 +41,7 @@ pub struct AddRequestResponseParams {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AddRequestResponseResponse {
-    success: bool,
+    pub success: bool,
 }
 
 impl ExtnPayloadProvider for MockWebsocketServerRequest {

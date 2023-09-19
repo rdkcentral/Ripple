@@ -238,6 +238,7 @@ impl MockWebsocketServer {
                         "Unrecognised request received. Not responding. Request: {request_message}"
                     ),
                     Some(response_messages) => {
+                        debug!("Request found, sending response. req={request_message} resps={response_messages:?}");
                         for resp in response_messages {
                             ws_stream.send(Message::Text(resp.to_string())).await?;
                         }
@@ -251,7 +252,9 @@ impl MockWebsocketServer {
 
     pub async fn add_request_response(&self, request: &Value, responses: Vec<Value>) {
         let mut mock_data = self.mock_data.lock().await;
-        mock_data.insert(to_key(request).unwrap(), responses);
+        let key = to_key(request).unwrap();
+        debug!("Adding mock data key={key:?} resps={responses:?}");
+        mock_data.insert(key, responses);
     }
 
     pub async fn remove_request(&self, request: &Value) {
