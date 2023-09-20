@@ -65,8 +65,8 @@ impl AppEventDecorator for VGEnabledEventDecorator {
         let voice_guidance_settings = VoiceGuidanceSettings { enabled, speed };
 
         AppEvents::emit(
-            &ps,
-            &VOICE_GUIDANCE_SETTINGS_CHANGED.to_string(),
+            ps,
+            VOICE_GUIDANCE_SETTINGS_CHANGED,
             &serde_json::to_value(voice_guidance_settings).unwrap_or_default(),
         )
         .await;
@@ -275,7 +275,7 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
                 // TODO: Thunder doesn't currently support a speed change listener so we emit an event here.
                 AppEvents::emit(
                     &self.state,
-                    &VOICE_GUIDANCE_SPEED_CHANGED.to_string(),
+                    VOICE_GUIDANCE_SPEED_CHANGED,
                     &json!(set_request.value),
                 )
                 .await;
@@ -288,7 +288,7 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
 
                 AppEvents::emit(
                     &self.state,
-                    &VOICE_GUIDANCE_SETTINGS_CHANGED.to_string(),
+                    VOICE_GUIDANCE_SETTINGS_CHANGED,
                     &serde_json::to_value(voice_guidance_settings).unwrap_or_default(),
                 )
                 .await;

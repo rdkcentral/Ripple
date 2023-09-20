@@ -19,7 +19,7 @@ use std::collections::HashMap;
 
 use ripple_sdk::{
     api::{
-        device::device_events::{VOICE_GUIDANCE_ENABLED_CHANGED, VOICE_GUIDANCE_SETTINGS_CHANGED},
+        device::device_events::VOICE_GUIDANCE_ENABLED_CHANGED,
         firebolt::{
             fb_capabilities::{CapabilityRole, FireboltCap, RoleInfo},
             fb_general::ListenRequest,
