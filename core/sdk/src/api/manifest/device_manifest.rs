@@ -268,16 +268,30 @@ pub struct SettingsDefaults {
 #[derive(Deserialize, Debug, Clone, Default)]
 pub struct CaptionStyle {
     pub enabled: bool,
-    pub font_family: String,
-    pub font_size: f32,
-    pub font_color: String,
-    pub font_edge: String,
-    pub font_edge_color: String,
-    pub font_opacity: u32,
-    pub background_color: String,
-    pub background_opacity: u32,
-    pub text_align: String,
-    pub text_align_vertical: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_family: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_size: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_edge: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_edge_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_opacity: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub background_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub background_opacity: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window_opacity: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_align: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_align_vertical: Option<String>,
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
@@ -340,16 +354,18 @@ fn default_values_default() -> DefaultValues {
 fn captions_default() -> CaptionStyle {
     CaptionStyle {
         enabled: false,
-        font_family: "sans-serif".to_string(),
-        font_size: 1.0,
-        font_color: "#ffffff".to_string(),
-        font_edge: "none".to_string(),
-        font_edge_color: "#7F7F7F".to_string(),
-        font_opacity: 100,
-        background_color: "#000000".to_string(),
-        background_opacity: 12,
-        text_align: "center".to_string(),
-        text_align_vertical: "middle".to_string(),
+        font_family: None,
+        font_size: None,
+        font_color: None,
+        font_edge: None,
+        font_edge_color: None,
+        font_opacity: None,
+        background_color: None,
+        background_opacity: None,
+        window_color: None,
+        window_opacity: None,
+        text_align: None,
+        text_align_vertical: None,
     }
 }
 
