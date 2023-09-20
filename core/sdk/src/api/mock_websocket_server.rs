@@ -26,19 +26,21 @@ use crate::{
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum MockWebsocketServerRequest {
     AddRequestResponse(AddRequestResponseParams),
+    EmitEvent(EmitEventParams),
     RemoveRequest(RemoveRequestParams),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum MockWebsocketServerResponse {
     AddRequestResponse(AddRequestResponseResponse),
+    EmitEvent(EmitEventResponse),
     RemoveRequestResponse(RemoveRequestResponse),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AddRequestResponseParams {
-    pub request: Value,
-    pub responses: Vec<Value>,
+    pub request: Value,        // TODO: make this a bigger object with a body
+    pub responses: Vec<Value>, // TODO: make this a bigger object with a body
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -53,6 +55,17 @@ pub struct RemoveRequestParams {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RemoveRequestResponse {
+    pub success: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EmitEventParams {
+    pub event: Value,
+    pub time: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EmitEventResponse {
     pub success: bool,
 }
 

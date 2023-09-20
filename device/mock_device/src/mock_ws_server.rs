@@ -18,12 +18,11 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use http::{HeaderMap, StatusCode};
 use ripple_sdk::{
-    futures::{SinkExt, StreamExt},
+    futures::{stream::SplitSink, SinkExt, StreamExt},
     log::{debug, error},
     tokio::{
         self,
-        io::{AsyncRead, AsyncWrite},
-        net::TcpListener,
+        net::{TcpListener, TcpStream},
         sync::Mutex,
     },
 };
@@ -32,6 +31,7 @@ use serde_json::Value;
 use tokio_tungstenite::{
     accept_hdr_async,
     tungstenite::{handshake, Error, Message, Result},
+    WebSocketStream,
 };
 
 use crate::utils::MockData;
@@ -98,6 +98,8 @@ pub struct MockWebsocketServer {
     conn_query_params: HashMap<String, String>,
 
     port: u16,
+
+    connected_peer_sinks: Mutex<HashMap<String, SplitSink<WebSocketStream<TcpStream>, Message>>>,
 }
 
 #[derive(Debug)]
@@ -123,6 +125,7 @@ impl MockWebsocketServer {
             conn_path: server_config.path.unwrap_or_else(|| "/".to_string()),
             conn_headers: server_config.headers.unwrap_or_else(HeaderMap::new),
             conn_query_params: server_config.query_params.unwrap_or_default(),
+            connected_peer_sinks: Mutex::new(HashMap::new()),
         })
     }
 
@@ -153,10 +156,7 @@ impl MockWebsocketServer {
         debug!("Shutting down");
     }
 
-    async fn accept_connection<S>(&self, peer: SocketAddr, stream: S)
-    where
-        S: AsyncRead + AsyncWrite + Unpin,
-    {
+    async fn accept_connection(&self, peer: SocketAddr, stream: TcpStream) {
         debug!("Peer address: {}", peer);
         let connection = self.handle_connection(peer, stream).await;
 
@@ -168,10 +168,7 @@ impl MockWebsocketServer {
         }
     }
 
-    async fn handle_connection<S>(&self, peer: SocketAddr, stream: S) -> Result<()>
-    where
-        S: AsyncRead + AsyncWrite + Unpin,
-    {
+    async fn handle_connection(&self, peer: SocketAddr, stream: TcpStream) -> Result<()> {
         let callback = |request: &handshake::client::Request,
                         mut response: handshake::server::Response| {
             let path = request.uri().path();
@@ -209,15 +206,23 @@ impl MockWebsocketServer {
 
             Ok(response)
         };
-        let mut ws_stream = accept_hdr_async(stream, callback)
+        let ws_stream = accept_hdr_async(stream, callback)
             .await
             .expect("Failed to accept");
 
-        debug!("New WebSocket connection: {}", peer);
+        let (send, mut recv) = ws_stream.split();
 
-        while let Some(msg) = ws_stream.next().await {
+        debug!("New WebSocket connection: {peer}");
+
+        self.add_connected_peer(&peer, send).await;
+
+        while let Some(msg) = recv.next().await {
             let msg = msg?;
             debug!("Message: {:?}", msg);
+
+            if msg.is_close() {
+                break;
+            }
 
             if msg.is_text() || msg.is_binary() {
                 let msg = msg.to_string();
@@ -241,15 +246,38 @@ impl MockWebsocketServer {
                     ),
                     Some(response_messages) => {
                         debug!("Request found, sending response. req={request_message} resps={response_messages:?}");
-                        for resp in response_messages {
-                            ws_stream.send(Message::Text(resp.to_string())).await?;
+                        let mut clients = self.connected_peer_sinks.lock().await;
+                        let sink = clients.get_mut(&peer.to_string());
+                        if let Some(sink) = sink {
+                            for resp in response_messages {
+                                sink.send(Message::Text(resp.to_string())).await?;
+                            }
+                        } else {
+                            error!("no sink found for peer={peer:?}");
                         }
                     }
                 }
             }
         }
 
+        debug!("Connection dropped peer={peer}");
+        self.remove_connected_peer(&peer).await;
+
         Ok(())
+    }
+
+    async fn add_connected_peer(
+        &self,
+        peer: &SocketAddr,
+        sink: SplitSink<WebSocketStream<TcpStream>, Message>,
+    ) {
+        let mut peers = self.connected_peer_sinks.lock().await;
+        peers.insert(peer.to_string(), sink);
+    }
+
+    async fn remove_connected_peer(&self, peer: &SocketAddr) {
+        let mut peers = self.connected_peer_sinks.lock().await;
+        let _ = peers.remove(&peer.to_string());
     }
 
     pub async fn add_request_response(&self, request: &Value, responses: Vec<Value>) {
@@ -265,5 +293,23 @@ impl MockWebsocketServer {
         debug!("Removing mock data key={key:?}");
         let resps = mock_data.remove(&key);
         debug!("Removed mock data responses={resps:?}");
+    }
+
+    pub async fn emit_event(self: Arc<Self>, event: &Value) {
+        // TODO: handle results
+        debug!("waiting to send event");
+
+        let server = self.clone();
+        let payload = event.clone();
+
+        tokio::spawn(async move {
+            let mut peers = server.connected_peer_sinks.lock().await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
+
+            for peer in peers.values_mut() {
+                debug!("send event to web socket");
+                let _ = peer.send(Message::Text(payload.to_string())).await;
+            }
+        });
     }
 }

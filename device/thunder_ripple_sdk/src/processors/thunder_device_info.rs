@@ -857,7 +857,7 @@ impl ThunderDeviceInfoRequestProcessor {
                         params: None,
                     })
                     .await;
-                // TODO: if the thunder plugin does not respond then we panic on the unwrap here
+                // FIXME: if the thunder plugin does not respond then we panic on the unwrap here. This would be a problem if the Thunder System plugin was not loaded
                 info!("{}", resp.message);
                 let tsv: SystemVersion = serde_json::from_value(resp.message).unwrap();
                 let tsv_split = tsv.receiver_version.split('.');

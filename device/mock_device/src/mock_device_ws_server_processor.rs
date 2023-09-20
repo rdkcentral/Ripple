@@ -17,8 +17,8 @@
 
 use ripple_sdk::{
     api::mock_websocket_server::{
-        AddRequestResponseResponse, MockWebsocketServerRequest, MockWebsocketServerResponse,
-        RemoveRequestResponse,
+        AddRequestResponseResponse, EmitEventResponse, MockWebsocketServerRequest,
+        MockWebsocketServerResponse, RemoveRequestResponse,
     },
     async_trait::async_trait,
     extn::{
@@ -139,6 +139,16 @@ impl ExtnRequestProcessor for MockDeviceMockWebsocketServerProcessor {
                     MockWebsocketServerResponse::RemoveRequestResponse(RemoveRequestResponse {
                         success: true,
                     }),
+                )
+                .await
+            }
+            MockWebsocketServerRequest::EmitEvent(params) => {
+                state.server.emit_event(&params.event).await;
+
+                Self::respond(
+                    state.client.clone(),
+                    extn_request,
+                    MockWebsocketServerResponse::EmitEvent(EmitEventResponse { success: true }),
                 )
                 .await
             }

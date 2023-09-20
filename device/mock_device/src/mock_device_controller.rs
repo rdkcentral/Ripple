@@ -22,8 +22,8 @@ use ripple_sdk::{
     api::{
         gateway::rpc_gateway_api::CallContext,
         mock_websocket_server::{
-            AddRequestResponseParams, MockWebsocketServerRequest, MockWebsocketServerResponse,
-            RemoveRequestParams,
+            AddRequestResponseParams, EmitEventParams, MockWebsocketServerRequest,
+            MockWebsocketServerResponse, RemoveRequestParams,
         },
     },
     async_trait::async_trait,
@@ -66,6 +66,13 @@ pub trait MockDeviceController {
         &self,
         ctx: CallContext,
         req: RemoveRequestParams,
+    ) -> RpcResult<MockWebsocketServerResponse>;
+
+    #[method(name = "mockdevice.emitEvent")]
+    async fn emit_event(
+        &self,
+        ctx: CallContext,
+        req: EmitEventParams,
     ) -> RpcResult<MockWebsocketServerResponse>;
 }
 
@@ -122,6 +129,19 @@ impl MockDeviceControllerServer for MockDeviceController {
     ) -> RpcResult<MockWebsocketServerResponse> {
         let res = self
             .request(MockWebsocketServerRequest::RemoveRequest(req))
+            .await
+            .map_err(|e| jsonrpsee::core::Error::Custom(e.to_string()))?;
+
+        Ok(res)
+    }
+
+    async fn emit_event(
+        &self,
+        _ctx: CallContext,
+        req: EmitEventParams,
+    ) -> RpcResult<MockWebsocketServerResponse> {
+        let res = self
+            .request(MockWebsocketServerRequest::EmitEvent(req))
             .await
             .map_err(|e| jsonrpsee::core::Error::Custom(e.to_string()))?;
 
