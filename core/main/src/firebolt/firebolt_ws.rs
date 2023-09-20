@@ -151,7 +151,6 @@ impl FireboltWs {
         let app_state = state.app_manager_state.clone();
         // Let's spawn the handling of each connection in a separate task.
         while let Ok((stream, client_addr)) = listener.accept().await {
-            debug!("recevied connection");
             let (connect_tx, connect_rx) = oneshot::channel::<ClientIdentity>();
             let cfg = ConnectionCallbackConfig {
                 next: connect_tx,

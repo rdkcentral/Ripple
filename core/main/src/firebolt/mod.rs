@@ -33,7 +33,6 @@ pub mod handlers {
     pub mod localization_rpc;
     pub mod metrics_management_rpc;
     pub mod metrics_rpc;
-    // pub mod mock_websocket_server_rpc;
     pub mod parameters_rpc;
     pub mod pin_rpc;
     pub mod privacy_rpc;
