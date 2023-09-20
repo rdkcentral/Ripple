@@ -272,7 +272,6 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
                 .send_extn_request(DeviceInfoRequest::SetVoiceGuidanceSpeed(set_request.value))
                 .await;
             if resp.is_ok() {
-                // TODO: Thunder doesn't currently support a speed change listener so we emit an event here.
                 AppEvents::emit(
                     &self.state,
                     VOICE_GUIDANCE_SPEED_CHANGED,
