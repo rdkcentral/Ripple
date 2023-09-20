@@ -1,0 +1,90 @@
+{
+    "default_path": "/usr/lib/rust/",
+    "default_extension": "so",
+    "timeout": 2000,
+    "extns": [
+        {
+            "path": "libthunder",
+            "symbols": [
+                {
+                    "id": "ripple:channel:device:thunder",
+                    "uses": [
+                        "config"
+                    ],
+                    "fulfills": [
+                        "device_info",
+                        "window_manager",
+                        "browser",
+                        "wifi",
+                        "device_events",
+                        "device_persistence",
+                        "remote_accessory"
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "liblauncher",
+            "symbols": [
+                {
+                    "id": "ripple:channel:launcher:internal",
+                    "uses": [
+                        "config",
+                        "lifecycle_management",
+                        "device_info",
+                        "window_manager",
+                        "browser"
+                    ],
+                    "fulfills": [
+                        "launcher"
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "libdistributor_general",
+            "symbols": [
+                {
+                    "id": "ripple:channel:distributor:general",
+                    "uses": [
+                        "config"
+                    ],
+                    "fulfills": [
+                        "permissions",
+                        "account_session",
+                        "secure_storage",
+                        "advertising",
+                        "privacy_settings",
+                        "metrics",
+                        "session_token",
+                        "discovery",
+                        "media_events"
+                    ]
+                }
+            ]
+        }
+    ],
+    "required_contracts": [
+        "rpc",
+        "lifecycle_management",
+        "device_info",
+        "window_manager",
+        "browser",
+        "permissions",
+        "account_session",
+        "wifi",
+        "device_events",
+        "device_persistence",
+        "remote_accessory",
+        "secure_storage",
+        "advertising",
+        "privacy_settings",
+        "session_token",
+        "metrics",
+        "discovery",
+        "media_events"
+    ],
+    "rpc_aliases": {
+        "device.model": ["custom.model"]
+    }
+}
