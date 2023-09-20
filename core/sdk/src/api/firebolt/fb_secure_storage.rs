@@ -31,32 +31,37 @@ pub enum StorageScope {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SecureStorageGetRequest {
-    pub app_id: String,
     pub scope: StorageScope,
     pub key: String,
-    pub distributor_session: AccountSession,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct StorageSetOptions {
+pub struct StorageOptions {
     pub ttl: i32,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct SecureStorageSetRequest {
-    pub app_id: String,
+    pub app_id: Option<String>,
     pub scope: StorageScope,
     pub key: String,
     pub value: String,
-    pub options: Option<StorageSetOptions>,
-    pub distributor_session: AccountSession,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub options: Option<StorageOptions>,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SecureStorageRemoveRequest {
     pub scope: StorageScope,
     pub key: String,
-    pub app_id: String,
-    pub distributor_session: AccountSession,
+    pub app_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SecureStorageClearRequest {
+    pub app_id: Option<String>,
+    pub scope: StorageScope,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -64,19 +69,12 @@ pub struct SecureStorageGetResponse {
     pub value: Option<String>,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SecureStorageSetResponse {}
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SecureStorageRemoveResponse {}
+pub struct SecureStorageDefaultResponse {}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GetRequest {
     pub key: String,
     pub scope: StorageScope,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct StorageOptions {
-    pub ttl: i32,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -96,9 +94,10 @@ pub struct RemoveRequest {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum SecureStorageRequest {
-    Get(SecureStorageGetRequest),
-    Set(SecureStorageSetRequest),
-    Remove(SecureStorageRemoveRequest),
+    Get(String, SecureStorageGetRequest, AccountSession),
+    Set(SecureStorageSetRequest, AccountSession),
+    Remove(SecureStorageRemoveRequest, AccountSession),
+    Clear(SecureStorageClearRequest, AccountSession),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -141,8 +140,9 @@ impl ExtnPayloadProvider for SecureStorageRequest {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum SecureStorageResponse {
     Get(SecureStorageGetResponse),
-    Set(SecureStorageSetResponse),
-    Remove(SecureStorageRemoveResponse),
+    Set(SecureStorageDefaultResponse),
+    Remove(SecureStorageDefaultResponse),
+    Clear(SecureStorageDefaultResponse),
 }
 
 impl ExtnPayloadProvider for SecureStorageResponse {
