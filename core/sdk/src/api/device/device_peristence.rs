@@ -42,6 +42,16 @@ impl StorageData {
 }
 
 #[derive(Deserialize, Debug)]
+pub struct SetPropertyOpt<T> {
+    pub value: Option<T>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SetProperty<T> {
+    pub value: T,
+}
+
+#[derive(Deserialize, Debug)]
 pub struct SetBoolProperty {
     pub value: bool,
 }
