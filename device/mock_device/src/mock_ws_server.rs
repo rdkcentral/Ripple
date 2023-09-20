@@ -295,7 +295,7 @@ impl MockWebsocketServer {
         debug!("Removed mock data responses={resps:?}");
     }
 
-    pub async fn emit_event(self: Arc<Self>, event: &Value) {
+    pub async fn emit_event(self: Arc<Self>, event: &Value, delay: u32) {
         // TODO: handle results
         debug!("waiting to send event");
 
@@ -304,7 +304,7 @@ impl MockWebsocketServer {
 
         tokio::spawn(async move {
             let mut peers = server.connected_peer_sinks.lock().await;
-            tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(delay.into())).await;
 
             for peer in peers.values_mut() {
                 debug!("send event to web socket");

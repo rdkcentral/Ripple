@@ -33,6 +33,7 @@ use ripple_sdk::{
     log::{debug, error},
     tokio::sync::mpsc::{Receiver, Sender},
 };
+use serde_json::Value;
 use std::sync::Arc;
 
 use crate::mock_ws_server::MockWebsocketServer;
@@ -118,7 +119,14 @@ impl ExtnRequestProcessor for MockDeviceMockWebsocketServerProcessor {
             MockWebsocketServerRequest::AddRequestResponse(params) => {
                 state
                     .server
-                    .add_request_response(&params.request, params.responses.clone())
+                    .add_request_response(
+                        &params.request.body,
+                        params
+                            .responses
+                            .iter()
+                            .map(|resp| resp.body.clone())
+                            .collect::<Vec<Value>>(),
+                    )
                     .await;
 
                 Self::respond(
@@ -131,7 +139,7 @@ impl ExtnRequestProcessor for MockDeviceMockWebsocketServerProcessor {
                 .await
             }
             MockWebsocketServerRequest::RemoveRequest(params) => {
-                state.server.remove_request(&params.request).await;
+                state.server.remove_request(&params.request.body).await;
 
                 Self::respond(
                     state.client.clone(),
@@ -143,7 +151,10 @@ impl ExtnRequestProcessor for MockDeviceMockWebsocketServerProcessor {
                 .await
             }
             MockWebsocketServerRequest::EmitEvent(params) => {
-                state.server.emit_event(&params.event).await;
+                state
+                    .server
+                    .emit_event(&params.event.body, params.event.delay)
+                    .await;
 
                 Self::respond(
                     state.client.clone(),

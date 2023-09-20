@@ -24,6 +24,26 @@ use crate::{
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RequestPayload {
+    /// The body of the request
+    pub body: Value,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ResponsePayload {
+    /// The body of the response
+    pub body: Value,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EventPayload {
+    /// The body of the event
+    pub body: Value,
+    /// The number of ms before the event should be emitted
+    pub delay: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum MockWebsocketServerRequest {
     AddRequestResponse(AddRequestResponseParams),
     EmitEvent(EmitEventParams),
@@ -39,8 +59,8 @@ pub enum MockWebsocketServerResponse {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AddRequestResponseParams {
-    pub request: Value,        // TODO: make this a bigger object with a body
-    pub responses: Vec<Value>, // TODO: make this a bigger object with a body
+    pub request: RequestPayload,
+    pub responses: Vec<ResponsePayload>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -50,7 +70,7 @@ pub struct AddRequestResponseResponse {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RemoveRequestParams {
-    pub request: Value,
+    pub request: RequestPayload,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -58,10 +78,11 @@ pub struct RemoveRequestResponse {
     pub success: bool,
 }
 
+// TODO: add a clear all mock data request
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EmitEventParams {
-    pub event: Value,
-    pub time: i32,
+    pub event: EventPayload,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
