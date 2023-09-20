@@ -59,7 +59,9 @@
                 },
                 {
                     "id": "ripple:extn:jsonrpsee:mock_device",
-                    "uses": [],
+                    "uses": [
+                        "mock_websocket_server"
+                    ],
                     "fulfills": [
                         "json_rpsee"
                     ]
