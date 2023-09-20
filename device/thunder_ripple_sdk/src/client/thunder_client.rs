@@ -432,7 +432,7 @@ impl ThunderClientBuilder {
         };
         let client = ws_client_with_retry(url_with_token.as_str(), 5).await;
         if client.is_err() {
-            debug!("client err {client:?}");
+            error!("Unable to connect to thunder: {client:?}");
             return Err(RippleError::BootstrapError);
         }
 

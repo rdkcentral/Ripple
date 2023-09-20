@@ -81,7 +81,6 @@ impl ThunderClientPool {
         }
         let sender_for_thread = s.clone();
         let pmtx_c = plugin_manager_tx.clone();
-
         tokio::spawn(async move {
             let mut pool = ThunderClientPool { clients };
             while let Some(cmd) = r.recv().await {

@@ -133,7 +133,7 @@ pub async fn load_mock_data(mut client: ExtnClient) -> Result<MockData, LoadMock
         return Err(LoadMockDataError::PathDoesNotExist(saved_dir));
     }
 
-    let path = saved_dir.join("mock-device.json");
+    let path = saved_dir.join("mock-device.json"); // TODO: allow this to be overridden in config
     debug!("path={:?}", path);
     if !path.is_file() {
         return Err(LoadMockDataError::PathDoesNotExist(path));

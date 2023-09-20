@@ -63,7 +63,6 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                 );
                 let channels = extn.get_channels();
                 let extensions = extn.get_extns();
-
                 for channel in channels {
                     debug!("loading channel builder for {}", channel.id);
                     if let Ok(extn_id) = ExtnId::try_from(channel.id.clone()) {

@@ -309,7 +309,7 @@ impl ExtnClient {
         if let Some(processor_result) = processor_result {
             tokio::spawn(async move {
                 if let Err(e) = processor_result.send(msg) {
-                    error!("single: Error sending the response back {:?}", e);
+                    error!("Error sending the response back {:?}", e);
                 }
             });
         } else {
@@ -331,7 +331,7 @@ impl ExtnClient {
             tokio::spawn(async move {
                 if let Err(e) = sender.send(msg.clone()).await {
                     debug!("msg={msg:?}");
-                    error!("stream: Error sending the response back {:?}", e);
+                    error!("Error sending the response back {:?}", e);
                 }
             });
             true

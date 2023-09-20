@@ -121,7 +121,6 @@ fn build(extn_id: String) -> Result<Box<ExtnChannel>, RippleError> {
 }
 
 fn init_extn_builder() -> ExtnChannelBuilder {
-    debug!("extn build");
     ExtnChannelBuilder {
         build,
         service: EXTN_NAME.into(),
@@ -131,21 +130,18 @@ fn init_extn_builder() -> ExtnChannelBuilder {
 export_channel_builder!(ExtnChannelBuilder, init_extn_builder);
 
 fn get_rpc_extns(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) -> Methods {
-    debug!("run rpc extns");
     let mut methods = Methods::new();
     let client = ExtnClient::new(receiver, sender);
     let _ = methods.merge(MockDeviceController::new(client.clone()).into_rpc());
-    debug!("methods={methods:?}");
+
     methods
 }
 
 fn get_extended_capabilities() -> Option<String> {
-    debug!("ext caps");
     None
 }
 
 fn init_jsonrpsee_builder() -> JsonRpseeExtnBuilder {
-    debug!("hello");
     JsonRpseeExtnBuilder {
         get_extended_capabilities,
         build: get_rpc_extns,
