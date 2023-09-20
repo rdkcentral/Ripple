@@ -26,7 +26,6 @@ use ripple_sdk::{
         sync::Mutex,
     },
 };
-use serde_hashkey::to_key;
 use serde_json::Value;
 use tokio_tungstenite::{
     accept_hdr_async,
@@ -34,9 +33,10 @@ use tokio_tungstenite::{
     WebSocketStream,
 };
 
-use crate::utils::MockData;
-
-// TODO: look at to_key().unwrap()
+use crate::{
+    errors::{MockDeviceError, MockWebsocketServerError},
+    utils::{json_key, MockData},
+};
 
 pub struct WsServerParameters {
     path: Option<String>,
@@ -100,11 +100,6 @@ pub struct MockWebsocketServer {
     port: u16,
 
     connected_peer_sinks: Mutex<HashMap<String, SplitSink<WebSocketStream<TcpStream>, Message>>>,
-}
-
-#[derive(Debug)]
-pub enum MockWebsocketServerError {
-    CantListen,
 }
 
 impl MockWebsocketServer {
@@ -234,11 +229,18 @@ impl MockWebsocketServer {
                     }
                 };
 
-                debug!("parsed message: {:?}", request_message);
-                debug!("key: {:?}", to_key(&request_message).unwrap());
+                debug!("Parsed message: {:?}", request_message);
 
                 let mock_data = self.mock_data.lock().await;
-                let response = mock_data.get(&to_key(&request_message).unwrap());
+                let key = match json_key(&request_message) {
+                    Ok(key) => key,
+                    Err(err) => {
+                        error!("Request cannot be compared to mock data. {err:?}");
+                        continue;
+                    }
+                };
+
+                let response = mock_data.get(&key);
 
                 match response {
                     None => error!(
@@ -280,19 +282,27 @@ impl MockWebsocketServer {
         let _ = peers.remove(&peer.to_string());
     }
 
-    pub async fn add_request_response(&self, request: &Value, responses: Vec<Value>) {
+    pub async fn add_request_response(
+        &self,
+        request: &Value,
+        responses: Vec<Value>,
+    ) -> Result<(), MockDeviceError> {
         let mut mock_data = self.mock_data.lock().await;
-        let key = to_key(request).unwrap();
+        let key = json_key(request)?;
         debug!("Adding mock data key={key:?} resps={responses:?}");
         mock_data.insert(key, responses);
+
+        Ok(())
     }
 
-    pub async fn remove_request(&self, request: &Value) {
+    pub async fn remove_request(&self, request: &Value) -> Result<(), MockDeviceError> {
         let mut mock_data = self.mock_data.lock().await;
-        let key = to_key(request).unwrap();
+        let key = json_key(request)?;
         debug!("Removing mock data key={key:?}");
         let resps = mock_data.remove(&key);
         debug!("Removed mock data responses={resps:?}");
+
+        Ok(())
     }
 
     pub async fn emit_event(self: Arc<Self>, event: &Value, delay: u32) {

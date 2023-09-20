@@ -28,31 +28,26 @@ use serde_hashkey::{to_key, Key};
 use serde_json::Value;
 use url::{Host, Url};
 
-use crate::mock_ws_server::{MockWebsocketServer, WsServerParameters};
+use crate::{
+    errors::{BootFailedReason, LoadMockDataFailedReason, MockDeviceError},
+    mock_ws_server::{MockWebsocketServer, WsServerParameters},
+};
 
 pub type MockData = HashMap<Key, Vec<Value>>;
-
-#[derive(Clone, Debug)]
-pub enum BootWsServerError {
-    BadUrlScheme,
-    BadHostname,
-    GetPlatformGatewayFailed,
-    ServerStartFailed,
-}
 
 pub async fn boot_ws_server(
     mut client: ExtnClient,
     mock_data: Mutex<MockData>,
-) -> Result<Arc<MockWebsocketServer>, BootWsServerError> {
+) -> Result<Arc<MockWebsocketServer>, MockDeviceError> {
     debug!("Booting WS Server for mock device");
     let gateway = platform_gateway_url(&mut client).await?;
 
     if gateway.scheme() != "ws" {
-        return Err(BootWsServerError::BadUrlScheme);
+        return Err(MockDeviceError::BootFailed(BootFailedReason::BadUrlScheme));
     }
 
     if !is_valid_host(gateway.host()) {
-        return Err(BootWsServerError::BadHostname);
+        return Err(MockDeviceError::BootFailed(BootFailedReason::BadHostname));
     }
 
     let mut server_config = WsServerParameters::new();
@@ -61,7 +56,7 @@ pub async fn boot_ws_server(
         .path(gateway.path());
     let ws_server = MockWebsocketServer::new(mock_data, server_config)
         .await
-        .map_err(|_e| BootWsServerError::ServerStartFailed)?;
+        .map_err(|e| MockDeviceError::BootFailed(BootFailedReason::ServerStartFailed(e)))?;
 
     let ws_server = Arc::new(ws_server);
     let server = ws_server.clone();
@@ -73,7 +68,7 @@ pub async fn boot_ws_server(
     Ok(ws_server)
 }
 
-async fn platform_gateway_url(client: &mut ExtnClient) -> Result<Url, BootWsServerError> {
+async fn platform_gateway_url(client: &mut ExtnClient) -> Result<Url, MockDeviceError> {
     if let Ok(response) = client.request(Config::PlatformParameters).await {
         if let Some(ExtnResponse::Value(value)) = response.payload.extract() {
             let gateway: Url = value
@@ -81,13 +76,17 @@ async fn platform_gateway_url(client: &mut ExtnClient) -> Result<Url, BootWsServ
                 .and_then(|obj| obj.get("gateway"))
                 .and_then(|val| val.as_str())
                 .and_then(|s| s.parse().ok())
-                .ok_or(BootWsServerError::GetPlatformGatewayFailed)?;
+                .ok_or(MockDeviceError::BootFailed(
+                    BootFailedReason::GetPlatformGatewayFailed,
+                ))?;
             debug!("{}", gateway);
             return Ok(gateway);
         }
     }
 
-    Err(BootWsServerError::GetPlatformGatewayFailed)
+    Err(MockDeviceError::BootFailed(
+        BootFailedReason::GetPlatformGatewayFailed,
+    ))
 }
 
 fn is_valid_host(host: Option<Host<&str>>) -> bool {
@@ -97,19 +96,7 @@ fn is_valid_host(host: Option<Host<&str>>) -> bool {
     }
 }
 
-#[derive(Clone, Debug)]
-pub enum LoadMockDataError {
-    PathDoesNotExist(PathBuf),
-    FileOpenFailed(PathBuf),
-    GetSavedDirFailed,
-    MockDataNotValidJson,
-    MockDataNotArray,
-    EntryNotObject,
-    EntryMissingRequestField,
-    EntryMissingResponseField,
-}
-
-pub async fn load_mock_data(mut client: ExtnClient) -> Result<MockData, LoadMockDataError> {
+pub async fn load_mock_data(mut client: ExtnClient) -> Result<MockData, MockDeviceError> {
     debug!("requesting saved dir");
     let saved_dir = client
         .request(Config::SavedDir)
@@ -125,56 +112,76 @@ pub async fn load_mock_data(mut client: ExtnClient) -> Result<MockData, LoadMock
         })
         .map_err(|e| {
             error!("Config::SaveDir request error {:?}", e);
-            LoadMockDataError::GetSavedDirFailed
+            MockDeviceError::LoadMockDataFailed(LoadMockDataFailedReason::GetSavedDirFailed)
         })?;
 
     debug!("received saved_dir {saved_dir:?}");
     if !saved_dir.is_dir() {
-        return Err(LoadMockDataError::PathDoesNotExist(saved_dir));
+        return Err(MockDeviceError::LoadMockDataFailed(
+            LoadMockDataFailedReason::PathDoesNotExist(saved_dir),
+        ));
     }
 
     let path = saved_dir.join("mock-device.json"); // TODO: allow this to be overridden in config
     debug!("path={:?}", path);
     if !path.is_file() {
-        return Err(LoadMockDataError::PathDoesNotExist(path));
+        return Err(MockDeviceError::LoadMockDataFailed(
+            LoadMockDataFailedReason::PathDoesNotExist(path),
+        ));
     }
 
     let file = File::open(path.clone()).map_err(|e| {
         error!("Failed to open mock data file {e:?}");
-        LoadMockDataError::FileOpenFailed(path)
+        MockDeviceError::LoadMockDataFailed(LoadMockDataFailedReason::FileOpenFailed(path))
     })?;
     let reader = BufReader::new(file);
-    let json: serde_json::Value =
-        serde_json::from_reader(reader).map_err(|_| LoadMockDataError::MockDataNotValidJson)?;
+    let json: serde_json::Value = serde_json::from_reader(reader).map_err(|_| {
+        MockDeviceError::LoadMockDataFailed(LoadMockDataFailedReason::MockDataNotValidJson)
+    })?;
 
     if let Some(list) = json.as_array() {
         let mock_data = list
             .iter()
             .map(|req_resp| {
-                // TODO: validate as JSONRPC
                 let obj = req_resp
                     .as_object()
-                    .ok_or(LoadMockDataError::EntryNotObject)?;
+                    .ok_or(MockDeviceError::LoadMockDataFailed(
+                        LoadMockDataFailedReason::EntryNotObject,
+                    ))?;
                 let req = obj
                     .get("request")
                     .and_then(|req| if req.is_object() { Some(req) } else { None })
-                    // .and_then(|req_obj| serde_json::to_string(req_obj).ok())
-                    .ok_or(LoadMockDataError::EntryMissingRequestField)?;
+                    .ok_or(MockDeviceError::LoadMockDataFailed(
+                        LoadMockDataFailedReason::EntryMissingRequestField,
+                    ))?;
                 let res = obj
                     .get("response")
                     .and_then(|res| if res.is_object() { Some(res) } else { None })
-                    // .and_then(|req_obj| serde_json::to_string(req_obj).ok())
-                    .ok_or(LoadMockDataError::EntryMissingResponseField)?;
+                    .ok_or(MockDeviceError::LoadMockDataFailed(
+                        LoadMockDataFailedReason::EntryMissingResponseField,
+                    ))?;
 
-                Ok((to_key(req).unwrap(), vec![res.to_owned()]))
+                Ok((json_key(req)?, vec![res.to_owned()]))
                 // TODO: add support for multiple responses
             })
-            .collect::<Result<Vec<(Key, Vec<Value>)>, LoadMockDataError>>()?
+            .collect::<Result<Vec<(Key, Vec<Value>)>, MockDeviceError>>()?
             .into_iter()
             .collect::<HashMap<Key, Vec<Value>>>();
 
         Ok(mock_data)
     } else {
-        Err(LoadMockDataError::MockDataNotArray)
+        Err(MockDeviceError::LoadMockDataFailed(
+            LoadMockDataFailedReason::MockDataNotArray,
+        ))
     }
+}
+
+pub fn json_key(value: &Value) -> Result<Key, MockDeviceError> {
+    let key = to_key(value);
+    if let Ok(key) = key {
+        return Ok(key);
+    }
+
+    error!("Failed to create key from data {value:?}");
+    Err(MockDeviceError::BadMockDataKey(value.clone()))
 }

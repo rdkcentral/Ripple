@@ -66,6 +66,7 @@ pub struct AddRequestResponseParams {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AddRequestResponseResponse {
     pub success: bool,
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -76,6 +77,7 @@ pub struct RemoveRequestParams {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RemoveRequestResponse {
     pub success: bool,
+    pub error: Option<String>,
 }
 
 // TODO: add a clear all mock data request
