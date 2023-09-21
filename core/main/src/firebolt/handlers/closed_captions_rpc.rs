@@ -49,7 +49,6 @@ use ripple_sdk::api::{
         EVENT_CLOSED_CAPTIONS_WINDOW_OPACITY,
     },
 };
-use serde::Deserialize;
 use serde_json::Value;
 
 #[derive(Clone)]
