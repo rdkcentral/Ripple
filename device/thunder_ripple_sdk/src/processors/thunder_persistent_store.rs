@@ -88,7 +88,6 @@ impl ThunderStorageRequestProcessor {
         data: DeleteStorageProperty,
     ) -> bool {
         let thunder_method = ThunderPlugin::PersistentStorage.method("deleteKey");
-        //let client = self.state.clone();
         let params = Some(DeviceChannelParams::Json(
             json!({
                 "namespace": data.namespace,
@@ -113,16 +112,6 @@ impl ThunderStorageRequestProcessor {
         Self::respond(state.get_client(), req, response)
             .await
             .is_ok()
-
-        /*
-        if response.message.get("success").is_none()
-            || !response.message["success"].as_bool().unwrap_or_default()
-        {
-            error!("{}", response.message);
-            return false;
-        }
-        true
-        */
     }
 
     #[allow(dead_code)]
