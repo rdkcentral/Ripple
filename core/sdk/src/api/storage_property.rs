@@ -86,9 +86,8 @@ pub const EVENT_CLOSED_CAPTIONS_FONT_OPACITY: &str = "closedcaptions.onFontOpaci
 pub const EVENT_CLOSED_CAPTIONS_BACKGROUND_COLOR: &str = "closedcaptions.onBackgroundColorChanged";
 pub const EVENT_CLOSED_CAPTIONS_BACKGROUND_OPACITY: &str =
     "closedcaptions.onBackgroundOpacityChanged";
-pub const EVENT_CLOSED_CAPTIONS_WINDOW_COLOR: &'static str = "closedcaptions.onWindowColorChanged";
-pub const EVENT_CLOSED_CAPTIONS_WINDOW_OPACITY: &'static str =
-    "closedcaptions.onWindowOpacityChanged";
+pub const EVENT_CLOSED_CAPTIONS_WINDOW_COLOR: &str = "closedcaptions.onWindowColorChanged";
+pub const EVENT_CLOSED_CAPTIONS_WINDOW_OPACITY: &str = "closedcaptions.onWindowOpacityChanged";
 pub const EVENT_CLOSED_CAPTIONS_TEXT_ALIGN: &str = "closedcaptions.onTextAlignChanged";
 pub const EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL: &str =
     "closedcaptions.onTextAlignVerticalChanged";

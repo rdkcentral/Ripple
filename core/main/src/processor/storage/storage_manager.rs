@@ -444,7 +444,7 @@ impl StorageManager {
 
     pub async fn delete_key(state: &PlatformState, property: StorageProperty) -> RpcResult<()> {
         let data = property.as_data();
-        if let Err(_) =
+        if let Err(_err) =
             StorageManager::delete(state, &data.namespace.to_string(), &data.key.to_string()).await
         {
             return Err(StorageManager::get_firebolt_error(&property));

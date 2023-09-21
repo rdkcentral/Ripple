@@ -63,7 +63,7 @@ impl AppEventDecorator for CCEventDecorator {
         _event_name: &str,
         _val_in: &Value,
     ) -> Result<Value, AppEventDecorationError> {
-        let settings = ClosedcaptionsImpl::get_cc_settings(&ps).await?;
+        let settings = ClosedcaptionsImpl::get_cc_settings(ps).await?;
         Ok(serde_json::to_value(settings).unwrap_or_default())
     }
 
@@ -284,20 +284,20 @@ impl ClosedcaptionsImpl {
     pub async fn get_cc_settings(ps: &PlatformState) -> RpcResult<ClosedCaptionsSettings> {
         use ClosedcaptionsImpl as CI;
         use SP::*;
-        let enabled = ClosedcaptionsImpl::cc_enabled(&ps).await?;
+        let enabled = ClosedcaptionsImpl::cc_enabled(ps).await?;
         let styles: ClosedCaptionStyle = ClosedCaptionStyle {
-            font_family: CI::get_string(&ps, ClosedCaptionsFontFamily).await?,
-            font_size: CI::get_number_as_f32(&ps, ClosedCaptionsFontSize).await?,
-            font_color: CI::get_string(&ps, ClosedCaptionsFontColor).await?,
-            font_edge: CI::get_string(&ps, ClosedCaptionsFontEdge).await?,
-            font_edge_color: CI::get_string(&ps, ClosedCaptionsFontEdgeColor).await?,
-            font_opacity: CI::get_number_as_u32(&ps, ClosedCaptionsFontOpacity).await?,
-            background_color: CI::get_string(&ps, ClosedCaptionsBackgroundColor).await?,
-            background_opacity: CI::get_number_as_u32(&ps, ClosedCaptionsBackgroundOpacity).await?,
-            window_color: CI::get_string(&ps, ClosedCaptionsWindowColor).await?,
-            window_opacity: CI::get_number_as_u32(&ps, ClosedCaptionsWindowOpacity).await?,
-            text_align: CI::get_string(&ps, ClosedCaptionsTextAlign).await?,
-            text_align_vertical: CI::get_string(&ps, ClosedCaptionsTextAlignVertical).await?,
+            font_family: CI::get_string(ps, ClosedCaptionsFontFamily).await?,
+            font_size: CI::get_number_as_f32(ps, ClosedCaptionsFontSize).await?,
+            font_color: CI::get_string(ps, ClosedCaptionsFontColor).await?,
+            font_edge: CI::get_string(ps, ClosedCaptionsFontEdge).await?,
+            font_edge_color: CI::get_string(ps, ClosedCaptionsFontEdgeColor).await?,
+            font_opacity: CI::get_number_as_u32(ps, ClosedCaptionsFontOpacity).await?,
+            background_color: CI::get_string(ps, ClosedCaptionsBackgroundColor).await?,
+            background_opacity: CI::get_number_as_u32(ps, ClosedCaptionsBackgroundOpacity).await?,
+            window_color: CI::get_string(ps, ClosedCaptionsWindowColor).await?,
+            window_opacity: CI::get_number_as_u32(ps, ClosedCaptionsWindowOpacity).await?,
+            text_align: CI::get_string(ps, ClosedCaptionsTextAlign).await?,
+            text_align_vertical: CI::get_string(ps, ClosedCaptionsTextAlignVertical).await?,
         };
         Ok(ClosedCaptionsSettings { enabled, styles })
     }
