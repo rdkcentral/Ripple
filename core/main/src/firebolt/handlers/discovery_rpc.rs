@@ -30,17 +30,20 @@ use crate::{
 use jsonrpsee::{
     core::{async_trait, Error, RpcResult},
     proc_macros::rpc,
+    types::error::CallError,
     RpcModule,
 };
 
 use ripple_sdk::api::{
     device::entertainment_data::*,
     firebolt::{
+        fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
         fb_discovery::{EVENT_ON_SIGN_IN, EVENT_ON_SIGN_OUT},
         fb_general::{ListenRequest, ListenerResponse},
         provider::ExternalProviderResponse,
     },
     gateway::rpc_gateway_api::CallContext,
+    manifest::device_manifest::IntentValidation,
 };
 use ripple_sdk::{
     api::{
@@ -497,8 +500,17 @@ impl DiscoveryServer for DiscoveryImpl {
         DiscoveryImpl::get_content_policy(&ctx, &self.state, &ctx.app_id).await
     }
 
-    async fn launch(&self, _ctx: CallContext, request: LaunchRequest) -> RpcResult<bool> {
+    async fn launch(&self, ctx: CallContext, request: LaunchRequest) -> RpcResult<bool> {
         let app_defaults_configuration = self.state.get_device_manifest().applications.defaults;
+
+        let intent_validation_config = self
+            .state
+            .get_device_manifest()
+            .get_features()
+            .intent_validation;
+        validate_navigation_intent(intent_validation_config, request.intent.clone()).await?;
+
+        let req_updated_source = update_intent_source(ctx.app_id.clone(), request.clone());
 
         if let Some(reserved_app_id) =
             app_defaults_configuration.get_reserved_application_id(&request.app_id)
@@ -529,7 +541,7 @@ impl DiscoveryServer for DiscoveryImpl {
                 &self.state,
                 reserved_app_id.to_string(),
                 DISCOVERY_EVENT_ON_NAVIGATE_TO,
-                &serde_json::to_value(request.intent).unwrap(),
+                &serde_json::to_value(req_updated_source.intent).unwrap(),
             )
             .await;
             info!(
@@ -541,7 +553,8 @@ impl DiscoveryServer for DiscoveryImpl {
         }
         let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
 
-        let app_request = AppRequest::new(AppMethod::Launch(request.clone()), app_resp_tx);
+        let app_request =
+            AppRequest::new(AppMethod::Launch(req_updated_source.clone()), app_resp_tx);
 
         if self
             .state
@@ -748,7 +761,93 @@ impl DiscoveryServer for DiscoveryImpl {
         }
     }
 }
+fn update_intent_source(source_app_id: String, request: LaunchRequest) -> LaunchRequest {
+    let source = format!("xrn:firebolt:application:{}", source_app_id);
+    let req = match request.intent.clone() {
+        Some(NavigationIntent::NavigationIntentStrict(navigation_intent)) => {
+            let updated_navigation_intent = match navigation_intent {
+                NavigationIntentStrict::Home(mut home_intent) => {
+                    home_intent.context.source = source;
+                    NavigationIntentStrict::Home(home_intent)
+                }
+                NavigationIntentStrict::Launch(mut launch_intent) => {
+                    launch_intent.context.source = source;
+                    NavigationIntentStrict::Launch(launch_intent)
+                }
+                NavigationIntentStrict::Entity(mut entity_intent) => {
+                    entity_intent.context.source = source;
+                    NavigationIntentStrict::Entity(entity_intent)
+                }
+                NavigationIntentStrict::Playback(mut playback_intent) => {
+                    playback_intent.context.source = source;
+                    NavigationIntentStrict::Playback(playback_intent)
+                }
+                NavigationIntentStrict::Search(mut search_intent) => {
+                    search_intent.context.source = source;
+                    NavigationIntentStrict::Search(search_intent)
+                }
+                NavigationIntentStrict::Section(mut section_intent) => {
+                    section_intent.context.source = source;
+                    NavigationIntentStrict::Section(section_intent)
+                }
+                NavigationIntentStrict::Tune(mut tune_intent) => {
+                    tune_intent.context.source = source;
+                    NavigationIntentStrict::Tune(tune_intent)
+                }
+                NavigationIntentStrict::ProviderRequest(mut provider_request_intent) => {
+                    provider_request_intent.context.source = source;
+                    NavigationIntentStrict::ProviderRequest(provider_request_intent)
+                }
+            };
 
+            LaunchRequest {
+                app_id: request.app_id,
+                intent: Some(NavigationIntent::NavigationIntentStrict(
+                    updated_navigation_intent,
+                )),
+            }
+        }
+        Some(NavigationIntent::NavigationIntentLoose(mut loose_intent)) => {
+            loose_intent.context.source = source;
+            LaunchRequest {
+                app_id: request.app_id,
+                intent: Some(NavigationIntent::NavigationIntentLoose(loose_intent)),
+            }
+        }
+        _ => request,
+    };
+
+    req
+}
+
+pub async fn validate_navigation_intent(
+    intent_validation_config: IntentValidation,
+    intent: Option<NavigationIntent>,
+) -> RpcResult<()> {
+    match &intent {
+        Some(NavigationIntent::NavigationIntentLoose(_)) => {
+            let request_intent = serde_json::to_string(&intent).unwrap_or_default();
+            if let Err(err) = serde_json::from_str::<NavigationIntentStrict>(&request_intent) {
+                if intent_validation_config == IntentValidation::Fail {
+                    return Err(jsonrpsee::core::Error::Call(CallError::Custom {
+                        code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+                        message: format!("{:?} ", err),
+                        data: None,
+                    }));
+                } else {
+                    ripple_sdk::log::warn!("Intents do not match the spec : {:?} ", err);
+                }
+            }
+        }
+        _ => {
+            info!(
+                "Intents match the spec : {:?} ",
+                serde_json::to_string(&intent)
+            );
+        }
+    }
+    Ok(())
+}
 pub struct DiscoveryRPCProvider;
 impl RippleRPCProvider<DiscoveryImpl> for DiscoveryRPCProvider {
     fn provide(state: PlatformState) -> RpcModule<DiscoveryImpl> {
