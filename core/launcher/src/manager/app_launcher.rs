@@ -595,8 +595,8 @@ impl AppLauncher {
         }
         match resp {
             Ok(response) => match response.payload.extract::<AppResponse>() {
-                Some(Ok(AppManagerResponse::Session(SessionResponse::Pending(val)))) => {
-                    sessionid = val.session_id.unwrap_or_default();
+                Some(Ok(AppManagerResponse::Session(SessionResponse::Completed(val)))) => {
+                    sessionid = val.session_id;
                     debug!("session id : {:?} ", sessionid);
                 }
                 _ => {
