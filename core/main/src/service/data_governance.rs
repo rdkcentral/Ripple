@@ -233,6 +233,7 @@ impl DataGovernance {
         match setting {
             StorageProperty::AllowPersonalization => exclusions.personalization,
             StorageProperty::AllowProductAnalytics => exclusions.product_analytics,
+            StorageProperty::AllowBusinessAnalytics => exclusions.business_analytics,
             _ => None,
         }
     }
