@@ -64,11 +64,7 @@ use ripple_sdk::{
         protocol::{BridgeProtocolRequest, BridgeSessionParams},
     },
     log::info,
-    tokio::{
-        self,
-        sync::mpsc::Receiver,
-        time::{sleep, Duration},
-    },
+    tokio::{self, sync::mpsc::Receiver},
 };
 use serde_json::json;
 
@@ -315,7 +311,7 @@ impl DelegatedLauncherHandler {
                 ))
             }
             _ => {
-                if let Some(_) = self.platform_state.app_manager_state.get(&app_id) {
+                if self.platform_state.app_manager_state.get(&app_id).is_some() {
                     // app exist so we are creating a new session
                     // because the other one is unloading, remove the old session now
                     self.end_session(&app_id).await.ok();
