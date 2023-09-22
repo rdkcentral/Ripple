@@ -50,6 +50,9 @@ impl FireboltGatewayStep {
         let _ = methods.merge(DeviceRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(WifiRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(LifecycleRippleProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(LifecycleManagementProvider::provide_with_alias(
+            state.clone(),
+        ));
         let _ = methods.merge(CapRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(KeyboardRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(AckRPCProvider::provide_with_alias(state.clone()));
