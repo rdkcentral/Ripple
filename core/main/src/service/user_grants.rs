@@ -131,7 +131,9 @@ impl GrantState {
             if entries.contains(&new_entry) {
                 entries.remove(&new_entry);
             }
-            entries.insert(new_entry);
+            if new_entry.status.is_some() {
+                entries.insert(new_entry);
+            }
             grant_state.sync();
         } else {
             self.add_device_entry(new_entry)
@@ -761,20 +763,12 @@ impl GrantPolicyEnforcer {
             return platform_state
                 .open_rpc_state
                 .check_privacy_property(privacy_property);
-        } else if let Some(grant_steps) = policy.get_steps_without_grant() {
-            for step in grant_steps {
-                if platform_state
-                    .open_rpc_state
-                    .get_capability_policy(step.capability.clone())
-                    .is_some()
-                {
-                    return false;
-                }
-            }
-            return true;
+        }
+        if policy.get_steps_without_grant().is_some() {
+            return false;
         }
 
-        false
+        true
     }
 
     pub fn get_allow_value(platform_state: &PlatformState, property_name: &str) -> Option<bool> {
@@ -1188,14 +1182,15 @@ impl GrantStepExecutor {
             match session_rx.await {
                 Ok(result) => match result.as_challenge_response() {
                     Some(res) => match res.granted {
-                        true => {
+                        Some(true) => {
                             debug!("returning ok from invoke_capability");
                             Ok(())
                         }
-                        false => {
+                        Some(false) => {
                             debug!("returning err from invoke_capability");
                             Err(DenyReason::GrantDenied)
                         }
+                        None => Err(DenyReason::Ungranted),
                     },
                     None => {
                         debug!("Received reponse that is not convertable to challenge response");

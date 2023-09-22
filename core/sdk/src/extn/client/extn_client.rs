@@ -227,7 +227,11 @@ impl ExtnClient {
                     if message.payload.is_response() {
                         Self::handle_single(message, self.response_processors.clone());
                     } else if message.payload.is_event() {
-                        Self::handle_vec_stream(message, self.event_processors.clone());
+                        Self::handle_vec_stream(
+                            message,
+                            self.event_processors.clone(),
+                            &self.sender.get_cap().to_string(),
+                        );
                     } else {
                         let current_cap = self.sender.get_cap();
                         let target_contract = message.clone().target;
@@ -343,6 +347,7 @@ impl ExtnClient {
     fn handle_vec_stream(
         msg: ExtnMessage,
         processor: Arc<RwLock<HashMap<String, Vec<MSender<ExtnMessage>>>>>,
+        current_id: &str,
     ) {
         let id_c = msg.target.as_clear_string();
         let mut gc_sender_indexes: Vec<usize> = Vec::new();
@@ -369,7 +374,7 @@ impl ExtnClient {
                 }
             });
         } else {
-            error!("No Event Processor for {:?}", msg);
+            error!("No Event Processor for {:?} in {}", msg, current_id);
         }
 
         Self::cleanup_vec_stream(id_c, None, processor);
