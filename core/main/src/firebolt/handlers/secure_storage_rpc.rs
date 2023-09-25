@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use crate::utils::rpc_utils::rpc_err;
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
@@ -23,30 +24,63 @@ use jsonrpsee::{
 };
 use ripple_sdk::api::{
     firebolt::fb_secure_storage::{
-        GetRequest, RemoveAppRequest, RemoveRequest, SecureStorageGetRequest,
-        SecureStorageRemoveRequest, SecureStorageRequest, SecureStorageResponse,
-        SecureStorageSetRequest, SetAppRequest, SetRequest, StorageSetOptions,
+        SecureStorageClearRequest, SecureStorageGetRequest, SecureStorageRemoveRequest,
+        SecureStorageRequest, SecureStorageResponse, SecureStorageSetRequest,
     },
     gateway::rpc_gateway_api::CallContext,
 };
 
 use crate::{firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState};
 
+macro_rules! return_if_app_id_missing {
+    ($app_id:expr) => {
+        if ($app_id.is_none()) {
+            let msg = "missing field `app_id`";
+            error!(msg);
+            return Err(rpc_err(msg));
+        }
+    };
+}
+
 #[rpc(server)]
 pub trait SecureStorage {
     #[method(name = "securestorage.get")]
-    async fn get_rpc(&self, ctx: CallContext, request: GetRequest) -> RpcResult<Option<String>>;
+    async fn get_rpc(
+        &self,
+        ctx: CallContext,
+        request: SecureStorageGetRequest,
+    ) -> RpcResult<Option<String>>;
     #[method(name = "securestorage.set")]
-    async fn set_rpc(&self, ctx: CallContext, request: SetRequest) -> RpcResult<()>;
+    async fn set_rpc(&self, ctx: CallContext, request: SecureStorageSetRequest) -> RpcResult<()>;
     #[method(name = "securestorage.remove")]
-    async fn remove_rpc(&self, ctx: CallContext, request: RemoveRequest) -> RpcResult<()>;
+    async fn remove_rpc(
+        &self,
+        ctx: CallContext,
+        request: SecureStorageRemoveRequest,
+    ) -> RpcResult<()>;
+    #[method(name = "securestorage.clear")]
+    async fn clear_rpc(
+        &self,
+        ctx: CallContext,
+        request: SecureStorageClearRequest,
+    ) -> RpcResult<()>;
     #[method(name = "securestorage.setForApp")]
-    async fn set_for_app_rpc(&self, ctx: CallContext, request: SetAppRequest) -> RpcResult<()>;
+    async fn set_for_app_rpc(
+        &self,
+        ctx: CallContext,
+        request: SecureStorageSetRequest,
+    ) -> RpcResult<()>;
     #[method(name = "securestorage.removeForApp")]
     async fn remove_for_app_rpc(
         &self,
         ctx: CallContext,
-        request: RemoveAppRequest,
+        request: SecureStorageRemoveRequest,
+    ) -> RpcResult<()>;
+    #[method(name = "securestorage.clearForApp")]
+    async fn clear_for_app_rpc(
+        &self,
+        ctx: CallContext,
+        request: SecureStorageClearRequest,
     ) -> RpcResult<()>;
 }
 pub struct SecureStorageImpl {
@@ -58,18 +92,14 @@ impl SecureStorageImpl {
         SecureStorageImpl { state: pst.clone() }.into_rpc()
     }
 
-    async fn set(&self, app_id: String, request: SetRequest) -> RpcResult<()> {
+    async fn set(&self, request: SecureStorageSetRequest) -> RpcResult<()> {
         match self
             .state
             .get_client()
-            .send_extn_request(SecureStorageRequest::Set(SecureStorageSetRequest {
-                app_id,
-                value: request.value,
-                options: request.options.map(|op| StorageSetOptions { ttl: op.ttl }),
-                scope: request.scope,
-                key: request.key,
-                distributor_session: self.state.session_state.get_account_session().unwrap(),
-            }))
+            .send_extn_request(SecureStorageRequest::Set(
+                request,
+                self.state.session_state.get_account_session().unwrap(),
+            ))
             .await
         {
             Ok(_) => Ok(()),
@@ -82,23 +112,40 @@ impl SecureStorageImpl {
         }
     }
 
-    async fn remove(&self, app_id: String, request: RemoveRequest) -> RpcResult<()> {
+    async fn remove(&self, request: SecureStorageRemoveRequest) -> RpcResult<()> {
         match self
             .state
             .get_client()
-            .send_extn_request(SecureStorageRequest::Remove(SecureStorageRemoveRequest {
-                app_id,
-                scope: request.scope,
-                key: request.key,
-                distributor_session: self.state.session_state.get_account_session().unwrap(),
-            }))
+            .send_extn_request(SecureStorageRequest::Remove(
+                request,
+                self.state.session_state.get_account_session().unwrap(),
+            ))
             .await
         {
             Ok(_) => Ok(()),
             Err(err) => {
                 error!("error={:?}", err);
                 Err(jsonrpsee::core::Error::Custom(
-                    "Error setting value".to_owned(),
+                    "Error removing value".to_owned(),
+                ))
+            }
+        }
+    }
+    async fn clear(&self, request: SecureStorageClearRequest) -> RpcResult<()> {
+        match self
+            .state
+            .get_client()
+            .send_extn_request(SecureStorageRequest::Clear(
+                request,
+                self.state.session_state.get_account_session().unwrap(),
+            ))
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                error!("error={:?}", err);
+                Err(jsonrpsee::core::Error::Custom(
+                    "Error clearing value".to_owned(),
                 ))
             }
         }
@@ -107,16 +154,19 @@ impl SecureStorageImpl {
 
 #[async_trait]
 impl SecureStorageServer for SecureStorageImpl {
-    async fn get_rpc(&self, ctx: CallContext, request: GetRequest) -> RpcResult<Option<String>> {
+    async fn get_rpc(
+        &self,
+        ctx: CallContext,
+        request: SecureStorageGetRequest,
+    ) -> RpcResult<Option<String>> {
         match self
             .state
             .get_client()
-            .send_extn_request(SecureStorageRequest::Get(SecureStorageGetRequest {
-                app_id: ctx.app_id,
-                scope: request.scope,
-                key: request.key,
-                distributor_session: self.state.session_state.get_account_session().unwrap(),
-            }))
+            .send_extn_request(SecureStorageRequest::Get(
+                ctx.app_id,
+                request,
+                self.state.session_state.get_account_session().unwrap(),
+            ))
             .await
         {
             Ok(response) => match response.payload.extract().unwrap() {
@@ -134,39 +184,56 @@ impl SecureStorageServer for SecureStorageImpl {
         }
     }
 
-    async fn set_rpc(&self, ctx: CallContext, request: SetRequest) -> RpcResult<()> {
-        self.set(ctx.app_id, request).await
+    async fn set_rpc(
+        &self,
+        ctx: CallContext,
+        mut request: SecureStorageSetRequest,
+    ) -> RpcResult<()> {
+        request.app_id = Some(ctx.app_id);
+        self.set(request).await
     }
 
-    async fn remove_rpc(&self, ctx: CallContext, request: RemoveRequest) -> RpcResult<()> {
-        self.remove(ctx.app_id, request).await
+    async fn remove_rpc(
+        &self,
+        ctx: CallContext,
+        mut request: SecureStorageRemoveRequest,
+    ) -> RpcResult<()> {
+        request.app_id = Some(ctx.app_id);
+        self.remove(request).await
     }
 
-    async fn set_for_app_rpc(&self, _ctx: CallContext, request: SetAppRequest) -> RpcResult<()> {
-        self.set(
-            request.app_id,
-            SetRequest {
-                key: request.key,
-                value: request.value,
-                options: request.options,
-                scope: request.scope,
-            },
-        )
-        .await
+    async fn clear_rpc(
+        &self,
+        ctx: CallContext,
+        mut request: SecureStorageClearRequest,
+    ) -> RpcResult<()> {
+        request.app_id = Some(ctx.app_id);
+        self.clear(request).await
+    }
+
+    async fn set_for_app_rpc(
+        &self,
+        _ctx: CallContext,
+        request: SecureStorageSetRequest,
+    ) -> RpcResult<()> {
+        return_if_app_id_missing!(request.app_id);
+        self.set(request).await
     }
     async fn remove_for_app_rpc(
         &self,
         _ctx: CallContext,
-        request: RemoveAppRequest,
+        request: SecureStorageRemoveRequest,
     ) -> RpcResult<()> {
-        self.remove(
-            request.app_id,
-            RemoveRequest {
-                key: request.key,
-                scope: request.scope,
-            },
-        )
-        .await
+        return_if_app_id_missing!(request.app_id);
+        self.remove(request).await
+    }
+    async fn clear_for_app_rpc(
+        &self,
+        _ctx: CallContext,
+        request: SecureStorageClearRequest,
+    ) -> RpcResult<()> {
+        return_if_app_id_missing!(request.app_id);
+        self.clear(request).await
     }
 }
 
