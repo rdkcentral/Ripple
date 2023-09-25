@@ -292,3 +292,39 @@ impl ExtnPayloadProvider for AppEventRequest {
         RippleContract::AppEvents
     }
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct PowerStateEvent {
+    pub event_name: String,
+    pub result: Value,
+    pub context: Option<Value>,
+    pub app_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum PowerStateEventRequest {
+    Emit(PowerStateEvent),
+    Register(CallContext, String, ListenRequest),
+}
+
+impl ExtnPayloadProvider for PowerStateEventRequest {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Event(ExtnEvent::Value(
+            serde_json::to_value(self.clone()).unwrap(),
+        ))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        if let ExtnPayload::Event(ExtnEvent::Value(v)) = payload {
+            if let Ok(v) = serde_json::from_value(v) {
+                return Some(v);
+            }
+        }
+
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::PowerStateEvent
+    }
+}

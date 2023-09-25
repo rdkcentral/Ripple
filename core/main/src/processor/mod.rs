@@ -17,6 +17,7 @@
 
 pub mod account_link_processor;
 pub mod app_events_processor;
+pub mod power_event_processor;
 pub mod authorized_info_processor;
 pub mod config_processor;
 pub mod exn_status_processor;

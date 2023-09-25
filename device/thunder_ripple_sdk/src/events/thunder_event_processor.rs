@@ -100,6 +100,7 @@ impl ThunderEventMessage {
                     }
                 }
                 DeviceEvent::SystemPowerStateChanged => {
+                    println!("^^^^ system power state changed");
                     if let Some(v) = value["powerState"].as_str() {
                         if let Ok(power_state) = PowerState::from_str(v) {
                             if let Some(v) = value["currentPowerState"].as_str() {

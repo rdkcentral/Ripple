@@ -30,7 +30,7 @@ use ripple_sdk::{
                 AutoApplyPolicy, GrantActiveState, GrantEntry, GrantLifespan, GrantPolicy,
                 GrantPrivacySetting, GrantScope, GrantStateModify, GrantStatus, GrantStep,
                 PolicyPersistenceType,
-            },
+            }, device_events::{DeviceEventRequest, DeviceEvent, DeviceEventCallback},
         },
         distributor::distributor_usergrants::{
             UserGrantsCloudSetParams, UserGrantsCloudStoreRequest,
@@ -54,7 +54,7 @@ use ripple_sdk::{
     log::{debug, error, warn},
     serde_json::Value,
     tokio::sync::oneshot,
-    utils::error::RippleError,
+    utils::error::RippleError, uuid::Uuid,
 };
 use serde::Deserialize;
 
@@ -555,6 +555,20 @@ impl GrantHandler {
             });
         }
 
+        Ok(())
+    }
+
+    pub async fn check_and_update_dab_event_subscription(platform_state: &PlatformState,
+    ) -> Result<(), String> {
+        println!("^^^ in check_and_update_dab_event_subscription 1");
+        let req = DeviceEventRequest {
+            event: DeviceEvent::SystemPowerStateChanged,
+            subscribe: true,
+            id: Uuid::new_v4().to_string(),
+            callback_type: DeviceEventCallback::ExtnEvent
+        };
+        let _resp = platform_state.get_client().send_extn_request(req).await;
+        println!("^^^ in check_and_update_dab_event_subscription 2");
         Ok(())
     }
 }
