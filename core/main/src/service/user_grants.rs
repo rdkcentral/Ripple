@@ -1329,10 +1329,14 @@ mod tests {
             .await;
             println!("result: {:?}", result);
 
-            assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
-                reason: DenyReason::Unsupported,
-                caps: vec![perm.cap.clone()]
-            })));
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                DenyReasonWithCap {
+                    reason: DenyReason::Unsupported,
+                    caps: vec![perm.cap.clone()]
+                }
+            );
         }
 
         #[tokio::test]
@@ -1441,18 +1445,22 @@ mod tests {
             )
             .await;
 
-            assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
-                reason: DenyReason::Unsupported,
-                caps: vec![
-                    FireboltCap::Full(
-                        "xrn:firebolt:capability:usergrant:notavailableonplatform".to_owned()
-                    ),
-                    FireboltCap::Full(
-                        "xrn:firebolt:capability:usergrant:notavailableonplatform".to_owned()
-                    ),
-                    FireboltCap::Full(ACK_CHALLENGE_CAPABILITY.to_owned())
-                ]
-            })));
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                DenyReasonWithCap {
+                    reason: DenyReason::Unsupported,
+                    caps: vec![
+                        FireboltCap::Full(
+                            "xrn:firebolt:capability:usergrant:notavailableonplatform".to_owned()
+                        ),
+                        FireboltCap::Full(
+                            "xrn:firebolt:capability:usergrant:notavailableonplatform".to_owned()
+                        ),
+                        FireboltCap::Full(ACK_CHALLENGE_CAPABILITY.to_owned())
+                    ]
+                }
+            );
         }
 
         #[tokio::test]
@@ -1486,10 +1494,14 @@ mod tests {
             );
             let (result, _) = join!(evaluate_options, challenge_responses);
 
-            assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
-                reason: DenyReason::GrantDenied,
-                caps: vec![FireboltCap::Full(PIN_CHALLENGE_CAPABILITY.to_owned())]
-            })));
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                DenyReasonWithCap {
+                    reason: DenyReason::GrantDenied,
+                    caps: vec![FireboltCap::Full(PIN_CHALLENGE_CAPABILITY.to_owned())]
+                }
+            );
         }
 
         #[tokio::test]
@@ -1530,10 +1542,14 @@ mod tests {
 
             let (result, _) = join!(evaluate_options, challenge_responses);
 
-            assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
-                reason: DenyReason::GrantDenied,
-                caps: vec![FireboltCap::Full(ACK_CHALLENGE_CAPABILITY.to_owned())]
-            })));
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                DenyReasonWithCap {
+                    reason: DenyReason::GrantDenied,
+                    caps: vec![FireboltCap::Full(ACK_CHALLENGE_CAPABILITY.to_owned())]
+                }
+            );
         }
 
         #[tokio::test]
