@@ -102,7 +102,6 @@ impl ThunderStorageRequestProcessor {
                 params,
             })
             .await;
-        info!("{}", response.message);
         let response = match response.message["success"].as_bool() {
             Some(v) => ExtnResponse::Boolean(v),
             None => ExtnResponse::Error(RippleError::InvalidOutput),
