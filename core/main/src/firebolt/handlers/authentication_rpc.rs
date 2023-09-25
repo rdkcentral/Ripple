@@ -23,17 +23,21 @@ use jsonrpsee::{
 };
 use ripple_sdk::{
     api::{
+        distributor::distributor_platform::{PlatformTokenContext, PlatformTokenRequest},
         firebolt::{
             fb_authentication::{TokenRequest, TokenResult},
             fb_capabilities::{FireboltCap, CAPABILITY_NOT_AVAILABLE},
         },
         gateway::rpc_gateway_api::CallContext,
-        session::{SessionTokenRequest, TokenContext, TokenType},
+        session::TokenType,
     },
     extn::extn_client_message::ExtnResponse,
 };
 
-use crate::{firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState};
+use crate::{
+    firebolt::{handlers::discovery_rpc::get_content_partner_id, rpc::RippleRPCProvider},
+    state::platform_state::PlatformState,
+};
 
 #[rpc(server)]
 pub trait Authentication {
@@ -115,19 +119,30 @@ impl AuthenticationServer for AuthenticationImpl {
 
 impl AuthenticationImpl {
     async fn token(&self, token_type: TokenType, ctx: CallContext) -> RpcResult<TokenResult> {
-        let app_id = ctx.app_id;
-        let context = match self.platform_state.session_state.get_account_session() {
-            Some(v) => Some(TokenContext {
-                distributor_id: v.id,
-                app_id,
-            }),
-            None => None,
+        let cp_id = get_content_partner_id(&self.platform_state, &ctx)
+            .await
+            .unwrap_or(ctx.app_id.clone());
+
+        let dist_session = match self.platform_state.session_state.get_account_session() {
+            Some(session) => session,
+            None => {
+                return Err(jsonrpsee::core::Error::Custom(String::from(
+                    "Account session is not available",
+                )));
+            }
+        };
+
+        let context = PlatformTokenContext {
+            app_id: ctx.app_id,
+            content_provider: cp_id,
+            device_session_id: (&self.platform_state.device_session_id).into(),
+            app_session_id: ctx.session_id.clone(),
+            dist_session,
         };
         let resp = self
             .platform_state
             .get_client()
-            .send_extn_request(SessionTokenRequest {
-                token_type,
+            .send_extn_request(PlatformTokenRequest {
                 options: Vec::new(),
                 context,
             })
