@@ -51,6 +51,7 @@ pub struct SecureStorageSetRequest {
     pub options: Option<StorageOptions>,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct SecureStorageRemoveRequest {
     pub scope: StorageScope,
     pub key: String,
