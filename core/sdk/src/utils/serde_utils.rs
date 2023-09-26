@@ -158,15 +158,13 @@ pub mod date_time_str_serde {
     use chrono::DateTime;
     use serde::{self, Deserialize, Deserializer, Serializer};
 
-    const FORMAT: &str = "%Y-%m-%dT%H:%M:%S.%3fZ";
-
-    pub fn serialize<S>(data: &str, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(data: &String, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let formed_date_res = DateTime::parse_from_str(data, FORMAT);
-        if formed_date_res.is_ok() {
-            serializer.serialize_str(data)
+        let formed_date_res = DateTime::parse_from_rfc3339(&data);
+        if let Ok(_) = formed_date_res {
+            serializer.serialize_str(&data)
         } else {
             Err(serde::ser::Error::custom(
                 "String not convertible to date-time",
@@ -179,12 +177,12 @@ pub mod date_time_str_serde {
         D: Deserializer<'de>,
     {
         let str = String::deserialize(deserializer)?;
-        let formed_date_res = DateTime::parse_from_str(&str, FORMAT);
-        if formed_date_res.is_ok() {
+        let formed_date_res = DateTime::parse_from_rfc3339(&str);
+        if let Ok(_) = formed_date_res {
             Ok(str)
         } else {
             Err(serde::de::Error::custom(
-                "Field not in expected Date-Time (YYYY-MM-DDTHH:mm:SS.xxxZ) format",
+                "Field is not a valid OpenRPC date-time format string",
             ))
         }
     }
