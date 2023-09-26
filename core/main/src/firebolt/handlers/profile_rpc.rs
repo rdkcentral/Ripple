@@ -78,7 +78,6 @@ impl ProfileServer for ProfileImpl {
                     Some(grant) => Ok(grant),
                     None => Ok(false),
                 };
-                // return Ok(v.granted);
             }
         }
         Err(jsonrpsee::core::Error::Custom(String::from(

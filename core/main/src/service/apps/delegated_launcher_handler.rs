@@ -307,6 +307,7 @@ impl DelegatedLauncherHandler {
 
         let app_id = session.app.id.clone();
         TelemetryBuilder::send_app_load_start(&self.platform_state, app_id.clone(), None, None);
+        debug!("start_session: entry: app_id={}", app_id);
         match self.platform_state.app_manager_state.get(&app_id) {
             Some(app) if (app.state != LifecycleState::Unloading) => {
                 Ok(AppManagerResponse::Session(
