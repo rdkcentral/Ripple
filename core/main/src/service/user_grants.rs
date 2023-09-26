@@ -194,7 +194,11 @@ impl GrantState {
 
     fn add_device_entry(&self, entry: GrantEntry) {
         let mut device_grants = self.device_grants.write().unwrap();
-        device_grants.value.insert(entry);
+        if entry.status.is_none() {
+            device_grants.value.remove(&entry);
+        } else {
+            device_grants.value.replace(entry);
+        }
         device_grants.sync();
     }
 
@@ -643,13 +647,11 @@ impl GrantPolicyEnforcer {
                     }
                 }
                 GrantScope::Device => {
-                    if app_id.is_none() {
-                        platform_state
-                            .cap_state
-                            .grant_state
-                            .update_grant_entry(None, grant_entry);
-                        ret_val = true;
-                    }
+                    platform_state
+                        .cap_state
+                        .grant_state
+                        .update_grant_entry(None, grant_entry);
+                    ret_val = true;
                 }
             }
         }

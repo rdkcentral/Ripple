@@ -307,14 +307,8 @@ impl DelegatedLauncherHandler {
 
         let app_id = session.app.id.clone();
         TelemetryBuilder::send_app_load_start(&self.platform_state, app_id.clone(), None, None);
-        debug!(
-            "Karthick: start_session: entry: app_id={}, {:#?}",
-            app_id,
-            self.platform_state.app_manager_state.get(&app_id)
-        );
         match self.platform_state.app_manager_state.get(&app_id) {
             Some(app) if (app.state != LifecycleState::Unloading) => {
-                debug!("Karthick: app state != Unloading session: {:?}", session);
                 Ok(AppManagerResponse::Session(
                     self.precheck_then_load_or_activate(session, false).await,
                 ))
@@ -345,13 +339,9 @@ impl DelegatedLauncherHandler {
         let mut loaded_session_id = None;
         if !loading {
             let app = self.platform_state.app_manager_state.get(&app_id).unwrap();
-            debug!("Karthick: app from app manager state: {:#?}", app);
             // unwrap is safe here, when precheck_then_load_or_activate is called with loading=false
             // then the app should have already existed in self.apps
-            debug!(
-                "Karthick: Current session launch inactive: {}",
-                session.launch.inactive
-            );
+
             if session.launch.inactive {
                 // Uncommon, moving an already loaded app to inactive again using session
                 self.platform_state
@@ -359,7 +349,6 @@ impl DelegatedLauncherHandler {
                     .update_active_session(&app_id, None);
                 return SessionResponse::Completed(Self::to_completed_session(&app));
             }
-            debug!("Karthick: returning session id from app: {:?}", app);
             session_id = Some(app.session_id.clone());
             loaded_session_id = Some(app.loaded_session_id);
         }
@@ -411,7 +400,6 @@ impl DelegatedLauncherHandler {
                         }
                     }
                 });
-                debug!("Karthick: returning pending session response: ");
                 SessionResponse::Pending(PendingSessionResponse {
                     app_id,
                     transition_pending: true,
@@ -421,7 +409,6 @@ impl DelegatedLauncherHandler {
             }
             None => {
                 // No grants required, transition immediately
-                debug!("Karthick: transition immediately");
                 if loading {
                     let sess = self.new_loaded_session(session, false).await;
                     SessionResponse::Completed(sess)
