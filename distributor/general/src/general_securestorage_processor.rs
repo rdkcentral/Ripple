@@ -80,7 +80,7 @@ impl ExtnRequestProcessor for DistributorSecureStorageProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         match extracted_message {
-            SecureStorageRequest::Set(_req) => {
+            SecureStorageRequest::Set(_req, _session) => {
                 if let Err(e) = state
                     .clone()
                     .respond(
@@ -94,7 +94,7 @@ impl ExtnRequestProcessor for DistributorSecureStorageProcessor {
                 }
                 true
             }
-            SecureStorageRequest::Get(_req) => {
+            SecureStorageRequest::Get(_app_id, _req, _session) => {
                 let resp = SecureStorageGetResponse {
                     value: Some(String::from("VGhpcyBub3QgYSByZWFsIHRva2VuLgo=")),
                 };
@@ -121,7 +121,22 @@ impl ExtnRequestProcessor for DistributorSecureStorageProcessor {
                 true
             }
 
-            SecureStorageRequest::Remove(_req) => {
+            SecureStorageRequest::Remove(_req, _session) => {
+                if let Err(e) = state
+                    .clone()
+                    .respond(
+                        msg,
+                        ripple_sdk::extn::extn_client_message::ExtnResponse::None(()),
+                    )
+                    .await
+                {
+                    error!("Error sending back response {:?}", e);
+                    return false;
+                }
+                true
+            }
+
+            SecureStorageRequest::Clear(_req, _session) => {
                 if let Err(e) = state
                     .clone()
                     .respond(
