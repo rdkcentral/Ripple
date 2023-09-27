@@ -504,7 +504,7 @@ impl ExtnClient {
         loop {
             match tr.try_recv() {
                 Ok(cmessage) => {
-                    debug!("** new receiving message msg={:?}", cmessage);
+                    debug!("** receiving message msg={:?}", cmessage);
                     let message: ExtnMessage = cmessage.try_into().unwrap();
                     if let Some(v) = message.payload.extract() {
                         return Ok(v);
@@ -552,7 +552,7 @@ impl ExtnClient {
                 Ok(cmessage) => {
                     let latency = Utc::now().timestamp_millis() - cmessage.ts;
                     debug!(
-                        "** new receiving message latency={} msg={:?}",
+                        "** receiving message latency={} msg={:?}",
                         latency, cmessage
                     );
                     let message: ExtnMessage = cmessage.try_into().unwrap();
