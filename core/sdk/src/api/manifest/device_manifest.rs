@@ -393,7 +393,7 @@ fn default_ripple_features() -> RippleFeatures {
 }
 
 fn default_saved_dir() -> String {
-    String::from("/opt/persistent/ripple/")
+    String::from("/opt/persistent/ripple")
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone, Default)]
