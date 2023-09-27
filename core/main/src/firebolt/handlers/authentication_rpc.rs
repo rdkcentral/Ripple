@@ -29,7 +29,7 @@ use ripple_sdk::{
             fb_capabilities::{FireboltCap, CAPABILITY_NOT_AVAILABLE},
         },
         gateway::rpc_gateway_api::CallContext,
-        session::TokenType,
+        session::{SessionTokenRequest, TokenContext, TokenType},
     },
     extn::extn_client_message::ExtnResponse,
 };
@@ -132,21 +132,38 @@ impl AuthenticationImpl {
             }
         };
 
-        let context = PlatformTokenContext {
-            app_id: ctx.app_id,
-            content_provider: cp_id,
-            device_session_id: (&self.platform_state.device_session_id).into(),
-            app_session_id: ctx.session_id.clone(),
-            dist_session,
+        let resp = match &token_type {
+            TokenType::Platform => {
+                let context = PlatformTokenContext {
+                    app_id: ctx.app_id,
+                    content_provider: cp_id,
+                    device_session_id: (&self.platform_state.device_session_id).into(),
+                    app_session_id: ctx.session_id.clone(),
+                    dist_session,
+                };
+                self.platform_state
+                    .get_client()
+                    .send_extn_request(PlatformTokenRequest {
+                        options: Vec::new(),
+                        context,
+                    })
+                    .await
+            }
+            _ => {
+                let context = TokenContext {
+                    distributor_id: dist_session.id,
+                    app_id: ctx.app_id,
+                };
+                self.platform_state
+                    .get_client()
+                    .send_extn_request(SessionTokenRequest {
+                        token_type,
+                        options: Vec::new(),
+                        context: Some(context),
+                    })
+                    .await
+            }
         };
-        let resp = self
-            .platform_state
-            .get_client()
-            .send_extn_request(PlatformTokenRequest {
-                options: Vec::new(),
-                context,
-            })
-            .await;
         match resp {
             Ok(payload) => match payload.payload.extract().unwrap() {
                 ExtnResponse::Token(t) => Ok(TokenResult {
