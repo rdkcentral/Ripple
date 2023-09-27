@@ -26,7 +26,7 @@ use ripple_sdk::{
         distributor::distributor_platform::{PlatformTokenContext, PlatformTokenRequest},
         firebolt::{
             fb_authentication::{TokenRequest, TokenResult},
-            fb_capabilities::{FireboltCap, CAPABILITY_NOT_AVAILABLE},
+            fb_capabilities::{FireboltCap, CAPABILITY_NOT_AVAILABLE, CAPABILITY_NOT_SUPPORTED},
         },
         gateway::rpc_gateway_api::CallContext,
         session::{SessionTokenRequest, TokenContext, TokenType},
@@ -110,7 +110,7 @@ impl AuthenticationServer for AuthenticationImpl {
     }
 
     async fn session(&self, ctx: CallContext) -> RpcResult<String> {
-        match self.token(TokenType::Root, ctx).await {
+        match self.token(TokenType::Distributor, ctx).await {
             Ok(r) => Ok(r.value),
             Err(e) => Err(e),
         }
@@ -118,7 +118,22 @@ impl AuthenticationServer for AuthenticationImpl {
 }
 
 impl AuthenticationImpl {
+    fn send_dist_token_not_supported() -> jsonrpsee::core::Error {
+        jsonrpsee::core::Error::Call(CallError::Custom {
+            code: CAPABILITY_NOT_SUPPORTED,
+            message: "capability xrn:firebolt:capability:token:session is not supported"
+                .to_string(),
+            data: None,
+        })
+    }
+
     async fn token(&self, token_type: TokenType, ctx: CallContext) -> RpcResult<TokenResult> {
+        if let TokenType::Distributor = &token_type {
+            if !self.platform_state.supports_distributor_session() {
+                return Err(Self::send_dist_token_not_supported());
+            }
+        }
+
         let cp_id = get_content_partner_id(&self.platform_state, &ctx)
             .await
             .unwrap_or(ctx.app_id.clone());
