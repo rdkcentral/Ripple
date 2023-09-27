@@ -521,37 +521,49 @@ impl PrivacyImpl {
             PrivacySettingsStorageType::Local => {
                 let payload = PrivacySettingsStoreRequest::SetPrivacySettings(property, value);
                 let response = platform_state.get_client().send_extn_request(payload).await;
-                if let Ok(extn_msg) =  response {
+                if let Ok(extn_msg) = response {
                     match extn_msg.payload {
-                        ExtnPayload::Response(res) => {
-                            match res {
-                                ExtnResponse::None(_) => RpcResult::Ok(()),
-                                _ => RpcResult::Err(jsonrpsee::core::Error::Custom("Unable to fetch".to_owned())),
-                            }
-                        }
-                        _ => RpcResult::Err(jsonrpsee::core::Error::Custom("Unexpected response received from Extn".to_owned()))
+                        ExtnPayload::Response(res) => match res {
+                            ExtnResponse::None(_) => RpcResult::Ok(()),
+                            _ => RpcResult::Err(jsonrpsee::core::Error::Custom(
+                                "Unable to fetch".to_owned(),
+                            )),
+                        },
+                        _ => RpcResult::Err(jsonrpsee::core::Error::Custom(
+                            "Unexpected response received from Extn".to_owned(),
+                        )),
                     }
                 } else {
-                    RpcResult::Err(jsonrpsee::core::Error::Custom("Error in getting response from Extn".to_owned()))
+                    RpcResult::Err(jsonrpsee::core::Error::Custom(
+                        "Error in getting response from Extn".to_owned(),
+                    ))
                 }
             }
             PrivacySettingsStorageType::Cloud | PrivacySettingsStorageType::Sync => {
-                let dist_session = platform_state.session_state.get_account_session().unwrap();
-                let request = PrivacyCloudRequest::SetProperty(SetPropertyParams {
-                    setting: property.as_privacy_setting().unwrap(),
-                    value,
-                    dist_session,
-                });
-                if (platform_state.get_client().send_extn_request(request).await).is_ok() {
-                    return Ok(());
+                if let Some(dist_session) = platform_state.session_state.get_account_session() {
+                    if let Some(privacy_setting) = property.as_privacy_setting() {
+                        let request = PrivacyCloudRequest::SetProperty(SetPropertyParams {
+                            setting: privacy_setting,
+                            value,
+                            dist_session,
+                        });
+                        let result = platform_state.get_client().send_extn_request(request).await;
+                        if PrivacySettingsStorageType::Sync == privacy_settings_storage_type
+                            && result.is_ok()
+                        {
+                            let _ = StorageManager::set_bool(platform_state, property, value, None)
+                                .await;
+                        }
+                        if result.is_ok() {
+                            return Ok(());
+                        }
+                    }
                 }
-                Err(jsonrpsee::core::Error::Custom(String::from(
-                    "PrivacySettingsStorageType::Cloud: Not Available",
-                )))
+                Err(jsonrpsee::core::Error::Custom(String::from(&format!(
+                    "{:?}: Not Available",
+                    privacy_settings_storage_type
+                ))))
             }
-            // PrivacySettingsStorageType::Sync => Err(jsonrpsee::core::Error::Custom(String::from(
-            //     "PrivacySettingsStorageType::Sync: Unimplemented",
-            // ))),
         }
     }
 
