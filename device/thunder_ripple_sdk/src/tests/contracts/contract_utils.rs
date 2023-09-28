@@ -134,7 +134,7 @@ pub fn get_extn_client(s: Sender<CExtnMessage>, r: Receiver<CExtnMessage>) -> Ex
     let option_map: Option<HashMap<String, String>> = Some(HashMap::new());
 
     ExtnClient::new(
-        r.clone(),
+        r,
         ExtnSender::new(
             s,
             ExtnId::new_channel(ExtnClassId::Device, "pact".into()),
