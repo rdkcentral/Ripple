@@ -491,7 +491,7 @@ impl LocalizationServer for LocalizationImpl {
                     set_request.value
                 );
                 return Err(jsonrpsee::core::Error::Custom(
-                    format!("timezone_set: Unsupported timezone: tz={set_request.value}")
+                    format!("timezone_set: Unsupported timezone: tz={0}", set_request.value)
                 ));
             }
         } else {
