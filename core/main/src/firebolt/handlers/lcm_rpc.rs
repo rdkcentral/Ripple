@@ -37,7 +37,7 @@ use ripple_sdk::{
 };
 
 use crate::{
-    firebolt::rpc::RippleRPCProvider,
+    firebolt::{handlers::discovery_rpc::validate_navigation_intent, rpc::RippleRPCProvider},
     service::apps::{app_events::AppEvents, provider_broker::ProviderBroker},
     state::platform_state::PlatformState,
     utils::rpc_utils::{rpc_await_oneshot, rpc_err},
@@ -185,6 +185,14 @@ impl LifecycleManagementServer for LifecycleManagementImpl {
         _ctx: CallContext,
         req: AppSessionRequest,
     ) -> RpcResult<SessionResponse> {
+        let intent_validation_config = self
+            .state
+            .get_device_manifest()
+            .get_features()
+            .intent_validation;
+        validate_navigation_intent(intent_validation_config, req.session.launch.intent.clone())
+            .await?;
+
         let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
 
         let app_request = AppRequest::new(AppMethod::BrowserSession(req.session), app_resp_tx);
