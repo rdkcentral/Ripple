@@ -91,24 +91,9 @@ impl std::fmt::Display for AudioProfile {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DistributorTokenEvent {
+pub struct AccountToken {
     pub token: String,
     pub expires: u64,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DistributorToken {
-    pub token: String,
-    pub expires: u64,
-}
-
-impl From<DistributorToken> for DistributorTokenEvent {
-    fn from(value: DistributorToken) -> Self {
-        DistributorTokenEvent {
-            token: value.token.clone(),
-            expires: value.expires,
-        }
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -134,7 +119,7 @@ pub enum InternetConnectionStatus {
     FullyConnected,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum InternetConnectionStatusEvent {
     NoInternet,
@@ -304,24 +289,6 @@ impl ExtnPayloadProvider for SystemPowerState {
 
     fn contract() -> RippleContract {
         RippleContract::PowerStateEvent
-    }
-}
-
-impl ExtnPayloadProvider for DistributorTokenEvent {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Event(ExtnEvent::DistributorTokenChange(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<DistributorTokenEvent> {
-        if let ExtnPayload::Event(ExtnEvent::DistributorTokenChange(r)) = payload {
-            return Some(r);
-        }
-
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::RippleContext
     }
 }
 

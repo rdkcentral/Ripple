@@ -22,7 +22,7 @@ use crate::{
     framework::ripple_contract::{ContractAdjective, RippleContract},
 };
 
-use super::device::device_request::DistributorToken;
+use super::device::device_request::AccountToken;
 
 pub fn deserialize_expiry<'de, D>(deserializer: D) -> Result<Expiry, D::Error>
 where
@@ -61,6 +61,7 @@ pub enum AccountSessionRequest {
     Provision(ProvisionRequest),
     SetAccessToken(AccountSessionTokenRequest),
     GetAccessToken,
+    Subscribe,
 }
 
 impl ExtnPayloadProvider for AccountSessionRequest {
@@ -85,7 +86,7 @@ impl ExtnPayloadProvider for AccountSessionRequest {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum AccountSessionResponse {
     AccountSession(AccountSession),
-    AccountSessionToken(DistributorToken),
+    AccountSessionToken(AccountToken),
 }
 
 #[repr(C)]
@@ -139,7 +140,7 @@ impl ExtnPayloadProvider for AccountSession {
     }
 }
 
-impl ExtnPayloadProvider for DistributorToken {
+impl ExtnPayloadProvider for AccountToken {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         if let ExtnPayload::Response(ExtnResponse::AccountSession(
             AccountSessionResponse::AccountSessionToken(dist_token),

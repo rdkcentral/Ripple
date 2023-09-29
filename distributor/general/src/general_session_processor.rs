@@ -171,6 +171,7 @@ impl ExtnRequestProcessor for DistributorSessionProcessor {
             AccountSessionRequest::Provision(p) => Self::provision(state.clone(), msg, p).await,
             AccountSessionRequest::SetAccessToken(s) => Self::set_token(state, msg, s).await,
             AccountSessionRequest::GetAccessToken => todo!(),
+            AccountSessionRequest::Subscribe => todo!(),
         }
     }
 }

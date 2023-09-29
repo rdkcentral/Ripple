@@ -409,9 +409,8 @@ impl DeviceServer for DeviceImpl {
             .get_client()
             .send_extn_request(DeviceEventRequest {
                 event: DeviceEvent::InputChanged,
-                id: ctx.app_id,
                 subscribe: listen,
-                callback_type: DeviceEventCallback::FireboltAppEvent,
+                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
             })
             .await
             .is_err()
@@ -463,9 +462,8 @@ impl DeviceServer for DeviceImpl {
             .get_client()
             .send_extn_request(DeviceEventRequest {
                 event: DeviceEvent::HdrChanged,
-                id: ctx.app_id,
                 subscribe: listen,
-                callback_type: DeviceEventCallback::FireboltAppEvent,
+                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
             })
             .await
             .is_err()
@@ -516,9 +514,8 @@ impl DeviceServer for DeviceImpl {
             .get_client()
             .send_extn_request(DeviceEventRequest {
                 event: DeviceEvent::ScreenResolutionChanged,
-                id: ctx.app_id,
                 subscribe: listen,
-                callback_type: DeviceEventCallback::FireboltAppEvent,
+                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
             })
             .await
             .is_err()
@@ -569,9 +566,8 @@ impl DeviceServer for DeviceImpl {
             .get_client()
             .send_extn_request(DeviceEventRequest {
                 event: DeviceEvent::VideoResolutionChanged,
-                id: ctx.app_id,
                 subscribe: listen,
-                callback_type: DeviceEventCallback::FireboltAppEvent,
+                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
             })
             .await
             .is_err()
@@ -645,9 +641,8 @@ impl DeviceServer for DeviceImpl {
             .get_client()
             .send_extn_request(DeviceEventRequest {
                 event: DeviceEvent::AudioChanged,
-                id: ctx.app_id.to_owned(),
                 subscribe: listen,
-                callback_type: DeviceEventCallback::FireboltAppEvent,
+                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
             })
             .await
             .is_err()
@@ -699,9 +694,8 @@ impl DeviceServer for DeviceImpl {
             .get_client()
             .send_extn_request(DeviceEventRequest {
                 event: DeviceEvent::NetworkChanged,
-                id: ctx.app_id,
                 subscribe: listen,
-                callback_type: DeviceEventCallback::FireboltAppEvent,
+                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
             })
             .await
             .is_err()

@@ -24,6 +24,7 @@ use std::{
 use ripple_sdk::{
     api::{
         apps::{AppEvent, AppEventRequest},
+        context::RippleContextUpdateRequest,
         device::{
             device_events::{DeviceEvent, DeviceEventCallback},
             device_operator::DeviceSubscribeRequest,
@@ -135,9 +136,6 @@ impl ThunderEventMessage {
                         value.clone(),
                     )))
                 }
-                DeviceEvent::DistributorSessionTokenChanged => {
-                    return Some(ThunderEventMessage::Custom(value.clone()))
-                }
                 DeviceEvent::InternetConnectionStatusChanged => {
                     if let Some(status) = value.get("status") {
                         if let Ok(internet_status) = serde_json::from_value(status.clone()) {
@@ -189,7 +187,7 @@ pub trait ThunderEventHandlerProvider {
     ) -> Result<ExtnEvent, RippleError> {
         let result = serde_json::to_value(r).unwrap();
         match callback_type {
-            DeviceEventCallback::FireboltAppEvent => {
+            DeviceEventCallback::FireboltAppEvent(_) => {
                 Ok(ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
                     event_name: Self::get_mapped_event(),
                     context: None,
@@ -230,15 +228,21 @@ impl ThunderEventHandler {
         }
     }
 
+    pub fn callback_context_update(
+        state: ThunderState,
+        update_request: RippleContextUpdateRequest,
+    ) {
+        if let Err(e) = state.get_client().request_transient(update_request) {
+            error!("Error sending context update {:?}", e);
+        }
+    }
+
     pub fn callback_device_event(state: ThunderState, event_name: String, event: ExtnEvent) {
         if !state.event_processor.check_last_event(&event_name, &event) {
             state.event_processor.add_last_event(&event_name, &event);
             if (match event {
                 ExtnEvent::AppEvent(a) => state.get_client().request_transient(a),
                 ExtnEvent::PowerState(p) => state.get_client().request_transient(p),
-                ExtnEvent::DistributorTokenChange(dist_token_change) => {
-                    state.get_client().request_transient(dist_token_change)
-                }
                 ExtnEvent::InternetState(internet_connection_status) => state
                     .get_client()
                     .request_transient(internet_connection_status),

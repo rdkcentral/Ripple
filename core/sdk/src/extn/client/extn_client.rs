@@ -24,7 +24,6 @@ use std::{
 use chrono::Utc;
 use crossbeam::channel::{bounded, Receiver as CReceiver, Sender as CSender, TryRecvError};
 use log::{debug, error, info, trace};
-use serde::{Deserialize, Serialize};
 use tokio::sync::{
     mpsc::Sender as MSender,
     oneshot::{self, Sender as OSender},
@@ -32,13 +31,12 @@ use tokio::sync::{
 
 use crate::{
     api::{
-        device::device_request::{DistributorToken, InternetConnectionStatusEvent},
+        context::{ActivationStatus, RippleContext, RippleContextUpdateRequest},
+        device::device_request::InternetConnectionStatusEvent,
         manifest::extn_manifest::ExtnSymbol,
     },
     extn::{
-        extn_client_message::{
-            ExtnEvent, ExtnMessage, ExtnPayload, ExtnPayloadProvider, ExtnResponse,
-        },
+        extn_client_message::{ExtnMessage, ExtnPayloadProvider, ExtnResponse},
         extn_id::ExtnId,
         ffi::ffi_message::CExtnMessage,
     },
@@ -51,26 +49,6 @@ use super::{
     extn_sender::ExtnSender,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ActivationStatus {
-    NotActivated,
-    DistributorTokenAvailable,
-    Activated,
-}
-
-#[derive(Clone, Debug)]
-pub struct RippleContext {
-    activation_status: ActivationStatus,
-    internet_connectivity: InternetConnectionStatusEvent,
-}
-impl Default for RippleContext {
-    fn default() -> Self {
-        RippleContext {
-            activation_status: ActivationStatus::NotActivated,
-            internet_connectivity: InternetConnectionStatusEvent::NoInternet,
-        }
-    }
-}
 /// Defines the SDK Client implementation of the Inter Extension communication.
 /// # Overview
 /// Core objective for the Extn client is to provide a reliable and robust communication channel between the  `Main` and its extensions. There are challenges when using Dynamic Linked libraries which needs to be carefully handled for memory, security and reliability. `Client` is built into the `core/sdk` for a better Software Delivery and Operational(SDO) performance.
@@ -265,47 +243,51 @@ impl ExtnClient {
                     if message.payload.is_response() {
                         Self::handle_single(message, self.response_processors.clone());
                     } else if message.payload.is_event() {
-                        let senders = self.get_other_senders();
                         let is_main = self.sender.get_cap().is_main();
-
-                        if Self::is_ripple_context(&message) {
-                            trace!(
-                                "Received ripple context in {} message: {:?}",
-                                self.sender.get_cap().to_string(),
-                                message
-                            );
-                            let mut ripple_context = self.ripple_context.write().unwrap();
-                            if let ExtnPayload::Event(ExtnEvent::DistributorTokenChange(
-                                _dist_token,
-                            )) = &message.payload
+                        if !is_main {
+                            if let Some(context) =
+                                RippleContext::is_ripple_context(&message.payload)
                             {
-                                ripple_context.activation_status =
-                                    ActivationStatus::DistributorTokenAvailable;
-                                //TODO: Add expiry handling. Each client will handle expiry of the token on its own. Upon expiry,
-                                //      the status has to change back to activated. Need to have a timer which can be reset upon
-                                //      receiving another update request.
-                            }
-                            if let ExtnPayload::Event(ExtnEvent::InternetState(internet_state)) =
-                                &message.payload
-                            {
-                                ripple_context.internet_connectivity = internet_state.to_owned();
-                                trace!("Updated local ripple context in extnclient: {} with interet state: {:?}.", self.sender.get_cap().to_string(), ripple_context.internet_connectivity);
-                            }
-                            if is_main {
-                                for sender in senders {
-                                    let send_res = sender.send(message.to_owned().into());
-                                    trace!("Send to other client result: {:?}", send_res);
+                                trace!(
+                                    "Received ripple context in {} message: {:?}",
+                                    self.sender.get_cap().to_string(),
+                                    message
+                                );
+                                {
+                                    let mut ripple_context = self.ripple_context.write().unwrap();
+                                    ripple_context.deep_copy(context);
                                 }
                             }
-                        } else {
-                            Self::handle_vec_stream(message, self.event_processors.clone());
                         }
+
+                        Self::handle_vec_stream(message, self.event_processors.clone());
                     } else {
                         let current_cap = self.sender.get_cap();
                         let target_contract = message.clone().target;
                         if current_cap.is_main() {
+                            if let Some(request) =
+                                RippleContextUpdateRequest::is_ripple_context_update(
+                                    &message.payload,
+                                )
+                            {
+                                {
+                                    let mut ripple_context = self.ripple_context.write().unwrap();
+                                    ripple_context.update(request)
+                                }
+                                let new_context = { self.ripple_context.read().unwrap().clone() };
+                                {
+                                    let senders = self.get_other_senders();
+
+                                    for sender in senders {
+                                        let message = new_context.get_event_message();
+                                        let send_res = sender.send(message.into());
+                                        trace!("Send to other client result: {:?}", send_res);
+                                    }
+                                }
+                                Self::handle_vec_stream(message, self.event_processors.clone());
+                            }
                             // Forward the message to an extn sender
-                            if let Some(sender) =
+                            else if let Some(sender) =
                                 self.get_extn_sender_with_contract(target_contract)
                             {
                                 let mut new_message = message.clone();
@@ -412,9 +394,6 @@ impl ExtnClient {
         }
     }
 
-    fn is_ripple_context(msg: &ExtnMessage) -> bool {
-        msg.target == RippleContract::RippleContext
-    }
     fn handle_vec_stream(
         msg: ExtnMessage,
         processor: Arc<RwLock<HashMap<String, Vec<MSender<ExtnMessage>>>>>,
@@ -703,61 +682,6 @@ impl ExtnClient {
     // Method to check if contract is permitted
     pub fn check_contract_permitted(&self, contract: RippleContract) -> bool {
         self.sender.check_contract_permission(contract)
-    }
-
-    pub fn set_distributor_token(&self, dist_token: DistributorToken) {
-        let mut ripple_context = self.ripple_context.write().unwrap();
-        ripple_context.activation_status = ActivationStatus::DistributorTokenAvailable;
-        trace!(
-            "Received distributor token to set in extn client: {:?}",
-            self.sender.get_cap().to_string()
-        );
-        if self.sender.get_cap().is_main() {
-            let extn_payload =
-                ExtnPayload::Event(ExtnEvent::DistributorTokenChange(dist_token.into()));
-            let message = ExtnMessage {
-                id: "ManagementMessage".to_owned(),
-                requestor: self.sender.get_cap(),
-                target: RippleContract::RippleContext,
-                payload: extn_payload,
-                callback: None,
-                ts: None,
-            };
-            let senders = self.get_other_senders();
-            for sender in senders {
-                let send_res = sender.send(message.to_owned().into());
-                trace!("Send to other client result: {:?}", send_res);
-            }
-        }
-    }
-
-    pub fn set_internet_connection_status(
-        &self,
-        internet_connection_status: InternetConnectionStatusEvent,
-    ) {
-        let mut ripple_context = self.ripple_context.write().unwrap();
-        ripple_context.internet_connectivity = internet_connection_status.clone();
-        trace!(
-            "Received internet connection status to set in extn client: {:?}",
-            self.sender.get_cap().to_string()
-        );
-        if self.sender.get_cap().is_main() {
-            let extn_payload =
-                ExtnPayload::Event(ExtnEvent::InternetState(internet_connection_status));
-            let message = ExtnMessage {
-                id: "ManagementMessage".to_owned(),
-                requestor: self.sender.get_cap(),
-                target: RippleContract::RippleContext,
-                payload: extn_payload,
-                callback: None,
-                ts: None,
-            };
-            let senders = self.get_other_senders();
-            for sender in senders {
-                let send_res = sender.send(message.to_owned().into());
-                trace!("Send to other client result: {:?}", send_res);
-            }
-        }
     }
 
     pub fn get_activation_status(&self) -> ActivationStatus {

@@ -17,8 +17,11 @@
 
 use std::collections::HashMap;
 
-use ripple_sdk::api::device::{
-    device_events::INTERNET_CHANGED_EVENT, device_request::InternetConnectionStatusEvent,
+use ripple_sdk::api::{
+    context::RippleContextUpdateRequest,
+    device::{
+        device_events::INTERNET_CHANGED_EVENT, device_request::InternetConnectionStatusEvent,
+    },
 };
 
 use crate::{
@@ -271,12 +274,13 @@ impl InternetEventHandler {
     pub fn handle(
         state: ThunderState,
         value: ThunderEventMessage,
-        callback_type: DeviceEventCallback,
+        _callback_type: DeviceEventCallback,
     ) {
         if let ThunderEventMessage::Internet(v) = value {
-            if let Ok(v) = Self::get_extn_event(v, callback_type) {
-                ThunderEventHandler::callback_device_event(state, Self::get_mapped_event(), v)
-            }
+            ThunderEventHandler::callback_context_update(
+                state,
+                RippleContextUpdateRequest::InternetStatus(v),
+            )
         }
     }
 
@@ -315,21 +319,10 @@ impl ThunderEventHandlerProvider for InternetEventHandler {
         ThunderPlugin::Network.callsign_string()
     }
     fn get_extn_event(
-        r: Self::EVENT,
-        callback_type: DeviceEventCallback,
+        _r: Self::EVENT,
+        _callback_type: DeviceEventCallback,
     ) -> Result<ExtnEvent, RippleError> {
-        match callback_type {
-            DeviceEventCallback::FireboltAppEvent => {
-                let result = serde_json::to_value(r).unwrap();
-                Ok(ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
-                    event_name: Self::get_mapped_event(),
-                    context: None,
-                    result,
-                    app_id: None,
-                })))
-            }
-            DeviceEventCallback::ExtnEvent => Ok(ExtnEvent::InternetState(r)),
-        }
+        Err(RippleError::InvalidOutput)
     }
 }
 
@@ -442,7 +435,7 @@ impl ThunderEventHandlerProvider for SystemPowerStateChangeEventHandler {
     ) -> Result<ExtnEvent, RippleError> {
         let result = serde_json::to_value(r.clone()).unwrap();
         match callback_type {
-            DeviceEventCallback::FireboltAppEvent => {
+            DeviceEventCallback::FireboltAppEvent(_) => {
                 Ok(ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
                     event_name: Self::get_mapped_event(),
                     context: None,

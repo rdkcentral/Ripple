@@ -102,9 +102,9 @@ impl ExtnRequestProcessor for ThunderOpenEventsProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         let event = extracted_message.clone().event;
-        let id = extracted_message.clone().id;
         let listen = extracted_message.clone().subscribe;
         let callback_type = extracted_message.clone().callback_type;
+        let id = callback_type.get_id();
         if let Some(v) = match event {
             DeviceEvent::AudioChanged => Some(state.handle_listener(
                 listen,
@@ -151,7 +151,6 @@ impl ExtnRequestProcessor for ThunderOpenEventsProcessor {
                 id.clone(),
                 InternetEventHandler::provide(id, callback_type),
             )),
-            _ => None,
         } {
             v.await;
             Self::ack(state.get_client(), msg).await.is_ok()

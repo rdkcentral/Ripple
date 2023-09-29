@@ -15,19 +15,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use ripple_sdk::api::device::device_events::{
-    DeviceEvent, DeviceEventCallback, DeviceEventRequest,
-};
-use ripple_sdk::api::device::device_info_request::{DeviceInfoRequest, DeviceResponse};
-use ripple_sdk::api::firebolt::fb_capabilities::{CapEvent, FireboltCap};
-
-use ripple_sdk::{api::session::AccountSessionRequest, framework::bootstrap::Bootstep};
+use ripple_sdk::framework::bootstrap::Bootstep;
 use ripple_sdk::{async_trait::async_trait, framework::RippleResponse};
 
+use crate::processor::main_context_processor::MainContextProcessor;
+use crate::service::context_manager::ContextManager;
 use crate::state::bootstrap_state::BootstrapState;
-use crate::state::cap::cap_state::CapState;
-use crate::state::metrics_state::MetricsState;
-use ripple_sdk::log::{error, trace};
 
 pub struct LoadDistributorValuesStep;
 
@@ -38,89 +31,11 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
     }
 
     async fn setup(&self, s: BootstrapState) -> RippleResponse {
-        // AccountSessionRequest::Get will not always be successful,
-        // on Error, it will set the ripple context activation status as not activated.
-        // On failure call activated state and send a telemetry event conveying any provisioning issue.
-        // Start a thread which will process the session token update event.
-        // Upon receving the event, if the ripple context is not set as active, set it to active.
-        //
-        //
-        let _resp = s
-            .platform_state
-            .get_client()
-            .send_extn_request(DeviceEventRequest {
-                event: DeviceEvent::DistributorSessionTokenChanged,
-                id: "internal".to_owned(),
-                subscribe: true,
-                callback_type: DeviceEventCallback::ExtnEvent,
-            })
-            .await;
-
-        let _resp = s
-            .platform_state
-            .get_client()
-            .send_extn_request(DeviceEventRequest {
-                event: DeviceEvent::InternetConnectionStatusChanged,
-                id: "internal".to_owned(),
-                subscribe: true,
-                callback_type: DeviceEventCallback::ExtnEvent,
-            })
-            .await;
-
-        let response = s
-            .platform_state
-            .get_client()
-            .send_extn_request(AccountSessionRequest::Get)
-            .await
-            .expect("session");
-        let mut event = CapEvent::OnUnavailable;
-        if let Some(session) = response.payload.extract() {
-            s.platform_state
-                .session_state
-                .insert_account_session(session);
-            MetricsState::initialize(&s.platform_state).await;
-            event = CapEvent::OnAvailable;
-            if let Ok(message) = s
-                .platform_state
-                .get_client()
-                .send_extn_request(AccountSessionRequest::GetAccessToken)
-                .await
-            {
-                if let Some(dist_token) = message.payload.extract() {
-                    s.platform_state
-                        .get_client()
-                        .get_extn_client()
-                        .set_distributor_token(dist_token);
-                }
-            }
-            if let Ok(resp_message) = s
-                .platform_state
-                .get_client()
-                .send_extn_request(DeviceInfoRequest::InternetConnectionStatus)
-                .await
-            {
-                if let Some(DeviceResponse::InternetConnectionStatus(internet_connection_status)) =
-                    resp_message.payload.extract()
-                {
-                    trace!("Setting internet connection status in extn client");
-                    s.platform_state
-                        .get_client()
-                        .get_extn_client()
-                        .set_internet_connection_status(internet_connection_status.into());
-                } else {
-                    error!("Unable to convert response into InternetConnection Status");
-                }
-            } else {
-                error!("Unable to get InternetConnection Status");
-            }
+        ContextManager::setup(&s.platform_state).await;
+        if !s.platform_state.supports_session() {
+            return Ok(());
         }
-        CapState::emit(
-            &s.platform_state,
-            event,
-            FireboltCap::Short("token:platform".to_owned()),
-            None,
-        )
-        .await;
+        MainContextProcessor::initialize_token(&s.platform_state).await;
         Ok(())
     }
 }

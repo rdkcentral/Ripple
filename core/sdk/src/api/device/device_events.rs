@@ -49,7 +49,6 @@ pub enum DeviceEvent {
     NetworkChanged,
     AudioChanged,
     SystemPowerStateChanged,
-    DistributorSessionTokenChanged,
     InternetConnectionStatusChanged,
 }
 
@@ -66,7 +65,6 @@ impl FromStr for DeviceEvent {
             "device.onNetworkChanged" => Ok(Self::NetworkChanged),
             "device.onAudioChanged" => Ok(Self::AudioChanged),
             "device.onPowerStateChanged" => Ok(Self::SystemPowerStateChanged),
-            "account.onServiceAccessTokenChanged" => Ok(Self::DistributorSessionTokenChanged),
             "device.onInternetStatusChange" => Ok(Self::InternetConnectionStatusChanged),
             _ => Err(()),
         }
@@ -75,15 +73,23 @@ impl FromStr for DeviceEvent {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DeviceEventCallback {
-    FireboltAppEvent,
+    FireboltAppEvent(String),
     ExtnEvent,
+}
+
+impl DeviceEventCallback {
+    pub fn get_id(&self) -> String {
+        match self {
+            DeviceEventCallback::FireboltAppEvent(id) => id.clone(),
+            DeviceEventCallback::ExtnEvent => "internal".to_owned(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceEventRequest {
     pub event: DeviceEvent,
     pub subscribe: bool,
-    pub id: String,
     pub callback_type: DeviceEventCallback,
 }
 
@@ -116,9 +122,6 @@ impl ExtnPayloadProvider for DeviceEventRequest {
             DeviceEvent::AudioChanged => RippleContract::DeviceEvents(EventAdjective::Audio),
             DeviceEvent::SystemPowerStateChanged => {
                 RippleContract::DeviceEvents(EventAdjective::SystemPowerState)
-            }
-            DeviceEvent::DistributorSessionTokenChanged => {
-                RippleContract::DeviceEvents(EventAdjective::Account)
             }
             DeviceEvent::InternetConnectionStatusChanged => {
                 RippleContract::DeviceEvents(EventAdjective::Internet)

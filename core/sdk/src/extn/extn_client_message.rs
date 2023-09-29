@@ -28,12 +28,12 @@ use crate::{
         apps::AppEventRequest,
         caps::CapsRequest,
         config::{Config, ConfigResponse},
+        context::{RippleContext, RippleContextUpdateRequest},
         device::{
             device_events::DeviceEventRequest,
             device_peristence::StorageData,
             device_request::{
-                DeviceRequest, DistributorTokenEvent, InternetConnectionStatusEvent,
-                NetworkResponse, SystemPowerState,
+                DeviceRequest, InternetConnectionStatusEvent, NetworkResponse, SystemPowerState,
             },
         },
         distributor::{
@@ -276,6 +276,7 @@ pub enum ExtnRequest {
     Metrics(MetricsRequest),
     OperationalMetricsRequest(OperationalMetricRequest),
     PlatformToken(PlatformTokenRequest),
+    Context(RippleContextUpdateRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -335,7 +336,7 @@ pub enum ExtnEvent {
     // NetworkState(NetworkState),
     InternetState(InternetConnectionStatusEvent),
     OperationalMetrics(TelemetryPayload),
-    DistributorTokenChange(DistributorTokenEvent),
+    Context(RippleContext),
 }
 
 impl ExtnPayloadProvider for ExtnEvent {
