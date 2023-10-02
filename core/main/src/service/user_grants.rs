@@ -18,7 +18,7 @@
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, RwLock},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH}, path::Path,
 };
 
 use ripple_sdk::{
@@ -79,18 +79,19 @@ pub struct GrantState {
 impl GrantState {
     pub fn new(manifest: DeviceManifest) -> GrantState {
         let saved_dir = manifest.clone().configuration.saved_dir;
-        let device_grant_path = format!("{}device_grants", saved_dir);
-        let dev_grant_store = if let Ok(v) = FileStore::load(device_grant_path.clone()) {
+        let dir_path = Path::new(&saved_dir).join("device_grants");
+        let device_grant_path = dir_path.into_os_string().into_string();
+        let dev_grant_store = if let Ok(v) = FileStore::load(device_grant_path.clone().unwrap()) {
             v
         } else {
-            FileStore::new(device_grant_path, HashSet::new())
+            FileStore::new(device_grant_path.unwrap(), HashSet::new())
         };
-
-        let app_grant_path = format!("{}app_grants", saved_dir);
-        let app_grant_store = if let Ok(v) = FileStore::load(app_grant_path.clone()) {
+        let dir_path = Path::new(&saved_dir).join("app_grants");
+        let app_grant_path = dir_path.into_os_string().into_string();
+        let app_grant_store = if let Ok(v) = FileStore::load(app_grant_path.clone().unwrap()) {
             v
         } else {
-            FileStore::new(app_grant_path, HashMap::new())
+            FileStore::new(app_grant_path.unwrap(), HashMap::new())
         };
 
         GrantState {
@@ -454,7 +455,7 @@ impl GrantState {
         (use_granted, manage_granted, provide_granted)
     }
 
-    pub fn grant_modify(
+    pub async fn grant_modify(
         platform_state: &PlatformState,
         modify_operation: GrantStateModify,
         app_id: Option<String>,
@@ -507,11 +508,15 @@ impl GrantState {
                         }
                     }
 
-                    debug!("user grant modified with new entry:{:?}", new_entry);
+                    debug!("user grant modified with new entry:{:?}", new_entry.clone());
                     platform_state
                         .cap_state
                         .grant_state
-                        .update_grant_entry(app_id, new_entry);
+                        .update_grant_entry(app_id.clone(), new_entry.clone());
+
+                    debug!("Sync user grant modified with new entry:{:?} to cloud 1", new_entry.clone());
+                    let _ = GrantPolicyEnforcer::send_usergrants_for_cloud_storage(
+                        platform_state,&grant_policy,&new_entry,&app_id).await;
                 }
             }
         }
@@ -761,20 +766,15 @@ impl GrantPolicyEnforcer {
             return platform_state
                 .open_rpc_state
                 .check_privacy_property(privacy_property);
-        } else if let Some(grant_steps) = policy.get_steps_without_grant() {
-            for step in grant_steps {
-                if platform_state
-                    .open_rpc_state
-                    .get_capability_policy(step.capability.clone())
-                    .is_some()
-                {
-                    return false;
-                }
-            }
-            return true;
+        } if policy.get_steps_without_grant().is_some() {
+            // If any cap in any step in a policy is not starting with
+            // "xrn:firebolt:capability:usergrant:" pattern,
+            // we should treat it as a invalid policy.
+            return false;
         }
-
-        false
+        // If a policy doesn't have a privacy settings and caps in all steps starts with
+        //xrn:firebolt:capability:usergrant: then the policy deemed to be valid.
+        true
     }
 
     pub fn get_allow_value(platform_state: &PlatformState, property_name: &str) -> Option<bool> {

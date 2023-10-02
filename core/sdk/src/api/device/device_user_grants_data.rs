@@ -45,7 +45,7 @@ pub struct GrantRequirements {
     pub steps: Vec<GrantStep>,
 }
 
-#[derive(Eq, Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Eq, Serialize, Deserialize, Debug, Clone, PartialEq, Copy)]
 #[serde(rename_all = "camelCase")]
 pub enum GrantLifespan {
     Once,
