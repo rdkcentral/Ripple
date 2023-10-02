@@ -277,7 +277,7 @@ impl GrantState {
                 GrantActiveState::ActiveGrant(grant) => {
                     if grant.is_err() {
                         return Err(DenyReasonWithCap {
-                            reason: DenyReason::Ungranted,
+                            reason: grant.err().unwrap(),
                             caps: vec![permission.cap.clone()],
                         });
                     }
@@ -761,20 +761,12 @@ impl GrantPolicyEnforcer {
             return platform_state
                 .open_rpc_state
                 .check_privacy_property(privacy_property);
-        } else if let Some(grant_steps) = policy.get_steps_without_grant() {
-            for step in grant_steps {
-                if platform_state
-                    .open_rpc_state
-                    .get_capability_policy(step.capability.clone())
-                    .is_some()
-                {
-                    return false;
-                }
-            }
-            return true;
+        }
+        if policy.get_steps_without_grant().is_some() {
+            return false;
         }
 
-        false
+        true
     }
 
     pub fn get_allow_value(platform_state: &PlatformState, property_name: &str) -> Option<bool> {
@@ -1186,22 +1178,28 @@ impl GrantStepExecutor {
         let result = if let Some(pr_msg) = pr_msg_opt {
             ProviderBroker::invoke_method(&platform_state.clone(), pr_msg).await;
             match session_rx.await {
-                Ok(result) => match result.as_challenge_response() {
-                    Some(res) => match res.granted {
-                        true => {
-                            debug!("returning ok from invoke_capability");
-                            Ok(())
+                Ok(result) => {
+                    match result.as_challenge_response() {
+                        Some(res) => match res.granted {
+                            Some(true) => {
+                                debug!("returning ok from invoke_capability");
+                                Ok(())
+                            }
+                            Some(false) => {
+                                debug!("returning err from invoke_capability");
+                                Err(DenyReason::GrantDenied)
+                            }
+                            None => {
+                                debug!("returning err from invoke_capability");
+                                Err(DenyReason::Ungranted)
+                            }
+                        },
+                        None => {
+                            debug!("Received reponse that is not convertable to challenge response");
+                            Err(DenyReason::Ungranted)
                         }
-                        false => {
-                            debug!("returning err from invoke_capability");
-                            Err(DenyReason::GrantDenied)
-                        }
-                    },
-                    None => {
-                        debug!("Received reponse that is not convertable to challenge response");
-                        Err(DenyReason::Ungranted)
                     }
-                },
+                }
                 Err(_) => {
                     debug!("Receive error in channel");
                     Err(DenyReason::Ungranted)
