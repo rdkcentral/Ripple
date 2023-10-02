@@ -348,7 +348,7 @@ impl GrantState {
     ) {
         debug!("Update called to store user grant with grant = {is_allowed}");
         let mut grant_entry = GrantEntry::get(permission.role, permission.cap.as_str());
-        grant_entry.lifespan = Some(grant_policy.lifespan.clone());
+        grant_entry.lifespan = Some(grant_policy.lifespan);
         if grant_policy.lifespan_ttl.is_some() {
             grant_entry.lifespan_ttl_in_secs = grant_policy.lifespan_ttl;
         }
@@ -630,7 +630,7 @@ impl GrantPolicyEnforcer {
     ) -> bool {
         let mut ret_val = false;
         let mut grant_entry = GrantEntry::get(permission.role, permission.cap.as_str());
-        grant_entry.lifespan = Some(grant_policy.lifespan.clone());
+        grant_entry.lifespan = Some(grant_policy.lifespan);
         if grant_policy.lifespan_ttl.is_some() {
             grant_entry.lifespan_ttl_in_secs = grant_policy.lifespan_ttl;
         }
