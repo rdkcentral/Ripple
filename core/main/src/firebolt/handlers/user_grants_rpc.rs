@@ -201,7 +201,8 @@ impl UserGrantsServer for UserGrantsImpl {
             request.options.and_then(|x| x.app_id),
             request.role,
             request.capability,
-        ).await;
+        )
+        .await;
 
         if result {
             Ok(())
@@ -217,7 +218,8 @@ impl UserGrantsServer for UserGrantsImpl {
             request.options.and_then(|x| x.app_id),
             request.role,
             request.capability,
-        ).await;
+        )
+        .await;
 
         if result {
             Ok(())
@@ -233,7 +235,8 @@ impl UserGrantsServer for UserGrantsImpl {
             request.options.and_then(|x| x.app_id),
             request.role,
             request.capability,
-        ).await;
+        )
+        .await;
 
         if result {
             Ok(())

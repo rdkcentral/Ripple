@@ -17,8 +17,9 @@
 
 use std::{
     collections::{HashMap, HashSet},
+    path::Path,
     sync::{Arc, RwLock},
-    time::{Duration, SystemTime, UNIX_EPOCH}, path::Path,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use ripple_sdk::{
@@ -514,9 +515,17 @@ impl GrantState {
                         .grant_state
                         .update_grant_entry(app_id.clone(), new_entry.clone());
 
-                    debug!("Sync user grant modified with new entry:{:?} to cloud 1", new_entry.clone());
+                    debug!(
+                        "Sync user grant modified with new entry:{:?} to cloud 1",
+                        new_entry.clone()
+                    );
                     let _ = GrantPolicyEnforcer::send_usergrants_for_cloud_storage(
-                        platform_state,&grant_policy,&new_entry,&app_id).await;
+                        platform_state,
+                        &grant_policy,
+                        &new_entry,
+                        &app_id,
+                    )
+                    .await;
                 }
             }
         }
@@ -766,7 +775,8 @@ impl GrantPolicyEnforcer {
             return platform_state
                 .open_rpc_state
                 .check_privacy_property(privacy_property);
-        } if policy.get_steps_without_grant().is_some() {
+        }
+        if policy.get_steps_without_grant().is_some() {
             // If any cap in any step in a policy is not starting with
             // "xrn:firebolt:capability:usergrant:" pattern,
             // we should treat it as a invalid policy.
