@@ -32,9 +32,7 @@ use crate::{
         device::{
             device_events::DeviceEventRequest,
             device_peristence::StorageData,
-            device_request::{
-                DeviceRequest, InternetConnectionStatusEvent, NetworkResponse, SystemPowerState,
-            },
+            device_request::{DeviceRequest, NetworkResponse},
         },
         distributor::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
@@ -144,12 +142,6 @@ impl From<ExtnPayload> for String {
         serde_json::to_string(&val).unwrap()
     }
 }
-
-// #[derive(Debug, Clone, Serialize, Deserialize)]
-// pub enum RippleContext {
-//     ActivationStatus(ActivationStatus),
-//     NetworkStatus(InternetConnectionStatusEvent),
-// }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ExtnPayload {
@@ -332,9 +324,6 @@ pub enum ExtnEvent {
     Value(Value),
     Status(ExtnStatus),
     AppEvent(AppEventRequest),
-    PowerState(SystemPowerState),
-    // NetworkState(NetworkState),
-    InternetState(InternetConnectionStatusEvent),
     OperationalMetrics(TelemetryPayload),
     Context(RippleContext),
 }

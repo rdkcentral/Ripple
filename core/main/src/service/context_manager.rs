@@ -16,11 +16,15 @@
 //
 
 use crate::state::platform_state::PlatformState;
+use ripple_sdk::api::context::RippleContextUpdateRequest;
 use ripple_sdk::api::device::device_events::{
     DeviceEvent, DeviceEventCallback, DeviceEventRequest,
 };
+use ripple_sdk::api::device::device_info_request::{DeviceInfoRequest, DeviceResponse};
+use ripple_sdk::api::device::device_request::{OnInternetConnectedRequest, SystemPowerState};
 use ripple_sdk::api::session::AccountSessionRequest;
 use ripple_sdk::log::warn;
+use ripple_sdk::tokio;
 
 pub struct ContextManager;
 
@@ -48,5 +52,67 @@ impl ContextManager {
         {
             warn!("No processor to set Internet status listener")
         }
+
+        if ps
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::SystemPowerStateChanged,
+                subscribe: true,
+                callback_type: DeviceEventCallback::ExtnEvent,
+            })
+            .await
+            .is_err()
+        {
+            warn!("No processor to set System power status listener")
+        }
+
+        let ps_c = ps.clone();
+
+        tokio::spawn(async move {
+            if let Ok(resp) = ps_c
+                .get_client()
+                .send_extn_request(DeviceInfoRequest::PowerState)
+                .await
+            {
+                if let Some(DeviceResponse::PowerState(p)) =
+                    resp.payload.extract::<DeviceResponse>()
+                {
+                    if ps_c
+                        .get_client()
+                        .get_extn_client()
+                        .request_transient(RippleContextUpdateRequest::PowerState(
+                            SystemPowerState {
+                                current_power_state: p.clone(),
+                                power_state: p,
+                            },
+                        ))
+                        .is_err()
+                    {
+                        warn!("Couldnt update Ripple Context for PowerState on boot")
+                    }
+                }
+            }
+
+            if let Ok(resp) = ps_c
+                .get_client()
+                .send_extn_request(DeviceInfoRequest::OnInternetConnected(
+                    OnInternetConnectedRequest { timeout: 1000 },
+                ))
+                .await
+            {
+                if let Some(DeviceResponse::InternetConnectionStatus(s)) =
+                    resp.payload.extract::<DeviceResponse>()
+                {
+                    if ps_c
+                        .get_client()
+                        .get_extn_client()
+                        .request_transient(RippleContextUpdateRequest::InternetStatus(s))
+                        .is_err()
+                    {
+                        warn!("Couldnt update Ripple Context for Internet on boot")
+                    }
+                }
+            }
+        });
     }
 }

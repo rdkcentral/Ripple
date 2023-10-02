@@ -29,8 +29,8 @@ use ripple_sdk::{
             device_events::{DeviceEvent, DeviceEventCallback},
             device_operator::DeviceSubscribeRequest,
             device_request::{
-                AudioProfile, InternetConnectionStatusEvent, NetworkResponse, NetworkState,
-                NetworkType, PowerState, SystemPowerState,
+                AudioProfile, InternetConnectionStatus, NetworkResponse, NetworkState, NetworkType,
+                PowerState, SystemPowerState,
             },
         },
     },
@@ -76,7 +76,7 @@ pub enum ThunderEventMessage {
     ActiveInput(ActiveInputThunderEvent),
     Resolution(ResolutionChangedEvent),
     Network(NetworkResponse),
-    Internet(InternetConnectionStatusEvent),
+    Internet(InternetConnectionStatus),
     PowerState(SystemPowerState),
     VoiceGuidance(VoiceGuidanceEvent),
     Audio(HashMap<AudioProfile, bool>),
@@ -242,10 +242,6 @@ impl ThunderEventHandler {
             state.event_processor.add_last_event(&event_name, &event);
             if (match event {
                 ExtnEvent::AppEvent(a) => state.get_client().request_transient(a),
-                ExtnEvent::PowerState(p) => state.get_client().request_transient(p),
-                ExtnEvent::InternetState(internet_connection_status) => state
-                    .get_client()
-                    .request_transient(internet_connection_status),
                 _ => Err(RippleError::InvalidOutput),
             })
             .is_err()

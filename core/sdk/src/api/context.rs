@@ -26,7 +26,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::device::device_request::{AccountToken, InternetConnectionStatusEvent};
+use super::device::device_request::{AccountToken, InternetConnectionStatus, SystemPowerState};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ActivationStatus {
@@ -54,7 +54,8 @@ impl From<AccountToken> for ActivationStatus {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RippleContext {
     pub activation_status: ActivationStatus,
-    pub internet_connectivity: InternetConnectionStatusEvent,
+    pub internet_connectivity: InternetConnectionStatus,
+    pub system_power_state: SystemPowerState,
     pub update_type: Option<RippleContextUpdateType>,
 }
 
@@ -63,6 +64,7 @@ pub enum RippleContextUpdateType {
     ActivationStatusChanged,
     TokenChanged,
     InternetConnectionChanged,
+    PowerStateChanged,
 }
 
 impl RippleContext {
@@ -83,6 +85,10 @@ impl RippleContext {
             RippleContextUpdateRequest::Token(t) => {
                 self.activation_status = t.into();
                 self.update_type = Some(RippleContextUpdateType::TokenChanged);
+            }
+            RippleContextUpdateRequest::PowerState(p) => {
+                self.system_power_state = p;
+                self.update_type = Some(RippleContextUpdateType::PowerStateChanged)
             }
         }
     }
@@ -116,8 +122,9 @@ impl Default for RippleContext {
     fn default() -> Self {
         RippleContext {
             activation_status: ActivationStatus::NotActivated,
-            internet_connectivity: InternetConnectionStatusEvent::NoInternet,
+            internet_connectivity: InternetConnectionStatus::NoInternet,
             update_type: None,
+            system_power_state: SystemPowerState::default(),
         }
     }
 }
@@ -144,7 +151,8 @@ impl ExtnPayloadProvider for RippleContext {
 pub enum RippleContextUpdateRequest {
     Activation(bool),
     Token(AccountToken),
-    InternetStatus(InternetConnectionStatusEvent),
+    InternetStatus(InternetConnectionStatus),
+    PowerState(SystemPowerState),
 }
 
 impl RippleContextUpdateRequest {

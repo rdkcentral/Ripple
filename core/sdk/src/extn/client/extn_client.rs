@@ -32,7 +32,7 @@ use tokio::sync::{
 use crate::{
     api::{
         context::{ActivationStatus, RippleContext, RippleContextUpdateRequest},
-        device::device_request::InternetConnectionStatusEvent,
+        device::device_request::InternetConnectionStatus,
         manifest::extn_manifest::ExtnSymbol,
     },
     extn::{
@@ -689,7 +689,7 @@ impl ExtnClient {
         ripple_context.activation_status.clone()
     }
 
-    pub fn get_internet_connection_status(&self) -> InternetConnectionStatusEvent {
+    pub fn get_internet_connection_status(&self) -> InternetConnectionStatus {
         let ripple_context = self.ripple_context.read().unwrap();
         ripple_context.internet_connectivity.clone()
     }

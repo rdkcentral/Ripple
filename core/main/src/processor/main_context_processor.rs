@@ -20,6 +20,10 @@ use std::sync::{Arc, RwLock};
 use ripple_sdk::{
     api::{
         context::{ActivationStatus, RippleContext, RippleContextUpdateType},
+        device::{
+            device_request::{PowerState, SystemPowerState},
+            device_user_grants_data::GrantLifespan,
+        },
         firebolt::fb_capabilities::{CapEvent, FireboltCap},
         session::AccountSessionRequest,
     },
@@ -30,6 +34,7 @@ use ripple_sdk::{
         },
         extn_client_message::ExtnMessage,
     },
+    log::info,
     tokio::sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
 };
 
@@ -84,6 +89,17 @@ impl MainContextProcessor {
         )
         .await;
     }
+
+    async fn handle_power_state(state: &PlatformState, power_state: &SystemPowerState) {
+        if power_state.power_state != PowerState::On
+            && state
+                .cap_state
+                .grant_state
+                .delete_all_matching_entries(&GrantLifespan::PowerActive)
+        {
+            info!("Usergrants updated for Powerstate");
+        }
+    }
 }
 
 impl ExtnStreamProcessor for MainContextProcessor {
@@ -111,10 +127,18 @@ impl ExtnEventProcessor for MainContextProcessor {
         extracted_message: Self::VALUE,
     ) -> Option<bool> {
         if let Some(update) = &extracted_message.update_type {
-            if let &RippleContextUpdateType::TokenChanged = update {
-                if let ActivationStatus::AccountToken(_t) = &extracted_message.activation_status {
-                    Self::initialize_token(&state.state).await
+            match update {
+                RippleContextUpdateType::TokenChanged => {
+                    if let ActivationStatus::AccountToken(_t) = &extracted_message.activation_status
+                    {
+                        Self::initialize_token(&state.state).await
+                    }
                 }
+                RippleContextUpdateType::PowerStateChanged => {
+                    Self::handle_power_state(&state.state, &extracted_message.system_power_state)
+                        .await
+                }
+                _ => {}
             }
             {
                 let mut context = state.current_context.write().unwrap();

@@ -66,7 +66,7 @@ use crate::{
     utils::get_audio_profile_from_value,
 };
 use ripple_sdk::{
-    api::device::device_request::InternetConnectionStatus,
+    api::device::device_request::{InternetConnectionStatus, PowerState},
     log::trace,
     serde_json::{Map, Value},
 };
@@ -1199,6 +1199,36 @@ impl ThunderDeviceInfoRequestProcessor {
         }
         Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
     }
+
+    async fn power_state(state: CachedState, req: ExtnMessage) -> bool {
+        let dev_response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::System.method("getPowerState"),
+                params: None,
+            })
+            .await;
+        if let Some(value) = dev_response.message.get("powerState").cloned() {
+            if let Ok(power_state) = serde_json::from_value::<PowerState>(value) {
+                return Self::respond(
+                    state.get_client(),
+                    req,
+                    if let ExtnPayload::Response(r) =
+                        DeviceResponse::PowerState(power_state).get_extn_payload()
+                    {
+                        r
+                    } else {
+                        ExtnResponse::Error(RippleError::ProcessorError)
+                    },
+                )
+                .await
+                .is_ok();
+            }
+        }
+
+        error!("Unable to get internet connection status from thunder");
+        Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
+    }
 }
 
 pub fn get_dimension_from_resolution(resolution: &str) -> Vec<i32> {
@@ -1336,6 +1366,7 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
                     Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await
                 }
             }
+            DeviceInfoRequest::PowerState => Self::power_state(state.clone(), msg).await,
             _ => false,
         }
     }

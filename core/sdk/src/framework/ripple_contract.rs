@@ -85,8 +85,6 @@ pub enum RippleContract {
     AppEvents,
     /// Device channel specific events which get cascaded across Main and Extensions like Power, HDCP
     DeviceEvents(EventAdjective),
-    /// Event specific to PowerState would become an Adjective in near future.
-    PowerStateEvent,
     /// Contract for controlling Voice guidance typically offered by the Device Channel or the browser.
     VoiceGuidance,
     /// Distributor Contract for handling Advertising requirements.

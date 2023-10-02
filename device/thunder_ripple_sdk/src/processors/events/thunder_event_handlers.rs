@@ -19,9 +19,7 @@ use std::collections::HashMap;
 
 use ripple_sdk::api::{
     context::RippleContextUpdateRequest,
-    device::{
-        device_events::INTERNET_CHANGED_EVENT, device_request::InternetConnectionStatusEvent,
-    },
+    device::{device_events::INTERNET_CHANGED_EVENT, device_request::InternetConnectionStatus},
 };
 
 use crate::{
@@ -30,22 +28,18 @@ use crate::{
         ThunderEventHandler, ThunderEventHandlerProvider, ThunderEventMessage, VoiceGuidanceEvent,
     },
     ripple_sdk::{
-        api::{
-            apps::{AppEvent, AppEventRequest},
-            device::{
-                device_events::{
-                    DeviceEventCallback, HDCP_CHANGED_EVENT, HDR_CHANGED_EVENT,
-                    NETWORK_CHANGED_EVENT, POWER_STATE_CHANGED, SCREEN_RESOLUTION_CHANGED_EVENT,
-                    VIDEO_RESOLUTION_CHANGED_EVENT,
-                },
-                device_request::{
-                    AudioProfile, HdcpProfile, HdrProfile, NetworkResponse, SystemPowerState,
-                },
+        api::device::{
+            device_events::{
+                DeviceEventCallback, HDCP_CHANGED_EVENT, HDR_CHANGED_EVENT, NETWORK_CHANGED_EVENT,
+                POWER_STATE_CHANGED, SCREEN_RESOLUTION_CHANGED_EVENT,
+                VIDEO_RESOLUTION_CHANGED_EVENT,
+            },
+            device_request::{
+                AudioProfile, HdcpProfile, HdrProfile, NetworkResponse, SystemPowerState,
             },
         },
         extn::extn_client_message::ExtnEvent,
         log::debug,
-        serde_json::{self},
         tokio,
         utils::error::RippleError,
     },
@@ -293,7 +287,7 @@ impl InternetEventHandler {
 }
 
 impl ThunderEventHandlerProvider for InternetEventHandler {
-    type EVENT = InternetConnectionStatusEvent;
+    type EVENT = InternetConnectionStatus;
     fn provide(id: String, callback_type: DeviceEventCallback) -> ThunderEventHandler {
         ThunderEventHandler {
             request: Self::get_device_request(),
@@ -387,12 +381,13 @@ impl SystemPowerStateChangeEventHandler {
     pub fn handle(
         state: ThunderState,
         value: ThunderEventMessage,
-        callback_type: DeviceEventCallback,
+        _callback_type: DeviceEventCallback,
     ) {
         if let ThunderEventMessage::PowerState(p) = value {
-            if let Ok(v) = Self::get_extn_event(p, callback_type) {
-                ThunderEventHandler::callback_device_event(state, Self::get_mapped_event(), v)
-            }
+            ThunderEventHandler::callback_context_update(
+                state,
+                RippleContextUpdateRequest::PowerState(p),
+            )
         }
     }
 
@@ -430,21 +425,10 @@ impl ThunderEventHandlerProvider for SystemPowerStateChangeEventHandler {
     }
 
     fn get_extn_event(
-        r: Self::EVENT,
-        callback_type: DeviceEventCallback,
+        _r: Self::EVENT,
+        _callback_type: DeviceEventCallback,
     ) -> Result<ExtnEvent, RippleError> {
-        let result = serde_json::to_value(r.clone()).unwrap();
-        match callback_type {
-            DeviceEventCallback::FireboltAppEvent(_) => {
-                Ok(ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
-                    event_name: Self::get_mapped_event(),
-                    context: None,
-                    result,
-                    app_id: None,
-                })))
-            }
-            DeviceEventCallback::ExtnEvent => Ok(ExtnEvent::PowerState(r)),
-        }
+        Err(RippleError::InvalidOutput)
     }
 }
 

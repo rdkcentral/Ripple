@@ -157,6 +157,40 @@ impl GrantState {
         deleted
     }
 
+    pub fn delete_all_matching_entries(&self, lifespan: &GrantLifespan) -> bool {
+        let mut deleted = false;
+        {
+            let mut grant_state = self.grant_app_map.write().unwrap();
+
+            for set in grant_state.value.values_mut() {
+                let prev_len = set.len();
+                set.retain(|entry| entry.lifespan.as_ref().map_or(false, |l| l == lifespan));
+                if set.len() < prev_len {
+                    deleted = true;
+                }
+            }
+            if deleted {
+                grant_state.sync()
+            }
+        }
+        {
+            let mut grant_state = self.device_grants.write().unwrap();
+            let prev_len = grant_state.value.len();
+            grant_state
+                .value
+                .retain(|entry| entry.lifespan.as_ref().map_or(false, |l| l == lifespan));
+            if grant_state.value.len() < prev_len {
+                deleted = true;
+            }
+
+            if deleted {
+                grant_state.sync()
+            }
+        }
+
+        deleted
+    }
+
     pub fn delete_expired_entries_for_app(
         &self,
         app_id: String, // None is for device
