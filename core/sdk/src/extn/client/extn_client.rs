@@ -689,8 +689,11 @@ impl ExtnClient {
         ripple_context.activation_status.clone()
     }
 
-    pub fn get_internet_connection_status(&self) -> InternetConnectionStatus {
+    pub fn has_internet(&self) -> bool {
         let ripple_context = self.ripple_context.read().unwrap();
-        ripple_context.internet_connectivity.clone()
+        matches!(
+            ripple_context.internet_connectivity,
+            InternetConnectionStatus::FullyConnected | InternetConnectionStatus::LimitedInternet
+        )
     }
 }
