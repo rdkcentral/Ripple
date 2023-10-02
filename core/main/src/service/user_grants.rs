@@ -1178,28 +1178,26 @@ impl GrantStepExecutor {
         let result = if let Some(pr_msg) = pr_msg_opt {
             ProviderBroker::invoke_method(&platform_state.clone(), pr_msg).await;
             match session_rx.await {
-                Ok(result) => {
-                    match result.as_challenge_response() {
-                        Some(res) => match res.granted {
-                            Some(true) => {
-                                debug!("returning ok from invoke_capability");
-                                Ok(())
-                            }
-                            Some(false) => {
-                                debug!("returning err from invoke_capability");
-                                Err(DenyReason::GrantDenied)
-                            }
-                            None => {
-                                debug!("returning err from invoke_capability");
-                                Err(DenyReason::Ungranted)
-                            }
-                        },
+                Ok(result) => match result.as_challenge_response() {
+                    Some(res) => match res.granted {
+                        Some(true) => {
+                            debug!("returning ok from invoke_capability");
+                            Ok(())
+                        }
+                        Some(false) => {
+                            debug!("returning err from invoke_capability");
+                            Err(DenyReason::GrantDenied)
+                        }
                         None => {
-                            debug!("Received reponse that is not convertable to challenge response");
+                            debug!("returning err from invoke_capability");
                             Err(DenyReason::Ungranted)
                         }
+                    },
+                    None => {
+                        debug!("Received reponse that is not convertable to challenge response");
+                        Err(DenyReason::Ungranted)
                     }
-                }
+                },
                 Err(_) => {
                     debug!("Receive error in channel");
                     Err(DenyReason::Ungranted)
