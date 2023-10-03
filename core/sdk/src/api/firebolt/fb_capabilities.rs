@@ -26,7 +26,7 @@ use super::fb_openrpc::CapabilitySet;
 /// There are many types of Firebolt Cap enums
 /// 1. Short: `device:model` becomes = `xrn:firebolt:capability:account:session` its just a handy cap which helps us write less code
 /// 2. Full: Contains the full string for capability typically loaded from Manifest and Firebolt SDK which contains the full string
-#[derive(Debug, Clone)]
+#[derive(Debug, Deserialize, Clone)]
 pub enum FireboltCap {
     Short(String),
     Full(String),

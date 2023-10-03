@@ -1192,7 +1192,10 @@ impl GrantStepExecutor {
                             debug!("returning err from invoke_capability");
                             Err(DenyReason::GrantDenied)
                         }
-                        None => Err(DenyReason::Ungranted),
+                        None => {
+                            debug!("Challenge left unanswered");
+                            Err(DenyReason::Ungranted)
+                        }
                     },
                     None => {
                         debug!("Received reponse that is not convertable to challenge response");

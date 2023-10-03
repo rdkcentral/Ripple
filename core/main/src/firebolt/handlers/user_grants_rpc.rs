@@ -20,9 +20,12 @@ use ripple_sdk::{
     api::{
         apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
         device::device_user_grants_data::{GrantEntry, GrantStateModify},
-        firebolt::fb_user_grants::{
-            AppInfo, GetUserGrantsByAppRequest, GetUserGrantsByCapabilityRequest, GrantInfo,
-            GrantRequest,
+        firebolt::{
+            fb_capabilities::FireboltPermission,
+            fb_user_grants::{
+                AppInfo, GetUserGrantsByAppRequest, GetUserGrantsByCapabilityRequest, GrantInfo,
+                GrantRequest, UserGrantRequestParam,
+            },
         },
         gateway::rpc_gateway_api::CallContext,
     },
@@ -64,6 +67,12 @@ pub trait UserGrants {
     fn usergrants_deny(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()>;
     #[method(name = "usergrants.clear")]
     fn usergrants_clear(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()>;
+    #[method(name = "usergrants.request")]
+    async fn usergrants_request(
+        &self,
+        ctx: CallContext,
+        request: UserGrantRequestParam,
+    ) -> RpcResult<Vec<GrantInfo>>;
 }
 
 #[derive(Debug)]
@@ -241,6 +250,26 @@ impl UserGrantsServer for UserGrantsImpl {
         } else {
             Err(rpc_err("Unable to clear the capability"))
         }
+    }
+    async fn usergrants_request(
+        &self,
+        ctx: CallContext,
+        request: UserGrantRequestParam,
+    ) -> RpcResult<Vec<GrantInfo>> {
+        // self.platform_state.cap_state.grant_state.
+        let fb_perms: Vec<FireboltPermission> = request.clone().into();
+        let _grant_entries = GrantState::check_with_roles(
+            &self.platform_state,
+            &ctx.clone().into(),
+            &ctx.clone().into(),
+            &fb_perms,
+            false,
+        )
+        .await;
+        let app_id = ctx.app_id.clone();
+        self.usergrants_app(ctx, GetUserGrantsByAppRequest { app_id: app_id })
+            .await
+        // Now check if all the requested caps are there in the vec if not better to add ungranted at least.
     }
 }
 

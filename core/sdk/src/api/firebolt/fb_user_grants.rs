@@ -17,7 +17,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::fb_capabilities::CapabilityRole;
+use super::fb_capabilities::{CapabilityRole, FireboltCap, FireboltPermission};
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -63,4 +63,30 @@ pub struct GrantRequest {
     pub role: CapabilityRole,
     pub capability: String,
     pub options: Option<GrantModificationOptions>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct CapabilityAndRole {
+    pub capability: String,
+    pub role: CapabilityRole,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct UserGrantRequestParam {
+    pub app_id: String,
+    pub permissions: Vec<CapabilityAndRole>,
+}
+
+impl From<UserGrantRequestParam> for Vec<FireboltPermission> {
+    fn from(value: UserGrantRequestParam) -> Self {
+        let mut perms = Vec::new();
+        for perm in value.permissions {
+            perms.push(FireboltPermission {
+                cap: FireboltCap::Full(perm.capability.clone()),
+                role: perm.role.clone(),
+            });
+        }
+        perms
+    }
 }
