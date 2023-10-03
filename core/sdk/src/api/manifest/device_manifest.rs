@@ -117,11 +117,15 @@ pub struct ApplicationDefaultsConfiguration {
 }
 
 impl ApplicationDefaultsConfiguration {
-    pub fn get_reserved_application_id(&self, field_name: &str) -> Option<&str> {
-        match field_name {
-            "xrn:firebolt:application-type:main" => Some(&self.main),
-            "xrn:firebolt:application-type:settings" => Some(&self.settings),
-            "xrn:firebolt:application-type:player" => self.player.as_deref().or(Some("")),
+    pub fn get_reserved_application_id(&self, reserved_app_type: &str) -> Option<&str> {
+        match reserved_app_type {
+            "xrn:firebolt:application-type:main" | "urn:firebolt:apps:main" => Some(&self.main),
+            "xrn:firebolt:application-type:settings" | "urn:firebolt:apps:settings" => {
+                Some(&self.settings)
+            }
+            "xrn:firebolt:application-type:player" | "urn:firebolt:apps:player" => {
+                self.player.as_deref().or(Some(""))
+            }
             _ => None,
         }
     }
@@ -385,13 +389,22 @@ pub enum PrivacySettingsStorageType {
 pub struct RippleFeatures {
     pub app_scoped_device_tokens: bool,
     pub privacy_settings_storage_type: PrivacySettingsStorageType,
+    pub intent_validation: IntentValidation,
 }
 
 fn default_ripple_features() -> RippleFeatures {
     RippleFeatures {
         app_scoped_device_tokens: false,
         privacy_settings_storage_type: PrivacySettingsStorageType::Local,
+        intent_validation: IntentValidation::FailOpen,
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum IntentValidation {
+    Fail,
+    FailOpen,
 }
 
 fn default_saved_dir() -> String {
