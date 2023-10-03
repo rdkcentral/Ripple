@@ -139,7 +139,7 @@ impl PermissionHandler {
         if state
             .cap_state
             .permitted_state
-            .get_app_permissions(app_id_alias.as_str())
+            .get_app_permissions(app_id)
             .is_some()
         {
             return Ok(());
