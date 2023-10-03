@@ -22,7 +22,7 @@ use std::{
 
 use ripple_sdk::{
     api::{
-        config::Config,
+        //config::Config,
         distributor::distributor_permissions::{PermissionRequest, PermissionResponse},
         firebolt::{
             fb_capabilities::{DenyReason, DenyReasonWithCap, FireboltPermission, RoleInfo},
@@ -127,7 +127,6 @@ impl PermissionHandler {
             .get_device_manifest()
             .applications
             .distributor_app_aliases;
-        //let dist_app_aliases = Config::DistributorAppAliases;
         if let Some(app_id_alias) = dist_app_aliases.get(&app_id.to_string()) {
             app_id_alias.to_string()
         } else {
