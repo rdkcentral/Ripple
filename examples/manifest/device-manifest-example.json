@@ -69,7 +69,6 @@
       "xrn:firebolt:capability:accessibility:voiceguidance",
       "xrn:firebolt:capability:account:id",
       "xrn:firebolt:capability:account:uid",
-      "xrn:firebolt:capability:token:account",
       "xrn:firebolt:capability:approve:content",
       "xrn:firebolt:capability:approve:purchase",
       "xrn:firebolt:capability:device:distributor",
@@ -111,11 +110,7 @@
       "xrn:firebolt:capability:privacy:advertising",
       "xrn:firebolt:capability:metrics:general",
       "xrn:firebolt:capability:metrics:media",
-      "xrn:firebolt:capability:protocol:dial",
-      "xrn:firebolt:capability:token:session",
-      "xrn:firebolt:capability:token:platform",
-      "xrn:firebolt:capability:token:device",
-      "xrn:firebolt:capability:token:root"
+      "xrn:firebolt:capability:protocol:dial"
     ]
   },
   "lifecycle": {
