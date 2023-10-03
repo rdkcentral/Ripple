@@ -365,6 +365,7 @@ impl StorageManager {
                         let ctx = context.clone();
                         let evt = String::from(*event);
                         tokio::spawn(async move {
+                            debug!("set_in_namespace: Sending event {:?}", evt);
                             AppEvents::emit_with_context(&state_for_event, &evt, &result, ctx)
                                 .await;
                         });

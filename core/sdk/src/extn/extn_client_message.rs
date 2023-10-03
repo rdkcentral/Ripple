@@ -37,6 +37,7 @@ use crate::{
         },
         distributor::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
+            distributor_platform::PlatformTokenRequest,
             distributor_privacy::{PrivacyCloudRequest, PrivacySettingsStoreRequest},
             distributor_request::DistributorRequest,
             distributor_sync::SyncAndMonitorRequest,
@@ -267,6 +268,7 @@ pub enum ExtnRequest {
     AuthorizedInfo(CapsRequest),
     Metrics(MetricsRequest),
     OperationalMetricsRequest(OperationalMetricRequest),
+    PlatformToken(PlatformTokenRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
