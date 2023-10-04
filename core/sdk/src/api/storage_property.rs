@@ -58,7 +58,7 @@ pub const KEY_SHARE_WATCH_HISTORY: &str = "shareWatchHistory";
 pub const KEY_USER_GRANT: &str = "userGrantKey";
 pub const KEY_ALLOW_ACR_COLLECTION: &str = "allowACRCollection";
 pub const KEY_ALLOW_APP_CONTENT_AD_TARGETING: &str = "allowAppContentAdTargetting";
-pub const KEY_ALLOW_BUSINESS_ANALYTICS: &'static str = "allowBusinessAnalytics";
+pub const KEY_ALLOW_BUSINESS_ANALYTICS: &str = "allowBusinessAnalytics";
 pub const KEY_ALLOW_CAMERA_ANALYTICS: &str = "allowCameraAnalytics";
 pub const KEY_ALLOW_PERSONALIZATION: &str = "allowPersonalization";
 pub const KEY_ALLOW_PRIMARY_BROWSE_AD_TARGETING: &str = "allowPrimaryBrowseAdTargeting";
@@ -102,8 +102,7 @@ pub const EVENT_SHARE_WATCH_HISTORY: &str = "privacy.onShareWatchHistoryChanged"
 pub const EVENT_ALLOW_ACR_COLLECTION_CHANGED: &str = "privacy.onAllowACRCollectionChanged";
 pub const EVENT_ALLOW_APP_CONTENT_AD_TARGETING_CHANGED: &str =
     "privacy.onAllowAppContentAdTargetingChanged";
-pub const EVENT_ALLOW_BUSINESS_ANALYTICS_CHANGED: &'static str =
-    "privacy.onAllowBusinessAnalyticsChanged";
+pub const EVENT_ALLOW_BUSINESS_ANALYTICS_CHANGED: &str = "privacy.onAllowBusinessAnalyticsChanged";
 pub const EVENT_ALLOW_CAMERA_ANALYTICS_CHANGED: &str = "privacy.onAllowCameraAnalyticsChanged";
 pub const EVENT_ALLOW_PERSONALIZATION_CHANGED: &str = "privacy.onAllowPersonalizationChanged";
 pub const EVENT_ALLOW_PRIMARY_BROWSE_AD_TARGETING_CHANGED: &str =
