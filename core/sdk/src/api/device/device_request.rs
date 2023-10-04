@@ -27,6 +27,7 @@ use super::{
     device_accessory::RemoteAccessoryRequest, device_browser::BrowserRequest,
     device_info_request::DeviceInfoRequest, device_peristence::DevicePersistenceRequest,
     device_wifi::WifiRequest, device_window_manager::WindowManagerRequest,
+    panel::device_hdmi::HdmiRequest,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,6 +38,7 @@ pub enum DeviceRequest {
     Storage(DevicePersistenceRequest),
     Wifi(WifiRequest),
     Accessory(RemoteAccessoryRequest),
+    Hdmi(HdmiRequest),
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]

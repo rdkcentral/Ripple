@@ -16,7 +16,10 @@
 //
 
 use crate::{
-    api::{session::SessionAdjective, storage_property::StorageAdjective},
+    api::{
+        device::panel::device_hdmi::AVInputAdjective, session::SessionAdjective,
+        storage_property::StorageAdjective,
+    },
     utils::{error::RippleError, serde_utils::SerdeClearString},
 };
 use log::error;
@@ -118,6 +121,7 @@ pub enum RippleContract {
     /// Distributor gets the ability to configure and customize the generation of
     /// the Session information based on their policies. Used by [crate::api::session::AccountSession]
     Session(SessionAdjective),
+    AVInput(AVInputAdjective),
 }
 
 pub trait ContractAdjective: serde::ser::Serialize {

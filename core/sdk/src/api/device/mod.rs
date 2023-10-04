@@ -29,6 +29,9 @@ pub mod device_user_grants_data;
 pub mod device_wifi;
 pub mod device_window_manager;
 pub mod entertainment_data;
+pub mod panel {
+    pub mod device_hdmi;
+}
 
 /// Contains a list of available Platformtypes supported by Ripple.
 #[derive(Debug, Deserialize, Clone)]

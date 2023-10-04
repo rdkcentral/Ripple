@@ -65,4 +65,7 @@ pub mod firebolt {
     pub mod fb_telemetry;
     pub mod fb_user_grants;
     pub mod provider;
+    pub mod panel {
+        pub mod fb_hdmi;
+    }
 }
