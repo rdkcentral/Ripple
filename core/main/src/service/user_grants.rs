@@ -1334,10 +1334,12 @@ mod tests {
             .await;
             println!("result: {:?}", result);
 
-            assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
-                reason: DenyReason::Unsupported,
-                caps: vec![perm.cap.clone()]
-            })));
+            assert!(result.is_err_and(|e| {
+                e.eq(&DenyReasonWithCap {
+                    reason: DenyReason::Unsupported,
+                    caps: vec![perm.cap.clone()],
+                })
+            }));
         }
 
         #[tokio::test]

@@ -23,10 +23,10 @@ use ripple_sdk::{
     tokio::{
         self,
         net::{TcpListener, TcpStream},
-        sync::Mutex,
+        sync::{Mutex, RwLock},
     },
 };
-use serde_json::Value;
+use serde_json::{json, Value};
 use tokio_tungstenite::{
     accept_hdr_async,
     tungstenite::{handshake, Error, Message, Result},
@@ -35,7 +35,7 @@ use tokio_tungstenite::{
 
 use crate::{
     errors::{MockDeviceError, MockWebsocketServerError},
-    utils::{json_key, MockData},
+    utils::{json_key, jsonrpc_key, MockData},
 };
 
 pub struct WsServerParameters {
@@ -87,7 +87,7 @@ impl Default for WsServerParameters {
 
 #[derive(Debug)]
 pub struct MockWebsocketServer {
-    mock_data: Mutex<MockData>,
+    mock_data: Arc<RwLock<MockData>>, // TODO: should this be RwLock
 
     listener: TcpListener,
 
@@ -104,7 +104,7 @@ pub struct MockWebsocketServer {
 
 impl MockWebsocketServer {
     pub async fn new(
-        mock_data: Mutex<MockData>,
+        mock_data: Arc<RwLock<MockData>>,
         server_config: WsServerParameters,
     ) -> Result<Self, MockWebsocketServerError> {
         let listener = Self::create_listener(server_config.port.unwrap_or(0)).await?;
@@ -208,6 +208,7 @@ impl MockWebsocketServer {
         let (send, mut recv) = ws_stream.split();
 
         debug!("New WebSocket connection: {peer}");
+        // TODO: switch to being JSONRPC aware
 
         self.add_connected_peer(&peer, send).await;
 
@@ -231,8 +232,12 @@ impl MockWebsocketServer {
 
                 debug!("Parsed message: {:?}", request_message);
 
-                let mock_data = self.mock_data.lock().await;
-                let key = match json_key(&request_message) {
+                let id = request_message
+                    .get("id")
+                    .and_then(|s| s.as_u64())
+                    .unwrap_or(0);
+
+                let key = match jsonrpc_key(&request_message) {
                     Ok(key) => key,
                     Err(err) => {
                         error!("Request cannot be compared to mock data. {err:?}");
@@ -240,24 +245,34 @@ impl MockWebsocketServer {
                     }
                 };
 
-                let response = mock_data.get(&key);
+                let responses = {
+                    let mock_data = self.mock_data.read().await;
+                    debug!(
+                        "Request received. Mock data ={mock_data:?}"
+                    );
+                    mock_data.get(&key).cloned()
+                }
+                .map(|resps| {
+                    resps.into_iter().map(|mut value| {
+                        value.as_object_mut().and_then(|obj| obj.insert("id".to_string(), id.into()));
 
-                match response {
-                    None => error!(
-                        "Unrecognised request received. Not responding. Request: {request_message}"
-                    ),
-                    Some(response_messages) => {
-                        debug!("Request found, sending response. req={request_message} resps={response_messages:?}");
-                        let mut clients = self.connected_peer_sinks.lock().await;
-                        let sink = clients.get_mut(&peer.to_string());
-                        if let Some(sink) = sink {
-                            for resp in response_messages {
-                                sink.send(Message::Text(resp.to_string())).await?;
-                            }
-                        } else {
-                            error!("no sink found for peer={peer:?}");
-                        }
+                        value
+                    }).collect()
+                })
+                .unwrap_or_else(|| vec![json!({"jsonrpc": "2.0", "id": id, "error": {"code": -32600, "message": "Invalid Request"}})]);
+
+                debug!(
+                    "Request found, sending response. id={id} req={request_message} resps={responses:?}"
+                );
+
+                let mut clients = self.connected_peer_sinks.lock().await;
+                let sink = clients.get_mut(&peer.to_string());
+                if let Some(sink) = sink {
+                    for resp in responses {
+                        sink.send(Message::Text(resp.to_string())).await?;
                     }
+                } else {
+                    error!("no sink found for peer={peer:?}");
                 }
             }
         }
@@ -287,8 +302,8 @@ impl MockWebsocketServer {
         request: &Value,
         responses: Vec<Value>,
     ) -> Result<(), MockDeviceError> {
-        let mut mock_data = self.mock_data.lock().await;
-        let key = json_key(request)?;
+        let mut mock_data = self.mock_data.write().await;
+        let key = jsonrpc_key(request)?;
         debug!("Adding mock data key={key:?} resps={responses:?}");
         mock_data.insert(key, responses);
 
@@ -296,7 +311,7 @@ impl MockWebsocketServer {
     }
 
     pub async fn remove_request(&self, request: &Value) -> Result<(), MockDeviceError> {
-        let mut mock_data = self.mock_data.lock().await;
+        let mut mock_data = self.mock_data.write().await;
         let key = json_key(request)?;
         debug!("Removing mock data key={key:?}");
         let resps = mock_data.remove(&key);

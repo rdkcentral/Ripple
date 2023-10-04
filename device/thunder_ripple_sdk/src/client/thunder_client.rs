@@ -287,9 +287,13 @@ impl ThunderClient {
         let handle = ripple_sdk::tokio::spawn(async move {
             trace!("Starting thread to listen for thunder events");
             while let Some(ev_res) = subscription.next().await {
-                if let Ok(ev) = ev_res {
-                    let msg = DeviceResponseMessage::sub(ev, sub_id_c.clone());
-                    mpsc_send_and_log(&thunder_message.handler, msg, "ThunderSubscribeEvent").await;
+                match ev_res {
+                    Ok(ev) => {
+                        let msg = DeviceResponseMessage::sub(ev, sub_id_c.clone());
+                        mpsc_send_and_log(&thunder_message.handler, msg, "ThunderSubscribeEvent")
+                            .await;
+                    }
+                    Err(e) => error!("Thunder event error {e:?}"),
                 }
             }
             if let Some(ptx) = pool_tx {

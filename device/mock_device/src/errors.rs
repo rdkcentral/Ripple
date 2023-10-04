@@ -105,3 +105,15 @@ impl Display for LoadMockDataFailedReason {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::errors::MockWebsocketServerError;
+
+    #[test]
+    fn test_mock_websocket_server_error_display() {
+        let error = MockWebsocketServerError::CantListen;
+
+        assert_eq!("Failed to start TcpListener", error.to_string());
+    }
+}

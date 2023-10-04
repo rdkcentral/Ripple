@@ -215,7 +215,8 @@ impl CachedState {
     }
 
     fn get_version(&self) -> Option<FireboltSemanticVersion> {
-        self.cached.read().unwrap().version.clone()
+        // self.cached.read().unwrap().version.clone()
+        None
     }
 
     fn update_version(&self, version: FireboltSemanticVersion) {

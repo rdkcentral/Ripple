@@ -15,6 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::sync::Arc;
+
 use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::{
     api::status_update::ExtnStatus,
@@ -33,7 +35,7 @@ use ripple_sdk::{
     framework::ripple_contract::{ContractFulfiller, RippleContract},
     log::{debug, error, info},
     semver::Version,
-    tokio::{self, runtime::Runtime, sync::Mutex},
+    tokio::{self, runtime::Runtime, sync::RwLock},
     utils::{error::RippleError, logger::init_logger},
 };
 
@@ -87,7 +89,9 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
                 .unwrap_or_default();
             debug!("mock_data={:?}", mock_data);
 
-            if let Ok(server) = boot_ws_server(client.clone(), Mutex::new(mock_data)).await {
+            if let Ok(server) =
+                boot_ws_server(client.clone(), Arc::new(RwLock::new(mock_data))).await
+            {
                 client.add_request_processor(MockDeviceMockWebsocketServerProcessor::new(
                     client.clone(),
                     server,

@@ -21,7 +21,7 @@ use ripple_sdk::{
     api::config::Config,
     extn::{client::extn_client::ExtnClient, extn_client_message::ExtnResponse},
     log::{debug, error},
-    tokio::{self, sync::Mutex},
+    tokio::{self, sync::RwLock},
     utils::error::RippleError,
 };
 use serde_hashkey::{to_key, Key};
@@ -37,7 +37,7 @@ pub type MockData = HashMap<Key, Vec<Value>>;
 
 pub async fn boot_ws_server(
     mut client: ExtnClient,
-    mock_data: Mutex<MockData>,
+    mock_data: Arc<RwLock<MockData>>,
 ) -> Result<Arc<MockWebsocketServer>, MockDeviceError> {
     debug!("Booting WS Server for mock device");
     let gateway = platform_gateway_url(&mut client).await?;
@@ -148,6 +148,7 @@ pub async fn load_mock_data(mut client: ExtnClient) -> Result<MockData, MockDevi
                     .ok_or(MockDeviceError::LoadMockDataFailed(
                         LoadMockDataFailedReason::EntryNotObject,
                     ))?;
+                // TODO: make mock data format match JSON-RPC payload formats
                 let req = obj
                     .get("request")
                     .and_then(|req| if req.is_object() { Some(req) } else { None })
@@ -161,7 +162,7 @@ pub async fn load_mock_data(mut client: ExtnClient) -> Result<MockData, MockDevi
                         LoadMockDataFailedReason::EntryMissingResponseField,
                     ))?;
 
-                Ok((json_key(req)?, vec![res.to_owned()]))
+                Ok((jsonrpc_key(req)?, vec![res.to_owned()]))
                 // TODO: add support for multiple responses
             })
             .collect::<Result<Vec<(Key, Vec<Value>)>, MockDeviceError>>()?
@@ -184,4 +185,13 @@ pub fn json_key(value: &Value) -> Result<Key, MockDeviceError> {
 
     error!("Failed to create key from data {value:?}");
     Err(MockDeviceError::BadMockDataKey(value.clone()))
+}
+
+pub fn jsonrpc_key(value: &Value) -> Result<Key, MockDeviceError> {
+    let mut new_value = value.clone();
+    new_value
+        .as_object_mut()
+        .and_then(|payload| payload.remove("id"));
+
+    json_key(&new_value)
 }
