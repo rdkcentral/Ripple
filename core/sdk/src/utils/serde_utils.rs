@@ -158,13 +158,13 @@ pub mod date_time_str_serde {
     use chrono::DateTime;
     use serde::{self, Deserialize, Deserializer, Serializer};
 
-    pub fn serialize<S>(data: &String, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(data: &str, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let formed_date_res = DateTime::parse_from_rfc3339(&data);
-        if let Ok(_) = formed_date_res {
-            serializer.serialize_str(&data)
+        let formed_date_res = DateTime::parse_from_rfc3339(data);
+        if formed_date_res.is_ok() {
+            serializer.serialize_str(data)
         } else {
             Err(serde::ser::Error::custom(
                 "String not convertible to date-time",
@@ -178,7 +178,7 @@ pub mod date_time_str_serde {
     {
         let str = String::deserialize(deserializer)?;
         let formed_date_res = DateTime::parse_from_rfc3339(&str);
-        if let Ok(_) = formed_date_res {
+        if formed_date_res.is_ok() {
             Ok(str)
         } else {
             Err(serde::de::Error::custom(
