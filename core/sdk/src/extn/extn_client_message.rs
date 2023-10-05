@@ -29,7 +29,6 @@ use crate::{
         caps::CapsRequest,
         config::{Config, ConfigResponse},
         device::{
-            device_accessibility_data::VoiceGuidanceSettings,
             device_events::DeviceEventRequest,
             device_peristence::StorageData,
             device_request::{

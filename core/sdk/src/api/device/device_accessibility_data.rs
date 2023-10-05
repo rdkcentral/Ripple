@@ -17,11 +17,6 @@
 
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::{
-    extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
-    framework::ripple_contract::RippleContract,
-};
-
 #[derive(Serialize, Deserialize)]
 pub struct ClosedCaptionsSettings {
     pub enabled: bool,
