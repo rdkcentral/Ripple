@@ -120,9 +120,9 @@ impl FireboltCap {
         let prefix = ["xrn", "firebolt", "capability"];
         let c_a = cap.split(':');
         let mut cap_vec = Vec::<String>::new();
-        for c in c_a.into_iter() {
-            if !prefix.contains(&c) {
-                cap_vec.push(String::from(c));
+        for token in c_a.into_iter() {
+            if !prefix.contains(&token) {
+                cap_vec.push(String::from(token));
             }
         }
         Some(FireboltCap::Short(cap_vec.join(":")))
