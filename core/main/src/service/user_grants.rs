@@ -129,11 +129,12 @@ impl GrantState {
             let mut grant_state = self.grant_app_map.write().unwrap();
             //Get a mutable reference to the value associated with a key, create it if it doesn't exist,
             let entries = grant_state.value.entry(app_id).or_insert_with(HashSet::new);
-
             if entries.contains(&new_entry) {
                 entries.remove(&new_entry);
             }
-            entries.insert(new_entry);
+            if new_entry.status.is_some() {
+                entries.insert(new_entry);
+            }
             grant_state.sync();
         } else {
             self.add_device_entry(new_entry)
@@ -481,6 +482,7 @@ impl GrantState {
                         return false;
                     }
 
+                    let grant_policy_persistence = grant_policy.persistence.clone();
                     let mut new_entry = GrantEntry {
                         role,
                         capability,
@@ -516,16 +518,18 @@ impl GrantState {
                         .update_grant_entry(app_id.clone(), new_entry.clone());
 
                     debug!(
-                        "Sync user grant modified with new entry:{:?} to cloud 1",
+                        "Sync user grant modified with new entry:{:?} to cloud",
                         new_entry.clone()
                     );
-                    let _ = GrantPolicyEnforcer::send_usergrants_for_cloud_storage(
-                        platform_state,
-                        &grant_policy,
-                        &new_entry,
-                        &app_id,
-                    )
-                    .await;
+                    if grant_policy_persistence == PolicyPersistenceType::Account {
+                        let _ = GrantPolicyEnforcer::send_usergrants_for_cloud_storage(
+                            platform_state,
+                            &grant_policy,
+                            &new_entry,
+                            &app_id,
+                        )
+                        .await;
+                    }
                 }
             }
         }
@@ -583,12 +587,17 @@ impl GrantPolicyEnforcer {
         app_id: &Option<String>,
     ) {
         if let Some(account_session) = platform_state.session_state.get_account_session() {
+            let mut s = None;
+            if grant_entry.status.is_some() {
+                s = Some(grant_entry.status.to_owned().unwrap());
+            };
+
             let usergrants_cloud_set_params = UserGrantsCloudSetParams {
                 account_session,
                 user_grant_info: UserGrantInfo {
                     role: grant_entry.role,
                     capability: grant_entry.capability.to_owned(),
-                    status: grant_entry.status.as_ref().unwrap().to_owned(),
+                    status: s,
                     last_modified_time: Duration::new(0, 0),
                     expiry_time: match grant_policy.lifespan {
                         GrantLifespan::Seconds => {
