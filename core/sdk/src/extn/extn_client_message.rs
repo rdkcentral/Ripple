@@ -328,9 +328,6 @@ pub enum ExtnEvent {
     PowerState(SystemPowerState),
     OperationalMetrics(TelemetryPayload),
     VoiceGuidanceState(VoiceGuidanceState),
-    // <pca> a
-    VoiceGuidanceSettings(VoiceGuidanceSettings),
-    // </pca>
 }
 
 impl ExtnPayloadProvider for ExtnEvent {

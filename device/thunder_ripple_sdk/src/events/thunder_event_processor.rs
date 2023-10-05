@@ -67,7 +67,6 @@ pub enum ThunderEventMessage {
 }
 impl ThunderEventMessage {
     pub fn get(event: &str, value: &Value) -> Option<Self> {
-        println!("*** _DEBUG: ThunderEventMessage.get: event={}", event);
         if let Ok(device_event) = DeviceEvent::from_str(event) {
             match device_event {
                 DeviceEvent::InputChanged | DeviceEvent::HdrChanged => {
@@ -111,9 +110,7 @@ impl ThunderEventMessage {
                     }
                 }
                 DeviceEvent::VoiceGuidanceEnabledChanged => {
-                    println!("*** _DEBUG: Mark 1");
                     if let Ok(v) = serde_json::from_value(value.clone()) {
-                        println!("*** _DEBUG: Mark 2");
                         return Some(ThunderEventMessage::VoiceGuidance(v));
                     }
                 }
@@ -205,45 +202,13 @@ impl ThunderEventHandler {
         }
     }
 
-    // <pca> debug
-    // pub fn callback_device_event(state: ThunderState, event_name: String, event: ExtnEvent) {
-    //     if !state.event_processor.check_last_event(&event_name, &event) {
-    //         state.event_processor.add_last_event(&event_name, &event);
-    //         if (match event {
-    //             ExtnEvent::AppEvent(a) => state.get_client().request_transient(a),
-    //             ExtnEvent::PowerState(p) => state.get_client().request_transient(p),
-    //             ExtnEvent::VoiceGuidanceState(p) => state.get_client().request_transient(p),
-    //             // <pca>
-    //             ExtnEvent::VoiceGuidanceSettings(p) => state.get_client().request_transient(p),
-    //             // </pca>
-    //             _ => Err(RippleError::InvalidOutput),
-    //         })
-    //         .is_err()
-    //         {
-    //             error!("Error while forwarding app event");
-    //         }
-    //     } else {
-    //         trace!("Already sent")
-    //     }
-    // }
     pub fn callback_device_event(state: ThunderState, event_name: String, event: ExtnEvent) {
-        println!(
-            "*** _DEBUG: callback_device_event: event_name={}, event={:?}",
-            event_name, event
-        );
         if !state.event_processor.check_last_event(&event_name, &event) {
             state.event_processor.add_last_event(&event_name, &event);
             if (match event {
                 ExtnEvent::AppEvent(a) => state.get_client().request_transient(a),
                 ExtnEvent::PowerState(p) => state.get_client().request_transient(p),
                 ExtnEvent::VoiceGuidanceState(p) => state.get_client().request_transient(p),
-                // <pca> a
-                ExtnEvent::VoiceGuidanceSettings(p) => {
-                    let resp = state.get_client().request_transient(p);
-                    println!("*** _DEBUG: callback_device_event: resp={:?}", resp);
-                    resp
-                }
-                // </pca>
                 _ => Err(RippleError::InvalidOutput),
             })
             .is_err()
@@ -254,7 +219,6 @@ impl ThunderEventHandler {
             trace!("Already sent")
         }
     }
-    // </pca>
 }
 
 pub trait DeviceSubscribeRequestProvider {

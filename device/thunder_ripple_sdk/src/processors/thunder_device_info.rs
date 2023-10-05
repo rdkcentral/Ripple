@@ -1121,7 +1121,6 @@ impl ThunderDeviceInfoRequestProcessor {
         Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
     }
 
-    // <pca> a
     pub async fn get_voice_guidance_speed(state: ThunderState) -> Result<f32, ()> {
         let response = state
             .get_thunder_client()
@@ -1137,7 +1136,6 @@ impl ThunderDeviceInfoRequestProcessor {
 
         Err(())
     }
-    // </pca>
 
     async fn voice_guidance_set_speed(
         state: CachedState,

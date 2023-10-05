@@ -51,26 +51,6 @@ pub struct VoiceGuidanceSettings {
     pub speed: f32,
 }
 
-// <pca>
-impl ExtnPayloadProvider for VoiceGuidanceSettings {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Event(ExtnEvent::VoiceGuidanceSettings(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<VoiceGuidanceSettings> {
-        if let ExtnPayload::Event(ExtnEvent::VoiceGuidanceSettings(r)) = payload {
-            return Some(r);
-        }
-
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::VoiceGuidance
-    }
-}
-// </pca>
-
 fn speed_serializer<S>(speed: &f32, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,

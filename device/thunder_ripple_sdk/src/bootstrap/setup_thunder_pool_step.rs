@@ -68,11 +68,6 @@ impl ThunderPoolStep {
         info!("Thunder client connected successfully");
         let _ = state.extn_client.event(ExtnStatus::Ready);
         let extn_client = state.extn_client.clone();
-        // <pca>
-        // Ok(ThunderBootstrapStateWithClient {
-        //     prev: state,
-        //     state: ThunderState::new(extn_client, client),
-        // })
         let thunder_boot_strap_state_with_client = ThunderBootstrapStateWithClient {
             prev: state,
             state: ThunderState::new(extn_client, client),
@@ -81,6 +76,5 @@ impl ThunderPoolStep {
             .state
             .start_event_thread();
         Ok(thunder_boot_strap_state_with_client)
-        // </pca>
     }
 }

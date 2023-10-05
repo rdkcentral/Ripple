@@ -127,7 +127,6 @@ impl FireboltGateway {
             "firebolt_gateway Received Firebolt request {} {} {}",
             request.ctx.request_id, request.method, request.params_json
         );
-        info!("*** _DEBUG: request={:?}", request);
         // First check sender if no sender no need to process
         let callback_c = extn_msg.clone();
         match request.ctx.protocol {

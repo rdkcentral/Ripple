@@ -85,7 +85,7 @@ impl HDCPEventHandler {
         }
         let state_c = state.clone();
         tokio::spawn(async move {
-            let map = ThunderDeviceInfoRequestProcessor::get_hdcp_support(state).await; // <pca> a </pca>
+            let map = ThunderDeviceInfoRequestProcessor::get_hdcp_support(state).await;
             if let Ok(v) = Self::get_extn_event(map, callback_type) {
                 ThunderEventHandler::callback_device_event(state_c, Self::get_mapped_event(), v)
             }
@@ -396,38 +396,31 @@ impl VoiceGuidanceEnabledChangedEventHandler {
         value: ThunderEventMessage,
         callback_type: DeviceEventCallback,
     ) {
-        println!(
-            "*** _DEBUG: VoiceGuidanceEnabledChangedEventHandler.handle: value={:?}",
-            value
-        );
         if let ThunderEventMessage::VoiceGuidance(voice_guidance_state) = value {
-            println!("*** _DEBUG: VoiceGuidanceEnabledChangedEventHandler.handle: Mark 1");
             if let Ok(v) = Self::get_extn_event(voice_guidance_state.clone(), callback_type) {
-                println!("*** _DEBUG: VoiceGuidanceEnabledChangedEventHandler.handle: Mark 2");
-                // <pca> a
                 let thunder_state = state.clone();
                 let enabled = voice_guidance_state.state;
                 tokio::spawn(async move {
-                    println!("*** _DEBUG: VoiceGuidanceEnabledChangedEventHandler.handle: Mark 3");
                     if let Ok(speed) = ThunderDeviceInfoRequestProcessor::get_voice_guidance_speed(
                         thunder_state.clone(),
                     )
                     .await
                     {
-                        println!(
-                            "*** _DEBUG: VoiceGuidanceEnabledChangedEventHandler.handle: Mark 4"
-                        );
                         let settings = VoiceGuidanceSettings { enabled, speed };
+                        let event = ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
+                            event_name: VOICE_GUIDANCE_SETTINGS_CHANGED.to_string(),
+                            result: serde_json::to_value(settings).unwrap(),
+                            context: None,
+                            app_id: None,
+                        }));
 
                         ThunderEventHandler::callback_device_event(
                             thunder_state,
                             VOICE_GUIDANCE_SETTINGS_CHANGED.to_string(),
-                            ExtnEvent::VoiceGuidanceSettings(settings),
+                            event,
                         );
                     }
-                    println!("*** _DEBUG: VoiceGuidanceEnabledChangedEventHandler.handle: Mark 5");
                 });
-                // </pca>
                 ThunderEventHandler::callback_device_event(
                     state.clone(),
                     Self::get_mapped_event(),
@@ -474,10 +467,6 @@ impl ThunderEventHandlerProvider for VoiceGuidanceEnabledChangedEventHandler {
         r: Self::EVENT,
         callback_type: DeviceEventCallback,
     ) -> Result<ExtnEvent, RippleError> {
-        println!(
-            "*** _DEBUG: VoiceGuidanceEnabledChangedEventHandler.get_extn_event: r={:?}, callback_type={:?}",
-            r, callback_type
-        );
         let result = serde_json::to_value(r.clone()).unwrap();
         match callback_type {
             DeviceEventCallback::FireboltAppEvent => {

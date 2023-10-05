@@ -240,7 +240,6 @@ impl ThunderClient {
         thunder_message: ThunderSubscribeMessage,
         pool_tx: Option<mpsc::Sender<ThunderPoolCommand>>,
     ) {
-        println!("*** _DEBUG: ThunderClient.subscribe: entry");
         let subscribe_method = format!(
             "client.{}.events.{}",
             thunder_message.module, thunder_message.event_name
@@ -250,7 +249,6 @@ impl ThunderClient {
             None => Uuid::new_v4().to_string(),
         };
         if let Some(sub) = subscriptions.get_mut(&subscribe_method) {
-            println!("*** _DEBUG: ThunderClient.subscribe: Mark 1");
             // rpc subscription already exists, just add a listener
             sub.listeners
                 .insert(sub_id.clone(), thunder_message.handler);
@@ -265,10 +263,6 @@ impl ThunderClient {
             .subscribe_to_method::<Value>(subscribe_method.as_str())
             .await;
         if let Err(e) = subscription_res {
-            error!(
-                "*** _DEBUG: ThunderClient.subscribe: Failed to setup subscriber in jsonrpsee client, {}",
-                e
-            );
             error!("Failed to setup subscriber in jsonrpsee client, {}", e);
             // Maybe this method signature should change to propagate the error up
             return;
@@ -291,11 +285,7 @@ impl ThunderClient {
         let sub_id_c = sub_id.clone();
         let handle = ripple_sdk::tokio::spawn(async move {
             trace!("Starting thread to listen for thunder events");
-            println!(
-                "*** _DEBUG: ThunderClient.subscribe: Starting thread to listen for thunder events"
-            );
             while let Some(ev_res) = subscription.next().await {
-                println!("*** _DEBUG: ThunderClient.subscribe: ev_res={:?}", ev_res);
                 if let Ok(ev) = ev_res {
                     let msg = DeviceResponseMessage::sub(ev, sub_id_c.clone());
                     mpsc_send_and_log(&thunder_message.handler, msg, "ThunderSubscribeEvent").await;
