@@ -117,7 +117,7 @@ impl FireboltCap {
             return None;
         }
 
-        let prefix = vec!["xrn", "firebolt", "capability"];
+        let prefix = ["xrn", "firebolt", "capability"];
         let c_a = cap.split(':');
         let mut cap_vec = Vec::<String>::new();
         for c in c_a.into_iter() {
