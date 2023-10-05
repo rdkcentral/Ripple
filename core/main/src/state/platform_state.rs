@@ -24,6 +24,7 @@ use ripple_sdk::{
             extn_manifest::ExtnManifest,
         },
         protocol::BridgeProtocolRequest,
+        session::SessionAdjective,
     },
     extn::{extn_client_message::ExtnMessage, extn_id::ExtnId},
     framework::{ripple_contract::RippleContract, RippleResponse},
@@ -172,6 +173,11 @@ impl PlatformState {
 
     pub fn supports_encoding(&self) -> bool {
         let contract = RippleContract::Encoder.as_clear_string();
+        self.extn_manifest.required_contracts.contains(&contract)
+    }
+
+    pub fn supports_distributor_session(&self) -> bool {
+        let contract = RippleContract::Session(SessionAdjective::Distributor).as_clear_string();
         self.extn_manifest.required_contracts.contains(&contract)
     }
 
