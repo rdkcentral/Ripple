@@ -89,12 +89,10 @@ impl DataGovernance {
             let mut excluded = false;
             let mut propagation_state = true;
             let data = DataGovernance::get_exclusion_data(tag.setting.clone(), exclusions.clone());
-            if data.is_some() {
+            if let Some(d) = data {
                 let (excluded_tmp, propagation_state_tmp) =
                     DataGovernance::is_app_excluded_and_get_propagation_state(
-                        &app_id,
-                        &data_type,
-                        &data.unwrap(),
+                        &app_id, &data_type, &d,
                     );
                 excluded = excluded_tmp;
                 propagation_state = propagation_state_tmp;
@@ -182,8 +180,8 @@ impl DataGovernance {
                     );
                     let result = serde_json::to_string(&excl);
                     // result.unwrap_or("");    // XXX: when server return 404 or empty string
-                    if result.is_ok() {
-                        let str_excl = result.unwrap();
+                    if let Ok(res) = result {
+                        let str_excl = res;
                         return StorageManager::set_string(
                             state,
                             StorageProperty::PartnerExclusions,
@@ -209,12 +207,12 @@ impl DataGovernance {
 
         let resp = StorageManager::get_string(state, StorageProperty::PartnerExclusions).await;
         debug!("StorageProperty::PartnerExclusions resp={:?}", resp);
-        if resp.is_ok() {
-            let str_excl = resp.unwrap();
+        if let Ok(res) = resp {
+            let str_excl = res;
             if !str_excl.is_empty() {
                 let excl = serde_json::from_str(&str_excl);
-                if excl.is_ok() {
-                    let exclusion_policy: ExclusionPolicy = excl.unwrap();
+                if let Ok(exc) = excl {
+                    let exclusion_policy: ExclusionPolicy = exc;
                     DataGovernance::update_local_exclusion_policy(
                         &state.data_governance,
                         exclusion_policy.clone(),

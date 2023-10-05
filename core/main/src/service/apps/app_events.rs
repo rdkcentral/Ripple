@@ -384,10 +384,10 @@ impl AppEvents {
 
         for i in listeners_vec {
             let decorated_res = i.decorate(state, event_name, result).await;
-            if decorated_res.is_err() {
-                error!("could not generate event for '{}'", event_name);
+            if let Ok(res) = decorated_res {
+                AppEvents::send_event(state, &i, &res).await;
             } else {
-                AppEvents::send_event(state, &i, &decorated_res.unwrap()).await;
+                error!("could not generate event for '{}'", event_name);
             }
         }
     }

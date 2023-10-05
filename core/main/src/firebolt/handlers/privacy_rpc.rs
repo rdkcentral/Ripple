@@ -419,15 +419,15 @@ impl PrivacyImpl {
         platform_state: &PlatformState,
     ) -> RpcResult<bool> {
         let property_opt = Self::to_storage_property(method);
-        if property_opt.is_none() {
+        if let Some(prop) = property_opt {
+            let property = prop;
+            Self::get_bool(platform_state, property).await
+        } else {
             Err(jsonrpsee::core::Error::Call(CallError::Custom {
                 code: CAPABILITY_NOT_AVAILABLE,
                 message: format!("{} is not available", method),
                 data: None,
             }))
-        } else {
-            let property = property_opt.unwrap();
-            Self::get_bool(platform_state, property).await
         }
     }
 
@@ -437,16 +437,16 @@ impl PrivacyImpl {
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
         let property_opt = Self::to_storage_property(method);
-        if property_opt.is_none() {
+        if let Some(prop) = property_opt {
+            let property = prop;
+            debug!("Resolved property: {:?}", property);
+            Self::set_bool(platform_state, property, set_request.value).await
+        } else {
             Err(jsonrpsee::core::Error::Call(CallError::Custom {
                 code: CAPABILITY_NOT_AVAILABLE,
                 message: format!("{} is not available", method),
                 data: None,
             }))
-        } else {
-            let property = property_opt.unwrap();
-            debug!("Resolved property: {:?}", property);
-            Self::set_bool(platform_state, property, set_request.value).await
         }
     }
 
