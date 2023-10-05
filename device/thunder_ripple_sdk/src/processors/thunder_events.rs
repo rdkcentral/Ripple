@@ -123,11 +123,20 @@ impl ExtnRequestProcessor for ThunderOpenEventsProcessor {
                 id.clone(),
                 SystemPowerStateChangeEventHandler::provide(id, callback_type),
             ),
-            DeviceEvent::VoiceGuidanceEnabledChanged => state.handle_listener(
-                listen,
-                id.clone(),
-                VoiceGuidanceEnabledChangedEventHandler::provide(id, callback_type),
-            ),
+            // <pca> debug
+            // DeviceEvent::VoiceGuidanceEnabledChanged => state.handle_listener(
+            //     listen,
+            //     id.clone(),
+            //     VoiceGuidanceEnabledChangedEventHandler::provide(id, callback_type),
+            // ),
+            DeviceEvent::VoiceGuidanceEnabledChanged => {
+                println!("*** _DEBUG: Got DeviceEvent::VoiceGuidanceEnabledChanged");
+                state.handle_listener(
+                    listen,
+                    id.clone(),
+                    VoiceGuidanceEnabledChangedEventHandler::provide(id, callback_type),
+                )
+            } // </pca>
         };
         v.await;
         Self::ack(state.get_client(), msg).await.is_ok()

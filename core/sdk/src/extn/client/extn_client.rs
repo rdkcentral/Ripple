@@ -593,6 +593,11 @@ impl ExtnClient {
     pub fn request_transient(&mut self, payload: impl ExtnPayloadProvider) -> RippleResponse {
         let id = uuid::Uuid::new_v4().to_string();
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
+        println!(
+            "*** _DEBUG: request_transient: other_sender={}, id={}",
+            other_sender.is_some(),
+            id
+        );
         self.sender.send_request(id, payload, other_sender, None)
     }
 

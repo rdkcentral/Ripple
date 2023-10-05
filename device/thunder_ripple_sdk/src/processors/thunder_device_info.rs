@@ -1121,6 +1121,24 @@ impl ThunderDeviceInfoRequestProcessor {
         Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
     }
 
+    // <pca> a
+    pub async fn get_voice_guidance_speed(state: ThunderState) -> Result<f32, ()> {
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::TextToSpeech.method("getttsconfiguration"),
+                params: None,
+            })
+            .await;
+
+        if let Some(rate) = response.message["rate"].as_f64() {
+            return Ok(scale_voice_speed_from_thunder_to_firebolt(rate as f32));
+        }
+
+        Err(())
+    }
+    // </pca>
+
     async fn voice_guidance_set_speed(
         state: CachedState,
         request: ExtnMessage,

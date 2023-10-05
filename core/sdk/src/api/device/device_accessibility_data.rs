@@ -17,6 +17,11 @@
 
 use serde::{Deserialize, Serialize, Serializer};
 
+use crate::{
+    extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
+    framework::ripple_contract::RippleContract,
+};
+
 #[derive(Serialize, Deserialize)]
 pub struct ClosedCaptionsSettings {
     pub enabled: bool,
@@ -39,12 +44,32 @@ pub struct ClosedCaptionStyle {
     pub text_align_vertical: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct VoiceGuidanceSettings {
     pub enabled: bool,
     #[serde(serialize_with = "speed_serializer")]
     pub speed: f32,
 }
+
+// <pca>
+impl ExtnPayloadProvider for VoiceGuidanceSettings {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Event(ExtnEvent::VoiceGuidanceSettings(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<VoiceGuidanceSettings> {
+        if let ExtnPayload::Event(ExtnEvent::VoiceGuidanceSettings(r)) = payload {
+            return Some(r);
+        }
+
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::VoiceGuidance
+    }
+}
+// </pca>
 
 fn speed_serializer<S>(speed: &f32, serializer: S) -> Result<S::Ok, S::Error>
 where

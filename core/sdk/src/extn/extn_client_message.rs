@@ -29,6 +29,7 @@ use crate::{
         caps::CapsRequest,
         config::{Config, ConfigResponse},
         device::{
+            device_accessibility_data::VoiceGuidanceSettings,
             device_events::DeviceEventRequest,
             device_peristence::StorageData,
             device_request::{
@@ -327,6 +328,9 @@ pub enum ExtnEvent {
     PowerState(SystemPowerState),
     OperationalMetrics(TelemetryPayload),
     VoiceGuidanceState(VoiceGuidanceState),
+    // <pca> a
+    VoiceGuidanceSettings(VoiceGuidanceSettings),
+    // </pca>
 }
 
 impl ExtnPayloadProvider for ExtnEvent {

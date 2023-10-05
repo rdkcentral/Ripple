@@ -64,12 +64,19 @@ impl AppEventDecorator for VGEnabledEventDecorator {
         let speed = voice_guidance_settings_speed(ps).await?;
         let voice_guidance_settings = VoiceGuidanceSettings { enabled, speed };
 
-        AppEvents::emit(
-            ps,
-            VOICE_GUIDANCE_SETTINGS_CHANGED,
-            &serde_json::to_value(voice_guidance_settings).unwrap_or_default(),
-        )
-        .await;
+        println!(
+            "*** _DEBUG: VGEnabledEventDecorator: voice_guidance_settings={:?}",
+            voice_guidance_settings
+        );
+
+        // <pca>
+        // AppEvents::emit(
+        //     ps,
+        //     VOICE_GUIDANCE_SETTINGS_CHANGED,
+        //     &serde_json::to_value(voice_guidance_settings).unwrap_or_default(),
+        // )
+        // .await;
+        // </pca>
 
         Ok(json!(enabled))
     }
@@ -173,8 +180,8 @@ pub async fn voice_guidance_settings_enabled_changed(
     ctx: &CallContext,
     request: &ListenRequest,
 ) -> RpcResult<ListenerResponse> {
+    println!("*** _DEBUG: voice_guidance_settings_enabled_changed 2: entry");
     let listen = request.listen;
-
     // Register for individual change events (no-op if already registered), handlers emit VOICE_GUIDANCE_SETTINGS_CHANGED_EVENT.
     if platform_state
         .get_client()
@@ -189,6 +196,7 @@ pub async fn voice_guidance_settings_enabled_changed(
     {
         error!("Error while registration");
     }
+    println!("*** _DEBUG: voice_guidance_settings_enabled_changed: Mark 1");
 
     /*
     Add decorated listener after call to voice_guidance_settings_enabled_changed to make decorated listener current  */
@@ -220,6 +228,23 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
+        // <pca>
+        if self
+            .state
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::VoiceGuidanceEnabledChanged,
+                id: ctx.app_id.to_owned(),
+                subscribe: true,
+                callback_type: DeviceEventCallback::ExtnEvent,
+            })
+            .await
+            .is_err()
+        {
+            error!("on_voice_guidance_settings_changed: Error while registration");
+        }
+        // </pca>
+
         rpc_add_event_listener(&self.state, ctx, request, VOICE_GUIDANCE_SETTINGS_CHANGED).await
     }
 
@@ -253,7 +278,9 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        voice_guidance_settings_enabled_changed(&self.state, &ctx, &request).await
+        println!("*** _DEBUG: voice_guidance_settings_enabled_changed 1: entry");
+        voice_guidance_settings_enabled_changed(&self.state.clone(), &ctx.clone(), &request.clone())
+            .await
     }
 
     async fn voice_guidance_settings_speed_rpc(&self, _ctx: CallContext) -> RpcResult<f32> {
