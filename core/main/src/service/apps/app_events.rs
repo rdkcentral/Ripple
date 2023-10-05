@@ -358,8 +358,8 @@ impl AppEvents {
         }
 
         // Now Notify events to the context based listeners. Context info is not included as part of the result
-        if context.is_some() {
-            let event_ctx_string = Some(context.unwrap().to_string());
+        if let Some(ctx) = context {
+            let event_ctx_string = Some(ctx.to_string());
             let listeners = AppEvents::get_listeners(
                 &state.app_events_state,
                 event_name,
