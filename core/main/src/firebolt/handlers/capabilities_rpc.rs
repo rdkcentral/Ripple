@@ -23,7 +23,11 @@ use crate::{
         platform_state::PlatformState,
     },
 };
-use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
+use jsonrpsee::{
+    core::{Error, RpcResult},
+    proc_macros::rpc,
+    RpcModule,
+};
 use ripple_sdk::api::{
     firebolt::{
         fb_capabilities::{
@@ -45,7 +49,7 @@ pub trait Capability {
     #[method(name = "capabilities.permitted")]
     async fn permitted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool>;
     #[method(name = "capabilities.granted")]
-    async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool>;
+    async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<Option<bool>>;
     #[method(name = "capabilities.info")]
     async fn info(
         &self,
@@ -155,11 +159,16 @@ impl CapabilityServer for CapabilityImpl {
         Ok(false)
     }
 
-    async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
-        if let Ok(response) = is_granted(self.state.clone(), ctx, cap).await {
-            return Ok(response);
-        }
-        Ok(false)
+    async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<Option<bool>> {
+        // if let Ok(response) = is_granted(self.state.clone(), ctx, cap).await {
+        //     return Ok(Some(response));
+        // }
+        // Ok(None)
+        self.state
+            .cap_state
+            .grant_state
+            .check_granted(&ctx.app_id, cap)
+            .map_err(|_| Error::Custom("Unable to get Usergrants".to_owned()))
     }
 
     async fn info(

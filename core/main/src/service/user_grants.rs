@@ -208,6 +208,7 @@ impl GrantState {
             return result;
         }
 
+        debug!("KARTHICK: Checking grant state for : {:?}", permission);
         let grant_state = self.grant_app_map.read().unwrap();
         debug!("grant state: {:?}", grant_state);
         let entries = grant_state.value.get(app_id)?;
@@ -245,8 +246,10 @@ impl GrantState {
         permission: &FireboltPermission,
     ) -> GrantActiveState {
         if let Some(status) = self.get_grant_status(app_id, permission) {
+            debug!("KARTHICK: returning Active grant with status: {:?}", status);
             GrantActiveState::ActiveGrant(status.into())
         } else {
+            debug!("KARTHICK: returning Pending grant with status: ");
             GrantActiveState::PendingGrant
         }
     }
@@ -313,9 +316,13 @@ impl GrantState {
         // UserGrants::determine_grant_policies(&self.ps.clone(), call_ctx, &r).await
     }
 
-    pub fn check_granted(&self, app_id: &str, role_info: RoleInfo) -> Result<bool, RippleError> {
+    pub fn check_granted(
+        &self,
+        app_id: &str,
+        role_info: RoleInfo,
+    ) -> Result<Option<bool>, RippleError> {
         if !self.caps_needing_grants.contains(&role_info.capability) {
-            return Ok(true);
+            return Ok(Some(true));
         }
 
         if let Ok(permission) = FireboltPermission::try_from(role_info) {
@@ -323,18 +330,15 @@ impl GrantState {
 
             match result {
                 GrantActiveState::ActiveGrant(grant) => {
-                    if grant.is_err() {
-                        return Err(RippleError::Permission(DenyReason::GrantDenied));
-                    } else {
-                        return Ok(true);
-                    }
+                    return Ok(Some(match grant {
+                        Ok(_) => true,
+                        Err(_) => false,
+                    }))
                 }
-                GrantActiveState::PendingGrant => {
-                    return Err(RippleError::Permission(DenyReason::Ungranted));
-                }
+                GrantActiveState::PendingGrant => return Ok(None),
             }
         }
-        Err(RippleError::Permission(DenyReason::Ungranted))
+        Err(RippleError::InvalidInput)
     }
 
     pub fn update(
@@ -721,6 +725,7 @@ impl GrantPolicyEnforcer {
         }
         let policy = policy_opt.unwrap();
         if !Self::is_policy_valid(platform_state, &policy) {
+            error!("Configured policy is not valid {:?}", policy);
             return Err(DenyReasonWithCap {
                 caps: vec![permission.clone().cap],
                 reason: DenyReason::Disabled,
@@ -741,7 +746,10 @@ impl GrantPolicyEnforcer {
             }
         } else {
             // TODO: This debug statement looks incorrect as it would trigger if all grants were successful
-            debug!("No grant policies configured");
+            debug!(
+                "Karthick: Grant policies executed successfully. Result: {:?}",
+                result
+            );
         }
         Self::update_privacy_settings_and_user_grants(
             platform_state,
@@ -756,25 +764,23 @@ impl GrantPolicyEnforcer {
     }
 
     fn is_policy_valid(platform_state: &PlatformState, policy: &GrantPolicy) -> bool {
+        // Privacy settings in a policy takes higher precedence and we are
+        // evaluating first.
         if let Some(privacy) = &policy.privacy_setting {
             let privacy_property = &privacy.property;
             return platform_state
                 .open_rpc_state
                 .check_privacy_property(privacy_property);
-        } else if let Some(grant_steps) = policy.get_steps_without_grant() {
-            for step in grant_steps {
-                if platform_state
-                    .open_rpc_state
-                    .get_capability_policy(step.capability.clone())
-                    .is_some()
-                {
-                    return false;
-                }
-            }
-            return true;
         }
-
-        false
+        if policy.get_steps_without_grant().is_some() {
+            // If any cap in any step in a policy is not starting with
+            // "xrn:firebolt:capability:usergrant:" pattern,
+            // we should treat it as a invalid policy.
+            return false;
+        }
+        // If a policy doesn't have a privacy settings and caps in all steps starts with
+        //xrn:firebolt:capability:usergrant: then the policy deemed to be valid.
+        true
     }
 
     pub fn get_allow_value(platform_state: &PlatformState, property_name: &str) -> Option<bool> {
@@ -1157,7 +1163,7 @@ impl GrantStepExecutor {
                                 id: for_app_id.clone(),
                                 name: app_name,
                             },
-                            capability: Some(p_cap.as_str()),
+                            capability: Some(permission.cap.as_str()),
                         }),
                         tx: session_tx,
                         app_id: None,

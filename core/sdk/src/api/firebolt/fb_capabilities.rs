@@ -17,6 +17,7 @@
 
 use std::hash::{Hash, Hasher};
 
+use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::api::gateway::rpc_error::RpcError;
@@ -55,6 +56,32 @@ impl Hash for FireboltCap {
     }
 }
 
+impl Serialize for FireboltCap {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for FireboltCap {
+    fn deserialize<D>(deserializer: D) -> Result<FireboltCap, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let cap = String::deserialize(deserializer)?;
+        if let Some(fc) = FireboltCap::parse_long(cap.clone()) {
+            Ok(fc)
+        } else {
+            Err(serde::de::Error::custom(format!(
+                "Invalid capability: {}",
+                cap.clone()
+            )))
+        }
+    }
+}
+
 impl FireboltCap {
     // TODO: refactor this to use ToString trait instead of confusingly named function
     pub fn as_str(&self) -> String {
@@ -82,6 +109,23 @@ impl FireboltCap {
         }
 
         None
+    }
+
+    pub fn parse_long(cap: String) -> Option<FireboltCap> {
+        let pattern = r"^xrn:firebolt:capability:([a-z0-9\\-]+)((:[a-z0-9\\-]+)?)$";
+        if !Regex::new(pattern).unwrap().is_match(cap.as_str()) {
+            return None;
+        }
+
+        let prefix = vec!["xrn", "firebolt", "capability"];
+        let c_a = cap.split(":");
+        let mut cap_vec = Vec::<String>::new();
+        for c in c_a.into_iter() {
+            if !prefix.contains(&c) {
+                cap_vec.push(String::from(c));
+            }
+        }
+        return Some(FireboltCap::Short(cap_vec.join(":")));
     }
 
     pub fn from_vec_string(cap_strings: Vec<String>) -> Vec<FireboltCap> {
