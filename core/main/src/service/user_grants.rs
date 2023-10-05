@@ -131,7 +131,9 @@ impl GrantState {
             if entries.contains(&new_entry) {
                 entries.remove(&new_entry);
             }
-            entries.insert(new_entry);
+            if new_entry.status.is_some() {
+                entries.insert(new_entry);
+            }
             grant_state.sync();
         } else {
             self.add_device_entry(new_entry)
@@ -192,7 +194,11 @@ impl GrantState {
 
     fn add_device_entry(&self, entry: GrantEntry) {
         let mut device_grants = self.device_grants.write().unwrap();
-        device_grants.value.insert(entry);
+        if entry.status.is_none() {
+            device_grants.value.remove(&entry);
+        } else {
+            device_grants.value.replace(entry);
+        }
         device_grants.sync();
     }
 
@@ -208,7 +214,6 @@ impl GrantState {
             return result;
         }
 
-        debug!("KARTHICK: Checking grant state for : {:?}", permission);
         let grant_state = self.grant_app_map.read().unwrap();
         debug!("grant state: {:?}", grant_state);
         let entries = grant_state.value.get(app_id)?;
@@ -246,10 +251,8 @@ impl GrantState {
         permission: &FireboltPermission,
     ) -> GrantActiveState {
         if let Some(status) = self.get_grant_status(app_id, permission) {
-            debug!("KARTHICK: returning Active grant with status: {:?}", status);
             GrantActiveState::ActiveGrant(status.into())
         } else {
-            debug!("KARTHICK: returning Pending grant with status: ");
             GrantActiveState::PendingGrant
         }
     }
@@ -329,12 +332,7 @@ impl GrantState {
             let result = self.get_grant_state(app_id, &permission);
 
             match result {
-                GrantActiveState::ActiveGrant(grant) => {
-                    return Ok(Some(match grant {
-                        Ok(_) => true,
-                        Err(_) => false,
-                    }))
-                }
+                GrantActiveState::ActiveGrant(grant) => return Ok(Some(grant.is_ok())),
                 GrantActiveState::PendingGrant => return Ok(None),
             }
         }
@@ -645,13 +643,11 @@ impl GrantPolicyEnforcer {
                     }
                 }
                 GrantScope::Device => {
-                    if app_id.is_none() {
-                        platform_state
-                            .cap_state
-                            .grant_state
-                            .update_grant_entry(None, grant_entry);
-                        ret_val = true;
-                    }
+                    platform_state
+                        .cap_state
+                        .grant_state
+                        .update_grant_entry(None, grant_entry);
+                    ret_val = true;
                 }
             }
         }
@@ -746,10 +742,7 @@ impl GrantPolicyEnforcer {
             }
         } else {
             // TODO: This debug statement looks incorrect as it would trigger if all grants were successful
-            debug!(
-                "Karthick: Grant policies executed successfully. Result: {:?}",
-                result
-            );
+            debug!("Grant policies executed successfully. Result: {:?}", result);
         }
         Self::update_privacy_settings_and_user_grants(
             platform_state,
@@ -1194,13 +1187,17 @@ impl GrantStepExecutor {
             match session_rx.await {
                 Ok(result) => match result.as_challenge_response() {
                     Some(res) => match res.granted {
-                        true => {
+                        Some(true) => {
                             debug!("returning ok from invoke_capability");
                             Ok(())
                         }
-                        false => {
+                        Some(false) => {
                             debug!("returning err from invoke_capability");
                             Err(DenyReason::GrantDenied)
+                        }
+                        None => {
+                            debug!("Challenge left unanswered");
+                            Err(DenyReason::Ungranted)
                         }
                     },
                     None => {
@@ -1340,10 +1337,14 @@ mod tests {
             .await;
             println!("result: {:?}", result);
 
-            assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
-                reason: DenyReason::Unsupported,
-                caps: vec![perm.cap.clone()]
-            })));
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                DenyReasonWithCap {
+                    reason: DenyReason::Unsupported,
+                    caps: vec![perm.cap.clone()]
+                }
+            );
         }
 
         #[tokio::test]
@@ -1452,18 +1453,22 @@ mod tests {
             )
             .await;
 
-            assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
-                reason: DenyReason::Unsupported,
-                caps: vec![
-                    FireboltCap::Full(
-                        "xrn:firebolt:capability:usergrant:notavailableonplatform".to_owned()
-                    ),
-                    FireboltCap::Full(
-                        "xrn:firebolt:capability:usergrant:notavailableonplatform".to_owned()
-                    ),
-                    FireboltCap::Full(ACK_CHALLENGE_CAPABILITY.to_owned())
-                ]
-            })));
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                DenyReasonWithCap {
+                    reason: DenyReason::Unsupported,
+                    caps: vec![
+                        FireboltCap::Full(
+                            "xrn:firebolt:capability:usergrant:notavailableonplatform".to_owned()
+                        ),
+                        FireboltCap::Full(
+                            "xrn:firebolt:capability:usergrant:notavailableonplatform".to_owned()
+                        ),
+                        FireboltCap::Full(ACK_CHALLENGE_CAPABILITY.to_owned())
+                    ]
+                }
+            );
         }
 
         #[tokio::test]
@@ -1497,10 +1502,14 @@ mod tests {
             );
             let (result, _) = join!(evaluate_options, challenge_responses);
 
-            assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
-                reason: DenyReason::GrantDenied,
-                caps: vec![FireboltCap::Full(PIN_CHALLENGE_CAPABILITY.to_owned())]
-            })));
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                DenyReasonWithCap {
+                    reason: DenyReason::GrantDenied,
+                    caps: vec![FireboltCap::Full(PIN_CHALLENGE_CAPABILITY.to_owned())]
+                }
+            );
         }
 
         #[tokio::test]
@@ -1541,10 +1550,14 @@ mod tests {
 
             let (result, _) = join!(evaluate_options, challenge_responses);
 
-            assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
-                reason: DenyReason::GrantDenied,
-                caps: vec![FireboltCap::Full(ACK_CHALLENGE_CAPABILITY.to_owned())]
-            })));
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                DenyReasonWithCap {
+                    reason: DenyReason::GrantDenied,
+                    caps: vec![FireboltCap::Full(ACK_CHALLENGE_CAPABILITY.to_owned())]
+                }
+            );
         }
 
         #[tokio::test]

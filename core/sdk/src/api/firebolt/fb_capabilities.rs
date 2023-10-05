@@ -76,7 +76,7 @@ impl<'de> Deserialize<'de> for FireboltCap {
         } else {
             Err(serde::de::Error::custom(format!(
                 "Invalid capability: {}",
-                cap.clone()
+                cap
             )))
         }
     }
@@ -118,14 +118,14 @@ impl FireboltCap {
         }
 
         let prefix = vec!["xrn", "firebolt", "capability"];
-        let c_a = cap.split(":");
+        let c_a = cap.split(':');
         let mut cap_vec = Vec::<String>::new();
         for c in c_a.into_iter() {
             if !prefix.contains(&c) {
                 cap_vec.push(String::from(c));
             }
         }
-        return Some(FireboltCap::Short(cap_vec.join(":")));
+        Some(FireboltCap::Short(cap_vec.join(":")))
     }
 
     pub fn from_vec_string(cap_strings: Vec<String>) -> Vec<FireboltCap> {

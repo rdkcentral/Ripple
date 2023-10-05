@@ -231,15 +231,22 @@ impl CapabilityServer for CapabilityImpl {
         ctx: CallContext,
         grants: CapRequestRpcRequest,
     ) -> RpcResult<Vec<CapabilityInfo>> {
-        let req_list: Vec<FireboltPermission> = grants.clone().into();
-        let permitted_result =
-            PermissionHandler::check_permitted(&self.state, &ctx.app_id, &req_list).await;
+        let fb_perms: Vec<FireboltPermission> = grants.clone().into();
+        self.state
+            .cap_state
+            .generic
+            .check_supported(&fb_perms)
+            .map_err(|err| Error::Custom(format!("{:?} not supported", err.caps)))?;
+        let permitted_result: Result<
+            (),
+            ripple_sdk::api::firebolt::fb_capabilities::DenyReasonWithCap,
+        > = PermissionHandler::check_permitted(&self.state, &ctx.app_id, &fb_perms).await;
         if permitted_result.is_ok() {
             let _ = GrantState::check_with_roles(
                 &self.state,
                 &ctx.clone().into(),
                 &ctx.clone().into(),
-                &req_list,
+                &fb_perms,
                 false,
             )
             .await;

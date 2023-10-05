@@ -124,6 +124,7 @@ impl UserGrantsImpl {
         };
         grant_entries
             .iter()
+            .filter(|x| x.status.is_some() && x.lifespan.is_some())
             .map(move |x| UserGrantsImpl::transform(app_id.clone(), app_name.clone(), x))
             .collect()
     }
@@ -259,36 +260,23 @@ impl UserGrantsServer for UserGrantsImpl {
         ctx: CallContext,
         request: UserGrantRequestParam,
     ) -> RpcResult<Vec<GrantInfo>> {
-        // self.platform_state.cap_state.grant_state.
         let fb_perms: Vec<FireboltPermission> = request.clone().into();
         self.platform_state
             .cap_state
             .generic
             .check_supported(&fb_perms)
             .map_err(|err| Error::Custom(format!("{:?} not supported", err.caps)))?;
-        // let permitted_opt = self
-        //     .platform_state
-        //     .cap_state
-        //     .permitted_state
-        //     .get_app_permissions(&ctx.app_id);
-        // if let Some(mut permitted) = permitted_opt {
-        // if !permitted.is_empty() {
-        // permitted.retain(|perm| fb_perms.contains(perm));
         let _grant_entries = GrantState::check_with_roles(
             &self.platform_state,
             &ctx.clone().into(),
             &ctx.clone().into(),
-            // &permitted,
             &fb_perms,
             false,
         )
         .await;
-        // }
-        // }
         let app_id = ctx.app_id.clone();
-        self.usergrants_app(ctx, GetUserGrantsByAppRequest { app_id: app_id })
+        self.usergrants_app(ctx, GetUserGrantsByAppRequest { app_id })
             .await
-        // Now check if all the requested caps are there in the vec if not better to add ungranted at least.
     }
 }
 
