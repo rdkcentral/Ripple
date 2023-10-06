@@ -1242,7 +1242,7 @@ impl ThunderDeviceInfoRequestProcessor {
             }
         }
 
-        error!("Unable to get internet connection status from thunder");
+        error!("Unable to get power state from thunder");
         Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
     }
 }
