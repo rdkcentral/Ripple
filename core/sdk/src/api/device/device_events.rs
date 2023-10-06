@@ -33,7 +33,9 @@ pub const SCREEN_RESOLUTION_CHANGED_EVENT: &str = "device.onScreenResolutionChan
 pub const VIDEO_RESOLUTION_CHANGED_EVENT: &str = "device.onVideoResolutionChanged";
 pub const NETWORK_CHANGED_EVENT: &str = "device.onNetworkChanged";
 pub const AUDIO_CHANGED_EVENT: &str = "device.onAudioChanged";
-pub const VOICE_GUIDANCE_CHANGED: &str = "accessibility.onVoiceGuidanceSettingsChanged";
+pub const VOICE_GUIDANCE_SETTINGS_CHANGED: &str = "accessibility.onVoiceGuidanceSettingsChanged";
+pub const VOICE_GUIDANCE_ENABLED_CHANGED: &str = "voiceguidance.onEnabledChanged";
+pub const VOICE_GUIDANCE_SPEED_CHANGED: &str = "voiceguidance.onSpeedChanged";
 pub const POWER_STATE_CHANGED: &str = "device.onPowerStateChanged";
 pub const HDMI_CONNECTION_CHANGED: &str = "HDMIInput.onConnectionsChanged";
 pub const AUTO_LOW_LATENCY_MODE_SIGNAL_CHANGED: &str =
@@ -45,7 +47,7 @@ pub enum DeviceEvent {
     HdrChanged,
     ScreenResolutionChanged,
     VideoResolutionChanged,
-    VoiceGuidanceChanged,
+    VoiceGuidanceEnabledChanged,
     NetworkChanged,
     AudioChanged,
     SystemPowerStateChanged,
@@ -63,7 +65,7 @@ impl FromStr for DeviceEvent {
             "device.onHdrChanged" => Ok(Self::HdrChanged),
             "device.onScreenResolutionChanged" => Ok(Self::ScreenResolutionChanged),
             "device.onVideoResolutionChanged" => Ok(Self::VideoResolutionChanged),
-            "accessibility.onVoiceGuidanceSettingsChanged" => Ok(Self::VoiceGuidanceChanged),
+            "voiceguidance.onEnabledChanged" => Ok(Self::VoiceGuidanceEnabledChanged),
             "device.onNetworkChanged" => Ok(Self::NetworkChanged),
             "device.onAudioChanged" => Ok(Self::AudioChanged),
             "device.onPowerStateChanged" => Ok(Self::SystemPowerStateChanged),

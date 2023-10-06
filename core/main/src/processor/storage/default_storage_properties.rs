@@ -20,9 +20,8 @@ use ripple_sdk::{
         KEY_BACKGROUND_COLOR, KEY_BACKGROUND_OPACITY, KEY_COUNTRY_CODE, KEY_ENABLED,
         KEY_FONT_COLOR, KEY_FONT_EDGE, KEY_FONT_EDGE_COLOR, KEY_FONT_FAMILY, KEY_FONT_OPACITY,
         KEY_FONT_SIZE, KEY_LANGUAGE, KEY_LOCALE, KEY_NAME, KEY_SKIP_RESTRICTION, KEY_TEXT_ALIGN,
-        KEY_TEXT_ALIGN_VERTICAL, KEY_VOICE_GUIDANCE_SPEED, NAMESPACE_ADVERTISING,
-        NAMESPACE_CLOSED_CAPTIONS, NAMESPACE_DEVICE_NAME, NAMESPACE_LOCALIZATION,
-        NAMESPACE_VOICE_GUIDANCE,
+        KEY_TEXT_ALIGN_VERTICAL, NAMESPACE_ADVERTISING, NAMESPACE_CLOSED_CAPTIONS,
+        NAMESPACE_DEVICE_NAME, NAMESPACE_LOCALIZATION,
     },
     log::debug,
 };
@@ -52,18 +51,6 @@ impl DefaultStorageProperties {
                     .configuration
                     .default_values
                     .captions
-                    .enabled),
-                _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
-                    key.to_owned(),
-                )),
-            }
-        } else if namespace.eq(NAMESPACE_VOICE_GUIDANCE) {
-            match key {
-                KEY_ENABLED => Ok(state
-                    .get_device_manifest()
-                    .configuration
-                    .default_values
-                    .voice
                     .enabled),
                 _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
                     key.to_owned(),
@@ -236,18 +223,6 @@ impl DefaultStorageProperties {
                     .default_values
                     .captions
                     .font_size),
-                _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
-                    key.to_owned(),
-                )),
-            }
-        } else if namespace.eq(NAMESPACE_VOICE_GUIDANCE) {
-            match key {
-                KEY_VOICE_GUIDANCE_SPEED => Ok(state
-                    .get_device_manifest()
-                    .configuration
-                    .default_values
-                    .voice
-                    .speed),
                 _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
                     key.to_owned(),
                 )),

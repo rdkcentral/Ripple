@@ -126,7 +126,7 @@ impl ExtnRequestProcessor for ThunderOpenEventsProcessor {
                 id.clone(),
                 SystemPowerStateChangeEventHandler::provide(id, callback_type),
             ),
-            DeviceEvent::VoiceGuidanceChanged => state.handle_listener(
+            DeviceEvent::VoiceGuidanceEnabledChanged => state.handle_listener(
                 listen,
                 id.clone(),
                 VoiceGuidanceEnabledChangedEventHandler::provide(id, callback_type),
