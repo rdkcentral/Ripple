@@ -35,7 +35,7 @@ use tokio_tungstenite::{
 };
 
 use crate::{
-    errors::MockWebsocketServerError,
+    errors::MockServerWebSocketError,
     mock_data::{json_key, jsonrpc_key, MockData, MockDataError, MockDataMessage},
     utils::is_value_jsonrpc,
 };
@@ -88,8 +88,8 @@ impl Default for WsServerParameters {
 }
 
 #[derive(Debug)]
-pub struct MockWebsocketServer {
-    mock_data: Arc<RwLock<MockData>>, // TODO: should this be RwLock
+pub struct MockWebSocketServer {
+    mock_data: Arc<RwLock<MockData>>,
 
     listener: TcpListener,
 
@@ -104,15 +104,15 @@ pub struct MockWebsocketServer {
     connected_peer_sinks: Mutex<HashMap<String, SplitSink<WebSocketStream<TcpStream>, Message>>>,
 }
 
-impl MockWebsocketServer {
+impl MockWebSocketServer {
     pub async fn new(
         mock_data: Arc<RwLock<MockData>>,
         server_config: WsServerParameters,
-    ) -> Result<Self, MockWebsocketServerError> {
+    ) -> Result<Self, MockServerWebSocketError> {
         let listener = Self::create_listener(server_config.port.unwrap_or(0)).await?;
         let port = listener
             .local_addr()
-            .map_err(|_| MockWebsocketServerError::CantListen)?
+            .map_err(|_| MockServerWebSocketError::CantListen)?
             .port();
 
         Ok(Self {
@@ -130,11 +130,11 @@ impl MockWebsocketServer {
         self.port
     }
 
-    async fn create_listener(port: u16) -> Result<TcpListener, MockWebsocketServerError> {
+    async fn create_listener(port: u16) -> Result<TcpListener, MockServerWebSocketError> {
         let addr: SocketAddr = format!("0.0.0.0:{}", port).parse().unwrap();
         let listener = TcpListener::bind(&addr)
             .await
-            .map_err(|_| MockWebsocketServerError::CantListen)?;
+            .map_err(|_| MockServerWebSocketError::CantListen)?;
         debug!("Listening on: {:?}", listener.local_addr().unwrap());
 
         Ok(listener)

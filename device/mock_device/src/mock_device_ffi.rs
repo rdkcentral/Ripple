@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::{
-    api::status_update::ExtnStatus,
+    api::{mock_server::MockServerAdjective, status_update::ExtnStatus},
     crossbeam::channel::Receiver as CReceiver,
     export_channel_builder, export_extn_metadata, export_jsonrpc_extn_builder,
     extn::{
@@ -41,7 +41,7 @@ use ripple_sdk::{
 
 use crate::{
     mock_device_controller::{MockDeviceController, MockDeviceControllerServer},
-    mock_device_ws_server_processor::MockDeviceMockWebsocketServerProcessor,
+    mock_device_processor::MockDeviceProcessor,
     utils::{boot_ws_server, load_mock_data},
 };
 
@@ -52,7 +52,9 @@ fn init_library() -> CExtnMetadata {
 
     let mock_device_channel = ExtnSymbolMetadata::get(
         ExtnId::new_channel(ExtnClassId::Device, EXTN_NAME.into()),
-        ContractFulfiller::new(vec![RippleContract::MockWebsocketServer]),
+        ContractFulfiller::new(vec![RippleContract::MockServer(
+            MockServerAdjective::WebSocket,
+        )]),
         Version::new(1, 0, 0),
     );
     let mock_device_extn = ExtnSymbolMetadata::get(
@@ -92,10 +94,7 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
             if let Ok(server) =
                 boot_ws_server(client.clone(), Arc::new(RwLock::new(mock_data))).await
             {
-                client.add_request_processor(MockDeviceMockWebsocketServerProcessor::new(
-                    client.clone(),
-                    server,
-                ));
+                client.add_request_processor(MockDeviceProcessor::new(client.clone(), server));
             } else {
                 // TODO: check panic message
                 panic!("Mock Device can only be used with platform using a WebSocket gateway")

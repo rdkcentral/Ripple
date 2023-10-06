@@ -16,7 +16,10 @@
 //
 
 use crate::{
-    api::{session::SessionAdjective, storage_property::StorageAdjective},
+    api::{
+        mock_server::MockServerAdjective, session::SessionAdjective,
+        storage_property::StorageAdjective,
+    },
     utils::{error::RippleError, serde_utils::SerdeClearString},
 };
 use log::error;
@@ -113,8 +116,8 @@ pub enum RippleContract {
     Metrics,
     /// Contract for Extensions to recieve Telemetry events from Main
     OperationalMetricListener,
-    /// Contract for Extensions to stand in for a WebSocket server based service provider
-    MockWebsocketServer,
+    /// Contract for Extensions to set up mock servers that can be used for testing
+    MockServer(MockServerAdjective),
     Storage(StorageAdjective),
     /// Provided by the distributor could be a device extension or a cloud extension.
     /// Distributor gets the ability to configure and customize the generation of

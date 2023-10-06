@@ -30,13 +30,13 @@ use url::{Host, Url};
 use crate::{
     errors::{BootFailedReason, LoadMockDataFailedReason, MockDeviceError},
     mock_data::{MockData, MockDataError, MockDataMessage},
-    mock_ws_server::{MockWebsocketServer, WsServerParameters},
+    mock_web_socket_server::{MockWebSocketServer, WsServerParameters},
 };
 
 pub async fn boot_ws_server(
     mut client: ExtnClient,
     mock_data: Arc<RwLock<MockData>>,
-) -> Result<Arc<MockWebsocketServer>, MockDeviceError> {
+) -> Result<Arc<MockWebSocketServer>, MockDeviceError> {
     debug!("Booting WS Server for mock device");
     let gateway = platform_gateway_url(&mut client).await?;
 
@@ -52,7 +52,7 @@ pub async fn boot_ws_server(
     server_config
         .port(gateway.port().unwrap_or(0))
         .path(gateway.path());
-    let ws_server = MockWebsocketServer::new(mock_data, server_config)
+    let ws_server = MockWebSocketServer::new(mock_data, server_config)
         .await
         .map_err(|e| MockDeviceError::BootFailed(BootFailedReason::ServerStartFailed(e)))?;
 

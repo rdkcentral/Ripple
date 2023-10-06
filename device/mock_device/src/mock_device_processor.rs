@@ -17,9 +17,9 @@
 use std::sync::Arc;
 
 use ripple_sdk::{
-    api::mock_websocket_server::{
-        AddRequestResponseResponse, EmitEventResponse, MockWebsocketServerRequest,
-        MockWebsocketServerResponse, RemoveRequestResponse,
+    api::mock_server::{
+        AddRequestResponseResponse, EmitEventResponse, MockServerRequest, MockServerResponse,
+        RemoveRequestResponse,
     },
     async_trait::async_trait,
     extn::{
@@ -35,44 +35,37 @@ use ripple_sdk::{
     tokio::sync::mpsc::{Receiver, Sender},
 };
 
-use crate::{mock_data::MockDataMessage, mock_ws_server::MockWebsocketServer};
+use crate::{mock_data::MockDataMessage, mock_web_socket_server::MockWebSocketServer};
 
 #[derive(Debug, Clone)]
-pub struct MockDeviceMockWebsocketServerState {
+pub struct MockDeviceState {
     client: ExtnClient,
-    server: Arc<MockWebsocketServer>,
+    server: Arc<MockWebSocketServer>,
 }
 
-impl MockDeviceMockWebsocketServerState {
-    fn new(client: ExtnClient, server: Arc<MockWebsocketServer>) -> Self {
+impl MockDeviceState {
+    fn new(client: ExtnClient, server: Arc<MockWebSocketServer>) -> Self {
         Self { client, server }
     }
 }
 
-pub struct MockDeviceMockWebsocketServerProcessor {
-    state: MockDeviceMockWebsocketServerState,
+pub struct MockDeviceProcessor {
+    state: MockDeviceState,
     streamer: DefaultExtnStreamer,
 }
 
-impl MockDeviceMockWebsocketServerProcessor {
-    pub fn new(
-        client: ExtnClient,
-        server: Arc<MockWebsocketServer>,
-    ) -> MockDeviceMockWebsocketServerProcessor {
-        MockDeviceMockWebsocketServerProcessor {
-            state: MockDeviceMockWebsocketServerState::new(client, server),
+impl MockDeviceProcessor {
+    pub fn new(client: ExtnClient, server: Arc<MockWebSocketServer>) -> MockDeviceProcessor {
+        MockDeviceProcessor {
+            state: MockDeviceState::new(client, server),
             streamer: DefaultExtnStreamer::new(),
         }
     }
 
-    async fn respond(
-        client: ExtnClient,
-        req: ExtnMessage,
-        resp: MockWebsocketServerResponse,
-    ) -> bool {
+    async fn respond(client: ExtnClient, req: ExtnMessage, resp: MockServerResponse) -> bool {
         let resp = client
             .clone()
-            .respond(req, ExtnResponse::MockWebsocketServer(resp))
+            .respond(req, ExtnResponse::MockServer(resp))
             .await;
 
         match resp {
@@ -85,9 +78,9 @@ impl MockDeviceMockWebsocketServerProcessor {
     }
 }
 
-impl ExtnStreamProcessor for MockDeviceMockWebsocketServerProcessor {
-    type STATE = MockDeviceMockWebsocketServerState;
-    type VALUE = MockWebsocketServerRequest;
+impl ExtnStreamProcessor for MockDeviceProcessor {
+    type STATE = MockDeviceState;
+    type VALUE = MockServerRequest;
 
     fn get_state(&self) -> Self::STATE {
         self.state.clone()
@@ -103,7 +96,7 @@ impl ExtnStreamProcessor for MockDeviceMockWebsocketServerProcessor {
 }
 
 #[async_trait]
-impl ExtnRequestProcessor for MockDeviceMockWebsocketServerProcessor {
+impl ExtnRequestProcessor for MockDeviceProcessor {
     fn get_client(&self) -> ExtnClient {
         self.state.client.clone()
     }
@@ -115,7 +108,7 @@ impl ExtnRequestProcessor for MockDeviceMockWebsocketServerProcessor {
     ) -> bool {
         debug!("extn_request={extn_request:?}, extracted_message={extracted_message:?}");
         match extracted_message {
-            MockWebsocketServerRequest::AddRequestResponse(params) => {
+            MockServerRequest::AddRequestResponse(params) => {
                 let result = state
                     .server
                     .add_request_response(
@@ -142,11 +135,11 @@ impl ExtnRequestProcessor for MockDeviceMockWebsocketServerProcessor {
                 Self::respond(
                     state.client.clone(),
                     extn_request,
-                    MockWebsocketServerResponse::AddRequestResponse(resp),
+                    MockServerResponse::AddRequestResponse(resp),
                 )
                 .await
             }
-            MockWebsocketServerRequest::RemoveRequest(params) => {
+            MockServerRequest::RemoveRequest(params) => {
                 let result = state
                     .server
                     .remove_request(&MockDataMessage::from(params.request))
@@ -166,11 +159,11 @@ impl ExtnRequestProcessor for MockDeviceMockWebsocketServerProcessor {
                 Self::respond(
                     state.client.clone(),
                     extn_request,
-                    MockWebsocketServerResponse::RemoveRequestResponse(resp),
+                    MockServerResponse::RemoveRequestResponse(resp),
                 )
                 .await
             }
-            MockWebsocketServerRequest::EmitEvent(params) => {
+            MockServerRequest::EmitEvent(params) => {
                 state
                     .server
                     .emit_event(&params.event.body, params.event.delay)
@@ -179,7 +172,7 @@ impl ExtnRequestProcessor for MockDeviceMockWebsocketServerProcessor {
                 Self::respond(
                     state.client.clone(),
                     extn_request,
-                    MockWebsocketServerResponse::EmitEvent(EmitEventResponse { success: true }),
+                    MockServerResponse::EmitEvent(EmitEventResponse { success: true }),
                 )
                 .await
             }

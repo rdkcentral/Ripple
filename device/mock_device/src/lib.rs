@@ -19,6 +19,6 @@ pub mod errors;
 pub mod mock_data;
 pub mod mock_device_controller;
 pub mod mock_device_ffi;
-pub mod mock_device_ws_server_processor;
-pub mod mock_ws_server;
+pub mod mock_device_processor;
+pub mod mock_web_socket_server;
 pub mod utils;

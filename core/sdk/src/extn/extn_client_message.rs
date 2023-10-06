@@ -55,7 +55,7 @@ use crate::{
         },
         gateway::rpc_gateway_api::RpcRequest,
         manifest::device_manifest::AppLibraryEntry,
-        mock_websocket_server::{MockWebsocketServerRequest, MockWebsocketServerResponse},
+        mock_server::{MockServerRequest, MockServerResponse},
         protocol::BridgeProtocolRequest,
         pubsub::{PubSubRequest, PubSubResponse},
         session::{AccountSession, AccountSessionRequest, SessionTokenRequest},
@@ -269,7 +269,7 @@ pub enum ExtnRequest {
     AuthorizedInfo(CapsRequest),
     Metrics(MetricsRequest),
     OperationalMetricsRequest(OperationalMetricRequest),
-    MockWebsocketServer(MockWebsocketServerRequest),
+    MockServer(MockServerRequest),
     PlatformToken(PlatformTokenRequest),
 }
 
@@ -300,7 +300,7 @@ pub enum ExtnResponse {
     BoolMap(HashMap<String, bool>),
     Advertising(AdvertisingResponse),
     SecureStorage(SecureStorageResponse),
-    MockWebsocketServer(MockWebsocketServerResponse),
+    MockServer(MockServerResponse),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {

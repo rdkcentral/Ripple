@@ -3,11 +3,11 @@ use std::{fmt::Display, path::PathBuf};
 use crate::mock_data::MockDataError;
 
 #[derive(Debug, Clone)]
-pub enum MockWebsocketServerError {
+pub enum MockServerWebSocketError {
     CantListen,
 }
 
-impl Display for MockWebsocketServerError {
+impl Display for MockServerWebSocketError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::CantListen => f.write_str("Failed to start TcpListener"),
@@ -39,7 +39,7 @@ pub enum BootFailedReason {
     BadUrlScheme,
     BadHostname,
     GetPlatformGatewayFailed,
-    ServerStartFailed(MockWebsocketServerError),
+    ServerStartFailed(MockServerWebSocketError),
 }
 impl Display for BootFailedReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -92,11 +92,11 @@ impl Display for LoadMockDataFailedReason {
 
 #[cfg(test)]
 mod tests {
-    use crate::errors::MockWebsocketServerError;
+    use crate::errors::MockServerWebSocketError;
 
     #[test]
     fn test_mock_websocket_server_error_display() {
-        let error = MockWebsocketServerError::CantListen;
+        let error = MockServerWebSocketError::CantListen;
 
         assert_eq!("Failed to start TcpListener", error.to_string());
     }

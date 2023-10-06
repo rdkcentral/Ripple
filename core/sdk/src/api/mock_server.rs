@@ -20,7 +20,7 @@ use serde_json::Value;
 
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
-    framework::ripple_contract::RippleContract,
+    framework::ripple_contract::{ContractAdjective, RippleContract},
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -56,14 +56,14 @@ pub struct EventPayload {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum MockWebsocketServerRequest {
+pub enum MockServerRequest {
     AddRequestResponse(AddRequestResponseParams),
     EmitEvent(EmitEventParams),
     RemoveRequest(RemoveRequestParams),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum MockWebsocketServerResponse {
+pub enum MockServerResponse {
     AddRequestResponse(AddRequestResponseResponse),
     EmitEvent(EmitEventResponse),
     RemoveRequestResponse(RemoveRequestResponse),
@@ -104,9 +104,9 @@ pub struct EmitEventResponse {
     pub success: bool,
 }
 
-impl ExtnPayloadProvider for MockWebsocketServerRequest {
+impl ExtnPayloadProvider for MockServerRequest {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        if let ExtnPayload::Request(ExtnRequest::MockWebsocketServer(req)) = payload {
+        if let ExtnPayload::Request(ExtnRequest::MockServer(req)) = payload {
             return Some(req);
         }
 
@@ -114,17 +114,17 @@ impl ExtnPayloadProvider for MockWebsocketServerRequest {
     }
 
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::MockWebsocketServer(self.clone()))
+        ExtnPayload::Request(ExtnRequest::MockServer(self.clone()))
     }
 
     fn contract() -> RippleContract {
-        RippleContract::MockWebsocketServer
+        RippleContract::MockServer(MockServerAdjective::WebSocket)
     }
 }
 
-impl ExtnPayloadProvider for MockWebsocketServerResponse {
+impl ExtnPayloadProvider for MockServerResponse {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        if let ExtnPayload::Response(ExtnResponse::MockWebsocketServer(resp)) = payload {
+        if let ExtnPayload::Response(ExtnResponse::MockServer(resp)) = payload {
             return Some(resp);
         }
 
@@ -132,10 +132,22 @@ impl ExtnPayloadProvider for MockWebsocketServerResponse {
     }
 
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Response(ExtnResponse::MockWebsocketServer(self.clone()))
+        ExtnPayload::Response(ExtnResponse::MockServer(self.clone()))
     }
 
     fn contract() -> RippleContract {
-        RippleContract::MockWebsocketServer
+        RippleContract::MockServer(MockServerAdjective::WebSocket)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum MockServerAdjective {
+    WebSocket,
+}
+
+impl ContractAdjective for MockServerAdjective {
+    fn get_contract(&self) -> RippleContract {
+        RippleContract::MockServer(self.clone())
     }
 }

@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt::Display};
 
 use ripple_sdk::{
-    api::mock_websocket_server::{PayloadType, RequestPayload, ResponsePayload},
+    api::mock_server::{PayloadType, RequestPayload, ResponsePayload},
     log::error,
 };
 use serde_hashkey::{to_key, Key};

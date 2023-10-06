@@ -21,9 +21,9 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use ripple_sdk::{
     api::{
         gateway::rpc_gateway_api::CallContext,
-        mock_websocket_server::{
-            AddRequestResponseParams, EmitEventParams, MockWebsocketServerRequest,
-            MockWebsocketServerResponse, RemoveRequestParams,
+        mock_server::{
+            AddRequestResponseParams, EmitEventParams, MockServerRequest, MockServerResponse,
+            RemoveRequestParams,
         },
     },
     async_trait::async_trait,
@@ -59,21 +59,21 @@ pub trait MockDeviceController {
         &self,
         ctx: CallContext,
         req: AddRequestResponseParams,
-    ) -> RpcResult<MockWebsocketServerResponse>;
+    ) -> RpcResult<MockServerResponse>;
 
     #[method(name = "mockdevice.removeRequest")]
     async fn remove_request(
         &self,
         ctx: CallContext,
         req: RemoveRequestParams,
-    ) -> RpcResult<MockWebsocketServerResponse>;
+    ) -> RpcResult<MockServerResponse>;
 
     #[method(name = "mockdevice.emitEvent")]
     async fn emit_event(
         &self,
         ctx: CallContext,
         req: EmitEventParams,
-    ) -> RpcResult<MockWebsocketServerResponse>;
+    ) -> RpcResult<MockServerResponse>;
 }
 
 pub struct MockDeviceController {
@@ -91,8 +91,8 @@ impl MockDeviceController {
 
     async fn request(
         &self,
-        request: MockWebsocketServerRequest,
-    ) -> Result<MockWebsocketServerResponse, MockDeviceControllerError> {
+        request: MockServerRequest,
+    ) -> Result<MockServerResponse, MockDeviceControllerError> {
         debug!("request={request:?}");
         let mut client = self.client.clone();
         self.rt
@@ -113,9 +113,9 @@ impl MockDeviceControllerServer for MockDeviceController {
         &self,
         _ctx: CallContext,
         req: AddRequestResponseParams,
-    ) -> RpcResult<MockWebsocketServerResponse> {
+    ) -> RpcResult<MockServerResponse> {
         let res = self
-            .request(MockWebsocketServerRequest::AddRequestResponse(req))
+            .request(MockServerRequest::AddRequestResponse(req))
             .await
             .map_err(|e| jsonrpsee::core::Error::Custom(e.to_string()))?;
 
@@ -126,9 +126,9 @@ impl MockDeviceControllerServer for MockDeviceController {
         &self,
         _ctx: CallContext,
         req: RemoveRequestParams,
-    ) -> RpcResult<MockWebsocketServerResponse> {
+    ) -> RpcResult<MockServerResponse> {
         let res = self
-            .request(MockWebsocketServerRequest::RemoveRequest(req))
+            .request(MockServerRequest::RemoveRequest(req))
             .await
             .map_err(|e| jsonrpsee::core::Error::Custom(e.to_string()))?;
 
@@ -139,9 +139,9 @@ impl MockDeviceControllerServer for MockDeviceController {
         &self,
         _ctx: CallContext,
         req: EmitEventParams,
-    ) -> RpcResult<MockWebsocketServerResponse> {
+    ) -> RpcResult<MockServerResponse> {
         let res = self
-            .request(MockWebsocketServerRequest::EmitEvent(req))
+            .request(MockServerRequest::EmitEvent(req))
             .await
             .map_err(|e| jsonrpsee::core::Error::Custom(e.to_string()))?;
 
