@@ -30,7 +30,7 @@ use ripple_sdk::{
             device_operator::DeviceSubscribeRequest,
             device_request::{
                 AudioProfile, InternetConnectionStatus, NetworkResponse, NetworkState, NetworkType,
-                PowerState, SystemPowerState,
+                PowerState, SystemPowerState, VoiceGuidanceState,
             },
         },
     },
@@ -57,20 +57,6 @@ pub struct ResolutionChangedEvent {
     pub resolution: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct VoiceGuidanceEvent {
-    pub state: bool,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub enum AccountChangeEvent {
-    AccountId(String),
-    DistributorToken(String),
-    Activated(bool),
-}
-
 #[derive(Debug, Clone, Deserialize)]
 pub enum ThunderEventMessage {
     ActiveInput(ActiveInputThunderEvent),
@@ -78,7 +64,7 @@ pub enum ThunderEventMessage {
     Network(NetworkResponse),
     Internet(InternetConnectionStatus),
     PowerState(SystemPowerState),
-    VoiceGuidance(VoiceGuidanceEvent),
+    VoiceGuidance(VoiceGuidanceState),
     Audio(HashMap<AudioProfile, bool>),
     Custom(Value),
 }
@@ -126,7 +112,7 @@ impl ThunderEventMessage {
                         }
                     }
                 }
-                DeviceEvent::VoiceGuidanceChanged => {
+                DeviceEvent::VoiceGuidanceEnabledChanged => {
                     if let Ok(v) = serde_json::from_value(value.clone()) {
                         return Some(ThunderEventMessage::VoiceGuidance(v));
                     }

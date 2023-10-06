@@ -254,3 +254,9 @@ impl Default for SystemPowerState {
         }
     }
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct VoiceGuidanceState {
+    pub state: bool,
+}

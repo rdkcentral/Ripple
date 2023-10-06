@@ -35,7 +35,9 @@ pub const VIDEO_RESOLUTION_CHANGED_EVENT: &str = "device.onVideoResolutionChange
 pub const NETWORK_CHANGED_EVENT: &str = "device.onNetworkChanged";
 pub const INTERNET_CHANGED_EVENT: &str = "device.onInternetStatusChange";
 pub const AUDIO_CHANGED_EVENT: &str = "device.onAudioChanged";
-pub const VOICE_GUIDANCE_CHANGED: &str = "accessibility.onVoiceGuidanceSettingsChanged";
+pub const VOICE_GUIDANCE_SETTINGS_CHANGED: &str = "accessibility.onVoiceGuidanceSettingsChanged";
+pub const VOICE_GUIDANCE_ENABLED_CHANGED: &str = "voiceguidance.onEnabledChanged";
+pub const VOICE_GUIDANCE_SPEED_CHANGED: &str = "voiceguidance.onSpeedChanged";
 pub const POWER_STATE_CHANGED: &str = "device.onPowerStateChanged";
 
 // Is this from the device to thunder event handler???
@@ -45,7 +47,7 @@ pub enum DeviceEvent {
     HdrChanged,
     ScreenResolutionChanged,
     VideoResolutionChanged,
-    VoiceGuidanceChanged,
+    VoiceGuidanceEnabledChanged,
     NetworkChanged,
     AudioChanged,
     SystemPowerStateChanged,
@@ -61,7 +63,7 @@ impl FromStr for DeviceEvent {
             "device.onHdrChanged" => Ok(Self::HdrChanged),
             "device.onScreenResolutionChanged" => Ok(Self::ScreenResolutionChanged),
             "device.onVideoResolutionChanged" => Ok(Self::VideoResolutionChanged),
-            "accessibility.onVoiceGuidanceSettingsChanged" => Ok(Self::VoiceGuidanceChanged),
+            "voiceguidance.onEnabledChanged" => Ok(Self::VoiceGuidanceEnabledChanged),
             "device.onNetworkChanged" => Ok(Self::NetworkChanged),
             "device.onAudioChanged" => Ok(Self::AudioChanged),
             "device.onPowerStateChanged" => Ok(Self::SystemPowerStateChanged),
@@ -115,7 +117,7 @@ impl ExtnPayloadProvider for DeviceEventRequest {
             DeviceEvent::VideoResolutionChanged => {
                 RippleContract::DeviceEvents(EventAdjective::VideoResolution)
             }
-            DeviceEvent::VoiceGuidanceChanged => {
+            DeviceEvent::VoiceGuidanceEnabledChanged => {
                 RippleContract::DeviceEvents(EventAdjective::VoiceGuidance)
             }
             DeviceEvent::NetworkChanged => RippleContract::DeviceEvents(EventAdjective::Network),
