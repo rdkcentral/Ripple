@@ -95,7 +95,7 @@ impl MainContextProcessor {
             && state
                 .cap_state
                 .grant_state
-                .delete_all_matching_entries(&GrantLifespan::PowerActive)
+                .delete_all_entries_for_lifespan(&GrantLifespan::PowerActive)
         {
             info!("Usergrants updated for Powerstate");
         }

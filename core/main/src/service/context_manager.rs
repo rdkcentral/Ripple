@@ -30,6 +30,9 @@ pub struct ContextManager;
 
 impl ContextManager {
     pub async fn setup(ps: &PlatformState) {
+        // Setup listeners here
+
+        // Setup the Session listener is session is enabled on the manifest
         if ps.supports_session()
             && ps
                 .get_client()
@@ -40,6 +43,7 @@ impl ContextManager {
             warn!("No processor to set Session Token changed listener")
         }
 
+        // Setup the Internet Status listener
         if ps
             .get_client()
             .send_extn_request(DeviceEventRequest {
@@ -53,6 +57,7 @@ impl ContextManager {
             warn!("No processor to set Internet status listener")
         }
 
+        // Setup the Power status listener
         if ps
             .get_client()
             .send_extn_request(DeviceEventRequest {
@@ -68,7 +73,9 @@ impl ContextManager {
 
         let ps_c = ps.clone();
 
+        // Asynchronously get context and update the state
         tokio::spawn(async move {
+            // Get Initial power state
             if let Ok(resp) = ps_c
                 .get_client()
                 .send_extn_request(DeviceInfoRequest::PowerState)
@@ -93,6 +100,7 @@ impl ContextManager {
                 }
             }
 
+            // Get Internet Connection state
             if let Ok(resp) = ps_c
                 .get_client()
                 .send_extn_request(DeviceInfoRequest::OnInternetConnected(

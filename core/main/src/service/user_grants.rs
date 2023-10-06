@@ -158,7 +158,10 @@ impl GrantState {
         deleted
     }
 
-    pub fn delete_all_matching_entries(&self, lifespan: &GrantLifespan) -> bool {
+    /**
+     *  Delete all matching entries based on the lifespan
+     */
+    pub fn delete_all_entries_for_lifespan(&self, lifespan: &GrantLifespan) -> bool {
         let mut deleted = false;
         {
             let mut grant_state = self.grant_app_map.write().unwrap();

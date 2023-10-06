@@ -9,18 +9,28 @@
                 {
                     "id": "ripple:channel:device:thunder",
                     "uses": [
-                        "config"
+                        "config",
+                        "app_events",
+                        "rpc",
+                        "ripple_context"
                     ],
                     "fulfills": [
                         "device_info",
                         "window_manager",
                         "browser",
                         "wifi",
-                        "device_events",
                         "device_persistence",
                         "remote_accessory",
-                        "ripple_context",
-                        "app_events"
+                        "app_events",
+                        "input.device_events",
+                        "hdr.device_events",
+                        "screen_resolution.device_events",
+                        "video_resolution.device_events",
+                        "voice_guidance.device_events",
+                        "network.device_events",
+                        "internet.device_events",
+                        "audio.device_events",
+                        "system_power_state.device_events"
                     ]
                 }
             ]
@@ -57,7 +67,6 @@
         "permissions",
         "account_session",
         "wifi",
-        "device_events",
         "device_persistence",
         "remote_accessory",
         "secure_storage",

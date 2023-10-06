@@ -256,7 +256,6 @@ impl ContractAdjective for SessionAdjective {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum EventAdjective {
-    Account,
     Input,
     Hdr,
     ScreenResolution,
