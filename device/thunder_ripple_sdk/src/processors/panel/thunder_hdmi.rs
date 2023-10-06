@@ -9,7 +9,7 @@ use crate::{
                 device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
                 panel::device_hdmi::HdmiRequest,
             },
-            firebolt::panel::fb_hdmi::{GetAvailableInputsResponse, StartHdmiInputResponse},
+            firebolt::panel::fb_hdmi::{GetAvailableInputsResponse, HdmiSelectOperationResponse},
         },
         async_trait::async_trait,
         extn::{
@@ -31,7 +31,8 @@ use ripple_sdk::{
         apps::{AppEvent, AppEventRequest},
         device::device_events::DeviceEventCallback,
         firebolt::panel::fb_hdmi::{
-            AutoLowLatencyModeSignalChangedInfo, HdmiConnectionChangedInfo, StartHdmiInputRequest,
+            AutoLowLatencyModeSignalChangedInfo, HdmiConnectionChangedInfo,
+            HdmiSelectOperationRequest,
         },
     },
     extn::extn_client_message::ExtnEvent,
@@ -59,10 +60,8 @@ struct AVInputStartHdmiInputParams {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct RDKShellHolePunchParams {
-    callsign: String,
-    hole_punch: bool,
-    client: String,
+struct AVInputStopHdmiInputParams {
+    type_of_input: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -107,21 +106,7 @@ impl ThunderHdmiRequestProcessor {
     }
 
     async fn get_available_inputs(state: ThunderState, req: ExtnMessage) -> bool {
-        let params = RDKShellHolePunchParams {
-            hole_punch: true,
-            client: "FireboltMainApp-refui".to_string(),
-            callsign: "FireboltMainApp-refui".to_string(),
-        };
         info!("ExtnMessage {:#?}", req);
-        state
-            .get_thunder_client()
-            .call(DeviceCallRequest {
-                method: ThunderPlugin::RDKShell.method("setHolePunch"),
-                params: serde_json::to_string(&params)
-                    .map(DeviceChannelParams::Json)
-                    .ok(),
-            })
-            .await;
 
         let params = AVInputGetInputDevicesParams {
             type_of_input: "HDMI".to_owned(),
@@ -149,11 +134,11 @@ impl ThunderHdmiRequestProcessor {
 
     async fn start_hdmi_input(
         state: ThunderState,
-        start_hdmi_input_request: StartHdmiInputRequest,
+        start_hdmi_input_request: HdmiSelectOperationRequest,
         req: ExtnMessage,
     ) -> bool {
         let params = AVInputStartHdmiInputParams {
-            port_id: start_hdmi_input_request.id.parse::<u32>().unwrap(),
+            port_id: start_hdmi_input_request.port.parse::<u32>().unwrap(),
             type_of_input: "HDMI".to_owned(),
         };
 
@@ -167,9 +152,39 @@ impl ThunderHdmiRequestProcessor {
             })
             .await;
 
-        let response = serde_json::from_value::<StartHdmiInputResponse>(response.message.clone())
-            .map(|_| ExtnResponse::Value(response.message))
-            .unwrap_or(ExtnResponse::Error(RippleError::InvalidOutput));
+        let response =
+            serde_json::from_value::<HdmiSelectOperationResponse>(response.message.clone())
+                .map(|_| ExtnResponse::Value(response.message))
+                .unwrap_or(ExtnResponse::Error(RippleError::InvalidOutput));
+
+        Self::respond(state.get_client(), req, response)
+            .await
+            .is_ok()
+    }
+
+    async fn stop_hdmi_input(
+        state: ThunderState,
+        _stop_hdmi_input_request: HdmiSelectOperationRequest,
+        req: ExtnMessage,
+    ) -> bool {
+        let params = AVInputStopHdmiInputParams {
+            type_of_input: "HDMI".to_owned(),
+        };
+
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::AVInput.method("stopInput"),
+                params: serde_json::to_string(&params)
+                    .ok()
+                    .map(DeviceChannelParams::Json),
+            })
+            .await;
+
+        let response =
+            serde_json::from_value::<HdmiSelectOperationResponse>(response.message.clone())
+                .map(|_| ExtnResponse::Value(response.message))
+                .unwrap_or(ExtnResponse::Error(RippleError::InvalidOutput));
 
         Self::respond(state.get_client(), req, response)
             .await
@@ -207,8 +222,11 @@ impl ExtnRequestProcessor for ThunderHdmiRequestProcessor {
     ) -> bool {
         match extracted_message {
             HdmiRequest::GetAvailableInputs => Self::get_available_inputs(state.clone(), msg).await,
-            HdmiRequest::SetActiveInput(start_hdmi_input_request) => {
+            HdmiRequest::StartHdmiInput(start_hdmi_input_request) => {
                 Self::start_hdmi_input(state.clone(), start_hdmi_input_request, msg).await
+            }
+            HdmiRequest::StopHdmiInput(stop_hdmi_input_request) => {
+                Self::stop_hdmi_input(state.clone(), stop_hdmi_input_request, msg).await
             }
         }
     }

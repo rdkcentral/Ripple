@@ -1,12 +1,13 @@
 use crate::api::device::device_request::DeviceRequest;
-use crate::api::firebolt::panel::fb_hdmi::StartHdmiInputRequest;
+use crate::api::firebolt::panel::fb_hdmi::HdmiSelectOperationRequest;
 use crate::extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest};
 use crate::framework::ripple_contract::{ContractAdjective, RippleContract};
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum HdmiRequest {
     GetAvailableInputs,
-    SetActiveInput(StartHdmiInputRequest),
+    StartHdmiInput(HdmiSelectOperationRequest),
+    StopHdmiInput(HdmiSelectOperationRequest),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

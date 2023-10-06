@@ -1,12 +1,20 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct StartHdmiInputResponse {}
+pub struct HdmiSelectOperationResponse {}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct StartHdmiInputRequest {
-    pub id: String,
+pub struct HdmiSelectOperationRequest {
+    pub port: String,
+    pub operation: HdmiOperation,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub enum HdmiOperation {
+    Start,
+    Stop,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

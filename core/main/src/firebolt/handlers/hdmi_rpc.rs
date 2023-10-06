@@ -14,7 +14,8 @@ use ripple_sdk::api::{
     firebolt::{
         fb_general::{ListenRequest, ListenerResponse},
         panel::fb_hdmi::{
-            GetAvailableInputsResponse, StartHdmiInputRequest, StartHdmiInputResponse,
+            GetAvailableInputsResponse, HdmiOperation, HdmiSelectOperationRequest,
+            HdmiSelectOperationResponse,
         },
     },
     gateway::rpc_gateway_api::CallContext,
@@ -29,12 +30,12 @@ use ripple_sdk::{
 
 #[rpc(server)]
 pub trait Hdmi {
-    #[method(name = "hdmi.setActiveInput")]
-    async fn set_active_input(
+    #[method(name = "HDMIInput.select")]
+    async fn select_hdmi_operation(
         &self,
         ctx: CallContext,
-        request: StartHdmiInputRequest,
-    ) -> RpcResult<StartHdmiInputResponse>;
+        request: HdmiSelectOperationRequest,
+    ) -> RpcResult<HdmiSelectOperationResponse>;
 
     #[method(name = "HDMIInput.ports")]
     async fn get_available_inputs(&self, ctx: CallContext)
@@ -62,25 +63,42 @@ pub struct HdmiImpl {
 
 #[async_trait]
 impl HdmiServer for HdmiImpl {
-    async fn set_active_input(
+    async fn select_hdmi_operation(
         &self,
         _ctx: CallContext,
-        request: StartHdmiInputRequest,
-    ) -> RpcResult<StartHdmiInputResponse> {
-        if let Ok(response) = self
-            .state
-            .get_client()
-            .send_extn_request(HdmiRequest::SetActiveInput(request))
-            .await
-        {
-            if let ExtnPayload::Response(ExtnResponse::Value(value)) = response.payload {
-                if let Ok(res) = serde_json::from_value::<StartHdmiInputResponse>(value) {
-                    return Ok(res);
+        request: HdmiSelectOperationRequest,
+    ) -> RpcResult<HdmiSelectOperationResponse> {
+        if let HdmiOperation::Start = request.operation {
+            if let Ok(response) = self
+                .state
+                .get_client()
+                .send_extn_request(HdmiRequest::StartHdmiInput(request))
+                .await
+            {
+                if let ExtnPayload::Response(ExtnResponse::Value(value)) = response.payload {
+                    if let Ok(res) = serde_json::from_value::<HdmiSelectOperationResponse>(value) {
+                        return Ok(res);
+                    }
                 }
             }
-        }
 
-        Err(rpc_err("FB error response TBD"))
+            Err(rpc_err("FB error response TBD"))
+        } else {
+            if let Ok(response) = self
+                .state
+                .get_client()
+                .send_extn_request(HdmiRequest::StopHdmiInput(request))
+                .await
+            {
+                if let ExtnPayload::Response(ExtnResponse::Value(value)) = response.payload {
+                    if let Ok(res) = serde_json::from_value::<HdmiSelectOperationResponse>(value) {
+                        return Ok(res);
+                    }
+                }
+            }
+
+            Err(rpc_err("FB error response TBD"))
+        }
     }
 
     async fn get_available_inputs(
