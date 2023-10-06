@@ -36,7 +36,6 @@ use crate::{
     state::platform_state::PlatformState,
     utils::rpc_utils::{rpc_await_oneshot, rpc_err},
 };
-use jsonrpsee::tracing::error;
 use ripple_sdk::async_trait::async_trait;
 use std::{
     collections::HashSet,
@@ -112,6 +111,7 @@ impl UserGrantsImpl {
         };
         grant_entries
             .iter()
+            .filter(|x| x.status.is_some() && x.lifespan.is_some())
             .map(move |x| UserGrantsImpl::transform(app_id.clone(), app_name.clone(), x))
             .collect()
     }
@@ -122,12 +122,6 @@ impl UserGrantsImpl {
         app_name: Option<String>,
         entry: &GrantEntry,
     ) -> GrantInfo {
-        if entry.status.is_none() || entry.lifespan.is_none() {
-            error!(
-                "Received an invalid GrantEntry for transform operation {:?}",
-                entry
-            );
-        }
         GrantInfo {
             app: app_id.map(|x| AppInfo {
                 id: x,
