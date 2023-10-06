@@ -69,10 +69,10 @@ impl ThunderClientPool {
                 Some(s.clone()),
             )
             .await;
-            if client.is_ok() {
+            if let Ok(c) = client {
                 clients.push(PooledThunderClient {
                     in_use: Arc::new(AtomicBool::new(false)),
-                    client: client.unwrap(),
+                    client: c,
                 });
             }
         }
