@@ -24,13 +24,25 @@ use crate::{
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum PayloadType {
+    #[serde(rename = "json")]
+    Json,
+    #[serde(rename = "jsonrpc")]
+    JsonRpc,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RequestPayload {
+    /// The type of payload data
+    pub payload_type: PayloadType,
     /// The body of the request
     pub body: Value,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ResponsePayload {
+    /// The type of payload data
+    pub payload_type: PayloadType,
     /// The body of the response
     pub body: Value,
 }

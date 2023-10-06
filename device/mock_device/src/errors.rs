@@ -1,6 +1,6 @@
 use std::{fmt::Display, path::PathBuf};
 
-use serde_json::Value;
+use crate::mock_data::MockDataError;
 
 #[derive(Debug, Clone)]
 pub enum MockWebsocketServerError {
@@ -18,7 +18,6 @@ impl Display for MockWebsocketServerError {
 #[derive(Clone, Debug)]
 pub enum MockDeviceError {
     BootFailed(BootFailedReason),
-    BadMockDataKey(Value),
     LoadMockDataFailed(LoadMockDataFailedReason),
 }
 
@@ -27,9 +26,6 @@ impl Display for MockDeviceError {
         match self {
             Self::BootFailed(reason) => f.write_fmt(format_args!(
                 "Failed to start websocket server. Reason: {reason}"
-            )),
-            Self::BadMockDataKey(data) => f.write_fmt(format_args!(
-                "Failed to create key for mock data. Data: {data}"
             )),
             Self::LoadMockDataFailed(reason) => f.write_fmt(format_args!(
                 "Failed to load mock data from file. Reason: {reason}"
@@ -69,39 +65,27 @@ pub enum LoadMockDataFailedReason {
     GetSavedDirFailed,
     MockDataNotValidJson,
     MockDataNotArray,
-    EntryNotObject,
-    EntryMissingRequestField,
-    EntryMissingResponseField,
+    MockDataError(MockDataError),
 }
 impl Display for LoadMockDataFailedReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LoadMockDataFailedReason::PathDoesNotExist(path) => f.write_fmt(format_args!(
+            Self::PathDoesNotExist(path) => f.write_fmt(format_args!(
                 "Path does not exist. Path: {}",
                 path.display()
             )),
-            LoadMockDataFailedReason::FileOpenFailed(path) => f.write_fmt(format_args!(
+            Self::FileOpenFailed(path) => f.write_fmt(format_args!(
                 "Failed to open file. File: {}",
                 path.display()
             )),
-            LoadMockDataFailedReason::GetSavedDirFailed => {
-                f.write_str("Failed to get SavedDir from config.")
-            }
-            LoadMockDataFailedReason::MockDataNotValidJson => {
-                f.write_str("The mock data is not valid JSON.")
-            }
-            LoadMockDataFailedReason::MockDataNotArray => {
+            Self::GetSavedDirFailed => f.write_str("Failed to get SavedDir from config."),
+            Self::MockDataNotValidJson => f.write_str("The mock data is not valid JSON."),
+            Self::MockDataNotArray => {
                 f.write_str("The mock data file root object must be an array.")
             }
-            LoadMockDataFailedReason::EntryNotObject => {
-                f.write_str("Each entry in the mock data array must be an object.")
-            }
-            LoadMockDataFailedReason::EntryMissingRequestField => {
-                f.write_str("Each entry must have a requet field.")
-            }
-            LoadMockDataFailedReason::EntryMissingResponseField => {
-                f.write_str("Each entry must have a response field.")
-            }
+            Self::MockDataError(err) => f.write_fmt(format_args!(
+                "Failed to parse message in mock data. Error: {err:?}"
+            )),
         }
     }
 }

@@ -14,6 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
+use std::sync::Arc;
 
 use ripple_sdk::{
     api::mock_websocket_server::{
@@ -33,10 +34,8 @@ use ripple_sdk::{
     log::{debug, error},
     tokio::sync::mpsc::{Receiver, Sender},
 };
-use serde_json::Value;
-use std::sync::Arc;
 
-use crate::mock_ws_server::MockWebsocketServer;
+use crate::{mock_data::MockDataMessage, mock_ws_server::MockWebsocketServer};
 
 #[derive(Debug, Clone)]
 pub struct MockDeviceMockWebsocketServerState {
@@ -120,12 +119,12 @@ impl ExtnRequestProcessor for MockDeviceMockWebsocketServerProcessor {
                 let result = state
                     .server
                     .add_request_response(
-                        &params.request.body,
+                        MockDataMessage::from(params.request),
                         params
                             .responses
-                            .iter()
-                            .map(|resp| resp.body.clone())
-                            .collect::<Vec<Value>>(),
+                            .into_iter()
+                            .map(MockDataMessage::from)
+                            .collect(),
                     )
                     .await;
 
@@ -148,7 +147,10 @@ impl ExtnRequestProcessor for MockDeviceMockWebsocketServerProcessor {
                 .await
             }
             MockWebsocketServerRequest::RemoveRequest(params) => {
-                let result = state.server.remove_request(&params.request.body).await;
+                let result = state
+                    .server
+                    .remove_request(&MockDataMessage::from(params.request))
+                    .await;
 
                 let resp = match result {
                     Ok(_) => RemoveRequestResponse {

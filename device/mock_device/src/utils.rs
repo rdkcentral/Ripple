@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{collections::HashMap, fs::File, io::BufReader, path::PathBuf, sync::Arc};
+use std::{fs::File, io::BufReader, path::PathBuf, sync::Arc};
 
 use ripple_sdk::{
     api::config::Config,
@@ -24,16 +24,14 @@ use ripple_sdk::{
     tokio::{self, sync::RwLock},
     utils::error::RippleError,
 };
-use serde_hashkey::{to_key, Key};
 use serde_json::Value;
 use url::{Host, Url};
 
 use crate::{
     errors::{BootFailedReason, LoadMockDataFailedReason, MockDeviceError},
+    mock_data::{MockData, MockDataError, MockDataMessage},
     mock_ws_server::{MockWebsocketServer, WsServerParameters},
 };
-
-pub type MockData = HashMap<Key, Vec<Value>>;
 
 pub async fn boot_ws_server(
     mut client: ExtnClient,
@@ -143,31 +141,16 @@ pub async fn load_mock_data(mut client: ExtnClient) -> Result<MockData, MockDevi
         let mock_data = list
             .iter()
             .map(|req_resp| {
-                let obj = req_resp
-                    .as_object()
-                    .ok_or(MockDeviceError::LoadMockDataFailed(
-                        LoadMockDataFailedReason::EntryNotObject,
-                    ))?;
-                // TODO: make mock data format match JSON-RPC payload formats
-                let req = obj
-                    .get("request")
-                    .and_then(|req| if req.is_object() { Some(req) } else { None })
-                    .ok_or(MockDeviceError::LoadMockDataFailed(
-                        LoadMockDataFailedReason::EntryMissingRequestField,
-                    ))?;
-                let res = obj
-                    .get("response")
-                    .and_then(|res| if res.is_object() { Some(res) } else { None })
-                    .ok_or(MockDeviceError::LoadMockDataFailed(
-                        LoadMockDataFailedReason::EntryMissingResponseField,
-                    ))?;
+                let (req, resps) = parse_request_responses(req_resp)
+                    .map_err(mock_data_error_to_mock_device_error)?;
 
-                Ok((jsonrpc_key(req)?, vec![res.to_owned()]))
-                // TODO: add support for multiple responses
+                let key = req.key().map_err(mock_data_error_to_mock_device_error)?;
+
+                Ok((key, (req, resps)))
             })
-            .collect::<Result<Vec<(Key, Vec<Value>)>, MockDeviceError>>()?
+            .collect::<Result<MockData, MockDeviceError>>()?
             .into_iter()
-            .collect::<HashMap<Key, Vec<Value>>>();
+            .collect::<MockData>();
 
         Ok(mock_data)
     } else {
@@ -177,21 +160,40 @@ pub async fn load_mock_data(mut client: ExtnClient) -> Result<MockData, MockDevi
     }
 }
 
-pub fn json_key(value: &Value) -> Result<Key, MockDeviceError> {
-    let key = to_key(value);
-    if let Ok(key) = key {
-        return Ok(key);
-    }
-
-    error!("Failed to create key from data {value:?}");
-    Err(MockDeviceError::BadMockDataKey(value.clone()))
+fn mock_data_error_to_mock_device_error(err: MockDataError) -> MockDeviceError {
+    MockDeviceError::LoadMockDataFailed(LoadMockDataFailedReason::MockDataError(err))
 }
 
-pub fn jsonrpc_key(value: &Value) -> Result<Key, MockDeviceError> {
-    let mut new_value = value.clone();
-    new_value
-        .as_object_mut()
-        .and_then(|payload| payload.remove("id"));
+fn parse_request_responses(
+    request_responses: &Value,
+) -> Result<(MockDataMessage, Vec<MockDataMessage>), MockDataError> {
+    let req_resp = request_responses
+        .as_object()
+        .ok_or(MockDataError::NotAnObject)?;
+    let req = req_resp
+        .get("request")
+        .ok_or(MockDataError::MissingRequestField)?;
+    let res = req_resp
+        .get("responses")
+        .and_then(|res| {
+            res.as_array()
+                .and_then(|arr| if arr.is_empty() { None } else { Some(arr) })
+        })
+        .ok_or(MockDataError::MissingResponseField)?
+        .iter()
+        .map(MockDataMessage::try_from)
+        .collect::<Result<Vec<MockDataMessage>, MockDataError>>()?;
 
-    json_key(&new_value)
+    let req = MockDataMessage::try_from(req)?;
+
+    Ok((req, res))
+}
+
+pub fn is_value_jsonrpc(value: &Value) -> bool {
+    value
+        .as_object()
+        .map(|req| {
+            req.contains_key("jsonrpc") && req.contains_key("id") && req.contains_key("method")
+        })
+        .is_some()
 }

@@ -19,13 +19,14 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use http::{HeaderMap, StatusCode};
 use ripple_sdk::{
     futures::{stream::SplitSink, SinkExt, StreamExt},
-    log::{debug, error},
+    log::{debug, error, warn},
     tokio::{
         self,
         net::{TcpListener, TcpStream},
         sync::{Mutex, RwLock},
     },
 };
+use serde_hashkey::Key;
 use serde_json::{json, Value};
 use tokio_tungstenite::{
     accept_hdr_async,
@@ -34,8 +35,9 @@ use tokio_tungstenite::{
 };
 
 use crate::{
-    errors::{MockDeviceError, MockWebsocketServerError},
-    utils::{json_key, jsonrpc_key, MockData},
+    errors::MockWebsocketServerError,
+    mock_data::{json_key, jsonrpc_key, MockData, MockDataError, MockDataMessage},
+    utils::is_value_jsonrpc,
 };
 
 pub struct WsServerParameters {
@@ -225,45 +227,52 @@ impl MockWebsocketServer {
                 let request_message = match serde_json::from_str::<Value>(msg.as_str()).ok() {
                     Some(key) => key,
                     None => {
-                        error!("Request is not valid JSON. Request: {msg}");
+                        warn!("Request is not valid JSON. Request: {msg}");
                         continue;
                     }
                 };
 
                 debug!("Parsed message: {:?}", request_message);
 
-                let id = request_message
-                    .get("id")
-                    .and_then(|s| s.as_u64())
-                    .unwrap_or(0);
+                let responses = if is_value_jsonrpc(&request_message) {
+                    let id = request_message
+                        .get("id")
+                        .and_then(|s| s.as_u64())
+                        .unwrap_or(0);
 
-                let key = match jsonrpc_key(&request_message) {
-                    Ok(key) => key,
-                    Err(err) => {
-                        error!("Request cannot be compared to mock data. {err:?}");
-                        continue;
-                    }
+                    let key = match jsonrpc_key(&request_message) {
+                        Ok(key) => key,
+                        Err(err) => {
+                            error!("Request cannot be compared to mock data. {err:?}");
+                            continue;
+                        }
+                    };
+
+                    self.responses_for_key(key).await.map(|resps| {
+                        resps.into_iter().map(|mut value| {
+                            value.body.as_object_mut().and_then(|obj| obj.insert("id".to_string(), id.into()));
+                            value.body
+                        }).collect()
+                    })
+                    .unwrap_or_else(|| vec![json!({"jsonrpc": "2.0", "id": id, "error": {"code": -32600, "message": "Invalid Request"}})])
+                } else {
+                    let key = match json_key(&request_message) {
+                        Ok(key) => key,
+                        Err(err) => {
+                            error!("Request cannot be compared to mock data. {err:?}");
+                            continue;
+                        }
+                    };
+
+                    self.responses_for_key(key)
+                        .await
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|resp| resp.body)
+                        .collect()
                 };
 
-                let responses = {
-                    let mock_data = self.mock_data.read().await;
-                    debug!(
-                        "Request received. Mock data ={mock_data:?}"
-                    );
-                    mock_data.get(&key).cloned()
-                }
-                .map(|resps| {
-                    resps.into_iter().map(|mut value| {
-                        value.as_object_mut().and_then(|obj| obj.insert("id".to_string(), id.into()));
-
-                        value
-                    }).collect()
-                })
-                .unwrap_or_else(|| vec![json!({"jsonrpc": "2.0", "id": id, "error": {"code": -32600, "message": "Invalid Request"}})]);
-
-                debug!(
-                    "Request found, sending response. id={id} req={request_message} resps={responses:?}"
-                );
+                debug!("Sending responses. req={request_message} resps={responses:?}");
 
                 let mut clients = self.connected_peer_sinks.lock().await;
                 let sink = clients.get_mut(&peer.to_string());
@@ -272,7 +281,7 @@ impl MockWebsocketServer {
                         sink.send(Message::Text(resp.to_string())).await?;
                     }
                 } else {
-                    error!("no sink found for peer={peer:?}");
+                    error!("No sink found for peer={peer:?}");
                 }
             }
         }
@@ -281,6 +290,14 @@ impl MockWebsocketServer {
         self.remove_connected_peer(&peer).await;
 
         Ok(())
+    }
+
+    async fn responses_for_key(&self, key: Key) -> Option<Vec<MockDataMessage>> {
+        let mock_data = self.mock_data.read().await;
+        debug!("Request received. Mock data ={mock_data:?}");
+        let entry = mock_data.get(&key).cloned();
+
+        entry.map(|(_req, resps)| resps)
     }
 
     async fn add_connected_peer(
@@ -299,20 +316,20 @@ impl MockWebsocketServer {
 
     pub async fn add_request_response(
         &self,
-        request: &Value,
-        responses: Vec<Value>,
-    ) -> Result<(), MockDeviceError> {
+        request: MockDataMessage,
+        responses: Vec<MockDataMessage>,
+    ) -> Result<(), MockDataError> {
+        let key = request.key()?;
         let mut mock_data = self.mock_data.write().await;
-        let key = jsonrpc_key(request)?;
         debug!("Adding mock data key={key:?} resps={responses:?}");
-        mock_data.insert(key, responses);
+        mock_data.insert(key, (request, responses));
 
         Ok(())
     }
 
-    pub async fn remove_request(&self, request: &Value) -> Result<(), MockDeviceError> {
+    pub async fn remove_request(&self, request: &MockDataMessage) -> Result<(), MockDataError> {
         let mut mock_data = self.mock_data.write().await;
-        let key = json_key(request)?;
+        let key = request.key()?;
         debug!("Removing mock data key={key:?}");
         let resps = mock_data.remove(&key);
         debug!("Removed mock data responses={resps:?}");
