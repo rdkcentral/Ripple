@@ -50,6 +50,7 @@ use crate::{
             fb_pin::{PinChallengeRequestWithContext, PinChallengeResponse},
             fb_secure_storage::{SecureStorageRequest, SecureStorageResponse},
             fb_telemetry::{OperationalMetricRequest, TelemetryPayload},
+            panel::fb_hdmi::{AutoLowLatencyModeSignalChangedInfo, HdmiConnectionChangedInfo},
         },
         gateway::rpc_gateway_api::RpcRequest,
         manifest::device_manifest::AppLibraryEntry,
@@ -324,6 +325,8 @@ pub enum ExtnEvent {
     AppEvent(AppEventRequest),
     PowerState(SystemPowerState),
     OperationalMetrics(TelemetryPayload),
+    HdmiConnectionChanged(HdmiConnectionChangedInfo),
+    AutoLowLatencyModeSignalChanged(AutoLowLatencyModeSignalChangedInfo),
 }
 
 impl ExtnPayloadProvider for ExtnEvent {

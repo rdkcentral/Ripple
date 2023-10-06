@@ -35,6 +35,9 @@ pub const NETWORK_CHANGED_EVENT: &str = "device.onNetworkChanged";
 pub const AUDIO_CHANGED_EVENT: &str = "device.onAudioChanged";
 pub const VOICE_GUIDANCE_CHANGED: &str = "accessibility.onVoiceGuidanceSettingsChanged";
 pub const POWER_STATE_CHANGED: &str = "device.onPowerStateChanged";
+pub const HDMI_CONNECTION_CHANGED: &str = "HDMIInput.onConnectionsChanged";
+pub const AUTO_LOW_LATENCY_MODE_SIGNAL_CHANGED: &str =
+    "HDMIInput.onAutoLowLatencyModeSignalChanged";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DeviceEvent {
@@ -46,6 +49,9 @@ pub enum DeviceEvent {
     NetworkChanged,
     AudioChanged,
     SystemPowerStateChanged,
+    HdmiConnectionChanged,
+    //HdmiSignalChanged,
+    AutoLowLatencyModeSignalChanged,
 }
 
 impl FromStr for DeviceEvent {
@@ -61,6 +67,11 @@ impl FromStr for DeviceEvent {
             "device.onNetworkChanged" => Ok(Self::NetworkChanged),
             "device.onAudioChanged" => Ok(Self::AudioChanged),
             "device.onPowerStateChanged" => Ok(Self::SystemPowerStateChanged),
+            "HDMIInput.onConnectionChanged" => Ok(Self::HdmiConnectionChanged),
+            //"HDMIInput.onSignalChanged" => Ok(Self::HdmiSignalChanged),
+            "HDMIInput.onAutoLowLatencyModeSignalChanged" => {
+                Ok(Self::AutoLowLatencyModeSignalChanged)
+            }
             _ => Err(()),
         }
     }

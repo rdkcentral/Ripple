@@ -40,7 +40,13 @@ use ripple_sdk::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{thunder_state::ThunderState, utils::get_audio_profile_from_value};
+use crate::{
+    processors::panel::thunder_hdmi::{
+        ThunderAutoLowLatencyModeSignalChanged, ThunderHdmiConnectionChanged,
+    },
+    thunder_state::ThunderState,
+    utils::get_audio_profile_from_value,
+};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -70,6 +76,8 @@ pub enum ThunderEventMessage {
     PowerState(SystemPowerState),
     VoiceGuidance(VoiceGuidanceEvent),
     Audio(HashMap<AudioProfile, bool>),
+    HdmiConnection(Vec<ThunderHdmiConnectionChanged>),
+    AutoLowLatencyModeSignal(ThunderAutoLowLatencyModeSignalChanged),
 }
 impl ThunderEventMessage {
     pub fn get(event: &str, value: &Value) -> Option<Self> {
@@ -124,6 +132,16 @@ impl ThunderEventMessage {
                     return Some(ThunderEventMessage::Audio(get_audio_profile_from_value(
                         value.clone(),
                     )))
+                }
+                DeviceEvent::HdmiConnectionChanged => {
+                    if let Ok(v) = serde_json::from_value(value.clone()) {
+                        return Some(ThunderEventMessage::HdmiConnection(v));
+                    }
+                }
+                DeviceEvent::AutoLowLatencyModeSignalChanged => {
+                    if let Ok(v) = serde_json::from_value(value.clone()) {
+                        return Some(ThunderEventMessage::AutoLowLatencyModeSignal(v));
+                    }
                 }
             }
         }

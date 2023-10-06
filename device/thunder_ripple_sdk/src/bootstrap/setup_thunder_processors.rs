@@ -22,6 +22,7 @@ use crate::processors::thunder_telemetry::ThunderTelemetryProcessor;
 use crate::thunder_state::ThunderBootstrapStateWithClient;
 
 use crate::processors::{
+    panel::thunder_hdmi::ThunderHdmiRequestProcessor,
     thunder_browser::ThunderBrowserRequestProcessor,
     thunder_device_info::ThunderDeviceInfoRequestProcessor,
     thunder_events::ThunderOpenEventsProcessor,
@@ -52,6 +53,7 @@ impl SetupThunderProcessor {
             state.clone().state,
         ));
         extn_client.add_request_processor(ThunderOpenEventsProcessor::new(state.clone().state));
+        extn_client.add_request_processor(ThunderHdmiRequestProcessor::new(state.clone().state));
 
         if extn_client.get_bool_config("rdk_telemetry") {
             match extn_client

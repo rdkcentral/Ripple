@@ -48,7 +48,7 @@ pub enum EDIDVersion {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ConnectionChangedInfo {
+pub struct HdmiConnectionChangedInfo {
     pub port: String,
     pub connected: bool,
 }
