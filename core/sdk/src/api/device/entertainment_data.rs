@@ -371,16 +371,18 @@ pub enum NavigationIntentStrict {
     ProviderRequest(ProviderRequestIntent),
 }
 
+/*
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Context {
     pub source: String,
 }
+*/
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct NavigationIntentLoose {
     pub action: String,
     pub data: Option<Value>,
-    pub context: Context,
+    pub context: DiscoveryContext,
 }
 
 impl Default for NavigationIntentStrict {

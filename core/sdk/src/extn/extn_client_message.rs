@@ -31,10 +31,13 @@ use crate::{
         device::{
             device_events::DeviceEventRequest,
             device_peristence::StorageData,
-            device_request::{DeviceRequest, NetworkResponse, SystemPowerState},
+            device_request::{
+                DeviceRequest, NetworkResponse, SystemPowerState, VoiceGuidanceState,
+            },
         },
         distributor::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
+            distributor_platform::PlatformTokenRequest,
             distributor_privacy::{PrivacyCloudRequest, PrivacySettingsStoreRequest},
             distributor_request::DistributorRequest,
             distributor_sync::SyncAndMonitorRequest,
@@ -267,6 +270,7 @@ pub enum ExtnRequest {
     Metrics(MetricsRequest),
     OperationalMetricsRequest(OperationalMetricRequest),
     MockWebsocketServer(MockWebsocketServerRequest),
+    PlatformToken(PlatformTokenRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -325,6 +329,7 @@ pub enum ExtnEvent {
     AppEvent(AppEventRequest),
     PowerState(SystemPowerState),
     OperationalMetrics(TelemetryPayload),
+    VoiceGuidanceState(VoiceGuidanceState),
 }
 
 impl ExtnPayloadProvider for ExtnEvent {

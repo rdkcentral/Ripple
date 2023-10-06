@@ -41,6 +41,7 @@ pub mod distributor {
     pub mod distributor_discovery;
     pub mod distributor_encoder;
     pub mod distributor_permissions;
+    pub mod distributor_platform;
     pub mod distributor_privacy;
     pub mod distributor_request;
     pub mod distributor_sync;
