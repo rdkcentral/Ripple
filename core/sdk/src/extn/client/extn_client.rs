@@ -242,8 +242,9 @@ impl ExtnClient {
                                     let req_sender = self.get_extn_sender_with_extn_id(
                                         &message.requestor.to_string(),
                                     );
-                                    if let Some(rs) = req_sender {
-                                        let _ = new_message.callback.insert(rs);
+
+                                    if let Some(sender) = req_sender {
+                                        let _ = new_message.callback.insert(sender);
                                     }
                                 }
 
