@@ -19,7 +19,8 @@
                         "device_events",
                         "device_persistence",
                         "remote_accessory",
-                        "ripple_context"
+                        "ripple_context",
+                        "app_events"
                     ]
                 }
             ]

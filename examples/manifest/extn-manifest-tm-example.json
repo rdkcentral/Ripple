@@ -18,7 +18,9 @@
                         "wifi",
                         "device_events",
                         "device_persistence",
-                        "remote_accessory"
+                        "remote_accessory",
+                        "app_events",
+                        "ripple_context"
                     ]
                 }
             ]

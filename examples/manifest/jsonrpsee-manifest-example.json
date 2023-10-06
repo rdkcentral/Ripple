@@ -13,7 +13,9 @@
                     "fulfills": [
                         "device:info",
                         "device:windowmanager",
-                        "device:browser"
+                        "device:browser",
+                        "app_events",
+                        "ripple_context"
                     ]
                 }
             ]
