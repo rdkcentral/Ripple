@@ -362,13 +362,12 @@ impl DelegatedLauncherHandler {
         match perms_with_grants_opt {
             Some(perms_with_grants) => {
                 // Grants required, spawn a thread to handle the response from grants
-
                 let cloned_ps = self.platform_state.clone();
                 let cloned_app_id = app_id.to_owned();
                 tokio::spawn(async move {
                     let resolved_result = GrantState::check_with_roles(
                         &cloned_ps,
-                        &CallerSession { session_id: None },
+                        &CallerSession::default(),
                         &AppIdentification {
                             app_id: cloned_app_id.to_owned(),
                         },

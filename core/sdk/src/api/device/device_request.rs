@@ -252,3 +252,27 @@ impl ExtnPayloadProvider for SystemPowerState {
         RippleContract::PowerStateEvent
     }
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct VoiceGuidanceState {
+    pub state: bool,
+}
+
+impl ExtnPayloadProvider for VoiceGuidanceState {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Event(ExtnEvent::VoiceGuidanceState(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<VoiceGuidanceState> {
+        if let ExtnPayload::Event(ExtnEvent::VoiceGuidanceState(r)) = payload {
+            return Some(r);
+        }
+
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::VoiceGuidance
+    }
+}
