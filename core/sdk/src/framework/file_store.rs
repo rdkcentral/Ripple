@@ -45,6 +45,7 @@ where
     fn write_to_disk(&self, value: String) {
         match OpenOptions::new()
             .create(true)
+            .truncate(true)
             .write(true)
             .open(self.path.clone())
         {
