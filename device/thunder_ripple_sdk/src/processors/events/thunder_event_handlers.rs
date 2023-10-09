@@ -421,11 +421,7 @@ impl VoiceGuidanceEnabledChangedEventHandler {
                         );
                     }
                 });
-                ThunderEventHandler::callback_device_event(
-                    state.clone(),
-                    Self::get_mapped_event(),
-                    v,
-                )
+                ThunderEventHandler::callback_device_event(state, Self::get_mapped_event(), v)
             }
         }
     }

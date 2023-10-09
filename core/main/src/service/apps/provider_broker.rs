@@ -82,7 +82,7 @@ impl ProviderBrokerState {
             state,
             ctx,
             PinChallengeResponse {
-                granted: true,
+                granted: Some(true),
                 reason: PinChallengeResultReason::CorrectPin,
             },
         )
@@ -105,7 +105,7 @@ impl ProviderBrokerState {
             state,
             ctx,
             PinChallengeResponse {
-                granted: false,
+                granted: Some(false),
                 reason,
             },
         )
@@ -138,14 +138,26 @@ impl ProviderBrokerState {
 
     #[cfg(test)]
     pub async fn send_ackchallenge_success(&self, state: &PlatformState, ctx: &CallContext) {
-        self.send_ackchallenge_response(state, ctx, ChallengeResponse { granted: true })
-            .await;
+        self.send_ackchallenge_response(
+            state,
+            ctx,
+            ChallengeResponse {
+                granted: Some(true),
+            },
+        )
+        .await;
     }
 
     #[cfg(test)]
     pub async fn send_ackchallenge_failure(&self, state: &PlatformState, ctx: &CallContext) {
-        self.send_ackchallenge_response(state, ctx, ChallengeResponse { granted: false })
-            .await;
+        self.send_ackchallenge_response(
+            state,
+            ctx,
+            ChallengeResponse {
+                granted: Some(false),
+            },
+        )
+        .await;
     }
 
     #[cfg(test)]

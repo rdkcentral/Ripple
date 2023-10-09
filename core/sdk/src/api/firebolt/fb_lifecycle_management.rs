@@ -162,7 +162,7 @@ pub enum SessionResponse {
     Completed(CompletedSessionResponse),
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CompletedSessionResponse {
     pub app_id: String,
     pub session_id: String,
@@ -172,7 +172,7 @@ pub struct CompletedSessionResponse {
     pub transition_pending: bool,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PendingSessionResponse {
     pub app_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]

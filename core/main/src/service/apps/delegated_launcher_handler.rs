@@ -342,6 +342,7 @@ impl DelegatedLauncherHandler {
             let app = self.platform_state.app_manager_state.get(&app_id).unwrap();
             // unwrap is safe here, when precheck_then_load_or_activate is called with loading=false
             // then the app should have already existed in self.apps
+
             if session.launch.inactive {
                 // Uncommon, moving an already loaded app to inactive again using session
                 self.platform_state
