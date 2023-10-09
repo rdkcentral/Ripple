@@ -173,9 +173,9 @@ impl ThunderStorageRequestProcessor {
         if let Some(status) = response.message["success"].as_bool() {
             if status {
                 let value_resp_res = serde_json::from_value(response.message);
-                if value_resp_res.is_ok() {
-                    debug!("{:?}", value_resp_res);
-                    let value_resp: ThunderGetValueResponse = value_resp_res.unwrap();
+                if let Ok(res) = value_resp_res {
+                    debug!("{:?}", res);
+                    let value_resp: ThunderGetValueResponse = res;
                     if value_resp.success {
                         if let Ok(v) = serde_json::from_str::<Value>(&value_resp.value) {
                             if let Ok(v) = serde_json::from_value(v.clone()) {

@@ -18,7 +18,10 @@
 use std::sync::{Arc, RwLock};
 
 use ripple_sdk::{
-    api::{apps::AppRequest, manifest::extn_manifest::ExtnSymbol},
+    api::{
+        apps::{AppError, AppManagerResponse, AppMethod, AppRequest},
+        manifest::extn_manifest::ExtnSymbol,
+    },
     crossbeam::channel::Sender as CSender,
     extn::{
         client::{
@@ -32,12 +35,16 @@ use ripple_sdk::{
     },
     framework::RippleResponse,
     log::error,
-    tokio::{self, sync::mpsc::Sender},
+    tokio::{
+        self,
+        sync::{mpsc::Sender, oneshot},
+    },
     utils::error::RippleError,
 };
 
 use crate::{
     firebolt::firebolt_gateway::FireboltGatewayCommand, state::bootstrap_state::ChannelsState,
+    utils::rpc_utils::rpc_await_oneshot,
 };
 
 /// RippleClient is an internal delegate component which helps in operating
@@ -94,6 +101,21 @@ impl RippleClient {
             return Err(RippleError::SendFailure);
         }
         Ok(())
+    }
+
+    pub async fn get_app_state(&self, app_id: String) -> Result<String, RippleError> {
+        let (app_resp_tx, app_resp_rx) = oneshot::channel::<Result<AppManagerResponse, AppError>>();
+        let app_request = AppRequest::new(AppMethod::State(app_id.to_string()), app_resp_tx);
+        if let Err(e) = self.send_app_request(app_request) {
+            error!("Send error for get_state {:?}", e);
+            return Err(RippleError::SendFailure);
+        }
+        let resp: Result<Result<AppManagerResponse, AppError>, jsonrpsee::core::Error> =
+            rpc_await_oneshot(app_resp_rx).await;
+        if let Ok(Ok(AppManagerResponse::State(state))) = resp {
+            return Ok(state.as_string().to_string());
+        }
+        Err(RippleError::SendFailure)
     }
 
     pub fn get_extn_client(&self) -> ExtnClient {

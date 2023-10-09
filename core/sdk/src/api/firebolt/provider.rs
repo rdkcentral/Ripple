@@ -121,7 +121,7 @@ pub struct ExternalProviderResponse<T> {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChallengeResponse {
-    pub granted: bool,
+    pub granted: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

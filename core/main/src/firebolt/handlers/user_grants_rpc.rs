@@ -111,6 +111,7 @@ impl UserGrantsImpl {
         };
         grant_entries
             .iter()
+            .filter(|x| x.status.is_some() && x.lifespan.is_some())
             .map(move |x| UserGrantsImpl::transform(app_id.clone(), app_name.clone(), x))
             .collect()
     }
