@@ -35,6 +35,9 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
         if !s.platform_state.supports_session() {
             return Ok(());
         }
+        s.platform_state
+            .get_client()
+            .add_event_processor(MainContextProcessor::new(s.platform_state.clone()));
         MainContextProcessor::initialize_token(&s.platform_state).await;
         Ok(())
     }
