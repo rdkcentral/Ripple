@@ -132,7 +132,9 @@ impl GrantState {
             if entries.contains(&new_entry) {
                 entries.remove(&new_entry);
             }
-            entries.insert(new_entry);
+            if new_entry.status.is_some() {
+                entries.insert(new_entry);
+            }
             grant_state.sync();
         } else {
             self.add_device_entry(new_entry)
@@ -230,7 +232,11 @@ impl GrantState {
 
     fn add_device_entry(&self, entry: GrantEntry) {
         let mut device_grants = self.device_grants.write().unwrap();
-        device_grants.value.insert(entry);
+        if entry.status.is_none() {
+            device_grants.value.remove(&entry);
+        } else {
+            device_grants.value.replace(entry);
+        }
         device_grants.sync();
     }
 
@@ -679,13 +685,11 @@ impl GrantPolicyEnforcer {
                     }
                 }
                 GrantScope::Device => {
-                    if app_id.is_none() {
-                        platform_state
-                            .cap_state
-                            .grant_state
-                            .update_grant_entry(None, grant_entry);
-                        ret_val = true;
-                    }
+                    platform_state
+                        .cap_state
+                        .grant_state
+                        .update_grant_entry(None, grant_entry);
+                    ret_val = true;
                 }
             }
         }
@@ -1269,14 +1273,15 @@ impl GrantStepExecutor {
             match session_rx.await {
                 Ok(result) => match result.as_challenge_response() {
                     Some(res) => match res.granted {
-                        true => {
+                        Some(true) => {
                             debug!("returning ok from invoke_capability");
                             Ok(())
                         }
-                        false => {
+                        Some(false) => {
                             debug!("returning err from invoke_capability");
                             Err(DenyReason::GrantDenied)
                         }
+                        None => Err(DenyReason::Ungranted),
                     },
                     None => {
                         debug!("Received reponse that is not convertable to challenge response");
