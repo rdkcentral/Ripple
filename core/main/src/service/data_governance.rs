@@ -181,11 +181,10 @@ impl DataGovernance {
                     let result = serde_json::to_string(&excl);
                     // result.unwrap_or("");    // XXX: when server return 404 or empty string
                     if let Ok(res) = result {
-                        let str_excl = res;
                         return StorageManager::set_string(
                             state,
                             StorageProperty::PartnerExclusions,
-                            str_excl,
+                            res,
                             None,
                         )
                         .await
@@ -207,12 +206,12 @@ impl DataGovernance {
 
         let resp = StorageManager::get_string(state, StorageProperty::PartnerExclusions).await;
         debug!("StorageProperty::PartnerExclusions resp={:?}", resp);
+
         if let Ok(res) = resp {
-            let str_excl = res;
-            if !str_excl.is_empty() {
-                let excl = serde_json::from_str(&str_excl);
-                if let Ok(exc) = excl {
-                    let exclusion_policy: ExclusionPolicy = exc;
+            if !res.is_empty() {
+                let excl = serde_json::from_str(&res);
+                if let Ok(exc_policy) = excl {
+                    let exclusion_policy: ExclusionPolicy = exc_policy;
                     DataGovernance::update_local_exclusion_policy(
                         &state.data_governance,
                         exclusion_policy.clone(),
