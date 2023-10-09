@@ -186,16 +186,13 @@ impl ThunderBrowserRequestProcessor {
             "lightning" => Some(format!("FireboltMainApp-{}", bnr.name)),
             _ => None,
         };
-        if browser_name.is_none() {
-            Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
+
+        if let Some(name) = browser_name {
+            Self::respond(state.get_client(), req.clone(), ExtnResponse::String(name))
+                .await
+                .is_ok()
         } else {
-            Self::respond(
-                state.get_client(),
-                req.clone(),
-                ExtnResponse::String(browser_name.unwrap()),
-            )
-            .await
-            .is_ok()
+            Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
         }
     }
 }

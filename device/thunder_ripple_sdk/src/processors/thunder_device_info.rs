@@ -413,11 +413,11 @@ impl ThunderDeviceInfoRequestProcessor {
                 info!("{}", resp.message);
 
                 let mac_value_option = resp.message["estb_mac"].as_str();
-                if mac_value_option.is_none() {
-                    response = "".to_string();
-                } else {
-                    response = mac_value_option.unwrap().to_string();
+                if let Some(value) = mac_value_option {
+                    response = value.to_string();
                     state.update_mac_address(response.clone())
+                } else {
+                    response = "".to_string();
                 }
             }
         }

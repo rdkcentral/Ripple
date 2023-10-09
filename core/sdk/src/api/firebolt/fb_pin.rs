@@ -84,11 +84,11 @@ pub enum PinChallengeResultReason {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PinChallengeResponse {
-    pub granted: bool,
+    pub granted: Option<bool>,
     pub reason: PinChallengeResultReason,
 }
 impl PinChallengeResponse {
-    pub fn get_granted(&self) -> bool {
+    pub fn get_granted(&self) -> Option<bool> {
         self.granted
     }
 }
