@@ -406,7 +406,10 @@ const PROPERTY_DATA_PARTNER_EXCLUSIONS: PropertyData = PropertyData {
 const PROPERTY_DATA_SKIP_RESTRICTION: PropertyData = PropertyData {
     key: KEY_SKIP_RESTRICTION,
     namespace: NAMESPACE_ADVERTISING,
-    event_names: Some(&[EVENT_ADVERTISING_SKIP_RESTRICTION]),
+    event_names: Some(&[
+        EVENT_ADVERTISING_SKIP_RESTRICTION,
+        EVENT_ADVERTISING_POLICY_CHANGED,
+    ]),
 };
 
 #[derive(Debug)]
