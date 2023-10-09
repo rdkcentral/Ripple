@@ -243,8 +243,8 @@ impl ExtnClient {
                                         &message.requestor.to_string(),
                                     );
 
-                                    if let Some(req_sender) = req_sender {
-                                        let _ = new_message.callback.insert(req_sender);
+                                    if let Some(sender) = req_sender {
+                                        let _ = new_message.callback.insert(sender);
                                     }
                                 }
 

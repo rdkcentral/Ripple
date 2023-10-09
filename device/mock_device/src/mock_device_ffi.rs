@@ -135,7 +135,7 @@ export_channel_builder!(ExtnChannelBuilder, init_extn_builder);
 fn get_rpc_extns(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) -> Methods {
     let mut methods = Methods::new();
     let client = ExtnClient::new(receiver, sender);
-    let _ = methods.merge(MockDeviceController::new(client.clone()).into_rpc());
+    let _ = methods.merge(MockDeviceController::new(client).into_rpc());
 
     methods
 }

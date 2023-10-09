@@ -338,20 +338,20 @@ impl MockWebSocketServer {
     }
 
     pub async fn emit_event(self: Arc<Self>, event: &Value, delay: u32) {
-        // TODO: handle results
-        debug!("waiting to send event");
+        unimplemented!("Emit event functionality has not yet been implemented {event} {delay}");
+        // TODO: handle Results
+        // debug!("waiting to send event");
 
-        let server = self.clone();
-        let payload = event.clone();
+        // let payload = event.clone();
 
-        tokio::spawn(async move {
-            let mut peers = server.connected_peer_sinks.lock().await;
-            tokio::time::sleep(tokio::time::Duration::from_millis(delay.into())).await;
+        // tokio::spawn(async move {
+        //     tokio::time::sleep(tokio::time::Duration::from_millis(delay.into())).await;
 
-            for peer in peers.values_mut() {
-                debug!("send event to web socket");
-                let _ = peer.send(Message::Text(payload.to_string())).await;
-            }
-        });
+        //     let mut peers = self.connected_peer_sinks.lock().await;
+        //     for peer in peers.values_mut() {
+        //         debug!("send event to web socket");
+        //         let _ = peer.send(Message::Text(payload.to_string())).await;
+        //     }
+        // });
     }
 }
