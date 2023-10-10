@@ -8,8 +8,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum HdmiRequest {
     GetAvailableInputs,
-    StartHdmiInput(HdmiSelectOperationRequest),
-    StopHdmiInput(HdmiSelectOperationRequest),
+    HdmiSelectOperation(HdmiSelectOperationRequest),
 }
 
 impl ContractAdjective for AVInputAdjective {

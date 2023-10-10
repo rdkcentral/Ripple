@@ -13,7 +13,8 @@ use crate::{
             },
             firebolt::panel::fb_hdmi::{
                 AutoLowLatencyModeSignalChangedInfo, GetAvailableInputsResponse,
-                HdmiConnectionChangedInfo, HdmiSelectOperationRequest, HdmiSelectOperationResponse,
+                HdmiConnectionChangedInfo, HdmiOperation, HdmiSelectOperationRequest,
+                HdmiSelectOperationResponse,
             },
         },
         async_trait::async_trait,
@@ -217,11 +218,12 @@ impl ExtnRequestProcessor for ThunderHdmiRequestProcessor {
     ) -> bool {
         match extracted_message {
             HdmiRequest::GetAvailableInputs => Self::get_available_inputs(state.clone(), msg).await,
-            HdmiRequest::StartHdmiInput(start_hdmi_input_request) => {
-                Self::start_hdmi_input(state.clone(), start_hdmi_input_request, msg).await
-            }
-            HdmiRequest::StopHdmiInput(stop_hdmi_input_request) => {
-                Self::stop_hdmi_input(state.clone(), stop_hdmi_input_request, msg).await
+            HdmiRequest::HdmiSelectOperation(hdmi_select_operation_request) => {
+                if let HdmiOperation::Start = hdmi_select_operation_request.operation {
+                    Self::start_hdmi_input(state.clone(), hdmi_select_operation_request, msg).await
+                } else {
+                    Self::stop_hdmi_input(state.clone(), hdmi_select_operation_request, msg).await
+                }
             }
         }
     }

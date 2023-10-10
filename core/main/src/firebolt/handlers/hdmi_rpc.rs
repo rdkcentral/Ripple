@@ -15,8 +15,7 @@ use ripple_sdk::api::{
     firebolt::{
         fb_general::{ListenRequest, ListenerResponse},
         panel::fb_hdmi::{
-            GetAvailableInputsResponse, HdmiOperation, HdmiSelectOperationRequest,
-            HdmiSelectOperationResponse,
+            GetAvailableInputsResponse, HdmiSelectOperationRequest, HdmiSelectOperationResponse,
         },
     },
     gateway::rpc_gateway_api::CallContext,
@@ -68,37 +67,20 @@ impl HdmiInputServer for HdmiImpl {
         _ctx: CallContext,
         request: HdmiSelectOperationRequest,
     ) -> RpcResult<HdmiSelectOperationResponse> {
-        if let HdmiOperation::Start = request.operation {
-            if let Ok(response) = self
-                .state
-                .get_client()
-                .send_extn_request(HdmiRequest::StartHdmiInput(request))
-                .await
-            {
-                if let ExtnPayload::Response(ExtnResponse::Value(value)) = response.payload {
-                    if let Ok(res) = serde_json::from_value::<HdmiSelectOperationResponse>(value) {
-                        return Ok(res);
-                    }
+        if let Ok(response) = self
+            .state
+            .get_client()
+            .send_extn_request(HdmiRequest::HdmiSelectOperation(request))
+            .await
+        {
+            if let ExtnPayload::Response(ExtnResponse::Value(value)) = response.payload {
+                if let Ok(res) = serde_json::from_value::<HdmiSelectOperationResponse>(value) {
+                    return Ok(res);
                 }
             }
-
-            Err(rpc_err("FB error response TBD"))
-        } else {
-            if let Ok(response) = self
-                .state
-                .get_client()
-                .send_extn_request(HdmiRequest::StopHdmiInput(request))
-                .await
-            {
-                if let ExtnPayload::Response(ExtnResponse::Value(value)) = response.payload {
-                    if let Ok(res) = serde_json::from_value::<HdmiSelectOperationResponse>(value) {
-                        return Ok(res);
-                    }
-                }
-            }
-
-            Err(rpc_err("FB error response TBD"))
         }
+
+        Err(rpc_err("FB error response TBD"))
     }
 
     async fn get_available_inputs(
