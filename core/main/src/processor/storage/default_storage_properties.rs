@@ -17,12 +17,17 @@
 
 use ripple_sdk::{
     api::storage_property::{
-        KEY_BACKGROUND_COLOR, KEY_BACKGROUND_OPACITY, KEY_COUNTRY_CODE, KEY_ENABLED,
-        KEY_FONT_COLOR, KEY_FONT_EDGE, KEY_FONT_EDGE_COLOR, KEY_FONT_FAMILY, KEY_FONT_OPACITY,
-        KEY_FONT_SIZE, KEY_LANGUAGE, KEY_LOCALE, KEY_NAME, KEY_SKIP_RESTRICTION, KEY_TEXT_ALIGN,
-        KEY_TEXT_ALIGN_VERTICAL, KEY_VOICE_GUIDANCE_SPEED, NAMESPACE_ADVERTISING,
+        KEY_ALLOW_ACR_COLLECTION, KEY_ALLOW_APP_CONTENT_AD_TARGETING, KEY_ALLOW_BUSINESS_ANALYTICS,
+        KEY_ALLOW_CAMERA_ANALYTICS, KEY_ALLOW_PERSONALIZATION,
+        KEY_ALLOW_PRIMARY_BROWSE_AD_TARGETING, KEY_ALLOW_PRIMARY_CONTENT_AD_TARGETING,
+        KEY_ALLOW_PRODUCT_ANALYTICS, KEY_ALLOW_REMOTE_DIAGNOSTICS, KEY_ALLOW_RESUME_POINTS,
+        KEY_ALLOW_UNENTITLED_PERSONALIZATION, KEY_ALLOW_UNENTITLED_RESUME_POINTS,
+        KEY_ALLOW_WATCH_HISTORY, KEY_BACKGROUND_COLOR, KEY_BACKGROUND_OPACITY, KEY_COUNTRY_CODE,
+        KEY_ENABLED, KEY_FONT_COLOR, KEY_FONT_EDGE, KEY_FONT_EDGE_COLOR, KEY_FONT_FAMILY,
+        KEY_FONT_OPACITY, KEY_FONT_SIZE, KEY_LANGUAGE, KEY_LOCALE, KEY_NAME, KEY_SKIP_RESTRICTION,
+        KEY_TEXT_ALIGN, KEY_TEXT_ALIGN_VERTICAL, KEY_VOICE_GUIDANCE_SPEED, NAMESPACE_ADVERTISING,
         NAMESPACE_CLOSED_CAPTIONS, NAMESPACE_DEVICE_NAME, NAMESPACE_LOCALIZATION,
-        NAMESPACE_VOICE_GUIDANCE,
+        NAMESPACE_PRIVACY, NAMESPACE_VOICE_GUIDANCE,
     },
     log::debug,
 };
@@ -65,6 +70,77 @@ impl DefaultStorageProperties {
                     .default_values
                     .voice
                     .enabled),
+                _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
+                    key.to_owned(),
+                )),
+            }
+        } else if namespace.eq(NAMESPACE_PRIVACY) {
+            match key {
+                KEY_ALLOW_ACR_COLLECTION => Ok(state
+                    .get_device_manifest()
+                    .configuration
+                    .default_values
+                    .allow_acr_collection),
+                KEY_ALLOW_APP_CONTENT_AD_TARGETING => Ok(state
+                    .get_device_manifest()
+                    .configuration
+                    .default_values
+                    .allow_app_content_ad_targeting),
+                KEY_ALLOW_BUSINESS_ANALYTICS => Ok(state
+                    .get_device_manifest()
+                    .configuration
+                    .default_values
+                    .allow_business_analytics),
+                KEY_ALLOW_CAMERA_ANALYTICS => Ok(state
+                    .get_device_manifest()
+                    .configuration
+                    .default_values
+                    .allow_camera_analytics),
+                KEY_ALLOW_PERSONALIZATION => Ok(state
+                    .get_device_manifest()
+                    .configuration
+                    .default_values
+                    .allow_personalization),
+                KEY_ALLOW_PRIMARY_BROWSE_AD_TARGETING => Ok(state
+                    .get_device_manifest()
+                    .configuration
+                    .default_values
+                    .allow_primary_browse_ad_targeting),
+                KEY_ALLOW_PRIMARY_CONTENT_AD_TARGETING => Ok(state
+                    .get_device_manifest()
+                    .configuration
+                    .default_values
+                    .allow_primary_content_ad_targeting),
+                KEY_ALLOW_PRODUCT_ANALYTICS => Ok(state
+                    .get_device_manifest()
+                    .configuration
+                    .default_values
+                    .allow_product_analytics),
+                KEY_ALLOW_REMOTE_DIAGNOSTICS => Ok(state
+                    .get_device_manifest()
+                    .configuration
+                    .default_values
+                    .allow_remote_diagnostics),
+                KEY_ALLOW_RESUME_POINTS => Ok(state
+                    .get_device_manifest()
+                    .configuration
+                    .default_values
+                    .allow_resume_points),
+                KEY_ALLOW_UNENTITLED_PERSONALIZATION => Ok(state
+                    .get_device_manifest()
+                    .configuration
+                    .default_values
+                    .allow_unentitled_personalization),
+                KEY_ALLOW_UNENTITLED_RESUME_POINTS => Ok(state
+                    .get_device_manifest()
+                    .configuration
+                    .default_values
+                    .allow_unentitled_resume_points),
+                KEY_ALLOW_WATCH_HISTORY => Ok(state
+                    .get_device_manifest()
+                    .configuration
+                    .default_values
+                    .allow_watch_history),
                 _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
                     key.to_owned(),
                 )),
