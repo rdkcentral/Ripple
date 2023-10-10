@@ -26,7 +26,6 @@ use ripple_sdk::{
         sync::{Mutex, RwLock},
     },
 };
-use serde_hashkey::Key;
 use serde_json::{json, Value};
 use tokio_tungstenite::{
     accept_hdr_async,
@@ -36,7 +35,7 @@ use tokio_tungstenite::{
 
 use crate::{
     errors::MockServerWebSocketError,
-    mock_data::{json_key, jsonrpc_key, MockData, MockDataError, MockDataMessage},
+    mock_data::{json_key, jsonrpc_key, MockData, MockDataError, MockDataKey, MockDataMessage},
     utils::is_value_jsonrpc,
 };
 
@@ -292,7 +291,7 @@ impl MockWebSocketServer {
         Ok(())
     }
 
-    async fn responses_for_key(&self, key: Key) -> Option<Vec<MockDataMessage>> {
+    async fn responses_for_key(&self, key: MockDataKey) -> Option<Vec<MockDataMessage>> {
         let mock_data = self.mock_data.read().await;
         debug!("Request received. Mock data ={mock_data:?}");
         let entry = mock_data.get(&key).cloned();

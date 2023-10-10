@@ -21,12 +21,13 @@ use ripple_sdk::{
     api::mock_server::{PayloadType, RequestPayload, ResponsePayload},
     log::error,
 };
-use serde_hashkey::{to_key, Key};
+use serde_hashkey::{to_key_with_ordered_float, Key, OrderedFloatPolicy};
 use serde_json::Value;
 
-pub type MockData = HashMap<Key, (MockDataMessage, Vec<MockDataMessage>)>;
+pub type MockDataKey = Key<OrderedFloatPolicy>;
+pub type MockData = HashMap<MockDataKey, (MockDataMessage, Vec<MockDataMessage>)>;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum MockDataError {
     NotAnObject,
     MissingTypeProperty,
@@ -137,7 +138,7 @@ impl TryFrom<&Value> for MockDataMessage {
 }
 
 impl MockDataMessage {
-    pub fn key(&self) -> Result<Key, MockDataError> {
+    pub fn key(&self) -> Result<MockDataKey, MockDataError> {
         match self.message_type {
             MessageType::Json => json_key(&self.body),
             MessageType::JsonRpc => jsonrpc_key(&self.body),
@@ -153,21 +154,103 @@ impl MockDataMessage {
     }
 }
 
-pub fn json_key(value: &Value) -> Result<Key, MockDataError> {
-    let key = to_key(value);
-    if let Ok(key) = key {
-        return Ok(key);
-    }
-
-    error!("Failed to create key from data {value:?}");
-    Err(MockDataError::FailedToCreateKey(value.clone()))
+pub fn json_key(value: &Value) -> Result<MockDataKey, MockDataError> {
+    to_key_with_ordered_float(value).map_err(|_| {
+        error!("Failed to create key from data {value:?}");
+        MockDataError::FailedToCreateKey(value.clone())
+    })
 }
 
-pub fn jsonrpc_key(value: &Value) -> Result<Key, MockDataError> {
+pub fn jsonrpc_key(value: &Value) -> Result<MockDataKey, MockDataError> {
     let mut new_value = value.clone();
     new_value
         .as_object_mut()
         .and_then(|payload| payload.remove("id"));
 
     json_key(&new_value)
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_hashkey::{Float, OrderedFloat};
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn test_json_key_ok() {
+        let value = json!({"key": "value"});
+
+        assert_eq!(
+            json_key(&value),
+            Ok(MockDataKey::Map(Box::new([(
+                MockDataKey::String("key".into()),
+                MockDataKey::String("value".into())
+            )])))
+        );
+    }
+
+    #[test]
+    fn test_json_key_f64_ok() {
+        let value = json!({"key": 32.1});
+
+        assert_eq!(
+            json_key(&value),
+            Ok(MockDataKey::Map(Box::new([(
+                MockDataKey::String("key".into()),
+                MockDataKey::Float(Float::F64(OrderedFloat(32.1)))
+            )])))
+        );
+    }
+
+    #[test]
+    fn test_jsonrpc_key() {
+        let value =
+            json!({"jsonrpc": "2.0", "id": 1, "method": "someAction", "params": {"key": "value"}});
+
+        assert_eq!(
+            jsonrpc_key(&value),
+            Ok(MockDataKey::Map(Box::new([
+                (
+                    MockDataKey::String("jsonrpc".into()),
+                    MockDataKey::String("2.0".into())
+                ),
+                (
+                    MockDataKey::String("method".into()),
+                    MockDataKey::String("someAction".into())
+                ),
+                (
+                    MockDataKey::String("params".into()),
+                    MockDataKey::Map(Box::new([(
+                        MockDataKey::String("key".into()),
+                        MockDataKey::String("value".into())
+                    )]))
+                )
+            ])))
+        );
+    }
+
+    mod mock_data_message {
+        use serde_json::json;
+
+        use crate::mock_data::{MessageType, MockDataMessage};
+
+        #[test]
+        fn test_mock_message_is_json() {
+            assert!(MockDataMessage {
+                message_type: MessageType::Json,
+                body: json!({})
+            }
+            .is_json())
+        }
+
+        #[test]
+        fn test_mock_message_is_json_rpc() {
+            assert!(MockDataMessage {
+                message_type: MessageType::JsonRpc,
+                body: json!({})
+            }
+            .is_json_rpc())
+        }
+    }
 }
