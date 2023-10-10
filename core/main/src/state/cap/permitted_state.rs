@@ -16,7 +16,7 @@
 //
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{Arc, RwLock},
 };
 
@@ -136,35 +136,69 @@ impl PermissionHandler {
 
     pub async fn fetch_and_store(state: &PlatformState, app_id: &str) -> RippleResponse {
         let app_id_alias = Self::get_distributor_alias_for_app_id(state, app_id);
-        if state
-            .cap_state
-            .permitted_state
-            .get_app_permissions(app_id)
-            .is_some()
-        {
-            return Ok(());
+        if let Some(permissions) = state.cap_state.permitted_state.get_app_permissions(app_id) {
+            let mut permissions_copy = permissions.clone();
+            return Self::process_permissions(state, app_id, &mut permissions_copy);
         }
         if let Some(session) = state.session_state.get_account_session() {
-            if let Ok(extn_response) = state
+            match state
                 .get_client()
                 .send_extn_request(PermissionRequest {
                     app_id: app_id_alias,
                     session,
                 })
                 .await
+                .ok()
             {
-                if let Some(permission_response) = extn_response.payload.extract() {
-                    let mut map = HashMap::new();
-                    map.insert(app_id.to_owned(), permission_response);
-                    let mut permitted_state = state.cap_state.permitted_state.clone();
-                    permitted_state.ingest(map);
-                    info!("Permissions fetched for {}", app_id);
-                    return Ok(());
+                Some(extn_response) => {
+                    if let Some(permission_response) =
+                        extn_response.payload.extract::<PermissionResponse>()
+                    {
+                        let mut permission_response_copy = permission_response.clone();
+                        return Self::process_permissions(
+                            state,
+                            app_id,
+                            &mut permission_response_copy,
+                        );
+                    }
+                    Err(RippleError::InvalidOutput)
                 }
+                None => Err(RippleError::InvalidOutput),
+            }
+        } else {
+            Err(RippleError::InvalidOutput)
+        }
+    }
+
+    fn process_permissions(
+        state: &PlatformState,
+        app_id: &str,
+        permissions: &mut Vec<FireboltPermission>,
+    ) -> RippleResponse {
+        info!("permissions: {:?}", permissions.clone());
+
+        let dep_lookup = &state.get_device_manifest().capabilities.dependencies;
+        let mut deps = HashSet::new();
+        info!("dep_lookup: {:?}", dep_lookup.clone());
+
+        for p in permissions.clone() {
+            if let Some(dependent_list) = dep_lookup.get(&p) {
+                deps.extend(dependent_list.iter().cloned());
             }
         }
 
-        Err(ripple_sdk::utils::error::RippleError::InvalidOutput)
+        permissions.extend(deps);
+
+        let map = vec![(app_id.to_owned(), permissions.clone())]
+            .into_iter()
+            .collect::<HashMap<_, _>>();
+
+        let mut permitted_state = state.cap_state.permitted_state.clone();
+        permitted_state.ingest(map.clone());
+        info!("Permissions updated: {:?}", map);
+
+        info!("Permissions fetched for {}", app_id);
+        Ok(())
     }
 
     pub fn get_permitted_info(
