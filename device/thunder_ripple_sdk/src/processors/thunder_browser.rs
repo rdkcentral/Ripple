@@ -186,6 +186,7 @@ impl ThunderBrowserRequestProcessor {
             "lightning" => Some(format!("FireboltMainApp-{}", bnr.name)),
             _ => None,
         };
+
         if let Some(name) = browser_name {
             Self::respond(state.get_client(), req.clone(), ExtnResponse::String(name))
                 .await
