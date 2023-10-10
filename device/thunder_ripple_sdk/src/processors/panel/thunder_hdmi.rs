@@ -47,15 +47,22 @@ pub struct AVInputGetInputDevicesParams {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AVInputHdmiOperationParams {
+pub struct AVInputStartHdmiOperationParams {
     port_id: u32,
+    type_of_input: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AVInputStopHdmiOperationParams {
     type_of_input: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum AVInputHdmiOperation {
     GetInputDevices(AVInputGetInputDevicesParams),
-    HdmiOperation(AVInputHdmiOperationParams),
+    StartHdmiInputOperation(AVInputStartHdmiOperationParams),
+    StopHdmiInputOperation(AVInputStopHdmiOperationParams),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -103,7 +110,7 @@ impl ThunderHdmiRequestProcessor {
         let params = AVInputGetInputDevicesParams {
             type_of_input: "HDMI".to_owned(),
         };
-        Self::make_thunder_call(
+        Self::make_av_input_thunder_call(
             state,
             AVInputHdmiOperation::GetInputDevices(params),
             req,
@@ -117,31 +124,32 @@ impl ThunderHdmiRequestProcessor {
         select_hdmi_operation_request: HdmiSelectOperationRequest,
         req: ExtnMessage,
     ) -> bool {
-        let params: AVInputHdmiOperationParams;
-        let method_name: &str;
         if let HdmiOperation::Start = select_hdmi_operation_request.operation {
-            params = AVInputHdmiOperationParams {
+            let params: AVInputStartHdmiOperationParams = AVInputStartHdmiOperationParams {
                 port_id: select_hdmi_operation_request.port.parse::<u32>().unwrap(),
                 type_of_input: "HDMI".to_owned(),
             };
-            method_name = "startInput";
+            Self::make_av_input_thunder_call(
+                state,
+                AVInputHdmiOperation::StartHdmiInputOperation(params),
+                req,
+                "startInput",
+            )
+            .await
         } else {
-            params = AVInputHdmiOperationParams {
-                port_id: select_hdmi_operation_request.port.parse::<u32>().unwrap(),
+            let params: AVInputStopHdmiOperationParams = AVInputStopHdmiOperationParams {
                 type_of_input: "HDMI".to_owned(),
             };
-            method_name = "stopInput";
+            Self::make_av_input_thunder_call(
+                state,
+                AVInputHdmiOperation::StopHdmiInputOperation(params),
+                req,
+                "stopInput",
+            )
+            .await
         }
-
-        Self::make_thunder_call(
-            state,
-            AVInputHdmiOperation::HdmiOperation(params),
-            req,
-            method_name,
-        )
-        .await
     }
-    async fn make_thunder_call(
+    async fn make_av_input_thunder_call(
         state: ThunderState,
         params: AVInputHdmiOperation,
         req: ExtnMessage,
