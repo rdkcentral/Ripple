@@ -971,7 +971,9 @@ impl PrivacyServer for PrivacyImpl {
             .privacy_settings_storage_type;
 
         match privacy_settings_storage_type {
-            PrivacySettingsStorageType::Local => self.get_settings_local().await,
+            PrivacySettingsStorageType::Local | PrivacySettingsStorageType::Sync => {
+                self.get_settings_local().await
+            }
             PrivacySettingsStorageType::Cloud => {
                 let dist_session = self.state.session_state.get_account_session().unwrap();
                 let request = PrivacyCloudRequest::GetProperties(dist_session);
@@ -984,9 +986,6 @@ impl PrivacyServer for PrivacyImpl {
                     "PrivacySettingsStorageType::Cloud: Not Available",
                 )))
             }
-            PrivacySettingsStorageType::Sync => Err(jsonrpsee::core::Error::Custom(String::from(
-                "PrivacySettingsStorageType::Sync: Unimplemented",
-            ))),
         }
     }
 }
