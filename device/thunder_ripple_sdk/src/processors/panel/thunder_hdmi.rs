@@ -5,11 +5,16 @@ use crate::{
     },
     ripple_sdk::{
         api::{
+            apps::{AppEvent, AppEventRequest},
             device::{
+                device_events::DeviceEventCallback,
                 device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
                 panel::device_hdmi::HdmiRequest,
             },
-            firebolt::panel::fb_hdmi::{GetAvailableInputsResponse, HdmiSelectOperationResponse},
+            firebolt::panel::fb_hdmi::{
+                AutoLowLatencyModeSignalChangedInfo, GetAvailableInputsResponse,
+                HdmiConnectionChangedInfo, HdmiSelectOperationRequest, HdmiSelectOperationResponse,
+            },
         },
         async_trait::async_trait,
         extn::{
@@ -17,7 +22,7 @@ use crate::{
             client::extn_processor::{
                 DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
             },
-            extn_client_message::{ExtnMessage, ExtnResponse},
+            extn_client_message::{ExtnEvent, ExtnMessage, ExtnResponse},
         },
         log::info,
         serde_json,
@@ -26,17 +31,7 @@ use crate::{
     },
     thunder_state::ThunderState,
 };
-use ripple_sdk::{
-    api::{
-        apps::{AppEvent, AppEventRequest},
-        device::device_events::DeviceEventCallback,
-        firebolt::panel::fb_hdmi::{
-            AutoLowLatencyModeSignalChangedInfo, HdmiConnectionChangedInfo,
-            HdmiSelectOperationRequest,
-        },
-    },
-    extn::extn_client_message::ExtnEvent,
-};
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]

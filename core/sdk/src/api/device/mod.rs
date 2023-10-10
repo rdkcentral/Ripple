@@ -30,6 +30,7 @@ pub mod device_wifi;
 pub mod device_window_manager;
 pub mod entertainment_data;
 pub mod panel {
+    pub mod device_av_input;
     pub mod device_hdmi;
 }
 

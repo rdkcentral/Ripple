@@ -9,7 +9,8 @@ use jsonrpsee::{
 };
 use ripple_sdk::api::{
     device::device_events::{
-        DeviceEvent, DeviceEventCallback, DeviceEventRequest, HDMI_CONNECTION_CHANGED,
+        DeviceEvent, DeviceEventCallback, DeviceEventRequest, AUTO_LOW_LATENCY_MODE_SIGNAL_CHANGED,
+        HDMI_CONNECTION_CHANGED,
     },
     firebolt::{
         fb_general::{ListenRequest, ListenerResponse},
@@ -21,15 +22,14 @@ use ripple_sdk::api::{
     gateway::rpc_gateway_api::CallContext,
 };
 use ripple_sdk::{
-    api::device::device_events::AUTO_LOW_LATENCY_MODE_SIGNAL_CHANGED, log::error, serde_json,
-};
-use ripple_sdk::{
     api::device::panel::device_hdmi::HdmiRequest,
     extn::extn_client_message::{ExtnPayload, ExtnResponse},
+    log::error,
+    serde_json,
 };
 
 #[rpc(server)]
-pub trait Hdmi {
+pub trait HdmiInput {
     #[method(name = "HDMIInput.select")]
     async fn select_hdmi_operation(
         &self,
@@ -62,7 +62,7 @@ pub struct HdmiImpl {
 }
 
 #[async_trait]
-impl HdmiServer for HdmiImpl {
+impl HdmiInputServer for HdmiImpl {
     async fn select_hdmi_operation(
         &self,
         _ctx: CallContext,

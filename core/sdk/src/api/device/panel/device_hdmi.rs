@@ -1,21 +1,15 @@
+use super::device_av_input::AVInputAdjective;
 use crate::api::device::device_request::DeviceRequest;
 use crate::api::firebolt::panel::fb_hdmi::HdmiSelectOperationRequest;
 use crate::extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest};
 use crate::framework::ripple_contract::{ContractAdjective, RippleContract};
 use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum HdmiRequest {
     GetAvailableInputs,
     StartHdmiInput(HdmiSelectOperationRequest),
     StopHdmiInput(HdmiSelectOperationRequest),
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "snake_case")]
-pub enum AVInputAdjective {
-    Hdmi,
-    Ota,
-    Composite,
 }
 
 impl ContractAdjective for AVInputAdjective {

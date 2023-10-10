@@ -17,7 +17,7 @@
 
 use crate::{
     api::{
-        device::panel::device_hdmi::AVInputAdjective, session::SessionAdjective,
+        device::panel::device_av_input::AVInputAdjective, session::SessionAdjective,
         storage_property::StorageAdjective,
     },
     utils::{error::RippleError, serde_utils::SerdeClearString},

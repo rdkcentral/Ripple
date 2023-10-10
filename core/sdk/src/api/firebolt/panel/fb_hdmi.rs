@@ -50,7 +50,7 @@ pub enum HDMISignalStatus {
 pub enum EDIDVersion {
     #[serde(rename = "1.4")]
     Version1_4,
-    #[serde(rename = "1.4")]
+    #[serde(rename = "2.0")]
     Version2_0,
     Unknown,
 }
