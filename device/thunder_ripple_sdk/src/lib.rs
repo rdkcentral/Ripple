@@ -67,5 +67,6 @@ pub mod tests {
         pub mod thunder_remote_pacts;
         pub mod thunder_wifi_pacts;
         pub mod thunder_window_manager_pacts;
+        pub mod thunder_hdmi_pacts;
     }
 }
