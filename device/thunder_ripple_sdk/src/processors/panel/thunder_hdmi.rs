@@ -14,7 +14,6 @@ use crate::{
             firebolt::panel::fb_hdmi::{
                 AutoLowLatencyModeSignalChangedInfo, GetAvailableInputsResponse,
                 HdmiConnectionChangedInfo, HdmiOperation, HdmiSelectOperationRequest,
-                HdmiSelectOperationResponse,
             },
         },
         async_trait::async_trait,
@@ -25,7 +24,6 @@ use crate::{
             },
             extn_client_message::{ExtnEvent, ExtnMessage, ExtnResponse},
         },
-        log::info,
         serde_json,
         tokio::sync::mpsc,
         utils::error::RippleError,
@@ -43,21 +41,21 @@ pub struct ThunderHdmiRequestProcessor {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct AVInputGetInputDevicesParams {
+pub struct AVInputGetInputDevicesParams {
     type_of_input: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct AVInputStartHdmiInputParams {
+pub struct AVInputHdmiOperationParams {
     port_id: u32,
     type_of_input: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AVInputStopHdmiInputParams {
-    type_of_input: String,
+pub enum AVInputHdmiOperation {
+    GetInputDevices(AVInputGetInputDevicesParams),
+    HdmiOperation(AVInputHdmiOperationParams),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -102,16 +100,57 @@ impl ThunderHdmiRequestProcessor {
     }
 
     async fn get_available_inputs(state: ThunderState, req: ExtnMessage) -> bool {
-        info!("ExtnMessage {:#?}", req);
-
         let params = AVInputGetInputDevicesParams {
             type_of_input: "HDMI".to_owned(),
         };
+        Self::make_thunder_call(
+            state,
+            AVInputHdmiOperation::GetInputDevices(params),
+            req,
+            "getAvailableDevices",
+        )
+        .await
+    }
 
+    async fn select_hdmi_operation(
+        state: ThunderState,
+        select_hdmi_operation_request: HdmiSelectOperationRequest,
+        req: ExtnMessage,
+    ) -> bool {
+        let params: AVInputHdmiOperationParams;
+        let method_name: &str;
+        if let HdmiOperation::Start = select_hdmi_operation_request.operation {
+            params = AVInputHdmiOperationParams {
+                port_id: select_hdmi_operation_request.port.parse::<u32>().unwrap(),
+                type_of_input: "HDMI".to_owned(),
+            };
+            method_name = "startInput";
+        } else {
+            params = AVInputHdmiOperationParams {
+                port_id: select_hdmi_operation_request.port.parse::<u32>().unwrap(),
+                type_of_input: "HDMI".to_owned(),
+            };
+            method_name = "stopInput";
+        }
+
+        Self::make_thunder_call(
+            state,
+            AVInputHdmiOperation::HdmiOperation(params),
+            req,
+            method_name,
+        )
+        .await
+    }
+    async fn make_thunder_call(
+        state: ThunderState,
+        params: AVInputHdmiOperation,
+        req: ExtnMessage,
+        method_name: &str,
+    ) -> bool {
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
-                method: ThunderPlugin::AVInput.method("getInputDevices"),
+                method: ThunderPlugin::AVInput.method(method_name),
                 params: serde_json::to_string(&params)
                     .map(DeviceChannelParams::Json)
                     .ok(),
@@ -120,65 +159,6 @@ impl ThunderHdmiRequestProcessor {
 
         let response =
             serde_json::from_value::<GetAvailableInputsResponse>(response.message.clone())
-                .map(|_| ExtnResponse::Value(response.message))
-                .unwrap_or(ExtnResponse::Error(RippleError::InvalidOutput));
-
-        Self::respond(state.get_client(), req, response)
-            .await
-            .is_ok()
-    }
-
-    async fn start_hdmi_input(
-        state: ThunderState,
-        start_hdmi_input_request: HdmiSelectOperationRequest,
-        req: ExtnMessage,
-    ) -> bool {
-        let params = AVInputStartHdmiInputParams {
-            port_id: start_hdmi_input_request.port.parse::<u32>().unwrap(),
-            type_of_input: "HDMI".to_owned(),
-        };
-
-        let response = state
-            .get_thunder_client()
-            .call(DeviceCallRequest {
-                method: ThunderPlugin::AVInput.method("startInput"),
-                params: serde_json::to_string(&params)
-                    .ok()
-                    .map(DeviceChannelParams::Json),
-            })
-            .await;
-
-        let response =
-            serde_json::from_value::<HdmiSelectOperationResponse>(response.message.clone())
-                .map(|_| ExtnResponse::Value(response.message))
-                .unwrap_or(ExtnResponse::Error(RippleError::InvalidOutput));
-
-        Self::respond(state.get_client(), req, response)
-            .await
-            .is_ok()
-    }
-
-    async fn stop_hdmi_input(
-        state: ThunderState,
-        _stop_hdmi_input_request: HdmiSelectOperationRequest,
-        req: ExtnMessage,
-    ) -> bool {
-        let params = AVInputStopHdmiInputParams {
-            type_of_input: "HDMI".to_owned(),
-        };
-
-        let response = state
-            .get_thunder_client()
-            .call(DeviceCallRequest {
-                method: ThunderPlugin::AVInput.method("stopInput"),
-                params: serde_json::to_string(&params)
-                    .ok()
-                    .map(DeviceChannelParams::Json),
-            })
-            .await;
-
-        let response =
-            serde_json::from_value::<HdmiSelectOperationResponse>(response.message.clone())
                 .map(|_| ExtnResponse::Value(response.message))
                 .unwrap_or(ExtnResponse::Error(RippleError::InvalidOutput));
 
@@ -219,11 +199,7 @@ impl ExtnRequestProcessor for ThunderHdmiRequestProcessor {
         match extracted_message {
             HdmiRequest::GetAvailableInputs => Self::get_available_inputs(state.clone(), msg).await,
             HdmiRequest::HdmiSelectOperation(hdmi_select_operation_request) => {
-                if let HdmiOperation::Start = hdmi_select_operation_request.operation {
-                    Self::start_hdmi_input(state.clone(), hdmi_select_operation_request, msg).await
-                } else {
-                    Self::stop_hdmi_input(state.clone(), hdmi_select_operation_request, msg).await
-                }
+                Self::select_hdmi_operation(state.clone(), hdmi_select_operation_request, msg).await
             }
         }
     }
