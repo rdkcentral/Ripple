@@ -27,10 +27,7 @@ use crate::{
 };
 
 use crate::ripple_sdk::{
-    api::device::{
-        device_request::DeviceRequest,
-        panel::device_hdmi::HdmiRequest,
-    },
+    api::device::{device_request::DeviceRequest, panel::device_hdmi::HdmiRequest},
     extn::client::extn_processor::ExtnRequestProcessor,
     serde_json::{self},
     tokio,
@@ -92,6 +89,6 @@ async fn test_device_hdmi_ports() {
     let state: ThunderState = ThunderState::new(extn_client, thunder_client);
 
     let _ =
-    ThunderHdmiRequestProcessor::process_request(state, msg, HdmiRequest::GetAvailableInputs)
+        ThunderHdmiRequestProcessor::process_request(state, msg, HdmiRequest::GetAvailableInputs)
             .await;
 }
