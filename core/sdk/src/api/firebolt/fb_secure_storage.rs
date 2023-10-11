@@ -21,7 +21,6 @@ use crate::{
     api::{session::AccountSession, storage_property::StorageAdjective},
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
     framework::ripple_contract::RippleContract,
-    utils::serde_utils::valid_string_deserializer,
 };
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -33,7 +32,6 @@ pub enum StorageScope {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SecureStorageGetRequest {
     pub scope: StorageScope,
-    #[serde(deserialize_with = "valid_string_deserializer")]
     pub key: String,
 }
 
@@ -47,7 +45,6 @@ pub struct StorageOptions {
 pub struct SecureStorageSetRequest {
     pub app_id: Option<String>,
     pub scope: StorageScope,
-    #[serde(deserialize_with = "valid_string_deserializer")]
     pub key: String,
     pub value: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -57,7 +54,6 @@ pub struct SecureStorageSetRequest {
 #[serde(rename_all = "camelCase")]
 pub struct SecureStorageRemoveRequest {
     pub scope: StorageScope,
-    #[serde(deserialize_with = "valid_string_deserializer")]
     pub key: String,
     pub app_id: Option<String>,
 }
