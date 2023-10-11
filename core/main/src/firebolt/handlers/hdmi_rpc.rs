@@ -1,9 +1,26 @@
+// Copyright 2023 Comcast Cable Communications Management, LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+
 use crate::{
     firebolt::rpc::RippleRPCProvider, service::apps::app_events::AppEvents,
     state::platform_state::PlatformState, utils::rpc_utils::rpc_err,
 };
 use jsonrpsee::{
-    core::{async_trait, RpcResult},
+    core::{async_trait, Error, RpcResult},
     proc_macros::rpc,
     RpcModule,
 };
@@ -14,7 +31,7 @@ use ripple_sdk::api::{
     },
     firebolt::{
         fb_general::{ListenRequest, ListenerResponse},
-        panel::fb_hdmi::{
+        panel::fb_hdmi_input::{
             GetAvailableInputsResponse, HdmiSelectOperationRequest, HdmiSelectOperationResponse,
         },
     },
@@ -23,7 +40,6 @@ use ripple_sdk::api::{
 use ripple_sdk::{
     api::device::panel::device_hdmi::HdmiRequest,
     extn::extn_client_message::{ExtnPayload, ExtnResponse},
-    log::error,
     serde_json,
 };
 
@@ -128,7 +144,9 @@ impl HdmiInputServer for HdmiImpl {
             .await
             .is_err()
         {
-            error!("Error while registration");
+            return Err(Error::Custom(
+                "Failed to subscribe to HdmiConnectionChanged event".to_owned(),
+            ));
         }
 
         Ok(ListenerResponse {
@@ -162,7 +180,9 @@ impl HdmiInputServer for HdmiImpl {
             .await
             .is_err()
         {
-            error!("Error while registration");
+            return Err(Error::Custom(
+                "Failed to subscribe to AutoLowLatencyModeSignalChanged event".to_owned(),
+            ));
         }
 
         Ok(ListenerResponse {
