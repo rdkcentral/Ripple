@@ -21,6 +21,7 @@ use crate::{
     api::{session::AccountSession, storage_property::StorageAdjective},
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
     framework::ripple_contract::RippleContract,
+    utils::serde_utils::valid_string_deserializer,
 };
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -32,6 +33,7 @@ pub enum StorageScope {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SecureStorageGetRequest {
     pub scope: StorageScope,
+    #[serde(deserialize_with = "valid_string_deserializer")]
     pub key: String,
 }
 
@@ -45,6 +47,7 @@ pub struct StorageOptions {
 pub struct SecureStorageSetRequest {
     pub app_id: Option<String>,
     pub scope: StorageScope,
+    #[serde(deserialize_with = "valid_string_deserializer")]
     pub key: String,
     pub value: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -54,6 +57,7 @@ pub struct SecureStorageSetRequest {
 #[serde(rename_all = "camelCase")]
 pub struct SecureStorageRemoveRequest {
     pub scope: StorageScope,
+    #[serde(deserialize_with = "valid_string_deserializer")]
     pub key: String,
     pub app_id: Option<String>,
 }
@@ -71,27 +75,6 @@ pub struct SecureStorageGetResponse {
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SecureStorageDefaultResponse {}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GetRequest {
-    pub key: String,
-    pub scope: StorageScope,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SetRequest {
-    pub scope: StorageScope,
-    pub key: String,
-    pub value: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub options: Option<StorageOptions>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct RemoveRequest {
-    pub key: String,
-    pub scope: StorageScope,
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum SecureStorageRequest {
@@ -161,5 +144,40 @@ impl ExtnPayloadProvider for SecureStorageResponse {
 
     fn contract() -> RippleContract {
         RippleContract::Storage(StorageAdjective::Secure)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ss_get_request_serializer() {
+        let ss_key = "{\"scope\":\"device\",\"key\":\"\"}";
+        assert!(serde_json::from_str::<SecureStorageGetRequest>(ss_key).is_err());
+        let ss_key = "{\"scope\":\"device\",\"key\":\" \"}";
+        assert!(serde_json::from_str::<SecureStorageGetRequest>(ss_key).is_err());
+        let ss_key = "{\"scope\":\"device\",\"key\":\"some_key\"}";
+        assert!(serde_json::from_str::<SecureStorageGetRequest>(ss_key).is_ok());
+    }
+
+    #[test]
+    fn test_ss_set_request_serializer() {
+        let ss_key = "{\"scope\":\"device\",\"key\":\"\",\"value\":\"\"}";
+        assert!(serde_json::from_str::<SecureStorageSetRequest>(ss_key).is_err());
+        let ss_key = "{\"scope\":\"device\",\"key\":\"\",\"value\":\" \"}";
+        assert!(serde_json::from_str::<SecureStorageSetRequest>(ss_key).is_err());
+        let ss_key = "{\"scope\":\"device\",\"key\":\"some_key\",\"value\":\"\"}";
+        assert!(serde_json::from_str::<SecureStorageSetRequest>(ss_key).is_ok());
+    }
+
+    #[test]
+    fn test_ss_remove_request_serializer() {
+        let ss_key = "{\"scope\":\"device\",\"key\":\"\"}";
+        assert!(serde_json::from_str::<SecureStorageRemoveRequest>(ss_key).is_err());
+        let ss_key = "{\"scope\":\"device\",\"key\":\" \"}";
+        assert!(serde_json::from_str::<SecureStorageRemoveRequest>(ss_key).is_err());
+        let ss_key = "{\"scope\":\"device\",\"key\":\"some_key\"}";
+        assert!(serde_json::from_str::<SecureStorageRemoveRequest>(ss_key).is_ok());
     }
 }
