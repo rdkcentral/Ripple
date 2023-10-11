@@ -22,12 +22,15 @@ use jsonrpsee::{
     tracing::error,
     RpcModule,
 };
-use ripple_sdk::api::{
-    firebolt::fb_secure_storage::{
-        SecureStorageClearRequest, SecureStorageGetRequest, SecureStorageRemoveRequest,
-        SecureStorageRequest, SecureStorageResponse, SecureStorageSetRequest,
+use ripple_sdk::{
+    api::{
+        firebolt::fb_secure_storage::{
+            SecureStorageClearRequest, SecureStorageGetRequest, SecureStorageRemoveRequest,
+            SecureStorageRequest, SecureStorageResponse, SecureStorageSetRequest,
+        },
+        gateway::rpc_gateway_api::CallContext,
     },
-    gateway::rpc_gateway_api::CallContext,
+    utils::error::RippleError,
 };
 
 use crate::{firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState};
@@ -40,6 +43,14 @@ macro_rules! return_if_app_id_missing {
             return Err(rpc_err(msg));
         }
     };
+}
+
+fn get_err_msg(err: RippleError) -> String {
+    match err {
+        RippleError::ExtnError => "(Server Error)",
+        _ => "",
+    }
+    .to_owned()
 }
 
 #[rpc(server)]
@@ -105,9 +116,10 @@ impl SecureStorageImpl {
             Ok(_) => Ok(()),
             Err(err) => {
                 error!("error={:?}", err);
-                Err(jsonrpsee::core::Error::Custom(
-                    "Error setting value".to_owned(),
-                ))
+                Err(jsonrpsee::core::Error::Custom(format!(
+                    "Error setting value {}",
+                    get_err_msg(err)
+                )))
             }
         }
     }
@@ -125,9 +137,10 @@ impl SecureStorageImpl {
             Ok(_) => Ok(()),
             Err(err) => {
                 error!("error={:?}", err);
-                Err(jsonrpsee::core::Error::Custom(
-                    "Error removing value".to_owned(),
-                ))
+                Err(jsonrpsee::core::Error::Custom(format!(
+                    "Error removing value {}",
+                    get_err_msg(err)
+                )))
             }
         }
     }
@@ -144,9 +157,10 @@ impl SecureStorageImpl {
             Ok(_) => Ok(()),
             Err(err) => {
                 error!("error={:?}", err);
-                Err(jsonrpsee::core::Error::Custom(
-                    "Error clearing value".to_owned(),
-                ))
+                Err(jsonrpsee::core::Error::Custom(format!(
+                    "Error clearing value {}",
+                    get_err_msg(err)
+                )))
             }
         }
     }

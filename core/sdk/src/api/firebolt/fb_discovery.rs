@@ -24,9 +24,7 @@ use crate::{
         device::entertainment_data::{ContentIdentifiers, NavigationIntent},
         session::AccountSession,
     },
-    utils::serde_utils::{
-        optional_date_time_str_serde, progress_value_deserialize, valid_string_deserializer,
-    },
+    utils::serde_utils::{optional_date_time_str_serde, progress_value_deserialize},
 };
 
 pub const DISCOVERY_EVENT_ON_NAVIGATE_TO: &str = "discovery.onNavigateTo";
@@ -63,7 +61,6 @@ impl LaunchRequest {
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct EntitlementData {
-    #[serde(deserialize_with = "valid_string_deserializer")]
     pub entitlement_id: String,
     #[serde(
         default,
@@ -109,7 +106,6 @@ pub enum LocalizedString {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct WatchedInfo {
-    #[serde(deserialize_with = "valid_string_deserializer")]
     pub entity_id: String,
     #[serde(default, deserialize_with = "progress_value_deserialize")]
     pub progress: f32,
@@ -403,10 +399,10 @@ mod tests {
     #[test]
     fn test_entitlements_data() {
         let ed = "{\"entitlementId\":\"\"}";
-        assert!(serde_json::from_str::<EntitlementData>(ed).is_err());
+        assert!(serde_json::from_str::<EntitlementData>(ed).is_ok());
         let ed = "{\"entitlementId\":\"value\"}";
         assert!(serde_json::from_str::<EntitlementData>(ed).is_ok());
-        let ed = "{\"entitlementId\":\"\",\"start_time\":\"01022023\"}";
+        let ed = "{\"entitlementId\":\"value\",\"startTime\":\"01022023\"}";
         assert!(serde_json::from_str::<EntitlementData>(ed).is_err());
         let ed = "{\"entitlementId\":\"value\",\"startTime\":\"2021-01-01T00:00:00.000Z\"}";
         assert!(serde_json::from_str::<EntitlementData>(ed).is_ok());
@@ -423,7 +419,7 @@ mod tests {
 
         let wi =
             "{\"entityId\":\"\", \"progress\":0.0, \"watchedOn\": \"2021-01-01T00:00:00.000Z\"}";
-        assert!(serde_json::from_str::<WatchedInfo>(wi).is_err());
+        assert!(serde_json::from_str::<WatchedInfo>(wi).is_ok());
 
         let wi = "{\"entityId\":\"value\", \"progress\":-1.0, \"watchedOn\": \"2021-01-01T00:00:00.000Z\"}";
         assert!(serde_json::from_str::<WatchedInfo>(wi).is_err());
