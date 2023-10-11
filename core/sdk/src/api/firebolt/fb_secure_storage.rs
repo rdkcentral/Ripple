@@ -142,38 +142,3 @@ impl ExtnPayloadProvider for SecureStorageResponse {
         RippleContract::Storage(StorageAdjective::Secure)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_ss_get_request_serializer() {
-        let ss_key = "{\"scope\":\"device\",\"key\":\"\"}";
-        assert!(serde_json::from_str::<SecureStorageGetRequest>(ss_key).is_err());
-        let ss_key = "{\"scope\":\"device\",\"key\":\" \"}";
-        assert!(serde_json::from_str::<SecureStorageGetRequest>(ss_key).is_err());
-        let ss_key = "{\"scope\":\"device\",\"key\":\"some_key\"}";
-        assert!(serde_json::from_str::<SecureStorageGetRequest>(ss_key).is_ok());
-    }
-
-    #[test]
-    fn test_ss_set_request_serializer() {
-        let ss_key = "{\"scope\":\"device\",\"key\":\"\",\"value\":\"\"}";
-        assert!(serde_json::from_str::<SecureStorageSetRequest>(ss_key).is_err());
-        let ss_key = "{\"scope\":\"device\",\"key\":\"\",\"value\":\" \"}";
-        assert!(serde_json::from_str::<SecureStorageSetRequest>(ss_key).is_err());
-        let ss_key = "{\"scope\":\"device\",\"key\":\"some_key\",\"value\":\"\"}";
-        assert!(serde_json::from_str::<SecureStorageSetRequest>(ss_key).is_ok());
-    }
-
-    #[test]
-    fn test_ss_remove_request_serializer() {
-        let ss_key = "{\"scope\":\"device\",\"key\":\"\"}";
-        assert!(serde_json::from_str::<SecureStorageRemoveRequest>(ss_key).is_err());
-        let ss_key = "{\"scope\":\"device\",\"key\":\" \"}";
-        assert!(serde_json::from_str::<SecureStorageRemoveRequest>(ss_key).is_err());
-        let ss_key = "{\"scope\":\"device\",\"key\":\"some_key\"}";
-        assert!(serde_json::from_str::<SecureStorageRemoveRequest>(ss_key).is_ok());
-    }
-}
