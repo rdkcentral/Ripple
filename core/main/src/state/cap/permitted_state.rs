@@ -137,7 +137,7 @@ impl PermissionHandler {
     pub async fn fetch_and_store(state: &PlatformState, app_id: &str) -> RippleResponse {
         let app_id_alias = Self::get_distributor_alias_for_app_id(state, app_id);
         if let Some(permissions) = state.cap_state.permitted_state.get_app_permissions(app_id) {
-            let mut permissions_copy = permissions.clone();
+            let mut permissions_copy = permissions;
             return Self::process_permissions(state, app_id, &mut permissions_copy);
         }
         if let Some(session) = state.session_state.get_account_session() {
@@ -154,7 +154,7 @@ impl PermissionHandler {
                     if let Some(permission_response) =
                         extn_response.payload.extract::<PermissionResponse>()
                     {
-                        let mut permission_response_copy = permission_response.clone();
+                        let mut permission_response_copy = permission_response;
                         return Self::process_permissions(
                             state,
                             app_id,
@@ -175,11 +175,12 @@ impl PermissionHandler {
         app_id: &str,
         permissions: &mut Vec<FireboltPermission>,
     ) -> RippleResponse {
-        info!("permissions: {:?}", permissions.clone());
-
+        info!("Permissions fetched for {}", app_id);
         let dep_lookup = &state.get_device_manifest().capabilities.dependencies;
         let mut deps = HashSet::new();
-        info!("dep_lookup: {:?}", dep_lookup.clone());
+
+        // Create a HashSet to track unique permissions
+        let mut unique_permissions = HashSet::new();
 
         for p in permissions.clone() {
             if let Some(dependent_list) = dep_lookup.get(&p) {
@@ -187,7 +188,14 @@ impl PermissionHandler {
             }
         }
 
-        permissions.extend(deps);
+        // Filter out duplicates and insert only unique permissions
+        let unique_deps: Vec<FireboltPermission> = deps.into_iter().collect();
+        for permission in unique_deps {
+            if !unique_permissions.contains(&permission) {
+                permissions.push(permission.clone()); // Clone the permission to avoid the moved value error
+                unique_permissions.insert(permission);
+            }
+        }
 
         let map = vec![(app_id.to_owned(), permissions.clone())]
             .into_iter()
@@ -195,9 +203,8 @@ impl PermissionHandler {
 
         let mut permitted_state = state.cap_state.permitted_state.clone();
         permitted_state.ingest(map.clone());
-        info!("Permissions updated: {:?}", map);
+        info!("Permissions: {:?}", map);
 
-        info!("Permissions fetched for {}", app_id);
         Ok(())
     }
 
