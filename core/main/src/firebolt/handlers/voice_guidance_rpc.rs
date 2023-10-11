@@ -17,7 +17,6 @@
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
-    processor::storage::storage_manager::StorageManager,
     service::apps::app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
     state::platform_state::PlatformState,
     utils::rpc_utils::{rpc_add_event_listener, rpc_err},
@@ -34,25 +33,26 @@ use ripple_sdk::{
         device::{
             device_accessibility_data::VoiceGuidanceSettings,
             device_events::{
-                DeviceEvent, DeviceEventCallback, DeviceEventRequest, VOICE_GUIDANCE_CHANGED,
+                DeviceEvent, DeviceEventCallback, DeviceEventRequest,
+                VOICE_GUIDANCE_ENABLED_CHANGED, VOICE_GUIDANCE_SETTINGS_CHANGED,
+                VOICE_GUIDANCE_SPEED_CHANGED,
             },
             device_info_request::DeviceInfoRequest,
             device_peristence::{SetBoolProperty, SetF32Property},
         },
         firebolt::fb_general::{ListenRequest, ListenerResponse},
         gateway::rpc_gateway_api::CallContext,
-        storage_property::{StorageProperty, EVENT_VOICE_GUIDANCE_SPEED_CHANGED},
     },
     extn::extn_client_message::ExtnResponse,
     log::error,
 };
-use serde_json::Value;
+use serde_json::{json, Value};
 
 #[derive(Clone)]
-struct VGEventDecorator {}
+struct VGEnabledEventDecorator {}
 
 #[async_trait]
-impl AppEventDecorator for VGEventDecorator {
+impl AppEventDecorator for VGEnabledEventDecorator {
     async fn decorate(
         &self,
         ps: &PlatformState,
@@ -61,8 +61,7 @@ impl AppEventDecorator for VGEventDecorator {
         _val_in: &Value,
     ) -> Result<Value, AppEventDecorationError> {
         let enabled = voice_guidance_settings_enabled(ps).await?;
-        let speed = voice_guidance_settings_speed(ps).await?;
-        Ok(serde_json::to_value(VoiceGuidanceSettings { enabled, speed }).unwrap())
+        Ok(json!(enabled))
     }
 
     fn dec_clone(&self) -> Box<dyn AppEventDecorator + Send + Sync> {
@@ -159,22 +158,17 @@ pub async fn voice_guidance_settings_speed(state: &PlatformState) -> RpcResult<f
     }
 }
 
-/*
-Free function to allow variability of event_name
-*/
 pub async fn voice_guidance_settings_enabled_changed(
     platform_state: &PlatformState,
     ctx: &CallContext,
     request: &ListenRequest,
-    event_name: &str,
 ) -> RpcResult<ListenerResponse> {
     let listen = request.listen;
-
     // Register for individual change events (no-op if already registered), handlers emit VOICE_GUIDANCE_SETTINGS_CHANGED_EVENT.
     if platform_state
         .get_client()
         .send_extn_request(DeviceEventRequest {
-            event: DeviceEvent::VoiceGuidanceChanged,
+            event: DeviceEvent::VoiceGuidanceEnabledChanged,
             id: ctx.app_id.to_owned(),
             subscribe: listen,
             callback_type: DeviceEventCallback::FireboltAppEvent,
@@ -189,15 +183,15 @@ pub async fn voice_guidance_settings_enabled_changed(
     Add decorated listener after call to voice_guidance_settings_enabled_changed to make decorated listener current  */
     AppEvents::add_listener_with_decorator(
         platform_state,
-        event_name.to_string(),
+        VOICE_GUIDANCE_ENABLED_CHANGED.to_string(),
         ctx.clone(),
         request.clone(),
-        Some(Box::new(VGEventDecorator {})),
+        Some(Box::new(VGEnabledEventDecorator {})),
     );
 
     Ok(ListenerResponse {
         listening: listen,
-        event: event_name.to_string(),
+        event: VOICE_GUIDANCE_ENABLED_CHANGED.to_string(),
     })
 }
 
@@ -215,9 +209,22 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        // Register for individual change events (no-op if already registered), handlers emit VOICE_GUIDANCE_SETTINGS_CHANGED_EVENT.
-        voice_guidance_settings_enabled_changed(&self.state, &ctx, &request, VOICE_GUIDANCE_CHANGED)
+        if self
+            .state
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::VoiceGuidanceEnabledChanged,
+                id: ctx.app_id.to_owned(),
+                subscribe: true,
+                callback_type: DeviceEventCallback::FireboltAppEvent,
+            })
             .await
+            .is_err()
+        {
+            error!("on_voice_guidance_settings_changed: Error while registration");
+        }
+
+        rpc_add_event_listener(&self.state, ctx, request, VOICE_GUIDANCE_SETTINGS_CHANGED).await
     }
 
     async fn voice_guidance_settings_enabled_rpc(&self, _ctx: CallContext) -> RpcResult<bool> {
@@ -250,13 +257,12 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        // Register for individual change events (no-op if already registered), handlers emit VOICE_GUIDANCE_SETTINGS_CHANGED_EVENT.
-        voice_guidance_settings_enabled_changed(&self.state, &ctx, &request, VOICE_GUIDANCE_CHANGED)
+        voice_guidance_settings_enabled_changed(&self.state.clone(), &ctx.clone(), &request.clone())
             .await
     }
 
     async fn voice_guidance_settings_speed_rpc(&self, _ctx: CallContext) -> RpcResult<f32> {
-        StorageManager::get_number_as_f32(&self.state, StorageProperty::VoiceguidanceSpeed).await
+        voice_guidance_settings_speed(&self.state).await
     }
 
     async fn voice_guidance_settings_speed_set(
@@ -264,21 +270,32 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
         _ctx: CallContext,
         set_request: SetF32Property,
     ) -> RpcResult<()> {
-        if set_request.value >= 0.1 && set_request.value <= 10.0 {
-            StorageManager::set_number_as_f32(
-                &self.state,
-                StorageProperty::VoiceguidanceSpeed,
-                set_request.value,
-                None,
-            )
-            .await?;
-
+        if (0.50..=2.0).contains(&set_request.value) {
             let resp = self
                 .state
                 .get_client()
                 .send_extn_request(DeviceInfoRequest::SetVoiceGuidanceSpeed(set_request.value))
                 .await;
             if resp.is_ok() {
+                AppEvents::emit(
+                    &self.state,
+                    VOICE_GUIDANCE_SPEED_CHANGED,
+                    &json!(set_request.value),
+                )
+                .await;
+
+                let enabled = voice_guidance_settings_enabled(&self.state).await?;
+                let voice_guidance_settings = VoiceGuidanceSettings {
+                    enabled,
+                    speed: set_request.value,
+                };
+
+                AppEvents::emit(
+                    &self.state,
+                    VOICE_GUIDANCE_SETTINGS_CHANGED,
+                    &serde_json::to_value(voice_guidance_settings).unwrap_or_default(),
+                )
+                .await;
                 Ok(())
             } else {
                 Err(jsonrpsee::core::Error::Custom(String::from(
@@ -295,13 +312,7 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(
-            &self.state,
-            ctx,
-            request,
-            EVENT_VOICE_GUIDANCE_SPEED_CHANGED,
-        )
-        .await
+        rpc_add_event_listener(&self.state, ctx, request, VOICE_GUIDANCE_SPEED_CHANGED).await
     }
 }
 
