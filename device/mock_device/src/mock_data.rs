@@ -38,23 +38,23 @@ pub enum MockDataError {
     FailedToCreateKey(Value),
 }
 
+impl std::error::Error for MockDataError {}
+
 impl Display for MockDataError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::MissingTypeProperty => {
-                f.write_fmt(format_args!("Message must have a type property."))
+        let msg = match self {
+            Self::MissingTypeProperty => "Message must have a type property.".to_owned(),
+            Self::MissingBodyProperty => "Message must have a body property.".to_owned(),
+            Self::PayloadTypeError(err) => format!("{err}"),
+            Self::FailedToCreateKey(body) => {
+                format!("Unable to create a key for message. Message body: {body}")
             }
-            Self::MissingBodyProperty => {
-                f.write_fmt(format_args!("Message must have a body property."))
-            }
-            Self::PayloadTypeError(err) => f.write_fmt(format_args!("{err}")),
-            Self::FailedToCreateKey(body) => f.write_fmt(format_args!(
-                "Unable to create a key for message. Message body: {body}"
-            )),
-            Self::MissingRequestField => f.write_str("The request field is missing."),
-            Self::MissingResponseField => f.write_str("The response field is missing."),
-            Self::NotAnObject => f.write_str("Payload must be an object."),
-        }
+            Self::MissingRequestField => "The request field is missing.".to_owned(),
+            Self::MissingResponseField => "The response field is missing.".to_owned(),
+            Self::NotAnObject => "Payload must be an object.".to_owned(),
+        };
+
+        f.write_str(msg.as_str())
     }
 }
 

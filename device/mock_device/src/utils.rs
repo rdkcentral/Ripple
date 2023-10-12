@@ -190,10 +190,26 @@ fn parse_request_responses(
 }
 
 pub fn is_value_jsonrpc(value: &Value) -> bool {
-    value
-        .as_object()
-        .map(|req| {
-            req.contains_key("jsonrpc") && req.contains_key("id") && req.contains_key("method")
-        })
-        .is_some()
+    value.as_object().map_or(false, |req| {
+        req.contains_key("jsonrpc") && req.contains_key("id") && req.contains_key("method")
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn test_is_value_jsonrpc_true() {
+        assert!(is_value_jsonrpc(
+            &json!({"jsonrpc": "2.0", "id": 1, "method": "someAction", "params": {}})
+        ));
+    }
+
+    #[test]
+    fn test_is_value_jsonrpc_false() {
+        assert!(!is_value_jsonrpc(&json!({"key": "value"})));
+    }
 }

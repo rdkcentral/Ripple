@@ -39,6 +39,7 @@ use crate::{
     utils::is_value_jsonrpc,
 };
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct WsServerParameters {
     path: Option<String>,
 
@@ -139,6 +140,10 @@ impl MockWebSocketServer {
         Ok(listener)
     }
 
+    pub fn into_arc(self) -> Arc<Self> {
+        Arc::new(self)
+    }
+
     pub async fn start_server(self: Arc<Self>) {
         debug!("Waiting for connections");
 
@@ -209,7 +214,6 @@ impl MockWebSocketServer {
         let (send, mut recv) = ws_stream.split();
 
         debug!("New WebSocket connection: {peer}");
-        // TODO: switch to being JSONRPC aware
 
         self.add_connected_peer(&peer, send).await;
 
@@ -233,45 +237,12 @@ impl MockWebSocketServer {
 
                 debug!("Parsed message: {:?}", request_message);
 
-                let responses = if is_value_jsonrpc(&request_message) {
-                    let id = request_message
-                        .get("id")
-                        .and_then(|s| s.as_u64())
-                        .unwrap_or(0);
-
-                    let key = match jsonrpc_key(&request_message) {
-                        Ok(key) => key,
-                        Err(err) => {
-                            error!("Request cannot be compared to mock data. {err:?}");
-                            continue;
-                        }
-                    };
-
-                    self.responses_for_key(key).await.map(|resps| {
-                        resps.into_iter().map(|mut value| {
-                            value.body.as_object_mut().and_then(|obj| obj.insert("id".to_string(), id.into()));
-                            value.body
-                        }).collect()
-                    })
-                    .unwrap_or_else(|| vec![json!({"jsonrpc": "2.0", "id": id, "error": {"code": -32600, "message": "Invalid Request"}})])
-                } else {
-                    let key = match json_key(&request_message) {
-                        Ok(key) => key,
-                        Err(err) => {
-                            error!("Request cannot be compared to mock data. {err:?}");
-                            continue;
-                        }
-                    };
-
-                    self.responses_for_key(key)
-                        .await
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|resp| resp.body)
-                        .collect()
+                let responses = match self.find_responses(request_message).await {
+                    Some(value) => value,
+                    None => continue,
                 };
 
-                debug!("Sending responses. req={request_message} resps={responses:?}");
+                debug!("Sending responses. resps={responses:?}");
 
                 let mut clients = self.connected_peer_sinks.lock().await;
                 let sink = clients.get_mut(&peer.to_string());
@@ -289,6 +260,56 @@ impl MockWebSocketServer {
         self.remove_connected_peer(&peer).await;
 
         Ok(())
+    }
+
+    async fn find_responses(&self, request_message: Value) -> Option<Vec<Value>> {
+        debug!(
+            "is value json rpc {} {}",
+            request_message,
+            is_value_jsonrpc(&request_message)
+        );
+        if is_value_jsonrpc(&request_message) {
+            let id = request_message
+                .get("id")
+                .and_then(|s| s.as_u64())
+                .unwrap_or(0);
+
+            let key = match jsonrpc_key(&request_message) {
+                Ok(key) => key,
+                Err(err) => {
+                    error!("Request cannot be compared to mock data. {err:?}");
+                    return None;
+                }
+            };
+
+            let responses = self.responses_for_key(key).await.map(|resps| {
+                resps.into_iter().map(|mut value| {
+                    value.body.as_object_mut().and_then(|obj| obj.insert("id".to_string(), id.into()));
+                    value.body
+                }).collect()
+            })
+            .unwrap_or_else(|| vec![json!({"jsonrpc": "2.0", "id": id, "error": {"code": -32600, "message": "Invalid Request"}})]);
+
+            Some(responses)
+        } else {
+            let key = match json_key(&request_message) {
+                Ok(key) => key,
+                Err(err) => {
+                    error!("Request cannot be compared to mock data. {err:?}");
+                    return None;
+                }
+            };
+
+            let responses = self
+                .responses_for_key(key)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .map(|resp| resp.body)
+                .collect();
+
+            Some(responses)
+        }
     }
 
     async fn responses_for_key(&self, key: MockDataKey) -> Option<Vec<MockDataMessage>> {
@@ -352,5 +373,250 @@ impl MockWebSocketServer {
         //         let _ = peer.send(Message::Text(payload.to_string())).await;
         //     }
         // });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ripple_sdk::tokio::time::{self, error::Elapsed, Duration};
+
+    use super::*;
+
+    async fn start_server(mock_data: MockData) -> Arc<MockWebSocketServer> {
+        let mock_data = Arc::new(RwLock::new(mock_data));
+        let server = MockWebSocketServer::new(mock_data, WsServerParameters::default())
+            .await
+            .expect("Unable to start server")
+            .into_arc();
+
+        tokio::spawn(server.clone().start_server());
+
+        server
+    }
+
+    async fn request_response_with_timeout(
+        server: Arc<MockWebSocketServer>,
+        request: Message,
+    ) -> Result<Option<Result<Message, Error>>, Elapsed> {
+        let (client, _) =
+            tokio_tungstenite::connect_async(format!("ws://0.0.0.0:{}", server.port()))
+                .await
+                .expect("Unable to connect to WS server");
+
+        let (mut send, mut receive) = client.split();
+
+        send.send(request).await.expect("Failed to send message");
+
+        time::timeout(Duration::from_secs(1), receive.next()).await
+    }
+
+    fn mock_data_json() -> (MockData, Value, Value) {
+        let request_body = json!({"key":"value"});
+        let request = json!({"type": "json", "body": request_body});
+        let response_body = json!({"success": true, "data": "data"});
+        let response = json!({"type": "json", "body": response_body});
+        let mock_data = HashMap::from([(
+            json_key(&request_body).unwrap(),
+            (
+                (&request).try_into().unwrap(),
+                vec![(&response).try_into().unwrap()],
+            ),
+        )]);
+
+        (mock_data, request_body, response_body)
+    }
+
+    fn mock_data_jsonrpc() -> (MockData, Value, Value) {
+        let request_body = json!({"jsonrpc":"2.0", "id": 0, "method": "someAction", "params": {}});
+        let request = json!({"type": "jsonrpc", "body": request_body});
+        let response_body = json!({"jsonrpc": "2.0", "id": 0, "result": {"success": true}});
+        let response = json!({"type": "jsonrpc", "body": response_body});
+        let mock_data = HashMap::from([(
+            jsonrpc_key(&request_body).unwrap(),
+            (
+                (&request).try_into().unwrap(),
+                vec![(&response).try_into().unwrap()],
+            ),
+        )]);
+
+        (mock_data, request_body, response_body)
+    }
+
+    #[test]
+    fn test_ws_server_parameters_new() {
+        let params = WsServerParameters::new();
+        let params_default = WsServerParameters::default();
+
+        assert!(params.headers.is_none());
+        assert!(params.path.is_none());
+        assert!(params.port.is_none());
+        assert!(params.query_params.is_none());
+        assert_eq!(params, params_default);
+    }
+
+    #[test]
+    fn test_ws_server_parameters_props() {
+        let mut params = WsServerParameters::new();
+        let headers: HeaderMap = {
+            let hm = HashMap::from([("Sec-WebSocket-Protocol".to_owned(), "jsonrpc".to_owned())]);
+            (&hm).try_into().expect("valid headers")
+        };
+        let qp = HashMap::from([("appId".to_owned(), "test".to_owned())]);
+        params
+            .headers(headers.clone())
+            .port(16789)
+            .path("/some/path")
+            .query_params(qp.clone());
+
+        assert_eq!(params.headers, Some(headers));
+        assert_eq!(params.port, Some(16789));
+        assert_eq!(params.path, Some("/some/path".to_owned()));
+        assert_eq!(params.query_params, Some(qp));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_start_server() {
+        let mock_data = HashMap::default();
+        let server = start_server(mock_data).await;
+
+        let _ = tokio_tungstenite::connect_async(format!("ws://0.0.0.0:{}", server.port()))
+            .await
+            .expect("Unable to connect to WS server");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_startup_mock_data_json_matched_request() {
+        let (mock_data, request_body, response_body) = mock_data_json();
+        let server = start_server(mock_data).await;
+
+        let response =
+            request_response_with_timeout(server, Message::Text(request_body.to_string()))
+                .await
+                .expect("no response from server within timeout")
+                .expect("connection to server was closed")
+                .expect("error in server response");
+
+        assert_eq!(response, Message::Text(response_body.to_string()));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_startup_mock_data_json_mismatch_request() {
+        let (mock_data, _, _) = mock_data_json();
+        let server = start_server(mock_data).await;
+
+        let response = request_response_with_timeout(
+            server,
+            Message::Text(json!({"key":"value2"}).to_string()),
+        )
+        .await;
+
+        assert!(response.is_err());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_startup_mock_data_jsonrpc_matched_request() {
+        let (mock_data, mut request_body, mut response_body) = mock_data_jsonrpc();
+        let server = start_server(mock_data).await;
+
+        request_body
+            .as_object_mut()
+            .and_then(|req| req.insert("id".to_owned(), 327.into()));
+        response_body
+            .as_object_mut()
+            .and_then(|req| req.insert("id".to_owned(), 327.into()));
+
+        let response =
+            request_response_with_timeout(server, Message::Text(request_body.to_string()))
+                .await
+                .expect("no response from server within timeout")
+                .expect("connection to server was closed")
+                .expect("error in server response");
+
+        assert_eq!(response, Message::Text(response_body.to_string()));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_startup_mock_data_jsonrpc_mismatch_request() {
+        let (mock_data, _, _) = mock_data_json();
+        let server = start_server(mock_data).await;
+
+        let response = request_response_with_timeout(
+            server,
+            Message::Text(
+                json!({"jsonrpc": "2.0", "id": 11, "method": "someUnknownAction"}).to_string(),
+            ),
+        )
+        .await
+        .expect("no response from server within timeout")
+        .expect("connection to server was closed")
+        .expect("error in server response");
+
+        assert_eq!(
+            response,
+            Message::Text(
+                json!({"jsonrpc": "2.0", "id": 11, "error": {"message": "Invalid Request", "code": -32600}})
+                    .to_string()
+            )
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_startup_mock_data_add_request() {
+        let mock_data = HashMap::default();
+        let request_body = json!({"key": "value"});
+        let response_body = json!({"success": true});
+        let server = start_server(mock_data).await;
+
+        server
+            .add_request_response(
+                (&json!({"type": "json", "body": request_body.clone()}))
+                    .try_into()
+                    .unwrap(),
+                vec![(&json!({"type": "json", "body": response_body.clone()}))
+                    .try_into()
+                    .unwrap()],
+            )
+            .await
+            .expect("unable to add mock responses");
+
+        let response =
+            request_response_with_timeout(server, Message::Text(request_body.to_string()))
+                .await
+                .expect("no response from server within timeout")
+                .expect("connection to server was closed")
+                .expect("error in server response");
+
+        assert_eq!(response, Message::Text(response_body.to_string()));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_startup_mock_data_remove_request() {
+        let mock_data = HashMap::default();
+        let request_body = json!({"key": "value"});
+        let response_body = json!({"success": true});
+        let server = start_server(mock_data).await;
+        let request: MockDataMessage = (&json!({"type": "json", "body": request_body.clone()}))
+            .try_into()
+            .unwrap();
+
+        server
+            .add_request_response(
+                request.clone(),
+                vec![(&json!({"type": "json", "body": response_body.clone()}))
+                    .try_into()
+                    .unwrap()],
+            )
+            .await
+            .expect("unable to add mock responses");
+
+        server
+            .remove_request(&request)
+            .await
+            .expect("unable to remove request");
+
+        let response =
+            request_response_with_timeout(server, Message::Text(request_body.to_string())).await;
+
+        assert!(response.is_err());
     }
 }

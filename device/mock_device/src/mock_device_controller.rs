@@ -39,16 +39,20 @@ enum MockDeviceControllerError {
     ExtnCommunicationFailed,
 }
 
+impl std::error::Error for MockDeviceControllerError {}
+
 impl Display for MockDeviceControllerError {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::result::Result<(), ::std::fmt::Error> {
-        match self.clone() {
+        let msg = match self.clone() {
             MockDeviceControllerError::RequestFailed(err) => {
-                f.write_str(format!("Failed to complete the request. RippleError {err:?}").as_str())
+                format!("Failed to complete the request. RippleError {err:?}")
             }
             MockDeviceControllerError::ExtnCommunicationFailed => {
-                f.write_str("Failed to communicate with the Mock Device extension")
+                "Failed to communicate with the Mock Device extension".to_owned()
             }
-        }
+        };
+
+        f.write_str(msg.as_str())
     }
 }
 

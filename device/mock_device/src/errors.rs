@@ -24,11 +24,15 @@ pub enum MockServerWebSocketError {
     CantListen,
 }
 
+impl std::error::Error for MockServerWebSocketError {}
+
 impl Display for MockServerWebSocketError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::CantListen => f.write_str("Failed to start TcpListener"),
-        }
+        let msg = match self {
+            Self::CantListen => "Failed to start TcpListener",
+        };
+
+        f.write_str(msg)
     }
 }
 
@@ -38,16 +42,20 @@ pub enum MockDeviceError {
     LoadMockDataFailed(LoadMockDataFailedReason),
 }
 
+impl std::error::Error for MockDeviceError {}
+
 impl Display for MockDeviceError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::BootFailed(reason) => f.write_fmt(format_args!(
-                "Failed to start websocket server. Reason: {reason}"
-            )),
-            Self::LoadMockDataFailed(reason) => f.write_fmt(format_args!(
-                "Failed to load mock data from file. Reason: {reason}"
-            )),
-        }
+        let msg = match self {
+            Self::BootFailed(reason) => {
+                format!("Failed to start websocket server. Reason: {reason}")
+            }
+            Self::LoadMockDataFailed(reason) => {
+                format!("Failed to load mock data from file. Reason: {reason}")
+            }
+        };
+
+        f.write_str(msg.as_str())
     }
 }
 
@@ -60,18 +68,21 @@ pub enum BootFailedReason {
 }
 impl Display for BootFailedReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::BadUrlScheme => f.write_str("The scheme in the URL is invalid. It must be `ws`."),
-            Self::BadHostname => f.write_str(
-                "The hostname in the URL is invalid. It must be `0.0.0.0` or `127.0.0.1`.",
-            ),
-            Self::GetPlatformGatewayFailed => {
-                f.write_str("Failed to get plaftform gateway from the Thunder extension config.")
+        let msg = match self {
+            Self::BadUrlScheme => "The scheme in the URL is invalid. It must be `ws`.".to_owned(),
+            Self::BadHostname => {
+                "The hostname in the URL is invalid. It must be `0.0.0.0` or `127.0.0.1`."
+                    .to_owned()
             }
-            Self::ServerStartFailed(err) => f.write_fmt(format_args!(
-                "Failed to start the WebSocket server. Error: {err}"
-            )),
-        }
+            Self::GetPlatformGatewayFailed => {
+                "Failed to get plaftform gateway from the Thunder extension config.".to_owned()
+            }
+            Self::ServerStartFailed(err) => {
+                format!("Failed to start the WebSocket server. Error: {err}")
+            }
+        };
+
+        f.write_str(msg.as_str())
     }
 }
 
@@ -86,24 +97,20 @@ pub enum LoadMockDataFailedReason {
 }
 impl Display for LoadMockDataFailedReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::PathDoesNotExist(path) => f.write_fmt(format_args!(
-                "Path does not exist. Path: {}",
-                path.display()
-            )),
-            Self::FileOpenFailed(path) => f.write_fmt(format_args!(
-                "Failed to open file. File: {}",
-                path.display()
-            )),
-            Self::GetSavedDirFailed => f.write_str("Failed to get SavedDir from config."),
-            Self::MockDataNotValidJson => f.write_str("The mock data is not valid JSON."),
-            Self::MockDataNotArray => {
-                f.write_str("The mock data file root object must be an array.")
+        let msg = match self {
+            Self::PathDoesNotExist(path) => {
+                format!("Path does not exist. Path: {}", path.display())
             }
-            Self::MockDataError(err) => f.write_fmt(format_args!(
-                "Failed to parse message in mock data. Error: {err:?}"
-            )),
-        }
+            Self::FileOpenFailed(path) => format!("Failed to open file. File: {}", path.display()),
+            Self::GetSavedDirFailed => "Failed to get SavedDir from config.".to_owned(),
+            Self::MockDataNotValidJson => "The mock data is not valid JSON.".to_owned(),
+            Self::MockDataNotArray => "The mock data file root object must be an array.".to_owned(),
+            Self::MockDataError(err) => {
+                format!("Failed to parse message in mock data. Error: {err:?}")
+            }
+        };
+
+        f.write_str(msg.as_str())
     }
 }
 
