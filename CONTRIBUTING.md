@@ -26,11 +26,11 @@ The Ripple guild is the group of engineers responsible for the implementation an
 
 The current members of the Ripple Guild are:
 
-- Sathishkumar Deena Kirupakaran [@satlead](@satlead)
-- Kevin Pearson [@kpears201](@kpears201)
-- Kevin Shah [@kevinshahfws](@kevinshahfws)
-- Josekutty Kuiakose [@joseinweb](@joseinweb)
-- Adam Cox [@adamdama](@adamdama)
+- Sathishkumar Deena Kirupakaran [@satlead](https://github.com/satlead)
+- Kevin Pearson [@kpears201](https://github.com/kpears201)
+- Kevin Shah [@kevinshahfws](https://github.com/kevinshahfws)
+- Josekutty Kuiakose [@joseinweb](https://github.com/joseinweb)
+- Adam Cox [@adamdama](https://github.com/adamdama)
 
 The Ripple's Guilds main responsibilities are:
 
