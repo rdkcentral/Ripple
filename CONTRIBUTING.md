@@ -70,12 +70,11 @@ When submitting an ADR it is encouraged to provide some implementation of the pr
 
 Each ADR must have a status field at the top which highlights where we are with the implementation. These statuses are:
 
-| Status | Definition |
-| ------ | ---------- |
-
-| Proposed | The ADR is under proposal and no decision has been made about which option to go with. There is little to no code provided for any of the options. |
-| Implementation | A decision has been made about which option to chose and the implementation has been partially completed.|
-| Complete | The decision about which option to go with has been made and justifications have been recorded. The implementation is complete.|
+| Status         | Definition                                                                                                                                         |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Proposed       | The ADR is under proposal and no decision has been made about which option to go with. There is little to no code provided for any of the options. |
+| Implementation | A decision has been made about which option to chose and the implementation has been partially completed.                                          |
+| Complete       | The decision about which option to go with has been made and justifications have been recorded. The implementation is complete.                    |
 
 An example of an ADR being accompanied by the code changes to implement the proposal can be found in the PR here: [https://github.com/rdkcentral/Ripple/pull/208](https://github.com/rdkcentral/Ripple/pull/208)
 
