@@ -123,11 +123,11 @@ impl MetricsState {
         // Time to set them
         let mut context = state.metrics.context.write().unwrap();
         if let Some(mac) = mac_address {
-            context.mac_address = mac.clone();
+            context.mac_address = mac;
         }
 
         if let Some(sn) = serial_number {
-            context.serial_number = sn.clone();
+            context.serial_number = sn;
         }
 
         if let Some(model) = device_model {
