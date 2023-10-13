@@ -28,7 +28,7 @@ use serde_json::Value;
 use url::{Host, Url};
 
 use crate::{
-    errors::{BootFailedReason, LoadMockDataFailedReason, MockDeviceError},
+    errors::{BootFailedError, LoadMockDataError, MockDeviceError},
     mock_data::{MockData, MockDataError, MockDataMessage},
     mock_web_socket_server::{MockWebSocketServer, WsServerParameters},
 };
@@ -41,11 +41,11 @@ pub async fn boot_ws_server(
     let gateway = platform_gateway_url(&mut client).await?;
 
     if gateway.scheme() != "ws" {
-        return Err(MockDeviceError::BootFailed(BootFailedReason::BadUrlScheme));
+        return Err(MockDeviceError::BootFailed(BootFailedError::BadUrlScheme));
     }
 
     if !is_valid_host(gateway.host()) {
-        return Err(MockDeviceError::BootFailed(BootFailedReason::BadHostname));
+        return Err(MockDeviceError::BootFailed(BootFailedError::BadHostname));
     }
 
     let mut server_config = WsServerParameters::new();
@@ -54,7 +54,7 @@ pub async fn boot_ws_server(
         .path(gateway.path());
     let ws_server = MockWebSocketServer::new(mock_data, server_config)
         .await
-        .map_err(|e| MockDeviceError::BootFailed(BootFailedReason::ServerStartFailed(e)))?;
+        .map_err(|e| MockDeviceError::BootFailed(BootFailedError::ServerStartFailed(e)))?;
 
     let ws_server = Arc::new(ws_server);
     let server = ws_server.clone();
@@ -75,7 +75,7 @@ async fn platform_gateway_url(client: &mut ExtnClient) -> Result<Url, MockDevice
                 .and_then(|val| val.as_str())
                 .and_then(|s| s.parse().ok())
                 .ok_or(MockDeviceError::BootFailed(
-                    BootFailedReason::GetPlatformGatewayFailed,
+                    BootFailedError::GetPlatformGatewayFailed,
                 ))?;
             debug!("{}", gateway);
             return Ok(gateway);
@@ -83,7 +83,7 @@ async fn platform_gateway_url(client: &mut ExtnClient) -> Result<Url, MockDevice
     }
 
     Err(MockDeviceError::BootFailed(
-        BootFailedReason::GetPlatformGatewayFailed,
+        BootFailedError::GetPlatformGatewayFailed,
     ))
 }
 
@@ -94,8 +94,22 @@ fn is_valid_host(host: Option<Host<&str>>) -> bool {
     }
 }
 
-pub async fn load_mock_data(mut client: ExtnClient) -> Result<MockData, MockDeviceError> {
-    debug!("requesting saved dir");
+async fn find_mock_device_data_file(mut client: ExtnClient) -> Result<PathBuf, MockDeviceError> {
+    let file = client
+        .get_config("mock_data_file")
+        .unwrap_or("mock-device.json".to_owned());
+    let path = PathBuf::from(file);
+
+    debug!(
+        "mock data path={} absolute={}",
+        path.display(),
+        path.is_absolute()
+    );
+
+    if path.is_absolute() {
+        return Ok(path);
+    }
+
     let saved_dir = client
         .request(Config::SavedDir)
         .await
@@ -110,41 +124,40 @@ pub async fn load_mock_data(mut client: ExtnClient) -> Result<MockData, MockDevi
         })
         .map_err(|e| {
             error!("Config::SaveDir request error {:?}", e);
-            MockDeviceError::LoadMockDataFailed(LoadMockDataFailedReason::GetSavedDirFailed)
+            LoadMockDataError::GetSavedDirFailed
         })?;
 
     debug!("received saved_dir {saved_dir:?}");
     if !saved_dir.is_dir() {
-        return Err(MockDeviceError::LoadMockDataFailed(
-            LoadMockDataFailedReason::PathDoesNotExist(saved_dir),
-        ));
+        return Err(LoadMockDataError::PathDoesNotExist(saved_dir))?;
     }
 
-    let path = saved_dir.join("mock-device.json"); // TODO: allow this to be overridden in config
+    let path = saved_dir.join(path);
+
+    Ok(path)
+}
+
+pub async fn load_mock_data(client: ExtnClient) -> Result<MockData, MockDeviceError> {
+    let path = find_mock_device_data_file(client).await?;
     debug!("path={:?}", path);
     if !path.is_file() {
-        return Err(MockDeviceError::LoadMockDataFailed(
-            LoadMockDataFailedReason::PathDoesNotExist(path),
-        ));
+        return Err(LoadMockDataError::PathDoesNotExist(path))?;
     }
 
     let file = File::open(path.clone()).map_err(|e| {
         error!("Failed to open mock data file {e:?}");
-        MockDeviceError::LoadMockDataFailed(LoadMockDataFailedReason::FileOpenFailed(path))
+        LoadMockDataError::FileOpenFailed(path)
     })?;
     let reader = BufReader::new(file);
-    let json: serde_json::Value = serde_json::from_reader(reader).map_err(|_| {
-        MockDeviceError::LoadMockDataFailed(LoadMockDataFailedReason::MockDataNotValidJson)
-    })?;
+    let json: serde_json::Value =
+        serde_json::from_reader(reader).map_err(|_| LoadMockDataError::MockDataNotValidJson)?;
 
     if let Some(list) = json.as_array() {
         let mock_data = list
             .iter()
             .map(|req_resp| {
-                let (req, resps) = parse_request_responses(req_resp)
-                    .map_err(mock_data_error_to_mock_device_error)?;
-
-                let key = req.key().map_err(mock_data_error_to_mock_device_error)?;
+                let (req, resps) = parse_request_responses(req_resp)?;
+                let key = req.key()?;
 
                 Ok((key, (req, resps)))
             })
@@ -154,14 +167,8 @@ pub async fn load_mock_data(mut client: ExtnClient) -> Result<MockData, MockDevi
 
         Ok(mock_data)
     } else {
-        Err(MockDeviceError::LoadMockDataFailed(
-            LoadMockDataFailedReason::MockDataNotArray,
-        ))
+        Err(LoadMockDataError::MockDataNotArray)?
     }
-}
-
-fn mock_data_error_to_mock_device_error(err: MockDataError) -> MockDeviceError {
-    MockDeviceError::LoadMockDataFailed(LoadMockDataFailedReason::MockDataError(err))
 }
 
 fn parse_request_responses(

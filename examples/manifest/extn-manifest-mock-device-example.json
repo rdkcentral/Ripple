@@ -50,6 +50,9 @@
             "symbols": [
                 {
                     "id": "ripple:channel:device:mock_device",
+                    "config": {
+                        "mock_data_file": "mock-device.json"
+                    },
                     "uses": [
                         "config"
                     ],

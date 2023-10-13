@@ -1,98 +1,146 @@
 [
     {
         "request": {
-            "jsonrpc": "2.0",
-            "id": 0,
-            "method": "Controller.1.register",
-            "params": {
-                "event": "statechange",
-                "id": "client.Controller.1.events"
+            "type": "jsonrpc",
+            "body": {
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "Controller.1.register",
+                "params": {
+                    "event": "statechange",
+                    "id": "client.Controller.1.events"
+                }
             }
         },
-        "response": {
-            "jsonrpc": "2.0",
-            "id": 0,
-            "result": 0
-        }
+        "responses": [
+            {
+                "type": "jsonrpc",
+                "body": {
+                    "jsonrpc": "2.0",
+                    "id": 0,
+                    "result": 0
+                }
+            }
+        ]
     },
     {
         "request": {
-            "id": 1,
-            "jsonrpc": "2.0",
-            "method": "Controller.1.status@DeviceInfo"
+            "type": "jsonrpc",
+            "body": {
+                "id": 1,
+                "jsonrpc": "2.0",
+                "method": "Controller.1.status@DeviceInfo"
+            }
         },
-        "response": {
-            "id": 1,
-            "jsonrpc": "2.0",
-            "result": [
-                {
-                    "state": "activated"
+        "responses": [
+            {
+                "type": "jsonrpc",
+                "body": {
+                    "id": 1,
+                    "jsonrpc": "2.0",
+                    "result": [
+                        {
+                            "state": "activated"
+                        }
+                    ]
                 }
-            ]
-        }
+            }
+        ]
     },
     {
         "request": {
-            "jsonrpc": "2.0",
-            "id": 2,
-            "method": "Controller.1.status@org.rdk.DisplaySettings"
+            "type": "jsonrpc",
+            "body": {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "Controller.1.status@org.rdk.DisplaySettings"
+            }
         },
-        "response": {
-            "jsonrpc": "2.0",
-            "id": 2,
-            "result": [
-                {
-                    "state": "activated"
+        "responses": [
+            {
+                "type": "jsonrpc",
+                "body": {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "result": [
+                        {
+                            "state": "activated"
+                        }
+                    ]
                 }
-            ]
-        }
+            }
+        ]
     },
     {
         "request": {
-            "jsonrpc": "2.0",
-            "id": 3,
-            "method": "Controller.1.status@org.rdk.Network"
+            "type": "jsonrpc",
+            "body": {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "Controller.1.status@org.rdk.Network"
+            }
         },
-        "response": {
-            "jsonrpc": "2.0",
-            "id": 3,
-            "result": [
-                {
-                    "state": "activated"
+        "responses": [
+            {
+                "type": "jsonrpc",
+                "body": {
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "result": [
+                        {
+                            "state": "activated"
+                        }
+                    ]
                 }
-            ]
-        }
+            }
+        ]
     },
     {
         "request": {
-            "jsonrpc": "2.0",
-            "id": 4,
-            "method": "Controller.1.status@org.rdk.System"
+            "type": "jsonrpc",
+            "body": {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "Controller.1.status@org.rdk.System"
+            }
         },
-        "response": {
-            "jsonrpc": "2.0",
-            "id": 4,
-            "result": [
-                {
-                    "state": "activated"
+        "responses": [
+            {
+                "type": "jsonrpc",
+                "body": {
+                    "jsonrpc": "2.0",
+                    "id": 4,
+                    "result": [
+                        {
+                            "state": "activated"
+                        }
+                    ]
                 }
-            ]
-        }
+            }
+        ]
     },
     {
         "request": {
-            "jsonrpc": "2.0",
-            "id": 5,
-            "method": "Controller.1.status@org.rdk.HdcpProfile"
+            "type": "jsonrpc",
+            "body": {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "Controller.1.status@org.rdk.HdcpProfile"
+            }
         },
-        "response": {
-            "jsonrpc": "2.0",
-            "id": 5,
-            "result": [
-                {
-                    "state": "activated"
+        "responses": [
+            {
+                "type": "jsonrpc",
+                "body": {
+                    "jsonrpc": "2.0",
+                    "id": 5,
+                    "result": [
+                        {
+                            "state": "activated"
+                        }
+                    ]
                 }
-            ]
-        }
+            }
+        ]
     }
 ]

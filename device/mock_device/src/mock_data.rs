@@ -24,6 +24,8 @@ use ripple_sdk::{
 use serde_hashkey::{to_key_with_ordered_float, Key, OrderedFloatPolicy};
 use serde_json::Value;
 
+use crate::errors::{LoadMockDataError, MockDeviceError};
+
 pub type MockDataKey = Key<OrderedFloatPolicy>;
 pub type MockData = HashMap<MockDataKey, (MockDataMessage, Vec<MockDataMessage>)>;
 
@@ -55,6 +57,12 @@ impl Display for MockDataError {
         };
 
         f.write_str(msg.as_str())
+    }
+}
+
+impl From<MockDataError> for MockDeviceError {
+    fn from(err: MockDataError) -> Self {
+        MockDeviceError::LoadMockDataFailed(LoadMockDataError::MockDataError(err))
     }
 }
 

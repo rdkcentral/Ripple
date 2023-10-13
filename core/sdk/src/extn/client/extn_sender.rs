@@ -19,7 +19,7 @@ use std::collections::HashMap;
 
 use chrono::Utc;
 use crossbeam::channel::Sender as CSender;
-use log::{error, trace};
+use log::{debug, error, trace};
 
 use crate::{
     extn::{
@@ -86,6 +86,7 @@ impl ExtnSender {
     }
 
     pub fn get_config(&self, key: &str) -> Option<String> {
+        debug!("CONFIG {:?}", &self.config);
         if let Some(c) = self.config.clone() {
             if let Some(v) = c.get(key) {
                 return Some(v.clone());
