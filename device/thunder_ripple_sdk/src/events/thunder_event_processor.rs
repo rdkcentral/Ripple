@@ -29,7 +29,7 @@ use ripple_sdk::{
             device_operator::DeviceSubscribeRequest,
             device_request::{
                 AudioProfile, NetworkResponse, NetworkState, NetworkType, PowerState,
-                SystemPowerState,
+                SystemPowerState, VoiceGuidanceState,
             },
         },
     },
@@ -56,19 +56,13 @@ pub struct ResolutionChangedEvent {
     pub resolution: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct VoiceGuidanceEvent {
-    pub state: bool,
-}
-
 #[derive(Debug, Clone, Deserialize)]
 pub enum ThunderEventMessage {
     ActiveInput(ActiveInputThunderEvent),
     Resolution(ResolutionChangedEvent),
     Network(NetworkResponse),
     PowerState(SystemPowerState),
-    VoiceGuidance(VoiceGuidanceEvent),
+    VoiceGuidance(VoiceGuidanceState),
     Audio(HashMap<AudioProfile, bool>),
 }
 impl ThunderEventMessage {
@@ -115,7 +109,7 @@ impl ThunderEventMessage {
                         }
                     }
                 }
-                DeviceEvent::VoiceGuidanceChanged => {
+                DeviceEvent::VoiceGuidanceEnabledChanged => {
                     if let Ok(v) = serde_json::from_value(value.clone()) {
                         return Some(ThunderEventMessage::VoiceGuidance(v));
                     }
@@ -209,11 +203,12 @@ impl ThunderEventHandler {
     }
 
     pub fn callback_device_event(state: ThunderState, event_name: String, event: ExtnEvent) {
-        if state.event_processor.check_last_event(&event_name, &event) {
+        if !state.event_processor.check_last_event(&event_name, &event) {
             state.event_processor.add_last_event(&event_name, &event);
             if (match event {
                 ExtnEvent::AppEvent(a) => state.get_client().request_transient(a),
                 ExtnEvent::PowerState(p) => state.get_client().request_transient(p),
+                ExtnEvent::VoiceGuidanceState(p) => state.get_client().request_transient(p),
                 _ => Err(RippleError::InvalidOutput),
             })
             .is_err()

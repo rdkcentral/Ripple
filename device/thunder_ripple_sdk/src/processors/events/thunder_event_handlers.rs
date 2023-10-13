@@ -17,10 +17,15 @@
 
 use std::collections::HashMap;
 
+use ripple_sdk::api::device::{
+    device_accessibility_data::VoiceGuidanceSettings,
+    device_events::VOICE_GUIDANCE_SETTINGS_CHANGED, device_request::VoiceGuidanceState,
+};
+
 use crate::{
     client::thunder_plugin::ThunderPlugin,
     events::thunder_event_processor::{
-        ThunderEventHandler, ThunderEventHandlerProvider, ThunderEventMessage, VoiceGuidanceEvent,
+        ThunderEventHandler, ThunderEventHandlerProvider, ThunderEventMessage,
     },
     ripple_sdk::{
         api::{
@@ -391,8 +396,31 @@ impl VoiceGuidanceEnabledChangedEventHandler {
         value: ThunderEventMessage,
         callback_type: DeviceEventCallback,
     ) {
-        if let ThunderEventMessage::VoiceGuidance(v) = value {
-            if let Ok(v) = Self::get_extn_event(v, callback_type) {
+        if let ThunderEventMessage::VoiceGuidance(voice_guidance_state) = value {
+            if let Ok(v) = Self::get_extn_event(voice_guidance_state.clone(), callback_type) {
+                let thunder_state = state.clone();
+                let enabled = voice_guidance_state.state;
+                tokio::spawn(async move {
+                    if let Ok(speed) = ThunderDeviceInfoRequestProcessor::get_voice_guidance_speed(
+                        thunder_state.clone(),
+                    )
+                    .await
+                    {
+                        let settings = VoiceGuidanceSettings { enabled, speed };
+                        let event = ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
+                            event_name: VOICE_GUIDANCE_SETTINGS_CHANGED.to_string(),
+                            result: serde_json::to_value(settings).unwrap(),
+                            context: None,
+                            app_id: None,
+                        }));
+
+                        ThunderEventHandler::callback_device_event(
+                            thunder_state,
+                            VOICE_GUIDANCE_SETTINGS_CHANGED.to_string(),
+                            event,
+                        );
+                    }
+                });
                 ThunderEventHandler::callback_device_event(state, Self::get_mapped_event(), v)
             }
         }
@@ -407,7 +435,7 @@ impl VoiceGuidanceEnabledChangedEventHandler {
 }
 
 impl ThunderEventHandlerProvider for VoiceGuidanceEnabledChangedEventHandler {
-    type EVENT = VoiceGuidanceEvent;
+    type EVENT = VoiceGuidanceState;
     fn provide(id: String, callback_type: DeviceEventCallback) -> ThunderEventHandler {
         ThunderEventHandler {
             request: Self::get_device_request(),
@@ -424,11 +452,29 @@ impl ThunderEventHandlerProvider for VoiceGuidanceEnabledChangedEventHandler {
     }
 
     fn get_mapped_event() -> String {
-        "device.onVoiceGuidanceSettingsChanged".into()
+        "voiceguidance.onEnabledChanged".into()
     }
 
     fn module() -> String {
         ThunderPlugin::TextToSpeech.callsign_string()
+    }
+
+    fn get_extn_event(
+        r: Self::EVENT,
+        callback_type: DeviceEventCallback,
+    ) -> Result<ExtnEvent, RippleError> {
+        let result = serde_json::to_value(r.clone()).unwrap();
+        match callback_type {
+            DeviceEventCallback::FireboltAppEvent => {
+                Ok(ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
+                    event_name: Self::get_mapped_event(),
+                    context: None,
+                    result,
+                    app_id: None,
+                })))
+            }
+            DeviceEventCallback::ExtnEvent => Ok(ExtnEvent::VoiceGuidanceState(r)),
+        }
     }
 }
 

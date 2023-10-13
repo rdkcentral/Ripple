@@ -141,6 +141,8 @@ impl ApplicationDefaultsConfiguration {
 pub struct ApplicationsConfiguration {
     pub distribution: DistributionConfiguration,
     pub defaults: ApplicationDefaultsConfiguration,
+    #[serde(default)]
+    pub distributor_app_aliases: HashMap<String, String>,
 }
 
 #[derive(Deserialize, Debug, Clone)]

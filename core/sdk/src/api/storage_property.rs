@@ -29,7 +29,6 @@ pub const NAMESPACE_PRIVACY: &str = "Privacy";
 pub const NAMESPACE_DEVICE_NAME: &str = "DeviceName";
 pub const NAMESPACE_LOCALIZATION: &str = "Localization";
 pub const NAMESPACE_USER_GRANT: &str = "UserGrant";
-pub const NAMESPACE_VOICE_GUIDANCE: &str = "VoiceGuidance";
 pub const NAMESPACE_ADVERTISING: &str = "Advertising";
 
 pub const KEY_ENABLED: &str = "enabled";
@@ -123,29 +122,7 @@ pub const EVENT_SECOND_SCREEN_FRIENDLY_NAME_CHANGED: &str = "secondscreen.onFrie
 pub const EVENT_ADVERTISING_POLICY_CHANGED: &str = "advertising.onPolicyChanged";
 pub const EVENT_ADVERTISING_SKIP_RESTRICTION: &str = "advertising.setSkipRestriction";
 
-pub const EVENT_VOICE_GUIDANCE_SETTINGS_CHANGED: &str =
-    "accessibility.onVoiceGuidanceSettingsChanged";
-pub const EVENT_VOICE_GUIDANCE_ENABLED_CHANGED: &str = "voiceguidance.onEnabledChanged";
-pub const EVENT_VOICE_GUIDANCE_SPEED_CHANGED: &str = "voiceguidance.onSpeedChanged";
 pub const EVENT_TIMEZONE_CHANGED: &str = "localization.onTimeZoneChanged";
-
-const PROPERTY_DATA_VOICE_GUIDANCE_ENABLED: PropertyData = PropertyData {
-    key: KEY_ENABLED,
-    namespace: NAMESPACE_VOICE_GUIDANCE,
-    event_names: Some(&[
-        EVENT_VOICE_GUIDANCE_ENABLED_CHANGED,
-        EVENT_VOICE_GUIDANCE_SETTINGS_CHANGED,
-    ]),
-};
-
-const PROPERTY_DATA_VOICE_GUIDANCE_SPEED: PropertyData = PropertyData {
-    key: KEY_VOICE_GUIDANCE_SPEED,
-    namespace: NAMESPACE_VOICE_GUIDANCE,
-    event_names: Some(&[
-        EVENT_VOICE_GUIDANCE_ENABLED_CHANGED,
-        EVENT_VOICE_GUIDANCE_SPEED_CHANGED,
-    ]),
-};
 
 const PROPERTY_DATA_CLOSED_CAPTIONS_ENABLED: PropertyData = PropertyData {
     key: KEY_ENABLED,
@@ -463,8 +440,6 @@ pub enum StorageProperty {
     AllowUnentitledPersonalization,
     AllowUnentitledResumePoints,
     AllowWatchHistory,
-    VoiceguidanceEnabled,
-    VoiceguidanceSpeed,
     PartnerExclusions,
     SkipRestriction,
 }
@@ -493,8 +468,6 @@ impl StorageProperty {
             StorageProperty::ClosedCaptionsTextAlignVertical => {
                 PROPERTY_DATA_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL
             }
-            StorageProperty::VoiceguidanceEnabled => PROPERTY_DATA_VOICE_GUIDANCE_ENABLED,
-            StorageProperty::VoiceguidanceSpeed => PROPERTY_DATA_VOICE_GUIDANCE_SPEED,
             StorageProperty::Locality => PROPERTY_DATA_LOCALITY,
             StorageProperty::CountryCode => PROPERTY_DATA_COUNTRY_CODE,
             StorageProperty::Language => PROPERTY_DATA_LANGUAGE,

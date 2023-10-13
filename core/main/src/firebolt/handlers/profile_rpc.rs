@@ -74,7 +74,7 @@ impl ProfileServer for ProfileImpl {
             .await
         {
             if let Some(ExtnResponse::PinChallenge(v)) = response.payload.extract() {
-                return Ok(v.granted);
+                return Ok(v.granted.map_or(false, |inner| inner));
             }
         }
         Err(jsonrpsee::core::Error::Custom(String::from(
@@ -100,7 +100,7 @@ impl ProfileServer for ProfileImpl {
             .await
         {
             if let Some(ExtnResponse::PinChallenge(v)) = response.payload.extract() {
-                return Ok(v.granted);
+                return Ok(v.granted.map_or(false, |inner| inner));
             }
         }
         Err(jsonrpsee::core::Error::Custom(String::from(

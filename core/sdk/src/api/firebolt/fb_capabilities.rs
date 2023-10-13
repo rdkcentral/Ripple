@@ -305,6 +305,7 @@ pub enum DenyReason {
     GrantDenied,
     Ungranted,
     GrantProviderMissing,
+    AppNotInActiveState,
 }
 
 pub const CAPABILITY_NOT_AVAILABLE: i32 = -50300;
@@ -327,7 +328,9 @@ impl RpcError for DenyReason {
             Self::Unsupported => CAPABILITY_NOT_SUPPORTED,
             Self::GrantDenied => CAPABILITY_NOT_PERMITTED,
             Self::Unpermitted => CAPABILITY_NOT_PERMITTED,
+            Self::Ungranted => CAPABILITY_NOT_PERMITTED,
             Self::NotFound => JSON_RPC_STANDARD_ERROR_METHOD_NOT_FOUND,
+            Self::AppNotInActiveState => CAPABILITY_NOT_PERMITTED,
             _ => CAPABILITY_GET_ERROR,
         }
     }
@@ -339,7 +342,11 @@ impl RpcError for DenyReason {
             Self::Unsupported => format!("{} is not supported", caps_disp),
             Self::GrantDenied => format!("The user denied access to {}", caps_disp),
             Self::Unpermitted => format!("{} is not permitted", caps_disp),
+            Self::Ungranted => format!("The user did not make a grant decision for {}", caps_disp),
             Self::NotFound => "Method not Found".to_string(),
+            Self::AppNotInActiveState => {
+                "Capability cannot be used when app is not in foreground state due to requiring a user grant".to_string()
+            }
             _ => format!("Error with {}", caps_disp),
         }
     }
