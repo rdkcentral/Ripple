@@ -338,6 +338,7 @@ pub struct MetricsContext {
     pub device_id: String,
     pub account_id: String,
     pub device_timezone: String,
+    pub device_timezone_offset: String,
     pub device_name: String,
     pub platform: String,
     pub os_ver: String,
@@ -354,6 +355,7 @@ pub enum MetricsContextField {
     device_id,
     account_id,
     device_timezone,
+    device_timezone_offset,
     device_name,
     platform,
     os_ver,
@@ -369,6 +371,7 @@ impl MetricsContext {
             device_model: String::from(""),
             device_id: String::from(""),
             device_timezone: String::from(""),
+            device_timezone_offset: String::from(""),
             device_name: String::from(""),
             mac_address: String::from(""),
             serial_number: String::from(""),
@@ -386,6 +389,9 @@ impl MetricsContext {
             MetricsContextField::device_id => self.device_id = value,
             MetricsContextField::account_id => self.account_id = value,
             MetricsContextField::device_timezone => self.device_timezone = value.parse().unwrap(),
+            MetricsContextField::device_timezone_offset => {
+                self.device_timezone_offset = value.parse().unwrap()
+            }
             MetricsContextField::platform => self.platform = value,
             MetricsContextField::os_ver => self.os_ver = value,
             MetricsContextField::distributor_id => self.distribution_tenant_id = value,
