@@ -32,12 +32,10 @@ use crate::{
     state::platform_state::PlatformState,
 };
 
+pub use ripple_sdk::utils::rpc_utils::rpc_err;
+
 pub const FIRE_BOLT_DEEPLINK_ERROR_CODE: i32 = -40400;
 pub const DOWNSTREAM_SERVICE_UNAVAILABLE_ERROR_CODE: i32 = -50200;
-
-pub fn rpc_err(msg: impl Into<String>) -> Error {
-    Error::Custom(msg.into())
-}
 
 /// Awaits a oneshot to respond. If the oneshot fails to repond, creates a generic
 /// RPC internal error

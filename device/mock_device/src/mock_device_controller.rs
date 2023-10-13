@@ -30,7 +30,7 @@ use ripple_sdk::{
     extn::client::extn_client::ExtnClient,
     log::debug,
     tokio::runtime::Runtime,
-    utils::error::RippleError,
+    utils::{error::RippleError, rpc_utils::rpc_err},
 };
 
 #[derive(Debug, Clone)]
@@ -53,6 +53,12 @@ impl Display for MockDeviceControllerError {
         };
 
         f.write_str(msg.as_str())
+    }
+}
+
+impl From<MockDeviceControllerError> for String {
+    fn from(value: MockDeviceControllerError) -> Self {
+        value.to_string()
     }
 }
 
@@ -107,7 +113,7 @@ impl MockDeviceController {
                     .map_err(MockDeviceControllerError::RequestFailed)
             })
             .await
-            .map_err(|_e| MockDeviceControllerError::ExtnCommunicationFailed)?
+            .map_err(|_| MockDeviceControllerError::ExtnCommunicationFailed)?
     }
 }
 
@@ -121,7 +127,7 @@ impl MockDeviceControllerServer for MockDeviceController {
         let res = self
             .request(MockServerRequest::AddRequestResponse(req))
             .await
-            .map_err(|e| jsonrpsee::core::Error::Custom(e.to_string()))?;
+            .map_err(rpc_err)?;
 
         Ok(res)
     }
@@ -134,7 +140,7 @@ impl MockDeviceControllerServer for MockDeviceController {
         let res = self
             .request(MockServerRequest::RemoveRequest(req))
             .await
-            .map_err(|e| jsonrpsee::core::Error::Custom(e.to_string()))?;
+            .map_err(rpc_err)?;
 
         Ok(res)
     }
@@ -142,13 +148,14 @@ impl MockDeviceControllerServer for MockDeviceController {
     async fn emit_event(
         &self,
         _ctx: CallContext,
-        req: EmitEventParams,
+        _req: EmitEventParams,
     ) -> RpcResult<MockServerResponse> {
-        let res = self
-            .request(MockServerRequest::EmitEvent(req))
-            .await
-            .map_err(|e| jsonrpsee::core::Error::Custom(e.to_string()))?;
+        unimplemented!("emitting events is not yet implemented");
+        // let res = self
+        //     .request(MockServerRequest::EmitEvent(req))
+        //     .await
+        //     .map_err(rpc_err)?;
 
-        Ok(res)
+        // Ok(res)
     }
 }
