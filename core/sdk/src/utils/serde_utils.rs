@@ -158,13 +158,11 @@ pub mod date_time_str_serde {
     use chrono::DateTime;
     use serde::{self, Deserialize, Deserializer, Serializer};
 
-    const FORMAT: &str = "%Y-%m-%dT%H:%M:%S.%3fZ";
-
     pub fn serialize<S>(data: &str, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let formed_date_res = DateTime::parse_from_str(data, FORMAT);
+        let formed_date_res = DateTime::parse_from_rfc3339(data);
         if formed_date_res.is_ok() {
             serializer.serialize_str(data)
         } else {
@@ -179,12 +177,12 @@ pub mod date_time_str_serde {
         D: Deserializer<'de>,
     {
         let str = String::deserialize(deserializer)?;
-        let formed_date_res = DateTime::parse_from_str(&str, FORMAT);
+        let formed_date_res = DateTime::parse_from_rfc3339(&str);
         if formed_date_res.is_ok() {
             Ok(str)
         } else {
             Err(serde::de::Error::custom(
-                "Field not in expected Date-Time (YYYY-MM-DDTHH:mm:SS.xxxZ) format",
+                "Field is not a valid OpenRPC date-time format string",
             ))
         }
     }
@@ -272,5 +270,20 @@ impl SerdeClearString {
 
     pub fn prep_clear_string(t: &str) -> String {
         format!("\"{}\"", t)
+    }
+}
+
+pub fn valid_string_deserializer<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = String::deserialize(deserializer)?;
+    if !value.trim().is_empty() {
+        Ok(value)
+    } else {
+        Err(serde::de::Error::custom(format!(
+            "Invalid value ({})",
+            value
+        )))
     }
 }

@@ -125,7 +125,8 @@ impl ContainerManager {
         props: ContainerProperties,
     ) -> Result<ResultType, ContainerError> {
         let name = props.name.clone();
-        println!("add: name={}", name);
+        debug!("add: name={}", name);
+
         let mut prev_props = None;
         let prev_container = state.container_state.get_prev_stack();
         if let Some(pc) = prev_container {
@@ -143,9 +144,7 @@ impl ContainerManager {
             .container_state
             .add_container(name.clone(), props.clone());
         AppLauncher::on_container_event(state, ContainerEvent::Added(props.clone())).await;
-        Self::bring_to_front(state, &name).await.ok();
-        AppLauncher::on_container_event(state, ContainerEvent::Focused(prev_props, Some(props)))
-            .await;
+        Self::bring_to_front(state, &name, prev_props).await.ok();
         Self::set_visible(state, &name, true).await
     }
 
@@ -160,22 +159,15 @@ impl ContainerManager {
                 prev_props = Some(pp);
             }
             state.container_state.pop_stack_by_name(name);
-            let mut next_props = None;
             if let Some(nc) = state.container_state.get_prev_stack() {
-                if let Some(np) = state.container_state.get_container_by_name(&nc) {
-                    next_props = Some(np);
-                }
                 let next_container = nc.clone();
-                if let Err(e) = Self::bring_to_front(state, &next_container).await {
-                    println!("remove: Failed to focus top container: e={:?}", e);
+                if let Err(e) =
+                    Self::bring_to_front(state, &next_container, prev_props.clone()).await
+                {
+                    debug!("remove: Failed to focus top container: e={:?}", e);
                     result = Err(ContainerError::General);
                 }
             }
-            AppLauncher::on_container_event(
-                state,
-                ContainerEvent::Focused(prev_props.clone(), next_props),
-            )
-            .await;
             if let Some(p) = prev_props {
                 AppLauncher::on_container_event(state, ContainerEvent::Removed(p)).await;
             }
@@ -191,31 +183,49 @@ impl ContainerManager {
     pub async fn bring_to_front(
         state: &LauncherState,
         name: &str,
+        mut prev_props: Option<ContainerProperties>,
     ) -> Result<ResultType, ContainerError> {
         if !state
             .container_state
             .contains_stack_by_name(&name.to_string())
         {
-            println!("bring_to_front: Not found in stack: name={}", name);
+            debug!("bring_to_front: Not found in stack: name={}", name);
             return Err(ContainerError::NotFound);
         }
 
         let item = state.container_state.get_container_by_name(&name.into());
         if item.is_none() {
-            println!("bring_to_front: Container not found:  name={}", name);
+            debug!("bring_to_front: Container not found:  name={}", name);
             return Err(ContainerError::NotFound);
+        }
+        if prev_props.is_none() {
+            let prev_container = state.container_state.get_prev_stack();
+            if let Some(pc) = prev_container {
+                if !pc.eq(name) {
+                    if let Some(pp) = state.container_state.get_container_by_name(&pc) {
+                        prev_props = Some(pp);
+                    }
+                }
+            }
         }
 
         state.container_state.bring_stack_to_front(name);
 
         let props = item.unwrap().clone();
-        let resp = ViewManager::set_position(state, props.view_id, Position::Front).await;
+        let resp = ViewManager::set_position(state, props.clone().view_id, Position::Front).await;
         if let Err(e) = resp {
-            println!("bring_to_front: error: req_id={:?}", e);
+            debug!("bring_to_front: error: req_id={:?}", e);
             return Err(ContainerError::General);
         }
         match Self::focus_top_container(state).await {
-            Ok(v) => Ok(ResultType::Uuid(v)),
+            Ok(v) => {
+                AppLauncher::on_container_event(
+                    state,
+                    ContainerEvent::Focused(prev_props, Some(props)),
+                )
+                .await;
+                Ok(ResultType::Uuid(v))
+            }
             Err(e) => Err(e),
         }
     }
@@ -295,13 +305,13 @@ impl ContainerManager {
             .container_state
             .contains_stack_by_name(&name.to_string())
         {
-            println!("set_visible: Not found in stack: name={}", name);
+            debug!("set_visible: Not found in stack: name={}", name);
             return Err(ContainerError::NotFound);
         }
 
         let item = state.container_state.get_container_by_name(&name.into());
         if item.is_none() {
-            println!("set_visible: Container not found:  name={}", name);
+            debug!("set_visible: Container not found:  name={}", name);
             return Err(ContainerError::NotFound);
         }
 

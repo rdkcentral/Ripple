@@ -423,11 +423,11 @@ impl ThunderDeviceInfoRequestProcessor {
                 info!("{}", resp.message);
 
                 let mac_value_option = resp.message["estb_mac"].as_str();
-                if mac_value_option.is_none() {
-                    response = "".to_string();
-                } else {
-                    response = mac_value_option.unwrap().to_string();
+                if let Some(value) = mac_value_option {
+                    response = value.to_string();
                     state.update_mac_address(response.clone())
+                } else {
+                    response = "".to_string();
                 }
             }
         }
@@ -1165,6 +1165,22 @@ impl ThunderDeviceInfoRequestProcessor {
         Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
     }
 
+    pub async fn get_voice_guidance_speed(state: ThunderState) -> Result<f32, ()> {
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::TextToSpeech.method("getttsconfiguration"),
+                params: None,
+            })
+            .await;
+
+        if let Some(rate) = response.message["rate"].as_f64() {
+            return Ok(scale_voice_speed_from_thunder_to_firebolt(rate as f32));
+        }
+
+        Err(())
+    }
+
     async fn voice_guidance_set_speed(
         state: CachedState,
         request: ExtnMessage,
@@ -1209,7 +1225,7 @@ pub fn get_dimension_from_resolution(resolution: &str) -> Vec<i32> {
 
 /*
 per https://ccp.sys.comcast.net/browse/RPPL-283
-Firebolt spec range for this value is 0 >= value <= 10
+Firebolt spec range for this value is 0.25 >= value <= 2.0
 but...
 Thunder is 1..100
 for

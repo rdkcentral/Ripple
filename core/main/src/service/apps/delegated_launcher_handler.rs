@@ -64,11 +64,7 @@ use ripple_sdk::{
         protocol::{BridgeProtocolRequest, BridgeSessionParams},
     },
     log::info,
-    tokio::{
-        self,
-        sync::mpsc::Receiver,
-        time::{sleep, Duration},
-    },
+    tokio::{self, sync::mpsc::Receiver},
 };
 use serde_json::json;
 
@@ -315,6 +311,11 @@ impl DelegatedLauncherHandler {
                 ))
             }
             _ => {
+                if self.platform_state.app_manager_state.get(&app_id).is_some() {
+                    // app exist so we are creating a new session
+                    // because the other one is unloading, remove the old session now
+                    self.end_session(&app_id).await.ok();
+                }
                 // New loaded Session, Caller must provide Intent.
                 // app is unloading
                 Ok(AppManagerResponse::Session(
@@ -342,6 +343,7 @@ impl DelegatedLauncherHandler {
             let app = self.platform_state.app_manager_state.get(&app_id).unwrap();
             // unwrap is safe here, when precheck_then_load_or_activate is called with loading=false
             // then the app should have already existed in self.apps
+
             if session.launch.inactive {
                 // Uncommon, moving an already loaded app to inactive again using session
                 self.platform_state
@@ -361,13 +363,12 @@ impl DelegatedLauncherHandler {
         match perms_with_grants_opt {
             Some(perms_with_grants) => {
                 // Grants required, spawn a thread to handle the response from grants
-
                 let cloned_ps = self.platform_state.clone();
                 let cloned_app_id = app_id.to_owned();
                 tokio::spawn(async move {
                     let resolved_result = GrantState::check_with_roles(
                         &cloned_ps,
-                        &CallerSession { session_id: None },
+                        &CallerSession::default(),
                         &AppIdentification {
                             app_id: cloned_app_id.to_owned(),
                         },
@@ -843,13 +844,7 @@ impl DelegatedLauncherHandler {
             self.timer_map.insert(app_id.to_string(), unloading_timer);
         }
 
-        let timer_ms = self
-            .platform_state
-            .get_device_manifest()
-            .get_lifecycle_policy()
-            .app_finished_timeout_ms;
-        sleep(Duration::from_millis(timer_ms)).await;
-        self.check_finished(app_id).await
+        Ok(AppManagerResponse::None)
     }
 
     async fn check_finished(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {

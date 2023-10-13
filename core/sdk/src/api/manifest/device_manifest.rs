@@ -117,11 +117,15 @@ pub struct ApplicationDefaultsConfiguration {
 }
 
 impl ApplicationDefaultsConfiguration {
-    pub fn get_reserved_application_id(&self, field_name: &str) -> Option<&str> {
-        match field_name {
-            "xrn:firebolt:application-type:main" => Some(&self.main),
-            "xrn:firebolt:application-type:settings" => Some(&self.settings),
-            "xrn:firebolt:application-type:player" => self.player.as_deref().or(Some("")),
+    pub fn get_reserved_application_id(&self, reserved_app_type: &str) -> Option<&str> {
+        match reserved_app_type {
+            "xrn:firebolt:application-type:main" | "urn:firebolt:apps:main" => Some(&self.main),
+            "xrn:firebolt:application-type:settings" | "urn:firebolt:apps:settings" => {
+                Some(&self.settings)
+            }
+            "xrn:firebolt:application-type:player" | "urn:firebolt:apps:player" => {
+                self.player.as_deref().or(Some(""))
+            }
             _ => None,
         }
     }
@@ -131,6 +135,8 @@ impl ApplicationDefaultsConfiguration {
 pub struct ApplicationsConfiguration {
     pub distribution: DistributionConfiguration,
     pub defaults: ApplicationDefaultsConfiguration,
+    #[serde(default)]
+    pub distributor_app_aliases: HashMap<String, String>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
