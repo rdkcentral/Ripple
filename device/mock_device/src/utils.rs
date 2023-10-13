@@ -67,6 +67,7 @@ pub async fn boot_ws_server(
 }
 
 async fn platform_gateway_url(client: &mut ExtnClient) -> Result<Url, MockDeviceError> {
+    debug!("sending request for config.platform_parameters");
     if let Ok(response) = client.request(Config::PlatformParameters).await {
         if let Some(ExtnResponse::Value(value)) = response.payload.extract() {
             let gateway: Url = value

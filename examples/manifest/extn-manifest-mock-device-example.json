@@ -57,13 +57,13 @@
                         "config"
                     ],
                     "fulfills": [
-                        "mock_websocket_server"
+                        "web_socket.mock_server"
                     ]
                 },
                 {
                     "id": "ripple:extn:jsonrpsee:mock_device",
                     "uses": [
-                        "mock_websocket_server"
+                        "web_socket.mock_server"
                     ],
                     "fulfills": [
                         "json_rpsee"
@@ -91,7 +91,7 @@
         "metrics",
         "discovery",
         "media_events",
-        "mock_websocket_server"
+        "web_socket.mock_server"
     ],
     "rpc_aliases": {
         "device.model": [

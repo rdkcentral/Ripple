@@ -180,6 +180,7 @@ impl RippleContract {
         match self {
             Self::Storage(adj) => Some(adj.as_string()),
             Self::Session(adj) => Some(adj.as_string()),
+            Self::MockServer(adj) => Some(adj.as_string()),
             _ => None,
         }
     }
@@ -195,6 +196,10 @@ impl RippleContract {
                 Ok(v) => return Some(v.get_contract()),
                 Err(e) => error!("contract parser_error={:?}", e),
             },
+            "mock_server" => match serde_json::from_str::<MockServerAdjective>(&adjective) {
+                Ok(v) => return Some(v.get_contract()),
+                Err(e) => error!("contract parser_error={:?}", e),
+            },
             _ => {}
         }
         None
@@ -204,6 +209,7 @@ impl RippleContract {
         match self {
             Self::Storage(_) => Some("storage".to_owned()),
             Self::Session(_) => Some("session".to_owned()),
+            Self::MockServer(_) => Some("mock_server".to_owned()),
             _ => None,
         }
     }

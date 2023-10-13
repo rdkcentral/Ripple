@@ -153,3 +153,79 @@ fn init_jsonrpsee_builder() -> JsonRpseeExtnBuilder {
 }
 
 export_jsonrpc_extn_builder!(JsonRpseeExtnBuilder, init_jsonrpsee_builder);
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use ripple_sdk::{crossbeam::channel::unbounded, extn::extn_client_message::ExtnMessage};
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn test_init_library() {
+        assert_eq!(
+            init_library(),
+            CExtnMetadata {
+                name: "mock_device".to_owned(),
+                metadata: json!([
+                    {"fulfills": json!([json!({"mock_server": "web_socket"}).to_string()]).to_string(), "id": "ripple:channel:device:mock_device", "required_version": "1.0.0"},
+                    {"fulfills": json!([json!("json_rpsee").to_string()]).to_string(), "id": "ripple:extn:jsonrpsee:mock_device", "required_version": "1.0.0"}
+                    ])
+                    .to_string()
+            }
+        )
+    }
+
+    #[test]
+    fn test_init_jsonrpsee_builder() {
+        let builder = init_jsonrpsee_builder();
+
+        let (tx, receiver) = unbounded();
+        let methods = (builder.build)(
+            ExtnSender::new(
+                tx,
+                ExtnId::new_channel(ExtnClassId::Device, "mock_device".to_owned()),
+                vec![],
+                vec![],
+                None,
+            ),
+            receiver,
+        );
+
+        assert_eq!(builder.service, "mock_device".to_owned());
+        assert!((builder.get_extended_capabilities)().is_none());
+        assert!(methods.method("mockdevice.addRequestResponse").is_some());
+        assert!(methods.method("mockdevice.addRequestResponse").is_some());
+        assert!(methods.method("mockdevice.removeRequest").is_some());
+        assert!(methods.method("mockdevice.emitEvent").is_some());
+    }
+
+    #[test]
+    fn test_init_extn_builder() {
+        let builder = init_extn_builder();
+        let (tx, receiver) = unbounded();
+        let sender = ExtnSender::new(
+            tx,
+            ExtnId::new_channel(ExtnClassId::Device, "mock_device".to_owned()),
+            vec![],
+            vec![],
+            Some(HashMap::from([(
+                "mock_data_file".to_owned(),
+                "/Users/ACX02/.ripple/persistent/mock-device.json".to_owned(),
+            )])),
+        );
+        let channel = (builder.build)("ripple:channel:device:mock_device".to_owned());
+
+        assert_eq!(builder.service, "mock_device".to_owned());
+        assert!(channel.is_ok());
+        (channel.unwrap().start)(sender, receiver.clone());
+
+        let ready = receiver.recv();
+        assert!(ready.is_ok());
+        let message: ExtnMessage = ready.unwrap().try_into().unwrap();
+        let status: Option<ExtnStatus> = message.payload.extract();
+        assert_eq!(status, Some(ExtnStatus::Ready));
+    }
+}
