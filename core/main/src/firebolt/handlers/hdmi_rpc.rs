@@ -20,7 +20,7 @@ use crate::{
     state::platform_state::PlatformState, utils::rpc_utils::rpc_err,
 };
 use jsonrpsee::{
-    core::{async_trait, Error, RpcResult},
+    core::{async_trait, RpcResult},
     proc_macros::rpc,
     RpcModule,
 };
@@ -144,8 +144,8 @@ impl HdmiInputServer for HdmiImpl {
             .await
             .is_err()
         {
-            return Err(Error::Custom(
-                "Failed to subscribe to HdmiConnectionChanged event".to_owned(),
+            return Err(rpc_err(
+                "Failed to subscribe to HdmiConnectionChanged event",
             ));
         }
 
@@ -180,8 +180,8 @@ impl HdmiInputServer for HdmiImpl {
             .await
             .is_err()
         {
-            return Err(Error::Custom(
-                "Failed to subscribe to AutoLowLatencyModeSignalChanged event".to_owned(),
+            return Err(rpc_err(
+                "Failed to subscribe to AutoLowLatencyModeSignalChanged event",
             ));
         }
 
