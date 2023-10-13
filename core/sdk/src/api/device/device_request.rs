@@ -15,7 +15,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::api::firebolt::fb_openrpc::FireboltSemanticVersion;
+use crate::{
+    api::firebolt::fb_openrpc::FireboltSemanticVersion,
+    extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
+    framework::ripple_contract::RippleContract,
+    utils::serde_utils::language_code_serde,
+};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -208,12 +213,15 @@ pub struct OnInternetConnectedRequest {
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct LanguageProperty {
-    //#[serde(with = "language_code_serde")]
+    #[serde(with = "language_code_serde")]
     pub value: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct TimezoneProperty {
+    // Original Regex in the Firebolt Timezone openrpc spec seems to be allowing
+    // even blank strings so the below test case is failing leaving it here
+    // so we can get a future resolution
     //#[serde(with = "timezone_serde")]
     pub value: String,
 }
@@ -259,4 +267,50 @@ impl Default for SystemPowerState {
 #[serde(rename_all = "camelCase")]
 pub struct VoiceGuidanceState {
     pub state: bool,
+}
+
+impl ExtnPayloadProvider for VoiceGuidanceState {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Event(ExtnEvent::VoiceGuidanceState(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<VoiceGuidanceState> {
+        if let ExtnPayload::Event(ExtnEvent::VoiceGuidanceState(r)) = payload {
+            return Some(r);
+        }
+
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::VoiceGuidance
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_language_serializer() {
+        let lang_key = "{\"value\":\"\"}";
+        assert!(serde_json::from_str::<LanguageProperty>(lang_key).is_err());
+        let lang_key = "{\"value\":\"ens\"}";
+        assert!(serde_json::from_str::<LanguageProperty>(lang_key).is_err());
+        let lang_key = "{\"value\":\"en\"}";
+        assert!(serde_json::from_str::<LanguageProperty>(lang_key).is_ok());
+    }
+
+    // Original Regex in the Firebolt Timezone openrpc spec seems to be allowing
+    // even blank strings so the below test case is failing leaving it here
+    // so we can get a future resolution
+    // #[test]
+    // fn test_timezone_serializer() {
+    //     let tz = "{\"value\":\"\"}";
+    //     assert!(serde_json::from_str::<TimezoneProperty>(tz).is_err());
+    //     let tz = "{\"value\":\"America\"}";
+    //     assert!(serde_json::from_str::<TimezoneProperty>(tz).is_err());
+    //     let tz = "{\"value\":\"America/New_York\"}";
+    //     assert!(serde_json::from_str::<TimezoneProperty>(tz).is_ok());
+    // }
 }

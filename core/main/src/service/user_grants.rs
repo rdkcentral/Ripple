@@ -321,7 +321,7 @@ impl GrantState {
                 GrantActiveState::ActiveGrant(grant) => {
                     if grant.is_err() {
                         return Err(DenyReasonWithCap {
-                            reason: DenyReason::Ungranted,
+                            reason: grant.err().unwrap(),
                             caps: vec![permission.cap.clone()],
                         });
                     }
@@ -1281,7 +1281,10 @@ impl GrantStepExecutor {
                             debug!("returning err from invoke_capability");
                             Err(DenyReason::GrantDenied)
                         }
-                        None => Err(DenyReason::Ungranted),
+                        None => {
+                            debug!("returning err from invoke_capability");
+                            Err(DenyReason::Ungranted)
+                        }
                     },
                     None => {
                         debug!("Received reponse that is not convertable to challenge response");

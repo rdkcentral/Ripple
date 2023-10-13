@@ -608,7 +608,7 @@ impl AppLauncher {
             }
         }
 
-        if !sessionid.is_empty() {
+        if !bool_contract && !sessionid.is_empty() {
             let modified_url = Self::get_modified_url(&manifest, &sessionid);
             debug!("modified url with sessionid : {:?}", modified_url);
             Ok(modified_url)
@@ -875,6 +875,7 @@ impl AppLauncher {
                     if ContainerManager::bring_to_front(
                         state,
                         existing.container_props.name.as_str(),
+                        None,
                     )
                     .await
                     .is_ok()

@@ -57,6 +57,7 @@ pub enum DeviceInfoRequest {
     GetTimezoneWithOffset,
     FullCapabilities,
     PowerState,
+    SerialNumber,
 }
 
 impl ExtnPayloadProvider for DeviceInfoRequest {
