@@ -17,6 +17,7 @@
 
 use std::{
     collections::{HashMap, HashSet},
+    path::Path,
     sync::{Arc, RwLock},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -80,18 +81,19 @@ pub struct GrantState {
 impl GrantState {
     pub fn new(manifest: DeviceManifest) -> GrantState {
         let saved_dir = manifest.clone().configuration.saved_dir;
-        let device_grant_path = format!("{}device_grants", saved_dir);
-        let dev_grant_store = if let Ok(v) = FileStore::load(device_grant_path.clone()) {
+        let dir_path = Path::new(&saved_dir).join("device_grants");
+        let device_grant_path = dir_path.into_os_string().into_string();
+        let dev_grant_store = if let Ok(v) = FileStore::load(device_grant_path.clone().unwrap()) {
             v
         } else {
-            FileStore::new(device_grant_path, HashSet::new())
+            FileStore::new(device_grant_path.unwrap(), HashSet::new())
         };
-
-        let app_grant_path = format!("{}app_grants", saved_dir);
-        let app_grant_store = if let Ok(v) = FileStore::load(app_grant_path.clone()) {
+        let dir_path = Path::new(&saved_dir).join("app_grants");
+        let app_grant_path = dir_path.into_os_string().into_string();
+        let app_grant_store = if let Ok(v) = FileStore::load(app_grant_path.clone().unwrap()) {
             v
         } else {
-            FileStore::new(app_grant_path, HashMap::new())
+            FileStore::new(app_grant_path.unwrap(), HashMap::new())
         };
 
         GrantState {
@@ -128,7 +130,6 @@ impl GrantState {
             let mut grant_state = self.grant_app_map.write().unwrap();
             //Get a mutable reference to the value associated with a key, create it if it doesn't exist,
             let entries = grant_state.value.entry(app_id).or_default();
-
             if entries.contains(&new_entry) {
                 entries.remove(&new_entry);
             }
@@ -461,7 +462,7 @@ impl GrantState {
         (use_granted, manage_granted, provide_granted)
     }
 
-    pub fn grant_modify(
+    pub async fn grant_modify(
         platform_state: &PlatformState,
         modify_operation: GrantStateModify,
         app_id: Option<String>,
@@ -486,11 +487,12 @@ impl GrantState {
                         return false;
                     }
 
+                    let grant_policy_persistence = grant_policy.persistence.clone();
                     let mut new_entry = GrantEntry {
                         role,
                         capability,
                         status: None, // status will be updated later based on the modify operation.
-                        lifespan: Some(grant_policy.lifespan),
+                        lifespan: Some(grant_policy.lifespan.clone()),
                         lifespan_ttl_in_secs: grant_policy.lifespan_ttl,
                         last_modified_time: SystemTime::now()
                             .duration_since(SystemTime::UNIX_EPOCH)
@@ -514,11 +516,25 @@ impl GrantState {
                         }
                     }
 
-                    debug!("user grant modified with new entry:{:?}", new_entry);
+                    debug!("user grant modified with new entry:{:?}", new_entry.clone());
                     platform_state
                         .cap_state
                         .grant_state
-                        .update_grant_entry(app_id, new_entry);
+                        .update_grant_entry(app_id.clone(), new_entry.clone());
+
+                    debug!(
+                        "Sync user grant modified with new entry:{:?} to cloud",
+                        new_entry.clone()
+                    );
+                    if grant_policy_persistence == PolicyPersistenceType::Account {
+                        GrantPolicyEnforcer::send_usergrants_for_cloud_storage(
+                            platform_state,
+                            &grant_policy,
+                            &new_entry,
+                            &app_id,
+                        )
+                        .await;
+                    }
                 }
             }
         }
@@ -576,12 +592,17 @@ impl GrantPolicyEnforcer {
         app_id: &Option<String>,
     ) {
         if let Some(account_session) = platform_state.session_state.get_account_session() {
+            let mut s = None;
+            if grant_entry.status.is_some() {
+                s = Some(grant_entry.status.to_owned().unwrap());
+            };
+
             let usergrants_cloud_set_params = UserGrantsCloudSetParams {
                 account_session,
                 user_grant_info: UserGrantInfo {
                     role: grant_entry.role,
                     capability: grant_entry.capability.to_owned(),
-                    status: grant_entry.status.as_ref().unwrap().to_owned(),
+                    status: s,
                     last_modified_time: Duration::new(0, 0),
                     expiry_time: match grant_policy.lifespan {
                         GrantLifespan::Seconds => {
