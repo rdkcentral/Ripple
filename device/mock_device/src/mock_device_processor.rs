@@ -183,6 +183,7 @@ impl ExtnRequestProcessor for MockDeviceProcessor {
 #[cfg(test)]
 mod tests {
     #[test]
+    #[should_panic]
     fn test_add_request_response() {
         todo!(
             "currently unable to test this without a testing solution so ExtnClient interactions"

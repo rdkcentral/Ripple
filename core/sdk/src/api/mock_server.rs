@@ -78,6 +78,7 @@ impl TryFrom<&str> for PayloadType {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MessagePayload {
     /// The type of payload data
+    #[serde(rename = "type")]
     pub payload_type: PayloadType,
     /// The body of the request
     pub body: Value,

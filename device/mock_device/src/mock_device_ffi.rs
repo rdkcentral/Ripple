@@ -192,6 +192,7 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn test_init_extn_builder() {
         todo!("test that the mock device web socket server is started when the channel extension is launched")
         // FIXME: Currently unable to mock the extn client responses so that the Config::PlatformParameter response works.

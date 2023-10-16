@@ -171,6 +171,7 @@ mod tests {
     // use super::*;
 
     #[tokio::test(flavor = "multi_thread")]
+    #[should_panic]
     async fn test_add_request_response() {
         todo!("this test will not currently work as the mock_device channel extn needs to be up in order to communicate with it.");
         // let (sender, receiver) = extn_sender_jsonrpsee();
