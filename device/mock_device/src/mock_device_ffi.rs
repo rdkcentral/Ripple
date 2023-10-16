@@ -100,7 +100,7 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
                 panic!("Mock Device can only be used with platform using a WebSocket gateway")
             }
 
-            // Lets Main know that the distributor channel is ready
+            // Lets Main know that the mock_device channel is ready
             let _ = client.event(ExtnStatus::Ready);
         });
         client_c.initialize().await;
@@ -156,9 +156,8 @@ export_jsonrpc_extn_builder!(JsonRpseeExtnBuilder, init_jsonrpsee_builder);
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
 
-    use ripple_sdk::{crossbeam::channel::unbounded, extn::extn_client_message::ExtnMessage};
+    use ripple_sdk::crossbeam::channel::unbounded;
     use serde_json::json;
 
     use super::*;
@@ -197,35 +196,39 @@ mod tests {
         assert_eq!(builder.service, "mock_device".to_owned());
         assert!((builder.get_extended_capabilities)().is_none());
         assert!(methods.method("mockdevice.addRequestResponse").is_some());
-        assert!(methods.method("mockdevice.addRequestResponse").is_some());
         assert!(methods.method("mockdevice.removeRequest").is_some());
         assert!(methods.method("mockdevice.emitEvent").is_some());
     }
 
     #[test]
     fn test_init_extn_builder() {
-        let builder = init_extn_builder();
-        let (tx, receiver) = unbounded();
-        let sender = ExtnSender::new(
-            tx,
-            ExtnId::new_channel(ExtnClassId::Device, "mock_device".to_owned()),
-            vec![],
-            vec![],
-            Some(HashMap::from([(
-                "mock_data_file".to_owned(),
-                "/Users/ACX02/.ripple/persistent/mock-device.json".to_owned(),
-            )])),
-        );
-        let channel = (builder.build)("ripple:channel:device:mock_device".to_owned());
+        todo!("test that the mock device web socket server is started when the channel extension is launched")
+        // FIXME: Currently unable to mock the extn client responses so that the Config::PlatformParameter response works.
+        // let ripple_client = RippleClient::new        client.add_request_processor(ConfigRequestProcessor::new(state.platform_state.clone()));
 
-        assert_eq!(builder.service, "mock_device".to_owned());
-        assert!(channel.is_ok());
-        (channel.unwrap().start)(sender, receiver.clone());
+        // let builder = init_extn_builder();
+        // let (tx, receiver) = unbounded();
+        // let sender = ExtnSender::new(
+        //     tx,
+        //     ExtnId::new_channel(ExtnClassId::Device, "mock_device".to_owned()),
+        //     vec!["config".to_owned()],
+        //     vec![],
+        //     Some(HashMap::from([(
+        //         "mock_data_file".to_owned(),
+        //         "examples/device-mock-data/mock-device.json".to_owned(),
+        //     )])),
+        // );
+        // let channel = (builder.build)("ripple:channel:device:mock_device".to_owned());
 
-        let ready = receiver.recv();
-        assert!(ready.is_ok());
-        let message: ExtnMessage = ready.unwrap().try_into().unwrap();
-        let status: Option<ExtnStatus> = message.payload.extract();
-        assert_eq!(status, Some(ExtnStatus::Ready));
+        // assert_eq!(builder.service, "mock_device".to_owned());
+        // assert!(channel.is_ok());
+
+        // (channel.unwrap().start)(sender, receiver.clone());
+
+        // let ready = receiver.recv();
+        // assert!(ready.is_ok());
+        // let message: ExtnMessage = ready.unwrap().try_into().unwrap();
+        // let status: Option<ExtnStatus> = message.payload.extract();
+        // assert_eq!(status, Some(ExtnStatus::Ready));
     }
 }

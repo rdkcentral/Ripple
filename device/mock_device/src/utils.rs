@@ -41,11 +41,11 @@ pub async fn boot_ws_server(
     let gateway = platform_gateway_url(&mut client).await?;
 
     if gateway.scheme() != "ws" {
-        return Err(MockDeviceError::BootFailed(BootFailedError::BadUrlScheme));
+        return Err(BootFailedError::BadUrlScheme)?;
     }
 
     if !is_valid_host(gateway.host()) {
-        return Err(MockDeviceError::BootFailed(BootFailedError::BadHostname));
+        return Err(BootFailedError::BadHostname)?;
     }
 
     let mut server_config = WsServerParameters::new();
@@ -54,7 +54,7 @@ pub async fn boot_ws_server(
         .path(gateway.path());
     let ws_server = MockWebSocketServer::new(mock_data, server_config)
         .await
-        .map_err(|e| MockDeviceError::BootFailed(BootFailedError::ServerStartFailed(e)))?;
+        .map_err(BootFailedError::ServerStartFailed)?;
 
     let ws_server = Arc::new(ws_server);
     let server = ws_server.clone();
@@ -75,17 +75,13 @@ async fn platform_gateway_url(client: &mut ExtnClient) -> Result<Url, MockDevice
                 .and_then(|obj| obj.get("gateway"))
                 .and_then(|val| val.as_str())
                 .and_then(|s| s.parse().ok())
-                .ok_or(MockDeviceError::BootFailed(
-                    BootFailedError::GetPlatformGatewayFailed,
-                ))?;
+                .ok_or(BootFailedError::GetPlatformGatewayFailed)?;
             debug!("{}", gateway);
             return Ok(gateway);
         }
     }
 
-    Err(MockDeviceError::BootFailed(
-        BootFailedError::GetPlatformGatewayFailed,
-    ))
+    Err(BootFailedError::GetPlatformGatewayFailed)?
 }
 
 fn is_valid_host(host: Option<Host<&str>>) -> bool {
