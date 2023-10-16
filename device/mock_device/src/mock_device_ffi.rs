@@ -156,9 +156,9 @@ export_jsonrpc_extn_builder!(JsonRpseeExtnBuilder, init_jsonrpsee_builder);
 
 #[cfg(test)]
 mod tests {
-
-    use ripple_sdk::crossbeam::channel::unbounded;
     use serde_json::json;
+
+    use crate::test_utils::extn_sender_web_socket_mock_server;
 
     use super::*;
 
@@ -181,17 +181,8 @@ mod tests {
     fn test_init_jsonrpsee_builder() {
         let builder = init_jsonrpsee_builder();
 
-        let (tx, receiver) = unbounded();
-        let methods = (builder.build)(
-            ExtnSender::new(
-                tx,
-                ExtnId::new_channel(ExtnClassId::Device, "mock_device".to_owned()),
-                vec![],
-                vec![],
-                None,
-            ),
-            receiver,
-        );
+        let (sender, receiver) = extn_sender_web_socket_mock_server();
+        let methods = (builder.build)(sender, receiver);
 
         assert_eq!(builder.service, "mock_device".to_owned());
         assert!((builder.get_extended_capabilities)().is_none());
@@ -207,17 +198,8 @@ mod tests {
         // let ripple_client = RippleClient::new        client.add_request_processor(ConfigRequestProcessor::new(state.platform_state.clone()));
 
         // let builder = init_extn_builder();
-        // let (tx, receiver) = unbounded();
-        // let sender = ExtnSender::new(
-        //     tx,
-        //     ExtnId::new_channel(ExtnClassId::Device, "mock_device".to_owned()),
-        //     vec!["config".to_owned()],
-        //     vec![],
-        //     Some(HashMap::from([(
-        //         "mock_data_file".to_owned(),
-        //         "examples/device-mock-data/mock-device.json".to_owned(),
-        //     )])),
-        // );
+        // let (sender, receiver) = extn_sender();
+        // let client = ExtnClient::new(receiver, sender);
         // let channel = (builder.build)("ripple:channel:device:mock_device".to_owned());
 
         // assert_eq!(builder.service, "mock_device".to_owned());

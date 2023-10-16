@@ -159,3 +159,47 @@ impl MockDeviceControllerServer for MockDeviceController {
         // Ok(res)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use ripple_sdk::tokio;
+    // use ripple_tdk::utils::test_utils::Mockable;
+    // use serde_json::json;
+
+    // use crate::test_utils::extn_sender_jsonrpsee;
+
+    // use super::*;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_add_request_response() {
+        todo!("this test will not currently work as the mock_device channel extn needs to be up in order to communicate with it.");
+        // let (sender, receiver) = extn_sender_jsonrpsee();
+        // let client = ExtnClient::new(receiver, sender);
+        // let controller = MockDeviceController::new(client);
+
+        // let response = controller
+        //     .add_request_response(
+        //         CallContext::mock(),
+        //         AddRequestResponseParams {
+        //             request: MessagePayload {
+        //                 payload_type: ripple_sdk::api::mock_server::PayloadType::Json,
+        //                 body: json!({"key": "value"}),
+        //             },
+        //             responses: vec![MessagePayload {
+        //                 payload_type: ripple_sdk::api::mock_server::PayloadType::Json,
+        //                 body: json!({"key": "value"}),
+        //             }],
+        //         },
+        //     )
+        //     .await
+        //     .expect("controller request failed");
+
+        // assert_eq!(
+        //     response,
+        //     MockServerResponse::AddRequestResponse(AddRequestResponseResponse {
+        //         success: true,
+        //         error: None
+        //     })
+        // );
+    }
+}

@@ -99,7 +99,7 @@ pub enum MockServerRequest {
     RemoveRequest(RemoveRequestParams),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum MockServerResponse {
     AddRequestResponse(AddRequestResponseResponse),
     EmitEvent(EmitEventResponse),
@@ -112,7 +112,7 @@ pub struct AddRequestResponseParams {
     pub responses: Vec<MessagePayload>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct AddRequestResponseResponse {
     pub success: bool,
     pub error: Option<String>,
@@ -123,7 +123,7 @@ pub struct RemoveRequestParams {
     pub request: MessagePayload,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct RemoveRequestResponse {
     pub success: bool,
     pub error: Option<String>,
@@ -136,7 +136,7 @@ pub struct EmitEventParams {
     pub event: EventPayload,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct EmitEventResponse {
     pub success: bool,
 }
