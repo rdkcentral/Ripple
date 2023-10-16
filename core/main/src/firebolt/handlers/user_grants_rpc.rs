@@ -59,11 +59,11 @@ pub trait UserGrants {
         request: GetUserGrantsByCapabilityRequest,
     ) -> RpcResult<Vec<GrantInfo>>;
     #[method(name = "usergrants.grant")]
-    fn usergrants_grant(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()>;
+    async fn usergrants_grant(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()>;
     #[method(name = "usergrants.deny")]
-    fn usergrants_deny(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()>;
+    async fn usergrants_deny(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()>;
     #[method(name = "usergrants.clear")]
-    fn usergrants_clear(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()>;
+    async fn usergrants_clear(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()>;
 }
 
 #[derive(Debug)]
@@ -127,7 +127,10 @@ impl UserGrantsImpl {
                 id: x,
                 title: app_name,
             }),
-            state: entry.status.as_ref().unwrap().as_string().to_owned(),
+            state: entry
+                .status
+                .as_ref()
+                .map_or("INVALID".to_owned(), |s| s.as_string().to_owned()),
             capability: entry.capability.to_owned(),
             role: entry.role.as_string().to_owned(),
             lifespan: entry.lifespan.as_ref().unwrap().as_string().to_owned(),
@@ -195,14 +198,15 @@ impl UserGrantsServer for UserGrantsImpl {
         Ok(combined_grant_entries)
     }
 
-    fn usergrants_grant(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
+    async fn usergrants_grant(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
         let result = GrantState::grant_modify(
             &self.platform_state,
             GrantStateModify::Grant,
             request.options.and_then(|x| x.app_id),
             request.role,
             request.capability,
-        );
+        )
+        .await;
 
         if result {
             Ok(())
@@ -211,14 +215,15 @@ impl UserGrantsServer for UserGrantsImpl {
         }
     }
 
-    fn usergrants_deny(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
+    async fn usergrants_deny(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
         let result = GrantState::grant_modify(
             &self.platform_state,
             GrantStateModify::Deny,
             request.options.and_then(|x| x.app_id),
             request.role,
             request.capability,
-        );
+        )
+        .await;
 
         if result {
             Ok(())
@@ -227,14 +232,15 @@ impl UserGrantsServer for UserGrantsImpl {
         }
     }
 
-    fn usergrants_clear(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
+    async fn usergrants_clear(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
         let result = GrantState::grant_modify(
             &self.platform_state,
             GrantStateModify::Clear,
             request.options.and_then(|x| x.app_id),
             request.role,
             request.capability,
-        );
+        )
+        .await;
 
         if result {
             Ok(())
