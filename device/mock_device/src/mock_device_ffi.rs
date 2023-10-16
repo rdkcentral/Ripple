@@ -91,14 +91,12 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
                 .unwrap_or_default();
             debug!("mock_data={:?}", mock_data);
 
-            if let Ok(server) =
-                boot_ws_server(client.clone(), Arc::new(RwLock::new(mock_data))).await
-            {
-                client.add_request_processor(MockDeviceProcessor::new(client.clone(), server));
-            } else {
-                // TODO: check panic message
-                panic!("Mock Device can only be used with platform using a WebSocket gateway")
-            }
+            match boot_ws_server(client.clone(), Arc::new(RwLock::new(mock_data))).await {
+                Ok(server) => {
+                    client.add_request_processor(MockDeviceProcessor::new(client.clone(), server))
+                }
+                Err(err) => panic!("websocket server failed to start. {}", err),
+            };
 
             // Lets Main know that the mock_device channel is ready
             let _ = client.event(ExtnStatus::Ready);
