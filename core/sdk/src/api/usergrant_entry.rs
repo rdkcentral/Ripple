@@ -56,7 +56,7 @@ impl ExtnPayloadProvider for UserGrantsStoreRequest {
 pub struct UserGrantInfo {
     pub role: CapabilityRole,
     pub capability: String,
-    pub status: GrantStatus,
+    pub status: Option<GrantStatus>,
     pub last_modified_time: Duration, // Duration since Unix epoch
     pub expiry_time: Option<Duration>,
     pub app_name: Option<String>,
@@ -68,7 +68,7 @@ impl Default for UserGrantInfo {
         UserGrantInfo {
             role: CapabilityRole::Use,
             capability: Default::default(),
-            status: GrantStatus::Denied,
+            status: Some(GrantStatus::Denied),
             last_modified_time: Duration::new(0, 0),
             expiry_time: None,
             app_name: None,
