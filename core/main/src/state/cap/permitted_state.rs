@@ -22,6 +22,7 @@ use std::{
 
 use ripple_sdk::{
     api::{
+        //config::Config,
         distributor::distributor_permissions::{PermissionRequest, PermissionResponse},
         firebolt::{
             fb_capabilities::{
@@ -123,7 +124,20 @@ fn get_permissions_path(saved_dir: String) -> String {
 pub struct PermissionHandler;
 
 impl PermissionHandler {
+    fn get_distributor_alias_for_app_id(ps: &PlatformState, app_id: &str) -> String {
+        let dist_app_aliases = ps
+            .get_device_manifest()
+            .applications
+            .distributor_app_aliases;
+        if let Some(app_id_alias) = dist_app_aliases.get(&app_id.to_string()) {
+            app_id_alias.to_string()
+        } else {
+            app_id.to_string()
+        }
+    }
+
     pub async fn fetch_and_store(state: &PlatformState, app_id: &str) -> RippleResponse {
+        let app_id_alias = Self::get_distributor_alias_for_app_id(state, app_id);
         if state
             .cap_state
             .permitted_state
@@ -136,7 +150,7 @@ impl PermissionHandler {
             if let Ok(extn_response) = state
                 .get_client()
                 .send_extn_request(PermissionRequest {
-                    app_id: app_id.to_owned(),
+                    app_id: app_id_alias,
                     session,
                 })
                 .await
