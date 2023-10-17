@@ -160,10 +160,6 @@ impl CapabilityServer for CapabilityImpl {
     }
 
     async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<Option<bool>> {
-        // if let Ok(response) = is_granted(self.state.clone(), ctx, cap).await {
-        //     return Ok(Some(response));
-        // }
-        // Ok(None)
         self.state
             .cap_state
             .grant_state
