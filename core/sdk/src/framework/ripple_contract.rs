@@ -16,7 +16,10 @@
 //
 
 use crate::{
-    api::{session::SessionAdjective, storage_property::StorageAdjective},
+    api::{
+        session::{PubSubAdjective, SessionAdjective},
+        storage_property::StorageAdjective,
+    },
     utils::{error::RippleError, serde_utils::SerdeClearString},
 };
 use log::error;
@@ -102,7 +105,7 @@ pub enum RippleContract {
     Settings,
     /// Bi directional channel between the device and external service can be implemented by Distributors.
     /// Distributors can send unique topics on messages to control Privacy, Usergrants and Automation
-    PubSub,
+    PubSub(PubSubAdjective),
     /// Used for synchronization enforcement between cloud and local data
     CloudSync,
     /// Extensions can use this contract to get more information on the firebolt capabilities  
@@ -175,6 +178,7 @@ impl RippleContract {
         match self {
             Self::Storage(adj) => Some(adj.as_string()),
             Self::Session(adj) => Some(adj.as_string()),
+            Self::PubSub(adj) => Some(adj.as_string()),
             _ => None,
         }
     }
@@ -190,6 +194,10 @@ impl RippleContract {
                 Ok(v) => return Some(v.get_contract()),
                 Err(e) => error!("contract parser_error={:?}", e),
             },
+            "pubsub" => match serde_json::from_str::<PubSubAdjective>(&adjective) {
+                Ok(v) => return Some(v.get_contract()),
+                Err(e) => error!("contract parser_error={:?}", e),
+            },
             _ => {}
         }
         None
@@ -199,6 +207,7 @@ impl RippleContract {
         match self {
             Self::Storage(_) => Some("storage".to_owned()),
             Self::Session(_) => Some("session".to_owned()),
+            Self::PubSub(_) => Some("pubsub".to_owned()),
             _ => None,
         }
     }
