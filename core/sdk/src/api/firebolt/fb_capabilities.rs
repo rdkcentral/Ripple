@@ -97,7 +97,7 @@ impl FireboltCap {
         if !cap.starts_with("xrn:firebolt:capability") {
             caps = "xrn:firebolt:capability:".to_string() + cap.as_str();
         }
-        return FireboltCap::parse_long(caps);
+        FireboltCap::parse_long(caps)
     }
 
     pub fn parse_long(cap: String) -> Option<FireboltCap> {
@@ -107,14 +107,14 @@ impl FireboltCap {
         }
 
         let prefix = vec!["xrn", "firebolt", "capability"];
-        let c_a = cap.split(":");
+        let c_a = cap.split(':');
         let mut cap_vec = Vec::<String>::new();
-        for c in c_a.into_iter() {
-            if !prefix.contains(&c) {
-                cap_vec.push(String::from(c));
+        for token in c_a.into_iter() {
+            if !prefix.contains(&token) {
+                cap_vec.push(String::from(token));
             }
         }
-        return Some(FireboltCap::Short(cap_vec.join(":")));
+        Some(FireboltCap::Short(cap_vec.join(":")))
     }
 
     pub fn from_vec_string(cap_strings: Vec<String>) -> Vec<FireboltCap> {
