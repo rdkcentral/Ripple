@@ -684,6 +684,14 @@ impl ExtnClient {
         self.sender.check_contract_permission(contract)
     }
 
+    pub fn has_token(&self) -> bool {
+        let ripple_context = self.ripple_context.read().unwrap();
+        matches!(
+            ripple_context.activation_status.clone(),
+            ActivationStatus::AccountToken(_)
+        )
+    }
+
     pub fn get_activation_status(&self) -> ActivationStatus {
         let ripple_context = self.ripple_context.read().unwrap();
         ripple_context.activation_status.clone()
