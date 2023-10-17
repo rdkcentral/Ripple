@@ -1253,20 +1253,22 @@ impl GrantStepExecutor {
             ProviderBroker::invoke_method(&platform_state.clone(), pr_msg).await;
             match session_rx.await {
                 Ok(result) => match result.as_challenge_response() {
-                    Some(res) => match res.granted {
-                        Some(true) => {
-                            debug!("returning ok from invoke_capability");
-                            Ok(())
+                    Some(res) => {
+                        match res.granted {
+                            Some(true) => {
+                                debug!("returning ok from invoke_capability");
+                                Ok(())
+                            }
+                            Some(false) => {
+                                debug!("returning err from invoke_capability");
+                                Err(DenyReason::GrantDenied)
+                            }
+                            None => {
+                                debug!("Challenge left unanswered. Returning err from invoke_capability");
+                                Err(DenyReason::Ungranted)
+                            }
                         }
-                        Some(false) => {
-                            debug!("returning err from invoke_capability");
-                            Err(DenyReason::GrantDenied)
-                        }
-                        None => {
-                            debug!("Challenge left unanswered. Returning err from invoke_capability");
-                            Err(DenyReason::Ungranted)
-                        }
-                    },
+                    }
                     None => {
                         debug!("Received reponse that is not convertable to challenge response");
                         Err(DenyReason::Ungranted)
