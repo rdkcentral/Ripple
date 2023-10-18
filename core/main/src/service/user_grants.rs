@@ -142,6 +142,50 @@ impl GrantState {
         }
     }
 
+    pub fn clear_local_entries(&self, ps: &PlatformState) {
+        let mut grant_state = self.grant_app_map.write().unwrap();
+        for (_, entries) in grant_state.value.iter_mut() {
+            entries.retain(|entry| {
+                !self.check_grant_policy_persistence(
+                    ps,
+                    entry.capability.clone(),
+                    entry.role.clone(),
+                    PolicyPersistenceType::Account,
+                )
+            });
+        }
+        grant_state.sync();
+    }
+
+    pub fn check_grant_policy_persistence(
+        &self,
+        ps: &PlatformState,
+        capability: String,
+        role: CapabilityRole,
+        persistence: PolicyPersistenceType,
+    ) -> bool {
+        // retrieve the grant policy for the given cap and role.
+        let permission = FireboltPermission {
+            cap: FireboltCap::Full(capability.clone()),
+            role,
+        };
+
+        if let Some(grant_policy_map) = ps.get_device_manifest().get_grant_policies() {
+            let result = grant_policy_map.get(&permission.cap.as_str());
+            if let Some(policies) = result {
+                if let Some(grant_policy) = policies.get_policy(&permission) {
+                    let grant_policy_persistence = grant_policy.persistence.clone();
+                    if grant_policy_persistence == persistence {
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     pub fn custom_delete_entries<F>(&self, app_id: String, restrict_function: F) -> bool
     where
         F: FnMut(&GrantEntry) -> bool,

@@ -32,6 +32,7 @@ use super::storage_property::StorageAdjective;
 pub enum UserGrantsStoreRequest {
     GetUserGrants(String, FireboltPermission),
     SetUserGrants(UserGrantInfo),
+    ClearUserGrants(),
 }
 
 impl ExtnPayloadProvider for UserGrantsStoreRequest {
