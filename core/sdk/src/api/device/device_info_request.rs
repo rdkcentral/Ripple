@@ -54,6 +54,7 @@ pub enum DeviceInfoRequest {
     SetVoiceGuidanceSpeed(f32),
     GetTimezoneWithOffset,
     FullCapabilities,
+    SerialNumber,
 }
 
 impl ExtnPayloadProvider for DeviceInfoRequest {
