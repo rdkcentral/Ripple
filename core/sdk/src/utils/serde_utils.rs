@@ -272,3 +272,18 @@ impl SerdeClearString {
         format!("\"{}\"", t)
     }
 }
+
+pub fn valid_string_deserializer<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = String::deserialize(deserializer)?;
+    if !value.trim().is_empty() {
+        Ok(value)
+    } else {
+        Err(serde::de::Error::custom(format!(
+            "Invalid value ({})",
+            value
+        )))
+    }
+}

@@ -22,12 +22,16 @@ use jsonrpsee::{
     tracing::error,
     RpcModule,
 };
-use ripple_sdk::api::{
-    firebolt::fb_secure_storage::{
-        SecureStorageClearRequest, SecureStorageGetRequest, SecureStorageRemoveRequest,
-        SecureStorageRequest, SecureStorageResponse, SecureStorageSetRequest,
+use ripple_sdk::{
+    api::{
+        firebolt::fb_secure_storage::{
+            SecureStorageClearRequest, SecureStorageGetRequest, SecureStorageRemoveRequest,
+            SecureStorageRequest, SecureStorageResponse, SecureStorageSetRequest,
+        },
+        gateway::rpc_gateway_api::CallContext,
     },
-    gateway::rpc_gateway_api::CallContext,
+    extn::extn_client_message::ExtnResponse,
+    utils::error::RippleError,
 };
 
 use crate::{firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState};
@@ -40,6 +44,18 @@ macro_rules! return_if_app_id_missing {
             return Err(rpc_err(msg));
         }
     };
+}
+
+fn get_err_msg(err: RippleError) -> jsonrpsee::core::Error {
+    jsonrpsee::core::Error::Custom(format!(
+        "Error getting value {}",
+        match err {
+            RippleError::ExtnError => "(Server Error)",
+            RippleError::ApiAuthenticationFailed => "(Session Missing)",
+            _ => "",
+        }
+        .to_owned()
+    ))
 }
 
 #[rpc(server)]
@@ -93,61 +109,67 @@ impl SecureStorageImpl {
     }
 
     async fn set(&self, request: SecureStorageSetRequest) -> RpcResult<()> {
-        match self
-            .state
-            .get_client()
-            .send_extn_request(SecureStorageRequest::Set(
-                request,
-                self.state.session_state.get_account_session().unwrap(),
-            ))
-            .await
-        {
-            Ok(_) => Ok(()),
-            Err(err) => {
-                error!("error={:?}", err);
-                Err(jsonrpsee::core::Error::Custom(
-                    "Error setting value".to_owned(),
-                ))
+        if let Some(session) = self.state.session_state.get_account_session() {
+            match self
+                .state
+                .get_client()
+                .send_extn_request(SecureStorageRequest::Set(request, session))
+                .await
+            {
+                Ok(response) => {
+                    if let Some(ExtnResponse::SecureStorage(_r)) = response.payload.extract() {
+                        Ok(())
+                    } else {
+                        Err(get_err_msg(RippleError::ExtnError))
+                    }
+                }
+                Err(e) => Err(get_err_msg(e)),
             }
+        } else {
+            Err(get_err_msg(RippleError::ApiAuthenticationFailed))
         }
     }
 
     async fn remove(&self, request: SecureStorageRemoveRequest) -> RpcResult<()> {
-        match self
-            .state
-            .get_client()
-            .send_extn_request(SecureStorageRequest::Remove(
-                request,
-                self.state.session_state.get_account_session().unwrap(),
-            ))
-            .await
-        {
-            Ok(_) => Ok(()),
-            Err(err) => {
-                error!("error={:?}", err);
-                Err(jsonrpsee::core::Error::Custom(
-                    "Error removing value".to_owned(),
-                ))
+        if let Some(session) = self.state.session_state.get_account_session() {
+            match self
+                .state
+                .get_client()
+                .send_extn_request(SecureStorageRequest::Remove(request, session))
+                .await
+            {
+                Ok(response) => {
+                    if let Some(ExtnResponse::SecureStorage(_r)) = response.payload.extract() {
+                        Ok(())
+                    } else {
+                        Err(get_err_msg(RippleError::ExtnError))
+                    }
+                }
+                Err(e) => Err(get_err_msg(e)),
             }
+        } else {
+            Err(get_err_msg(RippleError::ApiAuthenticationFailed))
         }
     }
     async fn clear(&self, request: SecureStorageClearRequest) -> RpcResult<()> {
-        match self
-            .state
-            .get_client()
-            .send_extn_request(SecureStorageRequest::Clear(
-                request,
-                self.state.session_state.get_account_session().unwrap(),
-            ))
-            .await
-        {
-            Ok(_) => Ok(()),
-            Err(err) => {
-                error!("error={:?}", err);
-                Err(jsonrpsee::core::Error::Custom(
-                    "Error clearing value".to_owned(),
-                ))
+        if let Some(session) = self.state.session_state.get_account_session() {
+            match self
+                .state
+                .get_client()
+                .send_extn_request(SecureStorageRequest::Clear(request, session))
+                .await
+            {
+                Ok(response) => {
+                    if let Some(ExtnResponse::SecureStorage(_r)) = response.payload.extract() {
+                        Ok(())
+                    } else {
+                        Err(get_err_msg(RippleError::ExtnError))
+                    }
+                }
+                Err(e) => Err(get_err_msg(e)),
             }
+        } else {
+            Err(get_err_msg(RippleError::ApiAuthenticationFailed))
         }
     }
 }
@@ -159,28 +181,26 @@ impl SecureStorageServer for SecureStorageImpl {
         ctx: CallContext,
         request: SecureStorageGetRequest,
     ) -> RpcResult<Option<String>> {
-        match self
-            .state
-            .get_client()
-            .send_extn_request(SecureStorageRequest::Get(
-                ctx.app_id,
-                request,
-                self.state.session_state.get_account_session().unwrap(),
-            ))
-            .await
-        {
-            Ok(response) => match response.payload.extract().unwrap() {
-                SecureStorageResponse::Get(value) => Ok(value.value),
-                _ => Err(jsonrpsee::core::Error::Custom(String::from(
-                    "Secure Storage Response error response TBD",
-                ))),
-            },
-            Err(err) => {
-                error!("error={:?}", err);
-                Err(jsonrpsee::core::Error::Custom(
-                    "Error getting value".to_owned(),
-                ))
+        if let Some(session) = self.state.session_state.get_account_session() {
+            match self
+                .state
+                .get_client()
+                .send_extn_request(SecureStorageRequest::Get(ctx.app_id, request, session))
+                .await
+            {
+                Ok(response) => {
+                    if let Some(ExtnResponse::SecureStorage(SecureStorageResponse::Get(v))) =
+                        response.payload.extract()
+                    {
+                        Ok(v.value)
+                    } else {
+                        Err(get_err_msg(RippleError::ExtnError))
+                    }
+                }
+                Err(e) => Err(get_err_msg(e)),
             }
+        } else {
+            Err(get_err_msg(RippleError::ApiAuthenticationFailed))
         }
     }
 

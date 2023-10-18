@@ -102,7 +102,7 @@ impl StoreUserGrantsProcessor {
         let grant_entry = GrantEntry {
             role: user_grant_info.role,
             capability: user_grant_info.capability.to_owned(),
-            status: Some(user_grant_info.status),
+            status: user_grant_info.status,
             lifespan: match user_grant_info.expiry_time {
                 Some(_) => Some(GrantLifespan::Seconds),
                 None => Some(GrantLifespan::Forever),

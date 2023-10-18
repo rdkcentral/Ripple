@@ -168,7 +168,6 @@ impl ThunderClient {
     /// Sends a message to thunder. If this client is pooled
     /// then it will wrap the message in a pool command before sending
     pub async fn send_message(&self, message: ThunderMessage) {
-        info!("Client {} sending thunder message {:?}", self.id, message);
         if let Some(s) = &self.pooled_sender {
             mpsc_send_and_log(
                 s,
@@ -456,6 +455,7 @@ impl ThunderClientBuilder {
                         return;
                     }
                 }
+                info!("Client {} sending thunder message {:?}", id, message);
                 match message {
                     ThunderMessage::ThunderCallMessage(thunder_message) => {
                         ThunderClient::call(&client, thunder_message, plugin_manager_tx.clone())

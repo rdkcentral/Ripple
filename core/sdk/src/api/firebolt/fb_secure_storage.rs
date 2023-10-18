@@ -73,27 +73,6 @@ pub struct SecureStorageGetResponse {
 pub struct SecureStorageDefaultResponse {}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GetRequest {
-    pub key: String,
-    pub scope: StorageScope,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SetRequest {
-    pub scope: StorageScope,
-    pub key: String,
-    pub value: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub options: Option<StorageOptions>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct RemoveRequest {
-    pub key: String,
-    pub scope: StorageScope,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum SecureStorageRequest {
     Get(String, SecureStorageGetRequest, AccountSession),
     Set(SecureStorageSetRequest, AccountSession),

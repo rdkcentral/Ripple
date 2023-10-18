@@ -72,7 +72,7 @@ impl ExtnPayloadProvider for PinChallengeRequestWithContext {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum PinChallengeResultReason {
     NoPinRequired,
@@ -90,6 +90,12 @@ pub struct PinChallengeResponse {
 impl PinChallengeResponse {
     pub fn get_granted(&self) -> Option<bool> {
         self.granted
+    }
+    pub fn get_reason(&self) -> PinChallengeResultReason {
+        self.reason.clone()
+    }
+    pub fn new(granted: Option<bool>, reason: PinChallengeResultReason) -> Self {
+        PinChallengeResponse { granted, reason }
     }
 }
 

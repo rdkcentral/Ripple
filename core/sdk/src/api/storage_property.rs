@@ -118,6 +118,7 @@ pub const EVENT_DEVICE_NAME_CHANGED: &str = "device.onNameChanged";
 pub const EVENT_DEVICE_DEVICE_NAME_CHANGED: &str = "device.onDeviceNameChanged";
 pub const EVENT_SECOND_SCREEN_FRIENDLY_NAME_CHANGED: &str = "secondscreen.onFriendlyNameChanged";
 pub const EVENT_ADVERTISING_POLICY_CHANGED: &str = "advertising.onPolicyChanged";
+pub const EVENT_ADVERTISING_SKIP_RESTRICTION_CHANGED: &str = "advertising.onSkipRestrictionChanged";
 pub const EVENT_ADVERTISING_SKIP_RESTRICTION: &str = "advertising.setSkipRestriction";
 
 pub const EVENT_TIMEZONE_CHANGED: &str = "localization.onTimeZoneChanged";
@@ -386,6 +387,7 @@ const PROPERTY_DATA_SKIP_RESTRICTION: PropertyData = PropertyData {
     event_names: Some(&[
         EVENT_ADVERTISING_SKIP_RESTRICTION,
         EVENT_ADVERTISING_POLICY_CHANGED,
+ 	EVENT_ADVERTISING_SKIP_RESTRICTION_CHANGED,
     ]),
 };
 
