@@ -149,7 +149,7 @@ impl GrantState {
                 !self.check_grant_policy_persistence(
                     ps,
                     entry.capability.clone(),
-                    entry.role.clone(),
+                    entry.role,
                     PolicyPersistenceType::Account,
                 )
             });
@@ -166,7 +166,7 @@ impl GrantState {
     ) -> bool {
         // retrieve the grant policy for the given cap and role.
         let permission = FireboltPermission {
-            cap: FireboltCap::Full(capability.clone()),
+            cap: FireboltCap::Full(capability),
             role,
         };
 
@@ -174,16 +174,12 @@ impl GrantState {
             let result = grant_policy_map.get(&permission.cap.as_str());
             if let Some(policies) = result {
                 if let Some(grant_policy) = policies.get_policy(&permission) {
-                    let grant_policy_persistence = grant_policy.persistence.clone();
-                    if grant_policy_persistence == persistence {
-                        return true;
-                    } else {
-                        return false;
-                    }
+                    let grant_policy_persistence = grant_policy.persistence;
+                    return grant_policy_persistence == persistence;
                 }
             }
         }
-        return false;
+        false
     }
 
     pub fn custom_delete_entries<F>(&self, app_id: String, restrict_function: F) -> bool
