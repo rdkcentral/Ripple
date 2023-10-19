@@ -31,7 +31,7 @@ use ripple_sdk::{
                 GrantRequest, UserGrantRequestParam,
             },
         },
-        gateway::rpc_gateway_api::CallContext,
+        gateway::rpc_gateway_api::{AppIdentification, CallContext},
     },
     chrono::{DateTime, Utc},
     tokio::sync::oneshot,
@@ -275,14 +275,20 @@ impl UserGrantsServer for UserGrantsImpl {
         let _grant_entries = GrantState::check_with_roles(
             &self.platform_state,
             &ctx.clone().into(),
-            &ctx.clone().into(),
+            &AppIdentification {
+                app_id: request.app_id.clone(),
+            },
             &fb_perms,
             false,
         )
         .await;
-        let app_id = ctx.app_id.clone();
-        self.usergrants_app(ctx, GetUserGrantsByAppRequest { app_id })
-            .await
+        self.usergrants_app(
+            ctx,
+            GetUserGrantsByAppRequest {
+                app_id: request.app_id,
+            },
+        )
+        .await
     }
 }
 
