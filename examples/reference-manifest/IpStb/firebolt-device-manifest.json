@@ -668,7 +668,7 @@
   },
   "applications": {
     "distribution": {
-      "library": "/opt/firebolt-app-library.json",
+      "library": "/etc/firebolt-app-library.json",
       "catalog": ""
     },
     "defaults": {
