@@ -124,6 +124,22 @@ impl StoreUserGrantsProcessor {
         .await
         .is_ok()
     }
+
+    async fn process_sync_grant_map(state: &PlatformState, msg: ExtnMessage) -> bool {
+        debug!("Processor is handling sync grant map request");
+        state
+            .cap_state
+            .grant_state
+            .sync_grant_map_with_grant_policy(state)
+            .await;
+        Self::respond(
+            state.get_client().get_extn_client(),
+            msg,
+            ExtnResponse::None(()),
+        )
+        .await
+        .is_ok()
+    }
 }
 
 #[async_trait]
@@ -144,6 +160,9 @@ impl ExtnRequestProcessor for StoreUserGrantsProcessor {
             }
             UserGrantsStoreRequest::SetUserGrants(user_grant_info) => {
                 Self::process_set_request(&state, msg, user_grant_info).await
+            }
+            UserGrantsStoreRequest::SyncGrantMapPerPolicy() => {
+                Self::process_sync_grant_map(&state, msg).await
             }
         }
     }
