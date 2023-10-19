@@ -24,7 +24,9 @@ use ripple_sdk::{
             device_request::{PowerState, SystemPowerState},
             device_user_grants_data::GrantLifespan,
         },
+        distributor::distributor_sync::{SyncAndMonitorModule, SyncAndMonitorRequest},
         firebolt::fb_capabilities::{CapEvent, FireboltCap},
+        manifest::device_manifest::PrivacySettingsStorageType,
         session::AccountSessionRequest,
     },
     async_trait::async_trait,
@@ -34,7 +36,7 @@ use ripple_sdk::{
         },
         extn_client_message::ExtnMessage,
     },
-    log::info,
+    log::{debug, info},
     tokio::sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
 };
 
@@ -88,6 +90,43 @@ impl MainContextProcessor {
             None,
         )
         .await;
+
+        if state.supports_cloud_sync() {
+            debug!("Cloud Sync  configured as a required contract so starting.");
+            if state
+                .get_device_manifest()
+                .configuration
+                .features
+                .privacy_settings_storage_type
+                != PrivacySettingsStorageType::Sync
+            {
+                debug!(
+                "Privacy settings storage type is not set as sync so not starting cloud monitor"
+            );
+                if let Some(account_session) = state.session_state.get_account_session() {
+                    debug!("Successfully got account session");
+                    let sync_response = state
+                        .get_client()
+                        .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
+                            SyncAndMonitorModule::Privacy,
+                            account_session.clone(),
+                        ))
+                        .await;
+                    debug!("Received Sync response for privacy: {:?}", sync_response);
+                    let sync_response = state
+                        .get_client()
+                        .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
+                            SyncAndMonitorModule::UserGrants,
+                            account_session.clone(),
+                        ))
+                        .await;
+                    debug!(
+                        "Received Sync response for user grants: {:?}",
+                        sync_response
+                    );
+                }
+            }
+        }
     }
 
     async fn handle_power_state(state: &PlatformState, power_state: &SystemPowerState) {
