@@ -121,6 +121,102 @@ impl GrantState {
         None
     }
 
+    pub async fn sync_grant_map_with_grant_policy(&self, platform_state: &PlatformState) {
+        let grant_entries_to_remove = Self::fetch_grant_entry_to_remove(platform_state);
+        for (app_id, entry_set) in grant_entries_to_remove.iter() {
+            for entry in entry_set {
+                Self::force_delete_user_grant_from_all_sources(
+                    platform_state,
+                    app_id.clone(),
+                    entry,
+                )
+                .await;
+            }
+        }
+    }
+
+    fn fetch_grant_entry_to_remove(
+        platform_state: &PlatformState,
+    ) -> HashMap<String, HashSet<GrantEntry>> {
+        let mut grant_entries_to_remove: HashMap<String, HashSet<GrantEntry>> = HashMap::new();
+        let grant_policies_map = if let Some(grant_policies) =
+            platform_state.get_device_manifest().get_grant_policies()
+        {
+            grant_policies
+        } else {
+            HashMap::default()
+        };
+        let grant_entries = platform_state
+            .cap_state
+            .grant_state
+            .grant_app_map
+            .read()
+            .unwrap();
+        for (app_id, app_entries) in grant_entries.value.iter() {
+            let mut grant_entry_set_to_remove: HashSet<GrantEntry> = HashSet::new();
+            for grant_entry in app_entries.iter() {
+                if !grant_policies_map.contains_key(&grant_entry.capability) {
+                    grant_entry_set_to_remove.insert(grant_entry.clone());
+                }
+            }
+            if !grant_entry_set_to_remove.is_empty() {
+                grant_entries_to_remove.insert(app_id.clone(), grant_entry_set_to_remove);
+            }
+        }
+        debug!(
+            "sync: grant entries to be removed {:#?}",
+            grant_entries_to_remove
+        );
+        grant_entries_to_remove
+    }
+
+    async fn force_delete_user_grant_from_all_sources(
+        platform_state: &PlatformState,
+        app_id: String,
+        entry: &GrantEntry,
+    ) {
+        // Delete app grant in local storage and grant state by app id
+        let grant_entry_to_remove =
+            Self::force_delete_user_grant(platform_state, app_id.clone(), entry);
+
+        if let Some(gc_opt) = grant_entry_to_remove {
+            // Remove grant entry from cloud
+            let mut gc = gc_opt;
+            gc.status = None;
+
+            GrantPolicyEnforcer::send_usergrants_for_cloud_storage(
+                platform_state,
+                None,
+                &gc,
+                &Some(app_id),
+            )
+            .await;
+        }
+    }
+
+    fn force_delete_user_grant(
+        platform_state: &PlatformState,
+        app_id: String,
+        entry: &GrantEntry,
+    ) -> Option<GrantEntry> {
+        let mut gc_opt: Option<GrantEntry> = None;
+        {
+            let mut grant_app_map_write = platform_state
+                .cap_state
+                .grant_state
+                .grant_app_map
+                .write()
+                .unwrap();
+            let entries = grant_app_map_write.value.entry(app_id).or_default();
+            if entries.contains(entry) {
+                gc_opt = Some(entry.clone());
+                entries.remove(entry);
+            }
+            grant_app_map_write.sync();
+            gc_opt
+        }
+    }
+
     pub fn update_grant_entry(
         &self,
         app_id: Option<String>, // None is for device
@@ -529,7 +625,7 @@ impl GrantState {
                     if grant_policy_persistence == PolicyPersistenceType::Account {
                         GrantPolicyEnforcer::send_usergrants_for_cloud_storage(
                             platform_state,
-                            &grant_policy,
+                            Some(&grant_policy),
                             &new_entry,
                             &app_id,
                         )
@@ -587,7 +683,7 @@ pub struct GrantPolicyEnforcer;
 impl GrantPolicyEnforcer {
     pub async fn send_usergrants_for_cloud_storage(
         platform_state: &PlatformState,
-        grant_policy: &GrantPolicy,
+        grant_policy: Option<&GrantPolicy>,
         grant_entry: &GrantEntry,
         app_id: &Option<String>,
     ) {
@@ -597,14 +693,14 @@ impl GrantPolicyEnforcer {
                 s = Some(grant_entry.status.to_owned().unwrap());
             };
 
-            let usergrants_cloud_set_params = UserGrantsCloudSetParams {
-                account_session,
-                user_grant_info: UserGrantInfo {
+            let user_grant_info = if let Some(policy) = grant_policy {
+                // Modifying user grant flow goes in here
+                UserGrantInfo {
                     role: grant_entry.role,
                     capability: grant_entry.capability.to_owned(),
                     status: s,
                     last_modified_time: Duration::new(0, 0),
-                    expiry_time: match grant_policy.lifespan {
+                    expiry_time: match policy.lifespan {
                         GrantLifespan::Seconds => {
                             let now = SystemTime::now().duration_since(UNIX_EPOCH);
                             if now.is_err() {
@@ -613,7 +709,7 @@ impl GrantPolicyEnforcer {
                             }
                             let now_dur = now
                                 .unwrap()
-                                .checked_add(Duration::new(grant_policy.lifespan_ttl.unwrap(), 0));
+                                .checked_add(Duration::new(policy.lifespan_ttl.unwrap(), 0));
                             if now_dur.is_none() {
                                 error!("Unable to sync usergrants to cloud. unable to get duration since epoch for lifespan_ttl");
                                 return;
@@ -623,8 +719,25 @@ impl GrantPolicyEnforcer {
                         _ => None,
                     },
                     app_name: app_id.to_owned(),
-                    lifespan: grant_policy.lifespan.to_owned(),
-                },
+                    lifespan: policy.lifespan.to_owned(),
+                }
+            } else {
+                // Deleting user grant after grant has been remove from grant policy flow goes in here
+                // Create a dummy user grant info just to pass in app id to the cloud service
+                UserGrantInfo {
+                    role: grant_entry.role,
+                    capability: grant_entry.capability.to_owned(),
+                    status: s,
+                    last_modified_time: Duration::new(0, 0),
+                    expiry_time: None,
+                    app_name: app_id.to_owned(),
+                    lifespan: GrantLifespan::Forever,
+                }
+            };
+
+            let usergrants_cloud_set_params = UserGrantsCloudSetParams {
+                account_session,
+                user_grant_info,
             };
             let request =
                 UserGrantsCloudStoreRequest::SetCloudUserGrants(usergrants_cloud_set_params);
@@ -680,7 +793,7 @@ impl GrantPolicyEnforcer {
         if grant_policy.persistence == PolicyPersistenceType::Account {
             Self::send_usergrants_for_cloud_storage(
                 platform_state,
-                grant_policy,
+                Some(grant_policy),
                 &grant_entry_c,
                 app_id,
             )
