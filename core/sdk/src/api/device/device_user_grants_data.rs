@@ -185,8 +185,8 @@ impl GrantPolicies {
                 }
             }
             CapabilityRole::Provide => {
-                if self.manage.is_some() {
-                    return Some(self.manage.clone().unwrap());
+                if self.provide.is_some() {
+                    return Some(self.provide.clone().unwrap());
                 }
             }
         }
