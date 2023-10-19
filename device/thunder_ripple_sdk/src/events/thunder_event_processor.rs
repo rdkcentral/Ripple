@@ -35,7 +35,7 @@ use ripple_sdk::{
         },
     },
     extn::extn_client_message::ExtnEvent,
-    log::{error, trace},
+    log::{debug, error, trace},
     serde_json::{self, Value},
     utils::error::RippleError,
 };
@@ -131,9 +131,12 @@ impl ThunderEventMessage {
                 }
             }
         } else {
-            error!("Unable to convert event {} into ThunderEventMessage", event);
+            debug!(
+                "Unable to convert event {} into ThunderEventMessage must be custom",
+                event
+            );
         }
-        None
+        Some(ThunderEventMessage::Custom(value.clone()))
     }
 }
 

@@ -275,12 +275,13 @@ impl ExtnClient {
                                     ripple_context.update(request)
                                 }
                                 let new_context = { self.ripple_context.read().unwrap().clone() };
+                                let message = new_context.get_event_message();
+                                let c_message: CExtnMessage = message.clone().into();
                                 {
                                     let senders = self.get_other_senders();
 
                                     for sender in senders {
-                                        let message = new_context.get_event_message();
-                                        let send_res = sender.send(message.into());
+                                        let send_res = sender.send(c_message.clone());
                                         trace!("Send to other client result: {:?}", send_res);
                                     }
                                 }
@@ -422,7 +423,8 @@ impl ExtnClient {
                     error!("Error sending the response back {:?}", e);
                 }
             });
-        } else {
+        } else if RippleContext::is_ripple_context(&msg.payload).is_none() {
+            // Not every extension will have a context listener
             error!("No Event Processor for {:?}", msg);
         }
 
