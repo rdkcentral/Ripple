@@ -12,6 +12,7 @@
           "capabilities": {
             "used": {
               "required": [
+                "xrn:firebolt:capability:app:offline",
                 "xrn:firebolt:capability:keyboard",
                 "xrn:firebolt:capability:usergrant:pinchallenge",
                 "xrn:firebolt:capability:usergrant:acknowledgechallenge"
