@@ -31,6 +31,9 @@
               ],
               "optional": []
             }
+          },
+          "properties": {
+            "localStorageEnabled": true
           }
         }
       },
