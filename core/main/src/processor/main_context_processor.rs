@@ -36,7 +36,7 @@ use ripple_sdk::{
         },
         extn_client_message::ExtnMessage,
     },
-    log::{debug, info},
+    log::{debug, error, info},
     tokio::sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
 };
 
@@ -69,7 +69,8 @@ impl MainContextProcessor {
         }
     }
 
-    pub async fn initialize_token(state: &PlatformState) {
+    async fn check_account_session_token(state: &PlatformState) -> bool {
+        let mut token_available = false;
         let mut event = CapEvent::OnUnavailable;
 
         if let Ok(response) = state
@@ -81,6 +82,7 @@ impl MainContextProcessor {
                 state.session_state.insert_account_session(session);
                 MetricsState::update_account_session(state).await;
                 event = CapEvent::OnAvailable;
+                token_available = true;
             }
         }
         CapState::emit(
@@ -90,8 +92,13 @@ impl MainContextProcessor {
             None,
         )
         .await;
+        token_available
+    }
 
-        if state.supports_cloud_sync() {
+    pub async fn initialize_token(state: &PlatformState) {
+        if !Self::check_account_session_token(state).await {
+            error!("Account session still not available");
+        } else if state.supports_cloud_sync() {
             debug!("Cloud Sync  configured as a required contract so starting.");
             if state
                 .get_device_manifest()
