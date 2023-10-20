@@ -61,7 +61,7 @@ use ripple_sdk::{
 use serde::Deserialize;
 
 use crate::{
-    firebolt::handlers::privacy_rpc::PrivacyImpl,
+    firebolt::{firebolt_gatekeeper::FireboltGatekeeper, handlers::privacy_rpc::PrivacyImpl},
     state::{cap::cap_state::CapState, platform_state::PlatformState},
 };
 
@@ -321,26 +321,29 @@ impl GrantState {
         // UserGrants::determine_grant_policies(&self.ps.clone(), call_ctx, &r).await
     }
 
-    pub fn check_granted(&self, app_id: &str, role_info: RoleInfo) -> Result<bool, RippleError> {
-        if !self.caps_needing_grants.contains(&role_info.capability) {
-            return Ok(true);
-        }
-
+    pub fn check_granted(
+        &self,
+        state: &PlatformState,
+        app_id: &str,
+        role_info: RoleInfo,
+    ) -> Result<bool, RippleError> {
         if let Ok(permission) = FireboltPermission::try_from(role_info) {
-            let result = self.get_grant_state(app_id, &permission);
+            let resolved_perms = FireboltGatekeeper::resolve_dependencies(state, &vec![permission]);
+            for perm in resolved_perms {
+                let result = self.get_grant_state(app_id, &perm);
 
-            match result {
-                GrantActiveState::ActiveGrant(grant) => {
-                    if grant.is_err() {
-                        return Err(RippleError::Permission(DenyReason::GrantDenied));
-                    } else {
-                        return Ok(true);
+                match result {
+                    GrantActiveState::ActiveGrant(grant) => {
+                        if grant.is_err() {
+                            return Err(RippleError::Permission(DenyReason::GrantDenied));
+                        }
+                    }
+                    GrantActiveState::PendingGrant => {
+                        return Err(RippleError::Permission(DenyReason::Ungranted));
                     }
                 }
-                GrantActiveState::PendingGrant => {
-                    return Err(RippleError::Permission(DenyReason::Ungranted));
-                }
             }
+            return Ok(true);
         }
         Err(RippleError::Permission(DenyReason::Ungranted))
     }
