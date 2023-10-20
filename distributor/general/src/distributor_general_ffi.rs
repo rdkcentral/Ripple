@@ -17,8 +17,8 @@
 
 use ripple_sdk::{
     api::{
-        config::Config, session::SessionAdjective, status_update::ExtnStatus,
-        storage_property::StorageAdjective,
+        config::Config, device::panel::device_av_input::AVInputAdjective,
+        session::SessionAdjective, status_update::ExtnStatus, storage_property::StorageAdjective,
     },
     crossbeam::channel::Receiver as CReceiver,
     export_channel_builder, export_extn_metadata,
@@ -67,6 +67,7 @@ fn init_library() -> CExtnMetadata {
             RippleContract::Session(SessionAdjective::Device),
             RippleContract::Discovery,
             RippleContract::MediaEvents,
+            RippleContract::AVInput(AVInputAdjective::Hdmi),
         ]),
         Version::new(1, 1, 0),
     );

@@ -16,7 +16,7 @@
 //
 
 use thunder_ripple_sdk::ripple_sdk::{
-    api::storage_property::StorageAdjective,
+    api::{device::panel::device_av_input::AVInputAdjective, storage_property::StorageAdjective},
     crossbeam::channel::Receiver as CReceiver,
     export_channel_builder, export_extn_metadata,
     extn::{
@@ -49,6 +49,7 @@ fn init_library() -> CExtnMetadata {
             RippleContract::Storage(StorageAdjective::Local),
             RippleContract::RemoteAccessory,
             RippleContract::Wifi,
+            RippleContract::AVInput(AVInputAdjective::Hdmi),
         ]),
         Version::new(1, 1, 0),
     );

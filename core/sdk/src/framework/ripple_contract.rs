@@ -179,6 +179,7 @@ impl RippleContract {
         match self {
             Self::Storage(adj) => Some(adj.as_string()),
             Self::Session(adj) => Some(adj.as_string()),
+            Self::AVInput(adj) => Some(adj.as_string()),
             _ => None,
         }
     }
@@ -207,6 +208,7 @@ impl RippleContract {
         match self {
             Self::Storage(_) => Some("storage".to_owned()),
             Self::Session(_) => Some("session".to_owned()),
+            Self::AVInput(_) => Some("av_input".to_owned()),
             _ => None,
         }
     }
