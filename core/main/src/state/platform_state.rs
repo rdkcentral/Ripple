@@ -24,6 +24,7 @@ use ripple_sdk::{
             extn_manifest::ExtnManifest,
         },
         protocol::BridgeProtocolRequest,
+        session::SessionAdjective,
     },
     extn::{extn_client_message::ExtnMessage, extn_id::ExtnId},
     framework::{ripple_contract::RippleContract, RippleResponse},
@@ -89,7 +90,7 @@ impl From<String> for DeviceSessionIdentifier {
 pub struct PlatformState {
     extn_manifest: ExtnManifest,
     device_manifest: DeviceManifest,
-    ripple_client: RippleClient,
+    pub ripple_client: RippleClient,
     pub app_library_state: AppLibraryState,
     pub session_state: SessionState,
     pub cap_state: CapState,
@@ -172,6 +173,11 @@ impl PlatformState {
 
     pub fn supports_encoding(&self) -> bool {
         let contract = RippleContract::Encoder.as_clear_string();
+        self.extn_manifest.required_contracts.contains(&contract)
+    }
+
+    pub fn supports_distributor_session(&self) -> bool {
+        let contract = RippleContract::Session(SessionAdjective::Distributor).as_clear_string();
         self.extn_manifest.required_contracts.contains(&contract)
     }
 

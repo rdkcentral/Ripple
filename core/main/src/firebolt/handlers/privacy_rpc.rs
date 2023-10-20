@@ -373,6 +373,8 @@ impl PrivacyImpl {
             "setAllowAppContentAdTargeting" | "allowAppContentAdTargeting" => {
                 Some(StorageProperty::AllowAppContentAdTargeting)
             }
+            // Do not include entry for AllowBusinessAnalytics here.
+            // No set/get APIs for AllowBusinessAnalytics
             "setAllowCameraAnalytics" | "allowCameraAnalytics" => {
                 Some(StorageProperty::AllowCameraAnalytics)
             }
@@ -419,15 +421,14 @@ impl PrivacyImpl {
         platform_state: &PlatformState,
     ) -> RpcResult<bool> {
         let property_opt = Self::to_storage_property(method);
-        if property_opt.is_none() {
+        if let Some(prop) = property_opt {
+            Self::get_bool(platform_state, prop).await
+        } else {
             Err(jsonrpsee::core::Error::Call(CallError::Custom {
                 code: CAPABILITY_NOT_AVAILABLE,
                 message: format!("{} is not available", method),
                 data: None,
             }))
-        } else {
-            let property = property_opt.unwrap();
-            Self::get_bool(platform_state, property).await
         }
     }
 
@@ -437,16 +438,15 @@ impl PrivacyImpl {
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
         let property_opt = Self::to_storage_property(method);
-        if property_opt.is_none() {
+        if let Some(prop) = property_opt {
+            debug!("Resolved property: {:?}", prop);
+            Self::set_bool(platform_state, prop, set_request.value).await
+        } else {
             Err(jsonrpsee::core::Error::Call(CallError::Custom {
                 code: CAPABILITY_NOT_AVAILABLE,
                 message: format!("{} is not available", method),
                 data: None,
             }))
-        } else {
-            let property = property_opt.unwrap();
-            debug!("Resolved property: {:?}", property);
-            Self::set_bool(platform_state, property, set_request.value).await
         }
     }
 
@@ -581,6 +581,10 @@ impl PrivacyImpl {
                 .get_bool_storage_property(StorageProperty::AllowAppContentAdTargeting)
                 .await
                 .unwrap_or(false),
+            allow_business_analytics: self
+                .get_bool_storage_property(StorageProperty::AllowBusinessAnalytics)
+                .await
+                .unwrap_or(true),
             allow_camera_analytics: self
                 .get_bool_storage_property(StorageProperty::AllowCameraAnalytics)
                 .await
@@ -973,7 +977,9 @@ impl PrivacyServer for PrivacyImpl {
             .privacy_settings_storage_type;
 
         match privacy_settings_storage_type {
-            PrivacySettingsStorageType::Local => self.get_settings_local().await,
+            PrivacySettingsStorageType::Local | PrivacySettingsStorageType::Sync => {
+                self.get_settings_local().await
+            }
             PrivacySettingsStorageType::Cloud => {
                 let dist_session = self.state.session_state.get_account_session().unwrap();
                 let request = PrivacyCloudRequest::GetProperties(dist_session);
@@ -986,9 +992,6 @@ impl PrivacyServer for PrivacyImpl {
                     "PrivacySettingsStorageType::Cloud: Not Available",
                 )))
             }
-            PrivacySettingsStorageType::Sync => Err(jsonrpsee::core::Error::Custom(String::from(
-                "PrivacySettingsStorageType::Sync: Unimplemented",
-            ))),
         }
     }
 }

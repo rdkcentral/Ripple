@@ -129,6 +129,7 @@ pub struct SystemVersion {
 #[derive(Debug, Clone, Default)]
 pub struct CachedDeviceInfo {
     mac_address: Option<String>,
+    serial_number: Option<String>,
     model: Option<String>,
     make: Option<String>,
     hdcp_support: Option<HashMap<HdcpProfile, bool>>,
@@ -189,6 +190,15 @@ impl CachedState {
 
     fn get_mac_address(&self) -> Option<String> {
         self.cached.read().unwrap().mac_address.clone()
+    }
+
+    fn get_serial_number(&self) -> Option<String> {
+        self.cached.read().unwrap().serial_number.clone()
+    }
+
+    fn update_serial_number(&self, serial_number: String) {
+        let mut cached = self.cached.write().unwrap();
+        let _ = cached.serial_number.insert(serial_number);
     }
 
     fn update_mac_address(&self, mac: String) {
@@ -413,11 +423,11 @@ impl ThunderDeviceInfoRequestProcessor {
                 info!("{}", resp.message);
 
                 let mac_value_option = resp.message["estb_mac"].as_str();
-                if mac_value_option.is_none() {
-                    response = "".to_string();
-                } else {
-                    response = mac_value_option.unwrap().to_string();
+                if let Some(value) = mac_value_option {
+                    response = value.to_string();
                     state.update_mac_address(response.clone())
+                } else {
+                    response = "".to_string();
                 }
             }
         }
@@ -426,6 +436,40 @@ impl ThunderDeviceInfoRequestProcessor {
 
     async fn mac_address(state: CachedState, req: ExtnMessage) -> bool {
         let response: String = Self::get_mac_address(&state).await;
+
+        Self::respond(state.get_client(), req, ExtnResponse::String(response))
+            .await
+            .is_ok()
+    }
+
+    async fn get_serial_number(state: &CachedState) -> String {
+        let response: String;
+        match state.get_serial_number() {
+            Some(value) => response = value,
+            None => {
+                let resp = state
+                    .get_thunder_client()
+                    .call(DeviceCallRequest {
+                        method: ThunderPlugin::System.method("getSerialNumber"),
+                        params: None,
+                    })
+                    .await;
+                info!("{}", resp.message);
+
+                let serial_number_option = resp.message["serialNumber"].as_str();
+                if serial_number_option.is_none() {
+                    response = "".to_string();
+                } else {
+                    response = serial_number_option.unwrap().to_string();
+                    state.update_serial_number(response.clone())
+                }
+            }
+        }
+        response
+    }
+
+    async fn serial_number(state: CachedState, req: ExtnMessage) -> bool {
+        let response: String = Self::get_serial_number(&state).await;
 
         Self::respond(state.get_client(), req, ExtnResponse::String(response))
             .await
@@ -1121,6 +1165,22 @@ impl ThunderDeviceInfoRequestProcessor {
         Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
     }
 
+    pub async fn get_voice_guidance_speed(state: ThunderState) -> Result<f32, ()> {
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::TextToSpeech.method("getttsconfiguration"),
+                params: None,
+            })
+            .await;
+
+        if let Some(rate) = response.message["rate"].as_f64() {
+            return Ok(scale_voice_speed_from_thunder_to_firebolt(rate as f32));
+        }
+
+        Err(())
+    }
+
     async fn voice_guidance_set_speed(
         state: CachedState,
         request: ExtnMessage,
@@ -1165,7 +1225,7 @@ pub fn get_dimension_from_resolution(resolution: &str) -> Vec<i32> {
 
 /*
 per https://ccp.sys.comcast.net/browse/RPPL-283
-Firebolt spec range for this value is 0 >= value <= 10
+Firebolt spec range for this value is 0.25 >= value <= 2.0
 but...
 Thunder is 1..100
 for
@@ -1220,6 +1280,7 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
     ) -> bool {
         match extracted_message {
             DeviceInfoRequest::MacAddress => Self::mac_address(state.clone(), msg).await,
+            DeviceInfoRequest::SerialNumber => Self::serial_number(state.clone(), msg).await,
             DeviceInfoRequest::Model => Self::model(state.clone(), msg).await,
             DeviceInfoRequest::Audio => Self::audio(state.clone(), msg).await,
             DeviceInfoRequest::HdcpSupport => Self::hdcp_support(state.clone(), msg).await,

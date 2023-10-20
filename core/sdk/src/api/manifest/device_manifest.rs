@@ -35,6 +35,7 @@ use crate::{
 };
 
 use super::{apps::AppManifest, exclusory::ExclusoryImpl};
+pub const PARTNER_EXCLUSION_REFRESH_TIMEOUT: u32 = 12 * 60 * 60; // 12 hours
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct RippleConfiguration {
@@ -61,11 +62,16 @@ pub struct RippleConfiguration {
     pub saved_dir: String,
     #[serde(default = "data_governance_default")]
     pub data_governance: DataGovernanceConfig,
-    pub partner_exclusion_refresh_timeout: Option<u32>,
+    #[serde(default = "partner_exclusion_refresh_timeout_default")]
+    pub partner_exclusion_refresh_timeout: u32,
 }
 
 fn data_governance_default() -> DataGovernanceConfig {
     DataGovernanceConfig::default()
+}
+
+fn partner_exclusion_refresh_timeout_default() -> u32 {
+    PARTNER_EXCLUSION_REFRESH_TIMEOUT
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -117,11 +123,15 @@ pub struct ApplicationDefaultsConfiguration {
 }
 
 impl ApplicationDefaultsConfiguration {
-    pub fn get_reserved_application_id(&self, field_name: &str) -> Option<&str> {
-        match field_name {
-            "xrn:firebolt:application-type:main" => Some(&self.main),
-            "xrn:firebolt:application-type:settings" => Some(&self.settings),
-            "xrn:firebolt:application-type:player" => self.player.as_deref().or(Some("")),
+    pub fn get_reserved_application_id(&self, reserved_app_type: &str) -> Option<&str> {
+        match reserved_app_type {
+            "xrn:firebolt:application-type:main" | "urn:firebolt:apps:main" => Some(&self.main),
+            "xrn:firebolt:application-type:settings" | "urn:firebolt:apps:settings" => {
+                Some(&self.settings)
+            }
+            "xrn:firebolt:application-type:player" | "urn:firebolt:apps:player" => {
+                self.player.as_deref().or(Some(""))
+            }
             _ => None,
         }
     }
@@ -131,6 +141,8 @@ impl ApplicationDefaultsConfiguration {
 pub struct ApplicationsConfiguration {
     pub distribution: DistributionConfiguration,
     pub defaults: ApplicationDefaultsConfiguration,
+    #[serde(default)]
+    pub distributor_app_aliases: HashMap<String, String>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -399,13 +411,22 @@ pub enum PrivacySettingsStorageType {
 pub struct RippleFeatures {
     pub app_scoped_device_tokens: bool,
     pub privacy_settings_storage_type: PrivacySettingsStorageType,
+    pub intent_validation: IntentValidation,
 }
 
 fn default_ripple_features() -> RippleFeatures {
     RippleFeatures {
         app_scoped_device_tokens: false,
         privacy_settings_storage_type: PrivacySettingsStorageType::Local,
+        intent_validation: IntentValidation::FailOpen,
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum IntentValidation {
+    Fail,
+    FailOpen,
 }
 
 fn default_saved_dir() -> String {

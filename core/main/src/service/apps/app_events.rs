@@ -358,8 +358,8 @@ impl AppEvents {
         }
 
         // Now Notify events to the context based listeners. Context info is not included as part of the result
-        if context.is_some() {
-            let event_ctx_string = Some(context.unwrap().to_string());
+        if let Some(ctx) = context {
+            let event_ctx_string = Some(ctx.to_string());
             let listeners = AppEvents::get_listeners(
                 &state.app_events_state,
                 event_name,
@@ -384,10 +384,10 @@ impl AppEvents {
 
         for i in listeners_vec {
             let decorated_res = i.decorate(state, event_name, result).await;
-            if decorated_res.is_err() {
-                error!("could not generate event for '{}'", event_name);
+            if let Ok(res) = decorated_res {
+                AppEvents::send_event(state, &i, &res).await;
             } else {
-                AppEvents::send_event(state, &i, &decorated_res.unwrap()).await;
+                error!("could not generate event for '{}'", event_name);
             }
         }
     }

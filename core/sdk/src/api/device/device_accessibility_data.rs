@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 
 #[derive(Serialize, Deserialize)]
 pub struct ClosedCaptionsSettings {
@@ -70,11 +70,19 @@ pub struct ClosedCaptionStyle {
     pub text_align_vertical: Option<String>,
 }
 
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct VoiceGuidanceSettings {
     pub enabled: bool,
+    #[serde(serialize_with = "speed_serializer")]
     pub speed: f32,
+}
+
+fn speed_serializer<S>(speed: &f32, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let s = (*speed as f64 * 100.0).ceil() / 100.0;
+    serializer.serialize_f64(s)
 }
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]

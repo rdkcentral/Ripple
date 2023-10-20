@@ -595,8 +595,8 @@ impl AppLauncher {
         }
         match resp {
             Ok(response) => match response.payload.extract::<AppResponse>() {
-                Some(Ok(AppManagerResponse::Session(SessionResponse::Pending(val)))) => {
-                    sessionid = val.session_id.unwrap();
+                Some(Ok(AppManagerResponse::Session(SessionResponse::Completed(val)))) => {
+                    sessionid = val.session_id;
                     debug!("session id : {:?} ", sessionid);
                 }
                 _ => {
@@ -608,9 +608,13 @@ impl AppLauncher {
             }
         }
 
-        let modified_url = Self::get_modified_url(&manifest, &sessionid);
-        debug!("modified url with sessionid : {:?}", modified_url);
-        Ok(modified_url)
+        if !bool_contract && !sessionid.is_empty() {
+            let modified_url = Self::get_modified_url(&manifest, &sessionid);
+            debug!("modified url with sessionid : {:?}", modified_url);
+            Ok(modified_url)
+        } else {
+            Ok(manifest.start_page.clone())
+        }
     }
 
     pub async fn launch(
@@ -871,6 +875,7 @@ impl AppLauncher {
                     if ContainerManager::bring_to_front(
                         state,
                         existing.container_props.name.as_str(),
+                        None,
                     )
                     .await
                     .is_ok()
