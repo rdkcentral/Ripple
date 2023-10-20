@@ -32,7 +32,8 @@ use ripple_sdk::api::{
     firebolt::{
         fb_general::{ListenRequest, ListenerResponse},
         panel::fb_hdmi_input::{
-            GetAvailableInputsResponse, HdmiSelectOperationRequest, HdmiSelectOperationResponse,
+            GetAvailableInputsResponse, GetHdmiInputRequest, HdmiInput, HdmiSelectOperationRequest,
+            HdmiSelectOperationResponse,
         },
     },
     gateway::rpc_gateway_api::CallContext,
@@ -45,25 +46,32 @@ use ripple_sdk::{
 
 #[rpc(server)]
 pub trait HdmiInput {
-    #[method(name = "HDMIInput.select")]
+    #[method(name = "hdmiinput.select")]
     async fn select_hdmi_operation(
         &self,
         ctx: CallContext,
         request: HdmiSelectOperationRequest,
     ) -> RpcResult<HdmiSelectOperationResponse>;
 
-    #[method(name = "HDMIInput.ports")]
+    #[method(name = "hdmiinput.ports")]
     async fn get_available_inputs(&self, ctx: CallContext)
         -> RpcResult<GetAvailableInputsResponse>;
 
-    #[method(name = "HDMIInput.onConnectionChanged")]
+    #[method(name = "hdmiinput.port")]
+    async fn get_hdmi_input(
+        &self,
+        ctx: CallContext,
+        request: GetHdmiInputRequest,
+    ) -> RpcResult<HdmiInput>;
+
+    #[method(name = "hdmiinput.onConnectionChanged")]
     async fn on_hdmi_connection_changed(
         &self,
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
 
-    #[method(name = "HDMIInput.onAutoLowLatencyModeSignalChanged")]
+    #[method(name = "hdmiinput.onAutoLowLatencyModeSignalChanged")]
     async fn on_auto_low_latency_mode_signal_changed(
         &self,
         ctx: CallContext,
@@ -118,6 +126,28 @@ impl HdmiInputServer for HdmiImpl {
 
         Err(rpc_err("FB error response TBD"))
     }
+
+    async fn get_hdmi_input(
+        &self,
+        _ctx: CallContext,
+        request: GetHdmiInputRequest,
+    ) -> RpcResult<HdmiInput> {
+        if let Ok(response) = self
+            .state
+            .get_client()
+            .send_extn_request(HdmiRequest::GetInput(request))
+            .await
+        {
+            if let ExtnPayload::Response(ExtnResponse::Value(value)) = response.payload {
+                if let Ok(res) = serde_json::from_value::<HdmiInput>(value) {
+                    return Ok(res);
+                }
+            }
+        }
+
+        Err(rpc_err("FB error response TBD"))
+    }
+
     async fn on_hdmi_connection_changed(
         &self,
         ctx: CallContext,

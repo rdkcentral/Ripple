@@ -17,7 +17,7 @@
 
 use super::device_av_input::AVInputAdjective;
 use crate::api::device::device_request::DeviceRequest;
-use crate::api::firebolt::panel::fb_hdmi_input::HdmiSelectOperationRequest;
+use crate::api::firebolt::panel::fb_hdmi_input::{GetHdmiInputRequest, HdmiSelectOperationRequest};
 use crate::extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest};
 use crate::framework::ripple_contract::{ContractAdjective, RippleContract};
 use serde::{Deserialize, Serialize};
@@ -26,6 +26,7 @@ use serde::{Deserialize, Serialize};
 pub enum HdmiRequest {
     GetAvailableInputs,
     HdmiSelectOperation(HdmiSelectOperationRequest),
+    GetInput(GetHdmiInputRequest),
 }
 
 impl ContractAdjective for AVInputAdjective {

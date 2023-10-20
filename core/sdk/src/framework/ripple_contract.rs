@@ -194,6 +194,10 @@ impl RippleContract {
                 Ok(v) => return Some(v.get_contract()),
                 Err(e) => error!("contract parser_error={:?}", e),
             },
+            "av_input" => match serde_json::from_str::<AVInputAdjective>(&adjective) {
+                Ok(v) => return Some(v.get_contract()),
+                Err(e) => error!("contract parser_error={:?}", e),
+            },
             _ => {}
         }
         None

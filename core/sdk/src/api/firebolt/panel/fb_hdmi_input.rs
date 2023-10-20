@@ -41,6 +41,12 @@ pub struct GetAvailableInputsResponse {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct GetHdmiInputRequest {
+    pub port: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct HdmiInput {
     pub port: String,
     pub connected: bool,

@@ -51,6 +51,7 @@ use crate::{
     thunder_state::ThunderState,
 };
 
+use ripple_sdk::api::firebolt::panel::fb_hdmi_input::GetHdmiInputRequest;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
@@ -149,6 +150,14 @@ impl ThunderHdmiRequestProcessor {
             .is_ok()
     }
 
+    async fn get_hdmi_input(
+        _state: ThunderState,
+        _get_hdmi_input_request: GetHdmiInputRequest,
+        _req: ExtnMessage,
+    ) -> bool {
+        todo!();
+    }
+
     async fn select_hdmi_operation(
         state: ThunderState,
         select_hdmi_operation_request: HdmiSelectOperationRequest,
@@ -226,6 +235,9 @@ impl ExtnRequestProcessor for ThunderHdmiRequestProcessor {
             HdmiRequest::GetAvailableInputs => Self::get_available_inputs(state.clone(), msg).await,
             HdmiRequest::HdmiSelectOperation(hdmi_select_operation_request) => {
                 Self::select_hdmi_operation(state.clone(), hdmi_select_operation_request, msg).await
+            }
+            HdmiRequest::GetInput(get_hdmi_input_request) => {
+                Self::get_hdmi_input(state.clone(), get_hdmi_input_request, msg).await
             }
         }
     }
