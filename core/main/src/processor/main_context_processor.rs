@@ -79,7 +79,7 @@ impl MainContextProcessor {
         {
             if let Some(session) = response.payload.extract() {
                 state.session_state.insert_account_session(session);
-                MetricsState::initialize(state).await;
+                MetricsState::update_account_session(state).await;
                 event = CapEvent::OnAvailable;
             }
         }

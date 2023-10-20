@@ -21,6 +21,7 @@ use ripple_sdk::{async_trait::async_trait, framework::RippleResponse};
 use crate::processor::main_context_processor::MainContextProcessor;
 use crate::service::context_manager::ContextManager;
 use crate::state::bootstrap_state::BootstrapState;
+use crate::state::metrics_state::MetricsState;
 
 pub struct LoadDistributorValuesStep;
 
@@ -31,6 +32,7 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
     }
 
     async fn setup(&self, s: BootstrapState) -> RippleResponse {
+        MetricsState::initialize(&s.platform_state).await;
         ContextManager::setup(&s.platform_state).await;
         if !s.platform_state.supports_session() {
             return Ok(());
