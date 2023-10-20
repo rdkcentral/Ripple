@@ -1,0 +1,230 @@
+// Copyright 2023 Comcast Cable Communications Management, LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+
+use crate::{
+    firebolt::rpc::RippleRPCProvider, service::apps::app_events::AppEvents,
+    state::platform_state::PlatformState, utils::rpc_utils::rpc_err,
+};
+use jsonrpsee::{
+    core::{async_trait, RpcResult},
+    proc_macros::rpc,
+    RpcModule,
+};
+use ripple_sdk::api::{
+    device::device_events::{
+        DeviceEvent, DeviceEventCallback, DeviceEventRequest, AUTO_LOW_LATENCY_MODE_SIGNAL_CHANGED,
+        HDMI_CONNECTION_CHANGED,
+    },
+    firebolt::{
+        fb_general::{ListenRequest, ListenerResponse},
+        panel::fb_hdmi_input::{
+            GetAvailableInputsResponse, GetHdmiInputRequest, HdmiInput, HdmiSelectOperationRequest,
+            HdmiSelectOperationResponse,
+        },
+    },
+    gateway::rpc_gateway_api::CallContext,
+};
+use ripple_sdk::{
+    api::device::panel::device_hdmi::HdmiRequest,
+    extn::extn_client_message::{ExtnPayload, ExtnResponse},
+    serde_json,
+};
+
+#[rpc(server)]
+pub trait HdmiInput {
+    #[method(name = "hdmiinput.select")]
+    async fn select_hdmi_operation(
+        &self,
+        ctx: CallContext,
+        request: HdmiSelectOperationRequest,
+    ) -> RpcResult<HdmiSelectOperationResponse>;
+
+    #[method(name = "hdmiinput.ports")]
+    async fn get_available_inputs(&self, ctx: CallContext)
+        -> RpcResult<GetAvailableInputsResponse>;
+
+    #[method(name = "hdmiinput.port")]
+    async fn get_hdmi_input(
+        &self,
+        ctx: CallContext,
+        request: GetHdmiInputRequest,
+    ) -> RpcResult<HdmiInput>;
+
+    #[method(name = "hdmiinput.onConnectionChanged")]
+    async fn on_hdmi_connection_changed(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
+
+    #[method(name = "hdmiinput.onAutoLowLatencyModeSignalChanged")]
+    async fn on_auto_low_latency_mode_signal_changed(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
+}
+
+#[derive(Debug)]
+pub struct HdmiImpl {
+    pub state: PlatformState,
+}
+
+#[async_trait]
+impl HdmiInputServer for HdmiImpl {
+    async fn select_hdmi_operation(
+        &self,
+        _ctx: CallContext,
+        request: HdmiSelectOperationRequest,
+    ) -> RpcResult<HdmiSelectOperationResponse> {
+        if let Ok(response) = self
+            .state
+            .get_client()
+            .send_extn_request(HdmiRequest::HdmiSelectOperation(request))
+            .await
+        {
+            if let ExtnPayload::Response(ExtnResponse::Value(value)) = response.payload {
+                if let Ok(res) = serde_json::from_value::<HdmiSelectOperationResponse>(value) {
+                    return Ok(res);
+                }
+            }
+        }
+
+        Err(rpc_err("FB error response TBD"))
+    }
+
+    async fn get_available_inputs(
+        &self,
+        _ctx: CallContext,
+    ) -> RpcResult<GetAvailableInputsResponse> {
+        if let Ok(response) = self
+            .state
+            .get_client()
+            .send_extn_request(HdmiRequest::GetAvailableInputs)
+            .await
+        {
+            if let ExtnPayload::Response(ExtnResponse::Value(value)) = response.payload {
+                if let Ok(res) = serde_json::from_value::<GetAvailableInputsResponse>(value) {
+                    return Ok(res);
+                }
+            }
+        }
+
+        Err(rpc_err("FB error response TBD"))
+    }
+
+    async fn get_hdmi_input(
+        &self,
+        _ctx: CallContext,
+        request: GetHdmiInputRequest,
+    ) -> RpcResult<HdmiInput> {
+        if let Ok(response) = self
+            .state
+            .get_client()
+            .send_extn_request(HdmiRequest::GetInput(request))
+            .await
+        {
+            if let ExtnPayload::Response(ExtnResponse::Value(value)) = response.payload {
+                if let Ok(res) = serde_json::from_value::<HdmiInput>(value) {
+                    return Ok(res);
+                }
+            }
+        }
+
+        Err(rpc_err("FB error response TBD"))
+    }
+
+    async fn on_hdmi_connection_changed(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        let listen = request.listen;
+
+        AppEvents::add_listener(
+            &self.state,
+            HDMI_CONNECTION_CHANGED.to_string(),
+            ctx.clone(),
+            request,
+        );
+
+        if self
+            .state
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::HdmiConnectionChanged,
+                id: ctx.app_id,
+                subscribe: listen,
+                callback_type: DeviceEventCallback::FireboltAppEvent,
+            })
+            .await
+            .is_err()
+        {
+            return Err(rpc_err(
+                "Failed to subscribe to HdmiConnectionChanged event",
+            ));
+        }
+
+        Ok(ListenerResponse {
+            listening: listen,
+            event: HDMI_CONNECTION_CHANGED.to_string(),
+        })
+    }
+    async fn on_auto_low_latency_mode_signal_changed(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        let listen = request.listen;
+
+        AppEvents::add_listener(
+            &self.state,
+            AUTO_LOW_LATENCY_MODE_SIGNAL_CHANGED.to_string(),
+            ctx.clone(),
+            request,
+        );
+
+        if self
+            .state
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::AutoLowLatencyModeSignalChanged,
+                id: ctx.app_id,
+                subscribe: listen,
+                callback_type: DeviceEventCallback::FireboltAppEvent,
+            })
+            .await
+            .is_err()
+        {
+            return Err(rpc_err(
+                "Failed to subscribe to AutoLowLatencyModeSignalChanged event",
+            ));
+        }
+
+        Ok(ListenerResponse {
+            listening: listen,
+            event: AUTO_LOW_LATENCY_MODE_SIGNAL_CHANGED.to_string(),
+        })
+    }
+}
+
+pub struct HdmiRPCProvider;
+impl RippleRPCProvider<HdmiImpl> for HdmiRPCProvider {
+    fn provide(state: PlatformState) -> RpcModule<HdmiImpl> {
+        (HdmiImpl { state }).into_rpc()
+    }
+}

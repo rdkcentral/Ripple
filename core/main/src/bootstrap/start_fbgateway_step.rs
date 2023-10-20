@@ -23,9 +23,9 @@ use crate::{
             acknowledge_rpc::AckRPCProvider, advertising_rpc::AdvertisingRPCProvider,
             authentication_rpc::AuthRPCProvider, capabilities_rpc::CapRPCProvider,
             closed_captions_rpc::ClosedcaptionsRPCProvider, device_rpc::DeviceRPCProvider,
-            discovery_rpc::DiscoveryRPCProvider, keyboard_rpc::KeyboardRPCProvider,
-            lcm_rpc::LifecycleManagementProvider, lifecycle_rpc::LifecycleRippleProvider,
-            localization_rpc::LocalizationRPCProvider,
+            discovery_rpc::DiscoveryRPCProvider, hdmi_rpc::HdmiRPCProvider,
+            keyboard_rpc::KeyboardRPCProvider, lcm_rpc::LifecycleManagementProvider,
+            lifecycle_rpc::LifecycleRippleProvider, localization_rpc::LocalizationRPCProvider,
             metrics_management_rpc::MetricsManagementProvider, metrics_rpc::MetricsRPCProvider,
             parameters_rpc::ParametersRPCProvider, pin_rpc::PinRPCProvider,
             privacy_rpc::PrivacyProvider, profile_rpc::ProfileRPCProvider,
@@ -70,7 +70,7 @@ impl FireboltGatewayStep {
         let _ = methods.merge(AuthRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(AccountRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(MetricsManagementProvider::provide_with_alias(state.clone()));
-
+        let _ = methods.merge(HdmiRPCProvider::provide_with_alias(state.clone()));
         // LCM Api(s) not required for internal launcher
         if !state.has_internal_launcher() {
             let _ = methods.merge(LifecycleManagementProvider::provide_with_alias(state));

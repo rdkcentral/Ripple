@@ -16,7 +16,10 @@
 //
 
 use crate::{
-    api::{session::SessionAdjective, storage_property::StorageAdjective},
+    api::{
+        device::panel::device_av_input::AVInputAdjective, session::SessionAdjective,
+        storage_property::StorageAdjective,
+    },
     utils::{error::RippleError, serde_utils::SerdeClearString},
 };
 use log::error;
@@ -118,6 +121,7 @@ pub enum RippleContract {
     /// Distributor gets the ability to configure and customize the generation of
     /// the Session information based on their policies. Used by [crate::api::session::AccountSession]
     Session(SessionAdjective),
+    AVInput(AVInputAdjective),
 }
 
 pub trait ContractAdjective: serde::ser::Serialize {
@@ -175,6 +179,7 @@ impl RippleContract {
         match self {
             Self::Storage(adj) => Some(adj.as_string()),
             Self::Session(adj) => Some(adj.as_string()),
+            Self::AVInput(adj) => Some(adj.as_string()),
             _ => None,
         }
     }
@@ -190,6 +195,10 @@ impl RippleContract {
                 Ok(v) => return Some(v.get_contract()),
                 Err(e) => error!("contract parser_error={:?}", e),
             },
+            "av_input" => match serde_json::from_str::<AVInputAdjective>(&adjective) {
+                Ok(v) => return Some(v.get_contract()),
+                Err(e) => error!("contract parser_error={:?}", e),
+            },
             _ => {}
         }
         None
@@ -199,6 +208,7 @@ impl RippleContract {
         match self {
             Self::Storage(_) => Some("storage".to_owned()),
             Self::Session(_) => Some("session".to_owned()),
+            Self::AVInput(_) => Some("av_input".to_owned()),
             _ => None,
         }
     }

@@ -34,10 +34,13 @@ use crate::{
     thunder_state::ThunderState,
 };
 
-use super::events::thunder_event_handlers::{
-    AudioChangedEvent, HDCPEventHandler, HDREventHandler, NetworkEventHandler,
-    ScreenResolutionEventHandler, SystemPowerStateChangeEventHandler, VideoResolutionEventHandler,
-    VoiceGuidanceEnabledChangedEventHandler,
+use super::{
+    events::thunder_event_handlers::{
+        AudioChangedEvent, HDCPEventHandler, HDREventHandler, NetworkEventHandler,
+        ScreenResolutionEventHandler, SystemPowerStateChangeEventHandler,
+        VideoResolutionEventHandler, VoiceGuidanceEnabledChangedEventHandler,
+    },
+    panel::thunder_hdmi::{AutoLowLatencyModeSignalHandler, HdmiConnectionHandler},
 };
 
 #[derive(Debug)]
@@ -127,6 +130,16 @@ impl ExtnRequestProcessor for ThunderOpenEventsProcessor {
                 listen,
                 id.clone(),
                 VoiceGuidanceEnabledChangedEventHandler::provide(id, callback_type),
+            ),
+            DeviceEvent::HdmiConnectionChanged => state.handle_listener(
+                listen,
+                id.clone(),
+                HdmiConnectionHandler::provide(id, callback_type),
+            ),
+            DeviceEvent::AutoLowLatencyModeSignalChanged => state.handle_listener(
+                listen,
+                id.clone(),
+                AutoLowLatencyModeSignalHandler::provide(id, callback_type),
             ),
         };
         v.await;

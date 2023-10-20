@@ -34,6 +34,7 @@ pub enum ThunderPlugin {
     TextToSpeech,
     Hdcp,
     Telemetry,
+    AVInput,
 }
 const CONTROLLER_CFG: Cfg = Cfg::new("Controller", false, true);
 const DEVICE_INFO_CFG: Cfg = Cfg::new("DeviceInfo", true, false);
@@ -48,6 +49,7 @@ const WIFI_CFG: Cfg = Cfg::new("org.rdk.Wifi", false, false);
 const LOCATION_SYNC: Cfg = Cfg::new("LocationSync", false, false);
 const TTS_CFG: Cfg = Cfg::new("org.rdk.TextToSpeech", false, true);
 const TELEMETRY_CFG: Cfg = Cfg::new("org.rdk.Telemetry", true, true);
+const AV_INPUT_CFG: Cfg = Cfg::new("org.rdk.AVInput", false, false);
 
 impl ThunderPlugin {
     pub fn cfg(&self) -> Cfg {
@@ -66,6 +68,7 @@ impl ThunderPlugin {
             LocationSync => LOCATION_SYNC,
             TextToSpeech => TTS_CFG,
             Telemetry => TELEMETRY_CFG,
+            AVInput => AV_INPUT_CFG,
         }
     }
     pub fn callsign(&self) -> &str {
