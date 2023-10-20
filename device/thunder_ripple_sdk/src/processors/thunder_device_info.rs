@@ -18,15 +18,11 @@
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
-    thread,
-    time::{self, Duration},
+    time::Duration,
 };
 
 use crate::{
-    client::{
-        thunder_client::ThunderClient,
-        thunder_plugin::ThunderPlugin::{self, LocationSync},
-    },
+    client::{thunder_client::ThunderClient, thunder_plugin::ThunderPlugin},
     ripple_sdk::{
         api::device::{device_info_request::DeviceCapabilities, device_request::AudioProfile},
         chrono::NaiveDateTime,
@@ -40,10 +36,7 @@ use crate::{
         api::{
             device::{
                 device_info_request::{DeviceInfoRequest, DeviceResponse},
-                device_operator::{
-                    DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
-                    DeviceSubscribeRequest, DeviceUnsubscribeRequest,
-                },
+                device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
                 device_request::{
                     HDCPStatus, HdcpProfile, HdrProfile, NetworkResponse, NetworkState,
                     NetworkType, Resolution,
@@ -285,13 +278,13 @@ impl ThunderNetworkService {
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
-                method: ThunderPlugin::LocationSync.method("location"),
+                method: ThunderPlugin::Network.method("isConnectedToInternet"),
                 params: None,
             })
             .await;
         info!("{}", response.message);
-        if let Some(ip) = response.message["publicip"].as_str() {
-            return !ip.is_empty();
+        if let Some(ip) = response.message["connectedToInternet"].as_bool() {
+            return ip;
         };
         false
     }
@@ -883,61 +876,31 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     async fn on_internet_connected(state: CachedState, req: ExtnMessage, timeout: u64) -> bool {
-        if ThunderNetworkService::has_internet(&state).await {
-            return Self::respond(state.get_client(), req, ExtnResponse::None(()))
-                .await
-                .is_ok();
-        }
+        if tokio::time::timeout(
+            Duration::from_millis(timeout),
+            Self::respond(state.get_client(), req.clone(), {
+                let value = ThunderNetworkService::has_internet(&state).await;
 
-        let (s, mut r) = mpsc::channel::<DeviceResponseMessage>(32);
-        let cloned_state = state.clone();
-        let client = state.get_thunder_client();
-
-        client
-            .clone()
-            .subscribe(
-                DeviceSubscribeRequest {
-                    module: LocationSync.callsign_and_version(),
-                    event_name: "locationchange".into(),
-                    params: None,
-                    sub_id: None,
-                },
-                s,
-            )
-            .await;
-        info!("subscribed to locationchangeChanged events");
-
-        let thread_res = tokio::spawn(async move {
-            while r.recv().await.is_some() {
-                if ThunderNetworkService::has_internet(&cloned_state).await {
-                    // Internet precondition for browsers are supposed to be met
-                    // when locationchange event is given, but seems to be a short period
-                    // where it still is not. Wait for a small amount of time.
-                    thread::sleep(time::Duration::from_millis(1000));
-                    cloned_state
-                        .get_thunder_client()
-                        .unsubscribe(DeviceUnsubscribeRequest {
-                            module: LocationSync.callsign_and_version(),
-                            event_name: "locationchange".into(),
-                        })
-                        .await;
-                    info!("Unsubscribing to locationchangeChanged events");
+                if let ExtnPayload::Response(r) =
+                    DeviceResponse::InternetConnectionStatus(match value {
+                        true => InternetConnectionStatus::FullyConnected,
+                        false => InternetConnectionStatus::NoInternet,
+                    })
+                    .get_extn_payload()
+                {
+                    r
+                } else {
+                    ExtnResponse::Error(RippleError::ProcessorError)
                 }
-            }
-        });
-        let dur = Duration::from_millis(timeout);
-        if tokio::time::timeout(dur, thread_res).await.is_err() {
-            return Self::respond(
-                state.get_client(),
-                req,
-                ExtnResponse::Error(RippleError::NoResponse),
-            )
-            .await
-            .is_ok();
+            }),
+        )
+        .await
+        .is_err()
+        {
+            Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
+        } else {
+            true
         }
-        Self::respond(state.get_client().clone(), req, ExtnResponse::None(()))
-            .await
-            .is_ok()
     }
 
     async fn get_version(state: &CachedState) -> FireboltSemanticVersion {

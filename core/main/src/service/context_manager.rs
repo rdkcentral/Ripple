@@ -84,19 +84,12 @@ impl ContextManager {
                 if let Some(DeviceResponse::PowerState(p)) =
                     resp.payload.extract::<DeviceResponse>()
                 {
-                    if ps_c
-                        .get_client()
-                        .get_extn_client()
-                        .request_transient(RippleContextUpdateRequest::PowerState(
-                            SystemPowerState {
-                                current_power_state: p.clone(),
-                                power_state: p,
-                            },
-                        ))
-                        .is_err()
-                    {
-                        warn!("Couldnt update Ripple Context for PowerState on boot")
-                    }
+                    ps_c.get_client().get_extn_client().context_update(
+                        RippleContextUpdateRequest::PowerState(SystemPowerState {
+                            current_power_state: p.clone(),
+                            power_state: p,
+                        }),
+                    );
                 }
             }
 
@@ -111,14 +104,9 @@ impl ContextManager {
                 if let Some(DeviceResponse::InternetConnectionStatus(s)) =
                     resp.payload.extract::<DeviceResponse>()
                 {
-                    if ps_c
-                        .get_client()
+                    ps_c.get_client()
                         .get_extn_client()
-                        .request_transient(RippleContextUpdateRequest::InternetStatus(s))
-                        .is_err()
-                    {
-                        warn!("Couldnt update Ripple Context for Internet on boot")
-                    }
+                        .context_update(RippleContextUpdateRequest::InternetStatus(s));
                 }
             }
         });

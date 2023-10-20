@@ -227,6 +227,7 @@ pub struct TimezoneProperty {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PowerState {
     Standby,
     DeepSleep,

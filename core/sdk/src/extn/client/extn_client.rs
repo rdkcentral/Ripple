@@ -226,10 +226,7 @@ impl ExtnClient {
             match receiver.try_recv() {
                 Ok(c_message) => {
                     let latency = Utc::now().timestamp_millis() - c_message.ts;
-                    debug!(
-                        "** receiving message latency={} msg={:?}",
-                        latency, c_message
-                    );
+
                     if latency > 1000 {
                         error!("IEC Latency {:?}", c_message);
                     }
@@ -240,6 +237,7 @@ impl ExtnClient {
                         continue;
                     }
                     let message = message_result.unwrap();
+                    debug!("** receiving message latency={} msg={:?}", latency, message);
                     if message.payload.is_response() {
                         Self::handle_single(message, self.response_processors.clone());
                     } else if message.payload.is_event() {
@@ -270,22 +268,7 @@ impl ExtnClient {
                                     &message.payload,
                                 )
                             {
-                                {
-                                    let mut ripple_context = self.ripple_context.write().unwrap();
-                                    ripple_context.update(request)
-                                }
-                                let new_context = { self.ripple_context.read().unwrap().clone() };
-                                let message = new_context.get_event_message();
-                                let c_message: CExtnMessage = message.clone().into();
-                                {
-                                    let senders = self.get_other_senders();
-
-                                    for sender in senders {
-                                        let send_res = sender.send(c_message.clone());
-                                        trace!("Send to other client result: {:?}", send_res);
-                                    }
-                                }
-                                Self::handle_vec_stream(message, self.event_processors.clone());
+                                self.context_update(request);
                             }
                             // Forward the message to an extn sender
                             else if let Some(sender) =
@@ -339,6 +322,30 @@ impl ExtnClient {
         }
 
         debug!("Initialize Ended Abruptly");
+    }
+
+    pub fn context_update(&self, request: RippleContextUpdateRequest) {
+        let current_cap = self.sender.get_cap();
+        if !current_cap.is_main() {
+            error!("Updating context is not allowed outside main");
+        }
+
+        {
+            let mut ripple_context = self.ripple_context.write().unwrap();
+            ripple_context.update(request)
+        }
+        let new_context = { self.ripple_context.read().unwrap().clone() };
+        let message = new_context.get_event_message();
+        let c_message: CExtnMessage = message.clone().into();
+        {
+            let senders = self.get_other_senders();
+
+            for sender in senders {
+                let send_res = sender.send(c_message.clone());
+                trace!("Send to other client result: {:?}", send_res);
+            }
+        }
+        Self::handle_vec_stream(message, self.event_processors.clone());
     }
 
     fn handle_no_processor_error(&self, message: ExtnMessage) {
