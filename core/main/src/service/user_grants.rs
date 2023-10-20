@@ -142,19 +142,30 @@ impl GrantState {
         }
     }
 
-    pub fn clear_local_entries(&self, ps: &PlatformState) {
-        let mut grant_state = self.grant_app_map.write().unwrap();
-        for (_, entries) in grant_state.value.iter_mut() {
+    pub fn clear_local_entries(&self, ps: &PlatformState, persistence_type: PolicyPersistenceType) {
+        let mut app_grant_state = self.grant_app_map.write().unwrap();
+        for (_, entries) in app_grant_state.value.iter_mut() {
             entries.retain(|entry| {
                 !self.check_grant_policy_persistence(
                     ps,
                     entry.capability.clone(),
                     entry.role,
-                    PolicyPersistenceType::Account,
+                    persistence_type.clone(),
                 )
             });
         }
-        grant_state.sync();
+        app_grant_state.sync();
+
+        let mut device_grant_state = self.device_grants.write().unwrap();
+        device_grant_state.value.retain(|entry: &GrantEntry| {
+            !self.check_grant_policy_persistence(
+                ps,
+                entry.capability.clone(),
+                entry.role,
+                persistence_type.clone(),
+            )
+        });
+        device_grant_state.sync();
     }
 
     pub fn check_grant_policy_persistence(
