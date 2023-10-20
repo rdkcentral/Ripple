@@ -61,7 +61,13 @@ impl From<CallContext> for BehavioralMetricContext {
 pub struct AppDataGovernanceState {
     pub data_tags_to_apply: HashSet<String>,
 }
-
+impl AppDataGovernanceState {
+    pub fn new(tags: HashSet<String>) -> AppDataGovernanceState {
+        AppDataGovernanceState {
+            data_tags_to_apply: tags,
+        }
+    }
+}
 #[derive(Deserialize, Debug, Clone)]
 pub struct InternalInitializeParams {
     pub name: String,
