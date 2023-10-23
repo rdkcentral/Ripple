@@ -31,13 +31,8 @@ pub struct SetPreferredAudioLanguage {
 }
 
 impl SetPreferredAudioLanguage {
-    pub fn get_string(&self) -> String {
-        let language_list: Vec<String> = self.value.iter().map(|x| x.value.clone()).collect();
-        if let Ok(v) = serde_json::to_string(&language_list) {
-            v
-        } else {
-            serde_json::to_string(&SetPreferredAudioLanguage::default().value).unwrap()
-        }
+    pub fn get_string(&self) -> Vec<String> {
+        self.value.iter().map(|x| x.value.clone()).collect()
     }
 }
 
@@ -54,13 +49,6 @@ mod tests {
         let good_language = json!({"value": [{"value": "eng"}]});
         if let Ok(l) = serde_json::from_value::<SetPreferredAudioLanguage>(good_language) {
             assert!(String::from("eng").eq(l.value.get(0).unwrap().value.as_str()));
-
-            let serialized_string = l.get_string();
-            if let Ok(l) = serde_json::from_str::<Vec<String>>(&serialized_string) {
-                assert!(String::from("eng").eq(l.get(0).unwrap().as_str()));
-            } else {
-                panic!("reserialization failed")
-            }
         } else {
             panic!("bad language entry should not serialize")
         }

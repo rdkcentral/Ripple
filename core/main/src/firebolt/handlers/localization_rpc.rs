@@ -573,7 +573,7 @@ impl LocalizationServer for LocalizationImpl {
         _ctx: CallContext,
         set_request: SetPreferredAudioLanguage,
     ) -> RpcResult<()> {
-        StorageManager::set_string(
+        StorageManager::set_vec_string(
             &self.platform_state,
             StorageProperty::PreferredAudioLanguages,
             set_request.get_string(),

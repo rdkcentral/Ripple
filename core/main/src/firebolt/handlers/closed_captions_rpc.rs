@@ -746,7 +746,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         _ctx: CallContext,
         set_request: SetPreferredAudioLanguage,
     ) -> RpcResult<()> {
-        StorageManager::set_string(
+        StorageManager::set_vec_string(
             &self.state,
             StorageProperty::CCPreferredLanguages,
             set_request.get_string(),
