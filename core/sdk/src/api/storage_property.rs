@@ -57,6 +57,7 @@ pub const KEY_SHARE_WATCH_HISTORY: &str = "shareWatchHistory";
 pub const KEY_USER_GRANT: &str = "userGrantKey";
 pub const KEY_ALLOW_ACR_COLLECTION: &str = "allowACRCollection";
 pub const KEY_ALLOW_APP_CONTENT_AD_TARGETING: &str = "allowAppContentAdTargetting";
+pub const KEY_ALLOW_BUSINESS_ANALYTICS: &str = "allowBusinessAnalytics";
 pub const KEY_ALLOW_CAMERA_ANALYTICS: &str = "allowCameraAnalytics";
 pub const KEY_ALLOW_PERSONALIZATION: &str = "allowPersonalization";
 pub const KEY_ALLOW_PRIMARY_BROWSE_AD_TARGETING: &str = "allowPrimaryBrowseAdTargeting";
@@ -100,6 +101,7 @@ pub const EVENT_SHARE_WATCH_HISTORY: &str = "privacy.onShareWatchHistoryChanged"
 pub const EVENT_ALLOW_ACR_COLLECTION_CHANGED: &str = "privacy.onAllowACRCollectionChanged";
 pub const EVENT_ALLOW_APP_CONTENT_AD_TARGETING_CHANGED: &str =
     "privacy.onAllowAppContentAdTargetingChanged";
+pub const EVENT_ALLOW_BUSINESS_ANALYTICS_CHANGED: &str = "privacy.onAllowBusinessAnalyticsChanged";
 pub const EVENT_ALLOW_CAMERA_ANALYTICS_CHANGED: &str = "privacy.onAllowCameraAnalyticsChanged";
 pub const EVENT_ALLOW_PERSONALIZATION_CHANGED: &str = "privacy.onAllowPersonalizationChanged";
 pub const EVENT_ALLOW_PRIMARY_BROWSE_AD_TARGETING_CHANGED: &str =
@@ -118,6 +120,7 @@ pub const EVENT_DEVICE_NAME_CHANGED: &str = "device.onNameChanged";
 pub const EVENT_DEVICE_DEVICE_NAME_CHANGED: &str = "device.onDeviceNameChanged";
 pub const EVENT_SECOND_SCREEN_FRIENDLY_NAME_CHANGED: &str = "secondscreen.onFriendlyNameChanged";
 pub const EVENT_ADVERTISING_POLICY_CHANGED: &str = "advertising.onPolicyChanged";
+pub const EVENT_ADVERTISING_SKIP_RESTRICTION_CHANGED: &str = "advertising.onSkipRestrictionChanged";
 pub const EVENT_ADVERTISING_SKIP_RESTRICTION: &str = "advertising.setSkipRestriction";
 
 pub const EVENT_TIMEZONE_CHANGED: &str = "localization.onTimeZoneChanged";
@@ -314,6 +317,12 @@ const PROPERTY_DATA_ALLOW_APP_CONTENT_AD_TARGETING: PropertyData = PropertyData 
     event_names: Some(&[EVENT_ALLOW_APP_CONTENT_AD_TARGETING_CHANGED]),
 };
 
+const PROPERTY_DATA_ALLOW_BUSINESS_ANALYTICS: PropertyData = PropertyData {
+    key: KEY_ALLOW_BUSINESS_ANALYTICS,
+    namespace: NAMESPACE_PRIVACY,
+    event_names: Some(&[EVENT_ALLOW_BUSINESS_ANALYTICS_CHANGED]),
+};
+
 const PROPERTY_DATA_ALLOW_CAMERA_ANALYTICS: PropertyData = PropertyData {
     key: KEY_ALLOW_CAMERA_ANALYTICS,
     namespace: NAMESPACE_PRIVACY,
@@ -383,7 +392,10 @@ const PROPERTY_DATA_PARTNER_EXCLUSIONS: PropertyData = PropertyData {
 const PROPERTY_DATA_SKIP_RESTRICTION: PropertyData = PropertyData {
     key: KEY_SKIP_RESTRICTION,
     namespace: NAMESPACE_ADVERTISING,
-    event_names: Some(&[EVENT_ADVERTISING_SKIP_RESTRICTION]),
+    event_names: Some(&[
+        EVENT_ADVERTISING_SKIP_RESTRICTION,
+        EVENT_ADVERTISING_SKIP_RESTRICTION_CHANGED,
+    ]),
 };
 
 #[derive(Debug)]
@@ -421,6 +433,7 @@ pub enum StorageProperty {
     UserGrants,
     AllowAcrCollection,
     AllowAppContentAdTargeting,
+    AllowBusinessAnalytics,
     AllowCameraAnalytics,
     AllowPersonalization,
     AllowPrimaryBrowseAdTargeting,
@@ -476,6 +489,7 @@ impl StorageProperty {
             StorageProperty::AllowAppContentAdTargeting => {
                 PROPERTY_DATA_ALLOW_APP_CONTENT_AD_TARGETING
             }
+            StorageProperty::AllowBusinessAnalytics => PROPERTY_DATA_ALLOW_BUSINESS_ANALYTICS,
             StorageProperty::AllowCameraAnalytics => PROPERTY_DATA_ALLOW_CAMERA_ANALYTICS,
             StorageProperty::AllowPersonalization => PROPERTY_DATA_ALLOW_PERSONALIZATION,
             StorageProperty::AllowPrimaryBrowseAdTargeting => {

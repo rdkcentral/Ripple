@@ -17,6 +17,7 @@
 
 use std::{
     collections::{HashMap, HashSet},
+    path::Path,
     sync::{Arc, RwLock},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -80,18 +81,19 @@ pub struct GrantState {
 impl GrantState {
     pub fn new(manifest: DeviceManifest) -> GrantState {
         let saved_dir = manifest.clone().configuration.saved_dir;
-        let device_grant_path = format!("{}/device_grants", saved_dir);
-        let dev_grant_store = if let Ok(v) = FileStore::load(device_grant_path.clone()) {
+        let dir_path = Path::new(&saved_dir).join("device_grants");
+        let device_grant_path = dir_path.into_os_string().into_string();
+        let dev_grant_store = if let Ok(v) = FileStore::load(device_grant_path.clone().unwrap()) {
             v
         } else {
-            FileStore::new(device_grant_path, HashSet::new())
+            FileStore::new(device_grant_path.unwrap(), HashSet::new())
         };
-
-        let app_grant_path = format!("{}/app_grants", saved_dir);
-        let app_grant_store = if let Ok(v) = FileStore::load(app_grant_path.clone()) {
+        let dir_path = Path::new(&saved_dir).join("app_grants");
+        let app_grant_path = dir_path.into_os_string().into_string();
+        let app_grant_store = if let Ok(v) = FileStore::load(app_grant_path.clone().unwrap()) {
             v
         } else {
-            FileStore::new(app_grant_path, HashMap::new())
+            FileStore::new(app_grant_path.unwrap(), HashMap::new())
         };
 
         GrantState {
@@ -128,11 +130,12 @@ impl GrantState {
             let mut grant_state = self.grant_app_map.write().unwrap();
             //Get a mutable reference to the value associated with a key, create it if it doesn't exist,
             let entries = grant_state.value.entry(app_id).or_default();
-
             if entries.contains(&new_entry) {
                 entries.remove(&new_entry);
             }
-            entries.insert(new_entry);
+            if new_entry.status.is_some() {
+                entries.insert(new_entry);
+            }
             grant_state.sync();
         } else {
             self.add_device_entry(new_entry)
@@ -193,7 +196,11 @@ impl GrantState {
 
     fn add_device_entry(&self, entry: GrantEntry) {
         let mut device_grants = self.device_grants.write().unwrap();
-        device_grants.value.insert(entry);
+        if entry.status.is_none() {
+            device_grants.value.remove(&entry);
+        } else {
+            device_grants.value.replace(entry);
+        }
         device_grants.sync();
     }
 
@@ -278,7 +285,7 @@ impl GrantState {
                 GrantActiveState::ActiveGrant(grant) => {
                     if grant.is_err() {
                         return Err(DenyReasonWithCap {
-                            reason: DenyReason::Ungranted,
+                            reason: grant.err().unwrap(),
                             caps: vec![permission.cap.clone()],
                         });
                     }
@@ -455,7 +462,7 @@ impl GrantState {
         (use_granted, manage_granted, provide_granted)
     }
 
-    pub fn grant_modify(
+    pub async fn grant_modify(
         platform_state: &PlatformState,
         modify_operation: GrantStateModify,
         app_id: Option<String>,
@@ -480,11 +487,12 @@ impl GrantState {
                         return false;
                     }
 
+                    let grant_policy_persistence = grant_policy.persistence.clone();
                     let mut new_entry = GrantEntry {
                         role,
                         capability,
                         status: None, // status will be updated later based on the modify operation.
-                        lifespan: Some(grant_policy.lifespan),
+                        lifespan: Some(grant_policy.lifespan.clone()),
                         lifespan_ttl_in_secs: grant_policy.lifespan_ttl,
                         last_modified_time: SystemTime::now()
                             .duration_since(SystemTime::UNIX_EPOCH)
@@ -508,11 +516,25 @@ impl GrantState {
                         }
                     }
 
-                    debug!("user grant modified with new entry:{:?}", new_entry);
+                    debug!("user grant modified with new entry:{:?}", new_entry.clone());
                     platform_state
                         .cap_state
                         .grant_state
-                        .update_grant_entry(app_id, new_entry);
+                        .update_grant_entry(app_id.clone(), new_entry.clone());
+
+                    debug!(
+                        "Sync user grant modified with new entry:{:?} to cloud",
+                        new_entry.clone()
+                    );
+                    if grant_policy_persistence == PolicyPersistenceType::Account {
+                        GrantPolicyEnforcer::send_usergrants_for_cloud_storage(
+                            platform_state,
+                            &grant_policy,
+                            &new_entry,
+                            &app_id,
+                        )
+                        .await;
+                    }
                 }
             }
         }
@@ -570,12 +592,17 @@ impl GrantPolicyEnforcer {
         app_id: &Option<String>,
     ) {
         if let Some(account_session) = platform_state.session_state.get_account_session() {
+            let mut s = None;
+            if grant_entry.status.is_some() {
+                s = Some(grant_entry.status.to_owned().unwrap());
+            };
+
             let usergrants_cloud_set_params = UserGrantsCloudSetParams {
                 account_session,
                 user_grant_info: UserGrantInfo {
                     role: grant_entry.role,
                     capability: grant_entry.capability.to_owned(),
-                    status: grant_entry.status.as_ref().unwrap().to_owned(),
+                    status: s,
                     last_modified_time: Duration::new(0, 0),
                     expiry_time: match grant_policy.lifespan {
                         GrantLifespan::Seconds => {
@@ -642,13 +669,11 @@ impl GrantPolicyEnforcer {
                     }
                 }
                 GrantScope::Device => {
-                    if app_id.is_none() {
-                        platform_state
-                            .cap_state
-                            .grant_state
-                            .update_grant_entry(None, grant_entry);
-                        ret_val = true;
-                    }
+                    platform_state
+                        .cap_state
+                        .grant_state
+                        .update_grant_entry(None, grant_entry);
+                    ret_val = true;
                 }
             }
         }
@@ -1232,13 +1257,17 @@ impl GrantStepExecutor {
             match session_rx.await {
                 Ok(result) => match result.as_challenge_response() {
                     Some(res) => match res.granted {
-                        true => {
+                        Some(true) => {
                             debug!("returning ok from invoke_capability");
                             Ok(())
                         }
-                        false => {
+                        Some(false) => {
                             debug!("returning err from invoke_capability");
                             Err(DenyReason::GrantDenied)
+                        }
+                        None => {
+                            debug!("returning err from invoke_capability");
+                            Err(DenyReason::Ungranted)
                         }
                     },
                     None => {
@@ -1378,10 +1407,14 @@ mod tests {
             .await;
             println!("result: {:?}", result);
 
-            assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
-                reason: DenyReason::Unsupported,
-                caps: vec![perm.cap.clone()]
-            })));
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                DenyReasonWithCap {
+                    reason: DenyReason::Unsupported,
+                    caps: vec![perm.cap.clone()]
+                }
+            );
         }
 
         #[tokio::test]
@@ -1490,18 +1523,22 @@ mod tests {
             )
             .await;
 
-            assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
-                reason: DenyReason::Unsupported,
-                caps: vec![
-                    FireboltCap::Full(
-                        "xrn:firebolt:capability:usergrant:notavailableonplatform".to_owned()
-                    ),
-                    FireboltCap::Full(
-                        "xrn:firebolt:capability:usergrant:notavailableonplatform".to_owned()
-                    ),
-                    FireboltCap::Full(ACK_CHALLENGE_CAPABILITY.to_owned())
-                ]
-            })));
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                DenyReasonWithCap {
+                    reason: DenyReason::Unsupported,
+                    caps: vec![
+                        FireboltCap::Full(
+                            "xrn:firebolt:capability:usergrant:notavailableonplatform".to_owned()
+                        ),
+                        FireboltCap::Full(
+                            "xrn:firebolt:capability:usergrant:notavailableonplatform".to_owned()
+                        ),
+                        FireboltCap::Full(ACK_CHALLENGE_CAPABILITY.to_owned())
+                    ]
+                }
+            );
         }
 
         #[tokio::test]
@@ -1535,10 +1572,14 @@ mod tests {
             );
             let (result, _) = join!(evaluate_options, challenge_responses);
 
-            assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
-                reason: DenyReason::GrantDenied,
-                caps: vec![FireboltCap::Full(PIN_CHALLENGE_CAPABILITY.to_owned())]
-            })));
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                DenyReasonWithCap {
+                    reason: DenyReason::GrantDenied,
+                    caps: vec![FireboltCap::Full(PIN_CHALLENGE_CAPABILITY.to_owned())]
+                }
+            );
         }
 
         #[tokio::test]
@@ -1579,10 +1620,14 @@ mod tests {
 
             let (result, _) = join!(evaluate_options, challenge_responses);
 
-            assert!(result.is_err_and(|e| e.eq(&DenyReasonWithCap {
-                reason: DenyReason::GrantDenied,
-                caps: vec![FireboltCap::Full(ACK_CHALLENGE_CAPABILITY.to_owned())]
-            })));
+            assert!(result.is_err());
+            assert_eq!(
+                result.err().unwrap(),
+                DenyReasonWithCap {
+                    reason: DenyReason::GrantDenied,
+                    caps: vec![FireboltCap::Full(ACK_CHALLENGE_CAPABILITY.to_owned())]
+                }
+            );
         }
 
         #[tokio::test]

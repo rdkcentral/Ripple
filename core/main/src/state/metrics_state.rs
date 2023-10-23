@@ -58,6 +58,17 @@ impl MetricsState {
             }
         }
 
+        let mut serial_number: Option<String> = None;
+        if let Ok(resp) = state
+            .get_client()
+            .send_extn_request(DeviceInfoRequest::SerialNumber)
+            .await
+        {
+            if let Some(ExtnResponse::String(sn)) = resp.payload.extract() {
+                let _ = serial_number.insert(sn);
+            }
+        }
+
         let mut device_model: Option<String> = None;
         if let Ok(resp) = state
             .get_client()
@@ -112,8 +123,11 @@ impl MetricsState {
         // Time to set them
         let mut context = state.metrics.context.write().unwrap();
         if let Some(mac) = mac_address {
-            context.mac_address = mac.clone();
-            context.serial_number = mac;
+            context.mac_address = mac;
+        }
+
+        if let Some(sn) = serial_number {
+            context.serial_number = sn;
         }
 
         if let Some(model) = device_model {
