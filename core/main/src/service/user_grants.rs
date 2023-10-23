@@ -171,7 +171,7 @@ impl GrantState {
 
             for set in grant_state.value.values_mut() {
                 let prev_len = set.len();
-                set.retain(|entry| entry.lifespan.as_ref().map_or(false, |l| l == lifespan));
+                set.retain(|entry| entry.lifespan.as_ref().map_or(false, |l| l != lifespan));
                 if set.len() < prev_len {
                     deleted = true;
                 }
@@ -185,7 +185,7 @@ impl GrantState {
             let prev_len = grant_state.value.len();
             grant_state
                 .value
-                .retain(|entry| entry.lifespan.as_ref().map_or(false, |l| l == lifespan));
+                .retain(|entry| entry.lifespan.as_ref().map_or(false, |l| l != lifespan));
             if grant_state.value.len() < prev_len {
                 deleted = true;
             }

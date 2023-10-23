@@ -105,7 +105,7 @@ impl MainContextProcessor {
                 .configuration
                 .features
                 .privacy_settings_storage_type
-                != PrivacySettingsStorageType::Sync
+                == PrivacySettingsStorageType::Sync
             {
                 debug!(
                 "Privacy settings storage type is not set as sync so not starting cloud monitor"
