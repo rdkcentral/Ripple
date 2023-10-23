@@ -125,12 +125,7 @@ impl GrantState {
         let grant_entries_to_remove = Self::fetch_grant_entry_to_remove(platform_state);
         for (app_id, entry_set) in grant_entries_to_remove.iter() {
             for entry in entry_set {
-                Self::force_delete_user_grant_from_all_sources(
-                    platform_state,
-                    app_id.clone(),
-                    entry,
-                )
-                .await;
+                Self::force_delete_user_grant_from_all_sources(platform_state, app_id, entry).await;
             }
         }
     }
@@ -172,12 +167,12 @@ impl GrantState {
 
     async fn force_delete_user_grant_from_all_sources(
         platform_state: &PlatformState,
-        app_id: String,
+        app_id: &str,
         entry: &GrantEntry,
     ) {
         // Delete app grant in local storage and grant state by app id
         let grant_entry_to_remove =
-            Self::force_delete_user_grant(platform_state, app_id.clone(), entry);
+            Self::force_delete_user_grant(platform_state, app_id.to_string(), entry);
 
         if let Some(gc_opt) = grant_entry_to_remove {
             // Remove grant entry from cloud
@@ -188,7 +183,7 @@ impl GrantState {
                 platform_state,
                 None,
                 &gc,
-                &Some(app_id),
+                &Some(app_id.to_string()),
             )
             .await;
         }
