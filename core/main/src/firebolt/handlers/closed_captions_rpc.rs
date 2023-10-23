@@ -34,10 +34,13 @@ use ripple_sdk::api::{
         device_accessibility_data::{ClosedCaptionStyle, ClosedCaptionsSettings, FONT_FAMILY_LIST},
         device_peristence::{SetBoolProperty, SetF32Property, SetStringProperty, SetU32Property},
     },
-    firebolt::fb_general::{ListenRequest, ListenerResponse},
+    firebolt::{
+        fb_general::{ListenRequest, ListenerResponse},
+        fb_localization::SetPreferredAudioLanguage,
+    },
     gateway::rpc_gateway_api::CallContext,
     storage_property::{
-        StorageProperty, EVENT_CLOSED_CAPTIONS_BACKGROUND_COLOR,
+        StorageProperty, EVENT_CC_PREFERRED_LANGUAGES, EVENT_CLOSED_CAPTIONS_BACKGROUND_COLOR,
         EVENT_CLOSED_CAPTIONS_BACKGROUND_OPACITY, EVENT_CLOSED_CAPTIONS_ENABLED,
         EVENT_CLOSED_CAPTIONS_FONT_COLOR, EVENT_CLOSED_CAPTIONS_FONT_EDGE,
         EVENT_CLOSED_CAPTIONS_FONT_EDGE_COLOR, EVENT_CLOSED_CAPTIONS_FONT_FAMILY,
@@ -81,6 +84,9 @@ impl AppEventDecorator for CCEventDecorator {
         Ok(serde_json::to_value(ClosedCaptionsSettings {
             enabled: enabled_res.unwrap(),
             styles,
+            preferred_languages: SM::get_vec_string(ps, CCPreferredLanguages)
+                .await
+                .unwrap_or(Vec::new()),
         })
         .unwrap())
     }
@@ -280,6 +286,21 @@ pub trait Closedcaptions {
         _ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
+
+    #[method(name = "ClosedCaptions.preferredLanguages")]
+    async fn cc_preffered_languages(&self, _ctx: CallContext) -> RpcResult<Vec<String>>;
+    #[method(name = "ClosedCaptions.setPreferredLanguages")]
+    async fn cc_preffered_languages_set(
+        &self,
+        ctx: CallContext,
+        set_request: SetPreferredAudioLanguage,
+    ) -> RpcResult<()>;
+    #[method(name = "localization.onPreferredAudioLanguagesChanged")]
+    async fn on_cc_preffered_languages(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
 }
 
 #[derive(Debug)]
@@ -336,6 +357,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
                 .closed_captions_settings_enabled_rpc(ctx.clone())
                 .await?,
             styles: cc_styles,
+            preferred_languages: self.cc_preffered_languages(ctx.clone()).await?,
         })
     }
 
@@ -709,6 +731,36 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
             EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL,
         )
         .await
+    }
+
+    async fn cc_preffered_languages(&self, _ctx: CallContext) -> RpcResult<Vec<String>> {
+        Ok(
+            StorageManager::get_vec_string(&self.state, StorageProperty::CCPreferredLanguages)
+                .await
+                .unwrap_or(Vec::new()),
+        )
+    }
+
+    async fn cc_preffered_languages_set(
+        &self,
+        _ctx: CallContext,
+        set_request: SetPreferredAudioLanguage,
+    ) -> RpcResult<()> {
+        StorageManager::set_string(
+            &self.state,
+            StorageProperty::CCPreferredLanguages,
+            set_request.get_string(),
+            None,
+        )
+        .await
+    }
+
+    async fn on_cc_preffered_languages(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        rpc_add_event_listener(&self.state, ctx, request, EVENT_CC_PREFERRED_LANGUAGES).await
     }
 }
 

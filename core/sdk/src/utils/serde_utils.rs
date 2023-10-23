@@ -21,6 +21,7 @@ use regex::Regex;
 enum Patterns {
     Language,
     Timezone,
+    LanguageISO639_2,
 }
 
 fn pattern_matches(pattern: Patterns, str: &str) -> bool {
@@ -32,6 +33,7 @@ impl Patterns {
         match self {
             Patterns::Language => "^[A-Za-z]{2}$",
             Patterns::Timezone => "^[-+_/ A-Za-z 0-9]*$",
+            Patterns::LanguageISO639_2 => "^[a-z]{3}$",
         }
     }
 }
@@ -285,5 +287,37 @@ where
             "Invalid value ({})",
             value
         )))
+    }
+}
+
+pub mod language_iso_639_2_serde {
+    use super::{pattern_matches, Patterns};
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(str: &str, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if pattern_matches(Patterns::LanguageISO639_2, str) {
+            serializer.serialize_str(str)
+        } else {
+            Err(serde::ser::Error::custom(
+                "Timezone is not in a format supported by the IANA TZ database",
+            ))
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<String, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let str = String::deserialize(deserializer)?;
+        if pattern_matches(Patterns::LanguageISO639_2, &str) {
+            Ok(str)
+        } else {
+            Err(serde::de::Error::custom(
+                "Timezone is not in a format supported by the IANA TZ database",
+            ))
+        }
     }
 }

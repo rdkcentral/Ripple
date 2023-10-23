@@ -41,7 +41,10 @@ use crate::{
     state::platform_state::PlatformState,
 };
 
-use super::default_storage_properties::DefaultStorageProperties;
+use super::{
+    default_storage_properties::DefaultStorageProperties,
+    storage_manager_utils::storage_to_vec_string_rpc_result,
+};
 
 #[derive(Debug)]
 pub enum StorageManagerResponse<T> {
@@ -480,5 +483,38 @@ impl StorageManager {
             message: format!("{}.{} is not available", data.namespace, data.key),
             data: None,
         })
+    }
+
+    pub async fn set_vec_string(
+        state: &PlatformState,
+        property: StorageProperty,
+        value: Vec<String>,
+        context: Option<Value>,
+    ) -> RpcResult<()> {
+        let data = property.as_data();
+        if StorageManager::set_in_namespace(
+            state,
+            data.namespace.to_string(),
+            data.key.to_string(),
+            json!(value),
+            data.event_names,
+            context,
+        )
+        .await
+        .is_err()
+        {
+            return Err(StorageManager::get_firebolt_error(&property));
+        }
+        Ok(())
+    }
+
+    pub async fn get_vec_string(
+        state: &PlatformState,
+        property: StorageProperty,
+    ) -> RpcResult<Vec<String>> {
+        let data = property.as_data();
+        storage_to_vec_string_rpc_result(
+            StorageManager::get(state, &data.namespace.to_string(), &data.key.to_string()).await,
+        )
     }
 }
