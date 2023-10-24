@@ -20,13 +20,13 @@ use serde::{Deserialize, Serialize};
 use crate::{
     api::{
         apps::{AppSession, CloseReason},
-        device::entertainment_data::{NavigationIntent, InternalNavigationIntent},
+        device::entertainment_data::{InternalNavigationIntent, NavigationIntent},
     },
     extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
 };
 
-use super::{fb_lifecycle::LifecycleState, fb_discovery::LaunchRequest};
+use super::{fb_discovery::LaunchRequest, fb_lifecycle::LifecycleState};
 
 pub const LCM_EVENT_ON_REQUEST_READY: &str = "lifecyclemanagement.onRequestReady";
 pub const LCM_EVENT_ON_REQUEST_CLOSE: &str = "lifecyclemanagement.onRequestClose";
@@ -111,13 +111,16 @@ pub struct LifecycleManagementLaunchParameters {
 impl LifecycleManagementLaunchParameters {
     fn get_intent(&self) -> Option<NavigationIntent> {
         if let Some(l) = self.intent.clone() {
-            return Some(l.into())
+            return Some(l.into());
         }
         None
     }
 
     pub fn get_launch_request(&self) -> LaunchRequest {
-        LaunchRequest { app_id: self.app_id.clone(), intent: self.get_intent() }
+        LaunchRequest {
+            app_id: self.app_id.clone(),
+            intent: self.get_intent(),
+        }
     }
 }
 

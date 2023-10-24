@@ -361,7 +361,7 @@ impl From<NavigationIntent> for InternalNavigationIntent {
     fn from(value: NavigationIntent) -> Self {
         match value {
             NavigationIntent::NavigationIntentLoose(l) => Self::NavigationIntentLoose(l),
-            NavigationIntent::NavigationIntentStrict(s) => Self::NavigationIntentStrict(s)
+            NavigationIntent::NavigationIntentStrict(s) => Self::NavigationIntentStrict(s),
         }
     }
 }
@@ -371,7 +371,7 @@ impl From<InternalNavigationIntent> for NavigationIntent {
     fn from(value: InternalNavigationIntent) -> Self {
         match value {
             InternalNavigationIntent::NavigationIntentLoose(l) => Self::NavigationIntentLoose(l),
-            InternalNavigationIntent::NavigationIntentStrict(s) => Self::NavigationIntentStrict(s)
+            InternalNavigationIntent::NavigationIntentStrict(s) => Self::NavigationIntentStrict(s),
         }
     }
 }
@@ -682,7 +682,7 @@ impl Default for ProviderRequestIntent {
 }
 
 #[cfg(test)]
-mod tests{
+mod tests {
     use super::*;
 
     #[test]
@@ -714,13 +714,15 @@ mod tests{
 
     #[test]
     pub fn test_navigation_intent_tune_strict() {
-         match serde_json::from_str::<NavigationIntentStrict>("{\"action\":\"tune\",\"data\":{\"entity\":{
+        match serde_json::from_str::<NavigationIntentStrict>(
+            "{\"action\":\"tune\",\"data\":{\"entity\":{
 \"entityType\": \"program\",
             \"channelType\": \"streaming\",
             \"programType\": \"movie\",
             \"entityId\": \"example-movie-id\"},
             \"options\":{\"restartCurrentProgram\":true}
-        },\"context\":{\"source\":\"voice\"}}"){
+        },\"context\":{\"source\":\"voice\"}}",
+        ) {
             Ok(v) => {
                 if let NavigationIntentStrict::Tune(t) = v {
                     assert!(t.context.source.eq("voice"));
@@ -731,11 +733,10 @@ mod tests{
                 } else {
                     panic!("Not tune intent");
                 }
-            },
+            }
             Err(e) => {
                 panic!("failed schema expectation {:?}", e);
             }
-            
         }
     }
 }

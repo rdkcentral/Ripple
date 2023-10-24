@@ -96,7 +96,7 @@ pub struct App {
 pub struct AppManagerState {
     apps: Arc<RwLock<HashMap<String, App>>>,
     // Very useful for internal launcher where the intent might get untagged
-    intents: Arc<RwLock<HashMap<String, NavigationIntent>>>
+    intents: Arc<RwLock<HashMap<String, NavigationIntent>>>,
 }
 
 impl AppManagerState {
@@ -160,7 +160,7 @@ impl AppManagerState {
         apps.remove(app_id)
     }
 
-    fn store_intent(&self, app_id: &str, intent:NavigationIntent) {
+    fn store_intent(&self, app_id: &str, intent: NavigationIntent) {
         let mut intents = self.intents.write().unwrap();
         let _ = intents.insert(app_id.to_owned(), intent);
     }
@@ -207,12 +207,18 @@ impl DelegatedLauncherHandler {
                     if self.platform_state.has_internal_launcher() {
                         // When using internal launcher extension the NavigationIntent structure will get untagged we will use the original
                         // intent in these cases to avoid loss of data
-                        self.platform_state.app_manager_state.store_intent(&launch_request.app_id, launch_request.get_intent().clone());
+                        self.platform_state.app_manager_state.store_intent(
+                            &launch_request.app_id,
+                            launch_request.get_intent().clone(),
+                        );
                     }
                     resp = self
                         .send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Launch(
                             LifecycleManagementLaunchEvent {
-                                parameters: LifecycleManagementLaunchParameters { app_id: launch_request.app_id.clone(), intent: Some(launch_request.get_intent().into()) }
+                                parameters: LifecycleManagementLaunchParameters {
+                                    app_id: launch_request.app_id.clone(),
+                                    intent: Some(launch_request.get_intent().into()),
+                                },
                             },
                         ))
                         .await;
@@ -305,7 +311,10 @@ impl DelegatedLauncherHandler {
         }
     }
 
-    async fn start_session(&mut self, mut session: AppSession) -> Result<AppManagerResponse, AppError> {
+    async fn start_session(
+        &mut self,
+        mut session: AppSession,
+    ) -> Result<AppManagerResponse, AppError> {
         let transport = session.get_transport();
         if let EffectiveTransport::Bridge(_) = transport.clone() {
             if !self.platform_state.supports_bridge() {
@@ -316,15 +325,14 @@ impl DelegatedLauncherHandler {
         // TODO: Add metrics helper for app loading
 
         let app_id = session.app.id.clone();
-        
-        if self.platform_state.has_internal_launcher(){
+
+        if self.platform_state.has_internal_launcher() {
             // Specifically for internal launcher untagged navigation intent will probably not match the original cold launch usecase
             // if there is a stored intent for this case take it and replace it with session
-            if let Some(intent) = self.platform_state.app_manager_state.take_intent(&app_id){
+            if let Some(intent) = self.platform_state.app_manager_state.take_intent(&app_id) {
                 session.update_intent(intent);
             }
         }
-
 
         TelemetryBuilder::send_app_load_start(&self.platform_state, app_id.clone(), None, None);
         debug!("start_session: entry: app_id={}", app_id);
