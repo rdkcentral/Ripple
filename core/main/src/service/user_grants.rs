@@ -122,15 +122,27 @@ impl GrantState {
     }
 
     pub async fn sync_grant_map_with_grant_policy(&self, platform_state: &PlatformState) {
-        let grant_entries_to_remove = Self::fetch_grant_entry_to_remove(platform_state);
+        //Remove app user grants
+        let grant_entries_to_remove = Self::fetch_app_grant_entry_to_remove(platform_state);
         for (app_id, entry_set) in grant_entries_to_remove.iter() {
             for entry in entry_set {
-                Self::force_delete_user_grant_from_all_sources(platform_state, app_id, entry).await;
+                Self::force_delete_user_grant_from_local_sources(
+                    platform_state,
+                    Some(app_id),
+                    entry,
+                )
+                .await;
             }
+        }
+
+        //Remove device user grants
+        let grant_entries_to_remove = Self::fetch_device_grant_entry_to_remove(platform_state);
+        for entry in grant_entries_to_remove {
+            Self::force_delete_user_grant_from_local_sources(platform_state, None, &entry).await;
         }
     }
 
-    fn fetch_grant_entry_to_remove(
+    fn fetch_app_grant_entry_to_remove(
         platform_state: &PlatformState,
     ) -> HashMap<String, HashSet<GrantEntry>> {
         let mut grant_entries_to_remove: HashMap<String, HashSet<GrantEntry>> = HashMap::new();
@@ -159,34 +171,80 @@ impl GrantState {
             }
         }
         debug!(
-            "sync: grant entries to be removed {:#?}",
+            "sync: app grant entries to be removed {:#?}",
             grant_entries_to_remove
         );
         grant_entries_to_remove
     }
 
-    async fn force_delete_user_grant_from_all_sources(
+    fn fetch_device_grant_entry_to_remove(platform_state: &PlatformState) -> HashSet<GrantEntry> {
+        let grant_policies_map = if let Some(grant_policies) =
+            platform_state.get_device_manifest().get_grant_policies()
+        {
+            grant_policies
+        } else {
+            HashMap::default()
+        };
+        let grant_entries = platform_state
+            .cap_state
+            .grant_state
+            .device_grants
+            .read()
+            .unwrap();
+        let mut grant_entry_set_to_remove: HashSet<GrantEntry> = HashSet::new();
+        for grant_entry in grant_entries.value.iter() {
+            if !grant_policies_map.contains_key(&grant_entry.capability) {
+                grant_entry_set_to_remove.insert(grant_entry.clone());
+            };
+        }
+        debug!(
+            "sync: device grant entries to be removed {:#?}",
+            grant_entry_set_to_remove
+        );
+        grant_entry_set_to_remove
+    }
+
+    #[allow(clippy::eq_op)]
+    async fn force_delete_user_grant_from_local_sources(
         platform_state: &PlatformState,
-        app_id: &str,
+        app_id: Option<&str>,
         entry: &GrantEntry,
     ) {
-        // Delete app grant in local storage and grant state by app id
-        let grant_entry_to_remove =
-            Self::force_delete_user_grant(platform_state, app_id.to_string(), entry);
+        let mut gc = entry.clone();
+        let mut app_id_opt: Option<String> = None;
+        if let Some(id) = app_id {
+            // Delete app grant in local storage and grant state by app id
+            let grant_entry_to_remove =
+                Self::force_delete_user_grant(platform_state, id.to_string(), entry);
 
-        if let Some(gc_opt) = grant_entry_to_remove {
-            // Remove grant entry from cloud
-            let mut gc = gc_opt;
-            gc.status = None;
+            if let Some(gc_opt) = grant_entry_to_remove {
+                gc = gc_opt;
+            }
+            app_id_opt = Some(id.to_string());
+        } else {
+            // Delete device grant in local storage and grant state
+            let mut device_grant_map_write = platform_state
+                .cap_state
+                .grant_state
+                .device_grants
+                .write()
+                .unwrap();
 
-            GrantPolicyEnforcer::send_usergrants_for_cloud_storage(
-                platform_state,
-                None,
-                &gc,
-                &Some(app_id.to_string()),
-            )
-            .await;
+            device_grant_map_write
+                .value
+                .retain(|entry: &GrantEntry| entry.capability != entry.capability);
+            device_grant_map_write.sync();
         }
+        gc.status = None;
+
+        // Remove grant entry from cloud
+        GrantPolicyEnforcer::send_usergrants_for_cloud_storage(
+            platform_state,
+            None,
+            &gc,
+            &app_id_opt,
+        )
+        .await
     }
 
     fn force_delete_user_grant(
