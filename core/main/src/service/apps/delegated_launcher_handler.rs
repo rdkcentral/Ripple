@@ -25,7 +25,7 @@ use ripple_sdk::{
         apps::{
             AppError, AppManagerResponse, AppMethod, AppSession, EffectiveTransport, StateChange,
         },
-        device::device_user_grants_data::EvaluateAt,
+        device::{device_user_grants_data::EvaluateAt, entertainment_data::NavigationIntent},
         firebolt::{
             fb_capabilities::FireboltPermission,
             fb_discovery::DISCOVERY_EVENT_ON_NAVIGATE_TO,
@@ -95,6 +95,7 @@ pub struct App {
 #[derive(Debug, Clone, Default)]
 pub struct AppManagerState {
     apps: Arc<RwLock<HashMap<String, App>>>,
+    intents: Arc<RwLock<HashMap<String, NavigationIntent>>>
 }
 
 impl AppManagerState {
@@ -157,6 +158,16 @@ impl AppManagerState {
         let mut apps = self.apps.write().unwrap();
         apps.remove(app_id)
     }
+
+    fn store_intent(&self, app_id: &str, intent:NavigationIntent) {
+        let mut intents = self.intents.write().unwrap();
+        let _ = intents.insert(app_id.to_owned(), intent);
+    }
+
+    fn take_intent(&self, app_id: &str) -> Option<NavigationIntent> {
+        let mut intents = self.intents.write().unwrap();
+        intents.remove(app_id)
+    }
 }
 
 pub struct DelegatedLauncherHandler {
@@ -192,13 +203,13 @@ impl DelegatedLauncherHandler {
                     resp = self.set_state(&app_id, state).await;
                 }
                 AppMethod::Launch(launch_request) => {
+                    if self.platform_state.has_internal_launcher() {
+                        self.platform_state.app_manager_state.store_intent(&launch_request.app_id, launch_request.get_intent().clone());
+                    }
                     resp = self
                         .send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Launch(
                             LifecycleManagementLaunchEvent {
-                                parameters: LifecycleManagementLaunchParameters {
-                                    app_id: launch_request.app_id.clone(),
-                                    intent: Some(launch_request.get_intent()),
-                                },
+                                parameters: LifecycleManagementLaunchParameters { app_id: launch_request.app_id.clone(), intent: Some(launch_request.get_intent().into()) }
                             },
                         ))
                         .await;
@@ -291,7 +302,7 @@ impl DelegatedLauncherHandler {
         }
     }
 
-    async fn start_session(&mut self, session: AppSession) -> Result<AppManagerResponse, AppError> {
+    async fn start_session(&mut self, mut session: AppSession) -> Result<AppManagerResponse, AppError> {
         let transport = session.get_transport();
         if let EffectiveTransport::Bridge(_) = transport.clone() {
             if !self.platform_state.supports_bridge() {
@@ -302,6 +313,14 @@ impl DelegatedLauncherHandler {
         // TODO: Add metrics helper for app loading
 
         let app_id = session.app.id.clone();
+        
+        if self.platform_state.has_internal_launcher(){
+            if let Some(intent) = self.platform_state.app_manager_state.take_intent(&app_id){
+                session.update_intent(intent);
+            }
+        }
+
+
         TelemetryBuilder::send_app_load_start(&self.platform_state, app_id.clone(), None, None);
         debug!("start_session: entry: app_id={}", app_id);
         match self.platform_state.app_manager_state.get(&app_id) {

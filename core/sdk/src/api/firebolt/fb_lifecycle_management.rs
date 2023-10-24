@@ -20,13 +20,13 @@ use serde::{Deserialize, Serialize};
 use crate::{
     api::{
         apps::{AppSession, CloseReason},
-        device::entertainment_data::NavigationIntent,
+        device::entertainment_data::{NavigationIntent, InternalNavigationIntent},
     },
     extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
 };
 
-use super::fb_lifecycle::LifecycleState;
+use super::{fb_lifecycle::LifecycleState, fb_discovery::LaunchRequest};
 
 pub const LCM_EVENT_ON_REQUEST_READY: &str = "lifecyclemanagement.onRequestReady";
 pub const LCM_EVENT_ON_REQUEST_CLOSE: &str = "lifecyclemanagement.onRequestClose";
@@ -104,7 +104,21 @@ pub struct LifecycleManagementLaunchEvent {
 #[serde(rename_all = "camelCase")]
 pub struct LifecycleManagementLaunchParameters {
     pub app_id: String,
-    pub intent: Option<NavigationIntent>,
+    // Navigation Intent is untagged based on spec so we need the variant in the enum
+    pub intent: Option<InternalNavigationIntent>,
+}
+
+impl LifecycleManagementLaunchParameters {
+    fn get_intent(&self) -> Option<NavigationIntent> {
+        if let Some(l) = self.intent.clone() {
+            return Some(l.into())
+        }
+        None
+    }
+
+    pub fn get_launch_request(&self) -> LaunchRequest {
+        LaunchRequest { app_id: self.app_id.clone(), intent: self.get_intent() }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

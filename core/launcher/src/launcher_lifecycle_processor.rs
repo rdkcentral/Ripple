@@ -16,9 +16,9 @@
 //
 
 use ripple_sdk::{
-    api::firebolt::{
-        fb_discovery::LaunchRequest, fb_lifecycle_management::LifecycleManagementEventRequest,
-    },
+    api::firebolt::
+        fb_lifecycle_management::LifecycleManagementEventRequest,
+    
     async_trait::async_trait,
     extn::{
         client::extn_processor::{
@@ -88,10 +88,7 @@ impl ExtnEventProcessor for LauncherLifecycleEventProcessor {
             LifecycleManagementEventRequest::Launch(launch) => {
                 AppLauncher::launch(
                     &state,
-                    LaunchRequest {
-                        app_id: launch.parameters.app_id,
-                        intent: launch.parameters.intent,
-                    },
+                    launch.parameters.get_launch_request(),
                 )
                 .await
             }

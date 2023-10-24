@@ -349,6 +349,30 @@ pub enum NavigationIntent {
     NavigationIntentLoose(NavigationIntentLoose),
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum InternalNavigationIntent {
+    NavigationIntentStrict(NavigationIntentStrict),
+    NavigationIntentLoose(NavigationIntentLoose),
+}
+
+impl From<NavigationIntent> for InternalNavigationIntent {
+    fn from(value: NavigationIntent) -> Self {
+        match value {
+            NavigationIntent::NavigationIntentLoose(l) => Self::NavigationIntentLoose(l),
+            NavigationIntent::NavigationIntentStrict(s) => Self::NavigationIntentStrict(s)
+        }
+    }
+}
+
+impl From<InternalNavigationIntent> for NavigationIntent {
+    fn from(value: InternalNavigationIntent) -> Self {
+        match value {
+            InternalNavigationIntent::NavigationIntentLoose(l) => Self::NavigationIntentLoose(l),
+            InternalNavigationIntent::NavigationIntentStrict(s) => Self::NavigationIntentStrict(s)
+        }
+    }
+}
+
 impl Default for NavigationIntent {
     fn default() -> Self {
         NavigationIntent::NavigationIntentStrict(
@@ -358,7 +382,7 @@ impl Default for NavigationIntent {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(tag = "action", rename_all = "camelCase")]
+#[serde(tag = "action", rename_all = "camelCase", deny_unknown_fields)]
 
 pub enum NavigationIntentStrict {
     Home(HomeIntent),
@@ -469,6 +493,7 @@ pub enum ProgramEntityIntentData {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct BaseEntity {
+    #[serde(default = "default_program_type")]
     pub entity_type: ProgramEntityType,
     pub entity_id: String,
     pub asset_id: Option<String>,
@@ -497,6 +522,10 @@ impl Default for ProgramEntityType {
     fn default() -> Self {
         Self(String::from("program"))
     }
+}
+
+fn default_program_type() -> ProgramEntityType {
+    ProgramEntityType::default()
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -547,7 +576,6 @@ pub struct UntypedEntity {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TuneIntent {
-    pub action: String,
     pub data: TuneIntentData,
     pub context: DiscoveryContext,
 }
@@ -646,6 +674,65 @@ impl Default for ProviderRequestIntent {
             context: DiscoveryContext {
                 source: "device".to_string(),
             },
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+
+    #[test]
+    pub fn test_base_entity() {
+        if let Ok(v) = serde_json::from_str::<BaseEntity>("{\"appContentData\":null,\"assetId\":null,\"entityId\":\"example-movie-id\",\"entityType\":\"program\",\"programType\":\"movie\"}"){
+            assert!(v.entity_id.eq("example-movie-id"));
+        } else {
+            panic!("failed schema expectation")
+        }
+    }
+
+    #[test]
+    pub fn test_navigation_intent_playback_strict() {
+        if let Ok(v) = serde_json::from_str::<NavigationIntentStrict>("{\"action\":\"playback\",\"data\":{\"entityId\":\"example-movie-id\",\"programType\":\"movie\"},\"context\":{\"source\":\"voice\"}}"){
+            if let NavigationIntentStrict::Playback(p) = v {
+                assert!(p.context.source.eq("voice"));
+                if let PlaybackIntentData::Movie(m) = p.data {
+                    assert!(m.base_entity.entity_id.eq("example-movie-id"));
+                } else {
+                    panic!("Wrong enum for playback")
+                }
+            } else {
+                panic!("Wrong enum for navigation intent")
+            }
+        } else {
+            panic!("failed schema expectation");
+        }
+    }
+
+    #[test]
+    pub fn test_navigation_intent_tune_strict() {
+         match serde_json::from_str::<NavigationIntentStrict>("{\"action\":\"tune\",\"data\":{\"entity\":{
+\"entityType\": \"program\",
+            \"channelType\": \"streaming\",
+            \"programType\": \"movie\",
+            \"entityId\": \"example-movie-id\"},
+            \"options\":{\"restartCurrentProgram\":true}
+        },\"context\":{\"source\":\"voice\"}}"){
+            Ok(v) => {
+                if let NavigationIntentStrict::Tune(t) = v {
+                    assert!(t.context.source.eq("voice"));
+                    if !matches!(t.data.entity.channel_type, ChannelType::Streaming) {
+                        panic!("ChannelType mismatch");
+                    }
+                    assert!(t.data.entity.entity_type.0.eq("program"));
+                } else {
+                    panic!("Not tune intent");
+                }
+            },
+            Err(e) => {
+                panic!("failed schema expectation {:?}", e);
+            }
+            
         }
     }
 }
