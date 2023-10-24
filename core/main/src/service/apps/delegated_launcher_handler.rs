@@ -95,6 +95,7 @@ pub struct App {
 #[derive(Debug, Clone, Default)]
 pub struct AppManagerState {
     apps: Arc<RwLock<HashMap<String, App>>>,
+    // Very useful for internal launcher where the intent might get untagged
     intents: Arc<RwLock<HashMap<String, NavigationIntent>>>
 }
 
@@ -204,6 +205,8 @@ impl DelegatedLauncherHandler {
                 }
                 AppMethod::Launch(launch_request) => {
                     if self.platform_state.has_internal_launcher() {
+                        // When using internal launcher extension the NavigationIntent structure will get untagged we will use the original
+                        // intent in these cases to avoid loss of data
                         self.platform_state.app_manager_state.store_intent(&launch_request.app_id, launch_request.get_intent().clone());
                     }
                     resp = self
@@ -315,6 +318,8 @@ impl DelegatedLauncherHandler {
         let app_id = session.app.id.clone();
         
         if self.platform_state.has_internal_launcher(){
+            // Specifically for internal launcher untagged navigation intent will probably not match the original cold launch usecase
+            // if there is a stored intent for this case take it and replace it with session
             if let Some(intent) = self.platform_state.app_manager_state.take_intent(&app_id){
                 session.update_intent(intent);
             }

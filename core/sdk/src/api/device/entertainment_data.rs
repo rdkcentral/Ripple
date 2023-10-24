@@ -349,6 +349,8 @@ pub enum NavigationIntent {
     NavigationIntentLoose(NavigationIntentLoose),
 }
 
+// Original Navigation Intent is untagged meaning it cant be used  to serialize again when passed between extensions which also uses serde
+// To avoid the data loss during IEC InternalNavigationIntent is created so the Firebolt specification is not affected
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum InternalNavigationIntent {
     NavigationIntentStrict(NavigationIntentStrict),
@@ -364,6 +366,7 @@ impl From<NavigationIntent> for InternalNavigationIntent {
     }
 }
 
+// TODO: Compiler didnt accept the above From implementation to go both ways. Remove it in future
 impl From<InternalNavigationIntent> for NavigationIntent {
     fn from(value: InternalNavigationIntent) -> Self {
         match value {

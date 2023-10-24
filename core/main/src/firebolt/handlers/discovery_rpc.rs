@@ -825,7 +825,7 @@ pub async fn validate_navigation_intent(
     match &intent {
         Some(NavigationIntent::NavigationIntentLoose(_)) => {
             let request_intent = serde_json::to_string(&intent).unwrap_or_default();
-            if let Err(err) = serde_json::from_str::<NavigationIntentStrict>(&request_intent) {
+                        if let Err(err) = serde_json::from_str::<NavigationIntentStrict>(&request_intent) {
                 if intent_validation_config == IntentValidation::Fail {
                     return Err(jsonrpsee::core::Error::Call(CallError::Custom {
                         code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
