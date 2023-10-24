@@ -22,7 +22,10 @@ use crate::{
     framework::ripple_contract::{ContractAdjective, RippleContract},
 };
 
-use super::distributor::distributor_privacy::PrivacySetting;
+use super::{
+    distributor::distributor_privacy::PrivacySetting,
+    firebolt::fb_discovery::EVENT_DISCOVERY_POLICY_CHANGED,
+};
 
 pub const NAMESPACE_CLOSED_CAPTIONS: &str = "ClosedCaptions";
 pub const NAMESPACE_PRIVACY: &str = "Privacy";
@@ -281,13 +284,16 @@ const PROPERTY_DATA_LIMIT_AD_TRACKING: PropertyData = PropertyData {
 const PROPERTY_DATA_REMEMBER_WATCHED_PROGRAMS: PropertyData = PropertyData {
     key: KEY_REMEMBER_WATCHED_PROGRAMS,
     namespace: NAMESPACE_PRIVACY,
-    event_names: Some(&[EVENT_REMEMBER_WATCHED_PROGRAMS]),
+    event_names: Some(&[
+        EVENT_DISCOVERY_POLICY_CHANGED,
+        EVENT_REMEMBER_WATCHED_PROGRAMS,
+    ]),
 };
 
 const PROPERTY_DATA_SHARE_WATCH_HISTORY: PropertyData = PropertyData {
     key: KEY_SHARE_WATCH_HISTORY,
     namespace: NAMESPACE_PRIVACY,
-    event_names: Some(&[EVENT_SHARE_WATCH_HISTORY]),
+    event_names: Some(&[EVENT_DISCOVERY_POLICY_CHANGED, EVENT_SHARE_WATCH_HISTORY]),
 };
 
 const PROPERTY_DATA_DEVICE_NAME: PropertyData = PropertyData {
@@ -332,7 +338,10 @@ const PROPERTY_DATA_ALLOW_CAMERA_ANALYTICS: PropertyData = PropertyData {
 const PROPERTY_DATA_ALLOW_PERSONALIZATION: PropertyData = PropertyData {
     key: KEY_ALLOW_PERSONALIZATION,
     namespace: NAMESPACE_PRIVACY,
-    event_names: Some(&[EVENT_ALLOW_PERSONALIZATION_CHANGED]),
+    event_names: Some(&[
+        EVENT_DISCOVERY_POLICY_CHANGED,
+        EVENT_ALLOW_PERSONALIZATION_CHANGED,
+    ]),
 };
 
 const PROPERTY_DATA_ALLOW_PRIMARY_BROWSE_AD_TARGETING: PropertyData = PropertyData {
@@ -380,7 +389,10 @@ const PROPERTY_DATA_ALLOW_UNENTITLED_RESUME_POINTS: PropertyData = PropertyData 
 const PROPERTY_DATA_ALLOW_WATCH_HISTORY: PropertyData = PropertyData {
     key: KEY_ALLOW_WATCH_HISTORY,
     namespace: NAMESPACE_PRIVACY,
-    event_names: Some(&[EVENT_ALLOW_WATCH_HISTORY_CHANGED]),
+    event_names: Some(&[
+        EVENT_DISCOVERY_POLICY_CHANGED,
+        EVENT_ALLOW_WATCH_HISTORY_CHANGED,
+    ]),
 };
 
 const PROPERTY_DATA_PARTNER_EXCLUSIONS: PropertyData = PropertyData {
