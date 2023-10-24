@@ -373,6 +373,8 @@ impl PrivacyImpl {
             "setAllowAppContentAdTargeting" | "allowAppContentAdTargeting" => {
                 Some(StorageProperty::AllowAppContentAdTargeting)
             }
+            // Do not include entry for AllowBusinessAnalytics here.
+            // No set/get APIs for AllowBusinessAnalytics
             "setAllowCameraAnalytics" | "allowCameraAnalytics" => {
                 Some(StorageProperty::AllowCameraAnalytics)
             }
@@ -579,6 +581,10 @@ impl PrivacyImpl {
                 .get_bool_storage_property(StorageProperty::AllowAppContentAdTargeting)
                 .await
                 .unwrap_or(false),
+            allow_business_analytics: self
+                .get_bool_storage_property(StorageProperty::AllowBusinessAnalytics)
+                .await
+                .unwrap_or(true),
             allow_camera_analytics: self
                 .get_bool_storage_property(StorageProperty::AllowCameraAnalytics)
                 .await

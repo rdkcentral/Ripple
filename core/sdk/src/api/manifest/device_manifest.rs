@@ -35,6 +35,7 @@ use crate::{
 };
 
 use super::{apps::AppManifest, exclusory::ExclusoryImpl};
+pub const PARTNER_EXCLUSION_REFRESH_TIMEOUT: u32 = 12 * 60 * 60; // 12 hours
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct RippleConfiguration {
@@ -61,11 +62,16 @@ pub struct RippleConfiguration {
     pub saved_dir: String,
     #[serde(default = "data_governance_default")]
     pub data_governance: DataGovernanceConfig,
-    pub partner_exclusion_refresh_timeout: Option<u32>,
+    #[serde(default = "partner_exclusion_refresh_timeout_default")]
+    pub partner_exclusion_refresh_timeout: u32,
 }
 
 fn data_governance_default() -> DataGovernanceConfig {
     DataGovernanceConfig::default()
+}
+
+fn partner_exclusion_refresh_timeout_default() -> u32 {
+    PARTNER_EXCLUSION_REFRESH_TIMEOUT
 }
 
 #[derive(Deserialize, Debug, Clone)]
