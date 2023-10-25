@@ -342,7 +342,7 @@ impl DelegatedLauncherHandler {
         let previous_state = self
             .platform_state
             .app_manager_state
-            .get_internal_state(&app_id);
+            .get_internal_state(app_id);
 
         let context = BehavioralMetricContext {
             app_id: app_id.to_string(),
@@ -387,7 +387,7 @@ impl DelegatedLauncherHandler {
 
         let to_state = map_event(method);
 
-        if let None = to_state {
+        if to_state.is_none() {
             /*
             NOOP, the launcher implementation does not care about this state w/respect to metrics */
             return;

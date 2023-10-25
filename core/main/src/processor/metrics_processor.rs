@@ -148,9 +148,7 @@ pub async fn send_metric_for_app_state_change(
             }
             Err(ripple_sdk::utils::error::RippleError::ProcessorError)
         }
-        _ => {
-            return Ok(());
-        }
+        _ => Ok(()),
     }
 }
 /// Supports processing of Metrics request from extensions and forwards the metrics accordingly.
