@@ -18,6 +18,7 @@
 use std::str::FromStr;
 
 use crate::{
+    api::session::EventAdjective,
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
 };
@@ -32,12 +33,14 @@ pub const HDR_CHANGED_EVENT: &str = "device.onHdrChanged";
 pub const SCREEN_RESOLUTION_CHANGED_EVENT: &str = "device.onScreenResolutionChanged";
 pub const VIDEO_RESOLUTION_CHANGED_EVENT: &str = "device.onVideoResolutionChanged";
 pub const NETWORK_CHANGED_EVENT: &str = "device.onNetworkChanged";
+pub const INTERNET_CHANGED_EVENT: &str = "device.onInternetStatusChange";
 pub const AUDIO_CHANGED_EVENT: &str = "device.onAudioChanged";
 pub const VOICE_GUIDANCE_SETTINGS_CHANGED: &str = "accessibility.onVoiceGuidanceSettingsChanged";
 pub const VOICE_GUIDANCE_ENABLED_CHANGED: &str = "voiceguidance.onEnabledChanged";
 pub const VOICE_GUIDANCE_SPEED_CHANGED: &str = "voiceguidance.onSpeedChanged";
 pub const POWER_STATE_CHANGED: &str = "device.onPowerStateChanged";
 
+// Is this from the device to thunder event handler???
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DeviceEvent {
     InputChanged,
@@ -48,6 +51,7 @@ pub enum DeviceEvent {
     NetworkChanged,
     AudioChanged,
     SystemPowerStateChanged,
+    InternetConnectionStatusChanged,
 }
 
 impl FromStr for DeviceEvent {
@@ -63,6 +67,7 @@ impl FromStr for DeviceEvent {
             "device.onNetworkChanged" => Ok(Self::NetworkChanged),
             "device.onAudioChanged" => Ok(Self::AudioChanged),
             "device.onPowerStateChanged" => Ok(Self::SystemPowerStateChanged),
+            "device.onInternetStatusChange" => Ok(Self::InternetConnectionStatusChanged),
             _ => Err(()),
         }
     }
@@ -70,15 +75,23 @@ impl FromStr for DeviceEvent {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DeviceEventCallback {
-    FireboltAppEvent,
+    FireboltAppEvent(String),
     ExtnEvent,
+}
+
+impl DeviceEventCallback {
+    pub fn get_id(&self) -> String {
+        match self {
+            DeviceEventCallback::FireboltAppEvent(id) => id.clone(),
+            DeviceEventCallback::ExtnEvent => "internal".to_owned(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceEventRequest {
     pub event: DeviceEvent,
     pub subscribe: bool,
-    pub id: String,
     pub callback_type: DeviceEventCallback,
 }
 
@@ -94,8 +107,31 @@ impl ExtnPayloadProvider for DeviceEventRequest {
 
         None
     }
+    fn get_contract(&self) -> RippleContract {
+        match self.event {
+            DeviceEvent::InputChanged => RippleContract::DeviceEvents(EventAdjective::Input),
+            DeviceEvent::HdrChanged => RippleContract::DeviceEvents(EventAdjective::Hdr),
+            DeviceEvent::ScreenResolutionChanged => {
+                RippleContract::DeviceEvents(EventAdjective::ScreenResolution)
+            }
+            DeviceEvent::VideoResolutionChanged => {
+                RippleContract::DeviceEvents(EventAdjective::VideoResolution)
+            }
+            DeviceEvent::VoiceGuidanceEnabledChanged => {
+                RippleContract::DeviceEvents(EventAdjective::VoiceGuidance)
+            }
+            DeviceEvent::NetworkChanged => RippleContract::DeviceEvents(EventAdjective::Network),
+            DeviceEvent::AudioChanged => RippleContract::DeviceEvents(EventAdjective::Audio),
+            DeviceEvent::SystemPowerStateChanged => {
+                RippleContract::DeviceEvents(EventAdjective::SystemPowerState)
+            }
+            DeviceEvent::InternetConnectionStatusChanged => {
+                RippleContract::DeviceEvents(EventAdjective::Internet)
+            }
+        }
+    }
 
     fn contract() -> RippleContract {
-        RippleContract::DeviceEvents
+        RippleContract::DeviceEvents(EventAdjective::Input)
     }
 }
