@@ -9,16 +9,20 @@
                 {
                     "id": "ripple:channel:device:thunder",
                     "uses": [
-                        "config"
+                        "config",
+                        "ripple_context",
+                        "app_events",
+                        "rpc"
                     ],
                     "fulfills": [
-                        "device_info",
+                        "ripple_context",
                         "window_manager",
                         "browser",
+                        "device_info",
                         "wifi",
-                        "device_events",
-                        "device_persistence",
-                        "remote_accessory"
+                        "local.storage",
+                        "remote_accessory",
+                        "device_events"
                     ]
                 }
             ]
@@ -50,15 +54,19 @@
                         "config"
                     ],
                     "fulfills": [
-                        "permissions",
-                        "account_session",
-                        "secure_storage",
-                        "advertising",
-                        "privacy_settings",
-                        "metrics",
+                        "root.session",
+                        "device.session",
+                        "account.session",
                         "session_token",
+                        "permissions",
+                        "secure.storage",
+                        "advertising",
+                        "media_events",
+                        "privacy_cloud.storage",
+                        "cloud_sync",
                         "discovery",
-                        "media_events"
+                        "behavior_metrics",
+                        "encoder"
                     ]
                 }
             ]
@@ -71,18 +79,21 @@
         "window_manager",
         "browser",
         "permissions",
-        "account_session",
         "wifi",
         "device_events",
-        "device_persistence",
+        "local.storage",
         "remote_accessory",
-        "secure_storage",
+        "secure.storage",
         "advertising",
         "privacy_settings",
-        "session_token",
         "metrics",
-        "discovery",
-        "media_events"
+        "root.session",
+        "device.session",
+        "account.session",
+        "privacy_cloud.storage",
+        "cloud_sync",
+        "behavior_metrics",
+        "encoder"
     ],
     "rpc_aliases": {
         "device.model": ["custom.model"]
