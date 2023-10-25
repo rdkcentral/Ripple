@@ -23,7 +23,7 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TokenResult {
     pub value: String,
@@ -31,6 +31,15 @@ pub struct TokenResult {
     pub expires: Option<String>,
     #[serde(rename = "type")]
     pub _type: TokenType,
+}
+
+impl std::fmt::Debug for TokenResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TokenResult")
+            .field("expires", &self.expires)
+            .field("_type", &self._type)
+            .finish_non_exhaustive()
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
