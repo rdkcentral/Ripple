@@ -30,6 +30,7 @@ use super::session::PubSubAdjective;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum PubSubRequest {
     Connect(PubSubConnectRequest),
+    UpdateConnection(PubSubUpdateConnectionCredentialsRequest),
     Subscribe(PubSubSubscribeRequest),
     UnSubscribe(PubSubUnSubscribeRequest),
     Publish(PubSubPublishRequest),
@@ -42,6 +43,7 @@ pub enum PubSubResponse {
     Publish(PubSubPublishResponse),
     Subscribe(PubSubSubscribeResponse),
     UnSubscribe(PubSubUnSubscribeResponse),
+    UpdateConnection(PubSubConnectResponse),
     Disconnect(bool),
 }
 
@@ -81,6 +83,11 @@ pub struct PubSubPublishResponse {
 pub struct Credentials {
     pub id: String,
     pub secret: String,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PubSubUpdateConnectionCredentialsRequest {
+    pub connection_id: String,
+    pub credentials: Credentials,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PubSubConnectRequest {
@@ -354,5 +361,28 @@ impl ExtnPayloadProvider for PubSubResponse {
 
     fn contract() -> RippleContract {
         RippleContract::PubSub(PubSubAdjective::Listener)
+    }
+}
+
+impl ExtnPayloadProvider for PubSubUpdateConnectionCredentialsRequest {
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        if let ExtnPayload::Request(ExtnRequest::PubSub(PubSubRequest::UpdateConnection(
+            update_request,
+        ))) = payload
+        {
+            Some(update_request)
+        } else {
+            None
+        }
+    }
+
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(ExtnRequest::PubSub(PubSubRequest::UpdateConnection(
+            self.clone(),
+        )))
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::PubSub(PubSubAdjective::Provider)
     }
 }

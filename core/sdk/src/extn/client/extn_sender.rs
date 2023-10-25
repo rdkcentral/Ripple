@@ -19,7 +19,7 @@ use std::collections::HashMap;
 
 use chrono::Utc;
 use crossbeam::channel::Sender as CSender;
-use log::{error, trace};
+use log::{debug, error, trace};
 
 use crate::{
     extn::{
@@ -103,6 +103,11 @@ impl ExtnSender {
     ) -> Result<(), RippleError> {
         // Extns can only send request to which it has permissions through Extn manifest
         if !self.check_contract_permission(payload.get_contract()) {
+            debug!(
+                "id {:?} not having permission to send contract: {:?}",
+                self.id.to_string(),
+                payload.get_contract().as_clear_string(),
+            );
             return Err(RippleError::InvalidAccess);
         }
         let p = payload.get_extn_payload();
