@@ -204,27 +204,36 @@ impl CapState {
         call_context: CallContext,
         firebolt_caps: &Vec<FireboltCap>,
     ) -> Result<Vec<CapabilityInfo>, RippleError> {
-        // let mut unsupported_caps = Vec::new();
+        let mut ignored_app = false;
+        if state.open_rpc_state.is_app_excluded(&call_context.app_id) {
+            ignored_app = true;
+        }
         let mut capability_infos = Vec::new();
         for cap in firebolt_caps {
             let mut capability_info = CapabilityInfo {
                 capability: cap.as_str(),
-                supported: false,
-                available: false,
+                supported: ignored_app,
+                available: ignored_app,
                 _use: RolePermission {
-                    permitted: false,
+                    permitted: ignored_app,
                     granted: None,
                 },
                 manage: RolePermission {
-                    permitted: false,
+                    permitted: ignored_app,
                     granted: None,
                 },
                 provide: RolePermission {
-                    permitted: false,
+                    permitted: ignored_app,
                     granted: None,
                 },
                 details: None,
             };
+            if ignored_app {
+                capability_info._use.granted = Some(true);
+                capability_info.manage.granted = Some(true);
+                capability_info.provide.granted = Some(true);
+                continue;
+            }
             capability_info.supported = state
                 .cap_state
                 .generic
@@ -266,8 +275,8 @@ impl CapState {
                 || capability_info.provide.granted.is_none()
             {
                 deny_reasons.push(DenyReason::Ungranted);
-            }
-            if (capability_info._use.granted.is_some() && !capability_info._use.granted.unwrap())
+            } else if (capability_info._use.granted.is_some()
+                && !capability_info._use.granted.unwrap())
                 || (capability_info.manage.granted.is_some()
                     && !capability_info.manage.granted.unwrap())
                 || (capability_info.provide.granted.is_some()
