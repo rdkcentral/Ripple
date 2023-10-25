@@ -203,6 +203,7 @@ impl ExtnPayloadProvider for SessionTokenRequest {
 pub enum PubSubAdjective {
     Provider,
     Listener,
+    Publish,
 }
 impl ContractAdjective for PubSubAdjective {
     fn get_contract(&self) -> RippleContract {

@@ -236,7 +236,7 @@ impl ExtnPayloadProvider for PubSubPublishRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::PubSub(PubSubAdjective::Provider)
+        RippleContract::PubSub(PubSubAdjective::Publish)
     }
 }
 
