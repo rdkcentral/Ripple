@@ -99,6 +99,7 @@ impl PrivacyState {
             }
             PrivacySetting::Acr => data.value.settings.allow_acr_collection,
             PrivacySetting::CameraAnalytics => data.value.settings.allow_camera_analytics,
+            PrivacySetting::BusinessAnalytics => data.value.settings.allow_business_analytics,
         }
     }
 
