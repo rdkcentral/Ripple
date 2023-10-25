@@ -288,15 +288,15 @@ pub trait Closedcaptions {
     ) -> RpcResult<ListenerResponse>;
 
     #[method(name = "ClosedCaptions.preferredLanguages")]
-    async fn cc_preffered_languages(&self, _ctx: CallContext) -> RpcResult<Vec<String>>;
+    async fn cc_preferred_languages(&self, _ctx: CallContext) -> RpcResult<Vec<String>>;
     #[method(name = "ClosedCaptions.setPreferredLanguages")]
-    async fn cc_preffered_languages_set(
+    async fn cc_preferred_languages_set(
         &self,
         ctx: CallContext,
         set_request: SetPreferredAudioLanguage,
     ) -> RpcResult<()>;
     #[method(name = "localization.onPreferredAudioLanguagesChanged")]
-    async fn on_cc_preffered_languages(
+    async fn on_cc_preferred_languages(
         &self,
         ctx: CallContext,
         request: ListenRequest,
@@ -357,7 +357,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
                 .closed_captions_settings_enabled_rpc(ctx.clone())
                 .await?,
             styles: cc_styles,
-            preferred_languages: self.cc_preffered_languages(ctx.clone()).await?,
+            preferred_languages: self.cc_preferred_languages(ctx.clone()).await?,
         })
     }
 
@@ -733,7 +733,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         .await
     }
 
-    async fn cc_preffered_languages(&self, _ctx: CallContext) -> RpcResult<Vec<String>> {
+    async fn cc_preferred_languages(&self, _ctx: CallContext) -> RpcResult<Vec<String>> {
         Ok(
             StorageManager::get_vec_string(&self.state, StorageProperty::CCPreferredLanguages)
                 .await
@@ -741,7 +741,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         )
     }
 
-    async fn cc_preffered_languages_set(
+    async fn cc_preferred_languages_set(
         &self,
         _ctx: CallContext,
         set_request: SetPreferredAudioLanguage,
@@ -755,7 +755,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         .await
     }
 
-    async fn on_cc_preffered_languages(
+    async fn on_cc_preferred_languages(
         &self,
         ctx: CallContext,
         request: ListenRequest,

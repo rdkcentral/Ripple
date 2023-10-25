@@ -302,7 +302,7 @@ pub mod language_iso_639_2_serde {
             serializer.serialize_str(str)
         } else {
             Err(serde::ser::Error::custom(
-                "Timezone is not in a format supported by the IANA TZ database",
+                "Language not in ISO 639 2 format",
             ))
         }
     }
@@ -315,9 +315,7 @@ pub mod language_iso_639_2_serde {
         if pattern_matches(Patterns::LanguageISO639_2, &str) {
             Ok(str)
         } else {
-            Err(serde::de::Error::custom(
-                "Timezone is not in a format supported by the IANA TZ database",
-            ))
+            Err(serde::de::Error::custom("Language not in ISO 639 2 format"))
         }
     }
 }

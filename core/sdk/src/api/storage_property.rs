@@ -73,7 +73,7 @@ pub const KEY_VOICE_GUIDANCE_SPEED: &str = "speed";
 pub const KEY_PARTNER_EXCLUSIONS: &str = "partnerExclusions";
 pub const KEY_SKIP_RESTRICTION: &str = "skipRestriction";
 pub const KEY_AUDIO_DESCRIPTION_ENABLED: &str = "audioDescriptionEnabled";
-pub const KEY_PREFFERED_AUDIO_LANGUAGES: &str = "preferredAudioLanguages";
+pub const KEY_PREFERRED_AUDIO_LANGUAGES: &str = "preferredAudioLanguages";
 
 pub const EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED: &str =
     "accessibility.onClosedCaptionsSettingsChanged";
@@ -410,13 +410,13 @@ const PROPERTY_AUDIO_DESCRIPTION_ENABLED: PropertyData = PropertyData {
 };
 
 const PROPERTY_PREFERRED_AUDIO_LANGUAGES: PropertyData = PropertyData {
-    key: KEY_PREFFERED_AUDIO_LANGUAGES,
+    key: KEY_PREFERRED_AUDIO_LANGUAGES,
     namespace: NAMESPACE_LOCALIZATION,
     event_names: Some(&[EVENT_PREFERRED_AUDIO_LANGUAGES]),
 };
 
 const PROPERTY_CC_PREFERRED_LANGUAGES: PropertyData = PropertyData {
-    key: KEY_PREFFERED_AUDIO_LANGUAGES,
+    key: KEY_PREFERRED_AUDIO_LANGUAGES,
     namespace: NAMESPACE_CLOSED_CAPTIONS,
     event_names: Some(&[EVENT_CC_PREFERRED_LANGUAGES]),
 };
