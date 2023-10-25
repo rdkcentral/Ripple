@@ -149,7 +149,10 @@ impl RpcRouter {
                     method,
                     now - start,
                     session_id,
-                    msg.jsonrpc_msg
+                    match method.contains("authentication") {
+                        true => "<auth response hidden>",
+                        false => &msg.jsonrpc_msg,
+                    }
                 );
                 TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start, success);
                 match session.get_transport() {
