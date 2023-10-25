@@ -232,6 +232,7 @@ impl CapState {
                 capability_info._use.granted = Some(true);
                 capability_info.manage.granted = Some(true);
                 capability_info.provide.granted = Some(true);
+                capability_infos.push(capability_info);
                 continue;
             }
             capability_info.supported = state
@@ -240,11 +241,14 @@ impl CapState {
                 .check_supported(&[cap.clone().into()])
                 .is_ok();
 
-            capability_info.available = state
-                .cap_state
-                .generic
-                .check_available(&vec![cap.clone().into()])
-                .is_ok();
+            if capability_info.supported {
+                capability_info.available = capability_info.supported
+                    || state
+                        .cap_state
+                        .generic
+                        .check_available(&vec![cap.clone().into()])
+                        .is_ok();
+            }
             (
                 capability_info._use.permitted,
                 capability_info.manage.permitted,
@@ -316,5 +320,71 @@ impl Hash for CapEventEntry {
             r.hash(state);
         }
         self.app_id.hash(state);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use ripple_sdk::api::manifest::exclusory::{AppAuthorizationRules, ExclusoryImpl};
+
+    use super::*;
+    use crate::{
+        state::openrpc_state::OpenRpcState,
+        utils::test_utils::{self, MockCallContext},
+    };
+    use ripple_sdk::tokio;
+
+    #[tokio::test]
+    async fn test_app_ignore() {
+        let mut runtime = test_utils::MockRuntime::new();
+        let mut app_ignore_rules = HashMap::new();
+        app_ignore_rules.insert("some_app".to_owned(), vec!["*".to_string()]);
+        let exclusory = ExclusoryImpl {
+            resolve_only: None,
+            app_authorization_rules: AppAuthorizationRules { app_ignore_rules },
+            method_ignore_rules: Vec::new(),
+        };
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(Some(exclusory));
+        if let Ok(v) = CapState::get_cap_info(
+            &runtime.platform_state,
+            MockCallContext::get_from_app_id("some_app"),
+            &vec![FireboltCap::Short("some:many".to_owned())],
+        )
+        .await
+        {
+            let cap = v.get(0).unwrap();
+            assert!(cap.supported);
+            assert!(cap.available);
+            assert!(cap._use.permitted);
+            assert!(cap._use.granted.unwrap());
+            assert!(cap.manage.permitted);
+            assert!(cap.manage.granted.unwrap());
+            assert!(cap.provide.permitted);
+            assert!(cap.provide.granted.unwrap());
+        } else {
+            panic!("ignore app rules")
+        }
+
+        if let Ok(v) = CapState::get_cap_info(
+            &runtime.platform_state,
+            MockCallContext::get_from_app_id("some_other_app"),
+            &vec![FireboltCap::Short("some:many".to_owned())],
+        )
+        .await
+        {
+            let cap = v.get(0).unwrap();
+            assert!(!cap.supported);
+            assert!(!cap.available);
+            assert!(!cap._use.permitted);
+            assert!(cap._use.granted.is_none());
+            assert!(!cap.manage.permitted);
+            assert!(cap.manage.granted.is_none());
+            assert!(!cap.provide.permitted);
+            assert!(cap.provide.granted.is_none());
+        } else {
+            panic!("should fail for app without ignore app rules")
+        }
     }
 }
