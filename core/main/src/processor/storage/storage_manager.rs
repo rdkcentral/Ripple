@@ -89,6 +89,7 @@ impl StorageManager {
         context: Option<Value>,
     ) -> RpcResult<()> {
         let data = property.as_data();
+        debug!("Storage property: {:?} as data: {:?}", property, data);
         if StorageManager::set_in_namespace(
             state,
             data.namespace.to_string(),
