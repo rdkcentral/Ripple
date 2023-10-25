@@ -133,6 +133,9 @@ impl RippleClient {
     ) -> Result<ExtnMessage, RippleError> {
         self.get_extn_client().clone().request(payload).await
     }
+    pub fn send_extn_request_transient(&self, payload: impl ExtnPayloadProvider) -> RippleResponse {
+        self.get_extn_client().clone().request_transient(payload)
+    }
 
     pub async fn respond(&self, msg: ExtnMessage) -> Result<(), RippleError> {
         self.get_extn_client().clone().send_message(msg).await
