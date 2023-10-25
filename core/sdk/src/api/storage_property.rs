@@ -40,6 +40,8 @@ pub const KEY_FONT_EDGE_COLOR: &str = "fontEdgeColor";
 pub const KEY_FONT_OPACITY: &str = "fontOpacity";
 pub const KEY_BACKGROUND_COLOR: &str = "backgroundColor";
 pub const KEY_BACKGROUND_OPACITY: &str = "backgroundOpacity";
+pub const KEY_WINDOW_COLOR: &str = "windowColor";
+pub const KEY_WINDOW_OPACITY: &str = "windowOpacity";
 pub const KEY_TEXT_ALIGN: &str = "textAlign";
 pub const KEY_TEXT_ALIGN_VERTICAL: &str = "textAlignVertical";
 pub const KEY_LIMIT_AD_TRACKING: &str = "limitAdTracking";
@@ -84,6 +86,8 @@ pub const EVENT_CLOSED_CAPTIONS_FONT_OPACITY: &str = "closedcaptions.onFontOpaci
 pub const EVENT_CLOSED_CAPTIONS_BACKGROUND_COLOR: &str = "closedcaptions.onBackgroundColorChanged";
 pub const EVENT_CLOSED_CAPTIONS_BACKGROUND_OPACITY: &str =
     "closedcaptions.onBackgroundOpacityChanged";
+pub const EVENT_CLOSED_CAPTIONS_WINDOW_COLOR: &str = "closedcaptions.onWindowColorChanged";
+pub const EVENT_CLOSED_CAPTIONS_WINDOW_OPACITY: &str = "closedcaptions.onWindowOpacityChanged";
 pub const EVENT_CLOSED_CAPTIONS_TEXT_ALIGN: &str = "closedcaptions.onTextAlignChanged";
 pub const EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL: &str =
     "closedcaptions.onTextAlignVerticalChanged";
@@ -202,6 +206,24 @@ const PROPERTY_DATA_CLOSED_CAPTIONS_BACKGROUND_OPACITY: PropertyData = PropertyD
     namespace: NAMESPACE_CLOSED_CAPTIONS,
     event_names: Some(&[
         EVENT_CLOSED_CAPTIONS_BACKGROUND_OPACITY,
+        EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED,
+    ]),
+};
+
+const PROPERTY_DATA_CLOSED_CAPTIONS_WINDOW_COLOR: PropertyData = PropertyData {
+    key: KEY_WINDOW_COLOR,
+    namespace: NAMESPACE_CLOSED_CAPTIONS,
+    event_names: Some(&[
+        EVENT_CLOSED_CAPTIONS_WINDOW_COLOR,
+        EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED,
+    ]),
+};
+
+const PROPERTY_DATA_CLOSED_CAPTIONS_WINDOW_OPACITY: PropertyData = PropertyData {
+    key: KEY_WINDOW_OPACITY,
+    namespace: NAMESPACE_CLOSED_CAPTIONS,
+    event_names: Some(&[
+        EVENT_CLOSED_CAPTIONS_WINDOW_OPACITY,
         EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED,
     ]),
 };
@@ -416,6 +438,8 @@ pub enum StorageProperty {
     ClosedCaptionsFontOpacity,
     ClosedCaptionsBackgroundColor,
     ClosedCaptionsBackgroundOpacity,
+    ClosedCaptionsWindowColor,
+    ClosedCaptionsWindowOpacity,
     ClosedCaptionsTextAlign,
     ClosedCaptionsTextAlignVertical,
     Locality,
@@ -467,6 +491,12 @@ impl StorageProperty {
             }
             StorageProperty::ClosedCaptionsBackgroundOpacity => {
                 PROPERTY_DATA_CLOSED_CAPTIONS_BACKGROUND_OPACITY
+            }
+            StorageProperty::ClosedCaptionsWindowColor => {
+                PROPERTY_DATA_CLOSED_CAPTIONS_WINDOW_COLOR
+            }
+            StorageProperty::ClosedCaptionsWindowOpacity => {
+                PROPERTY_DATA_CLOSED_CAPTIONS_WINDOW_OPACITY
             }
             StorageProperty::ClosedCaptionsTextAlign => PROPERTY_DATA_CLOSED_CAPTIONS_TEXT_ALIGN,
             StorageProperty::ClosedCaptionsTextAlignVertical => {
