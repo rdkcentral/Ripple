@@ -17,6 +17,7 @@
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
+    RpcModule,
 };
 use ripple_sdk::api::{
     device::device_accessibility_data::AudioDescriptionSettings,
@@ -24,7 +25,8 @@ use ripple_sdk::api::{
 };
 
 use crate::{
-    processor::storage::storage_manager::StorageManager, state::platform_state::PlatformState,
+    firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManager,
+    state::platform_state::PlatformState,
 };
 
 #[rpc(server)]
@@ -66,5 +68,12 @@ impl AudioDescriptionServer for AudioDescriptionImpl {
             None,
         )
         .await
+    }
+}
+
+pub struct AudioDescriptionRPCProvider;
+impl RippleRPCProvider<AudioDescriptionImpl> for AudioDescriptionRPCProvider {
+    fn provide(platform_state: PlatformState) -> RpcModule<AudioDescriptionImpl> {
+        (AudioDescriptionImpl { platform_state }).into_rpc()
     }
 }
