@@ -215,26 +215,20 @@ impl CapState {
                 supported: ignored_app,
                 available: ignored_app,
                 _use: RolePermission {
-                    permitted: ignored_app,
+                    permitted: false,
                     granted: None,
                 },
                 manage: RolePermission {
-                    permitted: ignored_app,
+                    permitted: false,
                     granted: None,
                 },
                 provide: RolePermission {
-                    permitted: ignored_app,
+                    permitted: false,
                     granted: None,
                 },
                 details: None,
             };
-            if ignored_app {
-                capability_info._use.granted = Some(true);
-                capability_info.manage.granted = Some(true);
-                capability_info.provide.granted = Some(true);
-                capability_infos.push(capability_info);
-                continue;
-            }
+
             capability_info.supported = state
                 .cap_state
                 .generic
@@ -248,6 +242,17 @@ impl CapState {
                         .generic
                         .check_available(&vec![cap.clone().into()])
                         .is_ok();
+
+                if ignored_app {
+                    capability_info._use.permitted = true;
+                    capability_info.manage.permitted = true;
+                    capability_info.provide.permitted = true;
+                    capability_info._use.granted = Some(true);
+                    capability_info.manage.granted = Some(true);
+                    capability_info.provide.granted = Some(true);
+                    capability_infos.push(capability_info);
+                    continue;
+                }
             }
             (
                 capability_info._use.permitted,
