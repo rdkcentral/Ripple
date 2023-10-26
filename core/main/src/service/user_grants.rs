@@ -61,7 +61,7 @@ use ripple_sdk::{
 use serde::Deserialize;
 
 use crate::{
-    firebolt::handlers::privacy_rpc::PrivacyImpl,
+    firebolt::{firebolt_gatekeeper::FireboltGatekeeper, handlers::privacy_rpc::PrivacyImpl},
     state::{cap::cap_state::CapState, platform_state::PlatformState},
 };
 
@@ -209,6 +209,43 @@ impl GrantState {
             deleted = true;
         }
         grant_state.sync();
+        deleted
+    }
+
+    /**
+     *  Delete all matching entries based on the lifespan
+     */
+    pub fn delete_all_entries_for_lifespan(&self, lifespan: &GrantLifespan) -> bool {
+        let mut deleted = false;
+        {
+            let mut grant_state = self.grant_app_map.write().unwrap();
+
+            for set in grant_state.value.values_mut() {
+                let prev_len = set.len();
+                set.retain(|entry| entry.lifespan.as_ref().map_or(false, |l| l != lifespan));
+                if set.len() < prev_len {
+                    deleted = true;
+                }
+            }
+            if deleted {
+                grant_state.sync()
+            }
+        }
+        {
+            let mut grant_state = self.device_grants.write().unwrap();
+            let prev_len = grant_state.value.len();
+            grant_state
+                .value
+                .retain(|entry| entry.lifespan.as_ref().map_or(false, |l| l != lifespan));
+            if grant_state.value.len() < prev_len {
+                deleted = true;
+            }
+
+            if deleted {
+                grant_state.sync()
+            }
+        }
+
         deleted
     }
 
@@ -372,26 +409,29 @@ impl GrantState {
         // UserGrants::determine_grant_policies(&self.ps.clone(), call_ctx, &r).await
     }
 
-    pub fn check_granted(&self, app_id: &str, role_info: RoleInfo) -> Result<bool, RippleError> {
-        if !self.caps_needing_grants.contains(&role_info.capability) {
-            return Ok(true);
-        }
-
+    pub fn check_granted(
+        &self,
+        state: &PlatformState,
+        app_id: &str,
+        role_info: RoleInfo,
+    ) -> Result<bool, RippleError> {
         if let Ok(permission) = FireboltPermission::try_from(role_info) {
-            let result = self.get_grant_state(app_id, &permission);
+            let resolved_perms = FireboltGatekeeper::resolve_dependencies(state, &vec![permission]);
+            for perm in resolved_perms {
+                let result = self.get_grant_state(app_id, &perm);
 
-            match result {
-                GrantActiveState::ActiveGrant(grant) => {
-                    if grant.is_err() {
-                        return Err(RippleError::Permission(DenyReason::GrantDenied));
-                    } else {
-                        return Ok(true);
+                match result {
+                    GrantActiveState::ActiveGrant(grant) => {
+                        if grant.is_err() {
+                            return Err(RippleError::Permission(DenyReason::GrantDenied));
+                        }
+                    }
+                    GrantActiveState::PendingGrant => {
+                        return Err(RippleError::Permission(DenyReason::Ungranted));
                     }
                 }
-                GrantActiveState::PendingGrant => {
-                    return Err(RippleError::Permission(DenyReason::Ungranted));
-                }
             }
+            return Ok(true);
         }
         Err(RippleError::Permission(DenyReason::Ungranted))
     }

@@ -30,7 +30,7 @@ use crate::state::{cap::permitted_state::PermissionHandler, platform_state::Plat
 pub struct FireboltGatekeeper {}
 
 impl FireboltGatekeeper {
-    fn resolve_dependencies(
+    pub fn resolve_dependencies(
         platform_state: &PlatformState,
         perm_set: &Vec<FireboltPermission>,
     ) -> Vec<FireboltPermission> {
