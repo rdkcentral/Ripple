@@ -278,15 +278,15 @@ pub trait Closedcaptions {
     ) -> RpcResult<ListenerResponse>;
 
     #[method(name = "closedcaptions.preferredLanguages")]
-    async fn cc_preffered_languages(&self, _ctx: CallContext) -> RpcResult<Vec<String>>;
+    async fn cc_preferred_languages(&self, _ctx: CallContext) -> RpcResult<Vec<String>>;
     #[method(name = "closedcaptions.setPreferredLanguages")]
-    async fn cc_preffered_languages_set(
+    async fn cc_preferred_languages_set(
         &self,
         ctx: CallContext,
         set_request: SetPreferredAudioLanguage,
     ) -> RpcResult<()>;
     #[method(name = "localization.onPreferredAudioLanguagesChanged")]
-    async fn on_cc_preffered_languages(
+    async fn on_cc_preferred_languages(
         &self,
         ctx: CallContext,
         request: ListenRequest,
@@ -766,7 +766,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         .await
     }
 
-    async fn cc_preffered_languages(&self, _ctx: CallContext) -> RpcResult<Vec<String>> {
+    async fn cc_preferred_languages(&self, _ctx: CallContext) -> RpcResult<Vec<String>> {
         Ok(
             StorageManager::get_vec_string(&self.state, SP::CCPreferredLanguages)
                 .await
@@ -774,7 +774,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         )
     }
 
-    async fn cc_preffered_languages_set(
+    async fn cc_preferred_languages_set(
         &self,
         _ctx: CallContext,
         set_request: SetPreferredAudioLanguage,
@@ -788,7 +788,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         .await
     }
 
-    async fn on_cc_preffered_languages(
+    async fn on_cc_preferred_languages(
         &self,
         ctx: CallContext,
         request: ListenRequest,
