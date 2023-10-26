@@ -355,7 +355,7 @@ mod tests {
         if let Ok(v) = CapState::get_cap_info(
             &runtime.platform_state,
             MockCallContext::get_from_app_id("some_app"),
-            &vec![FireboltCap::Short("some:many".to_owned())],
+            &vec![FireboltCap::Short("device:info".to_owned())],
         )
         .await
         {
