@@ -169,9 +169,8 @@ pub async fn voice_guidance_settings_enabled_changed(
         .get_client()
         .send_extn_request(DeviceEventRequest {
             event: DeviceEvent::VoiceGuidanceEnabledChanged,
-            id: ctx.app_id.to_owned(),
             subscribe: listen,
-            callback_type: DeviceEventCallback::FireboltAppEvent,
+            callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id.to_owned()),
         })
         .await
         .is_err()
@@ -214,9 +213,8 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
             .get_client()
             .send_extn_request(DeviceEventRequest {
                 event: DeviceEvent::VoiceGuidanceEnabledChanged,
-                id: ctx.app_id.to_owned(),
                 subscribe: true,
-                callback_type: DeviceEventCallback::FireboltAppEvent,
+                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id.to_owned()),
             })
             .await
             .is_err()

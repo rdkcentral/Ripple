@@ -42,6 +42,16 @@ impl StorageData {
 }
 
 #[derive(Deserialize, Debug)]
+pub struct SetPropertyOpt<T> {
+    pub value: Option<T>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SetProperty<T> {
+    pub value: T,
+}
+
+#[derive(Deserialize, Debug)]
 pub struct SetBoolProperty {
     pub value: bool,
 }
@@ -74,10 +84,13 @@ pub struct SetStorageProperty {
     pub data: StorageData,
 }
 
+pub type DeleteStorageProperty = GetStorageProperty;
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum DevicePersistenceRequest {
     Get(GetStorageProperty),
     Set(SetStorageProperty),
+    Delete(DeleteStorageProperty),
 }
 
 impl ExtnPayloadProvider for DevicePersistenceRequest {

@@ -17,7 +17,9 @@
 use crate::state::platform_state::PlatformState;
 use ripple_sdk::{
     api::{
-        device::device_user_grants_data::{GrantEntry, GrantLifespan, GrantStatus},
+        device::device_user_grants_data::{
+            GrantEntry, GrantLifespan, GrantStatus, PolicyPersistenceType,
+        },
         firebolt::fb_capabilities::FireboltPermission,
         usergrant_entry::{UserGrantInfo, UserGrantsStoreRequest},
     },
@@ -140,6 +142,25 @@ impl StoreUserGrantsProcessor {
         .await
         .is_ok()
     }
+
+    async fn process_clear_request(
+        state: &PlatformState,
+        msg: ExtnMessage,
+        persistence_type: PolicyPersistenceType,
+    ) -> bool {
+        debug!("Processor is handling clear request");
+        state
+            .cap_state
+            .grant_state
+            .clear_local_entries(state, persistence_type);
+        Self::respond(
+            state.get_client().get_extn_client(),
+            msg,
+            ExtnResponse::None(()),
+        )
+        .await
+        .is_ok()
+    }
 }
 
 #[async_trait]
@@ -163,6 +184,9 @@ impl ExtnRequestProcessor for StoreUserGrantsProcessor {
             }
             UserGrantsStoreRequest::SyncGrantMapPerPolicy() => {
                 Self::process_sync_grant_map(&state, msg).await
+            }
+            UserGrantsStoreRequest::ClearUserGrants(persistence_type) => {
+                Self::process_clear_request(&state, msg, persistence_type).await
             }
         }
     }

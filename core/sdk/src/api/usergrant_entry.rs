@@ -24,7 +24,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::device::device_user_grants_data::{GrantLifespan, GrantStatus};
+use super::device::device_user_grants_data::{GrantLifespan, GrantStatus, PolicyPersistenceType};
 use super::firebolt::fb_capabilities::FireboltPermission;
 use super::storage_property::StorageAdjective;
 
@@ -33,6 +33,22 @@ pub enum UserGrantsStoreRequest {
     GetUserGrants(String, FireboltPermission),
     SetUserGrants(UserGrantInfo),
     SyncGrantMapPerPolicy(),
+    ClearUserGrants(PolicyPersistenceType),
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum UserGrantsPersistenceType {
+    Account,
+    Cloud,
+}
+
+impl UserGrantsPersistenceType {
+    pub fn as_string(&self) -> &'static str {
+        match self {
+            UserGrantsPersistenceType::Account => "account",
+            UserGrantsPersistenceType::Cloud => "cloud",
+        }
+    }
 }
 
 impl ExtnPayloadProvider for UserGrantsStoreRequest {

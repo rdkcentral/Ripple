@@ -292,6 +292,6 @@ pub async fn is_granted(state: PlatformState, ctx: CallContext, cap: RoleInfo) -
     Ok(state
         .cap_state
         .grant_state
-        .check_granted(&ctx.app_id, cap)
+        .check_granted(&state, &ctx.app_id, cap)
         .is_ok())
 }
