@@ -19,9 +19,9 @@ use std::hash::{Hash, Hasher};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::api::gateway::rpc_error::RpcError;
-
 use super::fb_openrpc::CapabilitySet;
+use crate::api::gateway::rpc_error::RpcError;
+use regex::Regex;
 
 /// There are many types of Firebolt Cap enums
 /// 1. Short: `device:model` becomes = `xrn:firebolt:capability:account:session` its just a handy cap which helps us write less code
@@ -38,6 +38,32 @@ impl FireboltCap {
         S: Into<String>,
     {
         FireboltCap::Short(s.into())
+    }
+}
+
+impl Serialize for FireboltCap {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for FireboltCap {
+    fn deserialize<D>(deserializer: D) -> Result<FireboltCap, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let cap = String::deserialize(deserializer)?;
+        if let Some(fc) = FireboltCap::parse(cap.clone()) {
+            Ok(fc)
+        } else {
+            Err(serde::de::Error::custom(format!(
+                "Invalid capability: {}",
+                cap
+            )))
+        }
     }
 }
 
@@ -66,22 +92,20 @@ impl FireboltCap {
     }
 
     pub fn parse(cap: String) -> Option<FireboltCap> {
-        let prefix = ["xrn", "firebolt", "capability"];
-        let c_a = cap.split(':');
-        if c_a.count() > 1 {
-            let c_a = cap.split(':');
-            let mut cap_vec = Vec::<String>::new();
-            for c in c_a {
-                if !prefix.contains(&c) {
-                    cap_vec.push(String::from(c));
-                    if cap_vec.len() == 2 {
-                        return Some(FireboltCap::Short(cap_vec.join(":")));
-                    }
-                }
-            }
+        let pattern = r"^xrn:firebolt:capability:([a-z0-9\\-]+)((:[a-z0-9\\-]+)?)$";
+        if !Regex::new(pattern).unwrap().is_match(cap.as_str()) {
+            return None;
         }
 
-        None
+        let prefix = vec!["xrn", "firebolt", "capability"];
+        let c_a = cap.split(':');
+        let mut cap_vec = Vec::<String>::new();
+        for c in c_a.into_iter() {
+            if !prefix.contains(&c) {
+                cap_vec.push(String::from(c));
+            }
+        }
+        Some(FireboltCap::Short(cap_vec.join(":")))
     }
 
     pub fn from_vec_string(cap_strings: Vec<String>) -> Vec<FireboltCap> {
@@ -382,6 +406,34 @@ pub struct RoleInfo {
 #[derive(Debug, Deserialize, Clone)]
 pub struct CapInfoRpcRequest {
     pub capabilities: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct CapRPCRequest {
+    pub capability: FireboltCap,
+    pub options: Option<CapabilityOption>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct CapabilityOption {
+    pub role: CapabilityRole,
+}
+
+impl Default for CapabilityOption {
+    fn default() -> Self {
+        Self {
+            role: CapabilityRole::Use,
+        }
+    }
+}
+
+impl From<CapRPCRequest> for RoleInfo {
+    fn from(value: CapRPCRequest) -> Self {
+        RoleInfo {
+            role: Some(value.options.unwrap_or_default().role),
+            capability: value.capability.as_str(),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]

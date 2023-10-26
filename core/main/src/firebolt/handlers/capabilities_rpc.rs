@@ -27,8 +27,8 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
 use ripple_sdk::api::{
     firebolt::{
         fb_capabilities::{
-            CapEvent, CapInfoRpcRequest, CapListenRPCRequest, CapRequestRpcRequest, CapabilityInfo,
-            CapabilityRole, FireboltCap, FireboltPermission, RoleInfo,
+            CapEvent, CapInfoRpcRequest, CapListenRPCRequest, CapRPCRequest, CapRequestRpcRequest,
+            CapabilityInfo, FireboltCap, FireboltPermission, RoleInfo,
         },
         fb_general::ListenerResponse,
     },
@@ -39,13 +39,13 @@ use ripple_sdk::async_trait::async_trait;
 #[rpc(server)]
 pub trait Capability {
     #[method(name = "capabilities.supported")]
-    async fn supported(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool>;
+    async fn supported(&self, ctx: CallContext, cap: CapRPCRequest) -> RpcResult<bool>;
     #[method(name = "capabilities.available")]
-    async fn available(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool>;
+    async fn available(&self, ctx: CallContext, cap: CapRPCRequest) -> RpcResult<bool>;
     #[method(name = "capabilities.permitted")]
-    async fn permitted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool>;
+    async fn permitted(&self, ctx: CallContext, cap: CapRPCRequest) -> RpcResult<bool>;
     #[method(name = "capabilities.granted")]
-    async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool>;
+    async fn granted(&self, ctx: CallContext, cap: CapRPCRequest) -> RpcResult<bool>;
     #[method(name = "capabilities.info")]
     async fn info(
         &self,
@@ -106,36 +106,40 @@ impl CapabilityImpl {
 
 #[async_trait]
 impl CapabilityServer for CapabilityImpl {
-    async fn supported(&self, _ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
+    async fn supported(&self, _ctx: CallContext, cap: CapRPCRequest) -> RpcResult<bool> {
         Ok(self
             .state
             .cap_state
             .generic
             .check_supported(&[FireboltPermission {
-                cap: FireboltCap::Full(cap.capability),
-                role: cap.role.unwrap_or(CapabilityRole::Use),
+                cap: cap.capability,
+                role: cap.options.unwrap_or_default().role,
             }])
             .is_ok())
     }
 
-    async fn available(&self, _ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
+    async fn available(&self, _ctx: CallContext, cap: CapRPCRequest) -> RpcResult<bool> {
         Ok(self
             .state
             .cap_state
             .generic
             .check_available(&vec![FireboltPermission {
-                cap: FireboltCap::Full(cap.capability),
-                role: cap.role.unwrap_or(CapabilityRole::Use),
+                cap: cap.capability,
+                role: cap.options.unwrap_or_default().role,
             }])
             .is_ok())
     }
 
-    async fn permitted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
+    async fn permitted(&self, ctx: CallContext, cap: CapRPCRequest) -> RpcResult<bool> {
+        if self.state.open_rpc_state.is_app_excluded(&ctx.app_id) {
+            return Ok(true);
+        }
+
         if let Ok(v) = self
             .state
             .cap_state
             .permitted_state
-            .check_cap_role(&ctx.app_id, cap.clone())
+            .check_cap_role(&ctx.app_id, cap.clone().into())
         {
             return Ok(v);
         } else if PermissionHandler::fetch_and_store(&self.state, &ctx.app_id)
@@ -147,7 +151,7 @@ impl CapabilityServer for CapabilityImpl {
                 .state
                 .cap_state
                 .permitted_state
-                .check_cap_role(&ctx.app_id, cap)
+                .check_cap_role(&ctx.app_id, cap.into())
             {
                 return Ok(v);
             }
@@ -155,8 +159,8 @@ impl CapabilityServer for CapabilityImpl {
         Ok(false)
     }
 
-    async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
-        if let Ok(response) = is_granted(self.state.clone(), ctx, cap).await {
+    async fn granted(&self, ctx: CallContext, cap: CapRPCRequest) -> RpcResult<bool> {
+        if let Ok(response) = is_granted(self.state.clone(), ctx, cap.into()).await {
             return Ok(response);
         }
         Ok(false)
