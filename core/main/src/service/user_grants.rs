@@ -1126,11 +1126,14 @@ impl GrantStepExecutor {
         // 3. Call the capability,
         // 4. Get the user response and return
 
-        if caller_session.session_id.is_some() {
-            let app_id = app_requested_for.app_id.clone();
+        let CallerSession { session_id, app_id } = caller_session;
+        if session_id.is_some() && app_id.is_some() {
             // session id is some, so caller is from method invoke
             debug!("Method invoke caller, check if app is in foreground state");
-            let app_state = platform_state.ripple_client.get_app_state(&app_id).await;
+            let app_state = platform_state
+                .ripple_client
+                .get_app_state(&app_id.as_ref().unwrap())
+                .await;
 
             match app_state {
                 Ok(state) => {
