@@ -20,6 +20,7 @@ pub mod account_link;
 pub mod apps;
 pub mod caps;
 pub mod config;
+pub mod context;
 pub mod device;
 pub mod manifest;
 pub mod protocol;
