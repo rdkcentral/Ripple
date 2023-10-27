@@ -132,44 +132,7 @@
       "xrn:firebolt:capability:remote:ble",
       "xrn:firebolt:capability:storage:secure"
     ],
-    "dependencies": {
-      "xrn:firebolt:capability:privacy:advertising": [
-        "xrn:firebolt:capability:data:app-usage"
-      ],
-      "xrn:firebolt:capability:discovery:watch-next": [
-        "xrn:firebolt:capability:data:app-usage"
-      ]
-    },
     "grantPolicies": {
-      "xrn:firebolt:capability:account:id": {
-        "use": {
-          "options": [
-            {
-              "steps": [
-                {
-                  "capability": "xrn:firebolt:capability:usergrant:fingerprint"
-                }
-              ]
-            },
-            {
-              "steps": [
-                {
-                  "capability": "xrn:firebolt:capability:usergrant:pinchallenge",
-                  "configuration": {
-                    "pinSpace": "purchase"
-                  }
-                },
-                {
-                  "capability": "xrn:firebolt:capability:usergrant:acknowledgechallenge"
-                }
-              ]
-            }
-          ],
-          "scope": "device",
-          "lifespan": "once",
-          "overridable": false
-        }
-      },
       "xrn:firebolt:capability:device:id": {
         "use": {
           "options": [

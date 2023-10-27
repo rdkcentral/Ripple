@@ -64,6 +64,7 @@
                     ],
                     "fulfills": [
                         "permissions",
+                        "account.session",
                         "secure.storage",
                         "advertising",
                         "media_events",
