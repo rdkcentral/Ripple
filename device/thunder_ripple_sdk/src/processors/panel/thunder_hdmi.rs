@@ -151,11 +151,42 @@ impl ThunderHdmiRequestProcessor {
     }
 
     async fn get_hdmi_input(
-        _state: ThunderState,
-        _get_hdmi_input_request: GetHdmiInputRequest,
-        _req: ExtnMessage,
+        state: ThunderState,
+        get_hdmi_input_request: GetHdmiInputRequest,
+        req: ExtnMessage,
     ) -> bool {
-        todo!();
+        let device_response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::AVInput.method("getInputDevices"),
+                params: serde_json::to_string(&AVInputGetInputDevicesParams {
+                    type_of_input: "HDMI".to_owned(),
+                })
+                .map(DeviceChannelParams::Json)
+                .ok(),
+            })
+            .await;
+
+        if let Ok(result) =
+            serde_json::from_value::<GetAvailableInputsResponse>(device_response.message.clone())
+        {
+            let hdmi_input = {
+                result
+                    .devices
+                    .iter()
+                    .find(|x| x.port == get_hdmi_input_request.port)
+            };
+
+            let extn_response = match hdmi_input {
+                Some(v) => ExtnResponse::Value(serde_json::to_value(v).unwrap()),
+                None => ExtnResponse::Error(RippleError::InvalidOutput),
+            };
+
+            return Self::respond(state.get_client(), req, extn_response)
+                .await
+                .is_ok();
+        }
+        false
     }
 
     async fn select_hdmi_operation(
