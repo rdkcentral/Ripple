@@ -984,7 +984,6 @@ impl GrantPolicyEnforcer {
 
     pub async fn determine_grant_policies_for_permission(
         platform_state: &PlatformState,
-        // call_context: &CallContext,
         caller_session: &CallerSession,
         app_requested_for: &AppIdentification,
         permission: &FireboltPermission,
