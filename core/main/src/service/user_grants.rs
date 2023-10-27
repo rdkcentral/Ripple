@@ -1024,6 +1024,7 @@ impl GrantPolicyEnforcer {
             if e.reason == DenyReason::Ungranted
                 || e.reason == DenyReason::GrantProviderMissing
                 || e.reason == DenyReason::AppNotInActiveState
+                || e.reason == DenyReason::Unavailable
             {
                 return result;
             }
