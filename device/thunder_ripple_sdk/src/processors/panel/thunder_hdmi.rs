@@ -167,6 +167,9 @@ impl ThunderHdmiRequestProcessor {
             })
             .await;
 
+        /*
+         * The logic from here till the end needs refactoring or beautification but it works.
+         */
         if let Ok(result) =
             serde_json::from_value::<GetAvailableInputsResponse>(device_response.message.clone())
         {
