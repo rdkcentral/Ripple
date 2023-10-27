@@ -126,7 +126,7 @@ impl GenericCapState {
     pub fn clear_non_negotiable_permission(
         &self,
         state: &PlatformState,
-        permissions: &Vec<FireboltPermission>,
+        permissions: &[FireboltPermission],
     ) -> bool {
         let filtered_permissions: Vec<FireboltPermission> = permissions
             .iter()
@@ -150,6 +150,6 @@ impl GenericCapState {
                 Some(permission.clone())
             })
             .collect();
-        return filtered_permissions.is_empty();
+        filtered_permissions.is_empty()
     }
 }
