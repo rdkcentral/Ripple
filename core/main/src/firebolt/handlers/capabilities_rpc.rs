@@ -28,17 +28,21 @@ use jsonrpsee::{
     proc_macros::rpc,
     RpcModule,
 };
-use ripple_sdk::api::{
-    firebolt::{
-        fb_capabilities::{
-            CapEvent, CapInfoRpcRequest, CapListenRPCRequest, CapRequestRpcRequest, CapabilityInfo,
-            CapabilityRole, FireboltCap, FireboltPermission, RoleInfo,
-        },
-        fb_general::ListenerResponse,
-    },
-    gateway::rpc_gateway_api::CallContext,
-};
 use ripple_sdk::async_trait::async_trait;
+use ripple_sdk::{
+    api::{
+        firebolt::{
+            fb_capabilities::{
+                CapEvent, CapInfoRpcRequest, CapListenRPCRequest, CapRequestRpcRequest,
+                CapabilityInfo, CapabilityRole, DenyReason, FireboltCap, FireboltPermission,
+                RoleInfo,
+            },
+            fb_general::ListenerResponse,
+        },
+        gateway::rpc_gateway_api::CallContext,
+    },
+    utils::error::RippleError,
+};
 
 #[rpc(server)]
 pub trait Capability {
@@ -160,11 +164,16 @@ impl CapabilityServer for CapabilityImpl {
     }
 
     async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<Option<bool>> {
-        self.state
-            .cap_state
-            .grant_state
-            .check_granted(&ctx.app_id, cap)
-            .map_err(|_| Error::Custom("Unable to get Usergrants".to_owned()))
+        let granted_res =
+            self.state
+                .cap_state
+                .grant_state
+                .check_granted(&self.state, &ctx.app_id, cap);
+        match granted_res {
+            Ok(grant) => Ok(Some(grant)),
+            Err(RippleError::Permission(DenyReason::Ungranted)) => Ok(None),
+            Err(_) => Err(Error::Custom("Unable to get user grants".to_owned())),
+        }
     }
 
     async fn info(
@@ -304,6 +313,6 @@ pub async fn is_granted(state: PlatformState, ctx: CallContext, cap: RoleInfo) -
     Ok(state
         .cap_state
         .grant_state
-        .check_granted(&ctx.app_id, cap)
+        .check_granted(&state, &ctx.app_id, cap)
         .is_ok())
 }
