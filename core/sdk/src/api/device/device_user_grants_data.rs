@@ -112,7 +112,7 @@ impl Hash for GrantScope {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PolicyPersistenceType {
     Account,
