@@ -353,7 +353,7 @@ pub enum NavigationIntent {
 // To avoid the data loss during IEC InternalNavigationIntent is created so the Firebolt specification is not affected
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum InternalNavigationIntent {
-    NavigationIntentStrict(NavigationIntentStrict),
+    NavigationIntentStrict(InternalNavigationIntentStrict),
     NavigationIntentLoose(NavigationIntentLoose),
 }
 
@@ -361,7 +361,7 @@ impl From<NavigationIntent> for InternalNavigationIntent {
     fn from(value: NavigationIntent) -> Self {
         match value {
             NavigationIntent::NavigationIntentLoose(l) => Self::NavigationIntentLoose(l),
-            NavigationIntent::NavigationIntentStrict(s) => Self::NavigationIntentStrict(s),
+            NavigationIntent::NavigationIntentStrict(s) => Self::NavigationIntentStrict(s.into()),
         }
     }
 }
@@ -371,7 +371,9 @@ impl From<InternalNavigationIntent> for NavigationIntent {
     fn from(value: InternalNavigationIntent) -> Self {
         match value {
             InternalNavigationIntent::NavigationIntentLoose(l) => Self::NavigationIntentLoose(l),
-            InternalNavigationIntent::NavigationIntentStrict(s) => Self::NavigationIntentStrict(s),
+            InternalNavigationIntent::NavigationIntentStrict(s) => {
+                Self::NavigationIntentStrict(s.into())
+            }
         }
     }
 }
@@ -396,6 +398,54 @@ pub enum NavigationIntentStrict {
     Section(SectionIntent),
     Tune(TuneIntent),
     ProviderRequest(ProviderRequestIntent),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "action", rename_all = "camelCase", deny_unknown_fields)]
+
+pub enum InternalNavigationIntentStrict {
+    Home(HomeIntent),
+    Launch(LaunchIntent),
+    Entity(InternalEntityIntent),
+    Playback(PlaybackIntent),
+    Search(SearchIntent),
+    Section(SectionIntent),
+    Tune(TuneIntent),
+    ProviderRequest(ProviderRequestIntent),
+}
+
+impl From<InternalNavigationIntentStrict> for NavigationIntentStrict {
+    fn from(value: InternalNavigationIntentStrict) -> Self {
+        match value {
+            InternalNavigationIntentStrict::Tune(t) => NavigationIntentStrict::Tune(t),
+            InternalNavigationIntentStrict::Entity(e) => NavigationIntentStrict::Entity(e.into()),
+            InternalNavigationIntentStrict::Home(h) => NavigationIntentStrict::Home(h),
+            InternalNavigationIntentStrict::Launch(l) => NavigationIntentStrict::Launch(l),
+            InternalNavigationIntentStrict::Playback(p) => NavigationIntentStrict::Playback(p),
+            InternalNavigationIntentStrict::ProviderRequest(p) => {
+                NavigationIntentStrict::ProviderRequest(p)
+            }
+            InternalNavigationIntentStrict::Search(s) => NavigationIntentStrict::Search(s),
+            InternalNavigationIntentStrict::Section(s) => NavigationIntentStrict::Section(s),
+        }
+    }
+}
+
+impl From<NavigationIntentStrict> for InternalNavigationIntentStrict {
+    fn from(value: NavigationIntentStrict) -> Self {
+        match value {
+            NavigationIntentStrict::Tune(t) => InternalNavigationIntentStrict::Tune(t),
+            NavigationIntentStrict::Entity(e) => InternalNavigationIntentStrict::Entity(e.into()),
+            NavigationIntentStrict::Home(h) => InternalNavigationIntentStrict::Home(h),
+            NavigationIntentStrict::Launch(l) => InternalNavigationIntentStrict::Launch(l),
+            NavigationIntentStrict::Playback(p) => InternalNavigationIntentStrict::Playback(p),
+            NavigationIntentStrict::ProviderRequest(p) => {
+                InternalNavigationIntentStrict::ProviderRequest(p)
+            }
+            NavigationIntentStrict::Search(s) => InternalNavigationIntentStrict::Search(s),
+            NavigationIntentStrict::Section(s) => InternalNavigationIntentStrict::Section(s),
+        }
+    }
 }
 
 /*
@@ -443,6 +493,30 @@ pub struct EntityIntent {
     #[serde(deserialize_with = "entity_data_deserialize")]
     pub data: EntityIntentData,
     pub context: DiscoveryContext,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct InternalEntityIntent {
+    pub data: EntityIntentData,
+    pub context: DiscoveryContext,
+}
+
+impl From<InternalEntityIntent> for EntityIntent {
+    fn from(value: InternalEntityIntent) -> Self {
+        Self {
+            data: value.data,
+            context: value.context,
+        }
+    }
+}
+
+impl From<EntityIntent> for InternalEntityIntent {
+    fn from(value: EntityIntent) -> Self {
+        Self {
+            data: value.data,
+            context: value.context,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
