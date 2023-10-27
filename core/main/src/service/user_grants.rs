@@ -1002,7 +1002,7 @@ impl GrantPolicyEnforcer {
             debug!("Method invoke caller, check if app is in foreground state");
             let app_state = platform_state
                 .ripple_client
-                .get_app_state(&app_id.as_ref().unwrap())
+                .get_app_state(app_id.as_ref().unwrap())
                 .await;
 
             match app_state {

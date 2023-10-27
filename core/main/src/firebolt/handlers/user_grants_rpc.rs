@@ -26,9 +26,7 @@ use ripple_sdk::{
         apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
         device::device_user_grants_data::{GrantEntry, GrantStateModify},
         firebolt::{
-            fb_capabilities::{
-                DenyReason, DenyReasonWithCap, FireboltPermission, CAPABILITY_NOT_PERMITTED,
-            },
+            fb_capabilities::{DenyReason, FireboltPermission, CAPABILITY_NOT_PERMITTED},
             fb_user_grants::{
                 AppInfo, GetUserGrantsByAppRequest, GetUserGrantsByCapabilityRequest, GrantInfo,
                 GrantRequest, UserGrantRequestParam,
@@ -287,8 +285,8 @@ impl UserGrantsServer for UserGrantsImpl {
         )
         .await;
         debug!("Check with roles result: {:?}", grant_entries);
-        if grant_entries.is_err() {
-            if DenyReason::AppNotInActiveState == grant_entries.unwrap_err().reason {
+        if let Err(grant_entries_err) = grant_entries {
+            if DenyReason::AppNotInActiveState == grant_entries_err.reason {
                 return Err(jsonrpsee::core::Error::Call(CallError::Custom {
                     code: CAPABILITY_NOT_PERMITTED,
                     message: "Capability cannot be used when app is not in foreground state due to requiring a user grant".to_owned(),
