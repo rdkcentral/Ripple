@@ -402,6 +402,12 @@ pub enum CapEvent {
 
 impl CapEvent {
     pub fn as_str(self) -> String {
-        serde_json::to_string(&self).unwrap()
+        let variant_name = match self {
+            CapEvent::OnAvailable => "onAvailable",
+            CapEvent::OnUnavailable => "onUnavailable",
+            CapEvent::OnGranted => "onGranted",
+            CapEvent::OnRevoked => "onRevoked",
+        };
+        variant_name.to_owned()
     }
 }
