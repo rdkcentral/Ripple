@@ -16,8 +16,11 @@
 //
 
 use ripple_sdk::{
-    api::session::{
-        AccountSession, AccountSessionRequest, AccountSessionTokenRequest, ProvisionRequest,
+    api::{
+        device::device_request::AccountToken,
+        session::{
+            AccountSession, AccountSessionRequest, AccountSessionTokenRequest, ProvisionRequest,
+        },
     },
     async_trait::async_trait,
     extn::{
@@ -131,6 +134,31 @@ impl DistributorSessionProcessor {
         }
         Self::ack(state.client, msg).await.is_ok()
     }
+
+    async fn get_accesstoken(mut state: DistSessionState, msg: ExtnMessage) -> bool {
+        let device_token = AccountToken {
+            // Mock invalidated token for validation
+            token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9".into(),
+            expires: 0,
+        };
+        if let Err(e) = state
+            .client
+            .respond(
+                msg.clone(),
+                ripple_sdk::extn::extn_client_message::ExtnResponse::AccountSession(
+                    ripple_sdk::api::session::AccountSessionResponse::AccountSessionToken(
+                        device_token,
+                    ),
+                ),
+            )
+            .await
+        {
+            error!("Error sending back response {:?}", e);
+            return false;
+        }
+
+        Self::handle_error(state.clone().client, msg, RippleError::ExtnError).await
+    }
 }
 
 impl ExtnStreamProcessor for DistributorSessionProcessor {
@@ -170,8 +198,10 @@ impl ExtnRequestProcessor for DistributorSessionProcessor {
             AccountSessionRequest::Get => Self::get_token(state.clone(), msg).await,
             AccountSessionRequest::Provision(p) => Self::provision(state.clone(), msg, p).await,
             AccountSessionRequest::SetAccessToken(s) => Self::set_token(state, msg, s).await,
-            AccountSessionRequest::GetAccessToken => todo!(),
-            AccountSessionRequest::Subscribe => todo!(),
+            AccountSessionRequest::GetAccessToken => {
+                Self::get_accesstoken(state.clone(), msg).await
+            }
+            AccountSessionRequest::Subscribe => Self::ack(state.clone().client, msg).await.is_ok(),
         }
     }
 }
