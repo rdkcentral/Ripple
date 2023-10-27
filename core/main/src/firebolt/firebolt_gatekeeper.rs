@@ -21,7 +21,7 @@ use ripple_sdk::api::firebolt::fb_capabilities::{
     DenyReason, DenyReasonWithCap, FireboltPermission,
 };
 use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
-use ripple_sdk::log::trace;
+use ripple_sdk::log::{debug, trace};
 
 use crate::service::user_grants::GrantState;
 use crate::state::openrpc_state::ApiSurface;
@@ -93,59 +93,68 @@ impl FireboltGatekeeper {
             });
         }
         let caps = caps_opt.unwrap();
-        if !caps.is_empty() {
-            // Supported and Availability checks
-            trace!(
-                "Required caps for method:{} Caps: [{:?}]",
-                request.method,
-                caps
-            );
-            if let Err(e) = state.clone().cap_state.generic.check_all(&caps) {
-                trace!("check_all for caps[{:?}] failed", caps);
-                return Err(e);
-            }
-            // permission checks
-            if let Err(e) =
-                PermissionHandler::check_permitted(&state, &request.ctx.app_id, &caps).await
-            {
+        if !state
+            .clone()
+            .cap_state
+            .generic
+            .clear_non_negotiable_permission(&state, &caps)
+        {
+            if !caps.is_empty() {
+                // Supported and Availability checks
                 trace!(
-                    "check_permitted for method ({}) failed. Error: {:?}",
+                    "Required caps for method:{} Caps: [{:?}]",
                     request.method,
-                    e
+                    caps
                 );
-                return Err(e);
-            } else {
-                trace!("check_permitted for method ({}) succeded", request.method);
-                //usergrants check
-                if let Err(e) = GrantState::check_with_roles(
-                    &state,
-                    &request.ctx.clone().into(),
-                    &request.ctx.clone().into(),
-                    &caps,
-                    true,
-                )
-                .await
+                if let Err(e) = state.clone().cap_state.generic.check_all(&caps) {
+                    trace!("check_all for caps[{:?}] failed", caps);
+                    return Err(e);
+                }
+                // permission checks
+                if let Err(e) =
+                    PermissionHandler::check_permitted(&state, &request.ctx.app_id, &caps).await
                 {
                     trace!(
-                        "check_with_roles for method ({}) failed. Error: {:?}",
+                        "check_permitted for method ({}) failed. Error: {:?}",
                         request.method,
                         e
                     );
                     return Err(e);
                 } else {
-                    trace!("check_with_roles for method ({}) succeded", request.method);
+                    trace!("check_permitted for method ({}) succeded", request.method);
+                    //usergrants check
+                    if let Err(e) = GrantState::check_with_roles(
+                        &state,
+                        &request.ctx.clone().into(),
+                        &request.ctx.clone().into(),
+                        &caps,
+                        true,
+                    )
+                    .await
+                    {
+                        trace!(
+                            "check_with_roles for method ({}) failed. Error: {:?}",
+                            request.method,
+                            e
+                        );
+                        return Err(e);
+                    } else {
+                        trace!("check_with_roles for method ({}) succeded", request.method);
+                    }
                 }
+            } else {
+                // Couldnt find any capabilities for the method
+                trace!(
+                    "Unable to find any caps for the method ({})",
+                    request.method
+                );
+                return Err(DenyReasonWithCap {
+                    reason: DenyReason::Unsupported,
+                    caps: Vec::new(),
+                });
             }
         } else {
-            // Couldnt find any capabilities for the method
-            trace!(
-                "Unable to find any caps for the method ({})",
-                request.method
-            );
-            return Err(DenyReasonWithCap {
-                reason: DenyReason::Unsupported,
-                caps: Vec::new(),
-            });
+            debug!("Role/Capability is cleared based on non-negotiable policy");
         }
         Ok(())
     }
