@@ -22,8 +22,10 @@ use ripple_sdk::api::{
     context::RippleContextUpdateRequest,
     device::{
         device_accessibility_data::VoiceGuidanceSettings,
-        device_events::{INTERNET_CHANGED_EVENT, VOICE_GUIDANCE_SETTINGS_CHANGED},
-        device_request::{InternetConnectionStatus, VoiceGuidanceState},
+        device_events::{
+            INTERNET_CHANGED_EVENT, TIME_ZONE_CHANGED, VOICE_GUIDANCE_SETTINGS_CHANGED,
+        },
+        device_request::{InternetConnectionStatus, TimeZone, VoiceGuidanceState},
     },
 };
 use ripple_sdk::serde_json;
@@ -33,6 +35,7 @@ use crate::{
     events::thunder_event_processor::{
         ThunderEventHandler, ThunderEventHandlerProvider, ThunderEventMessage,
     },
+    processors::thunder_device_info::CachedState,
     ripple_sdk::{
         api::device::{
             device_events::{
@@ -577,5 +580,108 @@ impl ThunderEventHandlerProvider for AudioChangedEvent {
 
     fn module() -> String {
         ThunderPlugin::DisplaySettings.callsign_string()
+    }
+}
+
+pub struct TimezoneChangedEventHandler;
+
+impl TimezoneChangedEventHandler {
+    pub fn handle(
+        state: ThunderState,
+        value: ThunderEventMessage,
+        _callback_type: DeviceEventCallback,
+    ) {
+        if let ThunderEventMessage::TimeZone(v) = value {
+            println!(
+                "**** handle: on time zone changed - ThunderEventMessage - v: {:?}",
+                v
+            );
+            let cached_state = CachedState::new(state.clone());
+            tokio::spawn(async move {
+                let tz =
+                    ThunderDeviceInfoRequestProcessor::get_timezone_and_offset(&cached_state).await;
+
+                let event = ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
+                    event_name: TIME_ZONE_CHANGED.to_string(),
+                    result: serde_json::to_value(tz.time_zone.clone()).unwrap_or_default(),
+                    context: None,
+                    app_id: None,
+                }));
+
+                ThunderEventHandler::callback_device_event(
+                    state.clone(),
+                    TIME_ZONE_CHANGED.to_string(),
+                    event,
+                );
+
+                ThunderEventHandler::callback_context_update(
+                    state,
+                    RippleContextUpdateRequest::TimeZone(tz),
+                )
+            });
+        }
+    }
+
+    pub fn is_valid(value: ThunderEventMessage) -> bool {
+        if let ThunderEventMessage::TimeZone(value) = value {
+            println!(
+                "**** is_valid: on time zone changed - ThunderEventMessage - value: {:?}",
+                value
+            );
+            return true;
+        }
+        false
+    }
+}
+
+impl ThunderEventHandlerProvider for TimezoneChangedEventHandler {
+    type EVENT = TimeZone;
+    fn provide(id: String, callback_type: DeviceEventCallback) -> ThunderEventHandler {
+        ThunderEventHandler {
+            request: Self::get_device_request(),
+            handle: Self::handle,
+            is_valid: Self::is_valid,
+            listeners: vec![id],
+            id: Self::get_mapped_event(),
+            callback_type,
+        }
+    }
+
+    fn event_name() -> String {
+        "onTimeZoneDSTChanged".into()
+    }
+
+    fn get_mapped_event() -> String {
+        TIME_ZONE_CHANGED.into()
+    }
+
+    fn module() -> String {
+        ThunderPlugin::System.callsign_string()
+    }
+
+    fn get_id(&self) -> String {
+        Self::get_mapped_event()
+    }
+
+    fn get_extn_event(
+        r: Self::EVENT,
+        callback_type: DeviceEventCallback,
+    ) -> Result<ExtnEvent, RippleError> {
+        let result = serde_json::to_value(r).unwrap();
+        match callback_type {
+            DeviceEventCallback::FireboltAppEvent(_) => {
+                println!("**** callback_type: DeviceEventCallback::FireboltAppEvent");
+                Ok(ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
+                    event_name: Self::get_mapped_event(),
+                    context: None,
+                    result,
+                    app_id: None,
+                })))
+            }
+            DeviceEventCallback::ExtnEvent => {
+                println!("**** callback_type: DeviceEventCallback::ExtnEvent");
+                Ok(ExtnEvent::Value(result))
+            }
+        }
     }
 }

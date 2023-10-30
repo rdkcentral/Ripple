@@ -15,18 +15,17 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-
 use crate::{
     api::firebolt::fb_openrpc::FireboltSemanticVersion,
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use super::device_request::{
     AudioProfile, DeviceRequest, HDCPStatus, HdcpProfile, HdrProfile, InternetConnectionStatus,
-    OnInternetConnectedRequest, PowerState,
+    OnInternetConnectedRequest, PowerState, TimeZone,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -106,6 +105,7 @@ pub enum DeviceResponse {
     FullCapabilities(Box<DeviceCapabilities>),
     InternetConnectionStatus(InternetConnectionStatus),
     PowerState(PowerState),
+    TimeZone(TimeZone),
 }
 
 impl ExtnPayloadProvider for DeviceResponse {

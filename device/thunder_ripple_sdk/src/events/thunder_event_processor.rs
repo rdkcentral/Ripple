@@ -67,6 +67,7 @@ pub enum ThunderEventMessage {
     VoiceGuidance(VoiceGuidanceState),
     Audio(HashMap<AudioProfile, bool>),
     Custom(Value),
+    TimeZone(HashMap<String, String>),
 }
 impl ThunderEventMessage {
     pub fn get(event: &str, value: &Value) -> Option<Self> {
@@ -127,6 +128,11 @@ impl ThunderEventMessage {
                         if let Ok(internet_status) = serde_json::from_value(status.clone()) {
                             return Some(ThunderEventMessage::Internet(internet_status));
                         }
+                    }
+                }
+                DeviceEvent::TimeZoneChanged => {
+                    if let Ok(v) = serde_json::from_value(value.clone()) {
+                        return Some(ThunderEventMessage::TimeZone(v));
                     }
                 }
             }

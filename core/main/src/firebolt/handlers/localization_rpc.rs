@@ -24,6 +24,9 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         device::{
+            device_events::{
+                DeviceEvent, DeviceEventCallback, DeviceEventRequest, TIME_ZONE_CHANGED,
+            },
             device_info_request::DeviceInfoRequest,
             device_peristence::SetStringProperty,
             device_request::{LanguageProperty, TimezoneProperty},
@@ -38,8 +41,10 @@ use std::collections::HashMap;
 
 use crate::utils::rpc_utils::{rpc_add_event_listener, rpc_err};
 use crate::{
-    firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManager,
-    service::apps::provider_broker::ProviderBroker, state::platform_state::PlatformState,
+    firebolt::rpc::RippleRPCProvider,
+    processor::storage::storage_manager::StorageManager,
+    service::apps::{app_events::AppEvents, provider_broker::ProviderBroker},
+    state::platform_state::PlatformState,
 };
 use serde::Deserialize;
 
@@ -538,7 +543,39 @@ impl LocalizationServer for LocalizationImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(&self.platform_state, ctx, request, EVENT_TIMEZONE_CHANGED).await
+        // rpc_add_event_listener(
+        //     &self.platform_state,
+        //     ctx.clone(),
+        //     request.clone(),
+        //     EVENT_TIMEZONE_CHANGED,
+        // )
+        // .await;
+
+        AppEvents::add_listener(
+            &self.platform_state,
+            TIME_ZONE_CHANGED.to_string(),
+            ctx.clone(),
+            request.clone(),
+        );
+
+        if self
+            .platform_state
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::TimeZoneChanged,
+                subscribe: request.clone().listen,
+                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
+            })
+            .await
+            .is_err()
+        {
+            error!("Error while registration");
+        }
+
+        Ok(ListenerResponse {
+            listening: request.clone().listen,
+            event: TIME_ZONE_CHANGED.to_string(),
+        })
     }
 }
 

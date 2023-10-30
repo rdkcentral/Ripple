@@ -21,8 +21,11 @@ use ripple_sdk::api::device::device_events::{
     DeviceEvent, DeviceEventCallback, DeviceEventRequest,
 };
 use ripple_sdk::api::device::device_info_request::{DeviceInfoRequest, DeviceResponse};
-use ripple_sdk::api::device::device_request::{OnInternetConnectedRequest, SystemPowerState};
+use ripple_sdk::api::device::device_request::{
+    OnInternetConnectedRequest, SystemPowerState, TimeZone,
+};
 use ripple_sdk::api::session::AccountSessionRequest;
+use ripple_sdk::extn::extn_client_message::ExtnResponse;
 use ripple_sdk::log::warn;
 use ripple_sdk::tokio;
 
@@ -71,6 +74,20 @@ impl ContextManager {
             warn!("No processor to set System power status listener")
         }
 
+        // Setup the TimeZoneChanged status listener
+        if ps
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::TimeZoneChanged,
+                subscribe: true,
+                callback_type: DeviceEventCallback::ExtnEvent,
+            })
+            .await
+            .is_err()
+        {
+            warn!("**** No processor to set TimeZoneChanged status listener")
+        }
+
         let ps_c = ps.clone();
 
         // Asynchronously get context and update the state
@@ -109,6 +126,26 @@ impl ContextManager {
                         .context_update(RippleContextUpdateRequest::InternetStatus(s));
                 }
             }
+
+            // Get TimeZone
+            tokio::spawn(async move {
+                if let Ok(resp) = ps_c
+                    .get_client()
+                    .send_extn_request(DeviceInfoRequest::GetTimezoneWithOffset)
+                    .await
+                {
+                    if let Some(ExtnResponse::TimezoneWithOffset(tz, offset)) =
+                        resp.payload.extract::<ExtnResponse>()
+                    {
+                        ps_c.get_client().get_extn_client().context_update(
+                            RippleContextUpdateRequest::TimeZone(TimeZone {
+                                time_zone: tz,
+                                offset,
+                            }),
+                        );
+                    }
+                }
+            });
         });
     }
 }

@@ -59,7 +59,7 @@ use crate::{
     utils::get_audio_profile_from_value,
 };
 use ripple_sdk::{
-    api::device::device_request::{InternetConnectionStatus, PowerState},
+    api::device::device_request::{InternetConnectionStatus, PowerState, TimeZone},
     log::trace,
     serde_json::{Map, Value},
 };
@@ -133,7 +133,6 @@ pub struct CachedDeviceInfo {
     hdcp_status: Option<HDCPStatus>,
     hdr_profile: Option<HashMap<HdrProfile, bool>>,
     version: Option<FireboltSemanticVersion>,
-    all_timezones: Option<ThunderAllTimezonesResponse>,
 }
 
 #[derive(Debug, Clone)]
@@ -228,15 +227,6 @@ impl CachedState {
     fn update_version(&self, version: FireboltSemanticVersion) {
         let mut cached = self.cached.write().unwrap();
         let _ = cached.version.insert(version);
-    }
-
-    fn update_timezone(&self, timezones: ThunderAllTimezonesResponse) {
-        let mut cached = self.cached.write().unwrap();
-        let _ = cached.all_timezones.insert(timezones);
-    }
-
-    fn get_timezone(&self) -> Option<ThunderAllTimezonesResponse> {
-        self.cached.read().unwrap().all_timezones.clone()
     }
 }
 
@@ -349,12 +339,12 @@ impl ThunderAllTimezonesResponse {
                     if let Ok(nutz) =
                         NaiveDateTime::parse_from_str(&utc_tz, "%a %b %d %H:%M:%S %Y %Z")
                     {
-                        return (ntz - nutz).num_seconds();
+                        let delta = (ntz - nutz).num_seconds();
+                        return round_to_nearest_quarter_hour(delta);
                     }
                 }
             }
         }
-
         0
     }
 }
@@ -370,7 +360,15 @@ impl<'de> Deserialize<'de> for ThunderAllTimezonesResponse {
                 &mut timezones,
                 String::from(""),
                 zones,
-                vec!["Etc", "Utc", "America", "Australia", "Africa", "Europe"],
+                vec![
+                    "Etc",
+                    "Utc",
+                    "America",
+                    "Australia",
+                    "Africa",
+                    "Europe",
+                    "Pacific",
+                ],
             );
         }
         Ok(ThunderAllTimezonesResponse { timezones })
@@ -1008,7 +1006,7 @@ impl ThunderDeviceInfoRequestProcessor {
             })
             .await;
 
-        info!("{}", response.message);
+        info!("**** getTimeZoneDST: {}", response.message);
         if response.message.get("success").is_none()
             || response.message["success"].as_bool().unwrap_or_default()
         {
@@ -1029,7 +1027,7 @@ impl ThunderDeviceInfoRequestProcessor {
         }
     }
 
-    async fn get_timezone_with_offset(state: CachedState, req: ExtnMessage) -> bool {
+    pub async fn get_timezone_with_offset(state: CachedState, req: ExtnMessage) -> bool {
         if let Ok(timezone) = Self::get_timezone_value(&state).await {
             if let Ok(timezones) = Self::get_all_timezones(&state).await {
                 let offset = timezones.get_offset(&timezone);
@@ -1046,12 +1044,26 @@ impl ThunderDeviceInfoRequestProcessor {
         Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
     }
 
+    pub async fn get_timezone_and_offset(state: &CachedState) -> TimeZone {
+        // Try to get the timezone value, or return a default value if there's an error
+        let timezone = Self::get_timezone_value(state).await.unwrap_or_default();
+
+        // Try to get all timezones, or return a default value if there's an error
+        let timezones = Self::get_all_timezones(&state).await.unwrap_or_default();
+
+        // Calculate the offset
+        let offset = timezones.get_offset(&timezone);
+
+        // Return the response
+        TimeZone {
+            time_zone: timezone,
+            offset,
+        }
+    }
+
     async fn get_all_timezones(
         state: &CachedState,
     ) -> Result<ThunderAllTimezonesResponse, RippleError> {
-        if let Some(t) = state.get_timezone() {
-            return Ok(t);
-        }
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -1063,10 +1075,7 @@ impl ThunderDeviceInfoRequestProcessor {
             && response.message["success"].as_bool().unwrap_or_default()
         {
             match serde_json::from_value::<ThunderAllTimezonesResponse>(response.message) {
-                Ok(timezones) => {
-                    state.update_timezone(timezones.clone());
-                    Ok(timezones)
-                }
+                Ok(timezones) => Ok(timezones),
                 Err(e) => {
                     error!("{}", e.to_string());
                     Err(RippleError::ProcessorError)
@@ -1393,4 +1402,15 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             _ => false,
         }
     }
+}
+
+fn round_to_nearest_quarter_hour(offset_seconds: i64) -> i64 {
+    // Convert minutes to quarter hours
+    let quarter_hours = (offset_seconds as f64 / 900.0).round() as i64;
+
+    // Convert back to minutes
+    let rounded_minutes = quarter_hours * 15;
+
+    // Convert minutes back to seconds
+    rounded_minutes * 60
 }

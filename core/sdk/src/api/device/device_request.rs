@@ -264,6 +264,23 @@ impl Default for SystemPowerState {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TimeZone {
+    #[serde(rename = "timeZone")]
+    pub time_zone: String,
+    pub offset: i64,
+}
+
+impl Default for TimeZone {
+    fn default() -> Self {
+        Self {
+            time_zone: String::new(),
+            offset: 0,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct VoiceGuidanceState {
