@@ -23,18 +23,26 @@ use crate::{
         platform_state::PlatformState,
     },
 };
-use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
-use ripple_sdk::api::{
-    firebolt::{
-        fb_capabilities::{
-            CapEvent, CapInfoRpcRequest, CapListenRPCRequest, CapRequestRpcRequest, CapabilityInfo,
-            CapabilityRole, FireboltCap, FireboltPermission, RoleInfo,
-        },
-        fb_general::ListenerResponse,
-    },
-    gateway::rpc_gateway_api::CallContext,
+use jsonrpsee::{
+    core::{Error, RpcResult},
+    proc_macros::rpc,
+    RpcModule,
 };
 use ripple_sdk::async_trait::async_trait;
+use ripple_sdk::{
+    api::{
+        firebolt::{
+            fb_capabilities::{
+                CapEvent, CapInfoRpcRequest, CapListenRPCRequest, CapRequestRpcRequest,
+                CapabilityInfo, CapabilityRole, DenyReason, FireboltCap, FireboltPermission,
+                RoleInfo,
+            },
+            fb_general::ListenerResponse,
+        },
+        gateway::rpc_gateway_api::CallContext,
+    },
+    utils::error::RippleError,
+};
 
 #[rpc(server)]
 pub trait Capability {
@@ -45,7 +53,7 @@ pub trait Capability {
     #[method(name = "capabilities.permitted")]
     async fn permitted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool>;
     #[method(name = "capabilities.granted")]
-    async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool>;
+    async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<Option<bool>>;
     #[method(name = "capabilities.info")]
     async fn info(
         &self,
@@ -155,11 +163,17 @@ impl CapabilityServer for CapabilityImpl {
         Ok(false)
     }
 
-    async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
-        if let Ok(response) = is_granted(self.state.clone(), ctx, cap).await {
-            return Ok(response);
+    async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<Option<bool>> {
+        let granted_res =
+            self.state
+                .cap_state
+                .grant_state
+                .check_granted(&self.state, &ctx.app_id, cap);
+        match granted_res {
+            Ok(grant) => Ok(Some(grant)),
+            Err(RippleError::Permission(DenyReason::Ungranted)) => Ok(None),
+            Err(_) => Err(Error::Custom("Unable to get user grants".to_owned())),
         }
-        Ok(false)
     }
 
     async fn info(
@@ -222,15 +236,22 @@ impl CapabilityServer for CapabilityImpl {
         ctx: CallContext,
         grants: CapRequestRpcRequest,
     ) -> RpcResult<Vec<CapabilityInfo>> {
-        let req_list: Vec<FireboltPermission> = grants.clone().into();
-        let permitted_result =
-            PermissionHandler::check_permitted(&self.state, &ctx.app_id, &req_list).await;
+        let fb_perms: Vec<FireboltPermission> = grants.clone().into();
+        self.state
+            .cap_state
+            .generic
+            .check_supported(&fb_perms)
+            .map_err(|err| Error::Custom(format!("{:?} not supported", err.caps)))?;
+        let permitted_result: Result<
+            (),
+            ripple_sdk::api::firebolt::fb_capabilities::DenyReasonWithCap,
+        > = PermissionHandler::check_permitted(&self.state, &ctx.app_id, &fb_perms).await;
         if permitted_result.is_ok() {
             let _ = GrantState::check_with_roles(
                 &self.state,
                 &ctx.clone().into(),
                 &ctx.clone().into(),
-                &req_list,
+                &fb_perms,
                 false,
             )
             .await;

@@ -637,7 +637,12 @@ impl DelegatedLauncherHandler {
                     false
                 }
             })
-            .filter(|perm| ps.cap_state.generic.check_all(&vec![perm.clone()]).is_ok())
+            .filter(|perm| {
+                ps.cap_state
+                    .generic
+                    .check_supported(&[perm.clone()])
+                    .is_ok()
+            })
             .collect();
         debug!(
             "list of permissions that need to be evaluated: {:?}",

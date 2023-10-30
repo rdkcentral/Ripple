@@ -17,6 +17,7 @@
 
 use std::hash::{Hash, Hasher};
 
+use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::api::gateway::rpc_error::RpcError;
@@ -55,6 +56,32 @@ impl Hash for FireboltCap {
     }
 }
 
+impl Serialize for FireboltCap {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for FireboltCap {
+    fn deserialize<D>(deserializer: D) -> Result<FireboltCap, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let cap = String::deserialize(deserializer)?;
+        if let Some(fc) = FireboltCap::parse(cap.clone()) {
+            Ok(fc)
+        } else {
+            Err(serde::de::Error::custom(format!(
+                "Invalid capability: {}",
+                cap
+            )))
+        }
+    }
+}
+
 impl FireboltCap {
     // TODO: refactor this to use ToString trait instead of confusingly named function
     pub fn as_str(&self) -> String {
@@ -66,22 +93,28 @@ impl FireboltCap {
     }
 
     pub fn parse(cap: String) -> Option<FireboltCap> {
-        let prefix = ["xrn", "firebolt", "capability"];
-        let c_a = cap.split(':');
-        if c_a.count() > 1 {
-            let c_a = cap.split(':');
-            let mut cap_vec = Vec::<String>::new();
-            for c in c_a {
-                if !prefix.contains(&c) {
-                    cap_vec.push(String::from(c));
-                    if cap_vec.len() == 2 {
-                        return Some(FireboltCap::Short(cap_vec.join(":")));
-                    }
-                }
-            }
+        let mut caps = cap.clone();
+        if !cap.starts_with("xrn:firebolt:capability") {
+            caps = "xrn:firebolt:capability:".to_string() + cap.as_str();
+        }
+        FireboltCap::parse_long(caps)
+    }
+
+    pub fn parse_long(cap: String) -> Option<FireboltCap> {
+        let pattern = r"^xrn:firebolt:capability:([a-z0-9\\-]+)((:[a-z0-9\\-]+)?)$";
+        if !Regex::new(pattern).unwrap().is_match(cap.as_str()) {
+            return None;
         }
 
-        None
+        let prefix = vec!["xrn", "firebolt", "capability"];
+        let c_a = cap.split(':');
+        let mut cap_vec = Vec::<String>::new();
+        for token in c_a.into_iter() {
+            if !prefix.contains(&token) {
+                cap_vec.push(String::from(token));
+            }
+        }
+        Some(FireboltCap::Short(cap_vec.join(":")))
     }
 
     pub fn from_vec_string(cap_strings: Vec<String>) -> Vec<FireboltCap> {

@@ -25,7 +25,9 @@ use ripple_sdk::{
         //config::Config,
         distributor::distributor_permissions::{PermissionRequest, PermissionResponse},
         firebolt::{
-            fb_capabilities::{DenyReason, DenyReasonWithCap, FireboltPermission, RoleInfo},
+            fb_capabilities::{
+                DenyReason, DenyReasonWithCap, FireboltCap, FireboltPermission, RoleInfo,
+            },
             fb_openrpc::CapabilitySet,
         },
         manifest::device_manifest::DeviceManifest,
@@ -186,20 +188,20 @@ impl PermissionHandler {
         permitted: &[FireboltPermission],
         request: &[FireboltPermission],
     ) -> Result<(), DenyReasonWithCap> {
-        let mut unpermitted: Option<FireboltPermission> = None;
-        let all_permitted = request.iter().all(|perm| {
+        let mut unpermitted_caps: Vec<FireboltCap> = Vec::new();
+        let _all_permitted = request.iter().all(|perm| {
             let present = permitted.contains(perm);
             if !present {
-                unpermitted = Some(perm.clone());
+                unpermitted_caps.push(perm.cap.clone());
             }
             present
         });
-        if all_permitted {
+        if unpermitted_caps.is_empty() {
             Ok(())
         } else {
             Err(DenyReasonWithCap {
                 reason: DenyReason::Unpermitted,
-                caps: vec![unpermitted.unwrap().cap],
+                caps: unpermitted_caps,
             })
         }
     }
