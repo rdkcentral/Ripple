@@ -458,6 +458,10 @@ impl GrantState {
         let entries = grant_state.value.get(app_id)?;
 
         for entry in entries {
+            debug!(
+                "Stored grant entry: {:?} requested cap: {:?} & role: {:?}",
+                entry, role, capability
+            );
             if !entry.has_expired() && (entry.role == role) && (entry.capability == capability) {
                 debug!("Stored grant status: {:?}", entry.status);
                 return entry.status.clone();
@@ -536,7 +540,10 @@ impl GrantState {
                     )
                     .await;
                     if result.is_err() {
-                        if fail_on_first_error {
+                        if fail_on_first_error
+                            || result.as_ref().unwrap_err().reason
+                                == DenyReason::AppNotInActiveState
+                        {
                             return result;
                         } else {
                             denied_caps.push(permission.cap.clone())
@@ -564,6 +571,10 @@ impl GrantState {
         app_id: &str,
         role_info: RoleInfo,
     ) -> Result<bool, RippleError> {
+        debug!(
+            "Incoming grant check for app_id: {:?} and role: {:?}",
+            app_id, role_info
+        );
         if let Ok(permission) = FireboltPermission::try_from(role_info) {
             let resolved_perms = FireboltGatekeeper::resolve_dependencies(state, &vec![permission]);
             for perm in resolved_perms {
@@ -582,7 +593,7 @@ impl GrantState {
             }
             return Ok(true);
         }
-        Err(RippleError::Permission(DenyReason::Ungranted))
+        Err(RippleError::InvalidInput)
     }
 
     pub fn update(
@@ -973,11 +984,51 @@ impl GrantPolicyEnforcer {
 
     pub async fn determine_grant_policies_for_permission(
         platform_state: &PlatformState,
-        // call_context: &CallContext,
         caller_session: &CallerSession,
         app_requested_for: &AppIdentification,
         permission: &FireboltPermission,
     ) -> Result<(), DenyReasonWithCap> {
+        // 1. If the call is coming from method invocation then check if app is in active state.
+        // This check is omitted if the call is coming from Lifecyclemanagement.session because this check happens right
+        // before the app goes active, so this check would fail.
+        // 2. Check if the capability is supported and available.
+        // 3. Call the capability,
+        // 4. Get the user response and return
+
+        let CallerSession { session_id, app_id } = caller_session;
+        if session_id.is_some() && app_id.is_some() {
+            // session id is some, so caller is from method invoke
+            debug!("Method invoke caller, check if app is in foreground state");
+            let app_state = platform_state
+                .ripple_client
+                .get_app_state(app_id.as_ref().unwrap())
+                .await;
+
+            match app_state {
+                Ok(state) => {
+                    if state != LifecycleState::Foreground.as_string() {
+                        debug!("App is not in foreground state");
+                        return Err(DenyReasonWithCap {
+                            reason: DenyReason::AppNotInActiveState,
+                            caps: vec![permission.cap.clone()],
+                        });
+                    }
+                }
+                Err(_) => {
+                    error!("Unable to get app state");
+                    return Err(DenyReasonWithCap {
+                        reason: DenyReason::AppNotInActiveState,
+                        caps: vec![permission.cap.clone()],
+                    });
+                }
+            }
+            debug!(
+                "Requesting app is in active state, now has to check if cap is supported and available"
+            );
+        } else {
+            // session id is None, so caller is from lifecyclemanagement.session
+            debug!("Lifecyclemanagement.session caller, skip app state check. Check if cap is supported and available")
+        }
         let grant_policy_opt = platform_state.get_device_manifest().get_grant_policies();
         if grant_policy_opt.is_none() {
             debug!("There are no grant policies for the requesting cap so bailing out");
@@ -1004,6 +1055,7 @@ impl GrantPolicyEnforcer {
         }
         let policy = policy_opt.unwrap();
         if !Self::is_policy_valid(platform_state, &policy) {
+            error!("Configured policy is not valid {:?}", policy);
             return Err(DenyReasonWithCap {
                 caps: vec![permission.clone().cap],
                 reason: DenyReason::Disabled,
@@ -1029,7 +1081,7 @@ impl GrantPolicyEnforcer {
             }
         } else {
             // TODO: This debug statement looks incorrect as it would trigger if all grants were successful
-            debug!("No grant policies configured");
+            debug!("Grant policies executed successfully. Result: {:?}", result);
         }
         Self::update_privacy_settings_and_user_grants(
             platform_state,
@@ -1342,47 +1394,6 @@ impl GrantStepExecutor {
             "Reached execute phase of step for capability: {}",
             capability
         );
-        // 1. If the call is coming from method invocation then check if app is in active state.
-        // This check is omitted if the call is coming from Lifecyclemanagement.session because this check happens right
-        // before the app goes active, so this check would fail.
-        // 2. Check if the capability is supported and available.
-        // 3. Call the capability,
-        // 4. Get the user response and return
-
-        let CallerSession { session_id, app_id } = caller_session;
-        if session_id.is_some() && app_id.is_some() {
-            // session id is some, so caller is from method invoke
-            debug!("Method invoke caller, check if app is in foreground state");
-            let app_state = platform_state
-                .ripple_client
-                .get_app_state(app_id.as_ref().unwrap().to_string())
-                .await;
-
-            match app_state {
-                Ok(state) => {
-                    if state != LifecycleState::Foreground.as_string() {
-                        debug!("App is not in foreground state");
-                        return Err(DenyReasonWithCap {
-                            reason: DenyReason::AppNotInActiveState,
-                            caps: vec![permission.cap.clone()],
-                        });
-                    }
-                }
-                Err(_) => {
-                    error!("Unable to get app state");
-                    return Err(DenyReasonWithCap {
-                        reason: DenyReason::AppNotInActiveState,
-                        caps: vec![permission.cap.clone()],
-                    });
-                }
-            }
-            debug!(
-                "Requesting app is in active state, now has to check if cap is supported and available"
-            );
-        } else {
-            // session id is None, so caller is from lifecyclemanagement.session
-            debug!("Lifecyclemanagement.session caller, skip app state check. Check if cap is supported and available")
-        }
 
         let firebolt_cap = FireboltCap::Full(capability.to_owned());
         if let Err(e) = platform_state
@@ -1394,7 +1405,7 @@ impl GrantStepExecutor {
             }])
         {
             return Err(DenyReasonWithCap {
-                reason: DenyReason::GrantDenied,
+                reason: DenyReason::GrantProviderMissing,
                 caps: e.caps,
             });
         }
@@ -1483,7 +1494,7 @@ impl GrantStepExecutor {
                                 id: for_app_id.clone(),
                                 name: app_name,
                             },
-                            capability: Some(p_cap.as_str()),
+                            capability: Some(permission.cap.as_str()),
                         }),
                         tx: session_tx,
                         app_id: None,
@@ -1513,20 +1524,22 @@ impl GrantStepExecutor {
             ProviderBroker::invoke_method(&platform_state.clone(), pr_msg).await;
             match session_rx.await {
                 Ok(result) => match result.as_challenge_response() {
-                    Some(res) => match res.granted {
-                        Some(true) => {
-                            debug!("returning ok from invoke_capability");
-                            Ok(())
+                    Some(res) => {
+                        match res.granted {
+                            Some(true) => {
+                                debug!("returning ok from invoke_capability");
+                                Ok(())
+                            }
+                            Some(false) => {
+                                debug!("returning err from invoke_capability");
+                                Err(DenyReason::GrantDenied)
+                            }
+                            None => {
+                                debug!("Challenge left unanswered. Returning err from invoke_capability");
+                                Err(DenyReason::Ungranted)
+                            }
                         }
-                        Some(false) => {
-                            debug!("returning err from invoke_capability");
-                            Err(DenyReason::GrantDenied)
-                        }
-                        None => {
-                            debug!("returning err from invoke_capability");
-                            Err(DenyReason::Ungranted)
-                        }
-                    },
+                    }
                     None => {
                         debug!("Received reponse that is not convertable to challenge response");
                         Err(DenyReason::Ungranted)
