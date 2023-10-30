@@ -21,7 +21,7 @@ use ripple_sdk::api::firebolt::fb_capabilities::{
     DenyReason, DenyReasonWithCap, FireboltPermission,
 };
 use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
-use ripple_sdk::log::{debug, trace};
+use ripple_sdk::log::trace;
 
 use crate::service::user_grants::GrantState;
 use crate::state::openrpc_state::ApiSurface;
@@ -94,25 +94,34 @@ impl FireboltGatekeeper {
         }
         let caps = caps_opt.unwrap();
         if !caps.is_empty() {
-            if !state
+            let filtered_perm_list = state
                 .clone()
                 .cap_state
                 .generic
-                .clear_non_negotiable_permission(&state, &caps)
-            {
+                .clear_non_negotiable_permission(&state, &caps);
+            if !filtered_perm_list.is_empty() {
                 // Supported and Availability checks
                 trace!(
                     "Required caps for method:{} Caps: [{:?}]",
                     request.method,
-                    caps
+                    filtered_perm_list
                 );
-                if let Err(e) = state.clone().cap_state.generic.check_all(&caps) {
-                    trace!("check_all for caps[{:?}] failed", caps);
+                if let Err(e) = state
+                    .clone()
+                    .cap_state
+                    .generic
+                    .check_all(&filtered_perm_list)
+                {
+                    trace!("check_all for caps[{:?}] failed", filtered_perm_list);
                     return Err(e);
                 }
                 // permission checks
-                if let Err(e) =
-                    PermissionHandler::check_permitted(&state, &request.ctx.app_id, &caps).await
+                if let Err(e) = PermissionHandler::check_permitted(
+                    &state,
+                    &request.ctx.app_id,
+                    &filtered_perm_list,
+                )
+                .await
                 {
                     trace!(
                         "check_permitted for method ({}) failed. Error: {:?}",
@@ -127,7 +136,7 @@ impl FireboltGatekeeper {
                         &state,
                         &request.ctx.clone().into(),
                         &request.ctx.clone().into(),
-                        &caps,
+                        &filtered_perm_list,
                         true,
                     )
                     .await
@@ -142,8 +151,6 @@ impl FireboltGatekeeper {
                         trace!("check_with_roles for method ({}) succeded", request.method);
                     }
                 }
-            } else {
-                debug!("Role/Capability is cleared based on non-negotiable policy");
             }
         } else {
             // Couldnt find any capabilities for the method

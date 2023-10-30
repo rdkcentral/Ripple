@@ -127,7 +127,7 @@ impl GenericCapState {
         &self,
         state: &PlatformState,
         permissions: &[FireboltPermission],
-    ) -> bool {
+    ) -> Vec<FireboltPermission> {
         let filtered_permissions: Vec<FireboltPermission> = permissions
             .iter()
             .filter_map(|permission| {
@@ -150,6 +150,6 @@ impl GenericCapState {
                 Some(permission.clone())
             })
             .collect();
-        filtered_permissions.is_empty()
+        filtered_permissions
     }
 }
