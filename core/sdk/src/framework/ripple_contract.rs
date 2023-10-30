@@ -17,7 +17,7 @@
 
 use crate::{
     api::{
-        session::{PubSubAdjective, EventAdjective, SessionAdjective},
+        session::{EventAdjective, PubSubAdjective, SessionAdjective},
         storage_property::StorageAdjective,
     },
     utils::{error::RippleError, serde_utils::SerdeClearString},
@@ -196,6 +196,9 @@ impl RippleContract {
                 Err(e) => error!("contract parser_error={:?}", e),
             },
             "pubsub" => match serde_json::from_str::<PubSubAdjective>(&adjective) {
+                Ok(v) => return Some(v.get_contract()),
+                Err(e) => error!("contract parser_error={:?}", e),
+            },
             "device_events" => match serde_json::from_str::<EventAdjective>(&adjective) {
                 Ok(v) => return Some(v.get_contract()),
                 Err(e) => error!("contract parser_error={:?}", e),

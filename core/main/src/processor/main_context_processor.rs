@@ -25,7 +25,7 @@ use ripple_sdk::{
             device_user_grants_data::GrantLifespan,
         },
         distributor::distributor_sync::{SyncAndMonitorModule, SyncAndMonitorRequest},
-        firebolt::fb_capabilities::{CapEvent, FireboltCap},
+        firebolt::fb_capabilities::{CapEvent, CapabilityRole, FireboltCap, FireboltPermission},
         manifest::device_manifest::PrivacySettingsStorageType,
         session::AccountSessionRequest,
     },
@@ -88,14 +88,30 @@ impl MainContextProcessor {
         CapState::emit(
             state,
             event,
-            FireboltCap::Short("token:platform".to_owned()),
+            FireboltCap::Short("token:account".to_owned()),
             None,
         )
         .await;
         token_available
     }
 
+    fn is_update_token(state: &PlatformState) -> bool {
+        let available_result = state
+            .cap_state
+            .generic
+            .check_available(&vec![FireboltPermission {
+                cap: FireboltCap::Short("token:account".to_owned()),
+                role: CapabilityRole::Use,
+            }]);
+        debug!(
+            "LOOK HERE FOR PUBSUB: token::platform available status: {:?}",
+            available_result
+        );
+        available_result.is_ok()
+    }
+
     pub async fn initialize_token(state: &PlatformState) {
+        let update_token = Self::is_update_token(state);
         if !Self::check_account_session_token(state).await {
             error!("Account session still not available");
         } else if state.supports_cloud_sync() {
@@ -107,30 +123,38 @@ impl MainContextProcessor {
                 .privacy_settings_storage_type
                 == PrivacySettingsStorageType::Sync
             {
-                debug!(
-                "Privacy settings storage type is not set as sync so not starting cloud monitor"
-            );
+                debug!("Privacy settings storage type is not set as sync so not starting cloud monitor");
                 if let Some(account_session) = state.session_state.get_account_session() {
                     debug!("Successfully got account session");
-                    let sync_response = state
-                        .get_client()
-                        .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
-                            SyncAndMonitorModule::Privacy,
-                            account_session.clone(),
-                        ))
-                        .await;
-                    debug!("Received Sync response for privacy: {:?}", sync_response);
-                    let sync_response = state
-                        .get_client()
-                        .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
-                            SyncAndMonitorModule::UserGrants,
-                            account_session.clone(),
-                        ))
-                        .await;
-                    debug!(
-                        "Received Sync response for user grants: {:?}",
-                        sync_response
-                    );
+                    if !update_token {
+                        let sync_response = state
+                            .get_client()
+                            .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
+                                SyncAndMonitorModule::Privacy,
+                                account_session.clone(),
+                            ))
+                            .await;
+                        debug!("Received Sync response for privacy: {:?}", sync_response);
+                        let sync_response = state
+                            .get_client()
+                            .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
+                                SyncAndMonitorModule::UserGrants,
+                                account_session.clone(),
+                            ))
+                            .await;
+                        debug!(
+                            "Received Sync response for user grants: {:?}",
+                            sync_response
+                        );
+                    } else {
+                        debug!("LOOK HERE FOR PUBSUB: cap already available so just updating the token alone");
+                        let sync_response = state
+                            .get_client()
+                            .send_extn_request(SyncAndMonitorRequest::UpdateDistributorToken(
+                                account_session.token.clone(),
+                            ))
+                            .await;
+                    }
                 }
             }
         }

@@ -148,7 +148,7 @@ impl CapState {
                 .clone()
                 .cap_state
                 .generic
-                .ingest_availability(vec![cap.clone()], true),
+                .ingest_availability(vec![cap.clone()], false),
             _ => {}
         }
         // check if given event and capability needs emitting

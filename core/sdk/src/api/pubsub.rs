@@ -87,7 +87,7 @@ pub struct Credentials {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PubSubUpdateConnectionCredentialsRequest {
     pub connection_id: String,
-    pub credentials: Credentials,
+    pub updated_secret: String,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PubSubConnectRequest {

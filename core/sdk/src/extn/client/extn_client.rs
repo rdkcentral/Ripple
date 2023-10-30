@@ -268,7 +268,8 @@ impl ExtnClient {
                                         message
                                     );
                                     {
-                                        let mut ripple_context = self.ripple_context.write().unwrap();
+                                        let mut ripple_context =
+                                            self.ripple_context.write().unwrap();
                                         ripple_context.deep_copy(context);
                                     }
                                 }
