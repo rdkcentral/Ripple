@@ -17,11 +17,11 @@
 
 use std::hash::{Hash, Hasher};
 
+use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::fb_openrpc::CapabilitySet;
 use crate::api::gateway::rpc_error::RpcError;
-use regex::Regex;
 
 /// There are many types of Firebolt Cap enums
 /// 1. Short: `device:model` becomes = `xrn:firebolt:capability:account:session` its just a handy cap which helps us write less code
@@ -92,6 +92,14 @@ impl FireboltCap {
     }
 
     pub fn parse(cap: String) -> Option<FireboltCap> {
+        let mut caps = cap.clone();
+        if !cap.starts_with("xrn:firebolt:capability") {
+            caps = "xrn:firebolt:capability:".to_string() + cap.as_str();
+        }
+        FireboltCap::parse_long(caps)
+    }
+
+    pub fn parse_long(cap: String) -> Option<FireboltCap> {
         let pattern = r"^xrn:firebolt:capability:([a-z0-9\\-]+)((:[a-z0-9\\-]+)?)$";
         if !Regex::new(pattern).unwrap().is_match(cap.as_str()) {
             return None;
