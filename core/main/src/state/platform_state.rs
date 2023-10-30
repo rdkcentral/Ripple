@@ -181,6 +181,11 @@ impl PlatformState {
         self.extn_manifest.required_contracts.contains(&contract)
     }
 
+    pub fn supports_session(&self) -> bool {
+        let contract = RippleContract::Session(SessionAdjective::Account).as_clear_string();
+        self.extn_manifest.required_contracts.contains(&contract)
+    }
+
     pub async fn send_to_bridge(&self, id: String, msg: ApiMessage) -> RippleResponse {
         let request = BridgeProtocolRequest::Send(id, msg);
         self.get_client().send_extn_request(request).await?;

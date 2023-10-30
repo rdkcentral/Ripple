@@ -28,12 +28,11 @@ use crate::{
         apps::AppEventRequest,
         caps::CapsRequest,
         config::{Config, ConfigResponse},
+        context::{RippleContext, RippleContextUpdateRequest},
         device::{
             device_events::DeviceEventRequest,
             device_peristence::StorageData,
-            device_request::{
-                DeviceRequest, NetworkResponse, SystemPowerState, VoiceGuidanceState,
-            },
+            device_request::{DeviceRequest, NetworkResponse, VoiceGuidanceState},
         },
         distributor::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
@@ -57,7 +56,7 @@ use crate::{
         manifest::device_manifest::AppLibraryEntry,
         protocol::BridgeProtocolRequest,
         pubsub::{PubSubRequest, PubSubResponse},
-        session::{AccountSession, AccountSessionRequest, SessionTokenRequest},
+        session::{AccountSessionRequest, AccountSessionResponse, SessionTokenRequest},
         settings::{SettingValue, SettingsRequest},
         status_update::ExtnStatus,
         storage_property::StorageManagerRequest,
@@ -269,6 +268,7 @@ pub enum ExtnRequest {
     Metrics(MetricsRequest),
     OperationalMetricsRequest(OperationalMetricRequest),
     PlatformToken(PlatformTokenRequest),
+    Context(RippleContextUpdateRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -285,7 +285,7 @@ pub enum ExtnResponse {
     Config(ConfigResponse),
     PinChallenge(PinChallengeResponse),
     Keyboard(KeyboardSessionResponse),
-    AccountSession(AccountSession),
+    AccountSession(AccountSessionResponse),
     Permission(PermissionResponse),
     StorageData(StorageData),
     NetworkResponse(NetworkResponse),
@@ -324,8 +324,8 @@ pub enum ExtnEvent {
     Value(Value),
     Status(ExtnStatus),
     AppEvent(AppEventRequest),
-    PowerState(SystemPowerState),
     OperationalMetrics(TelemetryPayload),
+    Context(RippleContext),
     VoiceGuidanceState(VoiceGuidanceState),
 }
 

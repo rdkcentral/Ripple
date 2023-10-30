@@ -91,6 +91,12 @@ impl std::fmt::Display for AudioProfile {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AccountToken {
+    pub token: String,
+    pub expires: u64,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DeviceVersionResponse {
     pub api: FireboltSemanticVersion,
@@ -103,6 +109,15 @@ pub struct NetworkResponse {
     pub state: NetworkState,
     #[serde(rename = "type")]
     pub _type: NetworkType,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum InternetConnectionStatus {
+    NoInternet,
+    LimitedInternet,
+    CaptivePortal,
+    FullyConnected,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -212,6 +227,7 @@ pub struct TimezoneProperty {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PowerState {
     Standby,
     DeepSleep,
@@ -239,21 +255,12 @@ pub struct SystemPowerState {
     pub current_power_state: PowerState,
 }
 
-impl ExtnPayloadProvider for SystemPowerState {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Event(ExtnEvent::PowerState(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<SystemPowerState> {
-        if let ExtnPayload::Event(ExtnEvent::PowerState(r)) = payload {
-            return Some(r);
+impl Default for SystemPowerState {
+    fn default() -> Self {
+        SystemPowerState {
+            power_state: PowerState::Standby,
+            current_power_state: PowerState::Standby,
         }
-
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::PowerStateEvent
     }
 }
 

@@ -19,7 +19,8 @@ use jsonrpsee::{core::RpcResult, types::error::CallError};
 use ripple_sdk::{
     api::{
         device::device_peristence::{
-            DevicePersistenceRequest, GetStorageProperty, SetStorageProperty, StorageData,
+            DeleteStorageProperty, DevicePersistenceRequest, GetStorageProperty,
+            SetStorageProperty, StorageData,
         },
         firebolt::fb_capabilities::CAPABILITY_NOT_AVAILABLE,
         storage_property::StorageProperty,
@@ -88,6 +89,7 @@ impl StorageManager {
         context: Option<Value>,
     ) -> RpcResult<()> {
         let data = property.as_data();
+        debug!("Storage property: {:?} as data: {:?}", property, data);
         if StorageManager::set_in_namespace(
             state,
             data.namespace.to_string(),
@@ -348,10 +350,6 @@ impl StorageManager {
         };
 
         match state
-            // .services
-            // .send_dab(ExtnResponse::Storage(StorageRequest::Set(ssp)))
-            // .await
-            //.state
             .get_client()
             .send_extn_request(DevicePersistenceRequest::Set(ssp))
             .await
@@ -446,6 +444,16 @@ impl StorageManager {
         )
     }
 
+    pub async fn delete_key(state: &PlatformState, property: StorageProperty) -> RpcResult<()> {
+        let data = property.as_data();
+        if let Err(_err) =
+            StorageManager::delete(state, &data.namespace.to_string(), &data.key.to_string()).await
+        {
+            return Err(StorageManager::get_firebolt_error(&property));
+        }
+        Ok(())
+    }
+
     async fn get(
         state: &PlatformState,
         namespace: &String,
@@ -461,6 +469,32 @@ impl StorageManager {
             .send_extn_request(DevicePersistenceRequest::Get(data))
             .await;
 
+        match result {
+            Ok(msg) => {
+                if let Some(m) = msg.payload.extract() {
+                    Ok(m)
+                } else {
+                    Err(RippleError::ParseError)
+                }
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    async fn delete(
+        state: &PlatformState,
+        namespace: &String,
+        key: &String,
+    ) -> Result<ExtnResponse, RippleError> {
+        debug!("delete: namespace={}, key={}", namespace, key);
+        let data = DeleteStorageProperty {
+            namespace: namespace.clone(),
+            key: key.clone(),
+        };
+        let result = state
+            .get_client()
+            .send_extn_request(DevicePersistenceRequest::Delete(data))
+            .await;
         match result {
             Ok(msg) => {
                 if let Some(m) = msg.payload.extract() {
