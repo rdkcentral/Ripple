@@ -17,7 +17,7 @@
 
 use crate::{
     api::{
-        session::{PubSubAdjective, SessionAdjective},
+        session::{PubSubAdjective, EventAdjective, SessionAdjective},
         storage_property::StorageAdjective,
     },
     utils::{error::RippleError, serde_utils::SerdeClearString},
@@ -33,7 +33,7 @@ use serde_json::Value;
 /// b. Distributor Extn/Channel
 /// c. Combination of a Device + Distributor Extensions
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum RippleContract {
     /// Used by Main application to provide internal contracts for Extensions
@@ -84,9 +84,7 @@ pub enum RippleContract {
     /// Forwarder for extensions to pass on Events back to the registered Applications through Main
     AppEvents,
     /// Device channel specific events which get cascaded across Main and Extensions like Power, HDCP
-    DeviceEvents,
-    /// Event specific to PowerState would become an Adjective in near future.
-    PowerStateEvent,
+    DeviceEvents(EventAdjective),
     /// Contract for controlling Voice guidance typically offered by the Device Channel or the browser.
     VoiceGuidance,
     /// Distributor Contract for handling Advertising requirements.
@@ -121,6 +119,8 @@ pub enum RippleContract {
     /// Distributor gets the ability to configure and customize the generation of
     /// the Session information based on their policies. Used by [crate::api::session::AccountSession]
     Session(SessionAdjective),
+
+    RippleContext,
 }
 
 pub trait ContractAdjective: serde::ser::Serialize {
@@ -179,6 +179,7 @@ impl RippleContract {
             Self::Storage(adj) => Some(adj.as_string()),
             Self::Session(adj) => Some(adj.as_string()),
             Self::PubSub(adj) => Some(adj.as_string()),
+            Self::DeviceEvents(adj) => Some(adj.as_string()),
             _ => None,
         }
     }
@@ -195,6 +196,7 @@ impl RippleContract {
                 Err(e) => error!("contract parser_error={:?}", e),
             },
             "pubsub" => match serde_json::from_str::<PubSubAdjective>(&adjective) {
+            "device_events" => match serde_json::from_str::<EventAdjective>(&adjective) {
                 Ok(v) => return Some(v.get_contract()),
                 Err(e) => error!("contract parser_error={:?}", e),
             },
@@ -208,6 +210,7 @@ impl RippleContract {
             Self::Storage(_) => Some("storage".to_owned()),
             Self::Session(_) => Some("session".to_owned()),
             Self::PubSub(_) => Some("pubsub".to_owned()),
+            Self::DeviceEvents(_) => Some("device_events".to_owned()),
             _ => None,
         }
     }
