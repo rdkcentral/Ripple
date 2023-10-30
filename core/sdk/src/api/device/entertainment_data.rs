@@ -809,13 +809,18 @@ mod tests {
     #[test]
     pub fn test_navigation_intent_tune_strict() {
         match serde_json::from_str::<NavigationIntentStrict>(
-            "{\"action\":\"tune\",\"data\":{\"entity\":{
-\"entityType\": \"program\",
-            \"channelType\": \"streaming\",
-            \"programType\": \"movie\",
-            \"entityId\": \"example-movie-id\"},
-            \"options\":{\"restartCurrentProgram\":true}
-        },\"context\":{\"source\":\"voice\"}}",
+            "{\"action\":\"tune\",\"data\":{
+                \"entity\":{
+                \"entityType\": \"program\",
+                \"channelType\": \"streaming\",
+                \"programType\": \"movie\",
+                \"entityId\": \"example-movie-id\"},
+                \"options\":{\"restartCurrentProgram\":true}
+                },
+                \"context\":{
+                    \"source\":\"voice\"
+                }
+            }",
         ) {
             Ok(v) => {
                 if let NavigationIntentStrict::Tune(t) = v {
