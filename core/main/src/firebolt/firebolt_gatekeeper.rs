@@ -93,13 +93,13 @@ impl FireboltGatekeeper {
             });
         }
         let caps = caps_opt.unwrap();
-        if !state
-            .clone()
-            .cap_state
-            .generic
-            .clear_non_negotiable_permission(&state, &caps)
-        {
-            if !caps.is_empty() {
+        if !caps.is_empty() {
+            if !state
+                .clone()
+                .cap_state
+                .generic
+                .clear_non_negotiable_permission(&state, &caps)
+            {
                 // Supported and Availability checks
                 trace!(
                     "Required caps for method:{} Caps: [{:?}]",
@@ -143,18 +143,18 @@ impl FireboltGatekeeper {
                     }
                 }
             } else {
-                // Couldnt find any capabilities for the method
-                trace!(
-                    "Unable to find any caps for the method ({})",
-                    request.method
-                );
-                return Err(DenyReasonWithCap {
-                    reason: DenyReason::Unsupported,
-                    caps: Vec::new(),
-                });
+                debug!("Role/Capability is cleared based on non-negotiable policy");
             }
         } else {
-            debug!("Role/Capability is cleared based on non-negotiable policy");
+            // Couldnt find any capabilities for the method
+            trace!(
+                "Unable to find any caps for the method ({})",
+                request.method
+            );
+            return Err(DenyReasonWithCap {
+                reason: DenyReason::Unsupported,
+                caps: Vec::new(),
+            });
         }
         Ok(())
     }
