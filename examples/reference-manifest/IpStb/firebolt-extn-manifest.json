@@ -63,19 +63,13 @@
                         "config"
                     ],
                     "fulfills": [
-                        "root.session",
-                        "device.session",
-                        "account.session",
-                        "session_token",
                         "permissions",
+                        "account.session",
                         "secure.storage",
                         "advertising",
                         "media_events",
-                        "privacy_cloud.storage",
-                        "cloud_sync",
                         "discovery",
-                        "behavior_metrics",
-                        "encoder"
+                        "behavior_metrics"
                     ]
                 }
             ]
@@ -95,13 +89,8 @@
         "advertising",
         "privacy_settings",
         "metrics",
-        "root.session",
-        "device.session",
         "account.session",
-        "privacy_cloud.storage",
-        "cloud_sync",
-        "behavior_metrics",
-        "encoder"
+        "behavior_metrics"
     ],
     "rpc_aliases": {
         "device.model": ["custom.model"]
