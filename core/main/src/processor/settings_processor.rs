@@ -153,7 +153,7 @@ impl SettingsProcessor {
                 if let Some(v) = val {
                     let role_info = RoleInfo {
                         role: Some(CapabilityRole::Use),
-                        capability: FireboltCap::Short(sk.use_capability().into()).as_str(),
+                        capability: FireboltCap::Short(sk.use_capability().into()),
                     };
                     if let Ok(result) = is_permitted(state.clone(), ctx.clone(), role_info).await {
                         if result {
