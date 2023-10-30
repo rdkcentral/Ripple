@@ -154,7 +154,7 @@ pub struct FireboltPermission {
 impl From<RoleInfo> for FireboltPermission {
     fn from(role_info: RoleInfo) -> Self {
         FireboltPermission {
-            cap: FireboltCap::Full(role_info.capability.to_owned()),
+            cap: role_info.capability.to_owned(),
             role: role_info.role.unwrap_or(CapabilityRole::Use),
         }
     }
@@ -175,7 +175,7 @@ impl From<CapRequestRpcRequest> for Vec<FireboltPermission> {
             .grants
             .iter()
             .map(|role_info| FireboltPermission {
-                cap: FireboltCap::Full(role_info.capability.to_owned()),
+                cap: role_info.capability.to_owned(),
                 role: role_info.role.unwrap_or(CapabilityRole::Use),
             })
             .collect()
@@ -400,12 +400,12 @@ pub struct CapRequestRpcRequest {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RoleInfo {
     pub role: Option<CapabilityRole>,
-    pub capability: String,
+    pub capability: FireboltCap,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct CapInfoRpcRequest {
-    pub capabilities: Vec<String>,
+    pub capabilities: Vec<FireboltCap>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -431,7 +431,7 @@ impl From<CapRPCRequest> for RoleInfo {
     fn from(value: CapRPCRequest) -> Self {
         RoleInfo {
             role: Some(value.options.unwrap_or_default().role),
-            capability: value.capability.as_str(),
+            capability: value.capability,
         }
     }
 }

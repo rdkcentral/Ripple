@@ -81,7 +81,7 @@ impl PermittedState {
             .unwrap_or(ripple_sdk::api::firebolt::fb_capabilities::CapabilityRole::Use);
         if let Some(perms) = self.get_all_permissions().get(app_id) {
             for perm in perms {
-                if perm.cap.as_str() == role_info.capability && perm.role == role {
+                if perm.cap.as_str() == role_info.capability.as_str() && perm.role == role {
                     return Ok(true);
                 }
             }
@@ -96,7 +96,7 @@ impl PermittedState {
         let mut map = HashMap::new();
         for role_info in request {
             map.insert(
-                role_info.clone().capability,
+                role_info.clone().capability.as_str(),
                 if let Ok(v) = self.check_cap_role(app_id, role_info) {
                     v
                 } else {

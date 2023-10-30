@@ -28,7 +28,7 @@ use ripple_sdk::api::{
     firebolt::{
         fb_capabilities::{
             CapEvent, CapInfoRpcRequest, CapListenRPCRequest, CapRPCRequest, CapRequestRpcRequest,
-            CapabilityInfo, FireboltCap, FireboltPermission, RoleInfo,
+            CapabilityInfo, FireboltPermission, RoleInfo,
         },
         fb_general::ListenerResponse,
     },
@@ -171,11 +171,12 @@ impl CapabilityServer for CapabilityImpl {
         ctx: CallContext,
         request: CapInfoRpcRequest,
     ) -> RpcResult<Vec<CapabilityInfo>> {
-        let cap_set = request
-            .capabilities
-            .iter()
-            .map(|cap| FireboltCap::Full(cap.to_owned()))
-            .collect();
+        if request.capabilities.is_empty() {
+            return Err(jsonrpsee::core::Error::Custom(String::from(
+                "Error invalid input capabilities are empty",
+            )));
+        }
+        let cap_set = request.capabilities;
         if let Ok(a) = CapState::get_cap_info(&self.state, ctx, &cap_set).await {
             Ok(a)
         } else {
@@ -242,7 +243,7 @@ impl CapabilityServer for CapabilityImpl {
         let request = grants
             .grants
             .iter()
-            .map(|role_info| FireboltCap::Full(role_info.capability.to_owned()))
+            .map(|role_info| role_info.capability.clone())
             .collect();
 
         if let Ok(a) = CapState::get_cap_info(&self.state, ctx, &request).await {
