@@ -434,4 +434,13 @@ mod tests {
             panic!("invalid watched info")
         }
     }
+
+    #[test]
+    fn test_schema() {
+        if let Ok(v) = serde_json::from_str::<LaunchRequest>("{\"appId\":\"test\",\"intent\":{\"action\":\"playback\",\"data\":{\"programType\":\"movie\",\"entityId\":\"example-movie-id\"},\"context\":{\"source\":\"voice\"}}}"){
+            assert!(v.app_id.eq("test"))
+        } else {
+            panic!("Launch Schema Fail")
+        }
+    }
 }
