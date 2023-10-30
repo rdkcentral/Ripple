@@ -520,6 +520,7 @@ impl From<EntityIntent> for InternalEntityIntent {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(untagged)]
 pub enum EntityIntentData {
     Program(ProgramEntityIntentData),
     Untyped(UntypedEntity),
@@ -784,6 +785,25 @@ mod tests {
         } else {
             panic!("failed schema expectation");
         }
+    }
+
+    #[test]
+    pub fn test_navigation_intent_entity_strict() {
+        let intent = NavigationIntentStrict::Entity(EntityIntent {
+            data: EntityIntentData::Program(ProgramEntityIntentData::Movie(MovieEntity {
+                base_entity: BaseEntity {
+                    entity_type: ProgramEntityType("program".to_owned()),
+                    entity_id: "example-movie-id".to_owned(),
+                    asset_id: None,
+                    app_content_data: None,
+                },
+            })),
+            context: DiscoveryContext {
+                source: "xrn:firebolt:application:refui".to_owned(),
+            },
+        });
+        let value = serde_json::to_string(&intent).unwrap();
+        assert!(value.eq("{\"action\":\"entity\",\"data\":{\"programType\":\"movie\",\"entityType\":\"program\",\"entityId\":\"example-movie-id\",\"assetId\":null,\"appContentData\":null},\"context\":{\"source\":\"xrn:firebolt:application:refui\"}}"));
     }
 
     #[test]

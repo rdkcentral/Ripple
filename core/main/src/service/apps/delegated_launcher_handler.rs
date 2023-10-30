@@ -25,7 +25,7 @@ use ripple_sdk::{
         apps::{
             AppError, AppManagerResponse, AppMethod, AppSession, EffectiveTransport, StateChange,
         },
-        device::device_user_grants_data::EvaluateAt,
+        device::{device_user_grants_data::EvaluateAt, entertainment_data::NavigationIntent},
         firebolt::{
             fb_capabilities::FireboltPermission,
             fb_discovery::DISCOVERY_EVENT_ON_NAVIGATE_TO,
@@ -95,6 +95,8 @@ pub struct App {
 #[derive(Debug, Clone, Default)]
 pub struct AppManagerState {
     apps: Arc<RwLock<HashMap<String, App>>>,
+    // Very useful for internal launcher where the intent might get untagged
+    intents: Arc<RwLock<HashMap<String, NavigationIntent>>>,
 }
 
 impl AppManagerState {
@@ -157,6 +159,16 @@ impl AppManagerState {
         let mut apps = self.apps.write().unwrap();
         apps.remove(app_id)
     }
+
+    fn store_intent(&self, app_id: &str, intent: NavigationIntent) {
+        let mut intents = self.intents.write().unwrap();
+        let _ = intents.insert(app_id.to_owned(), intent);
+    }
+
+    fn take_intent(&self, app_id: &str) -> Option<NavigationIntent> {
+        let mut intents = self.intents.write().unwrap();
+        intents.remove(app_id)
+    }
 }
 
 pub struct DelegatedLauncherHandler {
@@ -192,6 +204,14 @@ impl DelegatedLauncherHandler {
                     resp = self.set_state(&app_id, state).await;
                 }
                 AppMethod::Launch(launch_request) => {
+                    if self.platform_state.has_internal_launcher() {
+                        // When using internal launcher extension the NavigationIntent structure will get untagged we will use the original
+                        // intent in these cases to avoid loss of data
+                        self.platform_state.app_manager_state.store_intent(
+                            &launch_request.app_id,
+                            launch_request.get_intent().clone(),
+                        );
+                    }
                     resp = self
                         .send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Launch(
                             LifecycleManagementLaunchEvent {
@@ -291,7 +311,10 @@ impl DelegatedLauncherHandler {
         }
     }
 
-    async fn start_session(&mut self, session: AppSession) -> Result<AppManagerResponse, AppError> {
+    async fn start_session(
+        &mut self,
+        mut session: AppSession,
+    ) -> Result<AppManagerResponse, AppError> {
         let transport = session.get_transport();
         if let EffectiveTransport::Bridge(_) = transport.clone() {
             if !self.platform_state.supports_bridge() {
@@ -302,6 +325,15 @@ impl DelegatedLauncherHandler {
         // TODO: Add metrics helper for app loading
 
         let app_id = session.app.id.clone();
+
+        if self.platform_state.has_internal_launcher() {
+            // Specifically for internal launcher untagged navigation intent will probably not match the original cold launch usecase
+            // if there is a stored intent for this case take it and replace it with session
+            if let Some(intent) = self.platform_state.app_manager_state.take_intent(&app_id) {
+                debug!("Updating intent from initial call {:?}", intent);
+                session.update_intent(intent);
+            }
+        }
 
         TelemetryBuilder::send_app_load_start(&self.platform_state, app_id.clone(), None, None);
         debug!("start_session: entry: app_id={}", app_id);
