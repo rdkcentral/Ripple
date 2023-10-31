@@ -104,7 +104,7 @@ impl MainContextProcessor {
                 role: CapabilityRole::Use,
             }]);
         debug!(
-            "LOOK HERE FOR PUBSUB: token::platform available status: {:?}",
+            "token::platform available status: {:?}",
             available_result
         );
         available_result.is_ok()
@@ -147,7 +147,7 @@ impl MainContextProcessor {
                             sync_response
                         );
                     } else {
-                        debug!("LOOK HERE FOR PUBSUB: cap already available so just updating the token alone");
+                        debug!("cap already available so just updating the token alone");
                         let sync_response = state
                             .get_client()
                             .send_extn_request(SyncAndMonitorRequest::UpdateDistributorToken(
