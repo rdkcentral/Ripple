@@ -73,7 +73,7 @@ pub struct AdvertisingPolicy {
     pub limit_ad_tracking: bool,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum SkipRestriction {
     None,
@@ -93,7 +93,7 @@ impl SkipRestriction {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct SetSkipRestrictionRequest {
     pub value: SkipRestriction,
 }
@@ -175,14 +175,12 @@ impl AppEventDecorator for AdvertisingSetRestrictionEventDecorator {
         _event_name: &str,
         _val_in: &Value,
     ) -> Result<Value, AppEventDecorationError> {
-        let skip_restriction =
-            StorageManager::get_string(ps, StorageProperty::SkipRestriction).await;
-
-        let sr = match skip_restriction {
-            Err(_) => String::from("none"),
-            Ok(_) => skip_restriction.unwrap(),
-        };
-        Ok(serde_json::to_value(sr).unwrap())
+        Ok(serde_json::to_value(
+            match StorageManager::get_string(ps, StorageProperty::SkipRestriction).await {
+                Err(_) => String::from("none"),
+                Ok(skip_restriction) => skip_restriction,
+            },
+        )?)
     }
     fn dec_clone(&self) -> Box<dyn AppEventDecorator + Send + Sync> {
         Box::new(self.clone())
@@ -431,5 +429,112 @@ pub struct AdvertisingRPCProvider;
 impl RippleRPCProvider<AdvertisingImpl> for AdvertisingRPCProvider {
     fn provide(state: PlatformState) -> RpcModule<AdvertisingImpl> {
         (AdvertisingImpl { state }).into_rpc()
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::firebolt::{
+        handlers::advertising_rpc::{AdvertisingImpl, AdvertisingRPCProvider, AdvertisingServer},
+        rpc::RippleRPCProvider,
+    };
+    use jsonrpsee::ws_client::WsClientBuilder;
+    use jsonrpsee::ws_server::WsServerBuilder;
+    use jsonrpsee::{
+        core::{async_trait, Error, RpcResult},
+        proc_macros::rpc,
+        RpcModule,
+    };
+    use jsonrpsee::{
+        core::{client::ClientT, *},
+        types::Params,
+    };
+    use ripple_sdk::{
+        api::gateway::rpc_gateway_api::{ApiProtocol, JsonRpcApiRequest},
+        tokio,
+    };
+    use ripple_tdk::utils::test_utils::Mockable;
+    use serde::{Deserialize, Serialize};
+    use serde_json::json;
+    use std::default;
+
+    /*
+    In refui, go to APIs ->Core SDK -> Advertising -> Register for advertising.onPolicyChanged event
+    Go to APIs -> Manage SDK -> Advertising  -> Advertising.setSkipRestriction -> Invoke
+    Observe the RWI logs to see if the onPolicyChanged event got received
+
+    */
+    #[derive(Serialize, Deserialize, Clone, Debug)]
+    struct JsonRpcTestRequestParams {
+        ctx: CallContext,
+    }
+    #[derive(Serialize, Deserialize, Clone, Debug)]
+    struct CallContextContainer {
+        pub ctx: Option<CallContext>,
+    }
+
+    fn merge(a: &mut Value, b: &Value) {
+        match (a, b) {
+            (&mut Value::Object(ref mut a), &Value::Object(ref b)) => {
+                for (k, v) in b {
+                    merge(a.entry(k.clone()).or_insert(Value::Null), v);
+                }
+            }
+            (a, b) => {
+                *a = b.clone();
+            }
+        }
+    }
+
+    fn test_request(
+        method: String,
+        call_context: Option<CallContext>,
+        params: Option<Value>,
+    ) -> String {
+        let mut the_map = params.map_or(json!({}), |v| v);
+        let container = serde_json::json!(CallContextContainer { ctx: call_context });
+        merge(&mut the_map, &container);
+        let v = serde_json::to_value(JsonRpcApiRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(1),
+            method: method,
+            params: Some(the_map),
+        })
+        .unwrap();
+        serde_json::to_string(&v).unwrap()
+    }
+
+    #[tokio::test]
+    pub async fn test_app_bundle_id() {
+        let ad_module = (AdvertisingImpl {
+            state: PlatformState::mock(),
+        })
+        .into_rpc();
+
+        let request = test_request(
+            "advertising.appBundleId".to_string(),
+            Some(CallContext::mock()),
+            None,
+        );
+        let res = ad_module.raw_json_request(&request).await;
+        assert!(res.is_ok());
+    }
+    #[tokio::test]
+    pub async fn test_skip_restriction_event() {
+        // let ad_module = (AdvertisingImpl { state: PlatformState::mock() }).into_rpc() ;
+        // let request = json!({"request" : serde_json::to_value(ListenRequest{listen: true}).unwrap()});
+        // let request = test_request("advertising.onPolicyChanged".to_string(), Some(call_context()), Some(request));
+        // let res = ad_module.raw_json_request(&request).await;
+        // println!("{:?}",res);
+        // assert!(res.is_ok());
+        // let set_request = json!({"set_request" : serde_json::to_value(SetSkipRestrictionRequest{value:SkipRestriction::All }).unwrap()});
+
+        // let setter =  test_request("advertising.setSkipRestriction".to_string(), Some(call_context()), Some(set_request));
+
+        // let res = ad_module.raw_json_request(&setter).await;
+        //  println!("setter {:?}",res);
+        //  assert!(res.is_ok());
+
+        // assert!(false);
     }
 }
