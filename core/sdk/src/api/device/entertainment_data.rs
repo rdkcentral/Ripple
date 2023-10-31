@@ -349,6 +349,35 @@ pub enum NavigationIntent {
     NavigationIntentLoose(NavigationIntentLoose),
 }
 
+// Original Navigation Intent is untagged meaning it cant be used  to serialize again when passed between extensions which also uses serde
+// To avoid the data loss during IEC InternalNavigationIntent is created so the Firebolt specification is not affected
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum InternalNavigationIntent {
+    NavigationIntentStrict(InternalNavigationIntentStrict),
+    NavigationIntentLoose(NavigationIntentLoose),
+}
+
+impl From<NavigationIntent> for InternalNavigationIntent {
+    fn from(value: NavigationIntent) -> Self {
+        match value {
+            NavigationIntent::NavigationIntentLoose(l) => Self::NavigationIntentLoose(l),
+            NavigationIntent::NavigationIntentStrict(s) => Self::NavigationIntentStrict(s.into()),
+        }
+    }
+}
+
+// TODO: Compiler didnt accept the above From implementation to go both ways. Remove it in future
+impl From<InternalNavigationIntent> for NavigationIntent {
+    fn from(value: InternalNavigationIntent) -> Self {
+        match value {
+            InternalNavigationIntent::NavigationIntentLoose(l) => Self::NavigationIntentLoose(l),
+            InternalNavigationIntent::NavigationIntentStrict(s) => {
+                Self::NavigationIntentStrict(s.into())
+            }
+        }
+    }
+}
+
 impl Default for NavigationIntent {
     fn default() -> Self {
         NavigationIntent::NavigationIntentStrict(
@@ -358,7 +387,7 @@ impl Default for NavigationIntent {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(tag = "action", rename_all = "camelCase")]
+#[serde(tag = "action", rename_all = "camelCase", deny_unknown_fields)]
 
 pub enum NavigationIntentStrict {
     Home(HomeIntent),
@@ -369,6 +398,54 @@ pub enum NavigationIntentStrict {
     Section(SectionIntent),
     Tune(TuneIntent),
     ProviderRequest(ProviderRequestIntent),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "action", rename_all = "camelCase", deny_unknown_fields)]
+
+pub enum InternalNavigationIntentStrict {
+    Home(HomeIntent),
+    Launch(LaunchIntent),
+    Entity(InternalEntityIntent),
+    Playback(PlaybackIntent),
+    Search(SearchIntent),
+    Section(SectionIntent),
+    Tune(TuneIntent),
+    ProviderRequest(ProviderRequestIntent),
+}
+
+impl From<InternalNavigationIntentStrict> for NavigationIntentStrict {
+    fn from(value: InternalNavigationIntentStrict) -> Self {
+        match value {
+            InternalNavigationIntentStrict::Tune(t) => NavigationIntentStrict::Tune(t),
+            InternalNavigationIntentStrict::Entity(e) => NavigationIntentStrict::Entity(e.into()),
+            InternalNavigationIntentStrict::Home(h) => NavigationIntentStrict::Home(h),
+            InternalNavigationIntentStrict::Launch(l) => NavigationIntentStrict::Launch(l),
+            InternalNavigationIntentStrict::Playback(p) => NavigationIntentStrict::Playback(p),
+            InternalNavigationIntentStrict::ProviderRequest(p) => {
+                NavigationIntentStrict::ProviderRequest(p)
+            }
+            InternalNavigationIntentStrict::Search(s) => NavigationIntentStrict::Search(s),
+            InternalNavigationIntentStrict::Section(s) => NavigationIntentStrict::Section(s),
+        }
+    }
+}
+
+impl From<NavigationIntentStrict> for InternalNavigationIntentStrict {
+    fn from(value: NavigationIntentStrict) -> Self {
+        match value {
+            NavigationIntentStrict::Tune(t) => InternalNavigationIntentStrict::Tune(t),
+            NavigationIntentStrict::Entity(e) => InternalNavigationIntentStrict::Entity(e.into()),
+            NavigationIntentStrict::Home(h) => InternalNavigationIntentStrict::Home(h),
+            NavigationIntentStrict::Launch(l) => InternalNavigationIntentStrict::Launch(l),
+            NavigationIntentStrict::Playback(p) => InternalNavigationIntentStrict::Playback(p),
+            NavigationIntentStrict::ProviderRequest(p) => {
+                InternalNavigationIntentStrict::ProviderRequest(p)
+            }
+            NavigationIntentStrict::Search(s) => InternalNavigationIntentStrict::Search(s),
+            NavigationIntentStrict::Section(s) => InternalNavigationIntentStrict::Section(s),
+        }
+    }
 }
 
 /*
@@ -419,6 +496,31 @@ pub struct EntityIntent {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct InternalEntityIntent {
+    pub data: EntityIntentData,
+    pub context: DiscoveryContext,
+}
+
+impl From<InternalEntityIntent> for EntityIntent {
+    fn from(value: InternalEntityIntent) -> Self {
+        Self {
+            data: value.data,
+            context: value.context,
+        }
+    }
+}
+
+impl From<EntityIntent> for InternalEntityIntent {
+    fn from(value: EntityIntent) -> Self {
+        Self {
+            data: value.data,
+            context: value.context,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(untagged)]
 pub enum EntityIntentData {
     Program(ProgramEntityIntentData),
     Untyped(UntypedEntity),
@@ -469,6 +571,7 @@ pub enum ProgramEntityIntentData {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct BaseEntity {
+    #[serde(default = "default_program_type")]
     pub entity_type: ProgramEntityType,
     pub entity_id: String,
     pub asset_id: Option<String>,
@@ -497,6 +600,10 @@ impl Default for ProgramEntityType {
     fn default() -> Self {
         Self(String::from("program"))
     }
+}
+
+fn default_program_type() -> ProgramEntityType {
+    ProgramEntityType::default()
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -547,7 +654,6 @@ pub struct UntypedEntity {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TuneIntent {
-    pub action: String,
     pub data: TuneIntentData,
     pub context: DiscoveryContext,
 }
@@ -646,6 +752,90 @@ impl Default for ProviderRequestIntent {
             context: DiscoveryContext {
                 source: "device".to_string(),
             },
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    pub fn test_base_entity() {
+        if let Ok(v) = serde_json::from_str::<BaseEntity>("{\"appContentData\":null,\"assetId\":null,\"entityId\":\"example-movie-id\",\"entityType\":\"program\",\"programType\":\"movie\"}"){
+            assert!(v.entity_id.eq("example-movie-id"));
+        } else {
+            panic!("failed schema expectation")
+        }
+    }
+
+    #[test]
+    pub fn test_navigation_intent_playback_strict() {
+        if let Ok(v) = serde_json::from_str::<NavigationIntentStrict>("{\"action\":\"playback\",\"data\":{\"entityId\":\"example-movie-id\",\"programType\":\"movie\"},\"context\":{\"source\":\"voice\"}}"){
+            if let NavigationIntentStrict::Playback(p) = v {
+                assert!(p.context.source.eq("voice"));
+                if let PlaybackIntentData::Movie(m) = p.data {
+                    assert!(m.base_entity.entity_id.eq("example-movie-id"));
+                } else {
+                    panic!("Wrong enum for playback")
+                }
+            } else {
+                panic!("Wrong enum for navigation intent")
+            }
+        } else {
+            panic!("failed schema expectation");
+        }
+    }
+
+    #[test]
+    pub fn test_navigation_intent_entity_strict() {
+        let intent = NavigationIntentStrict::Entity(EntityIntent {
+            data: EntityIntentData::Program(ProgramEntityIntentData::Movie(MovieEntity {
+                base_entity: BaseEntity {
+                    entity_type: ProgramEntityType("program".to_owned()),
+                    entity_id: "example-movie-id".to_owned(),
+                    asset_id: None,
+                    app_content_data: None,
+                },
+            })),
+            context: DiscoveryContext {
+                source: "xrn:firebolt:application:refui".to_owned(),
+            },
+        });
+        let value = serde_json::to_string(&intent).unwrap();
+        assert!(value.eq("{\"action\":\"entity\",\"data\":{\"programType\":\"movie\",\"entityType\":\"program\",\"entityId\":\"example-movie-id\",\"assetId\":null,\"appContentData\":null},\"context\":{\"source\":\"xrn:firebolt:application:refui\"}}"));
+    }
+
+    #[test]
+    pub fn test_navigation_intent_tune_strict() {
+        match serde_json::from_str::<NavigationIntentStrict>(
+            "{\"action\":\"tune\",\"data\":{
+                \"entity\":{
+                \"entityType\": \"program\",
+                \"channelType\": \"streaming\",
+                \"programType\": \"movie\",
+                \"entityId\": \"example-movie-id\"},
+                \"options\":{\"restartCurrentProgram\":true}
+                },
+                \"context\":{
+                    \"source\":\"voice\"
+                }
+            }",
+        ) {
+            Ok(v) => {
+                if let NavigationIntentStrict::Tune(t) = v {
+                    assert!(t.context.source.eq("voice"));
+                    if !matches!(t.data.entity.channel_type, ChannelType::Streaming) {
+                        panic!("ChannelType mismatch");
+                    }
+                    assert!(t.data.entity.entity_type.0.eq("program"));
+                } else {
+                    panic!("Not tune intent");
+                }
+            }
+            Err(e) => {
+                panic!("failed schema expectation {:?}", e);
+            }
         }
     }
 }

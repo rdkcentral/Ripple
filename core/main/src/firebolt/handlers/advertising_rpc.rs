@@ -28,7 +28,7 @@ use ripple_sdk::{
                 AdIdRequestParams, AdInitObjectRequestParams, AdvertisingFrameworkConfig,
                 AdvertisingRequest, AdvertisingResponse, GetAdConfig,
             },
-            fb_capabilities::{CapabilityRole, RoleInfo},
+            fb_capabilities::{CapabilityRole, FireboltCap, RoleInfo},
             fb_general::{ListenRequest, ListenerResponse},
         },
         gateway::rpc_gateway_api::CallContext,
@@ -272,7 +272,7 @@ impl AdvertisingServer for AdvertisingImpl {
             .get_device_manifest()
             .get_distributor_experience_id();
         let params = RoleInfo {
-            capability: "advertising:identifier".to_string(),
+            capability: FireboltCap::short("advertising:identifier".to_string()),
             role: Some(CapabilityRole::Use),
         };
         let ad_id_authorised = is_permitted(self.state.clone(), ctx, params).await;

@@ -27,6 +27,7 @@ use jsonrpsee::{
     RpcModule,
 };
 use ripple_sdk::api::distributor::distributor_privacy::PrivacySettingsStoreRequest;
+use ripple_sdk::api::firebolt::fb_capabilities::FireboltCap;
 use ripple_sdk::extn::extn_client_message::ExtnPayload;
 use ripple_sdk::{
     api::{
@@ -344,7 +345,7 @@ impl PrivacyImpl {
         _app_id: &str,
     ) -> bool {
         let cap = RoleInfo {
-            capability: "xrn:firebolt:capability:discovery:watched".to_string(),
+            capability: FireboltCap::Short("discovery:watched".to_string()),
             role: Some(CapabilityRole::Use),
         };
         if let Ok(watch_granted) = is_granted(state.clone(), ctx.clone(), cap).await {
