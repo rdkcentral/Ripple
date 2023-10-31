@@ -83,7 +83,6 @@ fn telemetry_event(event_name: &str, event_payload: String) -> DeviceChannelPara
 }
 
 fn get_event_name(event: &TelemetryPayload) -> &'static str {
-    println!("get_event_name event: {:?}", event);
     match event {
         TelemetryPayload::AppLoadStart(_) => "app_load_start_split",
         TelemetryPayload::AppLoadStop(_) => "app_load_stop_split",
