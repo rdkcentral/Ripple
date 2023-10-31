@@ -21,14 +21,46 @@ use jsonrpsee::{
 };
 use ripple_sdk::api::{
     device::device_accessibility_data::{AudioDescriptionSettings, AudioDescriptionSettingsSet},
+    firebolt::fb_general::{ListenRequest, ListenerResponse},
     gateway::rpc_gateway_api::CallContext,
-    storage_property::StorageProperty,
+    storage_property::{StorageProperty, EVENT_AUDIO_DESCRIPTION_SETTINGS_CHANGED},
 };
 
 use crate::{
-    firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManager,
+    firebolt::rpc::RippleRPCProvider,
+    processor::storage::storage_manager::StorageManager,
+    service::apps::app_events::{AppEventDecorationError, AppEventDecorator},
     state::platform_state::PlatformState,
+    utils::rpc_utils::rpc_add_event_listener_with_decorator,
 };
+
+use ripple_sdk::serde_json::Value;
+
+#[derive(Clone)]
+struct AudioDescriptionEventDecorator {}
+
+#[async_trait]
+impl AppEventDecorator for AudioDescriptionEventDecorator {
+    async fn decorate(
+        &self,
+        ps: &PlatformState,
+        _ctx: &CallContext,
+        _event_name: &str,
+        _val_in: &Value,
+    ) -> Result<Value, AppEventDecorationError> {
+        if let Ok(enabled) =
+            StorageManager::get_bool(ps, StorageProperty::AudioDescriptionEnabled).await
+        {
+            return Ok(serde_json::to_value(AudioDescriptionSettings { enabled }).unwrap());
+        }
+
+        Err(AppEventDecorationError {})
+    }
+
+    fn dec_clone(&self) -> Box<dyn AppEventDecorator + Send + Sync> {
+        Box::new(self.clone())
+    }
+}
 
 #[rpc(server)]
 pub trait AudioDescription {
@@ -40,6 +72,12 @@ pub trait AudioDescription {
         ctx: CallContext,
         set_request: AudioDescriptionSettingsSet,
     ) -> RpcResult<()>;
+    #[method(name = "accessibility.onAudioDescriptionSettingsChanged")]
+    async fn on_audio_description_settings_changed(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
 }
 
 #[derive(Debug)]
@@ -68,6 +106,21 @@ impl AudioDescriptionServer for AudioDescriptionImpl {
             StorageProperty::AudioDescriptionEnabled,
             set_request.value,
             None,
+        )
+        .await
+    }
+
+    async fn on_audio_description_settings_changed(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        rpc_add_event_listener_with_decorator(
+            &self.platform_state,
+            ctx,
+            request,
+            EVENT_AUDIO_DESCRIPTION_SETTINGS_CHANGED,
+            Some(Box::new(AudioDescriptionEventDecorator {})),
         )
         .await
     }

@@ -134,7 +134,8 @@ pub const EVENT_ADVERTISING_SKIP_RESTRICTION_CHANGED: &str = "advertising.onSkip
 pub const EVENT_ADVERTISING_SKIP_RESTRICTION: &str = "advertising.setSkipRestriction";
 pub const EVENT_PREFERRED_AUDIO_LANGUAGES: &str = "Localization.onPreferredAudioLanguagesChanged";
 pub const EVENT_CC_PREFERRED_LANGUAGES: &str = "ClosedCaptions.onPreferredLanguagesChanged";
-
+pub const EVENT_AUDIO_DESCRIPTION_SETTINGS_CHANGED: &str =
+    "Accessibility.onAudioDescriptionSettingsChanged";
 pub const EVENT_TIMEZONE_CHANGED: &str = "localization.onTimeZoneChanged";
 
 const PROPERTY_DATA_CLOSED_CAPTIONS_ENABLED: PropertyData = PropertyData {
@@ -440,7 +441,7 @@ const PROPERTY_DATA_SKIP_RESTRICTION: PropertyData = PropertyData {
 const PROPERTY_AUDIO_DESCRIPTION_ENABLED: PropertyData = PropertyData {
     key: KEY_AUDIO_DESCRIPTION_ENABLED,
     namespace: NAMESPACE_AUDIO_DESCRIPTION,
-    event_names: None,
+    event_names: Some(&[EVENT_AUDIO_DESCRIPTION_SETTINGS_CHANGED]),
 };
 
 const PROPERTY_PREFERRED_AUDIO_LANGUAGES: PropertyData = PropertyData {
