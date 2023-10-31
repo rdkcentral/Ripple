@@ -151,6 +151,8 @@ impl FireboltGatekeeper {
                         trace!("check_with_roles for method ({}) succeded", request.method);
                     }
                 }
+            } else {
+                trace!("Role/Capability is cleared based on non-negotiable policy");
             }
         } else {
             // Couldnt find any capabilities for the method
