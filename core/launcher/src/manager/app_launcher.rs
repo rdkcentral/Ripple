@@ -499,7 +499,7 @@ impl AppLauncher {
                             Self::set_state(state.clone(), props.name, LifecycleState::Inactive)
                                 .await
                                 .ok();
-                        } else {
+                        } else if let LifecycleState::Foreground = app.state {
                             Self::set_state(state.clone(), props.name, LifecycleState::Background)
                                 .await
                                 .ok();
