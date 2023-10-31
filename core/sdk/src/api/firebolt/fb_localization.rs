@@ -15,14 +15,24 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use serde::{Deserialize, Serialize};
+use regex::Regex;
+use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::utils::serde_utils::language_iso_639_2_serde;
+#[derive(Debug, Default, Serialize, Clone)]
+pub struct PreferredLanguage(String);
 
-#[derive(Debug, Serialize, Deserialize, Default, Clone)]
-pub struct PreferredLanguage {
-    #[serde(with = "language_iso_639_2_serde")]
-    pub value: String,
+impl<'de> Deserialize<'de> for PreferredLanguage {
+    fn deserialize<D>(deserializer: D) -> Result<PreferredLanguage, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let text = String::deserialize(deserializer)?;
+        if Regex::new("^[a-z]{3}$").unwrap().is_match(&text) {
+            Ok(PreferredLanguage(text))
+        } else {
+            Err(serde::de::Error::custom("Invalid value for Language"))
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
@@ -32,7 +42,7 @@ pub struct SetPreferredAudioLanguage {
 
 impl SetPreferredAudioLanguage {
     pub fn get_string(&self) -> Vec<String> {
-        self.value.iter().map(|x| x.value.clone()).collect()
+        self.value.iter().map(|x| x.0.clone()).collect()
     }
 }
 
@@ -44,11 +54,11 @@ mod tests {
 
     #[test]
     fn test_set_and_get() {
-        let bad_language = json!({"value": [{"value": "English"}]});
+        let bad_language = json!({"value": ["English"]});
         assert!(serde_json::from_value::<SetPreferredAudioLanguage>(bad_language).is_err());
-        let good_language = json!({"value": [{"value": "eng"}]});
+        let good_language = json!({"value": ["eng"]});
         if let Ok(l) = serde_json::from_value::<SetPreferredAudioLanguage>(good_language) {
-            assert!(String::from("eng").eq(l.value.get(0).unwrap().value.as_str()));
+            assert!(String::from("eng").eq(l.value.get(0).unwrap().0.as_str()));
         } else {
             panic!("bad language entry should not serialize")
         }

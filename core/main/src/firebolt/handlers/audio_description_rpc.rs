@@ -20,8 +20,9 @@ use jsonrpsee::{
     RpcModule,
 };
 use ripple_sdk::api::{
-    device::device_accessibility_data::AudioDescriptionSettings,
-    gateway::rpc_gateway_api::CallContext, storage_property::StorageProperty,
+    device::device_accessibility_data::{AudioDescriptionSettings, AudioDescriptionSettingsSet},
+    gateway::rpc_gateway_api::CallContext,
+    storage_property::StorageProperty,
 };
 
 use crate::{
@@ -31,13 +32,13 @@ use crate::{
 
 #[rpc(server)]
 pub trait AudioDescription {
-    #[method(name = "AudioDescriptions.enabled", aliases=["accessibility.audioDescriptionSettings"])]
-    async fn ad_enabled(&self, ctx: CallContext) -> RpcResult<bool>;
-    #[method(name = "AudioDescriptions.setEnabled")]
+    #[method(name = "audiodescriptions.enabled", aliases=["accessibility.audioDescriptionSettings"])]
+    async fn ad_enabled(&self, ctx: CallContext) -> RpcResult<AudioDescriptionSettings>;
+    #[method(name = "audiodescriptions.setEnabled")]
     async fn ad_enabled_set(
         &self,
         ctx: CallContext,
-        set_request: AudioDescriptionSettings,
+        set_request: AudioDescriptionSettingsSet,
     ) -> RpcResult<()>;
 }
 
@@ -48,23 +49,24 @@ pub struct AudioDescriptionImpl {
 
 #[async_trait]
 impl AudioDescriptionServer for AudioDescriptionImpl {
-    async fn ad_enabled(&self, _ctx: CallContext) -> RpcResult<bool> {
-        StorageManager::get_bool(
+    async fn ad_enabled(&self, _ctx: CallContext) -> RpcResult<AudioDescriptionSettings> {
+        let v = StorageManager::get_bool(
             &self.platform_state,
             StorageProperty::AudioDescriptionEnabled,
         )
-        .await
+        .await?;
+        Ok(AudioDescriptionSettings { enabled: v })
     }
 
     async fn ad_enabled_set(
         &self,
         _ctx: CallContext,
-        set_request: AudioDescriptionSettings,
+        set_request: AudioDescriptionSettingsSet,
     ) -> RpcResult<()> {
         StorageManager::set_bool(
             &self.platform_state,
             StorageProperty::AudioDescriptionEnabled,
-            set_request.enabled,
+            set_request.value,
             None,
         )
         .await

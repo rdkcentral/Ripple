@@ -285,7 +285,7 @@ pub trait Closedcaptions {
         ctx: CallContext,
         set_request: SetPreferredAudioLanguage,
     ) -> RpcResult<()>;
-    #[method(name = "localization.onPreferredAudioLanguagesChanged")]
+    #[method(name = "closedcaptions.onPreferredLanguagesChanged")]
     async fn on_cc_preferred_languages(
         &self,
         ctx: CallContext,

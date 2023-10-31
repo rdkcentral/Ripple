@@ -95,3 +95,8 @@ pub struct VoiceGuidanceEnabledChangedEventData {
 pub struct AudioDescriptionSettings {
     pub enabled: bool,
 }
+
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+pub struct AudioDescriptionSettingsSet {
+    pub value: bool,
+}
