@@ -20,9 +20,8 @@ use std::hash::{Hash, Hasher};
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::api::gateway::rpc_error::RpcError;
-
 use super::fb_openrpc::CapabilitySet;
+use crate::api::gateway::rpc_error::RpcError;
 
 /// There are many types of Firebolt Cap enums
 /// 1. Short: `device:model` becomes = `xrn:firebolt:capability:account:session` its just a handy cap which helps us write less code
@@ -39,20 +38,6 @@ impl FireboltCap {
         S: Into<String>,
     {
         FireboltCap::Short(s.into())
-    }
-}
-
-impl Eq for FireboltCap {}
-
-impl PartialEq for FireboltCap {
-    fn eq(&self, other: &Self) -> bool {
-        self.as_str().eq(&other.as_str())
-    }
-}
-
-impl Hash for FireboltCap {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.as_str().hash(state);
     }
 }
 
@@ -79,6 +64,20 @@ impl<'de> Deserialize<'de> for FireboltCap {
                 cap
             )))
         }
+    }
+}
+
+impl Eq for FireboltCap {}
+
+impl PartialEq for FireboltCap {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_str().eq(&other.as_str())
+    }
+}
+
+impl Hash for FireboltCap {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_str().hash(state);
     }
 }
 
@@ -109,9 +108,9 @@ impl FireboltCap {
         let prefix = vec!["xrn", "firebolt", "capability"];
         let c_a = cap.split(':');
         let mut cap_vec = Vec::<String>::new();
-        for token in c_a.into_iter() {
-            if !prefix.contains(&token) {
-                cap_vec.push(String::from(token));
+        for c in c_a.into_iter() {
+            if !prefix.contains(&c) {
+                cap_vec.push(String::from(c));
             }
         }
         Some(FireboltCap::Short(cap_vec.join(":")))
@@ -163,7 +162,7 @@ pub struct FireboltPermission {
 impl From<RoleInfo> for FireboltPermission {
     fn from(role_info: RoleInfo) -> Self {
         FireboltPermission {
-            cap: FireboltCap::Full(role_info.capability.to_owned()),
+            cap: role_info.capability.to_owned(),
             role: role_info.role.unwrap_or(CapabilityRole::Use),
         }
     }
@@ -184,7 +183,7 @@ impl From<CapRequestRpcRequest> for Vec<FireboltPermission> {
             .grants
             .iter()
             .map(|role_info| FireboltPermission {
-                cap: FireboltCap::Full(role_info.capability.to_owned()),
+                cap: role_info.capability.to_owned(),
                 role: role_info.role.unwrap_or(CapabilityRole::Use),
             })
             .collect()
@@ -409,12 +408,40 @@ pub struct CapRequestRpcRequest {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RoleInfo {
     pub role: Option<CapabilityRole>,
-    pub capability: String,
+    pub capability: FireboltCap,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct CapInfoRpcRequest {
-    pub capabilities: Vec<String>,
+    pub capabilities: Vec<FireboltCap>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct CapRPCRequest {
+    pub capability: FireboltCap,
+    pub options: Option<CapabilityOption>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct CapabilityOption {
+    pub role: CapabilityRole,
+}
+
+impl Default for CapabilityOption {
+    fn default() -> Self {
+        Self {
+            role: CapabilityRole::Use,
+        }
+    }
+}
+
+impl From<CapRPCRequest> for RoleInfo {
+    fn from(value: CapRPCRequest) -> Self {
+        RoleInfo {
+            role: Some(value.options.unwrap_or_default().role),
+            capability: value.capability,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]
