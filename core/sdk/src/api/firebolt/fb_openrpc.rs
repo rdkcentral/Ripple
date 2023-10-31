@@ -384,15 +384,14 @@ impl From<CapRequestRpcRequest> for CapabilitySet {
         let mut manage_caps_vec = Vec::new();
 
         for cap in c.grants {
-            if let Some(capability) = FireboltCap::parse(cap.clone().capability) {
-                if let Some(role) = cap.clone().role {
-                    match role {
-                        CapabilityRole::Use => use_caps_vec.push(capability),
-                        CapabilityRole::Provide => {
-                            let _ = provide_cap.insert(capability);
-                        }
-                        CapabilityRole::Manage => manage_caps_vec.push(capability),
+            let capability = cap.clone().capability;
+            if let Some(role) = cap.clone().role {
+                match role {
+                    CapabilityRole::Use => use_caps_vec.push(capability),
+                    CapabilityRole::Provide => {
+                        let _ = provide_cap.insert(capability);
                     }
+                    CapabilityRole::Manage => manage_caps_vec.push(capability),
                 }
             }
         }

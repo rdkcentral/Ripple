@@ -60,6 +60,10 @@ impl AppSession {
             None => EffectiveTransport::Websocket,
         }
     }
+
+    pub fn update_intent(&mut self, intent: NavigationIntent) {
+        let _ = self.launch.intent.insert(intent);
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
