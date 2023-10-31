@@ -25,7 +25,9 @@ use ripple_sdk::{
         //config::Config,
         distributor::distributor_permissions::{PermissionRequest, PermissionResponse},
         firebolt::{
-            fb_capabilities::{DenyReason, DenyReasonWithCap, FireboltPermission, RoleInfo},
+            fb_capabilities::{
+                DenyReason, DenyReasonWithCap, FireboltCap, FireboltPermission, RoleInfo,
+            },
             fb_openrpc::CapabilitySet,
         },
         manifest::device_manifest::DeviceManifest,
@@ -76,27 +78,27 @@ impl PermittedState {
     }
 
     pub fn check_cap_role(&self, app_id: &str, role_info: RoleInfo) -> Result<bool, RippleError> {
-        if let Some(role) = role_info.role {
-            if let Some(perms) = self.get_all_permissions().get(app_id) {
-                for perm in perms {
-                    if perm.cap.as_str() == role_info.capability && perm.role == role {
-                        return Ok(true);
-                    }
+        let role = role_info
+            .role
+            .unwrap_or(ripple_sdk::api::firebolt::fb_capabilities::CapabilityRole::Use);
+        if let Some(perms) = self.get_all_permissions().get(app_id) {
+            for perm in perms {
+                if perm.cap.as_str() == role_info.capability.as_str() && perm.role == role {
+                    return Ok(true);
                 }
-                return Ok(false);
-            } else {
-                // Not cached prior
-                return Err(RippleError::InvalidAccess);
             }
+            Ok(false)
+        } else {
+            // Not cached prior
+            Err(RippleError::InvalidAccess)
         }
-        Ok(false)
     }
 
     pub fn check_multiple(&self, app_id: &str, request: Vec<RoleInfo>) -> HashMap<String, bool> {
         let mut map = HashMap::new();
         for role_info in request {
             map.insert(
-                role_info.clone().capability,
+                role_info.clone().capability.as_str(),
                 if let Ok(v) = self.check_cap_role(app_id, role_info) {
                     v
                 } else {
@@ -186,20 +188,20 @@ impl PermissionHandler {
         permitted: &[FireboltPermission],
         request: &[FireboltPermission],
     ) -> Result<(), DenyReasonWithCap> {
-        let mut unpermitted: Option<FireboltPermission> = None;
-        let all_permitted = request.iter().all(|perm| {
+        let mut unpermitted_caps: Vec<FireboltCap> = Vec::new();
+        let _all_permitted = request.iter().all(|perm| {
             let present = permitted.contains(perm);
             if !present {
-                unpermitted = Some(perm.clone());
+                unpermitted_caps.push(perm.cap.clone());
             }
             present
         });
-        if all_permitted {
+        if unpermitted_caps.is_empty() {
             Ok(())
         } else {
             Err(DenyReasonWithCap {
                 reason: DenyReason::Unpermitted,
-                caps: vec![unpermitted.unwrap().cap],
+                caps: unpermitted_caps,
             })
         }
     }

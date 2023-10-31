@@ -40,7 +40,7 @@ use ripple_sdk::{
     uuid::Uuid,
 };
 use ripple_sdk::{
-    log::{error, info, trace, warn},
+    log::{error, info, warn},
     utils::channel_utils::{mpsc_send_and_log, oneshot_send_and_log},
 };
 use ripple_sdk::{
@@ -249,6 +249,7 @@ impl ThunderClient {
             "client.{}.events.{}",
             thunder_message.module, thunder_message.event_name
         );
+
         let sub_id = match &thunder_message.sub_id {
             Some(sid) => sid.clone(),
             None => Uuid::new_v4().to_string(),
@@ -289,7 +290,6 @@ impl ThunderClient {
         let resub_message = ThunderMessage::ThunderSubscribeMessage(thunder_message.resubscribe());
         let sub_id_c = sub_id.clone();
         let handle = ripple_sdk::tokio::spawn(async move {
-            trace!("Starting thread to listen for thunder events");
             while let Some(ev_res) = subscription.next().await {
                 if let Ok(ev) = ev_res {
                     let msg = DeviceResponseMessage::sub(ev, sub_id_c.clone());

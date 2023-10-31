@@ -22,7 +22,10 @@ use crate::{
     framework::ripple_contract::{ContractAdjective, RippleContract},
 };
 
-use super::distributor::distributor_privacy::PrivacySetting;
+use super::{
+    distributor::distributor_privacy::PrivacySetting,
+    firebolt::fb_discovery::EVENT_DISCOVERY_POLICY_CHANGED,
+};
 
 pub const NAMESPACE_CLOSED_CAPTIONS: &str = "ClosedCaptions";
 pub const NAMESPACE_PRIVACY: &str = "Privacy";
@@ -30,6 +33,7 @@ pub const NAMESPACE_DEVICE_NAME: &str = "DeviceName";
 pub const NAMESPACE_LOCALIZATION: &str = "Localization";
 pub const NAMESPACE_USER_GRANT: &str = "UserGrant";
 pub const NAMESPACE_ADVERTISING: &str = "Advertising";
+pub const NAMESPACE_AUDIO_DESCRIPTION: &str = "AudioDescription";
 
 pub const KEY_ENABLED: &str = "enabled";
 pub const KEY_FONT_FAMILY: &str = "fontFamily";
@@ -40,6 +44,8 @@ pub const KEY_FONT_EDGE_COLOR: &str = "fontEdgeColor";
 pub const KEY_FONT_OPACITY: &str = "fontOpacity";
 pub const KEY_BACKGROUND_COLOR: &str = "backgroundColor";
 pub const KEY_BACKGROUND_OPACITY: &str = "backgroundOpacity";
+pub const KEY_WINDOW_COLOR: &str = "windowColor";
+pub const KEY_WINDOW_OPACITY: &str = "windowOpacity";
 pub const KEY_TEXT_ALIGN: &str = "textAlign";
 pub const KEY_TEXT_ALIGN_VERTICAL: &str = "textAlignVertical";
 pub const KEY_LIMIT_AD_TRACKING: &str = "limitAdTracking";
@@ -57,6 +63,7 @@ pub const KEY_SHARE_WATCH_HISTORY: &str = "shareWatchHistory";
 pub const KEY_USER_GRANT: &str = "userGrantKey";
 pub const KEY_ALLOW_ACR_COLLECTION: &str = "allowACRCollection";
 pub const KEY_ALLOW_APP_CONTENT_AD_TARGETING: &str = "allowAppContentAdTargetting";
+pub const KEY_ALLOW_BUSINESS_ANALYTICS: &str = "allowBusinessAnalytics";
 pub const KEY_ALLOW_CAMERA_ANALYTICS: &str = "allowCameraAnalytics";
 pub const KEY_ALLOW_PERSONALIZATION: &str = "allowPersonalization";
 pub const KEY_ALLOW_PRIMARY_BROWSE_AD_TARGETING: &str = "allowPrimaryBrowseAdTargeting";
@@ -70,6 +77,8 @@ pub const KEY_ALLOW_WATCH_HISTORY: &str = "allowWatchHistory";
 pub const KEY_VOICE_GUIDANCE_SPEED: &str = "speed";
 pub const KEY_PARTNER_EXCLUSIONS: &str = "partnerExclusions";
 pub const KEY_SKIP_RESTRICTION: &str = "skipRestriction";
+pub const KEY_AUDIO_DESCRIPTION_ENABLED: &str = "audioDescriptionEnabled";
+pub const KEY_PREFERRED_AUDIO_LANGUAGES: &str = "preferredAudioLanguages";
 
 pub const EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED: &str =
     "accessibility.onClosedCaptionsSettingsChanged";
@@ -83,6 +92,8 @@ pub const EVENT_CLOSED_CAPTIONS_FONT_OPACITY: &str = "closedcaptions.onFontOpaci
 pub const EVENT_CLOSED_CAPTIONS_BACKGROUND_COLOR: &str = "closedcaptions.onBackgroundColorChanged";
 pub const EVENT_CLOSED_CAPTIONS_BACKGROUND_OPACITY: &str =
     "closedcaptions.onBackgroundOpacityChanged";
+pub const EVENT_CLOSED_CAPTIONS_WINDOW_COLOR: &str = "closedcaptions.onWindowColorChanged";
+pub const EVENT_CLOSED_CAPTIONS_WINDOW_OPACITY: &str = "closedcaptions.onWindowOpacityChanged";
 pub const EVENT_CLOSED_CAPTIONS_TEXT_ALIGN: &str = "closedcaptions.onTextAlignChanged";
 pub const EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL: &str =
     "closedcaptions.onTextAlignVerticalChanged";
@@ -100,6 +111,7 @@ pub const EVENT_SHARE_WATCH_HISTORY: &str = "privacy.onShareWatchHistoryChanged"
 pub const EVENT_ALLOW_ACR_COLLECTION_CHANGED: &str = "privacy.onAllowACRCollectionChanged";
 pub const EVENT_ALLOW_APP_CONTENT_AD_TARGETING_CHANGED: &str =
     "privacy.onAllowAppContentAdTargetingChanged";
+pub const EVENT_ALLOW_BUSINESS_ANALYTICS_CHANGED: &str = "privacy.onAllowBusinessAnalyticsChanged";
 pub const EVENT_ALLOW_CAMERA_ANALYTICS_CHANGED: &str = "privacy.onAllowCameraAnalyticsChanged";
 pub const EVENT_ALLOW_PERSONALIZATION_CHANGED: &str = "privacy.onAllowPersonalizationChanged";
 pub const EVENT_ALLOW_PRIMARY_BROWSE_AD_TARGETING_CHANGED: &str =
@@ -120,7 +132,10 @@ pub const EVENT_SECOND_SCREEN_FRIENDLY_NAME_CHANGED: &str = "secondscreen.onFrie
 pub const EVENT_ADVERTISING_POLICY_CHANGED: &str = "advertising.onPolicyChanged";
 pub const EVENT_ADVERTISING_SKIP_RESTRICTION_CHANGED: &str = "advertising.onSkipRestrictionChanged";
 pub const EVENT_ADVERTISING_SKIP_RESTRICTION: &str = "advertising.setSkipRestriction";
-
+pub const EVENT_PREFERRED_AUDIO_LANGUAGES: &str = "Localization.onPreferredAudioLanguagesChanged";
+pub const EVENT_CC_PREFERRED_LANGUAGES: &str = "ClosedCaptions.onPreferredLanguagesChanged";
+pub const EVENT_AUDIO_DESCRIPTION_SETTINGS_CHANGED: &str =
+    "Accessibility.onAudioDescriptionSettingsChanged";
 pub const EVENT_TIMEZONE_CHANGED: &str = "localization.onTimeZoneChanged";
 
 const PROPERTY_DATA_CLOSED_CAPTIONS_ENABLED: PropertyData = PropertyData {
@@ -204,6 +219,24 @@ const PROPERTY_DATA_CLOSED_CAPTIONS_BACKGROUND_OPACITY: PropertyData = PropertyD
     ]),
 };
 
+const PROPERTY_DATA_CLOSED_CAPTIONS_WINDOW_COLOR: PropertyData = PropertyData {
+    key: KEY_WINDOW_COLOR,
+    namespace: NAMESPACE_CLOSED_CAPTIONS,
+    event_names: Some(&[
+        EVENT_CLOSED_CAPTIONS_WINDOW_COLOR,
+        EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED,
+    ]),
+};
+
+const PROPERTY_DATA_CLOSED_CAPTIONS_WINDOW_OPACITY: PropertyData = PropertyData {
+    key: KEY_WINDOW_OPACITY,
+    namespace: NAMESPACE_CLOSED_CAPTIONS,
+    event_names: Some(&[
+        EVENT_CLOSED_CAPTIONS_WINDOW_OPACITY,
+        EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED,
+    ]),
+};
+
 const PROPERTY_DATA_CLOSED_CAPTIONS_TEXT_ALIGN: PropertyData = PropertyData {
     key: KEY_TEXT_ALIGN,
     namespace: NAMESPACE_CLOSED_CAPTIONS,
@@ -279,13 +312,16 @@ const PROPERTY_DATA_LIMIT_AD_TRACKING: PropertyData = PropertyData {
 const PROPERTY_DATA_REMEMBER_WATCHED_PROGRAMS: PropertyData = PropertyData {
     key: KEY_REMEMBER_WATCHED_PROGRAMS,
     namespace: NAMESPACE_PRIVACY,
-    event_names: Some(&[EVENT_REMEMBER_WATCHED_PROGRAMS]),
+    event_names: Some(&[
+        EVENT_DISCOVERY_POLICY_CHANGED,
+        EVENT_REMEMBER_WATCHED_PROGRAMS,
+    ]),
 };
 
 const PROPERTY_DATA_SHARE_WATCH_HISTORY: PropertyData = PropertyData {
     key: KEY_SHARE_WATCH_HISTORY,
     namespace: NAMESPACE_PRIVACY,
-    event_names: Some(&[EVENT_SHARE_WATCH_HISTORY]),
+    event_names: Some(&[EVENT_DISCOVERY_POLICY_CHANGED, EVENT_SHARE_WATCH_HISTORY]),
 };
 
 const PROPERTY_DATA_DEVICE_NAME: PropertyData = PropertyData {
@@ -315,6 +351,12 @@ const PROPERTY_DATA_ALLOW_APP_CONTENT_AD_TARGETING: PropertyData = PropertyData 
     event_names: Some(&[EVENT_ALLOW_APP_CONTENT_AD_TARGETING_CHANGED]),
 };
 
+const PROPERTY_DATA_ALLOW_BUSINESS_ANALYTICS: PropertyData = PropertyData {
+    key: KEY_ALLOW_BUSINESS_ANALYTICS,
+    namespace: NAMESPACE_PRIVACY,
+    event_names: Some(&[EVENT_ALLOW_BUSINESS_ANALYTICS_CHANGED]),
+};
+
 const PROPERTY_DATA_ALLOW_CAMERA_ANALYTICS: PropertyData = PropertyData {
     key: KEY_ALLOW_CAMERA_ANALYTICS,
     namespace: NAMESPACE_PRIVACY,
@@ -324,7 +366,10 @@ const PROPERTY_DATA_ALLOW_CAMERA_ANALYTICS: PropertyData = PropertyData {
 const PROPERTY_DATA_ALLOW_PERSONALIZATION: PropertyData = PropertyData {
     key: KEY_ALLOW_PERSONALIZATION,
     namespace: NAMESPACE_PRIVACY,
-    event_names: Some(&[EVENT_ALLOW_PERSONALIZATION_CHANGED]),
+    event_names: Some(&[
+        EVENT_DISCOVERY_POLICY_CHANGED,
+        EVENT_ALLOW_PERSONALIZATION_CHANGED,
+    ]),
 };
 
 const PROPERTY_DATA_ALLOW_PRIMARY_BROWSE_AD_TARGETING: PropertyData = PropertyData {
@@ -372,7 +417,10 @@ const PROPERTY_DATA_ALLOW_UNENTITLED_RESUME_POINTS: PropertyData = PropertyData 
 const PROPERTY_DATA_ALLOW_WATCH_HISTORY: PropertyData = PropertyData {
     key: KEY_ALLOW_WATCH_HISTORY,
     namespace: NAMESPACE_PRIVACY,
-    event_names: Some(&[EVENT_ALLOW_WATCH_HISTORY_CHANGED]),
+    event_names: Some(&[
+        EVENT_DISCOVERY_POLICY_CHANGED,
+        EVENT_ALLOW_WATCH_HISTORY_CHANGED,
+    ]),
 };
 
 const PROPERTY_DATA_PARTNER_EXCLUSIONS: PropertyData = PropertyData {
@@ -389,6 +437,24 @@ const PROPERTY_DATA_SKIP_RESTRICTION: PropertyData = PropertyData {
         EVENT_ADVERTISING_POLICY_CHANGED,
         EVENT_ADVERTISING_SKIP_RESTRICTION_CHANGED,
     ]),
+};
+
+const PROPERTY_AUDIO_DESCRIPTION_ENABLED: PropertyData = PropertyData {
+    key: KEY_AUDIO_DESCRIPTION_ENABLED,
+    namespace: NAMESPACE_AUDIO_DESCRIPTION,
+    event_names: Some(&[EVENT_AUDIO_DESCRIPTION_SETTINGS_CHANGED]),
+};
+
+const PROPERTY_PREFERRED_AUDIO_LANGUAGES: PropertyData = PropertyData {
+    key: KEY_PREFERRED_AUDIO_LANGUAGES,
+    namespace: NAMESPACE_LOCALIZATION,
+    event_names: Some(&[EVENT_PREFERRED_AUDIO_LANGUAGES]),
+};
+
+const PROPERTY_CC_PREFERRED_LANGUAGES: PropertyData = PropertyData {
+    key: KEY_PREFERRED_AUDIO_LANGUAGES,
+    namespace: NAMESPACE_CLOSED_CAPTIONS,
+    event_names: Some(&[EVENT_CC_PREFERRED_LANGUAGES]),
 };
 
 #[derive(Debug)]
@@ -409,6 +475,8 @@ pub enum StorageProperty {
     ClosedCaptionsFontOpacity,
     ClosedCaptionsBackgroundColor,
     ClosedCaptionsBackgroundOpacity,
+    ClosedCaptionsWindowColor,
+    ClosedCaptionsWindowOpacity,
     ClosedCaptionsTextAlign,
     ClosedCaptionsTextAlignVertical,
     Locality,
@@ -426,6 +494,7 @@ pub enum StorageProperty {
     UserGrants,
     AllowAcrCollection,
     AllowAppContentAdTargeting,
+    AllowBusinessAnalytics,
     AllowCameraAnalytics,
     AllowPersonalization,
     AllowPrimaryBrowseAdTargeting,
@@ -438,6 +507,9 @@ pub enum StorageProperty {
     AllowWatchHistory,
     PartnerExclusions,
     SkipRestriction,
+    AudioDescriptionEnabled,
+    PreferredAudioLanguages,
+    CCPreferredLanguages,
 }
 
 impl StorageProperty {
@@ -460,6 +532,12 @@ impl StorageProperty {
             StorageProperty::ClosedCaptionsBackgroundOpacity => {
                 PROPERTY_DATA_CLOSED_CAPTIONS_BACKGROUND_OPACITY
             }
+            StorageProperty::ClosedCaptionsWindowColor => {
+                PROPERTY_DATA_CLOSED_CAPTIONS_WINDOW_COLOR
+            }
+            StorageProperty::ClosedCaptionsWindowOpacity => {
+                PROPERTY_DATA_CLOSED_CAPTIONS_WINDOW_OPACITY
+            }
             StorageProperty::ClosedCaptionsTextAlign => PROPERTY_DATA_CLOSED_CAPTIONS_TEXT_ALIGN,
             StorageProperty::ClosedCaptionsTextAlignVertical => {
                 PROPERTY_DATA_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL
@@ -481,6 +559,7 @@ impl StorageProperty {
             StorageProperty::AllowAppContentAdTargeting => {
                 PROPERTY_DATA_ALLOW_APP_CONTENT_AD_TARGETING
             }
+            StorageProperty::AllowBusinessAnalytics => PROPERTY_DATA_ALLOW_BUSINESS_ANALYTICS,
             StorageProperty::AllowCameraAnalytics => PROPERTY_DATA_ALLOW_CAMERA_ANALYTICS,
             StorageProperty::AllowPersonalization => PROPERTY_DATA_ALLOW_PERSONALIZATION,
             StorageProperty::AllowPrimaryBrowseAdTargeting => {
@@ -501,6 +580,9 @@ impl StorageProperty {
             StorageProperty::AllowWatchHistory => PROPERTY_DATA_ALLOW_WATCH_HISTORY,
             StorageProperty::PartnerExclusions => PROPERTY_DATA_PARTNER_EXCLUSIONS,
             StorageProperty::SkipRestriction => PROPERTY_DATA_SKIP_RESTRICTION,
+            StorageProperty::AudioDescriptionEnabled => PROPERTY_AUDIO_DESCRIPTION_ENABLED,
+            StorageProperty::PreferredAudioLanguages => PROPERTY_PREFERRED_AUDIO_LANGUAGES,
+            StorageProperty::CCPreferredLanguages => PROPERTY_CC_PREFERRED_LANGUAGES,
         }
     }
 
@@ -557,7 +639,7 @@ impl ExtnPayloadProvider for StorageManagerRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum StorageAdjective {
     PrivacyCloud,

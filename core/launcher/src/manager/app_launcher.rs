@@ -200,10 +200,7 @@ impl AppLauncher {
         lc_state: LifecycleState,
     ) -> BoxFuture<'static, AppResponse> {
         async move {
-            debug!(
-                "set_state: container_id={}, state={:?}",
-                container_id, state
-            );
+            debug!("set_state: container_id={}", container_id);
             let mut final_resp = Ok(AppManagerResponse::None);
             let mut item = state
                 .clone()
@@ -502,7 +499,7 @@ impl AppLauncher {
                             Self::set_state(state.clone(), props.name, LifecycleState::Inactive)
                                 .await
                                 .ok();
-                        } else {
+                        } else if let LifecycleState::Foreground = app.state {
                             Self::set_state(state.clone(), props.name, LifecycleState::Background)
                                 .await
                                 .ok();
