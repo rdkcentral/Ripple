@@ -103,10 +103,7 @@ impl MainContextProcessor {
                 cap: FireboltCap::Short("token:account".to_owned()),
                 role: CapabilityRole::Use,
             }]);
-        debug!(
-            "token::platform available status: {:?}",
-            available_result
-        );
+        debug!("token::platform available status: {:?}", available_result);
         available_result.is_ok()
     }
 
