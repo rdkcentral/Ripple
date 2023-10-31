@@ -153,6 +153,7 @@ impl FireboltGatekeeper {
                 }
             } else {
                 trace!("Role/Capability is cleared based on non-negotiable policy");
+                return Ok(());
             }
         } else {
             // Couldnt find any capabilities for the method
