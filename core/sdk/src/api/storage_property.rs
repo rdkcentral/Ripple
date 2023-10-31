@@ -33,6 +33,7 @@ pub const NAMESPACE_DEVICE_NAME: &str = "DeviceName";
 pub const NAMESPACE_LOCALIZATION: &str = "Localization";
 pub const NAMESPACE_USER_GRANT: &str = "UserGrant";
 pub const NAMESPACE_ADVERTISING: &str = "Advertising";
+pub const NAMESPACE_AUDIO_DESCRIPTION: &str = "AudioDescription";
 
 pub const KEY_ENABLED: &str = "enabled";
 pub const KEY_FONT_FAMILY: &str = "fontFamily";
@@ -76,6 +77,8 @@ pub const KEY_ALLOW_WATCH_HISTORY: &str = "allowWatchHistory";
 pub const KEY_VOICE_GUIDANCE_SPEED: &str = "speed";
 pub const KEY_PARTNER_EXCLUSIONS: &str = "partnerExclusions";
 pub const KEY_SKIP_RESTRICTION: &str = "skipRestriction";
+pub const KEY_AUDIO_DESCRIPTION_ENABLED: &str = "audioDescriptionEnabled";
+pub const KEY_PREFERRED_AUDIO_LANGUAGES: &str = "preferredAudioLanguages";
 
 pub const EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED: &str =
     "accessibility.onClosedCaptionsSettingsChanged";
@@ -129,7 +132,10 @@ pub const EVENT_SECOND_SCREEN_FRIENDLY_NAME_CHANGED: &str = "secondscreen.onFrie
 pub const EVENT_ADVERTISING_POLICY_CHANGED: &str = "advertising.onPolicyChanged";
 pub const EVENT_ADVERTISING_SKIP_RESTRICTION_CHANGED: &str = "advertising.onSkipRestrictionChanged";
 pub const EVENT_ADVERTISING_SKIP_RESTRICTION: &str = "advertising.setSkipRestriction";
-
+pub const EVENT_PREFERRED_AUDIO_LANGUAGES: &str = "Localization.onPreferredAudioLanguagesChanged";
+pub const EVENT_CC_PREFERRED_LANGUAGES: &str = "ClosedCaptions.onPreferredLanguagesChanged";
+pub const EVENT_AUDIO_DESCRIPTION_SETTINGS_CHANGED: &str =
+    "Accessibility.onAudioDescriptionSettingsChanged";
 pub const EVENT_TIMEZONE_CHANGED: &str = "localization.onTimeZoneChanged";
 
 const PROPERTY_DATA_CLOSED_CAPTIONS_ENABLED: PropertyData = PropertyData {
@@ -432,6 +438,24 @@ const PROPERTY_DATA_SKIP_RESTRICTION: PropertyData = PropertyData {
     ]),
 };
 
+const PROPERTY_AUDIO_DESCRIPTION_ENABLED: PropertyData = PropertyData {
+    key: KEY_AUDIO_DESCRIPTION_ENABLED,
+    namespace: NAMESPACE_AUDIO_DESCRIPTION,
+    event_names: Some(&[EVENT_AUDIO_DESCRIPTION_SETTINGS_CHANGED]),
+};
+
+const PROPERTY_PREFERRED_AUDIO_LANGUAGES: PropertyData = PropertyData {
+    key: KEY_PREFERRED_AUDIO_LANGUAGES,
+    namespace: NAMESPACE_LOCALIZATION,
+    event_names: Some(&[EVENT_PREFERRED_AUDIO_LANGUAGES]),
+};
+
+const PROPERTY_CC_PREFERRED_LANGUAGES: PropertyData = PropertyData {
+    key: KEY_PREFERRED_AUDIO_LANGUAGES,
+    namespace: NAMESPACE_CLOSED_CAPTIONS,
+    event_names: Some(&[EVENT_CC_PREFERRED_LANGUAGES]),
+};
+
 #[derive(Debug)]
 pub struct PropertyData {
     pub namespace: &'static str,
@@ -482,6 +506,9 @@ pub enum StorageProperty {
     AllowWatchHistory,
     PartnerExclusions,
     SkipRestriction,
+    AudioDescriptionEnabled,
+    PreferredAudioLanguages,
+    CCPreferredLanguages,
 }
 
 impl StorageProperty {
@@ -552,6 +579,9 @@ impl StorageProperty {
             StorageProperty::AllowWatchHistory => PROPERTY_DATA_ALLOW_WATCH_HISTORY,
             StorageProperty::PartnerExclusions => PROPERTY_DATA_PARTNER_EXCLUSIONS,
             StorageProperty::SkipRestriction => PROPERTY_DATA_SKIP_RESTRICTION,
+            StorageProperty::AudioDescriptionEnabled => PROPERTY_AUDIO_DESCRIPTION_ENABLED,
+            StorageProperty::PreferredAudioLanguages => PROPERTY_PREFERRED_AUDIO_LANGUAGES,
+            StorageProperty::CCPreferredLanguages => PROPERTY_CC_PREFERRED_LANGUAGES,
         }
     }
 
