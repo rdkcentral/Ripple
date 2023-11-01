@@ -114,7 +114,8 @@
       "xrn:firebolt:capability:token:session",
       "xrn:firebolt:capability:token:platform",
       "xrn:firebolt:capability:token:device",
-      "xrn:firebolt:capability:token:root"
+      "xrn:firebolt:capability:token:root",
+      "xrn:firebolt:capability:accessibility:audiodescriptions"
     ]
   },
   "lifecycle": {
