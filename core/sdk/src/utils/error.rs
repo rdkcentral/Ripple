@@ -70,7 +70,7 @@ mod tests {
         if let JsonRpcError::Custom(e) = error {
             assert_eq!(expected, e);
         } else {
-            assert!(false, " non error passed");
+            unreachable!("{}", " non error passed");
         }
     }
     #[test]
