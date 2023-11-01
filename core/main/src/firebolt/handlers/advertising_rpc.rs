@@ -148,7 +148,7 @@ async fn get_advertisting_policy(platform_state: &PlatformState) -> AdvertisingP
             StorageProperty::LimitAdTracking,
         )
         .await
-        .unwrap_or_else(|_| false),
+        .unwrap_or(false),
     }
 }
 #[derive(Clone)]
@@ -276,7 +276,7 @@ impl AdvertisingServer for AdvertisingImpl {
             app_version: "".to_string(),
             distributor_app_id: distributor_experience_id,
             device_ad_attributes: HashMap::new(),
-            coppa: config.options.coppa.unwrap_or_else(|| false),
+            coppa: config.options.coppa.unwrap_or(false),
             authentication_entity: config.options.authentication_entity.unwrap_or_default(),
             dist_session: session
                 .ok_or_else(|| Error::Custom(String::from("no session available")))?,
@@ -295,7 +295,7 @@ impl AdvertisingServer for AdvertisingImpl {
                         privacy_data: obj.privacy_data,
                         ifa: if is_permitted(self.state.clone(), ctx, params)
                             .await
-                            .unwrap_or_else(|_| false)
+                            .unwrap_or(false)
                         {
                             obj.ifa
                         } else {
@@ -306,7 +306,7 @@ impl AdvertisingServer for AdvertisingImpl {
                         app_bundle_id: obj.app_bundle_id,
                         distributor_app_id: obj.distributor_app_id,
                         device_ad_attributes: obj.device_ad_attributes,
-                        coppa: obj.coppa.to_string().parse::<u32>().unwrap_or_else(|_| 0),
+                        coppa: obj.coppa.to_string().parse::<u32>().unwrap_or(0),
                         authentication_entity: obj.authentication_entity,
                     };
                     Ok(ad_init_object)
