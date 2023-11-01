@@ -428,7 +428,7 @@ mod tests {
 
     fn merge(a: &mut Value, b: &Value) {
         match (a, b) {
-            (&mut Value::Object(ref mut a), &Value::Object(ref b)) => {
+            (&mut Value::Object(ref mut a), Value::Object(ref b)) => {
                 for (k, v) in b {
                     merge(a.entry(k.clone()).or_insert(Value::Null), v);
                 }
@@ -440,7 +440,7 @@ mod tests {
     }
 
     fn test_request(
-        method: String,
+        method_name: String,
         call_context: Option<CallContext>,
         params: Option<Value>,
     ) -> String {
@@ -452,7 +452,7 @@ mod tests {
         let v = serde_json::to_value(JsonRpcApiRequest {
             jsonrpc: "2.0".to_string(),
             id: Some(1),
-            method: method,
+            method: method_name,
             params: Some(the_map),
         })
         .unwrap();
