@@ -145,12 +145,13 @@ impl MainContextProcessor {
                         );
                     } else {
                         debug!("cap already available so just updating the token alone");
-                        let sync_response = state
+                        let update_token_response = state
                             .get_client()
                             .send_extn_request(SyncAndMonitorRequest::UpdateDistributorToken(
                                 account_session.token.clone(),
                             ))
                             .await;
+                        debug!("Cap token:account is already in available state. just updating Token res: {:?}", update_token_response);
                     }
                 }
             }
