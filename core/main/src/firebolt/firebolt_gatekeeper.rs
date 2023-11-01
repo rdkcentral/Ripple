@@ -103,35 +103,33 @@ impl FireboltGatekeeper {
                 reason: DenyReason::Unsupported,
                 caps: Vec::new(),
             });
-        } else {
-            let filtered_perm_list = state
-                .clone()
-                .cap_state
-                .generic
-                .clear_non_negotiable_permission(&state, &caps);
-            if filtered_perm_list.is_empty() {
-                trace!("Role/Capability is cleared based on non-negotiable policy");
-                return Ok(());
-            } else {
-                // Supported and Availability checks
-                trace!(
-                    "Required caps for method:{} Caps: [{:?}]",
-                    request.method,
-                    filtered_perm_list
-                );
-                if let Err(e) = state
-                    .clone()
-                    .cap_state
-                    .generic
-                    .check_all(&filtered_perm_list)
-                {
-                    trace!("check_all for caps[{:?}] failed", filtered_perm_list);
-                    return Err(e);
-                }
-                // // permission checks
-                Self::permissions_check(state, request, filtered_perm_list).await?
-            }
         }
+        let filtered_perm_list = state
+            .clone()
+            .cap_state
+            .generic
+            .clear_non_negotiable_permission(&state, &caps);
+        if filtered_perm_list.is_empty() {
+            trace!("Role/Capability is cleared based on non-negotiable policy");
+            return Ok(());
+        }
+        // Supported and Availability checks
+        trace!(
+            "Required caps for method:{} Caps: [{:?}]",
+            request.method,
+            filtered_perm_list
+        );
+        if let Err(e) = state
+            .clone()
+            .cap_state
+            .generic
+            .check_all(&filtered_perm_list)
+        {
+            trace!("check_all for caps[{:?}] failed", filtered_perm_list);
+            return Err(e);
+        }
+        // permission checks
+        Self::permissions_check(state, request, filtered_perm_list).await?;
         Ok(())
     }
 
@@ -151,28 +149,28 @@ impl FireboltGatekeeper {
                 e
             );
             return Err(e);
-        } else {
-            trace!("check_permitted for method ({}) succeded", request.method);
-            //usergrants check
-            if let Err(e) = GrantState::check_with_roles(
-                &state,
-                &request.ctx.clone().into(),
-                &request.ctx.clone().into(),
-                &filtered_perm_list,
-                true,
-            )
-            .await
-            {
-                trace!(
-                    "check_with_roles for method ({}) failed. Error: {:?}",
-                    request.method,
-                    e
-                );
-                return Err(e);
-            } else {
-                trace!("check_with_roles for method ({}) succeded", request.method);
-            }
         }
+        trace!("check_permitted for method ({}) succeded", request.method);
+        //usergrants check
+        if let Err(e) = GrantState::check_with_roles(
+            &state,
+            &request.ctx.clone().into(),
+            &request.ctx.clone().into(),
+            &filtered_perm_list,
+            true,
+        )
+        .await
+        {
+            trace!(
+                "check_with_roles for method ({}) failed. Error: {:?}",
+                request.method,
+                e
+            );
+            return Err(e);
+        } else {
+            trace!("check_with_roles for method ({}) succeded", request.method);
+        }
+
         Ok(())
     }
 }
