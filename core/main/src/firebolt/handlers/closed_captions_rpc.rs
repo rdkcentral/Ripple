@@ -36,17 +36,20 @@ use ripple_sdk::api::{
         },
         device_peristence::{SetProperty, SetPropertyOpt},
     },
-    firebolt::fb_general::{ListenRequest, ListenerResponse},
+    firebolt::{
+        fb_general::{ListenRequest, ListenerResponse},
+        fb_localization::SetPreferredAudioLanguage,
+    },
     gateway::rpc_gateway_api::CallContext,
     storage_property::{
-        StorageProperty as SP, EVENT_CLOSED_CAPTIONS_BACKGROUND_COLOR,
-        EVENT_CLOSED_CAPTIONS_BACKGROUND_OPACITY, EVENT_CLOSED_CAPTIONS_ENABLED,
-        EVENT_CLOSED_CAPTIONS_FONT_COLOR, EVENT_CLOSED_CAPTIONS_FONT_EDGE,
-        EVENT_CLOSED_CAPTIONS_FONT_EDGE_COLOR, EVENT_CLOSED_CAPTIONS_FONT_FAMILY,
-        EVENT_CLOSED_CAPTIONS_FONT_OPACITY, EVENT_CLOSED_CAPTIONS_FONT_SIZE,
-        EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED, EVENT_CLOSED_CAPTIONS_TEXT_ALIGN,
-        EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL, EVENT_CLOSED_CAPTIONS_WINDOW_COLOR,
-        EVENT_CLOSED_CAPTIONS_WINDOW_OPACITY,
+        StorageProperty as SP, EVENT_CC_PREFERRED_LANGUAGES,
+        EVENT_CLOSED_CAPTIONS_BACKGROUND_COLOR, EVENT_CLOSED_CAPTIONS_BACKGROUND_OPACITY,
+        EVENT_CLOSED_CAPTIONS_ENABLED, EVENT_CLOSED_CAPTIONS_FONT_COLOR,
+        EVENT_CLOSED_CAPTIONS_FONT_EDGE, EVENT_CLOSED_CAPTIONS_FONT_EDGE_COLOR,
+        EVENT_CLOSED_CAPTIONS_FONT_FAMILY, EVENT_CLOSED_CAPTIONS_FONT_OPACITY,
+        EVENT_CLOSED_CAPTIONS_FONT_SIZE, EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED,
+        EVENT_CLOSED_CAPTIONS_TEXT_ALIGN, EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL,
+        EVENT_CLOSED_CAPTIONS_WINDOW_COLOR, EVENT_CLOSED_CAPTIONS_WINDOW_OPACITY,
     },
 };
 use serde_json::Value;
@@ -273,6 +276,21 @@ pub trait Closedcaptions {
         _ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
+
+    #[method(name = "closedcaptions.preferredLanguages")]
+    async fn cc_preferred_languages(&self, _ctx: CallContext) -> RpcResult<Vec<String>>;
+    #[method(name = "closedcaptions.setPreferredLanguages")]
+    async fn cc_preferred_languages_set(
+        &self,
+        ctx: CallContext,
+        set_request: SetPreferredAudioLanguage,
+    ) -> RpcResult<()>;
+    #[method(name = "closedcaptions.onPreferredLanguagesChanged")]
+    async fn on_cc_preferred_languages(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
 }
 
 #[derive(Debug)]
@@ -299,7 +317,14 @@ impl ClosedcaptionsImpl {
             text_align: CI::get_string(ps, ClosedCaptionsTextAlign).await?,
             text_align_vertical: CI::get_string(ps, ClosedCaptionsTextAlignVertical).await?,
         };
-        Ok(ClosedCaptionsSettings { enabled, styles })
+        let preferred_languages = StorageManager::get_vec_string(ps, SP::CCPreferredLanguages)
+            .await
+            .unwrap_or(Vec::new());
+        Ok(ClosedCaptionsSettings {
+            enabled,
+            styles,
+            preferred_languages,
+        })
     }
 
     pub async fn get_string(ps: &PlatformState, property: SP) -> RpcResult<Option<String>> {
@@ -739,6 +764,36 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
             EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL,
         )
         .await
+    }
+
+    async fn cc_preferred_languages(&self, _ctx: CallContext) -> RpcResult<Vec<String>> {
+        Ok(
+            StorageManager::get_vec_string(&self.state, SP::CCPreferredLanguages)
+                .await
+                .unwrap_or(Vec::new()),
+        )
+    }
+
+    async fn cc_preferred_languages_set(
+        &self,
+        _ctx: CallContext,
+        set_request: SetPreferredAudioLanguage,
+    ) -> RpcResult<()> {
+        StorageManager::set_vec_string(
+            &self.state,
+            SP::CCPreferredLanguages,
+            set_request.get_string(),
+            None,
+        )
+        .await
+    }
+
+    async fn on_cc_preferred_languages(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        rpc_add_event_listener(&self.state, ctx, request, EVENT_CC_PREFERRED_LANGUAGES).await
     }
 }
 
