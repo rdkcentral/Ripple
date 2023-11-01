@@ -800,6 +800,14 @@ fn update_intent_source(source_app_id: String, request: LaunchRequest) -> Launch
                     provider_request_intent.context.source = source;
                     NavigationIntentStrict::ProviderRequest(provider_request_intent)
                 }
+                NavigationIntentStrict::PlayEntity(mut p) => {
+                    p.context.source = source;
+                    NavigationIntentStrict::PlayEntity(p)
+                }
+                NavigationIntentStrict::PlayQuery(mut p) => {
+                    p.context.source = source;
+                    NavigationIntentStrict::PlayQuery(p)
+                }
             };
 
             LaunchRequest {

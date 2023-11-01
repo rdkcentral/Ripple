@@ -17,6 +17,7 @@
 
 use std::{
     collections::HashMap,
+    path::Path,
     sync::{Arc, RwLock},
 };
 
@@ -118,7 +119,8 @@ impl PermittedState {
 }
 
 fn get_permissions_path(saved_dir: String) -> String {
-    format!("{}/{}", saved_dir, "app_perms")
+    let dir_path = Path::new(&saved_dir).join("app_perms");
+    dir_path.into_os_string().into_string().unwrap()
 }
 
 pub struct PermissionHandler;
