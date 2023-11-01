@@ -27,7 +27,7 @@ use ripple_sdk::{
         },
         device::{device_user_grants_data::EvaluateAt, entertainment_data::NavigationIntent},
         firebolt::{
-            fb_capabilities::FireboltPermission,
+            fb_capabilities::{DenyReason, DenyReasonWithCap, FireboltPermission},
             fb_discovery::DISCOVERY_EVENT_ON_NAVIGATE_TO,
             fb_lifecycle::LifecycleState,
             fb_lifecycle_management::{
@@ -540,31 +540,39 @@ impl DelegatedLauncherHandler {
                             app_id: cloned_app_id.to_owned(),
                         },
                         &perms_with_grants,
-                        false,
+                        true,
                     )
                     .await;
-                    if let Err(_deny_reason) = resolved_result {
-                        debug!("handle session for deferred grant");
-                        AppEvents::emit(
-                            &cloned_ps,
-                            LCM_EVENT_ON_SESSION_TRANSITION_CANCELED,
-                            &json!({ "app_id": cloned_app_id }),
-                        )
-                        .await;
-                    } else {
-                        let (resp_tx, resp_rx) =
-                            oneshot::channel::<Result<AppManagerResponse, AppError>>();
-                        let app_method = if loading {
-                            AppMethod::NewLoadedSession(session)
-                        } else {
-                            AppMethod::NewActiveSession(session)
-                        };
-                        if cloned_ps
-                            .get_client()
-                            .send_app_request(AppRequest::new(app_method, resp_tx))
-                            .is_ok()
-                        {
-                            let _ = rpc_await_oneshot(resp_rx).await.is_ok();
+                    match resolved_result {
+                        // Granted and Denied are valid results for app session lifecyclemgmt.
+                        Ok(_)
+                        | Err(DenyReasonWithCap {
+                            reason: DenyReason::GrantDenied,
+                            ..
+                        }) => {
+                            let (resp_tx, resp_rx) =
+                                oneshot::channel::<Result<AppManagerResponse, AppError>>();
+                            let app_method = if loading {
+                                AppMethod::NewLoadedSession(session)
+                            } else {
+                                AppMethod::NewActiveSession(session)
+                            };
+                            if cloned_ps
+                                .get_client()
+                                .send_app_request(AppRequest::new(app_method, resp_tx))
+                                .is_ok()
+                            {
+                                let _ = rpc_await_oneshot(resp_rx).await.is_ok();
+                            }
+                        }
+                        _ => {
+                            debug!("handle session for deferred grant and other errors");
+                            AppEvents::emit(
+                                &cloned_ps,
+                                LCM_EVENT_ON_SESSION_TRANSITION_CANCELED,
+                                &json!({ "app_id": cloned_app_id }),
+                            )
+                            .await;
                         }
                     }
                 });

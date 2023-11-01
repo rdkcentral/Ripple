@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize, Serializer};
 pub struct ClosedCaptionsSettings {
     pub enabled: bool,
     pub styles: ClosedCaptionStyle,
+    pub preferred_languages: Vec<String>,
 }
 
 pub const FONT_FAMILY_LIST: [&str; 7] = [
@@ -88,4 +89,14 @@ where
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
 pub struct VoiceGuidanceEnabledChangedEventData {
     pub state: bool,
+}
+
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+pub struct AudioDescriptionSettings {
+    pub enabled: bool,
+}
+
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+pub struct AudioDescriptionSettingsSet {
+    pub value: bool,
 }
