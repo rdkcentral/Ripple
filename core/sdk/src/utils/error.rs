@@ -63,11 +63,9 @@ impl From<RippleError> for JsonRpcError {
         JsonRpcError::Custom(format!("{}", value))
     }
 }
+#[cfg(test)]
 mod tests {
-    //use jsonrpsee_core::Error;
-
     use super::*;
-
     fn custom_error_match(expected: &str, error: JsonRpcError) {
         if let JsonRpcError::Custom(e) = error {
             assert_eq!(expected, e);
