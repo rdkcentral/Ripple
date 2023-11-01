@@ -893,11 +893,11 @@
 		}
 	},
 	"apis": {
-		"0": {
+		"1": {
 			"openrpc": "1.2.4",
 			"info": {
 				"title": "Firebolt JSON-RPC API",
-				"version": "0.18.0-next.7",
+				"version": "1.0.0-next.1",
 				"x-module-descriptions": {
 					"Internal": "Internal methods for SDK / FEE integration",
 					"Accessibility": "The `Accessibility` module provides access to the user/device settings for closed captioning and voice guidance.\n\nApps **SHOULD** attempt o respect these settings, rather than manage and persist seprate settings, which would be different per-app.",
