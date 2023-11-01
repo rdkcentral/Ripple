@@ -50,6 +50,15 @@ pub struct ActiveInputThunderEvent {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimeZoneChangedThunderEvent {
+    pub old_accuracy: String,
+    pub new_time_zone: String,
+    pub new_accuracy: String,
+    pub old_time_zone: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct ResolutionChangedEvent {
     pub width: i32,
     pub height: i32,
@@ -67,7 +76,7 @@ pub enum ThunderEventMessage {
     VoiceGuidance(VoiceGuidanceState),
     Audio(HashMap<AudioProfile, bool>),
     Custom(Value),
-    TimeZone(HashMap<String, String>),
+    TimeZone(TimeZoneChangedThunderEvent),
 }
 impl ThunderEventMessage {
     pub fn get(event: &str, value: &Value) -> Option<Self> {

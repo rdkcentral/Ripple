@@ -1046,7 +1046,7 @@ impl ThunderDeviceInfoRequestProcessor {
 
     pub async fn get_timezone_and_offset(state: &CachedState) -> TimeZone {
         // Try to get the timezone value, or return a default value if there's an error
-        let timezone = Self::get_timezone_value(state).await.unwrap_or_default();
+        let timezone = Self::get_timezone_value(&state).await.unwrap_or_default();
 
         // Try to get all timezones, or return a default value if there's an error
         let timezones = Self::get_all_timezones(&state).await.unwrap_or_default();

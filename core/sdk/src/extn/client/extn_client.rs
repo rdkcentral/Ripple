@@ -127,6 +127,7 @@ impl ExtnClient {
     ///
     /// Also starts the thread in the processor to accept incoming requests.
     pub fn add_request_processor(&mut self, mut processor: impl ExtnRequestProcessor) {
+        println!("**** add_request_processor");
         let contracts = if let Some(multiple_contracts) = processor.fulfills_mutiple() {
             multiple_contracts
         } else {
@@ -139,7 +140,7 @@ impl ExtnClient {
 
         contracts_supported.iter().for_each(|contract| {
             let processor_string: String = contract.as_clear_string();
-            info!("adding request processor {}", processor_string);
+            info!("**** adding request processor {}", processor_string);
             add_stream_processor(
                 processor_string,
                 processor.sender(),
@@ -169,6 +170,7 @@ impl ExtnClient {
     ///
     /// Also starts the thread in the processor to accept incoming events.
     pub fn add_event_processor(&mut self, mut processor: impl ExtnEventProcessor) {
+        println!("**** add_event_processor");
         add_vec_stream_processor(
             processor.contract().as_clear_string(),
             processor.sender(),
@@ -184,6 +186,7 @@ impl ExtnClient {
 
     /// Used mainly by `Main` application to add senders of the extensions for IEC
     pub fn add_sender(&mut self, id: ExtnId, symbol: ExtnSymbol, sender: CSender<CExtnMessage>) {
+        println!("**** add_sender");
         let id = id.to_string();
         {
             let mut sender_map = self.extn_sender_map.write().unwrap();
@@ -218,7 +221,7 @@ impl ExtnClient {
 
     /// Called once per client initialization this is a blocking method. Use a spawned thread to call this method
     pub async fn initialize(&self) {
-        debug!("Starting initialize");
+        debug!("**** Starting initialize");
         let receiver = self.receiver.clone();
         let mut index: u32 = 0;
         loop {
@@ -233,7 +236,7 @@ impl ExtnClient {
                     let message_result: Result<ExtnMessage, RippleError> =
                         c_message.clone().try_into();
                     if message_result.is_err() {
-                        error!("invalid message {:?}", c_message);
+                        error!("**** invalid message {:?}", c_message);
                         continue;
                     }
                     let message = message_result.unwrap();
@@ -247,7 +250,7 @@ impl ExtnClient {
                                 RippleContext::is_ripple_context(&message.payload)
                             {
                                 trace!(
-                                    "Received ripple context in {} message: {:?}",
+                                    "**** Received ripple context in {} message: {:?}",
                                     self.sender.get_cap().to_string(),
                                     message
                                 );
@@ -274,6 +277,7 @@ impl ExtnClient {
                             else if let Some(sender) =
                                 self.get_extn_sender_with_contract(target_contract)
                             {
+                                println!("**** handle_stream ");
                                 let mut new_message = message.clone();
                                 if new_message.callback.is_none() {
                                     // before forwarding check if the requestor needs to be added as callback
@@ -292,6 +296,7 @@ impl ExtnClient {
                                     }
                                 });
                             } else {
+                                println!("**** no handle_stream: handle_no_processor_error: ");
                                 // could be main contract
                                 if !Self::handle_stream(
                                     message.clone(),
@@ -321,13 +326,13 @@ impl ExtnClient {
             tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
         }
 
-        debug!("Initialize Ended Abruptly");
+        debug!("**** Initialize Ended Abruptly");
     }
 
     pub fn context_update(&self, request: RippleContextUpdateRequest) {
         let current_cap = self.sender.get_cap();
         if !current_cap.is_main() {
-            error!("Updating context is not allowed outside main");
+            error!("**** Updating context is not allowed outside main");
         }
 
         {
@@ -342,18 +347,20 @@ impl ExtnClient {
 
             for sender in senders {
                 let send_res = sender.send(c_message.clone());
-                trace!("Send to other client result: {:?}", send_res);
+                trace!("**** Send to other client result: {:?}", send_res);
             }
         }
         Self::handle_vec_stream(message, self.event_processors.clone());
     }
 
     fn handle_no_processor_error(&self, message: ExtnMessage) {
+        println!("**** handle_no_processor_error");
         let req_sender = self.get_extn_sender_with_extn_id(&message.requestor.to_string());
 
         if let Ok(resp) = message.get_response(ExtnResponse::Error(RippleError::ProcessorError)) {
+            println!("**** ProcessorError extn response");
             if self.sender.respond(resp.into(), req_sender).is_err() {
-                error!("Couldnt send no processor response");
+                error!("**** Couldnt send no processor response");
             }
         }
     }
@@ -371,11 +378,11 @@ impl ExtnClient {
         if let Some(processor_result) = processor_result {
             tokio::spawn(async move {
                 if let Err(e) = processor_result.send(msg) {
-                    error!("Error sending the response back {:?}", e);
+                    error!("**** Error sending the response back {:?}", e);
                 }
             });
         } else {
-            error!("No response processor for {:?}", msg);
+            error!("**** No response processor for {:?}", msg);
         }
     }
 
@@ -486,6 +493,7 @@ impl ExtnClient {
     }
 
     fn get_extn_sender_with_extn_id(&self, id: &str) -> Option<CSender<CExtnMessage>> {
+        println!("**** get_extn_sender_with_extn_id");
         return self.extn_sender_map.read().unwrap().get(id).cloned();
     }
 
@@ -716,6 +724,7 @@ impl ExtnClient {
 
     pub fn get_timezone(&self) -> Option<TimeZone> {
         let ripple_context = self.ripple_context.read().unwrap();
+        println!("**** ripple_context: {:?}", ripple_context);
         Some(ripple_context.time_zone.clone())
     }
 }

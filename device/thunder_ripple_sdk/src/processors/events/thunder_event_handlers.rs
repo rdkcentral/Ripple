@@ -591,19 +591,28 @@ impl TimezoneChangedEventHandler {
         value: ThunderEventMessage,
         _callback_type: DeviceEventCallback,
     ) {
+        println!("**** TimezoneChangedEventHandler: handle");
+        println!(
+            "**** TimezoneChangedEventHandler: handle: {:?}",
+            value.clone()
+        );
         if let ThunderEventMessage::TimeZone(v) = value {
             println!(
-                "**** handle: on time zone changed - ThunderEventMessage - v: {:?}",
+                "**** TimezoneChangedEventHandler: handle: on time zone changed - ThunderEventMessage - v: {:?}",
                 v
             );
             let cached_state = CachedState::new(state.clone());
             tokio::spawn(async move {
                 let tz =
                     ThunderDeviceInfoRequestProcessor::get_timezone_and_offset(&cached_state).await;
+                println!(
+                    "**** TimezoneChangedEventHandler: handle: tz: {:?}",
+                    tz.clone()
+                );
 
                 let event = ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
                     event_name: TIME_ZONE_CHANGED.to_string(),
-                    result: serde_json::to_value(tz.time_zone.clone()).unwrap_or_default(),
+                    result: serde_json::to_value(tz.clone().time_zone).unwrap(),
                     context: None,
                     app_id: None,
                 }));
@@ -617,13 +626,14 @@ impl TimezoneChangedEventHandler {
                 ThunderEventHandler::callback_context_update(
                     state,
                     RippleContextUpdateRequest::TimeZone(tz),
-                )
+                );
             });
         }
+        println!("**** TimezoneChangedEventHandler: handle value did not match");
     }
 
     pub fn is_valid(value: ThunderEventMessage) -> bool {
-        if let ThunderEventMessage::TimeZone(value) = value {
+        if let ThunderEventMessage::TimeZone(_) = value {
             println!(
                 "**** is_valid: on time zone changed - ThunderEventMessage - value: {:?}",
                 value
@@ -637,6 +647,7 @@ impl TimezoneChangedEventHandler {
 impl ThunderEventHandlerProvider for TimezoneChangedEventHandler {
     type EVENT = TimeZone;
     fn provide(id: String, callback_type: DeviceEventCallback) -> ThunderEventHandler {
+        println!("**** ThunderEventHandlerProvider: provide: ");
         ThunderEventHandler {
             request: Self::get_device_request(),
             handle: Self::handle,
@@ -665,23 +676,9 @@ impl ThunderEventHandlerProvider for TimezoneChangedEventHandler {
 
     fn get_extn_event(
         r: Self::EVENT,
-        callback_type: DeviceEventCallback,
+        _callback_type: DeviceEventCallback,
     ) -> Result<ExtnEvent, RippleError> {
-        let result = serde_json::to_value(r).unwrap();
-        match callback_type {
-            DeviceEventCallback::FireboltAppEvent(_) => {
-                println!("**** callback_type: DeviceEventCallback::FireboltAppEvent");
-                Ok(ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
-                    event_name: Self::get_mapped_event(),
-                    context: None,
-                    result,
-                    app_id: None,
-                })))
-            }
-            DeviceEventCallback::ExtnEvent => {
-                println!("**** callback_type: DeviceEventCallback::ExtnEvent");
-                Ok(ExtnEvent::Value(result))
-            }
-        }
+        println!("**** get_extn_event: r: {:?}", r);
+        Err(RippleError::InvalidOutput)
     }
 }

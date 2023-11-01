@@ -477,7 +477,11 @@ impl LocalizationServer for LocalizationImpl {
         .await
     }
 
-    async fn timezone_set(&self, ctx: CallContext, set_request: TimezoneProperty) -> RpcResult<()> {
+    async fn timezone_set(
+        &self,
+        _ctx: CallContext,
+        set_request: TimezoneProperty,
+    ) -> RpcResult<()> {
         let resp = self
             .platform_state
             .get_client()
@@ -511,14 +515,12 @@ impl LocalizationServer for LocalizationImpl {
             .send_extn_request(DeviceInfoRequest::SetTimezone(set_request.value.clone()))
             .await
         {
-            rpc_add_event_listener(
+            AppEvents::emit(
                 &self.platform_state,
-                ctx,
-                ListenRequest { listen: true },
                 EVENT_TIMEZONE_CHANGED,
+                &serde_json::to_value(set_request.value).unwrap_or_default(),
             )
-            .await
-            .ok();
+            .await;
             return Ok(());
         }
         Err(rpc_err("timezone: error response TBD"))
@@ -543,39 +545,21 @@ impl LocalizationServer for LocalizationImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        // rpc_add_event_listener(
-        //     &self.platform_state,
-        //     ctx.clone(),
-        //     request.clone(),
-        //     EVENT_TIMEZONE_CHANGED,
-        // )
-        // .await;
-
-        AppEvents::add_listener(
-            &self.platform_state,
-            TIME_ZONE_CHANGED.to_string(),
-            ctx.clone(),
-            request.clone(),
-        );
-
         if self
             .platform_state
             .get_client()
             .send_extn_request(DeviceEventRequest {
                 event: DeviceEvent::TimeZoneChanged,
-                subscribe: request.clone().listen,
-                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
+                subscribe: true,
+                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id.to_owned()),
             })
             .await
             .is_err()
         {
-            error!("Error while registration");
+            error!("on_timezone_changed: Error while registration");
         }
 
-        Ok(ListenerResponse {
-            listening: request.clone().listen,
-            event: TIME_ZONE_CHANGED.to_string(),
-        })
+        rpc_add_event_listener(&self.platform_state, ctx, request, TIME_ZONE_CHANGED).await
     }
 }
 

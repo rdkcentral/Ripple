@@ -127,25 +127,23 @@ impl ContextManager {
                 }
             }
 
-            // Get TimeZone
-            tokio::spawn(async move {
-                if let Ok(resp) = ps_c
-                    .get_client()
-                    .send_extn_request(DeviceInfoRequest::GetTimezoneWithOffset)
-                    .await
+            // Get Initial TimeZone
+            if let Ok(resp) = ps_c
+                .get_client()
+                .send_extn_request(DeviceInfoRequest::GetTimezoneWithOffset)
+                .await
+            {
+                if let Some(ExtnResponse::TimezoneWithOffset(tz, offset)) =
+                    resp.payload.extract::<ExtnResponse>()
                 {
-                    if let Some(ExtnResponse::TimezoneWithOffset(tz, offset)) =
-                        resp.payload.extract::<ExtnResponse>()
-                    {
-                        ps_c.get_client().get_extn_client().context_update(
-                            RippleContextUpdateRequest::TimeZone(TimeZone {
-                                time_zone: tz,
-                                offset,
-                            }),
-                        );
-                    }
+                    ps_c.get_client().get_extn_client().context_update(
+                        RippleContextUpdateRequest::TimeZone(TimeZone {
+                            time_zone: tz,
+                            offset,
+                        }),
+                    );
                 }
-            });
+            }
         });
     }
 }

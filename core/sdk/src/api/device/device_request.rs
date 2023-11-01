@@ -16,7 +16,7 @@
 //
 
 use crate::{
-    api::firebolt::fb_openrpc::FireboltSemanticVersion,
+    api::{firebolt::fb_openrpc::FireboltSemanticVersion, session::EventAdjective},
     extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
     framework::ripple_contract::RippleContract,
     utils::serde_utils::language_code_serde,
@@ -278,6 +278,24 @@ impl Default for TimeZone {
             time_zone: String::new(),
             offset: 0,
         }
+    }
+}
+
+impl ExtnPayloadProvider for TimeZone {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Event(ExtnEvent::TimeZone(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<TimeZone> {
+        if let ExtnPayload::Event(ExtnEvent::TimeZone(r)) = payload {
+            return Some(r);
+        }
+
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::DeviceEvents(EventAdjective::TimeZone)
     }
 }
 
