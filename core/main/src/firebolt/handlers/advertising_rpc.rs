@@ -142,13 +142,13 @@ async fn get_advertisting_policy(platform_state: &PlatformState) -> AdvertisingP
             StorageProperty::SkipRestriction,
         )
         .await
-        .unwrap_or(String::from(NONE)),
+        .unwrap_or_else(|_| String::from(NONE)),
         limit_ad_tracking: StorageManager::get_bool(
             platform_state,
             StorageProperty::LimitAdTracking,
         )
         .await
-        .unwrap_or(false),
+        .unwrap_or_else(|_| false),
     }
 }
 #[derive(Clone)]
@@ -184,7 +184,7 @@ impl AppEventDecorator for AdvertisingSetRestrictionEventDecorator {
         Ok(serde_json::to_value(
             StorageManager::get_string(ps, StorageProperty::SkipRestriction)
                 .await
-                .unwrap_or(String::from(NONE)),
+                .unwrap_or_else(|_| String::from(NONE)),
         )?)
     }
     fn dec_clone(&self) -> Box<dyn AppEventDecorator + Send + Sync> {
@@ -205,7 +205,7 @@ impl AdvertisingServer for AdvertisingImpl {
                 self.state
                     .session_state
                     .get_account_session()
-                    .ok_or(Error::Custom(String::from("no session available")))?,
+                    .ok_or_else(|| Error::Custom(String::from("no session available")))?,
             ))
             .await
             .map(|_ok| ())
@@ -276,9 +276,10 @@ impl AdvertisingServer for AdvertisingImpl {
             app_version: "".to_string(),
             distributor_app_id: distributor_experience_id,
             device_ad_attributes: HashMap::new(),
-            coppa: config.options.coppa.unwrap_or(false),
+            coppa: config.options.coppa.unwrap_or_else(|| false),
             authentication_entity: config.options.authentication_entity.unwrap_or_default(),
-            dist_session: session.ok_or(Error::Custom(String::from("no session available")))?,
+            dist_session: session
+                .ok_or_else(|| Error::Custom(String::from("no session available")))?,
         });
 
         match self.state.get_client().send_extn_request(payload).await {
@@ -294,7 +295,7 @@ impl AdvertisingServer for AdvertisingImpl {
                         privacy_data: obj.privacy_data,
                         ifa: if is_permitted(self.state.clone(), ctx, params)
                             .await
-                            .unwrap_or(false)
+                            .unwrap_or_else(|_| false)
                         {
                             obj.ifa
                         } else {
@@ -305,7 +306,7 @@ impl AdvertisingServer for AdvertisingImpl {
                         app_bundle_id: obj.app_bundle_id,
                         distributor_app_id: obj.distributor_app_id,
                         device_ad_attributes: obj.device_ad_attributes,
-                        coppa: obj.coppa.to_string().parse::<u32>().unwrap(),
+                        coppa: obj.coppa.to_string().parse::<u32>().unwrap_or_else(|_| 0),
                         authentication_entity: obj.authentication_entity,
                     };
                     Ok(ad_init_object)
@@ -382,7 +383,7 @@ impl AdvertisingServer for AdvertisingImpl {
         Ok(
             StorageManager::get_string(&self.state, StorageProperty::SkipRestriction)
                 .await
-                .unwrap_or(String::from(NONE)),
+                .unwrap_or_else(|_| String::from(NONE)),
         )
     }
 
