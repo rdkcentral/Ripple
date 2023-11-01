@@ -143,12 +143,10 @@ async fn get_advertisting_policy(platform_state: &PlatformState) -> AdvertisingP
         )
         .await
         .unwrap_or_else(|_| String::from(NONE)),
-        limit_ad_tracking: StorageManager::get_bool(
+        limit_ad_tracking: !privacy_rpc::PrivacyImpl::get_allow_app_content_ad_targeting(
             platform_state,
-            StorageProperty::LimitAdTracking,
         )
-        .await
-        .unwrap_or(false),
+        .await,
     }
 }
 #[derive(Clone)]
