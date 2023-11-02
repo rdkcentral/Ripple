@@ -143,6 +143,9 @@ impl ExtnRequestProcessor for DistributorMetricsProcessor {
             BehavioralMetricPayload::MediaEnded(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
+            BehavioralMetricPayload::AppStateChange(_) => {
+                mock_metrics_response(state, msg, extracted_message).await
+            }
             BehavioralMetricPayload::Raw(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }

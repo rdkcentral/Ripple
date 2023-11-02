@@ -43,6 +43,11 @@ where
     }
 
     fn write_to_disk(&self, value: String) {
+        // Create the folder if it doesnt exist
+        let p = Path::new(&self.path);
+        if let Some(parent) = p.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
         match OpenOptions::new()
             .create(true)
             .truncate(true)

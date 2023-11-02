@@ -27,6 +27,7 @@ use ripple_sdk::{
         },
         extn_client_message::ExtnMessage,
     },
+    log::info,
     serde_json::json,
     tokio::sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
     utils::error::RippleError,
@@ -137,6 +138,7 @@ impl ExtnEventProcessor for ThunderTelemetryProcessor {
         extracted_message: Self::VALUE,
     ) -> Option<bool> {
         if let Ok(data) = render_event_data(&extracted_message) {
+            info!("Sending telemetry event: {}", data);
             state
                 .get_thunder_client()
                 .call(DeviceCallRequest {

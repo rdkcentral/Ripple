@@ -12,7 +12,8 @@
                         "config",
                         "app_events",
                         "rpc",
-                        "ripple_context"
+                        "ripple_context",
+                        "operational_metric_listener"
                     ],
                     "fulfills": [
                         "device_info",
@@ -32,7 +33,10 @@
                         "audio.device_events",
                         "system_power_state.device_events",
                         "time_zone.device_events"
-                    ]
+                    ],
+                    "config": {
+                        "rdk_telemetry": "true"
+                    }
                 }
             ]
         },
