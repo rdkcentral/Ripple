@@ -116,3 +116,13 @@ pub fn storage_to_void_rpc_result(resp: Result<ExtnResponse, RippleError>) -> Rp
         Err(_) => Err(storage_error()),
     }
 }
+
+pub fn storage_to_vec_string_rpc_result(
+    resp: Result<ExtnResponse, RippleError>,
+) -> RpcResult<Vec<String>> {
+    let value = get_value(resp)?;
+    match serde_json::from_value(value) {
+        Ok(v) => Ok(v),
+        Err(_) => Err(storage_error()),
+    }
+}
