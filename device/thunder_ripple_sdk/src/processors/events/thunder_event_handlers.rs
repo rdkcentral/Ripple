@@ -591,25 +591,11 @@ impl TimezoneChangedEventHandler {
         value: ThunderEventMessage,
         _callback_type: DeviceEventCallback,
     ) {
-        println!("**** TimezoneChangedEventHandler: handle");
-        println!(
-            "**** TimezoneChangedEventHandler: handle: {:?}",
-            value.clone()
-        );
-        if let ThunderEventMessage::TimeZone(v) = value {
-            println!(
-                "**** TimezoneChangedEventHandler: handle: on time zone changed - ThunderEventMessage - v: {:?}",
-                v
-            );
+        if let ThunderEventMessage::TimeZone(_v) = value {
             let cached_state = CachedState::new(state.clone());
             tokio::spawn(async move {
                 let tz =
                     ThunderDeviceInfoRequestProcessor::get_timezone_and_offset(&cached_state).await;
-                println!(
-                    "**** TimezoneChangedEventHandler: handle: tz: {:?}",
-                    tz.clone()
-                );
-
                 let event = ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
                     event_name: TIME_ZONE_CHANGED.to_string(),
                     result: serde_json::to_value(tz.clone().time_zone).unwrap(),
@@ -629,15 +615,10 @@ impl TimezoneChangedEventHandler {
                 );
             });
         }
-        println!("**** TimezoneChangedEventHandler: handle value did not match");
     }
 
     pub fn is_valid(value: ThunderEventMessage) -> bool {
         if let ThunderEventMessage::TimeZone(_) = value {
-            println!(
-                "**** is_valid: on time zone changed - ThunderEventMessage - value: {:?}",
-                value
-            );
             return true;
         }
         false
@@ -647,7 +628,6 @@ impl TimezoneChangedEventHandler {
 impl ThunderEventHandlerProvider for TimezoneChangedEventHandler {
     type EVENT = TimeZone;
     fn provide(id: String, callback_type: DeviceEventCallback) -> ThunderEventHandler {
-        println!("**** ThunderEventHandlerProvider: provide: ");
         ThunderEventHandler {
             request: Self::get_device_request(),
             handle: Self::handle,
@@ -675,10 +655,9 @@ impl ThunderEventHandlerProvider for TimezoneChangedEventHandler {
     }
 
     fn get_extn_event(
-        r: Self::EVENT,
+        _r: Self::EVENT,
         _callback_type: DeviceEventCallback,
     ) -> Result<ExtnEvent, RippleError> {
-        println!("**** get_extn_event: r: {:?}", r);
         Err(RippleError::InvalidOutput)
     }
 }

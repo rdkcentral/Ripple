@@ -146,11 +146,6 @@ impl MainContextProcessor {
             info!("Usergrants updated for Powerstate");
         }
     }
-
-    // pub async fn initialize_time_zone(state: &PlatformState, tz: &TimeZone) {
-    //     println!("**** main_context_processor: handle_time_zone_change");
-
-    // }
 }
 
 impl ExtnStreamProcessor for MainContextProcessor {
@@ -189,13 +184,6 @@ impl ExtnEventProcessor for MainContextProcessor {
                     Self::handle_power_state(&state.state, &extracted_message.system_power_state)
                         .await
                 }
-                // RippleContextUpdateType::TimeZoneChanged => {
-                //     println!(
-                //         "**** main_context_processor: RippleContextUpdateType::TimeZoneChanged: &extracted_message: {:?}",
-                //         &extracted_message
-                //     );
-                //     Self::initialize_time_zone(&extracted_message.time_zone).await
-                // }
                 _ => {}
             }
             {

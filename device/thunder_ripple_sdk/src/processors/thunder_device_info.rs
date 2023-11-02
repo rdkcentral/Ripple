@@ -1006,7 +1006,7 @@ impl ThunderDeviceInfoRequestProcessor {
             })
             .await;
 
-        info!("**** getTimeZoneDST: {}", response.message);
+        info!("getTimeZoneDST: {}", response.message);
         if response.message.get("success").is_none()
             || response.message["success"].as_bool().unwrap_or_default()
         {

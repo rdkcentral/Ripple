@@ -119,15 +119,9 @@ impl RippleContext {
     }
 
     pub fn what_changed(&self, context: &RippleContext) -> RippleContextUpdateType {
-        println!("**** what_changed: context:{:?}", context);
-        println!(
-            "**** what_changed: context.time_zone:{:?}",
-            context.time_zone
-        );
         if self.internet_connectivity == context.internet_connectivity {
             RippleContextUpdateType::InternetConnectionChanged
         } else if self.time_zone == context.time_zone {
-            println!("**** what_changed :{:?}", context.time_zone);
             RippleContextUpdateType::TimeZoneChanged
         } else {
             RippleContextUpdateType::ActivationStatusChanged

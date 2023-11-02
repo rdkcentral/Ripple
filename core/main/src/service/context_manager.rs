@@ -85,7 +85,7 @@ impl ContextManager {
             .await
             .is_err()
         {
-            warn!("**** No processor to set TimeZoneChanged status listener")
+            warn!("No processor to set TimeZoneChanged status listener")
         }
 
         let ps_c = ps.clone();
