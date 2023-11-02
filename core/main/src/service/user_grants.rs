@@ -1264,7 +1264,6 @@ impl GrantPolicyEnforcer {
         if policy.options.is_empty() {
             return Ok(());
         }
-
         let first_supported_option = policy.options.iter().find(|grant_requirements| {
             let step_caps = grant_requirements
                 .steps
@@ -1274,7 +1273,6 @@ impl GrantPolicyEnforcer {
                     role: CapabilityRole::Use,
                 })
                 .collect();
-
             platform_state
                 .cap_state
                 .generic
@@ -1576,24 +1574,97 @@ mod tests {
 
     mod test_grant_policy_enforcer {
         use super::*;
-        use crate::utils::test_utils::{fb_perm, MockRuntime};
-        use futures::FutureExt;
+        use crate::{
+            firebolt::handlers::{
+                acknowledge_rpc::{AcknowledgeChallengeImpl, AcknowledgeChallengeServer},
+                pin_rpc::{PinChallengeImpl, PinChallengeServer},
+            },
+            state::session_state::Session,
+            utils::test_utils::{fb_perm, MockRuntime},
+        };
         use ripple_sdk::{
             api::{
+                apps::EffectiveTransport,
                 device::device_user_grants_data::GrantRequirements,
                 firebolt::{
-                    fb_pin::{PinChallengeResultReason, PIN_CHALLENGE_CAPABILITY},
-                    provider::ACK_CHALLENGE_CAPABILITY,
+                    fb_general::ListenRequest,
+                    fb_pin::{
+                        PinChallengeResponse, PinChallengeResultReason, PIN_CHALLENGE_CAPABILITY,
+                    },
+                    provider::{
+                        ChallengeResponse, ExternalProviderRequest, ExternalProviderResponse,
+                        ACK_CHALLENGE_CAPABILITY,
+                    },
                 },
                 gateway::rpc_gateway_api::CallContext,
             },
-            tokio::{
-                self, join,
-                time::{self, Duration},
-            },
+            tokio::{self},
             utils::logger::init_logger,
         };
         use serde_json::json;
+        struct ProviderApp;
+        impl ProviderApp {
+            pub async fn start(
+                state: PlatformState,
+                ctx: CallContext,
+                pin_response: PinChallengeResponse,
+                ack_response: ChallengeResponse,
+            ) {
+                let (tx, mut rx) = tokio::sync::mpsc::channel(32);
+                let sample_app_session =
+                    Session::new("app_id".to_owned(), Some(tx), EffectiveTransport::Websocket);
+                let state_c = state.clone();
+                let ctx_c = ctx.clone();
+                state
+                    .session_state
+                    .add_session(ctx.session_id.clone(), sample_app_session);
+                let pin_provider_handler = PinChallengeImpl {
+                    platform_state: state_c.clone(),
+                };
+                let _res = pin_provider_handler
+                    .on_request_challenge(ctx_c.clone(), ListenRequest { listen: true })
+                    .await;
+                let ack_provider_handler = AcknowledgeChallengeImpl {
+                    platform_state: state_c.clone(),
+                };
+
+                let _res = ack_provider_handler
+                    .on_request_challenge(ctx_c.clone(), ListenRequest { listen: true })
+                    .await;
+                tokio::spawn(async move {
+                    while let Some(message) = rx.recv().await {
+                        let json_msg = serde_json::from_str::<Value>(&message.jsonrpc_msg).unwrap();
+                        let msg = json_msg.get("result").cloned().unwrap();
+                        let req = serde_json::from_value::<
+                            ExternalProviderRequest<PinChallengeRequest>,
+                        >(msg.clone());
+                        if let Ok(prov_req) = req {
+                            let corr_id = prov_req.correlation_id.clone();
+                            let challenge_resp = ExternalProviderResponse::<PinChallengeResponse> {
+                                correlation_id: corr_id,
+                                result: pin_response.clone(),
+                            };
+                            let _ = pin_provider_handler
+                                .challenge_response(ctx_c.clone(), challenge_resp)
+                                .await;
+                        } else {
+                            let req =
+                                serde_json::from_value::<ExternalProviderRequest<Challenge>>(msg);
+                            if let Ok(prov_req) = req {
+                                let corr_id = prov_req.correlation_id.clone();
+                                let challenge_resp = ExternalProviderResponse::<ChallengeResponse> {
+                                    correlation_id: corr_id,
+                                    result: ack_response.clone(),
+                                };
+                                let _ = ack_provider_handler
+                                    .challenge_response(ctx_c.clone(), challenge_resp)
+                                    .await;
+                            }
+                        }
+                    }
+                });
+            }
+        }
 
         fn setup(
             policy_options: Vec<GrantRequirements>,
@@ -1675,7 +1746,6 @@ mod tests {
                 &policy,
             )
             .await;
-            println!("result: {:?}", result);
 
             assert!(result.is_err());
             assert_eq!(
@@ -1706,9 +1776,21 @@ mod tests {
             ]);
             let caller_session: CallerSession = CallerSession::default();
             let app_identifier: AppIdentification = ctx.clone().into();
-            let pinchallenge_response = state
-                .provider_broker_state
-                .send_pinchallenge_success(&state, &ctx);
+            // let pinchallenge_response = state
+            //     .provider_broker_state
+            //     .send_pinchallenge_success(&state, &ctx);
+            ProviderApp::start(
+                state.clone(),
+                ctx.clone(),
+                PinChallengeResponse {
+                    granted: Some(true),
+                    reason: PinChallengeResultReason::CorrectPin,
+                },
+                ChallengeResponse {
+                    granted: Some(true),
+                },
+            )
+            .await;
 
             let evaluate_options = GrantPolicyEnforcer::evaluate_options(
                 &state,
@@ -1716,10 +1798,11 @@ mod tests {
                 &app_identifier,
                 &perm,
                 &policy,
-            );
-            let (result, _) = join!(evaluate_options, pinchallenge_response);
+            )
+            .await;
+            // let (result, _) = join!(evaluate_options, pinchallenge_response);
 
-            assert!(result.is_ok());
+            assert!(evaluate_options.is_ok());
         }
 
         #[tokio::test]
@@ -1739,11 +1822,23 @@ mod tests {
                     }],
                 },
             ]);
+            ProviderApp::start(
+                state.clone(),
+                ctx.clone(),
+                PinChallengeResponse {
+                    granted: Some(true),
+                    reason: PinChallengeResultReason::CorrectPin,
+                },
+                ChallengeResponse {
+                    granted: Some(true),
+                },
+            )
+            .await;
             let caller_session: CallerSession = CallerSession::default();
             let app_identifier: AppIdentification = ctx.clone().into();
-            let pinchallenge_response = state
-                .provider_broker_state
-                .send_pinchallenge_success(&state, &ctx);
+            // let pinchallenge_response = state
+            //     .provider_broker_state
+            //     .send_pinchallenge_success(&state, &ctx);
 
             let evaluate_options = GrantPolicyEnforcer::evaluate_options(
                 &state,
@@ -1751,10 +1846,11 @@ mod tests {
                 &app_identifier,
                 &perm,
                 &policy,
-            );
-            let (result, _) = join!(evaluate_options, pinchallenge_response);
+            )
+            .await;
+            // let (result, _) = join!(evaluate_options, pinchallenge_response);
 
-            assert!(result.is_ok());
+            assert!(evaluate_options.is_ok());
         }
 
         #[tokio::test]
@@ -1827,20 +1923,33 @@ mod tests {
             }]);
             let caller_session: CallerSession = CallerSession::default();
             let app_identifier: AppIdentification = ctx.clone().into();
-            let challenge_responses = state.provider_broker_state.send_pinchallenge_failure(
-                &state,
-                &ctx,
-                PinChallengeResultReason::ExceededPinFailures,
-            );
+            // let challenge_responses = state.provider_broker_state.send_pinchallenge_failure(
+            //     &state,
+            //     &ctx,
+            //     PinChallengeResultReason::ExceededPinFailures,
+            // );
+            ProviderApp::start(
+                state.clone(),
+                ctx.clone(),
+                PinChallengeResponse {
+                    granted: Some(false),
+                    reason: PinChallengeResultReason::ExceededPinFailures,
+                },
+                ChallengeResponse {
+                    granted: Some(true),
+                },
+            )
+            .await;
 
-            let evaluate_options = GrantPolicyEnforcer::evaluate_options(
+            let result = GrantPolicyEnforcer::evaluate_options(
                 &state,
                 &caller_session,
                 &app_identifier,
                 &perm,
                 &policy,
-            );
-            let (result, _) = join!(evaluate_options, challenge_responses);
+            )
+            .await;
+            // let (result, _) = join!(evaluate_options, challenge_responses);
 
             assert!(result.is_err());
             assert_eq!(
@@ -1868,27 +1977,40 @@ mod tests {
             }]);
             let caller_session: CallerSession = CallerSession::default();
             let app_identifier: AppIdentification = ctx.clone().into();
-            let challenge_responses = state
-                .provider_broker_state
-                .send_pinchallenge_success(&state, &ctx)
-                .then(|_| async {
-                    // TODO: workout how to do this without sleep
-                    time::sleep(Duration::new(1, 0)).await;
-                    state
-                        .provider_broker_state
-                        .send_ackchallenge_failure(&state, &ctx)
-                        .await;
-                });
+            // let challenge_responses = state
+            //     .provider_broker_state
+            //     .send_pinchallenge_success(&state, &ctx)
+            //     .then(|_| async {
+            //         // TODO: workout how to do this without sleep
+            //         time::sleep(Duration::new(1, 0)).await;
+            //         state
+            //             .provider_broker_state
+            //             .send_ackchallenge_failure(&state, &ctx)
+            //             .await;
+            //     });
+            ProviderApp::start(
+                state.clone(),
+                ctx.clone(),
+                PinChallengeResponse {
+                    granted: Some(true),
+                    reason: PinChallengeResultReason::CorrectPin,
+                },
+                ChallengeResponse {
+                    granted: Some(false),
+                },
+            )
+            .await;
 
-            let evaluate_options = GrantPolicyEnforcer::evaluate_options(
+            let result = GrantPolicyEnforcer::evaluate_options(
                 &state,
                 &caller_session,
                 &app_identifier,
                 &perm,
                 &policy,
-            );
+            )
+            .await;
 
-            let (result, _) = join!(evaluate_options, challenge_responses);
+            // let (result, _) = join!(evaluate_options, challenge_responses);
 
             assert!(result.is_err());
             assert_eq!(
@@ -1914,19 +2036,36 @@ mod tests {
                     },
                 ],
             }]);
+            ProviderApp::start(
+                state.clone(),
+                ctx.clone(),
+                PinChallengeResponse {
+                    granted: Some(true),
+                    reason: PinChallengeResultReason::CorrectPin,
+                },
+                ChallengeResponse {
+                    granted: Some(true),
+                },
+            )
+            .await;
+
+            // state
+            //     .session_state
+            //     .add_session("app_id".to_owned(), sample_app_session);
+
             let caller_session: CallerSession = CallerSession::default();
             let app_identifier: AppIdentification = ctx.clone().into();
-            let challenge_responses = state
-                .provider_broker_state
-                .send_pinchallenge_success(&state, &ctx)
-                .then(|_| async {
-                    // TODO: workout how to do this without sleep
-                    time::sleep(Duration::new(1, 0)).await;
-                    state
-                        .provider_broker_state
-                        .send_ackchallenge_success(&state, &ctx)
-                        .await;
-                });
+            // let challenge_responses = state
+            //     .provider_broker_state
+            //     .send_pinchallenge_success(&state, &ctx)
+            //     .then(|_| async {
+            //         // TODO: workout how to do this without sleep
+            //         time::sleep(Duration::new(1, 0)).await;
+            //         state
+            //             .provider_broker_state
+            //             .send_ackchallenge_success(&state, &ctx)
+            //             .await;
+            //     });
 
             let evaluate_options = GrantPolicyEnforcer::evaluate_options(
                 &state,
@@ -1934,10 +2073,11 @@ mod tests {
                 &app_identifier,
                 &perm,
                 &policy,
-            );
-            let (result, _) = join!(evaluate_options, challenge_responses);
+            )
+            .await;
+            debug!("result of evaluate option: {:?}", evaluate_options);
 
-            assert!(result.is_ok());
+            assert!(evaluate_options.is_ok());
         }
     }
 }

@@ -89,10 +89,10 @@ impl GenericCapState {
             .map(|fb_perm| fb_perm.cap.clone())
             .collect();
 
-        debug!(
-            "checking supported caps request={:?}, not_supported={:?}",
-            request, not_supported
-        );
+        // debug!(
+        //     "checking supported caps request={:?}, not_supported={:?}, supported: {:?}",
+        //     request, not_supported, supported
+        // );
 
         if !not_supported.is_empty() {
             return Err(DenyReasonWithCap::new(
@@ -114,6 +114,10 @@ impl GenericCapState {
                 result.push(fb_perm.cap.clone())
             }
         }
+        debug!(
+            "checking availability of caps request={:?}, not_available={:?}, result: {:?}",
+            request, not_available, result
+        );
         if !result.is_empty() {
             return Err(DenyReasonWithCap::new(DenyReason::Unavailable, result));
         }
