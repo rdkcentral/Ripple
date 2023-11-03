@@ -35,11 +35,15 @@ use ripple_sdk::{
                 LCM_EVENT_ON_SESSION_TRANSITION_CANCELED,
                 LCM_EVENT_ON_SESSION_TRANSITION_COMPLETED,
             },
+            fb_metrics::{
+                AppLifecycleState, AppLifecycleStateChange, BehavioralMetricContext,
+                BehavioralMetricPayload, ErrorType, MetricsError, SystemErrorParams,
+            },
             fb_secondscreen::SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST,
         },
         gateway::rpc_gateway_api::{AppIdentification, CallerSession},
     },
-    log::{debug, error, warn},
+    log::{debug, error, trace, warn},
     serde_json::{self},
     tokio::sync::oneshot,
     utils::time_utils::Timer,
@@ -69,6 +73,7 @@ use ripple_sdk::{
 use serde_json::json;
 
 use crate::{
+    processor::metrics_processor::send_metric_for_app_state_change,
     service::{
         apps::app_events::AppEvents, extn::ripple_client::RippleClient,
         telemetry_builder::TelemetryBuilder, user_grants::GrantState,
@@ -159,7 +164,20 @@ impl AppManagerState {
         let mut apps = self.apps.write().unwrap();
         apps.remove(app_id)
     }
-
+    fn set_internal_state(&mut self, app_id: &str, method: AppMethod) {
+        let mut apps = self.apps.write().unwrap();
+        if let Some(app) = apps.get_mut(app_id) {
+            app.internal_state = Some(method);
+        }
+    }
+    fn get_internal_state(&mut self, app_id: &str) -> Option<AppMethod> {
+        let apps = self.apps.read().unwrap();
+        if let Some(app) = apps.get(app_id) {
+            app.internal_state.clone()
+        } else {
+            None
+        }
+    }
     fn store_intent(&self, app_id: &str, intent: NavigationIntent) {
         let mut intents = self.intents.write().unwrap();
         let _ = intents.insert(app_id.to_owned(), intent);
@@ -176,7 +194,19 @@ pub struct DelegatedLauncherHandler {
     app_mgr_req_rx: Receiver<AppRequest>,
     timer_map: HashMap<String, Timer>,
 }
-
+/*
+Tell lifecycle metrics which methods map to which metrics AppLifecycleStates
+*/
+fn map_event(event: &AppMethod) -> Option<AppLifecycleState> {
+    match event {
+        AppMethod::Launch(_) => Some(AppLifecycleState::Launching),
+        AppMethod::Ready(_) => Some(AppLifecycleState::Foreground),
+        AppMethod::Close(_, _) => Some(AppLifecycleState::NotRunning),
+        AppMethod::Finished(_) => Some(AppLifecycleState::NotRunning),
+        AppMethod::GetLaunchRequest(_) => Some(AppLifecycleState::Initializing),
+        _ => None,
+    }
+}
 impl DelegatedLauncherHandler {
     pub fn new(
         channels_state: ChannelsState,
@@ -195,13 +225,14 @@ impl DelegatedLauncherHandler {
         while let Some(data) = self.app_mgr_req_rx.recv().await {
             // App request
             debug!("DelegatedLauncherHandler: App request: data={:?}", data);
-            let resp;
-            match data.method.clone() {
-                AppMethod::BrowserSession(session) => {
-                    resp = self.start_session(session).await;
-                }
+            let method = data.method.clone();
+            let (resp, app_id) = match data.method.clone() {
+                AppMethod::BrowserSession(session) => (
+                    self.start_session(session.clone()).await,
+                    Some(session.app.id.clone()),
+                ),
                 AppMethod::SetState(app_id, state) => {
-                    resp = self.set_state(&app_id, state).await;
+                    (self.set_state(&app_id, state).await, Some(app_id))
                 }
                 AppMethod::Launch(launch_request) => {
                     if self.platform_state.has_internal_launcher() {
@@ -212,8 +243,8 @@ impl DelegatedLauncherHandler {
                             launch_request.get_intent().clone(),
                         );
                     }
-                    resp = self
-                        .send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Launch(
+                    (
+                        self.send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Launch(
                             LifecycleManagementLaunchEvent {
                                 parameters: LifecycleManagementLaunchParameters {
                                     app_id: launch_request.app_id.clone(),
@@ -221,9 +252,12 @@ impl DelegatedLauncherHandler {
                                 },
                             },
                         ))
-                        .await;
+                        .await,
+                        Some(launch_request.app_id.clone()),
+                    )
                 }
                 AppMethod::Ready(app_id) => {
+                    let resp;
                     if let Err(e) = self.ready_check(&app_id) {
                         resp = Err(e)
                     } else {
@@ -237,21 +271,30 @@ impl DelegatedLauncherHandler {
                             ))
                             .await;
                     }
-                    TelemetryBuilder::send_app_load_stop(&self.platform_state, app_id, resp.is_ok())
+                    TelemetryBuilder::send_app_load_stop(
+                        &self.platform_state,
+                        app_id.clone(),
+                        resp.is_ok(),
+                    );
+                    (resp, Some(app_id))
                 }
-                AppMethod::Close(app_id, reason) => {
-                    resp = self
-                        .send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Close(
-                            LifecycleManagementCloseEvent {
-                                parameters: LifecycleManagementCloseParameters { app_id, reason },
+                AppMethod::Close(app_id, reason) => (
+                    self.send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Close(
+                        LifecycleManagementCloseEvent {
+                            parameters: LifecycleManagementCloseParameters {
+                                app_id: app_id.clone(),
+                                reason,
                             },
-                        ))
-                        .await;
-                }
+                        },
+                    ))
+                    .await,
+                    Some(app_id),
+                ),
                 AppMethod::CheckFinished(app_id) => {
-                    resp = self.check_finished(&app_id).await;
+                    (self.check_finished(&app_id).await, Some(app_id))
                 }
                 AppMethod::Finished(app_id) => {
+                    let resp;
                     if let Err(e) = self.finished_check(&app_id) {
                         resp = Err(e)
                     } else {
@@ -266,33 +309,41 @@ impl DelegatedLauncherHandler {
                         .ok();
                         resp = self.end_session(&app_id).await;
                     }
+                    (resp, Some(app_id))
                 }
                 AppMethod::GetLaunchRequest(app_id) => {
-                    resp = self.get_launch_request(&app_id).await;
+                    (self.get_launch_request(&app_id).await, Some(app_id))
                 }
                 AppMethod::GetStartPage(app_id) => {
-                    resp = self.get_start_page(app_id).await;
+                    (self.get_start_page(app_id.clone()).await, Some(app_id))
                 }
-                AppMethod::GetAppContentCatalog(app_id) => {
-                    resp = self.get_app_content_catalog(app_id).await;
-                }
+                AppMethod::GetAppContentCatalog(app_id) => (
+                    self.get_app_content_catalog(app_id.clone()).await,
+                    Some(app_id),
+                ),
                 AppMethod::GetSecondScreenPayload(app_id) => {
-                    resp = self.get_second_screen_payload(&app_id);
+                    (self.get_second_screen_payload(&app_id), Some(app_id))
                 }
-                AppMethod::State(app_id) => resp = self.get_state(&app_id),
-                AppMethod::GetAppName(app_id) => {
-                    resp = self.get_app_name(app_id);
-                }
+                AppMethod::State(app_id) => (self.get_state(&app_id), Some(app_id)),
+                AppMethod::GetAppName(app_id) => (self.get_app_name(app_id.clone()), Some(app_id)),
                 AppMethod::NewActiveSession(session) => {
+                    let app_id = session.app.id.clone();
                     self.new_active_session(session, true).await;
-                    resp = Ok(AppManagerResponse::None);
+                    (Ok(AppManagerResponse::None), Some(app_id))
                 }
                 AppMethod::NewLoadedSession(session) => {
+                    let app_id = session.app.id.clone();
                     self.new_loaded_session(session, true).await;
-                    resp = Ok(AppManagerResponse::None);
+                    (Ok(AppManagerResponse::None), Some(app_id))
                 }
-                _ => resp = Err(AppError::NotSupported),
+                _ => (Err(AppError::NotSupported), None),
+            };
+
+            if let Some(id) = app_id {
+                self.report_app_state_transition(&id, &method, resp.clone())
+                    .await;
             }
+
             if let Err(e) = resp {
                 error!("App error {:?}", e);
             }
@@ -301,6 +352,90 @@ impl DelegatedLauncherHandler {
             }
         }
         error!("App manager receiver loop ended abruptly");
+    }
+
+    async fn report_app_state_transition(
+        &mut self,
+        app_id: &str,
+        method: &AppMethod,
+        app_manager_response: Result<AppManagerResponse, AppError>,
+    ) {
+        let previous_state = self
+            .platform_state
+            .app_manager_state
+            .get_internal_state(app_id);
+
+        let context = BehavioralMetricContext {
+            app_id: app_id.to_string(),
+            app_version: String::from("app.version.not.implemented"),
+            partner_id: String::from("partner.id.not.set"),
+            app_session_id: String::from("app_session_id.not.set"),
+            durable_app_id: app_id.to_string(),
+            app_user_session_id: None,
+            governance_state: None,
+        };
+
+        /*always send errors, regardless of whether launcher impl maps them */
+        let error: Option<AppError> = app_manager_response.clone().err();
+        if let Some(err) = error {
+            TelemetryBuilder::send_system_error(
+                &self.platform_state,
+                SystemErrorParams {
+                    error_name: String::from("launch_fail"),
+                    component: String::from("launcher_handler_receive"),
+                    context: Some(format!("{:?}", err.clone())),
+                },
+            );
+            let error_message = BehavioralMetricPayload::Error(MetricsError {
+                context: context.clone(),
+                /*
+                TODO... do third_part_error correctly
+                */
+                error_type: ErrorType::other,
+                /*
+                TODO: make code correct */
+                code: String::from("AppError"),
+                /*   TODO: make code correct  */
+                description: String::from("AppError"),
+                visible: true,
+                parameters: None,
+                durable_app_id: app_id.to_string(),
+                third_party_error: true,
+            });
+            let _ =
+                send_metric_for_app_state_change(&self.platform_state, error_message, app_id).await;
+        };
+
+        let to_state = map_event(method);
+
+        if to_state.is_none() {
+            /*
+            NOOP, the launcher implementation does not care about this state w/respect to metrics */
+            return;
+        };
+        let from_state = match previous_state {
+            Some(state) => map_event(&state),
+            None => None,
+        };
+
+        let app_state_change_message =
+            BehavioralMetricPayload::AppStateChange(AppLifecycleStateChange {
+                context,
+                previous_state: from_state,
+                new_state: to_state.unwrap(),
+            });
+
+        trace!("metrics.media_load_start={:?}", app_state_change_message);
+        let _ = send_metric_for_app_state_change(
+            &self.platform_state,
+            app_state_change_message,
+            app_id,
+        )
+        .await;
+
+        self.platform_state
+            .app_manager_state
+            .set_internal_state(app_id, method.clone());
     }
 
     fn get_state(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
@@ -322,7 +457,6 @@ impl DelegatedLauncherHandler {
                 return Err(AppError::NotSupported);
             }
         }
-        // TODO: Add metrics helper for app loading
 
         let app_id = session.app.id.clone();
 
