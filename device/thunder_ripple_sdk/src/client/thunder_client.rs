@@ -192,13 +192,7 @@ impl DeviceOperator for ThunderClient {
         });
         self.send_message(message).await;
 
-        match rx.await {
-            Ok(response) => response,
-            Err(_) => DeviceResponseMessage {
-                message: Value::Null,
-                sub_id: None,
-            },
-        }
+        rx.await.unwrap()
     }
 
     async fn subscribe(

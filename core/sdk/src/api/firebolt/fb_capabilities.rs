@@ -339,21 +339,6 @@ pub enum DenyReason {
     GrantProviderMissing,
     AppNotInActiveState,
 }
-impl std::fmt::Display for DenyReason {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DenyReason::NotFound => write!(f, "NotFound"),
-            DenyReason::Unpermitted => write!(f, "Unpermitted"),
-            DenyReason::Unsupported => write!(f, "Unsupported"),
-            DenyReason::Disabled => write!(f, "Disabled"),
-            DenyReason::Unavailable => write!(f, "Unavailable"),
-            DenyReason::GrantDenied => write!(f, "GrantDenied"),
-            DenyReason::Ungranted => write!(f, "Ungranted"),
-            DenyReason::GrantProviderMissing => write!(f, "GrantProviderMissing"),
-            DenyReason::AppNotInActiveState => write!(f, "AppNotInActiveState"),
-        }
-    }
-}
 
 pub const CAPABILITY_NOT_AVAILABLE: i32 = -50300;
 
