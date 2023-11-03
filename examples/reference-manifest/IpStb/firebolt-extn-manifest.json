@@ -1,0 +1,98 @@
+{
+    "default_path": "/usr/lib/rust/",
+    "default_extension": "so",
+    "timeout": 2000,
+    "extns": [
+        {
+            "path": "libthunder",
+            "symbols": [
+                {
+                    "id": "ripple:channel:device:thunder",
+                    "uses": [
+                        "config",
+                        "ripple_context",
+                        "app_events",
+                        "rpc"
+                    ],
+                    "fulfills": [
+                        "ripple_context",
+                        "window_manager",
+                        "browser",
+                        "device_info",
+                        "wifi",
+                        "local.storage",
+                        "remote_accessory",
+                        "app_events",
+                        "input.device_events",
+                        "hdr.device_events",
+                        "screen_resolution.device_events",
+                        "video_resolution.device_events",
+                        "voice_guidance.device_events",
+                        "network.device_events",
+                        "internet.device_events",
+                        "audio.device_events",
+                        "system_power_state.device_events"
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "liblauncher",
+            "symbols": [
+                {
+                    "id": "ripple:channel:launcher:internal",
+                    "uses": [
+                        "config",
+                        "lifecycle_management",
+                        "device_info",
+                        "window_manager",
+                        "browser"
+                    ],
+                    "fulfills": [
+                        "launcher"
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "libdistributor_general",
+            "symbols": [
+                {
+                    "id": "ripple:channel:distributor:general",
+                    "uses": [
+                        "config"
+                    ],
+                    "fulfills": [
+                        "permissions",
+                        "account.session",
+                        "secure.storage",
+                        "advertising",
+                        "media_events",
+                        "discovery",
+                        "behavior_metrics"
+                    ]
+                }
+            ]
+        }
+    ],
+    "required_contracts": [
+        "rpc",
+        "lifecycle_management",
+        "device_info",
+        "window_manager",
+        "browser",
+        "permissions",
+        "wifi",
+        "local.storage",
+        "remote_accessory",
+        "secure.storage",
+        "advertising",
+        "privacy_settings",
+        "metrics",
+        "account.session",
+        "behavior_metrics"
+    ],
+    "rpc_aliases": {
+        "device.model": ["custom.model"]
+    }
+}
