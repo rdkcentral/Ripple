@@ -80,7 +80,7 @@ impl ExtnRequestProcessor for DistributorMetricsProcessor {
                     .clone()
                     .respond(
                         msg,
-                        ripple_sdk::extn::extn_client_message::ExtnResponse::Boolean(false),
+                        ripple_sdk::extn::extn_client_message::ExtnResponse::Boolean(true),
                     )
                     .await
                 {
@@ -143,6 +143,9 @@ impl ExtnRequestProcessor for DistributorMetricsProcessor {
             BehavioralMetricPayload::MediaEnded(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
+            BehavioralMetricPayload::AppStateChange(_) => {
+                mock_metrics_response(state, msg, extracted_message).await
+            }
             BehavioralMetricPayload::Raw(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
@@ -160,7 +163,7 @@ pub async fn mock_metrics_response(
         .clone()
         .respond(
             msg,
-            ripple_sdk::extn::extn_client_message::ExtnResponse::Boolean(false),
+            ripple_sdk::extn::extn_client_message::ExtnResponse::Boolean(true),
         )
         .await
     {

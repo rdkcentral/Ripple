@@ -106,7 +106,51 @@ pub async fn update_app_context(
     }
     drop_data
 }
+pub async fn send_metric_for_app_state_change(
+    ps: &PlatformState,
+    mut payload: BehavioralMetricPayload,
+    app_id: &str,
+) -> RippleResponse {
+    match payload {
+        BehavioralMetricPayload::AppStateChange(_) | BehavioralMetricPayload::Error(_) => {
+            let (tags, drop_data) = DataGovernance::resolve_tags(
+                ps,
+                app_id.to_string(),
+                DataEventType::BusinessIntelligence,
+            )
+            .await;
+            let tag_name_set = tags.iter().map(|tag| tag.tag_name.clone()).collect();
 
+            if drop_data {
+                debug!("drop data is true, not sending BI metrics");
+                return Ok(());
+            }
+
+            let mut context: BehavioralMetricContext = payload.get_context();
+            if let Some(app) = ps.app_manager_state.get(app_id) {
+                context.app_session_id = app.loaded_session_id.to_owned();
+                context.app_user_session_id = app.active_session_id;
+                context.app_version = "app.version().tbd".to_owned();
+            }
+            context.governance_state = Some(AppDataGovernanceState::new(tag_name_set));
+            payload.update_context(context);
+
+            let session = ps.session_state.get_account_session();
+            if let Some(session) = session {
+                let request = BehavioralMetricRequest {
+                    context: Some(ps.metrics.get_context()),
+                    payload,
+                    session,
+                };
+
+                let _ = ps.get_client().send_extn_request_transient(request);
+                return Ok(());
+            }
+            Err(ripple_sdk::utils::error::RippleError::ProcessorError)
+        }
+        _ => Ok(()),
+    }
+}
 /// Supports processing of Metrics request from extensions and forwards the metrics accordingly.
 #[derive(Debug)]
 pub struct MetricsProcessor {
