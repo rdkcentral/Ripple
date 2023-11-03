@@ -1293,7 +1293,7 @@ impl GrantPolicyEnforcer {
                 )
                 .await
                 {
-                    debug!("grant step execute Err. step={:?}", step);
+                    debug!("grant step execute Err. step={:?} e={:?}", step, e);
                     CapState::emit(
                         platform_state,
                         CapEvent::OnRevoked,

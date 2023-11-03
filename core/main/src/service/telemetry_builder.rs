@@ -18,10 +18,11 @@
 use ripple_sdk::{
     api::{
         firebolt::{
-            fb_metrics::{ErrorParams, InternalInitializeParams},
+            fb_metrics::{ErrorParams, InternalInitializeParams, SystemErrorParams},
             fb_telemetry::{
                 AppLoadStart, AppLoadStop, FireboltInteraction, InternalInitialize,
                 TelemetryAppError, TelemetryPayload, TelemetrySignIn, TelemetrySignOut,
+                TelemetrySystemError,
             },
         },
         gateway::rpc_gateway_api::{CallContext, RpcRequest},
@@ -112,6 +113,15 @@ impl TelemetryBuilder {
         app_error.app_id = app_id;
 
         if let Err(e) = Self::send_telemetry(ps, TelemetryPayload::AppError(app_error)) {
+            error!("send_telemetry={:?}", e)
+        }
+    }
+
+    pub fn send_system_error(ps: &PlatformState, error_params: SystemErrorParams) {
+        let mut system_error: TelemetrySystemError = error_params.into();
+        system_error.ripple_session_id = ps.metrics.get_context().device_session_id;
+
+        if let Err(e) = Self::send_telemetry(ps, TelemetryPayload::SystemError(system_error)) {
             error!("send_telemetry={:?}", e)
         }
     }
