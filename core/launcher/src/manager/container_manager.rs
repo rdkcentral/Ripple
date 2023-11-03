@@ -150,6 +150,7 @@ impl ContainerManager {
 
     pub async fn remove(state: &LauncherState, name: &str) -> Result<ResultType, ContainerError> {
         let mut result = Ok(ResultType::None);
+        let _ = Self::set_visible(state, name, false).await;
         if state
             .container_state
             .contains_stack_by_name(&name.to_string())
@@ -338,35 +339,24 @@ impl ContainerManager {
         } else if state_change.states.state == LifecycleState::Inactive
             || state_change.states.state == LifecycleState::Background
         {
-            if let Some(s) = state
-                .container_state
-                .get_container_by_name(&state_change.container_props.name)
+            if ViewManager::set_visibility(state, state_change.container_props.view_id, false)
+                .await
+                .is_err()
             {
-                if ViewManager::set_visibility(state, s.view_id, false)
-                    .await
-                    .is_err()
-                {
-                    error!(
-                        "Couldnt set visibility for the app {}",
-                        state_change.container_props.name
-                    );
-                }
+                error!(
+                    "Couldnt set visibility for the app {}",
+                    state_change.container_props.name
+                );
             }
-        } else if state_change.states.state == LifecycleState::Foreground {
-            if let Some(s) = state
-                .container_state
-                .get_container_by_name(&state_change.container_props.name)
-            {
-                if ViewManager::set_visibility(state, s.view_id, true)
-                    .await
-                    .is_err()
-                {
-                    error!(
-                        "Couldnt set visibility for the app {}",
-                        state_change.container_props.name
-                    );
-                }
-            }
+        } else if state_change.states.state == LifecycleState::Foreground
+            && ViewManager::set_visibility(state, state_change.container_props.view_id, true)
+                .await
+                .is_err()
+        {
+            error!(
+                "Couldnt set visibility for the app {}",
+                state_change.container_props.name
+            );
         }
     }
 }
