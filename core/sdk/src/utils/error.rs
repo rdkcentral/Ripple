@@ -19,8 +19,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::firebolt::fb_capabilities::DenyReason;
 
-use jsonrpsee_core::Error as JsonRpcError;
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum RippleError {
     MissingInput,
@@ -37,95 +35,4 @@ pub enum RippleError {
     NoResponse,
     InvalidAccess,
     Permission(DenyReason),
-}
-impl std::fmt::Display for RippleError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            RippleError::MissingInput => write!(f, "MissingInput"),
-            RippleError::InvalidInput => write!(f, "InvalidInput"),
-            RippleError::InvalidOutput => write!(f, "InvalidOutput"),
-            RippleError::SenderMissing => write!(f, "SenderMissing"),
-            RippleError::SendFailure => write!(f, "SendFailure"),
-            RippleError::ApiAuthenticationFailed => write!(f, "ApiAuthenticationFailed"),
-            RippleError::ExtnError => write!(f, "ExtnError"),
-            RippleError::BootstrapError => write!(f, "BootstrapError"),
-            RippleError::ParseError => write!(f, "ParseError"),
-            RippleError::ProcessorError => write!(f, "ProcessorError"),
-            RippleError::ClientMissing => write!(f, "ClientMissing"),
-            RippleError::NoResponse => write!(f, "NoResponse"),
-            RippleError::InvalidAccess => write!(f, "InvalidAccess"),
-            RippleError::Permission(p) => write!(f, "Permission {}", p),
-        }
-    }
-}
-impl From<RippleError> for JsonRpcError {
-    fn from(value: RippleError) -> Self {
-        JsonRpcError::Custom(format!("{}", value))
-    }
-}
-#[cfg(test)]
-mod tests {
-    use super::*;
-    fn custom_error_match(expected: &str, error: JsonRpcError) {
-        if let JsonRpcError::Custom(e) = error {
-            assert_eq!(expected, e);
-        } else {
-            unreachable!("{}", " non error passed");
-        }
-    }
-    #[test]
-    pub fn test_type_converter() {
-        custom_error_match("MissingInput", RippleError::MissingInput.into());
-        custom_error_match("InvalidInput", RippleError::InvalidInput.into());
-        custom_error_match("InvalidOutput", RippleError::InvalidOutput.into());
-        custom_error_match("SenderMissing", RippleError::SenderMissing.into());
-        custom_error_match("SendFailure", RippleError::SendFailure.into());
-        custom_error_match(
-            "ApiAuthenticationFailed",
-            RippleError::ApiAuthenticationFailed.into(),
-        );
-        custom_error_match("ExtnError", RippleError::ExtnError.into());
-        custom_error_match("BootstrapError", RippleError::BootstrapError.into());
-        custom_error_match("ParseError", RippleError::ParseError.into());
-        custom_error_match("ProcessorError", RippleError::ProcessorError.into());
-        custom_error_match("ClientMissing", RippleError::ClientMissing.into());
-        custom_error_match("NoResponse", RippleError::NoResponse.into());
-        custom_error_match("InvalidAccess", RippleError::InvalidAccess.into());
-        custom_error_match(
-            "Permission AppNotInActiveState",
-            RippleError::Permission(DenyReason::AppNotInActiveState).into(),
-        );
-        custom_error_match(
-            "Permission Disabled",
-            RippleError::Permission(DenyReason::Disabled).into(),
-        );
-        custom_error_match(
-            "Permission GrantDenied",
-            RippleError::Permission(DenyReason::GrantDenied).into(),
-        );
-        custom_error_match(
-            "Permission GrantProviderMissing",
-            RippleError::Permission(DenyReason::GrantProviderMissing).into(),
-        );
-        custom_error_match(
-            "Permission NotFound",
-            RippleError::Permission(DenyReason::NotFound).into(),
-        );
-        custom_error_match(
-            "Permission Unavailable",
-            RippleError::Permission(DenyReason::Unavailable).into(),
-        );
-        custom_error_match(
-            "Permission Ungranted",
-            RippleError::Permission(DenyReason::Ungranted).into(),
-        );
-        custom_error_match(
-            "Permission Unpermitted",
-            RippleError::Permission(DenyReason::Unpermitted).into(),
-        );
-        custom_error_match(
-            "Permission Unsupported",
-            RippleError::Permission(DenyReason::Unsupported).into(),
-        );
-    }
 }

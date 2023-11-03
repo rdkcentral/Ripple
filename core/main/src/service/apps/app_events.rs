@@ -41,11 +41,7 @@ use crate::state::platform_state::PlatformState;
 
 #[derive(Debug)]
 pub struct AppEventDecorationError {}
-impl From<serde_json::Error> for AppEventDecorationError {
-    fn from(_value: serde_json::Error) -> Self {
-        AppEventDecorationError {}
-    }
-}
+
 #[async_trait]
 pub trait AppEventDecorator: Send + Sync {
     async fn decorate(
@@ -428,51 +424,5 @@ impl AppEvents {
                 }
             }
         }
-    }
-}
-#[cfg(test)]
-pub mod tests {
-    use crate::state::session_state::Session;
-    use ripple_sdk::tokio;
-    use ripple_tdk::utils::test_utils::Mockable;
-
-    use super::*;
-    #[tokio::test]
-    pub async fn test_add_listener() {
-        let platform_state = PlatformState::mock();
-        let call_context = CallContext::mock();
-        let listen_request = ListenRequest { listen: true };
-        Session::new(
-            call_context.clone().app_id,
-            None,
-            EffectiveTransport::Websocket,
-        );
-        let session = Session::new(
-            call_context.clone().app_id,
-            None,
-            EffectiveTransport::Websocket,
-        );
-        platform_state
-            .session_state
-            .add_session(call_context.clone().session_id, session);
-
-        AppEvents::add_listener(
-            &platform_state,
-            "test_event".to_string(),
-            call_context,
-            listen_request,
-        );
-        assert!(
-            platform_state
-                .app_events_state
-                .listeners
-                .read()
-                .unwrap()
-                .len()
-                == 1
-        );
-        let listeners =
-            AppEvents::get_listeners(&platform_state.app_events_state, "test_event", None);
-        assert!(listeners.len() == 1);
     }
 }
