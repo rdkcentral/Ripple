@@ -245,6 +245,13 @@ impl ContainerManager {
             .unwrap();
         let properties = p.clone();
         let view_id = properties.view_id;
+        if ViewManager::set_visibility(state, view_id, true)
+            .await
+            .is_err()
+        {
+            error!("failed to set visibility")
+        }
+
         match ViewManager::set_focus(state, view_id).await {
             Ok(v) => Ok(v),
             Err(_e) => Err(ContainerError::General),
@@ -336,9 +343,7 @@ impl ContainerManager {
             || state_change.states.state == LifecycleState::Unloading
         {
             let _ = Self::remove(state, &app_id).await;
-        } else if state_change.states.state == LifecycleState::Inactive
-            || state_change.states.state == LifecycleState::Background
-        {
+        } else if state_change.states.state == LifecycleState::Inactive {
             if ViewManager::set_visibility(state, state_change.container_props.view_id, false)
                 .await
                 .is_err()
