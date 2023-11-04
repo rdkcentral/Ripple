@@ -1389,7 +1389,7 @@ impl GrantPolicyEnforcer {
                         .map(|step| step.capability_as_fb_cap())
                 })
                 .collect();
-            warn!("Provider missing {:?}", unsupported_caps);
+            warn!("Required provider is missing {:?}", unsupported_caps);
             Err(DenyReasonWithCap {
                 caps: unsupported_caps,
                 reason: DenyReason::GrantProviderMissing,
