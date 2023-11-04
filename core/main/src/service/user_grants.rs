@@ -1667,6 +1667,16 @@ mod tests {
             };
             let ctx = runtime.call_context;
             let mut platform_state = runtime.platform_state;
+            let caps = vec![
+                FireboltCap::Short("input:keyboard".to_owned()),
+                FireboltCap::Short("token:account".to_owned()),
+                FireboltCap::Short("usergrant:acknowledgechallenge".to_owned()),
+                FireboltCap::Short("usergrant:pinchallenge".to_owned()),
+            ];
+            platform_state
+                .cap_state
+                .generic
+                .ingest_availability(caps, true);
 
             let mut permissions = HashMap::new();
             permissions.insert(ctx.app_id.to_owned(), vec![perm.clone()]);
@@ -1854,7 +1864,7 @@ mod tests {
             assert_eq!(
                 result.err().unwrap(),
                 DenyReasonWithCap {
-                    reason: DenyReason::Unsupported,
+                    reason: DenyReason::GrantProviderMissing,
                     caps: vec![
                         FireboltCap::Full(
                             "xrn:firebolt:capability:usergrant:notavailableonplatform".to_owned()
