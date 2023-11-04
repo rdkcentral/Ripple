@@ -10,17 +10,17 @@
                     "id": "ripple:channel:device:thunder",
                     "uses": [
                         "config",
-                        "app_events",
-                        "rpc",
                         "ripple_context",
-                        "operational_metric_listener"
+                        "app_events",
+                        "rpc"
                     ],
                     "fulfills": [
-                        "device_info",
+                        "ripple_context",
                         "window_manager",
                         "browser",
+                        "device_info",
                         "wifi",
-                        "device_persistence",
+                        "local.storage",
                         "remote_accessory",
                         "app_events",
                         "input.device_events",
@@ -32,10 +32,25 @@
                         "internet.device_events",
                         "audio.device_events",
                         "system_power_state.device_events"
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "liblauncher",
+            "symbols": [
+                {
+                    "id": "ripple:channel:launcher:internal",
+                    "uses": [
+                        "config",
+                        "lifecycle_management",
+                        "device_info",
+                        "window_manager",
+                        "browser"
                     ],
-                    "config": {
-                        "rdk_telemetry": "true"
-                    }
+                    "fulfills": [
+                        "launcher"
+                    ]
                 }
             ]
         },
@@ -49,14 +64,12 @@
                     ],
                     "fulfills": [
                         "permissions",
-                        "account_session",
-                        "secure_storage",
+                        "account.session",
+                        "secure.storage",
                         "advertising",
-                        "privacy_settings",
-                        "metrics",
-                        "session_token",
+                        "media_events",
                         "discovery",
-                        "media_events"
+                        "behavior_metrics"
                     ]
                 }
             ]
@@ -69,17 +82,15 @@
         "window_manager",
         "browser",
         "permissions",
-        "account_session",
         "wifi",
-        "device_persistence",
+        "local.storage",
         "remote_accessory",
-        "secure_storage",
+        "secure.storage",
         "advertising",
         "privacy_settings",
-        "session_token",
         "metrics",
-        "discovery",
-        "media_events"
+        "account.session",
+        "behavior_metrics"
     ],
     "rpc_aliases": {
         "device.model": ["custom.model"]
