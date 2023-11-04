@@ -70,8 +70,10 @@ use serde_json::json;
 
 use crate::{
     service::{
-        apps::app_events::AppEvents, extn::ripple_client::RippleClient,
-        telemetry_builder::TelemetryBuilder, user_grants::GrantState,
+        apps::app_events::AppEvents,
+        extn::ripple_client::RippleClient,
+        telemetry_builder::TelemetryBuilder,
+        user_grants::{GrantPolicyEnforcer, GrantState},
     },
     state::{
         bootstrap_state::ChannelsState, cap::permitted_state::PermissionHandler,
@@ -387,12 +389,22 @@ impl DelegatedLauncherHandler {
             session_id = Some(app.session_id.clone());
             loaded_session_id = Some(app.loaded_session_id);
         }
-        let perms_with_grants_opt = if !session.launch.inactive {
+        let mut perms_with_grants_opt = if !session.launch.inactive {
             Self::check_user_grants_for_active_session(&self.platform_state, session.app.id.clone())
                 .await
         } else {
             None
         };
+        if perms_with_grants_opt.is_some()
+            && !GrantPolicyEnforcer::can_proceed_with_user_grant_resolution(
+                &self.platform_state,
+                &perms_with_grants_opt.clone().unwrap(),
+            )
+            .await
+        {
+            // reset perms_req_user_grants_opt
+            perms_with_grants_opt = None;
+        }
         match perms_with_grants_opt {
             Some(perms_with_grants) => {
                 // Grants required, spawn a thread to handle the response from grants
