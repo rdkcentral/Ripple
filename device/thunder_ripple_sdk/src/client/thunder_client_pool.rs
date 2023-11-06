@@ -86,7 +86,7 @@ impl ThunderClientPool {
             while let Some(cmd) = r.recv().await {
                 match cmd {
                     ThunderPoolCommand::ThunderMessage(msg) => {
-                        let c_opt = pool.get_client();
+                        let c_opt = pool.get_client(&msg);
                         if c_opt.is_none() {
                             error!("Thunder pool had no clients!");
                             return;
@@ -152,13 +152,20 @@ impl ThunderClientPool {
         })
     }
 
-    fn get_client(&mut self) -> Option<&mut PooledThunderClient> {
-        // First use an unused client, if there are none just use
-        // any client and it will queue in the thread
-        let len = self.clients.len();
-        let itr = self.clients.iter_mut();
-        itr.enumerate()
-            .find(|(i, client)| *i == (len - 1) || !client.in_use.load(Ordering::Relaxed))
-            .map(|x| x.1)
+    fn get_client(&mut self, msg: &ThunderMessage) -> Option<&mut PooledThunderClient> {
+        // For subscribe and Un subscribe use the same client
+        match msg {
+            ThunderMessage::ThunderSubscribeMessage(_)
+            | ThunderMessage::ThunderUnsubscribeMessage(_) => self.clients.get_mut(0),
+            _ => {
+                // First use an unused client, if there are none just use
+                // any client and it will queue in the thread
+                let len = self.clients.len();
+                let itr = self.clients.iter_mut();
+                itr.enumerate()
+                    .find(|(i, client)| *i == (len - 1) || !client.in_use.load(Ordering::Relaxed))
+                    .map(|x| x.1)
+            }
+        }
     }
 }

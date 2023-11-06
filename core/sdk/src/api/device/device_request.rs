@@ -19,6 +19,7 @@ use crate::{
     api::firebolt::fb_openrpc::FireboltSemanticVersion,
     extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
     framework::ripple_contract::RippleContract,
+    utils::serde_utils::language_code_serde,
 };
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -90,6 +91,12 @@ impl std::fmt::Display for AudioProfile {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AccountToken {
+    pub token: String,
+    pub expires: u64,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DeviceVersionResponse {
     pub api: FireboltSemanticVersion,
@@ -102,6 +109,15 @@ pub struct NetworkResponse {
     pub state: NetworkState,
     #[serde(rename = "type")]
     pub _type: NetworkType,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum InternetConnectionStatus {
+    NoInternet,
+    LimitedInternet,
+    CaptivePortal,
+    FullyConnected,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -197,17 +213,21 @@ pub struct OnInternetConnectedRequest {
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct LanguageProperty {
-    //#[serde(with = "language_code_serde")]
+    #[serde(with = "language_code_serde")]
     pub value: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct TimezoneProperty {
+    // Original Regex in the Firebolt Timezone openrpc spec seems to be allowing
+    // even blank strings so the below test case is failing leaving it here
+    // so we can get a future resolution
     //#[serde(with = "timezone_serde")]
     pub value: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PowerState {
     Standby,
     DeepSleep,
@@ -235,21 +255,12 @@ pub struct SystemPowerState {
     pub current_power_state: PowerState,
 }
 
-impl ExtnPayloadProvider for SystemPowerState {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Event(ExtnEvent::PowerState(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<SystemPowerState> {
-        if let ExtnPayload::Event(ExtnEvent::PowerState(r)) = payload {
-            return Some(r);
+impl Default for SystemPowerState {
+    fn default() -> Self {
+        SystemPowerState {
+            power_state: PowerState::Standby,
+            current_power_state: PowerState::Standby,
         }
-
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::PowerStateEvent
     }
 }
 
@@ -275,4 +286,32 @@ impl ExtnPayloadProvider for VoiceGuidanceState {
     fn contract() -> RippleContract {
         RippleContract::VoiceGuidance
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_language_serializer() {
+        let lang_key = "{\"value\":\"\"}";
+        assert!(serde_json::from_str::<LanguageProperty>(lang_key).is_err());
+        let lang_key = "{\"value\":\"ens\"}";
+        assert!(serde_json::from_str::<LanguageProperty>(lang_key).is_err());
+        let lang_key = "{\"value\":\"en\"}";
+        assert!(serde_json::from_str::<LanguageProperty>(lang_key).is_ok());
+    }
+
+    // Original Regex in the Firebolt Timezone openrpc spec seems to be allowing
+    // even blank strings so the below test case is failing leaving it here
+    // so we can get a future resolution
+    // #[test]
+    // fn test_timezone_serializer() {
+    //     let tz = "{\"value\":\"\"}";
+    //     assert!(serde_json::from_str::<TimezoneProperty>(tz).is_err());
+    //     let tz = "{\"value\":\"America\"}";
+    //     assert!(serde_json::from_str::<TimezoneProperty>(tz).is_err());
+    //     let tz = "{\"value\":\"America/New_York\"}";
+    //     assert!(serde_json::from_str::<TimezoneProperty>(tz).is_ok());
+    // }
 }

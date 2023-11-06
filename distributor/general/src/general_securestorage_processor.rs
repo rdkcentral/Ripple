@@ -17,7 +17,8 @@
 
 use ripple_sdk::{
     api::firebolt::fb_secure_storage::{
-        SecureStorageGetResponse, SecureStorageRequest, SecureStorageResponse,
+        SecureStorageDefaultResponse, SecureStorageGetResponse, SecureStorageRequest,
+        SecureStorageResponse,
     },
     async_trait::async_trait,
     extn::{
@@ -85,7 +86,9 @@ impl ExtnRequestProcessor for DistributorSecureStorageProcessor {
                     .clone()
                     .respond(
                         msg,
-                        ripple_sdk::extn::extn_client_message::ExtnResponse::None(()),
+                        ripple_sdk::extn::extn_client_message::ExtnResponse::SecureStorage(
+                            SecureStorageResponse::Set(SecureStorageDefaultResponse {}),
+                        ),
                     )
                     .await
                 {
@@ -126,7 +129,9 @@ impl ExtnRequestProcessor for DistributorSecureStorageProcessor {
                     .clone()
                     .respond(
                         msg,
-                        ripple_sdk::extn::extn_client_message::ExtnResponse::None(()),
+                        ripple_sdk::extn::extn_client_message::ExtnResponse::SecureStorage(
+                            SecureStorageResponse::Remove(SecureStorageDefaultResponse {}),
+                        ),
                     )
                     .await
                 {
@@ -141,7 +146,9 @@ impl ExtnRequestProcessor for DistributorSecureStorageProcessor {
                     .clone()
                     .respond(
                         msg,
-                        ripple_sdk::extn::extn_client_message::ExtnResponse::None(()),
+                        ripple_sdk::extn::extn_client_message::ExtnResponse::SecureStorage(
+                            SecureStorageResponse::Clear(SecureStorageDefaultResponse {}),
+                        ),
                     )
                     .await
                 {

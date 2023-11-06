@@ -16,7 +16,7 @@
 //
 
 use thunder_ripple_sdk::ripple_sdk::{
-    api::storage_property::StorageAdjective,
+    api::{session::EventAdjective, storage_property::StorageAdjective},
     crossbeam::channel::Receiver as CReceiver,
     export_channel_builder, export_extn_metadata,
     extn::{
@@ -45,7 +45,15 @@ fn init_library() -> CExtnMetadata {
             RippleContract::DeviceInfo,
             RippleContract::WindowManager,
             RippleContract::Browser,
-            RippleContract::DeviceEvents,
+            RippleContract::RippleContext,
+            RippleContract::DeviceEvents(EventAdjective::Input),
+            RippleContract::DeviceEvents(EventAdjective::Hdr),
+            RippleContract::DeviceEvents(EventAdjective::ScreenResolution),
+            RippleContract::DeviceEvents(EventAdjective::VideoResolution),
+            RippleContract::DeviceEvents(EventAdjective::VoiceGuidance),
+            RippleContract::DeviceEvents(EventAdjective::Network),
+            RippleContract::DeviceEvents(EventAdjective::Audio),
+            RippleContract::DeviceEvents(EventAdjective::SystemPowerState),
             RippleContract::Storage(StorageAdjective::Local),
             RippleContract::RemoteAccessory,
             RippleContract::Wifi,

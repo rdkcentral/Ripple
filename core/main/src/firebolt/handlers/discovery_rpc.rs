@@ -18,6 +18,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use crate::{
+    firebolt::handlers::privacy_rpc::PrivacyImpl,
     firebolt::rpc::RippleRPCProvider,
     service::apps::{
         app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
@@ -237,15 +238,16 @@ impl DiscoveryImpl {
     }
 
     pub async fn get_content_policy(
-        _ctx: &CallContext,
-        _state: &PlatformState,
-        _app_id: &str,
+        ctx: &CallContext,
+        state: &PlatformState,
+        app_id: &str,
     ) -> RpcResult<ContentPolicy> {
-        Ok(ContentPolicy {
-            enable_recommendations: false, // TODO: Need to replace with PrivacyImpl
-            share_watch_history: false,    // TODO: Need to replace with PrivacyImpl
-            remember_watched_programs: false, // TODO: Need to replace with PrivacyImpl
-        })
+        let content_policy = ContentPolicy {
+            enable_recommendations: PrivacyImpl::get_allow_personalization(state, app_id).await,
+            share_watch_history: PrivacyImpl::get_share_watch_history(ctx, state, app_id).await,
+            remember_watched_programs: PrivacyImpl::get_allow_watch_history(state, app_id).await,
+        };
+        Ok(content_policy)
     }
 
     pub fn get_share_watch_history() -> bool {
@@ -797,6 +799,14 @@ fn update_intent_source(source_app_id: String, request: LaunchRequest) -> Launch
                 NavigationIntentStrict::ProviderRequest(mut provider_request_intent) => {
                     provider_request_intent.context.source = source;
                     NavigationIntentStrict::ProviderRequest(provider_request_intent)
+                }
+                NavigationIntentStrict::PlayEntity(mut p) => {
+                    p.context.source = source;
+                    NavigationIntentStrict::PlayEntity(p)
+                }
+                NavigationIntentStrict::PlayQuery(mut p) => {
+                    p.context.source = source;
+                    NavigationIntentStrict::PlayQuery(p)
                 }
             };
 

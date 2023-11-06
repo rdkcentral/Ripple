@@ -47,11 +47,12 @@ function get_default_extension() {
 function backup_dot_ripple() {
     echo "Would you like to back it up? (Y/n)"
     read -r confirm
-    if [ $confirm == "Y" ]; then
-        local backup_name=".ripple-$(date +"%F-%H-%M")"
+    if [ "$confirm" == "Y" ]; then
+        backup_name=".ripple-$(date +"%F-%H-%M")"
+        local backup_name
         echo "Copying existing ~/.ripple directory to ~/$backup_name"
-        mv ~/.ripple ~/$backup_name
-    elif [ $confirm == "n" ]; then
+        mv ~/.ripple ~/"$backup_name"
+    elif [ "$confirm" == "n" ]; then
         return
     else
         echo "Please choose Y or n"
@@ -92,8 +93,8 @@ case ${1} in
         echo "All Done!"
     ;;
     "run")
-        cargo build
-        THUNDER_HOST=${2} cargo run core/main
+        cargo build --features local_dev
+        THUNDER_HOST=${2} cargo run --features local_dev core/main 
     ;;
     "-h")
         print_help

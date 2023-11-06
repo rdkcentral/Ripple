@@ -58,6 +58,17 @@ impl MetricsState {
             }
         }
 
+        let mut serial_number: Option<String> = None;
+        if let Ok(resp) = state
+            .get_client()
+            .send_extn_request(DeviceInfoRequest::SerialNumber)
+            .await
+        {
+            if let Some(ExtnResponse::String(sn)) = resp.payload.extract() {
+                let _ = serial_number.insert(sn);
+            }
+        }
+
         let mut device_model: Option<String> = None;
         if let Ok(resp) = state
             .get_client()
@@ -68,8 +79,6 @@ impl MetricsState {
                 let _ = device_model.insert(model);
             }
         }
-
-        let account_session = state.session_state.get_account_session();
 
         let language = match StorageManager::get_string(state, StorageProperty::Language).await {
             Ok(resp) => resp,
@@ -108,18 +117,35 @@ impl MetricsState {
                 timezone = Some(format!("{} {}", tz, offset));
             }
         }
+        {
+            // Time to set them
+            let mut context = state.metrics.context.write().unwrap();
+            if let Some(mac) = mac_address {
+                context.mac_address = mac;
+            }
 
-        // Time to set them
+            if let Some(sn) = serial_number {
+                context.serial_number = sn;
+            }
+
+            if let Some(model) = device_model {
+                context.device_model = model;
+            }
+
+            context.device_language = language;
+            context.os_ver = os_ver;
+            context.device_name = device_name;
+
+            if let Some(t) = timezone {
+                context.device_timezone = t;
+            }
+        }
+        Self::update_account_session(state).await
+    }
+
+    pub async fn update_account_session(state: &PlatformState) {
         let mut context = state.metrics.context.write().unwrap();
-        if let Some(mac) = mac_address {
-            context.mac_address = mac.clone();
-            context.serial_number = mac;
-        }
-
-        if let Some(model) = device_model {
-            context.device_model = model;
-        }
-
+        let account_session = state.session_state.get_account_session();
         if let Some(session) = account_session {
             context.account_id = session.account_id;
             context.device_id = session.device_id;
@@ -128,14 +154,6 @@ impl MetricsState {
             context.account_id = "no.account.set".to_string();
             context.device_id = "no.device_id.set".to_string();
             context.distribution_tenant_id = "no.distribution_tenant_id.set".to_string();
-        }
-
-        context.device_language = language;
-        context.os_ver = os_ver;
-        context.device_name = device_name;
-
-        if let Some(t) = timezone {
-            context.device_timezone = t;
         }
     }
 

@@ -137,9 +137,7 @@ impl SettingsProcessor {
                         Some(SettingValue::bool(enabled))
                     }
                     ClosedCaptions => {
-                        let enabled = ClosedcaptionsImpl::closed_captions_settings_enabled(state)
-                            .await
-                            .unwrap_or(false);
+                        let enabled = ClosedcaptionsImpl::cc_enabled(state).await.unwrap_or(false);
                         Some(SettingValue::bool(enabled))
                     }
                     AllowPersonalization => Some(SettingValue::bool(cp.enable_recommendations)),
@@ -155,7 +153,7 @@ impl SettingsProcessor {
                 if let Some(v) = val {
                     let role_info = RoleInfo {
                         role: Some(CapabilityRole::Use),
-                        capability: FireboltCap::Short(sk.use_capability().into()).as_str(),
+                        capability: FireboltCap::Short(sk.use_capability().into()),
                     };
                     if let Ok(result) = is_permitted(state.clone(), ctx.clone(), role_info).await {
                         if result {

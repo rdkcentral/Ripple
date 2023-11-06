@@ -20,6 +20,7 @@ pub mod account_link;
 pub mod apps;
 pub mod caps;
 pub mod config;
+pub mod context;
 pub mod device;
 pub mod manifest;
 pub mod protocol;
@@ -56,6 +57,7 @@ pub mod firebolt {
     pub mod fb_keyboard;
     pub mod fb_lifecycle;
     pub mod fb_lifecycle_management;
+    pub mod fb_localization;
     pub mod fb_metrics;
     pub mod fb_openrpc;
     pub mod fb_parameters;

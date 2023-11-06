@@ -62,9 +62,17 @@ impl LaunchRequest {
 #[serde(rename_all = "camelCase")]
 pub struct EntitlementData {
     pub entitlement_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        with = "optional_date_time_str_serde",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub start_time: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        with = "optional_date_time_str_serde",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub end_time: Option<String>,
 }
 
@@ -170,11 +178,13 @@ pub struct Availability {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub catalog_id: Option<String>,
     #[serde(
+        default,
         with = "optional_date_time_str_serde",
         skip_serializing_if = "Option::is_none"
     )]
     pub start_time: Option<String>,
     #[serde(
+        default,
         with = "optional_date_time_str_serde",
         skip_serializing_if = "Option::is_none"
     )]
@@ -382,3 +392,55 @@ pub struct LaunchPadAccountLinkResponse {}
 //     );
 //     async fn sign_in(self: Box<Self>, request: DpabRequest, params: SignInRequestParams);
 // }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_entitlements_data() {
+        let ed = "{\"entitlementId\":\"\"}";
+        assert!(serde_json::from_str::<EntitlementData>(ed).is_ok());
+        let ed = "{\"entitlementId\":\"value\"}";
+        assert!(serde_json::from_str::<EntitlementData>(ed).is_ok());
+        let ed = "{\"entitlementId\":\"value\",\"startTime\":\"01022023\"}";
+        assert!(serde_json::from_str::<EntitlementData>(ed).is_err());
+        let ed = "{\"entitlementId\":\"value\",\"startTime\":\"2021-01-01T00:00:00.000Z\"}";
+        assert!(serde_json::from_str::<EntitlementData>(ed).is_ok());
+        let ed = "{\"entitlementId\":\"value\",\"startTime\":\"2021-01-01T00:00:00.000Z\",\"endTime\":\"01022023\"}";
+        assert!(serde_json::from_str::<EntitlementData>(ed).is_err());
+        let ed = "{\"entitlementId\":\"value\",\"startTime\":\"2021-01-01T00:00:00.000Z\",\"endTime\":\"2021-01-01T00:00:00.000Z\"}";
+        assert!(serde_json::from_str::<EntitlementData>(ed).is_ok());
+    }
+
+    #[test]
+    fn test_watched_info() {
+        let wi = "{\"entityId\":\"value\", \"progress\":0.0, \"watchedOn\": \"2021-01-01T00:00:00.000Z\"}";
+        assert!(serde_json::from_str::<WatchedInfo>(wi).is_ok());
+
+        let wi =
+            "{\"entityId\":\"\", \"progress\":0.0, \"watchedOn\": \"2021-01-01T00:00:00.000Z\"}";
+        assert!(serde_json::from_str::<WatchedInfo>(wi).is_ok());
+
+        let wi = "{\"entityId\":\"value\", \"progress\":-1.0, \"watchedOn\": \"2021-01-01T00:00:00.000Z\"}";
+        assert!(serde_json::from_str::<WatchedInfo>(wi).is_err());
+
+        let wi = "{\"entityId\":\"value\", \"progress\":0.0, \"watchedOn\": \"01022023Z\"}";
+        assert!(serde_json::from_str::<WatchedInfo>(wi).is_err());
+
+        let wi = "{\"entityId\":\"value\", \"progress\":0.0, \"watchedOn\": \"2021-01-01T00:00:00.000Z\",\"completed\":true}";
+        if let Ok(v) = serde_json::from_str::<WatchedInfo>(wi) {
+            assert!(v.completed.unwrap())
+        } else {
+            panic!("invalid watched info")
+        }
+    }
+
+    #[test]
+    fn test_schema() {
+        if let Ok(v) = serde_json::from_str::<LaunchRequest>("{\"appId\":\"test\",\"intent\":{\"action\":\"playback\",\"data\":{\"programType\":\"movie\",\"entityId\":\"example-movie-id\"},\"context\":{\"source\":\"voice\"}}}"){
+            assert!(v.app_id.eq("test"))
+        } else {
+            panic!("Launch Schema Fail")
+        }
+    }
+}

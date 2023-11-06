@@ -25,7 +25,8 @@ use crate::{
 };
 
 use super::device_request::{
-    AudioProfile, DeviceRequest, HDCPStatus, HdcpProfile, HdrProfile, OnInternetConnectedRequest,
+    AudioProfile, DeviceRequest, HDCPStatus, HdcpProfile, HdrProfile, InternetConnectionStatus,
+    OnInternetConnectedRequest, PowerState,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,6 +47,7 @@ pub enum DeviceInfoRequest {
     Network,
     OnInternetConnected(OnInternetConnectedRequest),
     SetTimezone(String),
+    InternetConnectionStatus,
     GetTimezone,
     GetAvailableTimezones,
     VoiceGuidanceEnabled,
@@ -54,6 +56,8 @@ pub enum DeviceInfoRequest {
     SetVoiceGuidanceSpeed(f32),
     GetTimezoneWithOffset,
     FullCapabilities,
+    PowerState,
+    SerialNumber,
 }
 
 impl ExtnPayloadProvider for DeviceInfoRequest {
@@ -100,6 +104,8 @@ pub enum DeviceResponse {
     VideoResolutionResponse(Vec<i32>),
     // TODO: assess if boxing this is a productive move: https://rust-lang.github.io/rust-clippy/master/index.html#/large_enum_variant
     FullCapabilities(Box<DeviceCapabilities>),
+    InternetConnectionStatus(InternetConnectionStatus),
+    PowerState(PowerState),
 }
 
 impl ExtnPayloadProvider for DeviceResponse {

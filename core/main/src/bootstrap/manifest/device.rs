@@ -35,10 +35,12 @@ impl LoadDeviceManifestStep {
 type DeviceManifestLoader = Vec<fn() -> Result<(String, DeviceManifest), RippleError>>;
 
 fn try_manifest_files() -> Result<DeviceManifest, RippleError> {
-    let dm_arr: DeviceManifestLoader = if cfg!(test) {
+    let dm_arr: DeviceManifestLoader = if cfg!(any(feature = "local_dev", feature = "pre_prod")) {
+        vec![load_from_env, load_from_home, load_from_opt, load_from_etc]
+    } else if cfg!(test) {
         vec![load_from_env]
     } else {
-        vec![load_from_env, load_from_home, load_from_opt, load_from_etc]
+        vec![load_from_etc]
     };
 
     for dm_provider in dm_arr {
