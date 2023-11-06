@@ -80,7 +80,7 @@ impl ExtnRequestProcessor for DistributorMetricsProcessor {
                     .clone()
                     .respond(
                         msg,
-                        ripple_sdk::extn::extn_client_message::ExtnResponse::Boolean(false),
+                        ripple_sdk::extn::extn_client_message::ExtnResponse::Boolean(true),
                     )
                     .await
                 {
@@ -163,7 +163,7 @@ pub async fn mock_metrics_response(
         .clone()
         .respond(
             msg,
-            ripple_sdk::extn::extn_client_message::ExtnResponse::Boolean(false),
+            ripple_sdk::extn::extn_client_message::ExtnResponse::Boolean(true),
         )
         .await
     {
