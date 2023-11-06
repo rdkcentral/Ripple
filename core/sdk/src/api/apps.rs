@@ -60,6 +60,10 @@ impl AppSession {
             None => EffectiveTransport::Websocket,
         }
     }
+
+    pub fn update_intent(&mut self, intent: NavigationIntent) {
+        let _ = self.launch.intent.insert(intent);
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -228,6 +232,7 @@ pub enum CloseReason {
     Error,
     AppNotReady,
     ResourceContention,
+    Done,
 }
 
 impl CloseReason {
@@ -238,6 +243,7 @@ impl CloseReason {
             CloseReason::Error => "error",
             CloseReason::AppNotReady => "appNotReady",
             CloseReason::ResourceContention => "resourceContention",
+            CloseReason::Done => "done",
         }
     }
 }

@@ -103,9 +103,9 @@ impl RippleClient {
         Ok(())
     }
 
-    pub async fn get_app_state(&self, app_id: String) -> Result<String, RippleError> {
+    pub async fn get_app_state(&self, app_id: &str) -> Result<String, RippleError> {
         let (app_resp_tx, app_resp_rx) = oneshot::channel::<Result<AppManagerResponse, AppError>>();
-        let app_request = AppRequest::new(AppMethod::State(app_id.to_string()), app_resp_tx);
+        let app_request = AppRequest::new(AppMethod::State(app_id.to_owned()), app_resp_tx);
         if let Err(e) = self.send_app_request(app_request) {
             error!("Send error for get_state {:?}", e);
             return Err(RippleError::SendFailure);
@@ -132,6 +132,9 @@ impl RippleClient {
         payload: impl ExtnPayloadProvider,
     ) -> Result<ExtnMessage, RippleError> {
         self.get_extn_client().clone().request(payload).await
+    }
+    pub fn send_extn_request_transient(&self, payload: impl ExtnPayloadProvider) -> RippleResponse {
+        self.get_extn_client().request_transient(payload)
     }
 
     pub async fn respond(&self, msg: ExtnMessage) -> Result<(), RippleError> {

@@ -240,6 +240,13 @@ impl ViewManager {
                         result = Err(ViewError::General);
                     }
                 }
+
+                if Self::set_visibility(state, id, matches!(position, Position::Front))
+                    .await
+                    .is_err()
+                {
+                    error!("Couldnt set visibility for view id {:?}", id)
+                }
             }
             None => {
                 result = Err(ViewError::NotFound);

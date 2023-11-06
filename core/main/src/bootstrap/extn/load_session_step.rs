@@ -15,12 +15,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use ripple_sdk::api::firebolt::fb_capabilities::{CapEvent, FireboltCap};
-use ripple_sdk::{api::session::AccountSessionRequest, framework::bootstrap::Bootstep};
+use ripple_sdk::framework::bootstrap::Bootstep;
 use ripple_sdk::{async_trait::async_trait, framework::RippleResponse};
 
+use crate::processor::main_context_processor::MainContextProcessor;
+use crate::service::context_manager::ContextManager;
 use crate::state::bootstrap_state::BootstrapState;
-use crate::state::cap::cap_state::CapState;
 use crate::state::metrics_state::MetricsState;
 
 pub struct LoadDistributorValuesStep;
@@ -32,28 +32,15 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
     }
 
     async fn setup(&self, s: BootstrapState) -> RippleResponse {
-        let response = s
-            .platform_state
-            .get_client()
-            .send_extn_request(AccountSessionRequest::Get)
-            .await
-            .expect("session");
-        let mut event = CapEvent::OnUnavailable;
-        if let Some(session) = response.payload.extract() {
-            s.platform_state
-                .session_state
-                .insert_account_session(session);
-            MetricsState::initialize(&s.platform_state).await;
-            event = CapEvent::OnAvailable;
+        MetricsState::initialize(&s.platform_state).await;
+        ContextManager::setup(&s.platform_state).await;
+        if !s.platform_state.supports_session() {
+            return Ok(());
         }
-
-        CapState::emit(
-            &s.platform_state,
-            event,
-            FireboltCap::Short("token:platform".to_owned()),
-            None,
-        )
-        .await;
+        MainContextProcessor::initialize_token(&s.platform_state).await;
+        s.platform_state
+            .get_client()
+            .add_event_processor(MainContextProcessor::new(s.platform_state.clone()));
         Ok(())
     }
 }

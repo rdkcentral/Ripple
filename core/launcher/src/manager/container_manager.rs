@@ -150,6 +150,7 @@ impl ContainerManager {
 
     pub async fn remove(state: &LauncherState, name: &str) -> Result<ResultType, ContainerError> {
         let mut result = Ok(ResultType::None);
+        let _ = Self::set_visible(state, name, false).await;
         if state
             .container_state
             .contains_stack_by_name(&name.to_string())
@@ -244,6 +245,13 @@ impl ContainerManager {
             .unwrap();
         let properties = p.clone();
         let view_id = properties.view_id;
+        if ViewManager::set_visibility(state, view_id, true)
+            .await
+            .is_err()
+        {
+            error!("failed to set visibility")
+        }
+
         match ViewManager::set_focus(state, view_id).await {
             Ok(v) => Ok(v),
             Err(_e) => Err(ContainerError::General),
@@ -335,6 +343,25 @@ impl ContainerManager {
             || state_change.states.state == LifecycleState::Unloading
         {
             let _ = Self::remove(state, &app_id).await;
+        } else if state_change.states.state == LifecycleState::Inactive {
+            if ViewManager::set_visibility(state, state_change.container_props.view_id, false)
+                .await
+                .is_err()
+            {
+                error!(
+                    "Couldnt set visibility for the app {}",
+                    state_change.container_props.name
+                );
+            }
+        } else if state_change.states.state == LifecycleState::Foreground
+            && ViewManager::set_visibility(state, state_change.container_props.view_id, true)
+                .await
+                .is_err()
+        {
+            error!(
+                "Couldnt set visibility for the app {}",
+                state_change.container_props.name
+            );
         }
     }
 }

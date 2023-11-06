@@ -15,7 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::service::apps::app_events::{AppEventDecorationError, AppEventDecorator, AppEvents};
+use crate::{
+    service::apps::app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
+    utils::rpc_utils::rpc_add_event_listener_with_decorator,
+};
 use jsonrpsee::{
     core::{async_trait, Error, RpcResult},
     proc_macros::rpc,
@@ -28,7 +31,7 @@ use ripple_sdk::{
                 AdIdRequestParams, AdInitObjectRequestParams, AdvertisingFrameworkConfig,
                 AdvertisingRequest, AdvertisingResponse, GetAdConfig,
             },
-            fb_capabilities::{CapabilityRole, RoleInfo},
+            fb_capabilities::{CapabilityRole, FireboltCap, RoleInfo},
             fb_general::{ListenRequest, ListenerResponse},
         },
         gateway::rpc_gateway_api::CallContext,
@@ -37,7 +40,6 @@ use ripple_sdk::{
             EVENT_ADVERTISING_SKIP_RESTRICTION_CHANGED,
         },
     },
-    extn::extn_client_message::ExtnResponse,
     log::error,
 };
 use serde::{Deserialize, Serialize};
@@ -45,16 +47,11 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::{
-    firebolt::rpc::RippleRPCProvider,
-    processor::storage::storage_manager::StorageManager,
-    state::platform_state::PlatformState,
-    utils::rpc_utils::{rpc_add_event_listener, rpc_err},
+    firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManager,
+    state::platform_state::PlatformState, utils::rpc_utils::rpc_err,
 };
 
-use super::{
-    capabilities_rpc::is_permitted,
-    privacy_rpc::{self, PrivacyImpl},
-};
+use super::{capabilities_rpc::is_permitted, privacy_rpc};
 
 const ADVERTISING_APP_BUNDLE_ID_SUFFIX: &str = "Comcast";
 
@@ -73,7 +70,7 @@ pub struct AdvertisingPolicy {
     pub limit_ad_tracking: bool,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum SkipRestriction {
     None,
@@ -85,7 +82,7 @@ pub enum SkipRestriction {
 impl SkipRestriction {
     pub fn as_string(&self) -> &'static str {
         match self {
-            SkipRestriction::None => "none",
+            SkipRestriction::None => NONE,
             SkipRestriction::AdsUnwatched => "adsUnwatched",
             SkipRestriction::AdsAll => "adsAll",
             SkipRestriction::All => "all",
@@ -93,7 +90,7 @@ impl SkipRestriction {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct SetSkipRestrictionRequest {
     pub value: SkipRestriction,
 }
@@ -137,7 +134,21 @@ pub trait Advertising {
     #[method(name = "advertising.resetIdentifier")]
     async fn reset_identifier(&self, ctx: CallContext) -> RpcResult<()>;
 }
-
+const NONE: &str = "none";
+async fn get_advertisting_policy(platform_state: &PlatformState) -> AdvertisingPolicy {
+    AdvertisingPolicy {
+        skip_restriction: StorageManager::get_string(
+            platform_state,
+            StorageProperty::SkipRestriction,
+        )
+        .await
+        .unwrap_or_else(|_| String::from(NONE)),
+        limit_ad_tracking: !privacy_rpc::PrivacyImpl::get_allow_app_content_ad_targeting(
+            platform_state,
+        )
+        .await,
+    }
+}
 #[derive(Clone)]
 struct AdvertisingPolicyEventDecorator {}
 #[async_trait]
@@ -149,14 +160,7 @@ impl AppEventDecorator for AdvertisingPolicyEventDecorator {
         _event_name: &str,
         _val_in: &Value,
     ) -> Result<Value, AppEventDecorationError> {
-        let skip_restriction =
-            StorageManager::get_string(ps, StorageProperty::SkipRestriction).await;
-
-        let sr = match skip_restriction {
-            Err(_) => String::from("none"),
-            Ok(_) => skip_restriction.unwrap(),
-        };
-        Ok(serde_json::to_value(sr).unwrap())
+        Ok(serde_json::to_value(get_advertisting_policy(ps).await)?)
     }
     fn dec_clone(&self) -> Box<dyn AppEventDecorator + Send + Sync> {
         Box::new(self.clone())
@@ -165,7 +169,7 @@ impl AppEventDecorator for AdvertisingPolicyEventDecorator {
 
 #[derive(Clone)]
 struct AdvertisingSetRestrictionEventDecorator {}
-
+use std::convert::From;
 #[async_trait]
 impl AppEventDecorator for AdvertisingSetRestrictionEventDecorator {
     async fn decorate(
@@ -175,14 +179,11 @@ impl AppEventDecorator for AdvertisingSetRestrictionEventDecorator {
         _event_name: &str,
         _val_in: &Value,
     ) -> Result<Value, AppEventDecorationError> {
-        let skip_restriction =
-            StorageManager::get_string(ps, StorageProperty::SkipRestriction).await;
-
-        let sr = match skip_restriction {
-            Err(_) => String::from("none"),
-            Ok(_) => skip_restriction.unwrap(),
-        };
-        Ok(serde_json::to_value(sr).unwrap())
+        Ok(serde_json::to_value(
+            StorageManager::get_string(ps, StorageProperty::SkipRestriction)
+                .await
+                .unwrap_or_else(|_| String::from(NONE)),
+        )?)
     }
     fn dec_clone(&self) -> Box<dyn AppEventDecorator + Send + Sync> {
         Box::new(self.clone())
@@ -196,28 +197,17 @@ pub struct AdvertisingImpl {
 #[async_trait]
 impl AdvertisingServer for AdvertisingImpl {
     async fn reset_identifier(&self, _ctx: CallContext) -> RpcResult<()> {
-        let session = self.state.session_state.get_account_session().unwrap();
-
-        let resp = self
-            .state
+        self.state
             .get_client()
-            .send_extn_request(AdvertisingRequest::ResetAdIdentifier(session))
-            .await;
-
-        if resp.is_err() {
-            error!("Error resetting ad identifier {:?}", resp);
-            return Err(rpc_err("Could not reset ad identifier for the device"));
-        }
-
-        match resp {
-            Ok(payload) => match payload.payload.extract().unwrap() {
-                ExtnResponse::None(()) => Ok(()),
-                _ => Err(rpc_err("Device returned Unable to reset ad identifier")),
-            },
-            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-                "Unable to reset ad identifier",
-            ))),
-        }
+            .send_extn_request(AdvertisingRequest::ResetAdIdentifier(
+                self.state
+                    .session_state
+                    .get_account_session()
+                    .ok_or_else(|| Error::Custom(String::from("no session available")))?,
+            ))
+            .await
+            .map(|_ok| ())
+            .map_err(|err| err.into())
     }
 
     async fn advertising_id(&self, ctx: CallContext) -> RpcResult<AdvertisingId> {
@@ -272,10 +262,9 @@ impl AdvertisingServer for AdvertisingImpl {
             .get_device_manifest()
             .get_distributor_experience_id();
         let params = RoleInfo {
-            capability: "advertising:identifier".to_string(),
+            capability: FireboltCap::short("advertising:identifier".to_string()),
             role: Some(CapabilityRole::Use),
         };
-        let ad_id_authorised = is_permitted(self.state.clone(), ctx, params).await;
 
         let payload = AdvertisingRequest::GetAdInitObject(AdInitObjectRequestParams {
             privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(&self.state)
@@ -287,17 +276,11 @@ impl AdvertisingServer for AdvertisingImpl {
             device_ad_attributes: HashMap::new(),
             coppa: config.options.coppa.unwrap_or(false),
             authentication_entity: config.options.authentication_entity.unwrap_or_default(),
-            dist_session: session.unwrap(),
+            dist_session: session
+                .ok_or_else(|| Error::Custom(String::from("no session available")))?,
         });
 
-        let resp = self.state.get_client().send_extn_request(payload).await;
-
-        if resp.is_err() {
-            error!("Error getting ad init object: {:?}", resp);
-            return Err(rpc_err("Could not get ad init object from the device"));
-        }
-
-        match resp {
+        match self.state.get_client().send_extn_request(payload).await {
             Ok(payload) => match payload.payload.extract().unwrap() {
                 AdvertisingResponse::AdInitObject(obj) => {
                     let ad_init_object = AdvertisingFrameworkConfig {
@@ -308,7 +291,10 @@ impl AdvertisingServer for AdvertisingImpl {
                         ad_site_section_id: "".to_string(),
                         ad_opt_out: obj.ad_opt_out,
                         privacy_data: obj.privacy_data,
-                        ifa: if ad_id_authorised.unwrap() {
+                        ifa: if is_permitted(self.state.clone(), ctx, params)
+                            .await
+                            .unwrap_or(false)
+                        {
                             obj.ifa
                         } else {
                             "0".repeat(obj.ifa.len())
@@ -318,7 +304,7 @@ impl AdvertisingServer for AdvertisingImpl {
                         app_bundle_id: obj.app_bundle_id,
                         distributor_app_id: obj.distributor_app_id,
                         device_ad_attributes: obj.device_ad_attributes,
-                        coppa: obj.coppa.to_string().parse::<u32>().unwrap(),
+                        coppa: obj.coppa.to_string().parse::<u32>().unwrap_or(0),
                         authentication_entity: obj.authentication_entity,
                     };
                     Ok(ad_init_object)
@@ -359,19 +345,7 @@ impl AdvertisingServer for AdvertisingImpl {
     }
 
     async fn policy(&self, _ctx: CallContext) -> RpcResult<AdvertisingPolicy> {
-        let limit_ad_tracking = PrivacyImpl::get_allow_app_content_ad_targeting(&self.state).await;
-        let skip_restriction =
-            StorageManager::get_string(&self.state, StorageProperty::SkipRestriction).await;
-
-        let sr = match skip_restriction {
-            Err(_) => String::from("none"),
-            Ok(_) => skip_restriction.unwrap(),
-        };
-
-        Ok(AdvertisingPolicy {
-            skip_restriction: sr,
-            limit_ad_tracking,
-        })
+        Ok(get_advertisting_policy(&self.state).await)
     }
 
     async fn advertising_on_policy_changed(
@@ -379,7 +353,14 @@ impl AdvertisingServer for AdvertisingImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(&self.state, ctx, request, EVENT_ADVERTISING_POLICY_CHANGED).await
+        rpc_add_event_listener_with_decorator(
+            &self.state,
+            ctx,
+            request,
+            EVENT_ADVERTISING_POLICY_CHANGED,
+            Some(Box::new(AdvertisingPolicyEventDecorator {})),
+        )
+        .await
     }
 
     async fn advertising_set_skip_restriction(
@@ -397,14 +378,11 @@ impl AdvertisingServer for AdvertisingImpl {
     }
 
     async fn advertising_skip_restriction(&self, _ctx: CallContext) -> RpcResult<String> {
-        let skip_restriction =
-            StorageManager::get_string(&self.state, StorageProperty::SkipRestriction).await;
-
-        let sr = match skip_restriction {
-            Err(_) => String::from("none"),
-            Ok(_) => skip_restriction.unwrap(),
-        };
-        Ok(sr)
+        Ok(
+            StorageManager::get_string(&self.state, StorageProperty::SkipRestriction)
+                .await
+                .unwrap_or_else(|_| String::from(NONE)),
+        )
     }
 
     async fn advertising_on_skip_restriction_changed(
@@ -431,5 +409,68 @@ pub struct AdvertisingRPCProvider;
 impl RippleRPCProvider<AdvertisingImpl> for AdvertisingRPCProvider {
     fn provide(state: PlatformState) -> RpcModule<AdvertisingImpl> {
         (AdvertisingImpl { state }).into_rpc()
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::firebolt::handlers::advertising_rpc::AdvertisingImpl;
+    use ripple_sdk::{api::gateway::rpc_gateway_api::JsonRpcApiRequest, tokio};
+    use ripple_tdk::utils::test_utils::Mockable;
+    use serde::{Deserialize, Serialize};
+    use serde_json::json;
+
+    #[derive(Serialize, Deserialize, Clone, Debug)]
+    struct CallContextContainer {
+        pub ctx: Option<CallContext>,
+    }
+
+    fn merge(a: &mut Value, b: &Value) {
+        match (a, b) {
+            (&mut Value::Object(ref mut a), Value::Object(ref b)) => {
+                for (k, v) in b {
+                    merge(a.entry(k.clone()).or_insert(Value::Null), v);
+                }
+            }
+            (a, b) => {
+                *a = b.clone();
+            }
+        }
+    }
+
+    fn test_request(
+        method_name: String,
+        call_context: Option<CallContext>,
+        params: Option<Value>,
+    ) -> String {
+        let mut the_map = params.map_or(json!({}), |v| v);
+        merge(
+            &mut the_map,
+            &serde_json::json!(CallContextContainer { ctx: call_context }),
+        );
+        let v = serde_json::to_value(JsonRpcApiRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(1),
+            method: method_name,
+            params: Some(the_map),
+        })
+        .unwrap();
+        serde_json::to_string(&v).unwrap()
+    }
+
+    #[tokio::test]
+    pub async fn test_app_bundle_id() {
+        let ad_module = (AdvertisingImpl {
+            state: PlatformState::mock(),
+        })
+        .into_rpc();
+
+        let request = test_request(
+            "advertising.appBundleId".to_string(),
+            Some(CallContext::mock()),
+            None,
+        );
+
+        assert!(ad_module.raw_json_request(&request).await.is_ok());
     }
 }

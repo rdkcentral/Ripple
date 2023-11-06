@@ -85,3 +85,20 @@ pub async fn cap_state_listener(
 
     resp_rx
 }
+
+pub struct MockCallContext;
+
+impl MockCallContext {
+    pub fn get_from_app_id(app_id: &str) -> CallContext {
+        CallContext {
+            session_id: "session_id".to_owned(),
+            request_id: "request_id".to_owned(),
+            app_id: app_id.to_owned(),
+            call_id: 0,
+            protocol: ripple_sdk::api::gateway::rpc_gateway_api::ApiProtocol::JsonRpc,
+            method: "some_method".to_owned(),
+            cid: Some("cid".to_owned()),
+            gateway_secure: false,
+        }
+    }
+}
