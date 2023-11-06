@@ -818,7 +818,7 @@ impl AppLauncher {
     ) -> Result<AppManagerResponse, AppError> {
         info!("close {:?}", reason);
         match reason {
-            CloseReason::UserExit | CloseReason::RemoteButton => {
+            CloseReason::UserExit | CloseReason::RemoteButton | CloseReason::Done => {
                 Self::set_state(state.clone(), app_id.into(), LifecycleState::Inactive).await
             }
             CloseReason::Error => {

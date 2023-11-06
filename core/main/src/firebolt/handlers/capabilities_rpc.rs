@@ -241,12 +241,17 @@ impl CapabilityServer for CapabilityImpl {
         ctx: CallContext,
         grants: CapRequestRpcRequest,
     ) -> RpcResult<Vec<CapabilityInfo>> {
-        let fb_perms: Vec<FireboltPermission> = grants.clone().into();
-        self.state
-            .cap_state
-            .generic
-            .check_supported(&fb_perms)
-            .map_err(|err| Error::Custom(format!("{:?} not supported", err.caps)))?;
+        let mut fb_perms: Vec<FireboltPermission> = grants.clone().into();
+        let mut cap_info = Vec::new();
+        if let Err(e) = self.state.cap_state.generic.check_supported(&fb_perms) {
+            fb_perms.retain(|x| !e.caps.contains(&x.cap));
+            for cap in e.caps {
+                cap_info.push(CapabilityInfo::get(
+                    cap.as_str(),
+                    Some(DenyReason::Unsupported),
+                ))
+            }
+        }
         let permitted_result: Result<
             (),
             ripple_sdk::api::firebolt::fb_capabilities::DenyReasonWithCap,
@@ -268,7 +273,8 @@ impl CapabilityServer for CapabilityImpl {
             .collect();
 
         if let Ok(a) = CapState::get_cap_info(&self.state, ctx, &request).await {
-            Ok(a)
+            cap_info.extend(a);
+            Ok(cap_info)
         } else {
             Err(jsonrpsee::core::Error::Custom(String::from(
                 "Error retreiving Capability Info TBD",
