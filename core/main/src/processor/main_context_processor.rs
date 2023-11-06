@@ -189,7 +189,6 @@ impl ExtnEventProcessor for MainContextProcessor {
             {
                 let mut context = state.current_context.write().unwrap();
                 context.deep_copy(extracted_message);
-                println!("**** after deep_copy: context :{:?}", context);
             }
         }
         None

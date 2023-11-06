@@ -36,7 +36,7 @@ use ripple_sdk::{
             fb_localization::SetPreferredAudioLanguage,
         },
         gateway::rpc_gateway_api::CallContext,
-        storage_property::{StorageProperty, EVENT_TIMEZONE_CHANGED, KEY_POSTAL_CODE},
+        storage_property::{StorageProperty, KEY_POSTAL_CODE},
     },
     extn::extn_client_message::ExtnResponse,
 };
@@ -44,10 +44,8 @@ use std::collections::HashMap;
 
 use crate::utils::rpc_utils::{rpc_add_event_listener, rpc_err};
 use crate::{
-    firebolt::rpc::RippleRPCProvider,
-    processor::storage::storage_manager::StorageManager,
-    service::apps::{app_events::AppEvents, provider_broker::ProviderBroker},
-    state::platform_state::PlatformState,
+    firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManager,
+    service::apps::provider_broker::ProviderBroker, state::platform_state::PlatformState,
 };
 use serde::Deserialize;
 
@@ -527,20 +525,16 @@ impl LocalizationServer for LocalizationImpl {
             )));
         }
 
-        if let Ok(_response) = self
+        if self
             .platform_state
             .get_client()
             .send_extn_request(DeviceInfoRequest::SetTimezone(set_request.value.clone()))
             .await
+            .is_ok()
         {
-            AppEvents::emit(
-                &self.platform_state,
-                EVENT_TIMEZONE_CHANGED,
-                &serde_json::to_value(set_request.value).unwrap_or_default(),
-            )
-            .await;
             return Ok(());
         }
+
         Err(rpc_err("timezone: error response TBD"))
     }
 

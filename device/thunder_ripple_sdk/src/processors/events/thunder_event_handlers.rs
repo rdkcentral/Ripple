@@ -594,25 +594,27 @@ impl TimezoneChangedEventHandler {
         if let ThunderEventMessage::TimeZone(_v) = value {
             let cached_state = CachedState::new(state.clone());
             tokio::spawn(async move {
-                let tz =
-                    ThunderDeviceInfoRequestProcessor::get_timezone_and_offset(&cached_state).await;
-                let event = ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
-                    event_name: TIME_ZONE_CHANGED.to_string(),
-                    result: serde_json::to_value(tz.clone().time_zone).unwrap(),
-                    context: None,
-                    app_id: None,
-                }));
+                if let Some(tz) =
+                    ThunderDeviceInfoRequestProcessor::get_timezone_and_offset(&cached_state).await
+                {
+                    let event = ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
+                        event_name: TIME_ZONE_CHANGED.to_string(),
+                        result: serde_json::to_value(tz.clone().time_zone).unwrap(),
+                        context: None,
+                        app_id: None,
+                    }));
 
-                ThunderEventHandler::callback_device_event(
-                    state.clone(),
-                    TIME_ZONE_CHANGED.to_string(),
-                    event,
-                );
+                    ThunderEventHandler::callback_device_event(
+                        state.clone(),
+                        TIME_ZONE_CHANGED.to_string(),
+                        event,
+                    );
 
-                ThunderEventHandler::callback_context_update(
-                    state,
-                    RippleContextUpdateRequest::TimeZone(tz),
-                );
+                    ThunderEventHandler::callback_context_update(
+                        state,
+                        RippleContextUpdateRequest::TimeZone(tz),
+                    );
+                }
             });
         }
     }

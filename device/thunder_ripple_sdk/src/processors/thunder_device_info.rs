@@ -59,7 +59,10 @@ use crate::{
     utils::get_audio_profile_from_value,
 };
 use ripple_sdk::{
-    api::device::device_request::{InternetConnectionStatus, PowerState, TimeZone},
+    api::{
+        context::RippleContextUpdateRequest,
+        device::device_request::{InternetConnectionStatus, PowerState, TimeZone},
+    },
     log::trace,
     serde_json::{Map, Value},
 };
@@ -1028,13 +1031,28 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     pub async fn get_timezone_with_offset(state: CachedState, req: ExtnMessage) -> bool {
-        if let Ok(timezone) = Self::get_timezone_value(&state).await {
-            if let Ok(timezones) = Self::get_all_timezones(&state).await {
-                let offset = timezones.get_offset(&timezone);
+        if let Some(TimeZone { time_zone, offset }) = state.get_client().get_timezone() {
+            if !time_zone.is_empty() {
                 return Self::respond(
                     state.get_client(),
                     req,
-                    ExtnResponse::TimezoneWithOffset(timezone, offset),
+                    ExtnResponse::TimezoneWithOffset(time_zone, offset),
+                )
+                .await
+                .is_ok();
+            } else if let Some(tz) = Self::get_timezone_and_offset(&state).await {
+                let cloned_state = state.clone();
+                let cloned_tz = tz.clone();
+                cloned_state
+                    .get_client()
+                    .context_update(RippleContextUpdateRequest::TimeZone(TimeZone {
+                        time_zone: cloned_tz.time_zone,
+                        offset: cloned_tz.offset,
+                    }));
+                return Self::respond(
+                    state.get_client(),
+                    req,
+                    ExtnResponse::TimezoneWithOffset(tz.time_zone, tz.offset),
                 )
                 .await
                 .is_ok();
@@ -1044,20 +1062,17 @@ impl ThunderDeviceInfoRequestProcessor {
         Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
     }
 
-    pub async fn get_timezone_and_offset(state: &CachedState) -> TimeZone {
-        // Try to get the timezone value, or return a default value if there's an error
-        let timezone = Self::get_timezone_value(&state).await.unwrap_or_default();
+    pub async fn get_timezone_and_offset(state: &CachedState) -> Option<TimeZone> {
+        let timezone_result = ThunderDeviceInfoRequestProcessor::get_timezone_value(state).await;
+        let timezones_result = ThunderDeviceInfoRequestProcessor::get_all_timezones(state).await;
 
-        // Try to get all timezones, or return a default value if there's an error
-        let timezones = Self::get_all_timezones(&state).await.unwrap_or_default();
-
-        // Calculate the offset
-        let offset = timezones.get_offset(&timezone);
-
-        // Return the response
-        TimeZone {
-            time_zone: timezone,
-            offset,
+        if let (Ok(timezone), Ok(timezones)) = (timezone_result, timezones_result) {
+            Some(TimeZone {
+                time_zone: timezone.clone(),
+                offset: timezones.get_offset(&timezone),
+            })
+        } else {
+            None
         }
     }
 
