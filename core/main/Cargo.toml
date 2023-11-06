@@ -17,7 +17,7 @@
 
 [package]
 name = "main"
-version = "0.8.0"
+version = "1.0.0"
 edition = "2021"
 repository = "https://github.com/rdkcentral/Ripple"
 build = "build.rs"
@@ -31,6 +31,7 @@ path = "src/main.rs"
 [features]
 local_dev = []
 sysd = ["sd-notify"]
+pre_prod = []
 
 [dependencies]
 ripple_sdk = { path = "../sdk", features = ["full"] }

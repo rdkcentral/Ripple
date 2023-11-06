@@ -41,7 +41,7 @@ use ripple_sdk::{
     uuid::Uuid,
 };
 use ripple_sdk::{
-    log::{error, info, trace, warn},
+    log::{error, info, warn},
     utils::channel_utils::{mpsc_send_and_log, oneshot_send_and_log},
 };
 use ripple_sdk::{
@@ -169,7 +169,6 @@ impl ThunderClient {
     /// Sends a message to thunder. If this client is pooled
     /// then it will wrap the message in a pool command before sending
     pub async fn send_message(&self, message: ThunderMessage) {
-        info!("Client {} sending thunder message {:?}", self.id, message);
         if let Some(s) = &self.pooled_sender {
             mpsc_send_and_log(
                 s,
@@ -245,6 +244,7 @@ impl ThunderClient {
             "client.{}.events.{}",
             thunder_message.module, thunder_message.event_name
         );
+
         let sub_id = match &thunder_message.sub_id {
             Some(sid) => sid.clone(),
             None => Uuid::new_v4().to_string(),
@@ -285,7 +285,6 @@ impl ThunderClient {
         let resub_message = ThunderMessage::ThunderSubscribeMessage(thunder_message.resubscribe());
         let sub_id_c = sub_id.clone();
         let handle = ripple_sdk::tokio::spawn(async move {
-            trace!("Starting thread to listen for thunder events");
             while let Some(ev_res) = subscription.next().await {
                 match ev_res {
                     Ok(ev) => {
@@ -454,6 +453,7 @@ impl ThunderClientBuilder {
                         return;
                     }
                 }
+                info!("Client {} sending thunder message {:?}", id, message);
                 match message {
                     ThunderMessage::ThunderCallMessage(thunder_message) => {
                         ThunderClient::call(&client, thunder_message, plugin_manager_tx.clone())

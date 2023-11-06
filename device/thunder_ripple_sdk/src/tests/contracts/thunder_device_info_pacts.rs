@@ -1101,34 +1101,18 @@ async fn test_device_get_internet() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
     let mut result = HashMap::new();
-    result.insert("city".into(), ContractMatcher::MatchType("Wroclaw".into()));
     result.insert(
-        "country".into(),
-        ContractMatcher::MatchType("Poland".into()),
+        "connectedToInternet".into(),
+        ContractMatcher::MatchBool(true),
     );
-    result.insert(
-        "region".into(),
-        ContractMatcher::MatchType("Wroclaw".into()),
-    );
-    result.insert(
-        "timezone".into(),
-        ContractMatcher::MatchType("CET-1CEST,M3.5.0,M10.5.0/3".into()),
-    );
-    result.insert(
-        "publicip".into(),
-        ContractMatcher::MatchRegex(
-            "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
-                .into(),
-            "78.11.117.118".into(),
-        ),
-    );
+    result.insert("success".into(), ContractMatcher::MatchBool(true));
 
     pact_builder_async
         .synchronous_message_interaction(
             "A request to get the device internet",
             |mut i| async move {
                 i.contents_from(get_pact!(
-                    "LocationSync.1.location",
+                    "org.rdk.Network.1.isConnectedToInternet",
                     ContractResult { result }
                 ))
                 .await;

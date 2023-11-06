@@ -21,22 +21,54 @@ use serde::{Deserialize, Serialize, Serializer};
 pub struct ClosedCaptionsSettings {
     pub enabled: bool,
     pub styles: ClosedCaptionStyle,
+    pub preferred_languages: Vec<String>,
 }
 
-pub const FONT_FAMILY_LIST: [&str; 5] = ["sans-serif", "serif", "monospace", "cursive", "fantasy"];
+pub const FONT_FAMILY_LIST: [&str; 7] = [
+    "monospaced_serif",
+    "proportional_serif",
+    "monospaced_sanserif",
+    "proportional_sanserif",
+    "smallcaps",
+    "cursive",
+    "casual",
+];
+pub const FONT_EDGE_LIST: [&str; 6] = [
+    "none",
+    "raised",
+    "depressed",
+    "uniform",
+    "drop_shadow_left",
+    "drop_shadow_right",
+];
+
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClosedCaptionStyle {
-    pub font_family: String,
-    pub font_size: f32,
-    pub font_color: String,
-    pub font_edge: String,
-    pub font_edge_color: String,
-    pub font_opacity: u32,
-    pub background_color: String,
-    pub background_opacity: u32,
-    pub text_align: String,
-    pub text_align_vertical: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_family: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_size: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_edge: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_edge_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_opacity: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub background_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub background_opacity: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window_opacity: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_align: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_align_vertical: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -57,4 +89,14 @@ where
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
 pub struct VoiceGuidanceEnabledChangedEventData {
     pub state: bool,
+}
+
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+pub struct AudioDescriptionSettings {
+    pub enabled: bool,
+}
+
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+pub struct AudioDescriptionSettingsSet {
+    pub value: bool,
 }

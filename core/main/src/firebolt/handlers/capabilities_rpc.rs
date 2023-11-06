@@ -23,29 +23,37 @@ use crate::{
         platform_state::PlatformState,
     },
 };
-use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
-use ripple_sdk::api::{
-    firebolt::{
-        fb_capabilities::{
-            CapEvent, CapInfoRpcRequest, CapListenRPCRequest, CapRequestRpcRequest, CapabilityInfo,
-            CapabilityRole, FireboltCap, FireboltPermission, RoleInfo,
-        },
-        fb_general::ListenerResponse,
-    },
-    gateway::rpc_gateway_api::CallContext,
+use jsonrpsee::{
+    core::{Error, RpcResult},
+    proc_macros::rpc,
+    RpcModule,
 };
+
 use ripple_sdk::async_trait::async_trait;
+use ripple_sdk::{
+    api::{
+        firebolt::{
+            fb_capabilities::{
+                CapEvent, CapInfoRpcRequest, CapListenRPCRequest, CapRPCRequest,
+                CapRequestRpcRequest, CapabilityInfo, DenyReason, FireboltPermission, RoleInfo,
+            },
+            fb_general::ListenerResponse,
+        },
+        gateway::rpc_gateway_api::CallContext,
+    },
+    utils::error::RippleError,
+};
 
 #[rpc(server)]
 pub trait Capability {
     #[method(name = "capabilities.supported")]
-    async fn supported(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool>;
+    async fn supported(&self, ctx: CallContext, cap: CapRPCRequest) -> RpcResult<bool>;
     #[method(name = "capabilities.available")]
-    async fn available(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool>;
+    async fn available(&self, ctx: CallContext, cap: CapRPCRequest) -> RpcResult<bool>;
     #[method(name = "capabilities.permitted")]
-    async fn permitted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool>;
+    async fn permitted(&self, ctx: CallContext, cap: CapRPCRequest) -> RpcResult<bool>;
     #[method(name = "capabilities.granted")]
-    async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool>;
+    async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<Option<bool>>;
     #[method(name = "capabilities.info")]
     async fn info(
         &self,
@@ -106,36 +114,40 @@ impl CapabilityImpl {
 
 #[async_trait]
 impl CapabilityServer for CapabilityImpl {
-    async fn supported(&self, _ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
+    async fn supported(&self, _ctx: CallContext, cap: CapRPCRequest) -> RpcResult<bool> {
         Ok(self
             .state
             .cap_state
             .generic
             .check_supported(&[FireboltPermission {
-                cap: FireboltCap::Full(cap.capability),
-                role: cap.role.unwrap_or(CapabilityRole::Use),
+                cap: cap.capability,
+                role: cap.options.unwrap_or_default().role,
             }])
             .is_ok())
     }
 
-    async fn available(&self, _ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
+    async fn available(&self, _ctx: CallContext, cap: CapRPCRequest) -> RpcResult<bool> {
         Ok(self
             .state
             .cap_state
             .generic
             .check_available(&vec![FireboltPermission {
-                cap: FireboltCap::Full(cap.capability),
-                role: cap.role.unwrap_or(CapabilityRole::Use),
+                cap: cap.capability,
+                role: cap.options.unwrap_or_default().role,
             }])
             .is_ok())
     }
 
-    async fn permitted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
+    async fn permitted(&self, ctx: CallContext, cap: CapRPCRequest) -> RpcResult<bool> {
+        if self.state.open_rpc_state.is_app_excluded(&ctx.app_id) {
+            return Ok(true);
+        }
+
         if let Ok(v) = self
             .state
             .cap_state
             .permitted_state
-            .check_cap_role(&ctx.app_id, cap.clone())
+            .check_cap_role(&ctx.app_id, cap.clone().into())
         {
             return Ok(v);
         } else if PermissionHandler::fetch_and_store(&self.state, &ctx.app_id)
@@ -147,7 +159,7 @@ impl CapabilityServer for CapabilityImpl {
                 .state
                 .cap_state
                 .permitted_state
-                .check_cap_role(&ctx.app_id, cap)
+                .check_cap_role(&ctx.app_id, cap.into())
             {
                 return Ok(v);
             }
@@ -155,11 +167,17 @@ impl CapabilityServer for CapabilityImpl {
         Ok(false)
     }
 
-    async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
-        if let Ok(response) = is_granted(self.state.clone(), ctx, cap).await {
-            return Ok(response);
+    async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<Option<bool>> {
+        let granted_res =
+            self.state
+                .cap_state
+                .grant_state
+                .check_granted(&self.state, &ctx.app_id, cap);
+        match granted_res {
+            Ok(grant) => Ok(Some(grant)),
+            Err(RippleError::Permission(DenyReason::Ungranted)) => Ok(None),
+            Err(_) => Err(Error::Custom("Unable to get user grants".to_owned())),
         }
-        Ok(false)
     }
 
     async fn info(
@@ -167,11 +185,12 @@ impl CapabilityServer for CapabilityImpl {
         ctx: CallContext,
         request: CapInfoRpcRequest,
     ) -> RpcResult<Vec<CapabilityInfo>> {
-        let cap_set = request
-            .capabilities
-            .iter()
-            .map(|cap| FireboltCap::Full(cap.to_owned()))
-            .collect();
+        if request.capabilities.is_empty() {
+            return Err(jsonrpsee::core::Error::Custom(String::from(
+                "Error invalid input capabilities are empty",
+            )));
+        }
+        let cap_set = request.capabilities;
         if let Ok(a) = CapState::get_cap_info(&self.state, ctx, &cap_set).await {
             Ok(a)
         } else {
@@ -222,15 +241,27 @@ impl CapabilityServer for CapabilityImpl {
         ctx: CallContext,
         grants: CapRequestRpcRequest,
     ) -> RpcResult<Vec<CapabilityInfo>> {
-        let req_list: Vec<FireboltPermission> = grants.clone().into();
-        let permitted_result =
-            PermissionHandler::check_permitted(&self.state, &ctx.app_id, &req_list).await;
+        let mut fb_perms: Vec<FireboltPermission> = grants.clone().into();
+        let mut cap_info = Vec::new();
+        if let Err(e) = self.state.cap_state.generic.check_supported(&fb_perms) {
+            fb_perms.retain(|x| !e.caps.contains(&x.cap));
+            for cap in e.caps {
+                cap_info.push(CapabilityInfo::get(
+                    cap.as_str(),
+                    Some(DenyReason::Unsupported),
+                ))
+            }
+        }
+        let permitted_result: Result<
+            (),
+            ripple_sdk::api::firebolt::fb_capabilities::DenyReasonWithCap,
+        > = PermissionHandler::check_permitted(&self.state, &ctx.app_id, &fb_perms).await;
         if permitted_result.is_ok() {
             let _ = GrantState::check_with_roles(
                 &self.state,
                 &ctx.clone().into(),
                 &ctx.clone().into(),
-                &req_list,
+                &fb_perms,
                 false,
             )
             .await;
@@ -238,11 +269,12 @@ impl CapabilityServer for CapabilityImpl {
         let request = grants
             .grants
             .iter()
-            .map(|role_info| FireboltCap::Full(role_info.capability.to_owned()))
+            .map(|role_info| role_info.capability.clone())
             .collect();
 
         if let Ok(a) = CapState::get_cap_info(&self.state, ctx, &request).await {
-            Ok(a)
+            cap_info.extend(a);
+            Ok(cap_info)
         } else {
             Err(jsonrpsee::core::Error::Custom(String::from(
                 "Error retreiving Capability Info TBD",
@@ -292,6 +324,6 @@ pub async fn is_granted(state: PlatformState, ctx: CallContext, cap: RoleInfo) -
     Ok(state
         .cap_state
         .grant_state
-        .check_granted(&ctx.app_id, cap)
+        .check_granted(&state, &ctx.app_id, cap)
         .is_ok())
 }

@@ -61,7 +61,13 @@ impl From<CallContext> for BehavioralMetricContext {
 pub struct AppDataGovernanceState {
     pub data_tags_to_apply: HashSet<String>,
 }
-
+impl AppDataGovernanceState {
+    pub fn new(tags: HashSet<String>) -> AppDataGovernanceState {
+        AppDataGovernanceState {
+            data_tags_to_apply: tags,
+        }
+    }
+}
 #[derive(Deserialize, Debug, Clone)]
 pub struct InternalInitializeParams {
     pub name: String,
@@ -267,7 +273,31 @@ pub struct RawBehaviorMetricRequest {
     pub context: BehavioralMetricContext,
     pub value: Value,
 }
-
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum AppLifecycleState {
+    #[serde(rename = "launching")]
+    Launching,
+    #[serde(rename = "foreground")]
+    Foreground,
+    #[serde(rename = "background")]
+    Background,
+    #[serde(rename = "inactive")]
+    Inactive,
+    #[serde(rename = "suspended")]
+    Suspended,
+    #[serde(rename = "not_running")]
+    NotRunning,
+    #[serde(rename = "initializing")]
+    Initializing,
+    #[serde(rename = "ready")]
+    Ready,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AppLifecycleStateChange {
+    pub context: BehavioralMetricContext,
+    pub previous_state: Option<AppLifecycleState>,
+    pub new_state: AppLifecycleState,
+}
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum BehavioralMetricPayload {
     Ready(Ready),
@@ -289,6 +319,7 @@ pub enum BehavioralMetricPayload {
     MediaRateChanged(MediaRateChanged),
     MediaRenditionChanged(MediaRenditionChanged),
     MediaEnded(MediaEnded),
+    AppStateChange(AppLifecycleStateChange),
     Raw(RawBehaviorMetricRequest),
 }
 
@@ -314,7 +345,33 @@ impl BehavioralMetricPayload {
             Self::MediaRateChanged(m) => m.context = context,
             Self::MediaRenditionChanged(m) => m.context = context,
             Self::MediaEnded(m) => m.context = context,
+            Self::AppStateChange(a) => a.context = context,
             Self::Raw(r) => r.context = context,
+        }
+    }
+    pub fn get_context(&self) -> BehavioralMetricContext {
+        match self {
+            Self::Ready(r) => r.context.clone(),
+            Self::SignIn(s) => s.context.clone(),
+            Self::SignOut(s) => s.context.clone(),
+            Self::StartContent(s) => s.context.clone(),
+            Self::StopContent(s) => s.context.clone(),
+            Self::Page(p) => p.context.clone(),
+            Self::Action(a) => a.context.clone(),
+            Self::Error(e) => e.context.clone(),
+            Self::MediaLoadStart(m) => m.context.clone(),
+            Self::MediaPlay(m) => m.context.clone(),
+            Self::MediaPlaying(m) => m.context.clone(),
+            Self::MediaPause(m) => m.context.clone(),
+            Self::MediaWaiting(m) => m.context.clone(),
+            Self::MediaProgress(m) => m.context.clone(),
+            Self::MediaSeeking(m) => m.context.clone(),
+            Self::MediaSeeked(m) => m.context.clone(),
+            Self::MediaRateChanged(m) => m.context.clone(),
+            Self::MediaRenditionChanged(m) => m.context.clone(),
+            Self::MediaEnded(m) => m.context.clone(),
+            Self::AppStateChange(a) => a.context.clone(),
+            Self::Raw(r) => r.context.clone(),
         }
     }
 }
@@ -506,4 +563,11 @@ impl From<ErrorParams> for ErrorType {
     fn from(params: ErrorParams) -> Self {
         params.error_type
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct SystemErrorParams {
+    pub error_name: String,
+    pub component: String,
+    pub context: Option<String>,
 }

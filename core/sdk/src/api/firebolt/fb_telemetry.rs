@@ -23,7 +23,7 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
-use super::fb_metrics::{ErrorParams, ErrorType, Param};
+use super::fb_metrics::{ErrorParams, ErrorType, Param, SystemErrorParams};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppLoadStart {
@@ -97,7 +97,7 @@ fn get_error_type(error_type: ErrorType) -> String {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SystemError {
+pub struct TelemetrySystemError {
     pub error_name: String,
     pub component: String,
     pub context: Option<String>,
@@ -105,7 +105,18 @@ pub struct SystemError {
     pub ripple_version: String,
     pub ripple_context: Option<String>,
 }
-
+impl From<SystemErrorParams> for TelemetrySystemError {
+    fn from(error: SystemErrorParams) -> Self {
+        TelemetrySystemError {
+            error_name: error.error_name,
+            component: error.component,
+            context: error.context,
+            ripple_session_id: String::new(),
+            ripple_version: String::from("ripple.version.tbd"), //String::from(version()),
+            ripple_context: None,                               //ripple_context(),
+        }
+    }
+}
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TelemetrySignIn {
     pub app_id: String,
@@ -145,7 +156,7 @@ pub enum TelemetryPayload {
     AppLoadStop(AppLoadStop),
     AppSDKLoaded(AppSDKLoaded),
     AppError(TelemetryAppError),
-    SystemError(SystemError),
+    SystemError(TelemetrySystemError),
     SignIn(TelemetrySignIn),
     SignOut(TelemetrySignOut),
     InternalInitialize(InternalInitialize),

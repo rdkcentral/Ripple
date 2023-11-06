@@ -18,15 +18,11 @@
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
-    thread,
-    time::{self, Duration},
+    time::Duration,
 };
 
 use crate::{
-    client::{
-        thunder_client::ThunderClient,
-        thunder_plugin::ThunderPlugin::{self, LocationSync},
-    },
+    client::{thunder_client::ThunderClient, thunder_plugin::ThunderPlugin},
     ripple_sdk::{
         api::device::{device_info_request::DeviceCapabilities, device_request::AudioProfile},
         chrono::NaiveDateTime,
@@ -40,10 +36,7 @@ use crate::{
         api::{
             device::{
                 device_info_request::{DeviceInfoRequest, DeviceResponse},
-                device_operator::{
-                    DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
-                    DeviceSubscribeRequest, DeviceUnsubscribeRequest,
-                },
+                device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
                 device_request::{
                     HDCPStatus, HdcpProfile, HdrProfile, NetworkResponse, NetworkState,
                     NetworkType, Resolution,
@@ -65,7 +58,11 @@ use crate::{
     },
     utils::get_audio_profile_from_value,
 };
-use ripple_sdk::serde_json::{Map, Value};
+use ripple_sdk::{
+    api::device::device_request::{InternetConnectionStatus, PowerState},
+    log::trace,
+    serde_json::{Map, Value},
+};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 
@@ -281,13 +278,13 @@ impl ThunderNetworkService {
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
-                method: ThunderPlugin::LocationSync.method("location"),
+                method: ThunderPlugin::Network.method("isConnectedToInternet"),
                 params: None,
             })
             .await;
         info!("{}", response.message);
-        if let Some(ip) = response.message["publicip"].as_str() {
-            return !ip.is_empty();
+        if let Some(ip) = response.message["connectedToInternet"].as_bool() {
+            return ip;
         };
         false
     }
@@ -507,6 +504,30 @@ impl ThunderDeviceInfoRequestProcessor {
             .is_ok()
     }
 
+    async fn get_internet_connection_status(
+        state: &CachedState,
+    ) -> Option<InternetConnectionStatus> {
+        let dev_response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::Network.method("getInternetConnectionState"),
+                params: None,
+            })
+            .await;
+        let value = dev_response.message.get("state").cloned();
+        value.as_ref()?;
+        if let Ok(internet_status) = serde_json::from_value::<u32>(value.unwrap()) {
+            match internet_status {
+                0 => Some(InternetConnectionStatus::NoInternet),
+                1 => Some(InternetConnectionStatus::LimitedInternet),
+                2 => Some(InternetConnectionStatus::CaptivePortal),
+                3 => Some(InternetConnectionStatus::FullyConnected),
+                _ => None,
+            }
+        } else {
+            None
+        }
+    }
     async fn get_make(state: &CachedState) -> String {
         let response: String;
         match state.get_make() {
@@ -531,6 +552,30 @@ impl ThunderDeviceInfoRequestProcessor {
         response
     }
 
+    async fn internet_connection_status(state: CachedState, req: ExtnMessage) -> bool {
+        if let Some(response) = Self::get_internet_connection_status(&state).await {
+            trace!(
+                "Successfully got internetConnection status from thunder: {:?}",
+                response
+            );
+            Self::respond(
+                state.get_client(),
+                req,
+                if let ExtnPayload::Response(resp) =
+                    DeviceResponse::InternetConnectionStatus(response).get_extn_payload()
+                {
+                    resp
+                } else {
+                    ExtnResponse::Error(RippleError::ProcessorError)
+                },
+            )
+            .await
+            .is_ok()
+        } else {
+            error!("Unable to get internet connection status from thunder");
+            Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
+        }
+    }
     async fn make(state: CachedState, req: ExtnMessage) -> bool {
         let response: String = Self::get_make(&state).await;
 
@@ -831,61 +876,31 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     async fn on_internet_connected(state: CachedState, req: ExtnMessage, timeout: u64) -> bool {
-        if ThunderNetworkService::has_internet(&state).await {
-            return Self::respond(state.get_client(), req, ExtnResponse::None(()))
-                .await
-                .is_ok();
-        }
+        if tokio::time::timeout(
+            Duration::from_millis(timeout),
+            Self::respond(state.get_client(), req.clone(), {
+                let value = ThunderNetworkService::has_internet(&state).await;
 
-        let (s, mut r) = mpsc::channel::<DeviceResponseMessage>(32);
-        let cloned_state = state.clone();
-        let client = state.get_thunder_client();
-
-        client
-            .clone()
-            .subscribe(
-                DeviceSubscribeRequest {
-                    module: LocationSync.callsign_and_version(),
-                    event_name: "locationchange".into(),
-                    params: None,
-                    sub_id: None,
-                },
-                s,
-            )
-            .await;
-        info!("subscribed to locationchangeChanged events");
-
-        let thread_res = tokio::spawn(async move {
-            while r.recv().await.is_some() {
-                if ThunderNetworkService::has_internet(&cloned_state).await {
-                    // Internet precondition for browsers are supposed to be met
-                    // when locationchange event is given, but seems to be a short period
-                    // where it still is not. Wait for a small amount of time.
-                    thread::sleep(time::Duration::from_millis(1000));
-                    cloned_state
-                        .get_thunder_client()
-                        .unsubscribe(DeviceUnsubscribeRequest {
-                            module: LocationSync.callsign_and_version(),
-                            event_name: "locationchange".into(),
-                        })
-                        .await;
-                    info!("Unsubscribing to locationchangeChanged events");
+                if let ExtnPayload::Response(r) =
+                    DeviceResponse::InternetConnectionStatus(match value {
+                        true => InternetConnectionStatus::FullyConnected,
+                        false => InternetConnectionStatus::NoInternet,
+                    })
+                    .get_extn_payload()
+                {
+                    r
+                } else {
+                    ExtnResponse::Error(RippleError::ProcessorError)
                 }
-            }
-        });
-        let dur = Duration::from_millis(timeout);
-        if tokio::time::timeout(dur, thread_res).await.is_err() {
-            return Self::respond(
-                state.get_client(),
-                req,
-                ExtnResponse::Error(RippleError::NoResponse),
-            )
-            .await
-            .is_ok();
+            }),
+        )
+        .await
+        .is_err()
+        {
+            Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
+        } else {
+            true
         }
-        Self::respond(state.get_client().clone(), req, ExtnResponse::None(()))
-            .await
-            .is_ok()
     }
 
     async fn get_version(state: &CachedState) -> FireboltSemanticVersion {
@@ -1207,6 +1222,36 @@ impl ThunderDeviceInfoRequestProcessor {
         }
         Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
     }
+
+    async fn power_state(state: CachedState, req: ExtnMessage) -> bool {
+        let dev_response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::System.method("getPowerState"),
+                params: None,
+            })
+            .await;
+        if let Some(value) = dev_response.message.get("powerState").cloned() {
+            if let Ok(power_state) = serde_json::from_value::<PowerState>(value) {
+                return Self::respond(
+                    state.get_client(),
+                    req,
+                    if let ExtnPayload::Response(r) =
+                        DeviceResponse::PowerState(power_state).get_extn_payload()
+                    {
+                        r
+                    } else {
+                        ExtnResponse::Error(RippleError::ProcessorError)
+                    },
+                )
+                .await
+                .is_ok();
+            }
+        }
+
+        error!("Unable to get power state from thunder");
+        Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
+    }
 }
 
 pub fn get_dimension_from_resolution(resolution: &str) -> Vec<i32> {
@@ -1321,6 +1366,9 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             DeviceInfoRequest::VoiceGuidanceSpeed => {
                 Self::voice_guidance_speed(state.clone(), msg).await
             }
+            DeviceInfoRequest::InternetConnectionStatus => {
+                Self::internet_connection_status(state.clone(), msg).await
+            }
             DeviceInfoRequest::FullCapabilities => {
                 let device_capabilities = DeviceCapabilities {
                     audio: Self::get_audio(&state).await,
@@ -1342,6 +1390,7 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
                     Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await
                 }
             }
+            DeviceInfoRequest::PowerState => Self::power_state(state.clone(), msg).await,
             _ => false,
         }
     }

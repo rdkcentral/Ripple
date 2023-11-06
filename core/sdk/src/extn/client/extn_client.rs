@@ -30,7 +30,11 @@ use tokio::sync::{
 };
 
 use crate::{
-    api::manifest::extn_manifest::ExtnSymbol,
+    api::{
+        context::{ActivationStatus, RippleContext, RippleContextUpdateRequest},
+        device::device_request::InternetConnectionStatus,
+        manifest::extn_manifest::ExtnSymbol,
+    },
     extn::{
         extn_client_message::{ExtnMessage, ExtnPayloadProvider, ExtnResponse},
         extn_id::ExtnId,
@@ -67,6 +71,7 @@ pub struct ExtnClient {
     response_processors: Arc<RwLock<HashMap<String, OSender<ExtnMessage>>>>,
     request_processors: Arc<RwLock<HashMap<String, MSender<ExtnMessage>>>>,
     event_processors: Arc<RwLock<HashMap<String, Vec<MSender<ExtnMessage>>>>>,
+    ripple_context: Arc<RwLock<RippleContext>>,
 }
 
 fn add_stream_processor<P>(id: String, context: P, map: Arc<RwLock<HashMap<String, P>>>) {
@@ -112,6 +117,7 @@ impl ExtnClient {
             response_processors: Arc::new(RwLock::new(HashMap::new())),
             request_processors: Arc::new(RwLock::new(HashMap::new())),
             event_processors: Arc::new(RwLock::new(HashMap::new())),
+            ripple_context: Arc::new(RwLock::new(RippleContext::default())),
         }
     }
 
@@ -200,6 +206,16 @@ impl ExtnClient {
         }
     }
 
+    pub fn get_other_senders(&self) -> Vec<CSender<CExtnMessage>> {
+        self.extn_sender_map
+            .read()
+            .unwrap()
+            .iter()
+            .map(|(_, v)| v)
+            .cloned()
+            .collect()
+    }
+
     /// Called once per client initialization this is a blocking method. Use a spawned thread to call this method
     pub async fn initialize(&self) {
         debug!("Starting initialize");
@@ -210,10 +226,7 @@ impl ExtnClient {
             match receiver.try_recv() {
                 Ok(c_message) => {
                     let latency = Utc::now().timestamp_millis() - c_message.ts;
-                    debug!(
-                        "** receiving message latency={} msg={:?}",
-                        latency, c_message
-                    );
+
                     if latency > 1000 {
                         error!("IEC Latency {:?}", c_message);
                     }
@@ -224,16 +237,41 @@ impl ExtnClient {
                         continue;
                     }
                     let message = message_result.unwrap();
+                    debug!("** receiving message latency={} msg={:?}", latency, message);
                     if message.payload.is_response() {
                         Self::handle_single(message, self.response_processors.clone());
                     } else if message.payload.is_event() {
+                        let is_main = self.sender.get_cap().is_main();
+                        if !is_main {
+                            if let Some(context) =
+                                RippleContext::is_ripple_context(&message.payload)
+                            {
+                                trace!(
+                                    "Received ripple context in {} message: {:?}",
+                                    self.sender.get_cap().to_string(),
+                                    message
+                                );
+                                {
+                                    let mut ripple_context = self.ripple_context.write().unwrap();
+                                    ripple_context.deep_copy(context);
+                                }
+                            }
+                        }
+
                         Self::handle_vec_stream(message, self.event_processors.clone());
                     } else {
                         let current_cap = self.sender.get_cap();
                         let target_contract = message.clone().target;
                         if current_cap.is_main() {
+                            if let Some(request) =
+                                RippleContextUpdateRequest::is_ripple_context_update(
+                                    &message.payload,
+                                )
+                            {
+                                self.context_update(request);
+                            }
                             // Forward the message to an extn sender
-                            if let Some(sender) =
+                            else if let Some(sender) =
                                 self.get_extn_sender_with_contract(target_contract)
                             {
                                 let mut new_message = message.clone();
@@ -284,6 +322,30 @@ impl ExtnClient {
         }
 
         debug!("Initialize Ended Abruptly");
+    }
+
+    pub fn context_update(&self, request: RippleContextUpdateRequest) {
+        let current_cap = self.sender.get_cap();
+        if !current_cap.is_main() {
+            error!("Updating context is not allowed outside main");
+        }
+
+        {
+            let mut ripple_context = self.ripple_context.write().unwrap();
+            ripple_context.update(request)
+        }
+        let new_context = { self.ripple_context.read().unwrap().clone() };
+        let message = new_context.get_event_message();
+        let c_message: CExtnMessage = message.clone().into();
+        {
+            let senders = self.get_other_senders();
+
+            for sender in senders {
+                let send_res = sender.send(c_message.clone());
+                trace!("Send to other client result: {:?}", send_res);
+            }
+        }
+        Self::handle_vec_stream(message, self.event_processors.clone());
     }
 
     fn handle_no_processor_error(&self, message: ExtnMessage) {
@@ -369,7 +431,8 @@ impl ExtnClient {
                     error!("Error sending the response back {:?}", e);
                 }
             });
-        } else {
+        } else if RippleContext::is_ripple_context(&msg.payload).is_none() {
+            // Not every extension will have a context listener
             error!("No Event Processor for {:?}", msg);
         }
 
@@ -629,5 +692,26 @@ impl ExtnClient {
     // Method to check if contract is permitted
     pub fn check_contract_permitted(&self, contract: RippleContract) -> bool {
         self.sender.check_contract_permission(contract)
+    }
+
+    pub fn has_token(&self) -> bool {
+        let ripple_context = self.ripple_context.read().unwrap();
+        matches!(
+            ripple_context.activation_status.clone(),
+            ActivationStatus::AccountToken(_)
+        )
+    }
+
+    pub fn get_activation_status(&self) -> ActivationStatus {
+        let ripple_context = self.ripple_context.read().unwrap();
+        ripple_context.activation_status.clone()
+    }
+
+    pub fn has_internet(&self) -> bool {
+        let ripple_context = self.ripple_context.read().unwrap();
+        matches!(
+            ripple_context.internet_connectivity,
+            InternetConnectionStatus::FullyConnected | InternetConnectionStatus::LimitedInternet
+        )
     }
 }
