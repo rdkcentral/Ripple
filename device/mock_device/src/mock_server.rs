@@ -20,11 +20,6 @@ use std::fmt::Display;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{
-    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
-    framework::ripple_contract::{ContractAdjective, RippleContract},
-};
-
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum PayloadTypeError {
     InvalidMessageType,
@@ -140,54 +135,6 @@ pub struct EmitEventParams {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct EmitEventResponse {
     pub success: bool,
-}
-
-impl ExtnPayloadProvider for MockServerRequest {
-    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        if let ExtnPayload::Request(ExtnRequest::MockServer(req)) = payload {
-            return Some(req);
-        }
-
-        None
-    }
-
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::MockServer(self.clone()))
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::MockServer(MockServerAdjective::WebSocket)
-    }
-}
-
-impl ExtnPayloadProvider for MockServerResponse {
-    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        if let ExtnPayload::Response(ExtnResponse::MockServer(resp)) = payload {
-            return Some(resp);
-        }
-
-        None
-    }
-
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Response(ExtnResponse::MockServer(self.clone()))
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::MockServer(MockServerAdjective::WebSocket)
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum MockServerAdjective {
-    WebSocket,
-}
-
-impl ContractAdjective for MockServerAdjective {
-    fn get_contract(&self) -> RippleContract {
-        RippleContract::MockServer(self.clone())
-    }
 }
 
 #[cfg(test)]

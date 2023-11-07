@@ -17,17 +17,20 @@
 
 use std::fmt::Display;
 
+use crate::{
+    mock_device_ffi::EXTN_NAME,
+    mock_server::{
+        AddRequestResponseParams, EmitEventParams, MockServerRequest, RemoveRequestParams,
+    },
+};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use ripple_sdk::{
-    api::{
-        gateway::rpc_gateway_api::CallContext,
-        mock_server::{
-            AddRequestResponseParams, EmitEventParams, MockServerRequest, MockServerResponse,
-            RemoveRequestParams,
-        },
-    },
+    api::gateway::rpc_gateway_api::CallContext,
     async_trait::async_trait,
-    extn::client::extn_client::ExtnClient,
+    extn::{
+        client::extn_client::ExtnClient,
+        extn_id::{ExtnClassId, ExtnId, ExtnProviderRequest, ExtnProviderResponse},
+    },
     log::debug,
     tokio::runtime::Runtime,
     utils::{error::RippleError, rpc_utils::rpc_err},
@@ -69,26 +72,27 @@ pub trait MockDeviceController {
         &self,
         ctx: CallContext,
         req: AddRequestResponseParams,
-    ) -> RpcResult<MockServerResponse>;
+    ) -> RpcResult<ExtnProviderResponse>;
 
     #[method(name = "mockdevice.removeRequest")]
     async fn remove_request(
         &self,
         ctx: CallContext,
         req: RemoveRequestParams,
-    ) -> RpcResult<MockServerResponse>;
+    ) -> RpcResult<ExtnProviderResponse>;
 
     #[method(name = "mockdevice.emitEvent")]
     async fn emit_event(
         &self,
         ctx: CallContext,
         req: EmitEventParams,
-    ) -> RpcResult<MockServerResponse>;
+    ) -> RpcResult<ExtnProviderResponse>;
 }
 
 pub struct MockDeviceController {
     client: ExtnClient,
     rt: Runtime,
+    id: ExtnId,
 }
 
 impl MockDeviceController {
@@ -96,15 +100,20 @@ impl MockDeviceController {
         MockDeviceController {
             client,
             rt: Runtime::new().unwrap(),
+            id: ExtnId::new_channel(ExtnClassId::Device, EXTN_NAME.into()),
         }
     }
 
     async fn request(
         &self,
         request: MockServerRequest,
-    ) -> Result<MockServerResponse, MockDeviceControllerError> {
+    ) -> Result<ExtnProviderResponse, MockDeviceControllerError> {
         debug!("request={request:?}");
         let mut client = self.client.clone();
+        let request = ExtnProviderRequest {
+            value: serde_json::to_value(request).unwrap(),
+            id: self.id.to_string(),
+        };
         self.rt
             .spawn(async move {
                 client
@@ -123,7 +132,7 @@ impl MockDeviceControllerServer for MockDeviceController {
         &self,
         _ctx: CallContext,
         req: AddRequestResponseParams,
-    ) -> RpcResult<MockServerResponse> {
+    ) -> RpcResult<ExtnProviderResponse> {
         let res = self
             .request(MockServerRequest::AddRequestResponse(req))
             .await
@@ -136,7 +145,7 @@ impl MockDeviceControllerServer for MockDeviceController {
         &self,
         _ctx: CallContext,
         req: RemoveRequestParams,
-    ) -> RpcResult<MockServerResponse> {
+    ) -> RpcResult<ExtnProviderResponse> {
         let res = self
             .request(MockServerRequest::RemoveRequest(req))
             .await
@@ -149,7 +158,7 @@ impl MockDeviceControllerServer for MockDeviceController {
         &self,
         _ctx: CallContext,
         _req: EmitEventParams,
-    ) -> RpcResult<MockServerResponse> {
+    ) -> RpcResult<ExtnProviderResponse> {
         unimplemented!("emitting events is not yet implemented");
         // let res = self
         //     .request(MockServerRequest::EmitEvent(req))

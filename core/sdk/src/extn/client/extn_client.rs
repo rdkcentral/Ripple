@@ -270,6 +270,22 @@ impl ExtnClient {
                             {
                                 self.context_update(request);
                             }
+                            // if its a request coming as an extn provider the extension is calling on itself.
+                            // for eg an extension has a RPC Method provider and also a channel to process the
+                            // requests this below impl will take care of sending the data back to the Extension
+                            else if let Some(extn_id) = target_contract.is_extn_provider() {
+                                if let Some(s) = self.get_extn_sender_with_extn_id(&extn_id) {
+                                    let new_message = message.clone();
+                                    tokio::spawn(async move {
+                                        if let Err(e) = s.send(new_message.into()) {
+                                            error!("Error forwarding request {:?}", e)
+                                        }
+                                    });
+                                } else {
+                                    error!("couldn't find the extension id registered the extn channel {:?} is not available", extn_id);
+                                    self.handle_no_processor_error(message);
+                                }
+                            }
                             // Forward the message to an extn sender
                             else if let Some(sender) =
                                 self.get_extn_sender_with_contract(target_contract)
