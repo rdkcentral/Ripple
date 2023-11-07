@@ -48,7 +48,6 @@ pub const KEY_WINDOW_COLOR: &str = "windowColor";
 pub const KEY_WINDOW_OPACITY: &str = "windowOpacity";
 pub const KEY_TEXT_ALIGN: &str = "textAlign";
 pub const KEY_TEXT_ALIGN_VERTICAL: &str = "textAlignVertical";
-pub const KEY_LIMIT_AD_TRACKING: &str = "limitAdTracking";
 pub const KEY_NAME: &str = "name";
 pub const KEY_POSTAL_CODE: &str = "postalCode";
 pub const KEY_LOCALITY: &str = "locality";
@@ -105,7 +104,6 @@ pub const EVENT_LOCALE: &str = "localization.onLocaleChanged";
 pub const EVENT_LATLON: &str = "localization.onLatlonChanged";
 pub const EVENT_ADDITIONAL_INFO: &str = "localization.onAdditionalInfoChanged";
 pub const EVENT_ENABLE_RECOMMENDATIONS: &str = "privacy.onEnableRecommendationsChanged";
-pub const EVENT_LIMIT_AD_TRACKING: &str = "privacy.onLimitAdTrackingChanged";
 pub const EVENT_REMEMBER_WATCHED_PROGRAMS: &str = "privacy.onRememberWatchedProgramsChanged";
 pub const EVENT_SHARE_WATCH_HISTORY: &str = "privacy.onShareWatchHistoryChanged";
 pub const EVENT_ALLOW_ACR_COLLECTION_CHANGED: &str = "privacy.onAllowACRCollectionChanged";
@@ -303,12 +301,6 @@ const PROPERTY_DATA_ENABLE_RECOMMENDATIONS: PropertyData = PropertyData {
     event_names: Some(&[EVENT_ENABLE_RECOMMENDATIONS]),
 };
 
-const PROPERTY_DATA_LIMIT_AD_TRACKING: PropertyData = PropertyData {
-    key: KEY_LIMIT_AD_TRACKING,
-    namespace: NAMESPACE_PRIVACY,
-    event_names: Some(&[EVENT_LIMIT_AD_TRACKING, EVENT_ADVERTISING_POLICY_CHANGED]),
-};
-
 const PROPERTY_DATA_REMEMBER_WATCHED_PROGRAMS: PropertyData = PropertyData {
     key: KEY_REMEMBER_WATCHED_PROGRAMS,
     namespace: NAMESPACE_PRIVACY,
@@ -487,7 +479,6 @@ pub enum StorageProperty {
     LatLon,
     AdditionalInfo,
     EnableRecommendations,
-    LimitAdTracking,
     RemeberWatchedPrograms,
     ShareWatchHistory,
     DeviceName,
@@ -550,7 +541,6 @@ impl StorageProperty {
             StorageProperty::LatLon => PROPERTY_DATA_LATLON,
             StorageProperty::AdditionalInfo => PROPERTY_DATA_ADDITIONAL_INFO,
             StorageProperty::EnableRecommendations => PROPERTY_DATA_ENABLE_RECOMMENDATIONS,
-            StorageProperty::LimitAdTracking => PROPERTY_DATA_LIMIT_AD_TRACKING,
             StorageProperty::RemeberWatchedPrograms => PROPERTY_DATA_REMEMBER_WATCHED_PROGRAMS,
             StorageProperty::ShareWatchHistory => PROPERTY_DATA_SHARE_WATCH_HISTORY,
             StorageProperty::DeviceName => PROPERTY_DATA_DEVICE_NAME,
