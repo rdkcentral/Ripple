@@ -232,6 +232,7 @@ pub enum CloseReason {
     Error,
     AppNotReady,
     ResourceContention,
+    Done,
 }
 
 impl CloseReason {
@@ -242,6 +243,7 @@ impl CloseReason {
             CloseReason::Error => "error",
             CloseReason::AppNotReady => "appNotReady",
             CloseReason::ResourceContention => "resourceContention",
+            CloseReason::Done => "done",
         }
     }
 }
