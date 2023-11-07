@@ -14,13 +14,11 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-use std::sync::Arc;
-
+use crate::mock_server::{
+    AddRequestResponseResponse, EmitEventResponse, MockServerRequest, MockServerResponse,
+    RemoveRequestResponse,
+};
 use ripple_sdk::{
-    api::mock_server::{
-        AddRequestResponseResponse, EmitEventResponse, MockServerRequest, MockServerResponse,
-        RemoveRequestResponse,
-    },
     async_trait::async_trait,
     extn::{
         client::{
@@ -30,12 +28,18 @@ use ripple_sdk::{
             },
         },
         extn_client_message::{ExtnMessage, ExtnResponse},
+        extn_id::{ExtnClassId, ExtnId, ExtnProviderAdjective, ExtnProviderRequest},
     },
+    framework::ripple_contract::RippleContract,
     log::{debug, error},
     tokio::sync::mpsc::{Receiver, Sender},
 };
+use std::sync::Arc;
 
-use crate::{mock_data::MockDataMessage, mock_web_socket_server::MockWebSocketServer};
+use crate::{
+    mock_data::MockDataMessage, mock_device_ffi::EXTN_NAME,
+    mock_web_socket_server::MockWebSocketServer,
+};
 
 #[derive(Debug, Clone)]
 pub struct MockDeviceState {
@@ -65,7 +69,10 @@ impl MockDeviceProcessor {
     async fn respond(client: ExtnClient, req: ExtnMessage, resp: MockServerResponse) -> bool {
         let resp = client
             .clone()
-            .respond(req, ExtnResponse::MockServer(resp))
+            .respond(
+                req,
+                ExtnResponse::Value(serde_json::to_value(resp).unwrap()),
+            )
             .await;
 
         match resp {
@@ -80,7 +87,7 @@ impl MockDeviceProcessor {
 
 impl ExtnStreamProcessor for MockDeviceProcessor {
     type STATE = MockDeviceState;
-    type VALUE = MockServerRequest;
+    type VALUE = ExtnProviderRequest;
 
     fn get_state(&self) -> Self::STATE {
         self.state.clone()
@@ -92,6 +99,12 @@ impl ExtnStreamProcessor for MockDeviceProcessor {
 
     fn sender(&self) -> Sender<ExtnMessage> {
         self.streamer.sender()
+    }
+
+    fn contract(&self) -> ripple_sdk::framework::ripple_contract::RippleContract {
+        RippleContract::ExtnProvider(ExtnProviderAdjective {
+            id: ExtnId::new_channel(ExtnClassId::Device, EXTN_NAME.into()),
+        })
     }
 }
 
@@ -107,75 +120,84 @@ impl ExtnRequestProcessor for MockDeviceProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         debug!("extn_request={extn_request:?}, extracted_message={extracted_message:?}");
-        match extracted_message {
-            MockServerRequest::AddRequestResponse(params) => {
-                let result = state
-                    .server
-                    .add_request_response(
-                        MockDataMessage::from(params.request),
-                        params
-                            .responses
-                            .into_iter()
-                            .map(MockDataMessage::from)
-                            .collect(),
+        if let Ok(message) = serde_json::from_value::<MockServerRequest>(extracted_message.value) {
+            match message {
+                MockServerRequest::AddRequestResponse(params) => {
+                    let result = state
+                        .server
+                        .add_request_response(
+                            MockDataMessage::from(params.request),
+                            params
+                                .responses
+                                .into_iter()
+                                .map(MockDataMessage::from)
+                                .collect(),
+                        )
+                        .await;
+
+                    let resp = match result {
+                        Ok(_) => AddRequestResponseResponse {
+                            success: true,
+                            error: None,
+                        },
+                        Err(err) => AddRequestResponseResponse {
+                            success: false,
+                            error: Some(err.to_string()),
+                        },
+                    };
+
+                    Self::respond(
+                        state.client.clone(),
+                        extn_request,
+                        MockServerResponse::AddRequestResponse(resp),
                     )
-                    .await;
+                    .await
+                }
+                MockServerRequest::RemoveRequest(params) => {
+                    let result = state
+                        .server
+                        .remove_request(&MockDataMessage::from(params.request))
+                        .await;
 
-                let resp = match result {
-                    Ok(_) => AddRequestResponseResponse {
-                        success: true,
-                        error: None,
-                    },
-                    Err(err) => AddRequestResponseResponse {
-                        success: false,
-                        error: Some(err.to_string()),
-                    },
-                };
+                    let resp = match result {
+                        Ok(_) => RemoveRequestResponse {
+                            success: true,
+                            error: None,
+                        },
+                        Err(err) => RemoveRequestResponse {
+                            success: false,
+                            error: Some(err.to_string()),
+                        },
+                    };
 
-                Self::respond(
-                    state.client.clone(),
-                    extn_request,
-                    MockServerResponse::AddRequestResponse(resp),
-                )
-                .await
+                    Self::respond(
+                        state.client.clone(),
+                        extn_request,
+                        MockServerResponse::RemoveRequestResponse(resp),
+                    )
+                    .await
+                }
+                MockServerRequest::EmitEvent(params) => {
+                    state
+                        .server
+                        .emit_event(&params.event.body, params.event.delay)
+                        .await;
+
+                    Self::respond(
+                        state.client.clone(),
+                        extn_request,
+                        MockServerResponse::EmitEvent(EmitEventResponse { success: true }),
+                    )
+                    .await
+                }
             }
-            MockServerRequest::RemoveRequest(params) => {
-                let result = state
-                    .server
-                    .remove_request(&MockDataMessage::from(params.request))
-                    .await;
-
-                let resp = match result {
-                    Ok(_) => RemoveRequestResponse {
-                        success: true,
-                        error: None,
-                    },
-                    Err(err) => RemoveRequestResponse {
-                        success: false,
-                        error: Some(err.to_string()),
-                    },
-                };
-
-                Self::respond(
-                    state.client.clone(),
-                    extn_request,
-                    MockServerResponse::RemoveRequestResponse(resp),
-                )
-                .await
-            }
-            MockServerRequest::EmitEvent(params) => {
-                state
-                    .server
-                    .emit_event(&params.event.body, params.event.delay)
-                    .await;
-
-                Self::respond(
-                    state.client.clone(),
-                    extn_request,
-                    MockServerResponse::EmitEvent(EmitEventResponse { success: true }),
-                )
-                .await
-            }
+        } else {
+            Self::handle_error(
+                state.client,
+                extn_request,
+                ripple_sdk::utils::error::RippleError::ProcessorError,
+            )
+            .await
         }
     }
 }

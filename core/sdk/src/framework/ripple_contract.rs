@@ -17,12 +17,13 @@
 
 use crate::{
     api::{
-        mock_server::MockServerAdjective,
         session::{EventAdjective, SessionAdjective},
         storage_property::StorageAdjective,
     },
+    extn::extn_id::ExtnProviderAdjective,
     utils::{error::RippleError, serde_utils::SerdeClearString},
 };
+use jsonrpsee_core::DeserializeOwned;
 use log::error;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -115,8 +116,6 @@ pub enum RippleContract {
     Metrics,
     /// Contract for Extensions to recieve Telemetry events from Main
     OperationalMetricListener,
-    /// Contract for Extensions to set up mock servers that can be used for testing
-    MockServer(MockServerAdjective),
     Storage(StorageAdjective),
     /// Provided by the distributor could be a device extension or a cloud extension.
     /// Distributor gets the ability to configure and customize the generation of
@@ -124,9 +123,11 @@ pub enum RippleContract {
     Session(SessionAdjective),
 
     RippleContext,
+
+    ExtnProvider(ExtnProviderAdjective),
 }
 
-pub trait ContractAdjective: serde::ser::Serialize {
+pub trait ContractAdjective: serde::ser::Serialize + DeserializeOwned {
     fn as_string(&self) -> String {
         let adjective = SerdeClearString::as_clear_string(self);
         if let Some(contract) = self.get_contract().get_adjective_contract() {
@@ -181,41 +182,40 @@ impl RippleContract {
         match self {
             Self::Storage(adj) => Some(adj.as_string()),
             Self::Session(adj) => Some(adj.as_string()),
-            Self::MockServer(adj) => Some(adj.as_string()),
             Self::DeviceEvents(adj) => Some(adj.as_string()),
+            Self::ExtnProvider(adj) => Some(adj.id.to_string()),
             _ => None,
+        }
+    }
+
+    fn get_contract_from_adjective<T: ContractAdjective>(str: &str) -> Option<RippleContract> {
+        match serde_json::from_str::<T>(str) {
+            Ok(v) => Some(v.get_contract()),
+            Err(e) => {
+                error!("contract parser_error={:?}", e);
+                None
+            }
         }
     }
 
     pub fn from_adjective_string(contract: &str, adjective: &str) -> Option<Self> {
         let adjective = format!("\"{}\"", adjective);
         match contract {
-            "storage" => match serde_json::from_str::<StorageAdjective>(&adjective) {
-                Ok(v) => return Some(v.get_contract()),
-                Err(e) => error!("contract parser_error={:?}", e),
-            },
-            "session" => match serde_json::from_str::<SessionAdjective>(&adjective) {
-                Ok(v) => return Some(v.get_contract()),
-                Err(e) => error!("contract parser_error={:?}", e),
-            },
-            "mock_server" => match serde_json::from_str::<MockServerAdjective>(&adjective) {
-                Ok(v) => return Some(v.get_contract()),
-                Err(e) => error!("contract parser_error={:?}", e),
-            },
-            "device_events" => match serde_json::from_str::<EventAdjective>(&adjective) {
-                Ok(v) => return Some(v.get_contract()),
-                Err(e) => error!("contract parser_error={:?}", e),
-            },
-            _ => {}
+            "storage" => Self::get_contract_from_adjective::<StorageAdjective>(&adjective),
+            "session" => Self::get_contract_from_adjective::<SessionAdjective>(&adjective),
+            "extn_provider" => {
+                Self::get_contract_from_adjective::<ExtnProviderAdjective>(&adjective)
+            }
+            "device_events" => Self::get_contract_from_adjective::<EventAdjective>(&adjective),
+            _ => None,
         }
-        None
     }
 
     pub fn get_adjective_contract(&self) -> Option<String> {
         match self {
             Self::Storage(_) => Some("storage".to_owned()),
             Self::Session(_) => Some("session".to_owned()),
-            Self::MockServer(_) => Some("mock_server".to_owned()),
+            Self::ExtnProvider(_) => Some("extn_provider".to_owned()),
             Self::DeviceEvents(_) => Some("device_events".to_owned()),
             _ => None,
         }
@@ -235,6 +235,14 @@ impl RippleContract {
             return Some(v);
         }
         None
+    }
+
+    pub fn is_extn_provider(&self) -> Option<String> {
+        if let RippleContract::ExtnProvider(e) = self {
+            Some(e.id.to_string())
+        } else {
+            None
+        }
     }
 }
 

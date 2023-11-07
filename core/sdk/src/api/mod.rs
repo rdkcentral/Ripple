@@ -23,7 +23,6 @@ pub mod config;
 pub mod context;
 pub mod device;
 pub mod manifest;
-pub mod mock_server;
 pub mod protocol;
 pub mod pubsub;
 pub mod session;

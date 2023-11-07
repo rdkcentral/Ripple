@@ -19,12 +19,12 @@ use std::sync::Arc;
 
 use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::{
-    api::{mock_server::MockServerAdjective, status_update::ExtnStatus},
+    api::status_update::ExtnStatus,
     crossbeam::channel::Receiver as CReceiver,
     export_channel_builder, export_extn_metadata, export_jsonrpc_extn_builder,
     extn::{
         client::{extn_client::ExtnClient, extn_sender::ExtnSender},
-        extn_id::{ExtnClassId, ExtnId},
+        extn_id::{ExtnClassId, ExtnId, ExtnProviderAdjective},
         ffi::{
             ffi_channel::{ExtnChannel, ExtnChannelBuilder},
             ffi_jsonrpsee::JsonRpseeExtnBuilder,
@@ -45,16 +45,16 @@ use crate::{
     utils::{boot_ws_server, load_mock_data},
 };
 
-const EXTN_NAME: &str = "mock_device";
+pub const EXTN_NAME: &str = "mock_device";
 
 fn init_library() -> CExtnMetadata {
     let _ = init_logger(EXTN_NAME.into());
-
+    let id = ExtnId::new_channel(ExtnClassId::Device, EXTN_NAME.into());
     let mock_device_channel = ExtnSymbolMetadata::get(
-        ExtnId::new_channel(ExtnClassId::Device, EXTN_NAME.into()),
-        ContractFulfiller::new(vec![RippleContract::MockServer(
-            MockServerAdjective::WebSocket,
-        )]),
+        id.clone(),
+        ContractFulfiller::new(vec![RippleContract::ExtnProvider(ExtnProviderAdjective {
+            id,
+        })]),
         Version::new(1, 0, 0),
     );
     let mock_device_extn = ExtnSymbolMetadata::get(
