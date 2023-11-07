@@ -882,7 +882,7 @@ impl GrantState {
             // For clear user grants, we will only clear the stored user grants.
             // It is will not affect the privacy settings.
             let new_entry = GrantEntry {
-                role: permission.role.clone(),
+                role: permission.role,
                 capability: permission.cap.clone().as_str(),
                 status: None, // status will be updated later based on the modify operation.
                 lifespan: Some(grant_policy.lifespan.clone()),
@@ -907,7 +907,7 @@ impl GrantState {
                     platform_state,
                     Some(&grant_policy),
                     &new_entry,
-                    &app_id,
+                    app_id,
                 )
                 .await;
             }

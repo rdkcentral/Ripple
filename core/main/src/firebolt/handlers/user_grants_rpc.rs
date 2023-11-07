@@ -223,12 +223,7 @@ impl UserGrantsServer for UserGrantsImpl {
         )
         .await;
 
-        // if result {
-        //     Ok(())
-        // } else {
-        //     Err(rpc_err("Unable to grant the capability"))
-        // }
-        result.map_err(|msg| rpc_err(msg))
+        result.map_err(rpc_err)
     }
 
     async fn usergrants_deny(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
@@ -241,12 +236,7 @@ impl UserGrantsServer for UserGrantsImpl {
         )
         .await;
 
-        // if result {
-        //     Ok(())
-        // } else {
-        //     Err(rpc_err("Unable to deny the capability"))
-        // }
-        result.map_err(|msg| rpc_err(msg))
+        result.map_err(rpc_err)
     }
 
     async fn usergrants_clear(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
@@ -259,12 +249,7 @@ impl UserGrantsServer for UserGrantsImpl {
         )
         .await;
 
-        // if result {
-        //     Ok(())
-        // } else {
-        //     Err(rpc_err("Unable to clear the capability"))
-        // }
-        result.map_err(|msg| rpc_err(msg))
+        result.map_err(rpc_err)
     }
     async fn usergrants_request(
         &self,
