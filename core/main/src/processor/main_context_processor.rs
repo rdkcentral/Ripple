@@ -136,15 +136,17 @@ impl MainContextProcessor {
         }
     }
 
-    async fn handle_power_state(state: &PlatformState, power_state: &SystemPowerState) {
-        if power_state.power_state != PowerState::On
-            && state
-                .cap_state
-                .grant_state
-                .delete_all_entries_for_lifespan(&GrantLifespan::PowerActive)
-        {
+    fn handle_power_state(state: &PlatformState, power_state: &SystemPowerState) {
+        if power_state.power_state != PowerState::On && Self::handle_power_active_cleanup(state) {
             info!("Usergrants updated for Powerstate");
         }
+    }
+
+    pub fn handle_power_active_cleanup(state: &PlatformState) -> bool {
+        state
+            .cap_state
+            .grant_state
+            .delete_all_entries_for_lifespan(&GrantLifespan::PowerActive)
     }
 }
 
@@ -182,7 +184,6 @@ impl ExtnEventProcessor for MainContextProcessor {
                 }
                 RippleContextUpdateType::PowerStateChanged => {
                     Self::handle_power_state(&state.state, &extracted_message.system_power_state)
-                        .await
                 }
                 _ => {}
             }
