@@ -56,9 +56,6 @@ pub const KEY_LANGUAGE: &str = "language";
 pub const KEY_LOCALE: &str = "locale";
 pub const KEY_LATLON: &str = "latlon";
 pub const KEY_ADDITIONAL_INFO: &str = "additionalInfo";
-pub const KEY_ENABLE_RECOMMENDATIONS: &str = "enableRecommendations";
-pub const KEY_REMEMBER_WATCHED_PROGRAMS: &str = "rememberWatchedPrograms";
-pub const KEY_SHARE_WATCH_HISTORY: &str = "shareWatchHistory";
 pub const KEY_USER_GRANT: &str = "userGrantKey";
 pub const KEY_ALLOW_ACR_COLLECTION: &str = "allowACRCollection";
 pub const KEY_ALLOW_APP_CONTENT_AD_TARGETING: &str = "allowAppContentAdTargetting";
@@ -103,8 +100,6 @@ pub const EVENT_POSTAL_CODE: &str = "localization.onPostalCodeChanged";
 pub const EVENT_LOCALE: &str = "localization.onLocaleChanged";
 pub const EVENT_LATLON: &str = "localization.onLatlonChanged";
 pub const EVENT_ADDITIONAL_INFO: &str = "localization.onAdditionalInfoChanged";
-pub const EVENT_ENABLE_RECOMMENDATIONS: &str = "privacy.onEnableRecommendationsChanged";
-pub const EVENT_REMEMBER_WATCHED_PROGRAMS: &str = "privacy.onRememberWatchedProgramsChanged";
 pub const EVENT_SHARE_WATCH_HISTORY: &str = "privacy.onShareWatchHistoryChanged";
 pub const EVENT_ALLOW_ACR_COLLECTION_CHANGED: &str = "privacy.onAllowACRCollectionChanged";
 pub const EVENT_ALLOW_APP_CONTENT_AD_TARGETING_CHANGED: &str =
@@ -295,27 +290,6 @@ const PROPERTY_DATA_ADDITIONAL_INFO: PropertyData = PropertyData {
     event_names: Some(&[EVENT_ADDITIONAL_INFO]),
 };
 
-const PROPERTY_DATA_ENABLE_RECOMMENDATIONS: PropertyData = PropertyData {
-    key: KEY_ENABLE_RECOMMENDATIONS,
-    namespace: NAMESPACE_PRIVACY,
-    event_names: Some(&[EVENT_ENABLE_RECOMMENDATIONS]),
-};
-
-const PROPERTY_DATA_REMEMBER_WATCHED_PROGRAMS: PropertyData = PropertyData {
-    key: KEY_REMEMBER_WATCHED_PROGRAMS,
-    namespace: NAMESPACE_PRIVACY,
-    event_names: Some(&[
-        EVENT_DISCOVERY_POLICY_CHANGED,
-        EVENT_REMEMBER_WATCHED_PROGRAMS,
-    ]),
-};
-
-const PROPERTY_DATA_SHARE_WATCH_HISTORY: PropertyData = PropertyData {
-    key: KEY_SHARE_WATCH_HISTORY,
-    namespace: NAMESPACE_PRIVACY,
-    event_names: Some(&[EVENT_DISCOVERY_POLICY_CHANGED, EVENT_SHARE_WATCH_HISTORY]),
-};
-
 const PROPERTY_DATA_DEVICE_NAME: PropertyData = PropertyData {
     key: KEY_NAME,
     namespace: NAMESPACE_DEVICE_NAME,
@@ -478,9 +452,6 @@ pub enum StorageProperty {
     Locale,
     LatLon,
     AdditionalInfo,
-    EnableRecommendations,
-    RemeberWatchedPrograms,
-    ShareWatchHistory,
     DeviceName,
     UserGrants,
     AllowAcrCollection,
@@ -540,9 +511,6 @@ impl StorageProperty {
             StorageProperty::Locale => PROPERTY_DATA_LOCALE,
             StorageProperty::LatLon => PROPERTY_DATA_LATLON,
             StorageProperty::AdditionalInfo => PROPERTY_DATA_ADDITIONAL_INFO,
-            StorageProperty::EnableRecommendations => PROPERTY_DATA_ENABLE_RECOMMENDATIONS,
-            StorageProperty::RemeberWatchedPrograms => PROPERTY_DATA_REMEMBER_WATCHED_PROGRAMS,
-            StorageProperty::ShareWatchHistory => PROPERTY_DATA_SHARE_WATCH_HISTORY,
             StorageProperty::DeviceName => PROPERTY_DATA_DEVICE_NAME,
             StorageProperty::UserGrants => PROPERTY_DATA_USER_GRANT,
             StorageProperty::AllowAcrCollection => PROPERTY_DATA_ALLOW_ACR_COLLECTION,
