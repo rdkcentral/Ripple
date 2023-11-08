@@ -15,19 +15,19 @@ There is an example manifest in the `examples` folder that shows how to get the 
         {
             "id": "ripple:channel:device:mock_device",
             "config": {
-                "mock_data_file": "mock-device.json" // this is optional. if omitted this is the value that will be used and it will be looked for in the ripple persistent folder
+                "mock_data_file": "mock-device.json"
             },
             "uses": [
                 "config"
             ],
             "fulfills": [
-                "web_socket.mock_server"
+                "extn_provider.mock_device"
             ]
         },
         {
             "id": "ripple:extn:jsonrpsee:mock_device",
             "uses": [
-                "web_socket.mock_server"
+                "extn_provider.mock_device"
             ],
             "fulfills": [
                 "json_rpsee"
@@ -81,7 +81,7 @@ The file should contain a single array in JSON that represents the set of reques
 ]
 ```
 
-By default, this file is looked for in the ripple persistent folder under the name `mock-device.json` e.g. `~/.ripple/persistent/mock-device.json`. The location of this file can be controlled with the config setting in the channel sysmobl of the extensions manifest entry e.g. 
+By default, this file is looked for in the ripple persistent folder under the name `mock-device.json` e.g. `~/.ripple/mock-device.json`. The location of this file can be controlled with the config setting in the channel sysmobl of the extensions manifest entry e.g. 
 
 ```json
 {

@@ -142,5 +142,30 @@
                 }
             }
         ]
+    },
+    {
+        "request": {
+            "type": "jsonrpc",
+            "body": {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "org.rdk.System.1.getSystemVersions"
+            }
+        },
+        "responses": [
+            {
+                "type": "jsonrpc",
+                "body": {
+                    "jsonrpc": "2.0",
+                    "id": 6,
+                    "result": {
+                        "receiverVersion": "6.9.0.0",
+                        "stbTimestamp": "Tue 07 Nov 2023 00:03:20 AP UTC",
+                        "stbVersion": "SCXI11BEI_VBN_23Q4_sprint_20231107000320sdy_FG_EDGE_R2PB_NG",
+                        "success": true
+                    }
+                }
+            }
+        ]
     }
 ]
