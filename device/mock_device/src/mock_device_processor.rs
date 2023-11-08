@@ -14,10 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-use crate::mock_server::{
-    AddRequestResponseResponse, EmitEventResponse, MockServerRequest, MockServerResponse,
-    RemoveRequestResponse,
-};
 use ripple_sdk::{
     async_trait::async_trait,
     extn::{
@@ -33,11 +29,17 @@ use ripple_sdk::{
     framework::ripple_contract::RippleContract,
     log::{debug, error},
     tokio::sync::mpsc::{Receiver, Sender},
+    utils::error::RippleError,
 };
 use std::sync::Arc;
 
 use crate::{
-    mock_data::MockDataMessage, mock_device_ffi::EXTN_NAME,
+    mock_data::MockDataMessage,
+    mock_device_ffi::EXTN_NAME,
+    mock_server::{
+        AddRequestResponseResponse, EmitEventResponse, MockServerRequest, MockServerResponse,
+        RemoveRequestResponse,
+    },
     mock_web_socket_server::MockWebSocketServer,
 };
 
@@ -192,12 +194,7 @@ impl ExtnRequestProcessor for MockDeviceProcessor {
                 }
             }
         } else {
-            Self::handle_error(
-                state.client,
-                extn_request,
-                ripple_sdk::utils::error::RippleError::ProcessorError,
-            )
-            .await
+            Self::handle_error(state.client, extn_request, RippleError::ProcessorError).await
         }
     }
 }

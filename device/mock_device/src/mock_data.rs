@@ -15,13 +15,15 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::mock_server::{MessagePayload, PayloadType, PayloadTypeError};
 use ripple_sdk::log::error;
 use serde_hashkey::{to_key_with_ordered_float, Key, OrderedFloatPolicy};
 use serde_json::Value;
 use std::{collections::HashMap, fmt::Display};
 
-use crate::errors::{LoadMockDataError, MockDeviceError};
+use crate::{
+    errors::{LoadMockDataError, MockDeviceError},
+    mock_server::{MessagePayload, PayloadType, PayloadTypeError},
+};
 
 pub type MockDataKey = Key<OrderedFloatPolicy>;
 pub type MockData = HashMap<MockDataKey, (MockDataMessage, Vec<MockDataMessage>)>;
