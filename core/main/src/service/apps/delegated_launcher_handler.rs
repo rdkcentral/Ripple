@@ -672,6 +672,8 @@ impl DelegatedLauncherHandler {
                 };
                 let request = BridgeProtocolRequest::StartSession(request);
                 let client = self.platform_state.get_client();
+                let platform_state_c = self.platform_state.clone();
+                let app_id_c = app_id.clone();
                 // After processing the session response the launcher will launch the app
                 // Below thread is going to wait for the app to be launched and create a connection
                 tokio::spawn(async move {
@@ -679,6 +681,13 @@ impl DelegatedLauncherHandler {
                         error!("Error sending request to bridge {:?}", e);
                     } else {
                         info!("Bridge connected for {}", id);
+                    }
+                    // Fetch permissions on separate thread
+                    if PermissionHandler::fetch_and_store(&platform_state_c, &app_id_c)
+                        .await
+                        .is_err()
+                    {
+                        error!("Couldnt load permissions for app {}", app_id_c)
                     }
                 });
             }
@@ -690,17 +699,6 @@ impl DelegatedLauncherHandler {
             active_session_id = Some(Uuid::new_v4().to_string());
         }
 
-        let platform_state_c = self.platform_state.clone();
-        let app_id_c = app_id.clone();
-        // Fetch permissions on separate thread
-        tokio::spawn(async move {
-            if PermissionHandler::fetch_and_store(&platform_state_c, &app_id_c)
-                .await
-                .is_err()
-            {
-                error!("Couldnt load permissions for app {}", app_id_c)
-            }
-        });
         debug!(
             "start_session: fetch_for_app_session completed for app_id={}",
             app_id
