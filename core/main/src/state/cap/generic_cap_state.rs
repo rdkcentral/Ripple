@@ -23,12 +23,14 @@ use std::{
 use ripple_sdk::{
     api::{
         firebolt::fb_capabilities::{
-            DenyReason, DenyReasonWithCap, FireboltCap, FireboltPermission,
+            CapabilityRole, DenyReason, DenyReasonWithCap, FireboltCap, FireboltPermission,
         },
         manifest::device_manifest::DeviceManifest,
     },
     log::debug,
 };
+
+use crate::state::platform_state::PlatformState;
 
 #[derive(Clone, Debug, Default)]
 pub struct GenericCapState {
@@ -126,5 +128,35 @@ impl GenericCapState {
     ) -> Result<(), DenyReasonWithCap> {
         self.check_supported(permissions)?;
         self.check_available(permissions)
+    }
+
+    pub fn clear_non_negotiable_permission(
+        &self,
+        state: &PlatformState,
+        permissions: &[FireboltPermission],
+    ) -> Vec<FireboltPermission> {
+        let filtered_permissions: Vec<FireboltPermission> = permissions
+            .iter()
+            .filter_map(|permission| {
+                if let Some(cap_policy) = state
+                    .open_rpc_state
+                    .get_capability_policy(permission.cap.as_str())
+                {
+                    let role_policy = match permission.role {
+                        CapabilityRole::Use => &cap_policy.use_role,
+                        CapabilityRole::Manage => &cap_policy.manage,
+                        CapabilityRole::Provide => &cap_policy.provide,
+                    };
+
+                    if let Some(perm_policy) = role_policy {
+                        if perm_policy.public && !perm_policy.negotiable {
+                            return None;
+                        }
+                    }
+                }
+                Some(permission.clone())
+            })
+            .collect();
+        filtered_permissions
     }
 }
