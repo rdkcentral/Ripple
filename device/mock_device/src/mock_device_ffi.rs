@@ -167,7 +167,7 @@ mod tests {
             CExtnMetadata {
                 name: "mock_device".to_owned(),
                 metadata: json!([
-                    {"fulfills": json!([json!({"mock_server": "web_socket"}).to_string()]).to_string(), "id": "ripple:channel:device:mock_device", "required_version": "1.0.0"},
+                    {"fulfills": json!([json!({"extn_provider": "ripple:channel:device:mock_device"}).to_string()]).to_string(), "id": "ripple:channel:device:mock_device", "required_version": "1.0.0"},
                     {"fulfills": json!([json!("json_rpsee").to_string()]).to_string(), "id": "ripple:extn:jsonrpsee:mock_device", "required_version": "1.0.0"}
                     ])
                     .to_string()
