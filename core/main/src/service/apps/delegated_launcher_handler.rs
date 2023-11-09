@@ -84,7 +84,8 @@ use crate::{
         bootstrap_state::ChannelsState, cap::permitted_state::PermissionHandler,
         platform_state::PlatformState, session_state::Session,
     },
-    utils::rpc_utils::rpc_await_oneshot, SEMVER_LIGHTWEIGHT
+    utils::rpc_utils::rpc_await_oneshot,
+    SEMVER_LIGHTWEIGHT,
 };
 
 #[derive(Debug, Clone)]
