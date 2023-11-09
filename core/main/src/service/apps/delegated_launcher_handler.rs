@@ -85,6 +85,7 @@ use crate::{
         platform_state::PlatformState, session_state::Session,
     },
     utils::rpc_utils::rpc_await_oneshot,
+    SEMVER_LIGHTWEIGHT,
 };
 
 #[derive(Debug, Clone)]
@@ -371,7 +372,7 @@ impl DelegatedLauncherHandler {
 
         let context = BehavioralMetricContext {
             app_id: app_id.to_string(),
-            app_version: String::from("app.version.not.implemented"),
+            app_version: format!("{}", SEMVER_LIGHTWEIGHT),
             partner_id: String::from("partner.id.not.set"),
             app_session_id: String::from("app_session_id.not.set"),
             durable_app_id: app_id.to_string(),
