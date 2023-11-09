@@ -1,5 +1,6 @@
 {
     "refui" : [
+        "xrn:firebolt:capability:grants:state[manage]",
         "xrn:firebolt:capability:input:keyboard[provide]",
         "xrn:firebolt:capability:usergrant:pinchallenge[provide]",
         "xrn:firebolt:capability:usergrant:pinchallenge",
