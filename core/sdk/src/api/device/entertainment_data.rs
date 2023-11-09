@@ -965,7 +965,7 @@ mod tests {
             },
         });
         let value = serde_json::to_string(&intent).unwrap();
-        assert!(value.eq("{\"action\":\"entity\",\"data\":{\"programType\":\"movie\",\"entityType\":\"program\",\"entityId\":\"example-movie-id\",\"assetId\":null,\"appContentData\":null},\"context\":{\"source\":\"xrn:firebolt:application:refui\"}}"));
+        assert!(value.eq("{\"action\":\"entity\",\"data\":{\"programType\":\"movie\",\"entityType\":\"program\",\"entityId\":\"example-movie-id\"},\"context\":{\"source\":\"xrn:firebolt:application:refui\"}}"));
     }
 
     #[test]
