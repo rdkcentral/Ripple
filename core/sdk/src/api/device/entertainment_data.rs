@@ -648,7 +648,9 @@ pub struct BaseEntity {
     #[serde(default = "default_program_type")]
     pub entity_type: ProgramEntityType,
     pub entity_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub asset_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub app_content_data: Option<AppContentDataString>,
 }
 
