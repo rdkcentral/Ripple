@@ -54,6 +54,8 @@ use crate::{
 use super::{capabilities_rpc::is_permitted, privacy_rpc};
 
 const ADVERTISING_APP_BUNDLE_ID_SUFFIX: &str = "Comcast";
+//{"xifa":"00000000-0000-0000-0000-000000000000","xifaType":"sessionId","lmt":"0"}
+const IFA_ZERO_BASE64: &'static str = "eyJ4aWZhIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwIiwieGlmYVR5cGUiOiJzZXNzaW9uSWQiLCJsbXQiOiIwIn0K";
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -265,6 +267,9 @@ impl AdvertisingServer for AdvertisingImpl {
             capability: FireboltCap::short("advertising:identifier".to_string()),
             role: Some(CapabilityRole::Use),
         };
+        let ad_id_authorised = is_permitted(&self.state, &ctx, &params)
+            .await
+            .unwrap_or(false);
 
         let payload = AdvertisingRequest::GetAdInitObject(AdInitObjectRequestParams {
             privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(&self.state)
@@ -291,15 +296,24 @@ impl AdvertisingServer for AdvertisingImpl {
                         ad_site_section_id: "".to_string(),
                         ad_opt_out: obj.ad_opt_out,
                         privacy_data: obj.privacy_data,
-                        ifa: if is_permitted(self.state.clone(), ctx, params)
-                            .await
-                            .unwrap_or(false)
-                        {
+                        ifa: if ad_id_authorised {
                             obj.ifa
                         } else {
-                            "0".repeat(obj.ifa.len())
+                            IFA_ZERO_BASE64.to_string()
                         },
-                        ifa_value: obj.ifa_value,
+                        ifa_value: if ad_id_authorised {
+                            obj.ifa_value
+                        } else {
+                            let ifa_val_zero = obj
+                                .ifa_value
+                                .chars()
+                                .map(|x| match x {
+                                    '-' => x,
+                                    _ => '0',
+                                })
+                                .collect();
+                            ifa_val_zero
+                        },
                         app_name: obj.app_name,
                         app_bundle_id: obj.app_bundle_id,
                         distributor_app_id: obj.distributor_app_id,
