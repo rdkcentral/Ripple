@@ -75,17 +75,14 @@ use serde_json::json;
 use crate::{
     processor::metrics_processor::send_metric_for_app_state_change,
     service::{
-        apps::app_events::AppEvents,
-        extn::ripple_client::RippleClient,
-        telemetry_builder::TelemetryBuilder,
-        user_grants::{GrantPolicyEnforcer, GrantState},
+        apps::app_events::AppEvents, extn::ripple_client::RippleClient,
+        telemetry_builder::TelemetryBuilder, user_grants::GrantState,
     },
     state::{
         bootstrap_state::ChannelsState, cap::permitted_state::PermissionHandler,
         platform_state::PlatformState, session_state::Session,
     },
-    utils::rpc_utils::rpc_await_oneshot,
-    SEMVER_LIGHTWEIGHT,
+    utils::rpc_utils::rpc_await_oneshot, SEMVER_LIGHTWEIGHT,
 };
 
 #[derive(Debug, Clone)]
@@ -372,7 +369,7 @@ impl DelegatedLauncherHandler {
 
         let context = BehavioralMetricContext {
             app_id: app_id.to_string(),
-            app_version: format!("{}", SEMVER_LIGHTWEIGHT),
+            app_version: SEMVER_LIGHTWEIGHT.to_string(),
             partner_id: String::from("partner.id.not.set"),
             app_session_id: String::from("app_session_id.not.set"),
             durable_app_id: app_id.to_string(),
@@ -526,22 +523,12 @@ impl DelegatedLauncherHandler {
             session_id = Some(app.session_id.clone());
             loaded_session_id = Some(app.loaded_session_id);
         }
-        let mut perms_with_grants_opt = if !session.launch.inactive {
+        let perms_with_grants_opt = if !session.launch.inactive {
             Self::check_user_grants_for_active_session(&self.platform_state, session.app.id.clone())
                 .await
         } else {
             None
         };
-        if perms_with_grants_opt.is_some()
-            && !GrantPolicyEnforcer::can_proceed_with_user_grant_resolution(
-                &self.platform_state,
-                &perms_with_grants_opt.clone().unwrap(),
-            )
-            .await
-        {
-            // reset perms_req_user_grants_opt
-            perms_with_grants_opt = None;
-        }
         match perms_with_grants_opt {
             Some(perms_with_grants) => {
                 // Grants required, spawn a thread to handle the response from grants
@@ -687,8 +674,6 @@ impl DelegatedLauncherHandler {
                 };
                 let request = BridgeProtocolRequest::StartSession(request);
                 let client = self.platform_state.get_client();
-                let platform_state_c = self.platform_state.clone();
-                let app_id_c = app_id.clone();
                 // After processing the session response the launcher will launch the app
                 // Below thread is going to wait for the app to be launched and create a connection
                 tokio::spawn(async move {
@@ -696,13 +681,6 @@ impl DelegatedLauncherHandler {
                         error!("Error sending request to bridge {:?}", e);
                     } else {
                         info!("Bridge connected for {}", id);
-                    }
-                    // Fetch permissions on separate thread
-                    if PermissionHandler::fetch_and_store(&platform_state_c, &app_id_c)
-                        .await
-                        .is_err()
-                    {
-                        error!("Couldnt load permissions for app {}", app_id_c)
                     }
                 });
             }
@@ -714,6 +692,17 @@ impl DelegatedLauncherHandler {
             active_session_id = Some(Uuid::new_v4().to_string());
         }
 
+        let platform_state_c = self.platform_state.clone();
+        let app_id_c = app_id.clone();
+        // Fetch permissions on separate thread
+        tokio::spawn(async move {
+            if PermissionHandler::fetch_and_store(&platform_state_c, &app_id_c)
+                .await
+                .is_err()
+            {
+                error!("Couldnt load permissions for app {}", app_id_c)
+            }
+        });
         debug!(
             "start_session: fetch_for_app_session completed for app_id={}",
             app_id

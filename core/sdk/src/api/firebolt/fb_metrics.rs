@@ -48,7 +48,7 @@ impl From<CallContext> for BehavioralMetricContext {
     fn from(call_context: CallContext) -> Self {
         BehavioralMetricContext {
             app_id: call_context.app_id.clone(),
-            app_version: format!("{}", SEMVER),
+            app_version: SEMVER.to_string(),
             partner_id: String::from("partner.id.not.set"),
             app_session_id: String::from("app_session_id.not.set"),
             durable_app_id: call_context.app_id,
