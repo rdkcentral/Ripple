@@ -55,7 +55,7 @@ use super::{capabilities_rpc::is_permitted, privacy_rpc};
 
 const ADVERTISING_APP_BUNDLE_ID_SUFFIX: &str = "Comcast";
 //{"xifa":"00000000-0000-0000-0000-000000000000","xifaType":"sessionId","lmt":"0"}
-const IFA_ZERO_BASE64: &'static str = "eyJ4aWZhIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwIiwieGlmYVR5cGUiOiJzZXNzaW9uSWQiLCJsbXQiOiIwIn0K";
+const IFA_ZERO_BASE64: &str = "eyJ4aWZhIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwIiwieGlmYVR5cGUiOiJzZXNzaW9uSWQiLCJsbXQiOiIwIn0K";
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]

@@ -301,10 +301,10 @@ pub async fn is_permitted(
     if let Ok(v) = state
         .cap_state
         .permitted_state
-        .check_cap_role(&ctx.app_id, &cap)
+        .check_cap_role(&ctx.app_id, cap)
     {
         return Ok(v);
-    } else if PermissionHandler::fetch_and_store(&state, &ctx.app_id)
+    } else if PermissionHandler::fetch_and_store(state, &ctx.app_id)
         .await
         .is_ok()
     {
