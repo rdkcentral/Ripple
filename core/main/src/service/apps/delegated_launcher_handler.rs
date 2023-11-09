@@ -528,7 +528,7 @@ impl DelegatedLauncherHandler {
                 &self.platform_state,
                 session.app.id.clone(),
                 // Do not pass None as catalog value from this place, instead pass an empty string when app.catalog is None
-                Some(session.app.catalog.clone().unwrap_or_else(|| String::new())),
+                Some(session.app.catalog.clone().unwrap_or(String::new())),
             )
             .await
         } else {
