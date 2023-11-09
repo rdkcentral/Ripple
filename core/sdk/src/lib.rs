@@ -26,7 +26,6 @@ pub mod utils;
 pub extern crate async_channel;
 pub extern crate async_trait;
 pub extern crate chrono;
-pub extern crate crossbeam;
 pub extern crate futures;
 pub extern crate libloading;
 pub extern crate log;

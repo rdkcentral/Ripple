@@ -54,8 +54,8 @@ use super::{
 /// # Overview
 /// Core objective for the Extn client is to provide a reliable and robust communication channel between the  `Main` and its extensions. There are challenges when using Dynamic Linked libraries which needs to be carefully handled for memory, security and reliability. `Client` is built into the `core/sdk` for a better Software Delivery and Operational(SDO) performance.
 /// Each client within an extension contains the below fields
-/// 1. `reciever` - Crossbeam Receiver which is connected to the processors for handling incoming messages
-/// 2. `sender` - Crossbeam Sender to send the request back to `Main` application
+/// 1. `reciever` - Async Channel Receiver which is connected to the processors for handling incoming messages
+/// 2. `sender` - Async Channel Sender to send the request back to `Main` application
 /// 3. `extn_sender_map` - Contains a list of senders based on a short [ExtnCapability] string which can be used to send  the request to other extensions.
 /// 4. `response_processors` - Map of response processors which are used for Response processor handling
 /// 5. `request_processors` - Map of request processors used for Request process handling
@@ -106,7 +106,7 @@ impl ExtnClient {
     /// Creates a new ExtnClient to be used by Extensions during initialization.
     ///
     /// # Arguments
-    /// `receiver` - Crossbeam Receiver provided by the `Main` Application for IEC
+    /// `receiver` - Async Channel Receiver provided by the `Main` Application for IEC
     ///
     /// `sender` - [ExtnSender] object provided by `Main` Application with a unique [ExtnCapability]
     pub fn new(receiver: CReceiver<CExtnMessage>, sender: ExtnSender) -> ExtnClient {
@@ -221,85 +221,74 @@ impl ExtnClient {
     pub async fn initialize(&self) {
         debug!("Starting initialize");
         let receiver = self.receiver.clone();
+        while let Ok(c_message) = receiver.recv().await {
+            let latency = Utc::now().timestamp_millis() - c_message.ts;
 
-        match receiver.recv().await {
-            Ok(c_message) => {
-                let latency = Utc::now().timestamp_millis() - c_message.ts;
-
-                if latency > 1000 {
-                    error!("IEC Latency {:?}", c_message);
-                }
-                let message_result: Result<ExtnMessage, RippleError> = c_message.clone().try_into();
-                if message_result.is_err() {
-                    error!("invalid message {:?}", c_message);
-                }
-                let message = message_result.unwrap();
-                debug!("** receiving message latency={} msg={:?}", latency, message);
-                if message.payload.is_response() {
-                    Self::handle_single(message, self.response_processors.clone());
-                } else if message.payload.is_event() {
-                    let is_main = self.sender.get_cap().is_main();
-                    if !is_main {
-                        if let Some(context) = RippleContext::is_ripple_context(&message.payload) {
-                            trace!(
-                                "Received ripple context in {} message: {:?}",
-                                self.sender.get_cap().to_string(),
-                                message
-                            );
-                            {
-                                let mut ripple_context = self.ripple_context.write().unwrap();
-                                ripple_context.deep_copy(context);
-                            }
-                        }
-                    }
-
-                    Self::handle_vec_stream(message, self.event_processors.clone());
-                } else {
-                    let current_cap = self.sender.get_cap();
-                    let target_contract = message.clone().target;
-                    if current_cap.is_main() {
-                        if let Some(request) =
-                            RippleContextUpdateRequest::is_ripple_context_update(&message.payload)
-                        {
-                            self.context_update(request);
-                        }
-                        // Forward the message to an extn sender
-                        else if let Some(sender) =
-                            self.get_extn_sender_with_contract(target_contract)
-                        {
-                            let mut new_message = message.clone();
-                            if new_message.callback.is_none() {
-                                // before forwarding check if the requestor needs to be added as callback
-                                let req_sender = self
-                                    .get_extn_sender_with_extn_id(&message.requestor.to_string());
-
-                                if let Some(sender) = req_sender {
-                                    let _ = new_message.callback.insert(sender);
-                                }
-                            }
-
-                            tokio::spawn(async move {
-                                if let Err(e) = sender.try_send(new_message.into()) {
-                                    error!("Error forwarding request {:?}", e)
-                                }
-                            });
-                        } else {
-                            // could be main contract
-                            if !Self::handle_stream(
-                                message.clone(),
-                                self.request_processors.clone(),
-                            ) {
-                                self.handle_no_processor_error(message);
-                            }
-                        }
-                    } else if !Self::handle_stream(message.clone(), self.request_processors.clone())
-                    {
-                        self.handle_no_processor_error(message);
-                    }
-                }
+            if latency > 1000 {
+                error!("IEC Latency {:?}", c_message);
             }
-            Err(_) => {
-                error!("Channel closed");
+            let message_result: Result<ExtnMessage, RippleError> = c_message.clone().try_into();
+            if message_result.is_err() {
+                error!("invalid message {:?}", c_message);
+            }
+            let message = message_result.unwrap();
+            debug!("** receiving message latency={} msg={:?}", latency, message);
+            if message.payload.is_response() {
+                Self::handle_single(message, self.response_processors.clone());
+            } else if message.payload.is_event() {
+                let is_main = self.sender.get_cap().is_main();
+                if !is_main {
+                    if let Some(context) = RippleContext::is_ripple_context(&message.payload) {
+                        trace!(
+                            "Received ripple context in {} message: {:?}",
+                            self.sender.get_cap().to_string(),
+                            message
+                        );
+                        {
+                            let mut ripple_context = self.ripple_context.write().unwrap();
+                            ripple_context.deep_copy(context);
+                        }
+                    }
+                }
+
+                Self::handle_vec_stream(message, self.event_processors.clone());
+            } else {
+                let current_cap = self.sender.get_cap();
+                let target_contract = message.clone().target;
+                if current_cap.is_main() {
+                    if let Some(request) =
+                        RippleContextUpdateRequest::is_ripple_context_update(&message.payload)
+                    {
+                        self.context_update(request);
+                    }
+                    // Forward the message to an extn sender
+                    else if let Some(sender) = self.get_extn_sender_with_contract(target_contract)
+                    {
+                        let mut new_message = message.clone();
+                        if new_message.callback.is_none() {
+                            // before forwarding check if the requestor needs to be added as callback
+                            let req_sender =
+                                self.get_extn_sender_with_extn_id(&message.requestor.to_string());
+
+                            if let Some(sender) = req_sender {
+                                let _ = new_message.callback.insert(sender);
+                            }
+                        }
+
+                        tokio::spawn(async move {
+                            if let Err(e) = sender.try_send(new_message.into()) {
+                                error!("Error forwarding request {:?}", e)
+                            }
+                        });
+                    } else {
+                        // could be main contract
+                        if !Self::handle_stream(message.clone(), self.request_processors.clone()) {
+                            self.handle_no_processor_error(message);
+                        }
+                    }
+                } else if !Self::handle_stream(message.clone(), self.request_processors.clone()) {
+                    self.handle_no_processor_error(message);
+                }
             }
         }
 

@@ -81,7 +81,7 @@ use super::{extn_id::ExtnId, ffi::ffi_message::CExtnMessage};
 ///
 /// `payload` | [ExtnPayload]| Type of payload could be [ExtnRequest], [ExtnResponse] or [ExtnEvent]
 ///
-/// `callback` |Crossbeam [async_channel::Sender<CExtnMessage>] | Usually added by `Main` to the `target` to respond back to the `requestor`|
+/// `callback` |Async Channel [async_channel::Sender<CExtnMessage>] | Usually added by `Main` to the `target` to respond back to the `requestor`|
 
 #[derive(Debug, Clone)]
 pub struct ExtnMessage {

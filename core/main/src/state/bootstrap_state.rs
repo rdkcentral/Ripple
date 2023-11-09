@@ -79,7 +79,7 @@ impl ChannelsState {
         self.extn_receiver.clone()
     }
 
-    pub fn get_crossbeam_channel() -> (CSender<CExtnMessage>, CReceiver<CExtnMessage>) {
+    pub fn get_iec_channel() -> (CSender<CExtnMessage>, CReceiver<CExtnMessage>) {
         unbounded()
     }
 }
