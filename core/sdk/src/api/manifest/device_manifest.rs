@@ -26,7 +26,10 @@ use std::{
 
 use crate::{
     api::{
-        device::{device_user_grants_data::GrantPolicies, DevicePlatformType},
+        device::{
+            device_user_grants_data::{GrantExclusionFilter, GrantPolicies},
+            DevicePlatformType,
+        },
         distributor::distributor_privacy::DataEventType,
         firebolt::fb_capabilities::{FireboltCap, FireboltPermission},
         storage_property::StorageProperty,
@@ -79,6 +82,8 @@ fn partner_exclusion_refresh_timeout_default() -> u32 {
 pub struct CapabilityConfiguration {
     pub supported: Vec<String>,
     pub grant_policies: Option<HashMap<String, GrantPolicies>>,
+    #[serde(default)]
+    pub grant_exclusion_filters: Vec<GrantExclusionFilter>,
     #[serde(default)]
     pub dependencies: HashMap<FireboltPermission, Vec<FireboltPermission>>,
 }
@@ -559,6 +564,11 @@ impl DeviceManifest {
     pub fn get_grant_policies(&self) -> Option<HashMap<String, GrantPolicies>> {
         self.clone().capabilities.grant_policies
     }
+
+    pub fn get_grant_exclusion_filters(&self) -> Vec<GrantExclusionFilter> {
+        self.clone().capabilities.grant_exclusion_filters
+    }
+
     pub fn get_distributor_experience_id(&self) -> String {
         self.configuration.distributor_experience_id.clone()
     }

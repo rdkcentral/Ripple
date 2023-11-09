@@ -282,6 +282,7 @@ impl UserGrantsServer for UserGrantsImpl {
             },
             &fb_perms,
             false,
+            true,
         )
         .await;
         debug!("Check with roles result: {:?}", grant_entries);

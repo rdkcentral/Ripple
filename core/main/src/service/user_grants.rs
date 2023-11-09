@@ -506,6 +506,7 @@ impl GrantState {
         app_requested_for: &AppIdentification,
         fb_perms: &[FireboltPermission],
         fail_on_first_error: bool,
+        apply_exclusion_filter: bool,
     ) -> Result<(), DenyReasonWithCap> {
         /*
          * Instead of just checking for grants previously, if the user grants are not present,
@@ -514,11 +515,27 @@ impl GrantState {
         let grant_state = state.clone().cap_state.grant_state;
         let app_id = app_requested_for.app_id.to_owned();
         let caps_needing_grants = grant_state.caps_needing_grants.clone();
-        let caps_needing_grant_in_request: Vec<FireboltPermission> = fb_perms
+        let mut caps_needing_grant_in_request: Vec<FireboltPermission> = fb_perms
             .iter()
             .cloned()
             .filter(|x| caps_needing_grants.contains(&x.cap.as_str()))
             .collect();
+
+        if apply_exclusion_filter {
+            caps_needing_grant_in_request = GrantPolicyEnforcer::apply_grant_exclusion_filters(
+                state,
+                &app_requested_for.app_id,
+                None,
+                &caps_needing_grant_in_request,
+            )
+            .await;
+
+            if caps_needing_grant_in_request.is_empty() {
+                debug!("check_with_roles: caps_needing_grant_in_request list is empty() after applying grant_exclusion_filters");
+                return Ok(());
+            }
+        }
+
         let mut denied_caps = Vec::new();
         for permission in caps_needing_grant_in_request {
             let result = grant_state.get_grant_state(&app_id, &permission);
@@ -1429,6 +1446,106 @@ impl GrantPolicyEnforcer {
             policy,
         )
         .await
+    }
+
+    fn get_app_content_catalog(platform_state: &PlatformState, app_id: &str) -> Option<String> {
+        if let Some(app) = platform_state.app_manager_state.get(app_id) {
+            return app.initial_session.app.catalog;
+        }
+        None
+    }
+
+    pub async fn apply_grant_exclusion_filters(
+        platform_state: &PlatformState,
+        app_id: &str,
+        catalog: Option<String>,
+        permissions: &Vec<FireboltPermission>,
+    ) -> Vec<FireboltPermission> {
+        // If catalog is None, then get catalog from AppSession
+        let grant_exclusion_filters = platform_state
+            .get_device_manifest()
+            .get_grant_exclusion_filters();
+
+        if grant_exclusion_filters.is_empty() {
+            return permissions.clone();
+        }
+
+        let mut filtered_permissions = Vec::new();
+
+        for permission in permissions {
+            let mut exclude_permission = false;
+            for grant_exclusion_filter in &grant_exclusion_filters {
+                let id_and_catalog_match = match (
+                    app_id,
+                    grant_exclusion_filter.id.as_ref(),
+                    &catalog,
+                    &grant_exclusion_filter.catalog,
+                ) {
+                    // 1. id & catalog filters are given. check if both filers are matching
+                    (id, Some(filter_id), Some(app_catalog), Some(filter_catalog)) => {
+                        filter_id.as_str() == id && *filter_catalog == *app_catalog
+                    }
+                    //
+                    // 2. id & catalog filters are given. But app_catalog for this app is not available.
+                    // get catalog from AppSession and check if both filers are matching
+                    (id, Some(filter_id), None, Some(filter_catalog)) => {
+                        if let Some(app_catalog) =
+                            Self::get_app_content_catalog(platform_state, app_id)
+                        {
+                            filter_id.as_str() == id && *filter_catalog == app_catalog
+                        } else {
+                            false
+                        }
+                    }
+                    //
+                    // 3. Only id filter is given. Check if id filter matches
+                    (id, Some(filter_id), _, None) => filter_id.as_str() == id,
+                    //
+                    // 4. Only catalog filter is given. Check if catalog filter matches
+                    (_id, None, Some(app_catalog), Some(filter_catalog)) => {
+                        *filter_catalog == *app_catalog
+                    }
+                    //
+                    // 5. Only catalog filter is given. But app_catalog for this app is not available.
+                    // get catalog from AppSession and check if catalog filter matches
+                    (_id, None, None, Some(filter_catalog)) => {
+                        if let Some(app_catalog) =
+                            Self::get_app_content_catalog(platform_state, app_id)
+                        {
+                            *filter_catalog == app_catalog
+                        } else {
+                            false
+                        }
+                    }
+                    _ => false,
+                };
+
+                if id_and_catalog_match {
+                    if grant_exclusion_filter.capability.is_none() {
+                        return Vec::new(); // Return empty vector if filter capability is None
+                    }
+                    exclude_permission = match (
+                        grant_exclusion_filter.capability.as_ref(),
+                        permission.cap.as_str(),
+                    ) {
+                        (Some(filter_capability), permission_capability) => {
+                            *filter_capability == permission_capability
+                        }
+                        _ => false, // No capability filtering in this case
+                    };
+                    if exclude_permission {
+                        // Not required to iterate further, break from the loop
+                        break;
+                    }
+                }
+            }
+
+            if !exclude_permission {
+                filtered_permissions.push(permission.clone());
+            }
+        }
+
+        filtered_permissions
     }
 }
 
