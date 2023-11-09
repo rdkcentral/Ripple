@@ -140,14 +140,6 @@ impl PermissionHandler {
 
     pub async fn fetch_and_store(state: &PlatformState, app_id: &str) -> RippleResponse {
         let app_id_alias = Self::get_distributor_alias_for_app_id(state, app_id);
-        if state
-            .cap_state
-            .permitted_state
-            .get_app_permissions(app_id)
-            .is_some()
-        {
-            return Ok(());
-        }
         if let Some(session) = state.session_state.get_account_session() {
             if let Ok(extn_response) = state
                 .get_client()
@@ -166,6 +158,15 @@ impl PermissionHandler {
                     return Ok(());
                 }
             }
+        }
+
+        if state
+            .cap_state
+            .permitted_state
+            .get_app_permissions(app_id)
+            .is_some()
+        {
+            return Ok(());
         }
 
         Err(ripple_sdk::utils::error::RippleError::InvalidOutput)
