@@ -17,7 +17,7 @@
 
 use ripple_sdk::{
     api::{firebolt::fb_telemetry::OperationalMetricRequest, status_update::ExtnStatus},
-    crossbeam::channel::Receiver as CReceiver,
+    async_channel::Receiver as CReceiver,
     export_channel_builder, export_extn_metadata,
     extn::{
         client::{extn_client::ExtnClient, extn_sender::ExtnSender},

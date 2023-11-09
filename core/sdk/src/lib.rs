@@ -23,6 +23,7 @@ pub mod utils;
 // Externalize the reusable crates to avoid version
 // mismatch and standardization of these libraries
 // across extensions
+pub extern crate async_channel;
 pub extern crate async_trait;
 pub extern crate chrono;
 pub extern crate crossbeam;

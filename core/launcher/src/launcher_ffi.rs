@@ -17,7 +17,7 @@
 
 use ripple_sdk::{
     api::status_update::ExtnStatus,
-    crossbeam::channel::Receiver,
+    async_channel::Receiver,
     export_channel_builder, export_extn_metadata,
     extn::{
         client::{extn_client::ExtnClient, extn_sender::ExtnSender},

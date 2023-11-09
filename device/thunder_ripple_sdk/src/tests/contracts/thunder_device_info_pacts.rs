@@ -22,7 +22,7 @@ use crate::{
     client::thunder_client_pool::ThunderClientPool,
     get_pact_with_params,
     ripple_sdk::{
-        crossbeam::channel::unbounded,
+        async_channel::unbounded,
         extn::extn_client_message::{ExtnPayload, ExtnRequest},
     },
     thunder_state::ThunderState,

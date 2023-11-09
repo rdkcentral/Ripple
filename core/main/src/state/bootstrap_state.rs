@@ -17,7 +17,7 @@
 
 use ripple_sdk::{
     api::apps::AppRequest,
-    crossbeam::channel::{unbounded, Receiver as CReceiver, Sender as CSender},
+    async_channel::{unbounded, Receiver as CReceiver, Sender as CSender},
     extn::ffi::ffi_message::CExtnMessage,
     framework::bootstrap::TransientChannel,
     tokio::sync::mpsc::{self, Receiver, Sender},

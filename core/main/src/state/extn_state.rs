@@ -27,7 +27,7 @@ use ripple_sdk::{
         manifest::extn_manifest::{ExtnManifest, ExtnManifestEntry, ExtnSymbol},
         status_update::ExtnStatus,
     },
-    crossbeam::channel::Sender as CSender,
+    async_channel::Sender as CSender,
     extn::{
         client::extn_sender::ExtnSender,
         extn_id::ExtnId,

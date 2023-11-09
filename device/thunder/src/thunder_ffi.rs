@@ -17,7 +17,7 @@
 
 use thunder_ripple_sdk::ripple_sdk::{
     api::{session::EventAdjective, storage_property::StorageAdjective},
-    crossbeam::channel::Receiver as CReceiver,
+    async_channel::Receiver as CReceiver,
     export_channel_builder, export_extn_metadata,
     extn::{
         client::{extn_client::ExtnClient, extn_sender::ExtnSender},

@@ -21,8 +21,9 @@ use std::{
     time::Duration,
 };
 
+use async_channel::{bounded, Receiver as CReceiver, Sender as CSender, TryRecvError};
 use chrono::Utc;
-use crossbeam::channel::{bounded, Receiver as CReceiver, Sender as CSender, TryRecvError};
+//use async_channel::{bounded, Receiver as CReceiver, Sender as CSender, TryRecvError};
 use log::{debug, error, info, trace};
 use tokio::sync::{
     mpsc::Sender as MSender,
@@ -220,105 +221,86 @@ impl ExtnClient {
     pub async fn initialize(&self) {
         debug!("Starting initialize");
         let receiver = self.receiver.clone();
-        let mut index: u32 = 0;
-        loop {
-            index += 1;
-            match receiver.try_recv() {
-                Ok(c_message) => {
-                    let latency = Utc::now().timestamp_millis() - c_message.ts;
 
-                    if latency > 1000 {
-                        error!("IEC Latency {:?}", c_message);
-                    }
-                    let message_result: Result<ExtnMessage, RippleError> =
-                        c_message.clone().try_into();
-                    if message_result.is_err() {
-                        error!("invalid message {:?}", c_message);
-                        continue;
-                    }
-                    let message = message_result.unwrap();
-                    debug!("** receiving message latency={} msg={:?}", latency, message);
-                    if message.payload.is_response() {
-                        Self::handle_single(message, self.response_processors.clone());
-                    } else if message.payload.is_event() {
-                        let is_main = self.sender.get_cap().is_main();
-                        if !is_main {
-                            if let Some(context) =
-                                RippleContext::is_ripple_context(&message.payload)
-                            {
-                                trace!(
-                                    "Received ripple context in {} message: {:?}",
-                                    self.sender.get_cap().to_string(),
-                                    message
-                                );
-                                {
-                                    let mut ripple_context = self.ripple_context.write().unwrap();
-                                    ripple_context.deep_copy(context);
-                                }
-                            }
-                        }
+        match receiver.recv().await {
+            Ok(c_message) => {
+                let latency = Utc::now().timestamp_millis() - c_message.ts;
 
-                        Self::handle_vec_stream(message, self.event_processors.clone());
-                    } else {
-                        let current_cap = self.sender.get_cap();
-                        let target_contract = message.clone().target;
-                        if current_cap.is_main() {
-                            if let Some(request) =
-                                RippleContextUpdateRequest::is_ripple_context_update(
-                                    &message.payload,
-                                )
-                            {
-                                self.context_update(request);
-                            }
-                            // Forward the message to an extn sender
-                            else if let Some(sender) =
-                                self.get_extn_sender_with_contract(target_contract)
-                            {
-                                let mut new_message = message.clone();
-                                if new_message.callback.is_none() {
-                                    // before forwarding check if the requestor needs to be added as callback
-                                    let req_sender = self.get_extn_sender_with_extn_id(
-                                        &message.requestor.to_string(),
-                                    );
-
-                                    if let Some(sender) = req_sender {
-                                        let _ = new_message.callback.insert(sender);
-                                    }
-                                }
-
-                                tokio::spawn(async move {
-                                    if let Err(e) = sender.send(new_message.into()) {
-                                        error!("Error forwarding request {:?}", e)
-                                    }
-                                });
-                            } else {
-                                // could be main contract
-                                if !Self::handle_stream(
-                                    message.clone(),
-                                    self.request_processors.clone(),
-                                ) {
-                                    self.handle_no_processor_error(message);
-                                }
-                            }
-                        } else if !Self::handle_stream(
-                            message.clone(),
-                            self.request_processors.clone(),
-                        ) {
-                            self.handle_no_processor_error(message);
-                        }
-                    }
+                if latency > 1000 {
+                    error!("IEC Latency {:?}", c_message);
                 }
-                Err(e) => {
-                    if let TryRecvError::Disconnected = e {
-                        break;
+                let message_result: Result<ExtnMessage, RippleError> = c_message.clone().try_into();
+                if message_result.is_err() {
+                    error!("invalid message {:?}", c_message);
+                }
+                let message = message_result.unwrap();
+                debug!("** receiving message latency={} msg={:?}", latency, message);
+                if message.payload.is_response() {
+                    Self::handle_single(message, self.response_processors.clone());
+                } else if message.payload.is_event() {
+                    let is_main = self.sender.get_cap().is_main();
+                    if !is_main {
+                        if let Some(context) = RippleContext::is_ripple_context(&message.payload) {
+                            trace!(
+                                "Received ripple context in {} message: {:?}",
+                                self.sender.get_cap().to_string(),
+                                message
+                            );
+                            {
+                                let mut ripple_context = self.ripple_context.write().unwrap();
+                                ripple_context.deep_copy(context);
+                            }
+                        }
+                    }
+
+                    Self::handle_vec_stream(message, self.event_processors.clone());
+                } else {
+                    let current_cap = self.sender.get_cap();
+                    let target_contract = message.clone().target;
+                    if current_cap.is_main() {
+                        if let Some(request) =
+                            RippleContextUpdateRequest::is_ripple_context_update(&message.payload)
+                        {
+                            self.context_update(request);
+                        }
+                        // Forward the message to an extn sender
+                        else if let Some(sender) =
+                            self.get_extn_sender_with_contract(target_contract)
+                        {
+                            let mut new_message = message.clone();
+                            if new_message.callback.is_none() {
+                                // before forwarding check if the requestor needs to be added as callback
+                                let req_sender = self
+                                    .get_extn_sender_with_extn_id(&message.requestor.to_string());
+
+                                if let Some(sender) = req_sender {
+                                    let _ = new_message.callback.insert(sender);
+                                }
+                            }
+
+                            tokio::spawn(async move {
+                                if let Err(e) = sender.try_send(new_message.into()) {
+                                    error!("Error forwarding request {:?}", e)
+                                }
+                            });
+                        } else {
+                            // could be main contract
+                            if !Self::handle_stream(
+                                message.clone(),
+                                self.request_processors.clone(),
+                            ) {
+                                self.handle_no_processor_error(message);
+                            }
+                        }
+                    } else if !Self::handle_stream(message.clone(), self.request_processors.clone())
+                    {
+                        self.handle_no_processor_error(message);
                     }
                 }
             }
-            if index % 100000 == 0 {
-                index = 0;
-                debug!("Receiver still running");
+            Err(_) => {
+                error!("Channel closed");
             }
-            tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
         }
 
         debug!("Initialize Ended Abruptly");
@@ -560,35 +542,27 @@ impl ExtnClient {
         let id = uuid::Uuid::new_v4().to_string();
         let (tx, tr) = bounded(2);
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
-        let timeout_increments = 50;
         self.sender
             .send_request(id, payload, other_sender, Some(tx))?;
-        let mut current_timeout: u64 = 0;
-        loop {
-            match tr.try_recv() {
-                Ok(cmessage) => {
-                    debug!("** receiving message msg={:?}", cmessage);
-                    let message: ExtnMessage = cmessage.try_into().unwrap();
+        match tokio::time::timeout(Duration::from_millis(timeout_in_msecs), tr.recv()).await {
+            Ok(Ok(cmessage)) => {
+                debug!("** receiving message msg={:?}", cmessage);
+                let message: Result<ExtnMessage, RippleError> = cmessage.try_into();
+
+                if let Ok(message) = message {
                     if let Some(v) = message.payload.extract() {
                         return Ok(v);
                     } else {
                         return Err(RippleError::ParseError);
                     }
                 }
-                Err(e) => {
-                    if let TryRecvError::Disconnected = e {
-                        error!("Channel disconnected");
-                        break;
-                    }
-                }
             }
-            current_timeout += timeout_increments;
-            if current_timeout > timeout_in_msecs {
-                break;
-            } else {
-                tokio::time::sleep(Duration::from_millis(timeout_increments)).await
+            Ok(Err(_)) => error!("Invalid message"),
+            Err(_) => {
+                error!("Channel disconnected");
             }
         }
+
         Err(RippleError::InvalidOutput)
     }
 
@@ -627,7 +601,7 @@ impl ExtnClient {
                     }
                 }
                 Err(e) => {
-                    if let TryRecvError::Disconnected = e {
+                    if let TryRecvError::Closed = e {
                         error!("Channel disconnected");
                         break;
                     }
