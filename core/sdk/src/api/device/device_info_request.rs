@@ -28,10 +28,10 @@ use super::device_request::{
     OnInternetConnectedRequest, PowerState, TimeZone,
 };
 
-pub const DEVICE_INFO_AUTHORIZED: &'static str = "device_info_authorized";
-pub const DEVICE_SKU_AUTHORIZED: &'static str = "device_sku_authorized";
-pub const DEVICE_MAKE_MODEL_AUTHORIZED: &'static str = "device_make_model_authorized";
-pub const DEVICE_NETWORK_STATUS_AUTHORIZED: &'static str = "network_status_authorized";
+pub const DEVICE_INFO_AUTHORIZED: &str = "device_info_authorized";
+pub const DEVICE_SKU_AUTHORIZED: &str = "device_sku_authorized";
+pub const DEVICE_MAKE_MODEL_AUTHORIZED: &str = "device_make_model_authorized";
+pub const DEVICE_NETWORK_STATUS_AUTHORIZED: &str = "network_status_authorized";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DeviceInfoRequest {
