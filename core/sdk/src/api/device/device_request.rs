@@ -48,7 +48,7 @@ pub enum HdcpProfile {
     Hdcp2_2,
 }
 
-#[derive(Hash, Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]
+#[derive(Hash, Eq, PartialEq, Debug, Serialize, Deserialize, Clone, Copy)]
 pub enum HdrProfile {
     #[serde(rename = "HDR10")]
     Hdr10,
