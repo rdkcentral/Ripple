@@ -61,10 +61,17 @@ use crate::{
 use ripple_sdk::{
     api::{
         context::RippleContextUpdateRequest,
-        device::device_request::{InternetConnectionStatus, PowerState, TimeZone},
+        device::{
+            device_info_request::{
+                DEVICE_INFO_AUTHORIZED, DEVICE_MAKE_MODEL_AUTHORIZED,
+                DEVICE_NETWORK_STATUS_AUTHORIZED, DEVICE_SKU_AUTHORIZED,
+            },
+            device_request::{InternetConnectionStatus, PowerState, TimeZone},
+        },
     },
     log::trace,
     serde_json::{Map, Value},
+    tokio::join,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
@@ -1275,6 +1282,107 @@ impl ThunderDeviceInfoRequestProcessor {
         error!("Unable to get power state from thunder");
         Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
     }
+
+    async fn get_device_capabilities(state: CachedState, keys: &[&str], msg: ExtnMessage) -> bool {
+        let device_info_authorized = keys.contains(&DEVICE_INFO_AUTHORIZED);
+        let (
+            video_dimensions,
+            native_dimensions,
+            firmware_info_result,
+            hdr_info,
+            hdcp_result,
+            audio_result,
+            model_result,
+            make_result,
+            network_status,
+        ) = join!(
+            async {
+                if device_info_authorized {
+                    Some(Self::get_video_resolution(&state).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if device_info_authorized {
+                    Some(Self::get_screen_resolution(&state).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if device_info_authorized {
+                    Some(Self::get_version(&state).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if device_info_authorized {
+                    Some(Self::get_cached_hdr(&state).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if device_info_authorized {
+                    Some(Self::get_hdcp_status(&state).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if device_info_authorized {
+                    Some(Self::get_audio(&state).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if keys.contains(&DEVICE_SKU_AUTHORIZED) {
+                    Some(Self::get_model(&state).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if keys.contains(&DEVICE_MAKE_MODEL_AUTHORIZED) {
+                    Some(Self::get_make(&state).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if keys.contains(&DEVICE_NETWORK_STATUS_AUTHORIZED) {
+                    Some(matches!(
+                        Self::get_network(&state).await._type,
+                        NetworkType::Wifi
+                    ))
+                } else {
+                    None
+                }
+            }
+        );
+
+        let device_capabilities = DeviceCapabilities {
+            audio: audio_result,
+            firmware_info: firmware_info_result,
+            hdcp: hdcp_result,
+            hdr: hdr_info,
+            is_wifi: network_status,
+            make: make_result,
+            model: model_result,
+            video_resolution: video_dimensions,
+            screen_resolution: native_dimensions,
+        };
+        if let ExtnPayload::Response(r) =
+            DeviceResponse::FullCapabilities(Box::new(device_capabilities)).get_extn_payload()
+        {
+            Self::respond(state.get_client(), msg, r).await.is_ok()
+        } else {
+            Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await
+        }
+    }
 }
 
 pub fn get_dimension_from_resolution(resolution: &str) -> Vec<i32> {
@@ -1392,26 +1500,9 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             DeviceInfoRequest::InternetConnectionStatus => {
                 Self::internet_connection_status(state.clone(), msg).await
             }
-            DeviceInfoRequest::FullCapabilities => {
-                let device_capabilities = DeviceCapabilities {
-                    audio: Self::get_audio(&state).await,
-                    firmware_info: Self::get_version(&state).await,
-                    hdcp: Self::get_hdcp_status(&state).await,
-                    hdr: Self::get_cached_hdr(&state).await,
-                    is_wifi: matches!(Self::get_network(&state).await._type, NetworkType::Wifi),
-                    make: Self::get_make(&state).await,
-                    model: Self::get_model(&state).await,
-                    video_resolution: Self::get_video_resolution(&state).await,
-                    screen_resolution: Self::get_screen_resolution(&state).await,
-                };
-                if let ExtnPayload::Response(r) =
-                    DeviceResponse::FullCapabilities(Box::new(device_capabilities))
-                        .get_extn_payload()
-                {
-                    Self::respond(state.get_client(), msg, r).await.is_ok()
-                } else {
-                    Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await
-                }
+            DeviceInfoRequest::FullCapabilities(keys) => {
+                let keys_as_str: Vec<&str> = keys.iter().map(String::as_str).collect();
+                Self::get_device_capabilities(state.clone(), &keys_as_str, msg).await
             }
             DeviceInfoRequest::PowerState => Self::power_state(state.clone(), msg).await,
             _ => false,
