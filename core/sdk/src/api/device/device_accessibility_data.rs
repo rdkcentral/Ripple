@@ -18,6 +18,7 @@
 use serde::{Deserialize, Serialize, Serializer};
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ClosedCaptionsSettings {
     pub enabled: bool,
     pub styles: ClosedCaptionStyle,
