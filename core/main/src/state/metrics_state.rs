@@ -16,7 +16,7 @@
 //
 
 use std::{
-    collections:: HashSet,
+    collections::HashSet,
     sync::{Arc, RwLock},
 };
 
