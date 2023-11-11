@@ -15,9 +15,22 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-pub mod channel_utils;
-pub mod error;
-pub mod extn_utils;
-pub mod logger;
-pub mod serde_utils;
-pub mod time_utils;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+use tokio::runtime::{Builder, Runtime};
+
+pub struct ExtnUtils;
+
+impl ExtnUtils {
+    pub fn get_runtime(name: String) -> Runtime {
+        Builder::new_multi_thread()
+            .enable_all()
+            .thread_name_fn(move || {
+                static ATOMIC_ID: AtomicUsize = AtomicUsize::new(0);
+                let id = ATOMIC_ID.fetch_add(1, Ordering::SeqCst);
+                format!("{}-{}", name, id)
+            })
+            .build()
+            .unwrap()
+    }
+}

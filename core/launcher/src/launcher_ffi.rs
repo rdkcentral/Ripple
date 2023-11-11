@@ -31,8 +31,8 @@ use ripple_sdk::{
     framework::ripple_contract::{ContractFulfiller, RippleContract},
     log::{debug, info},
     semver::Version,
-    tokio::{self, runtime::Runtime},
-    utils::{error::RippleError, logger::init_logger},
+    tokio,
+    utils::{error::RippleError, extn_utils::ExtnUtils, logger::init_logger},
 };
 
 use crate::{
@@ -59,9 +59,9 @@ fn init_library() -> CExtnMetadata {
 export_extn_metadata!(CExtnMetadata, init_library);
 
 fn start_launcher(sender: ExtnSender, receiver: Receiver<CExtnMessage>) {
-    let _ = init_logger("launcher_channel".into());
+    let _ = init_logger("e-l".into());
     info!("Starting launcher channel");
-    let runtime = Runtime::new().unwrap();
+    let runtime = ExtnUtils::get_runtime("e-l".to_owned());
     let client = ExtnClient::new(receiver, sender);
     let client_for_receiver = client.clone();
     runtime.block_on(async move {

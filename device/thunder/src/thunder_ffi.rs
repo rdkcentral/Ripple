@@ -31,8 +31,8 @@ use thunder_ripple_sdk::ripple_sdk::{
     framework::ripple_contract::{ContractFulfiller, RippleContract},
     log::{debug, info},
     semver::Version,
-    tokio::{self, runtime::Runtime},
-    utils::{error::RippleError, logger::init_logger},
+    tokio,
+    utils::{error::RippleError, extn_utils::ExtnUtils, logger::init_logger},
 };
 
 use crate::bootstrap::boot_thunder_channel::boot_thunder_channel;
@@ -73,7 +73,7 @@ export_extn_metadata!(CExtnMetadata, init_library);
 pub fn start(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     let _ = init_logger("device_channel".into());
     info!("Starting device channel");
-    let runtime = Runtime::new().unwrap();
+    let runtime = ExtnUtils::get_runtime("e-t".to_owned());
     let client = ExtnClient::new(receiver, sender);
     runtime.block_on(async move {
         let client_for_receiver = client.clone();

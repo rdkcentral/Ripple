@@ -31,8 +31,8 @@ use ripple_sdk::{
     framework::ripple_contract::{ContractFulfiller, RippleContract},
     log::{debug, error, info},
     semver::Version,
-    tokio::{self, runtime::Runtime, sync::mpsc::channel},
-    utils::{error::RippleError, logger::init_logger},
+    tokio::{self, sync::mpsc::channel},
+    utils::{error::RippleError, extn_utils::ExtnUtils, logger::init_logger},
 };
 use tokio_tungstenite::tungstenite::{connect, Message};
 use url::Url;
@@ -69,7 +69,7 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     }
     if let Some(ws_url) = client.get_config("ws_url") {
         info!("ws_url={}", ws_url);
-        let runtime = Runtime::new().unwrap();
+        let runtime = ExtnUtils::get_runtime("e-tm".to_owned());
 
         runtime.block_on(async move {
             let client_c = client.clone();

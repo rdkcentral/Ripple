@@ -35,8 +35,8 @@ use ripple_sdk::{
     framework::ripple_contract::{ContractFulfiller, RippleContract},
     log::{debug, info},
     semver::Version,
-    tokio::{self, runtime::Runtime},
-    utils::{error::RippleError, logger::init_logger},
+    tokio,
+    utils::{error::RippleError, extn_utils::ExtnUtils, logger::init_logger},
 };
 
 use crate::{
@@ -84,7 +84,7 @@ export_extn_metadata!(CExtnMetadata, init_library);
 fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     let _ = init_logger("distributor_general".into());
     info!("Starting distributor channel");
-    let runtime = Runtime::new().unwrap();
+    let runtime = ExtnUtils::get_runtime("e-dg".to_owned());
     let mut client = ExtnClient::new(receiver, sender);
     runtime.block_on(async move {
         let client_c = client.clone();
