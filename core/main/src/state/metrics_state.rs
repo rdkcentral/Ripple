@@ -16,10 +16,13 @@
 //
 
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
+    fs,
+    path::Path,
     sync::{Arc, RwLock},
 };
 
+use jsonrpsee::tracing::{self, debug};
 use ripple_sdk::{
     api::{
         device::device_info_request::{DeviceInfoRequest, DeviceResponse},
@@ -85,22 +88,8 @@ impl MetricsState {
             Err(_) => "no.language.set".to_string(),
         };
 
-        let mut os = FireboltSemanticVersion::new(0, 0, 0, "".to_string());
-        os.minor += 7;
-        let a_str: String = format!("Firebolt OS v{}.{}.{}", os.major, os.minor, os.patch);
-        os.readable = a_str;
-
-        if let Ok(val) = state
-            .get_client()
-            .send_extn_request(DeviceInfoRequest::Version)
-            .await
-        {
-            if let Some(DeviceResponse::FirmwareInfo(value)) = val.payload.extract() {
-                os = value;
-            }
-        };
-
-        let os_ver = serde_json::to_string(&os).unwrap_or_else(|_| "no.os.ver.set".to_string());
+        let os_ver = Self::get_os_ver_from_firebolt(state).await;
+        debug!("got os_ver={}", &os_ver);
 
         let mut device_name = "no.device.name.set".to_string();
         if let Ok(resp) = StorageManager::get_string(state, StorageProperty::DeviceName).await {
@@ -141,6 +130,26 @@ impl MetricsState {
             }
         }
         Self::update_account_session(state).await
+    }
+
+    async fn get_os_ver_from_firebolt(platform_state: &PlatformState) -> String {
+        let mut os = FireboltSemanticVersion::new(0, 0, 0, "".to_string());
+
+        if let Ok(val) = platform_state
+            .get_client()
+            .send_extn_request(DeviceInfoRequest::Version)
+            .await
+        {
+            if let Some(DeviceResponse::FirmwareInfo(value)) = val.payload.extract() {
+                os = value;
+            }
+        }
+        let os_ver: String = if !os.readable.is_empty() {
+            os.readable.to_string()
+        } else {
+            "no.os.ver.set".to_string()
+        };
+        os_ver
     }
 
     pub async fn update_account_session(state: &PlatformState) {

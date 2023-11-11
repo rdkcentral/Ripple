@@ -28,7 +28,6 @@ use crate::{
 };
 
 use super::fb_telemetry::TelemetryPayload;
-include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
 //https://developer.comcast.com/firebolt/core/sdk/latest/api/metrics
 
@@ -48,7 +47,7 @@ impl From<CallContext> for BehavioralMetricContext {
     fn from(call_context: CallContext) -> Self {
         BehavioralMetricContext {
             app_id: call_context.app_id.clone(),
-            app_version: SEMVER.to_string(),
+            app_version: String::from("app.version.not.implemented"),
             partner_id: String::from("partner.id.not.set"),
             app_session_id: String::from("app_session_id.not.set"),
             durable_app_id: call_context.app_id,
