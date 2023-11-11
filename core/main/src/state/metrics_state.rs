@@ -16,13 +16,11 @@
 //
 
 use std::{
-    collections::{HashMap, HashSet},
-    fs,
-    path::Path,
+    collections:: HashSet,
     sync::{Arc, RwLock},
 };
 
-use jsonrpsee::tracing::{self, debug};
+use jsonrpsee::tracing::debug;
 use ripple_sdk::{
     api::{
         device::device_info_request::{DeviceInfoRequest, DeviceResponse},
