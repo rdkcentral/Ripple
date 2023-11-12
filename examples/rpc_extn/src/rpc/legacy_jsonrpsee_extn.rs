@@ -21,29 +21,35 @@ use ripple_sdk::{
     async_trait::async_trait,
     extn::client::extn_client::ExtnClient,
     extn::extn_client_message::ExtnResponse,
+    tokio::runtime::Runtime,
+    utils::extn_utils::ExtnUtils,
 };
 
 pub struct LegacyImpl {
     client: ExtnClient,
+    rt: Runtime,
 }
 
 impl LegacyImpl {
     pub fn new(client: ExtnClient) -> LegacyImpl {
-        LegacyImpl { client }
+        LegacyImpl {
+            client,
+            rt: ExtnUtils::get_runtime("e-legacy".to_owned()),
+        }
     }
 }
 
 #[rpc(server)]
 pub trait Legacy {
     #[method(name = "legacy.make")]
-    fn make(&self, ctx: CallContext) -> RpcResult<String>;
+    async fn make(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "legacy.model")]
     async fn model(&self, ctx: CallContext) -> RpcResult<String>;
 }
 
 #[async_trait]
 impl LegacyServer for LegacyImpl {
-    fn make(&self, ctx: CallContext) -> RpcResult<String> {
+    async fn make(&self, ctx: CallContext) -> RpcResult<String> {
         let mut client = self.client.clone();
         let mut new_ctx = ctx;
         new_ctx.protocol = ApiProtocol::Extn;
@@ -53,7 +59,11 @@ impl LegacyServer for LegacyImpl {
             method: "device.make".into(),
             params_json: RpcRequest::prepend_ctx(Some(serde_json::Value::Null), &new_ctx),
         };
-        if let Ok(ExtnResponse::Value(v)) = client.request_sync(rpc_request, 5000) {
+        if let Ok(Ok(ExtnResponse::Value(v))) = self
+            .rt
+            .spawn(async move { client.standalone_request(rpc_request, 5000).await })
+            .await
+        {
             if let Some(v) = v.as_str() {
                 return Ok(v.into());
             }

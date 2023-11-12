@@ -21,7 +21,7 @@ use std::{
     time::Duration,
 };
 
-use async_channel::{bounded, Receiver as CReceiver, Sender as CSender, TryRecvError};
+use async_channel::{bounded, Receiver as CReceiver, Sender as CSender};
 use chrono::Utc;
 use log::{debug, error, info, trace};
 use tokio::sync::{
@@ -551,61 +551,6 @@ impl ExtnClient {
             }
         }
 
-        Err(RippleError::InvalidOutput)
-    }
-
-    /// Request method which accepts a impl [ExtnPayloadProvider] and uses the capability provided by the trait to send the request.
-    /// As part of the send process it adds a callback to asynchronously respond back to the caller when the response does get
-    /// received. This method can be called synchrnously with a timeout
-    ///
-    /// # Arguments
-    /// `payload` - impl [ExtnPayloadProvider]
-    pub fn request_sync<T: ExtnPayloadProvider>(
-        &mut self,
-        payload: impl ExtnPayloadProvider,
-        timeout_in_msecs: u64,
-    ) -> Result<T, RippleError> {
-        let id = uuid::Uuid::new_v4().to_string();
-        let (tx, tr) = bounded(2);
-        let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
-        let timeout_increments = 5;
-        self.sender
-            .send_request(id, payload.clone(), other_sender, Some(tx))?;
-        let mut current_timeout: u64 = 0;
-        loop {
-            match tr.try_recv() {
-                Ok(cmessage) => {
-                    let latency = Utc::now().timestamp_millis() - cmessage.ts;
-                    debug!(
-                        "** receiving message latency={} msg={:?}",
-                        latency, cmessage
-                    );
-                    let message: ExtnMessage = cmessage.try_into().unwrap();
-                    if let Some(v) = message.payload.extract() {
-                        return Ok(v);
-                    } else {
-                        error!("Bad response for {:?}", payload.get_extn_payload());
-                        return Err(RippleError::ParseError);
-                    }
-                }
-                Err(e) => {
-                    if let TryRecvError::Closed = e {
-                        error!("Channel disconnected");
-                        break;
-                    }
-                }
-            }
-            current_timeout += timeout_increments;
-            if current_timeout > timeout_in_msecs {
-                error!(
-                    "Timeout on request message {:?}",
-                    payload.get_extn_payload()
-                );
-                break;
-            } else {
-                std::thread::sleep(Duration::from_millis(timeout_increments))
-            }
-        }
         Err(RippleError::InvalidOutput)
     }
 
