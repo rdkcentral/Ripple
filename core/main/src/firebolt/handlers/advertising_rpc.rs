@@ -15,10 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::{
-    service::apps::app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
-    utils::rpc_utils::rpc_add_event_listener_with_decorator,
-};
+use base64::{engine::general_purpose::STANDARD_NO_PAD as base64, Engine};
 use jsonrpsee::{
     core::{async_trait, Error, RpcResult},
     proc_macros::rpc,
@@ -47,8 +44,12 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::{
-    firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManager,
-    state::platform_state::PlatformState, utils::rpc_utils::rpc_err,
+    firebolt::rpc::RippleRPCProvider,
+    processor::storage::storage_manager::StorageManager,
+    service::apps::app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
+    state::platform_state::PlatformState,
+    utils::rpc_utils::rpc_add_event_listener_with_decorator,
+    utils::rpc_utils::rpc_err,
 };
 
 use super::{capabilities_rpc::is_permitted, privacy_rpc};
@@ -322,7 +323,7 @@ impl AdvertisingServer for AdvertisingImpl {
     async fn device_attributes(&self, ctx: CallContext) -> RpcResult<Value> {
         let afc = self.config(ctx.clone(), Default::default()).await?;
 
-        let buff = base64::decode(afc.device_ad_attributes).unwrap_or_default();
+        let buff = base64.decode(afc.device_ad_attributes).unwrap_or_default();
         match String::from_utf8(buff) {
             Ok(mut b_string) => {
                 /*
