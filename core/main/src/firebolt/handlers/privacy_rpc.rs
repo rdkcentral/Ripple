@@ -320,24 +320,14 @@ impl PrivacyImpl {
             }))
         };
 
-        if dec.is_some() {
-            AppEvents::add_listener_with_context_and_decorator(
-                state,
-                event_name.to_owned(),
-                ctx.clone(),
-                ListenRequest { listen },
-                event_context,
-                dec,
-            );
-        } else {
-            AppEvents::add_listener_with_context(
-                state,
-                event_name.to_owned(),
-                ctx.clone(),
-                ListenRequest { listen },
-                event_context,
-            );
-        }
+        AppEvents::add_listener_with_context_and_decorator(
+            state,
+            event_name.to_owned(),
+            ctx.clone(),
+            ListenRequest { listen },
+            event_context,
+            dec,
+        );
 
         Ok(ListenerResponse {
             listening: listen,
