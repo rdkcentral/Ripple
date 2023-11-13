@@ -90,7 +90,6 @@ pub struct DeviceCapabilities {
     pub firmware_info: Option<FireboltSemanticVersion>,
     pub hdr: Option<HashMap<HdrProfile, bool>>,
     pub hdcp: Option<HDCPStatus>,
-    pub is_wifi: Option<bool>,
     pub model: Option<String>,
     pub make: Option<String>,
     pub audio: Option<HashMap<AudioProfile, bool>>,

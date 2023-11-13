@@ -63,8 +63,7 @@ use ripple_sdk::{
         context::RippleContextUpdateRequest,
         device::{
             device_info_request::{
-                DEVICE_INFO_AUTHORIZED, DEVICE_MAKE_MODEL_AUTHORIZED,
-                DEVICE_NETWORK_STATUS_AUTHORIZED, DEVICE_SKU_AUTHORIZED,
+                DEVICE_INFO_AUTHORIZED, DEVICE_MAKE_MODEL_AUTHORIZED, DEVICE_SKU_AUTHORIZED,
             },
             device_request::{InternetConnectionStatus, PowerState, TimeZone},
         },
@@ -1294,7 +1293,6 @@ impl ThunderDeviceInfoRequestProcessor {
             audio_result,
             model_result,
             make_result,
-            network_status,
         ) = join!(
             async {
                 if device_info_authorized {
@@ -1351,16 +1349,6 @@ impl ThunderDeviceInfoRequestProcessor {
                 } else {
                     None
                 }
-            },
-            async {
-                if keys.contains(&DEVICE_NETWORK_STATUS_AUTHORIZED) {
-                    Some(matches!(
-                        Self::get_network(&state).await._type,
-                        NetworkType::Wifi
-                    ))
-                } else {
-                    None
-                }
             }
         );
 
@@ -1369,7 +1357,6 @@ impl ThunderDeviceInfoRequestProcessor {
             firmware_info: firmware_info_result,
             hdcp: hdcp_result,
             hdr: hdr_info,
-            is_wifi: network_status,
             make: make_result,
             model: model_result,
             video_resolution: video_dimensions,
