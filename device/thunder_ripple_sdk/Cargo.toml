@@ -25,19 +25,13 @@ repository = "https://github.com/rdkcentral/Ripple"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-contract_tests = [
-    "pact_consumer",
-    "reqwest",
-    "expectest",
-    "maplit",
-    "test-log",
-]
+contract_tests = ["pact_consumer", "reqwest", "expectest", "maplit", "test-log"]
 
 [dependencies]
-ripple_sdk = { path = "../../core/sdk" }
-jsonrpsee = { version = "0.9.0", features = ["macros", "ws-client"] }
-serde = { version = "1.0", features = ["derive"] }
-url = "2.2.2"
+ripple_sdk = { workspace = true }
+jsonrpsee = { workspace = true, features = ["macros", "ws-client"] }
+serde.workspace = true
+url.workspace = true
 strum = "0.24"
 strum_macros = "0.24"
 pact_consumer = { version = "1.0.0", optional = true }

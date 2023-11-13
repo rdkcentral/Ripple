@@ -28,7 +28,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 ripple_sdk = { path = "../../core/sdk" }
-serde_json = "1.0"
-serde = { version = "1.0", features = ["derive"] }
-url = "2.2.2"
-urlencoding = "2.1.0"
+serde_json.workspace = true
+serde.workspace = true
+url.workspace = true
+urlencoding.workspace = true
