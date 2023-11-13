@@ -982,6 +982,66 @@ impl GrantPolicyEnforcer {
         Self::store_user_grants(platform_state, permission, result, app_id, grant_policy).await;
     }
 
+    // Helper function to check
+    // 1. Privacy settings for autoApplyPolicy
+    // 2. Availability of providers for user grant resolution.
+    pub async fn can_proceed_with_user_grant_resolution(
+        platform_state: &PlatformState,
+        permissions: &Vec<FireboltPermission>,
+    ) -> bool {
+        let mut check_status = false;
+        let grant_policy_opt = platform_state.get_device_manifest().get_grant_policies();
+        if grant_policy_opt.is_none() {
+            debug!("There are no grant policies for the requesting cap so bailing out");
+            return false;
+        }
+        for permission in permissions {
+            let grant_policies_map = grant_policy_opt.as_ref().unwrap();
+            let grant_policies_opt = grant_policies_map.get(&permission.cap.as_str());
+
+            if let Some(policy) = grant_policies_opt {
+                if let Some(p) = policy.get_policy(permission) {
+                    if p.privacy_setting.is_some()
+                        && p.privacy_setting.as_ref().unwrap().auto_apply_policy
+                            != AutoApplyPolicy::Never
+                    {
+                        let result = GrantPolicyEnforcer::evaluate_privacy_settings(
+                            platform_state,
+                            p.privacy_setting.as_ref().unwrap(),
+                        )
+                        .await;
+
+                        if result.is_some() {
+                            // already resolved.
+                            return false;
+                        }
+                    }
+                    // Now check if provider and capability are available.
+                    for grant_requirements in &p.options {
+                        let step_caps: Vec<FireboltPermission> = grant_requirements
+                            .steps
+                            .iter()
+                            .map(|step| FireboltPermission {
+                                cap: step.capability_as_fb_cap(),
+                                role: CapabilityRole::Use,
+                            })
+                            .collect();
+
+                        if platform_state
+                            .cap_state
+                            .generic
+                            .check_all(&step_caps)
+                            .is_ok()
+                        {
+                            check_status = true
+                        }
+                    }
+                }
+            }
+        }
+        check_status
+    }
+
     pub async fn determine_grant_policies_for_permission(
         platform_state: &PlatformState,
         caller_session: &CallerSession,
@@ -1329,13 +1389,10 @@ impl GrantPolicyEnforcer {
                         .map(|step| step.capability_as_fb_cap())
                 })
                 .collect();
-            warn!(
-                "capabilities are not supported on this device. {:?}",
-                unsupported_caps
-            );
+            warn!("Required provider is missing {:?}", unsupported_caps);
             Err(DenyReasonWithCap {
                 caps: unsupported_caps,
-                reason: DenyReason::Unsupported,
+                reason: DenyReason::GrantProviderMissing,
             })
         }
     }
@@ -1610,6 +1667,16 @@ mod tests {
             };
             let ctx = runtime.call_context;
             let mut platform_state = runtime.platform_state;
+            let caps = vec![
+                FireboltCap::Short("input:keyboard".to_owned()),
+                FireboltCap::Short("token:account".to_owned()),
+                FireboltCap::Short("usergrant:acknowledgechallenge".to_owned()),
+                FireboltCap::Short("usergrant:pinchallenge".to_owned()),
+            ];
+            platform_state
+                .cap_state
+                .generic
+                .ingest_availability(caps, true);
 
             let mut permissions = HashMap::new();
             permissions.insert(ctx.app_id.to_owned(), vec![perm.clone()]);
@@ -1797,7 +1864,7 @@ mod tests {
             assert_eq!(
                 result.err().unwrap(),
                 DenyReasonWithCap {
-                    reason: DenyReason::Unsupported,
+                    reason: DenyReason::GrantProviderMissing,
                     caps: vec![
                         FireboltCap::Full(
                             "xrn:firebolt:capability:usergrant:notavailableonplatform".to_owned()

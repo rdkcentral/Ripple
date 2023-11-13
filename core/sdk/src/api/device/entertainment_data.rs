@@ -648,7 +648,9 @@ pub struct BaseEntity {
     #[serde(default = "default_program_type")]
     pub entity_type: ProgramEntityType,
     pub entity_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub asset_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub app_content_data: Option<AppContentDataString>,
 }
 
@@ -963,7 +965,7 @@ mod tests {
             },
         });
         let value = serde_json::to_string(&intent).unwrap();
-        assert!(value.eq("{\"action\":\"entity\",\"data\":{\"programType\":\"movie\",\"entityType\":\"program\",\"entityId\":\"example-movie-id\",\"assetId\":null,\"appContentData\":null},\"context\":{\"source\":\"xrn:firebolt:application:refui\"}}"));
+        assert!(value.eq("{\"action\":\"entity\",\"data\":{\"programType\":\"movie\",\"entityType\":\"program\",\"entityId\":\"example-movie-id\"},\"context\":{\"source\":\"xrn:firebolt:application:refui\"}}"));
     }
 
     #[test]

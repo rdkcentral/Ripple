@@ -16,6 +16,7 @@
 //
 
 use ripple_sdk::framework::bootstrap::Bootstep;
+use ripple_sdk::log::debug;
 use ripple_sdk::{async_trait::async_trait, framework::RippleResponse};
 
 use crate::processor::main_context_processor::MainContextProcessor;
@@ -33,6 +34,9 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
 
     async fn setup(&self, s: BootstrapState) -> RippleResponse {
         MetricsState::initialize(&s.platform_state).await;
+        if MainContextProcessor::handle_power_active_cleanup(&s.platform_state) {
+            debug!("Power Active grants were cleaned up");
+        }
         ContextManager::setup(&s.platform_state).await;
         if !s.platform_state.supports_session() {
             return Ok(());
