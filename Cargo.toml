@@ -44,6 +44,6 @@ querystring = "1.1.0"
 regex = "1.10.2"
 ripple_sdk = { path = "./core/sdk" }
 tokio = "1.16.1"
-tokio-tungstenite = "0.17.1"
+tokio-tungstenite = "0.20.1"
 url = "2.2.2"
 urlencoding = "2.1.0"
