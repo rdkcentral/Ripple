@@ -163,7 +163,7 @@ impl TelemetryBuilder {
                 app_id: ctx.app_id.to_owned(),
                 ripple_session_id: ps.metrics.get_context().device_session_id,
                 app_session_id: Some(ctx.session_id.to_owned()),
-                semantic_version: params.value.to_string(),
+                semantic_version: params.version.to_string(),
             }),
         ) {
             error!("send_telemetry={:?}", e)
