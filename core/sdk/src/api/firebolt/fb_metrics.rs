@@ -70,8 +70,8 @@ impl AppDataGovernanceState {
 }
 #[derive(Deserialize, Debug, Clone)]
 pub struct InternalInitializeParams {
-    pub name: String,
-    pub value: Version,
+    #[serde(deserialize_with = "deserialize_version")]
+    pub version: Version,
 }
 
 #[derive(Deserialize, Debug, Clone, Serialize)]
@@ -174,6 +174,21 @@ pub struct Version {
     pub minor: i8,
     pub patch: i8,
     pub readable: String,
+}
+
+pub fn deserialize_version<'de, D>(deserializer: D) -> Result<Version, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Version::deserialize(deserializer)?;
+    let min_value = 0;
+    if value.major.ge(&min_value) && value.minor.ge(&min_value) && value.patch.ge(&min_value) {
+        Ok(value)
+    } else {
+        Err(serde::de::Error::custom(
+            "Invalid version should be 0 or greater",
+        ))
+    }
 }
 
 impl std::fmt::Display for Version {
@@ -570,4 +585,25 @@ pub struct SystemErrorParams {
     pub error_name: String,
     pub component: String,
     pub context: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn test_initialize_params() {
+        let value = json!({ "version":{"major": 0,"minor": 13,"patch": 0,"readable": "Firebolt Core SDK 0.13.0"}} );
+        assert!(InternalInitializeParams::deserialize(value).is_ok());
+        let value = json!({ "version":{"major": -1,"minor": 13,"patch": 0,"readable": "Firebolt Core SDK 0.13.0"}} );
+        assert!(InternalInitializeParams::deserialize(value).is_err());
+        let value = json!({ "version":{"major": 0,"minor": -2,"patch": 0,"readable": "Firebolt Core SDK 0.13.0"}} );
+        assert!(InternalInitializeParams::deserialize(value).is_err());
+        let value = json!({ "version":{"major": 0,"minor": 0,"patch": -3,"readable": "Firebolt Core SDK 0.13.0"}} );
+        assert!(InternalInitializeParams::deserialize(value).is_err());
+        let value = json!({ "version":{"major": 0,"minor": 13,"patch": 0,"readable": 1}} );
+        assert!(InternalInitializeParams::deserialize(value).is_err());
+    }
 }
