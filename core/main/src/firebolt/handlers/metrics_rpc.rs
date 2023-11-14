@@ -417,13 +417,13 @@ impl MetricsServer for MetricsImpl {
     ) -> RpcResult<InternalInitializeResponse> {
         TelemetryBuilder::internal_initialize(&self.state, &ctx, &internal_initialize_params);
         let readable_result = internal_initialize_params
-            .value
+            .version
             .readable
             .replace("SDK", "FEE");
         let internal_initialize_resp = Version {
-            major: internal_initialize_params.value.major,
-            minor: internal_initialize_params.value.minor,
-            patch: internal_initialize_params.value.patch,
+            major: internal_initialize_params.version.major,
+            minor: internal_initialize_params.version.minor,
+            patch: internal_initialize_params.version.patch,
             readable: readable_result,
         };
         Ok(InternalInitializeResponse {

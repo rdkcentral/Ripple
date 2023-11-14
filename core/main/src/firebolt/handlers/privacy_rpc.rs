@@ -72,10 +72,10 @@ struct AllowAppContentAdTargetingSettings {
 }
 
 impl AllowAppContentAdTargetingSettings {
-    pub fn new(limit_ad_targeting: bool) -> Self {
-        let (lmt, us_privacy) = match limit_ad_targeting {
-            true => ("1", "1-Y-"),
-            false => ("0", "1-N-"),
+    pub fn new(allow_app_content_ad_targeting: bool) -> Self {
+        let (lmt, us_privacy) = match allow_app_content_ad_targeting {
+            true => ("0", "1-N-"),
+            false => ("1", "1-Y-"),
         };
         AllowAppContentAdTargetingSettings {
             lmt: lmt.to_owned(),
