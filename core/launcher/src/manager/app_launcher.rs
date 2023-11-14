@@ -202,7 +202,7 @@ impl AppLauncher {
         async move {
             debug!("set_state: container_id={}", container_id);
             let mut final_resp = Ok(AppManagerResponse::None);
-            let mut item = state
+            let item = state
                 .clone()
                 .app_launcher_state
                 .get_app_by_id(&container_id);
@@ -260,18 +260,17 @@ impl AppLauncher {
                 // see if it's a provider container ID.
                 let app_library_state = state.clone().config.app_library_state;
                 let resp = AppLibrary::get_provider(&app_library_state, container_id.to_string());
-                if resp.is_none() {
-                    warn!("set_state: Not found {:?}", container_id);
-                    final_resp = Err(AppError::NotFound);
-                }
-                let provider = resp.unwrap();
-                item = state.clone().app_launcher_state.get_app_by_id(&provider);
-                if item.is_none() {
+                if let Some(provider) = resp {
+                    final_resp = state
+                        .clone()
+                        .app_launcher_state
+                        .get_app_by_id(&provider)
+                        .map_or(Err(AppError::NotFound), |_| Ok(AppManagerResponse::None));
+                } else {
                     warn!("set_state: Not found {:?}", container_id);
                     final_resp = Err(AppError::NotFound);
                 }
             }
-
             final_resp
         }
         .boxed()

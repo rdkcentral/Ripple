@@ -93,50 +93,7 @@ impl FireboltGatekeeper {
             });
         }
         let caps = caps_opt.unwrap();
-        if !caps.is_empty() {
-            // Supported and Availability checks
-            trace!(
-                "Required caps for method:{} Caps: [{:?}]",
-                request.method,
-                caps
-            );
-            if let Err(e) = state.clone().cap_state.generic.check_all(&caps) {
-                trace!("check_all for caps[{:?}] failed", caps);
-                return Err(e);
-            }
-            // permission checks
-            if let Err(e) =
-                PermissionHandler::check_permitted(&state, &request.ctx.app_id, &caps).await
-            {
-                trace!(
-                    "check_permitted for method ({}) failed. Error: {:?}",
-                    request.method,
-                    e
-                );
-                return Err(e);
-            } else {
-                trace!("check_permitted for method ({}) succeded", request.method);
-                //usergrants check
-                if let Err(e) = GrantState::check_with_roles(
-                    &state,
-                    &request.ctx.clone().into(),
-                    &request.ctx.clone().into(),
-                    &caps,
-                    true,
-                )
-                .await
-                {
-                    trace!(
-                        "check_with_roles for method ({}) failed. Error: {:?}",
-                        request.method,
-                        e
-                    );
-                    return Err(e);
-                } else {
-                    trace!("check_with_roles for method ({}) succeded", request.method);
-                }
-            }
-        } else {
+        if caps.is_empty() {
             // Couldnt find any capabilities for the method
             trace!(
                 "Unable to find any caps for the method ({})",
@@ -147,6 +104,73 @@ impl FireboltGatekeeper {
                 caps: Vec::new(),
             });
         }
+        let filtered_perm_list = state
+            .clone()
+            .cap_state
+            .generic
+            .clear_non_negotiable_permission(&state, &caps);
+        if filtered_perm_list.is_empty() {
+            trace!("Role/Capability is cleared based on non-negotiable policy");
+            return Ok(());
+        }
+        // Supported and Availability checks
+        trace!(
+            "Required caps for method:{} Caps: [{:?}]",
+            request.method,
+            filtered_perm_list
+        );
+        if let Err(e) = state
+            .clone()
+            .cap_state
+            .generic
+            .check_all(&filtered_perm_list)
+        {
+            trace!("check_all for caps[{:?}] failed", filtered_perm_list);
+            return Err(e);
+        }
+        // permission checks
+        Self::permissions_check(state, request, filtered_perm_list).await?;
+        Ok(())
+    }
+
+    async fn permissions_check(
+        state: PlatformState,
+        request: RpcRequest,
+        filtered_perm_list: Vec<FireboltPermission>,
+    ) -> Result<(), DenyReasonWithCap> {
+        // permission checks
+        if let Err(e) =
+            PermissionHandler::check_permitted(&state, &request.ctx.app_id, &filtered_perm_list)
+                .await
+        {
+            trace!(
+                "check_permitted for method ({}) failed. Error: {:?}",
+                request.method,
+                e
+            );
+            return Err(e);
+        }
+        trace!("check_permitted for method ({}) succeded", request.method);
+        //usergrants check
+        if let Err(e) = GrantState::check_with_roles(
+            &state,
+            &request.ctx.clone().into(),
+            &request.ctx.clone().into(),
+            &filtered_perm_list,
+            true,
+        )
+        .await
+        {
+            trace!(
+                "check_with_roles for method ({}) failed. Error: {:?}",
+                request.method,
+                e
+            );
+            return Err(e);
+        } else {
+            trace!("check_with_roles for method ({}) succeded", request.method);
+        }
+
         Ok(())
     }
 }
