@@ -32,9 +32,10 @@ pub struct LegacyImpl {
 
 impl LegacyImpl {
     pub fn new(client: ExtnClient) -> LegacyImpl {
+        let size = client.get_stack_size();
         LegacyImpl {
             client,
-            rt: ExtnUtils::get_runtime("e-legacy".to_owned()),
+            rt: ExtnUtils::get_runtime("e-legacy".to_owned(), size),
         }
     }
 }

@@ -73,8 +73,8 @@ export_extn_metadata!(CExtnMetadata, init_library);
 pub fn start(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     let _ = init_logger("device_channel".into());
     info!("Starting device channel");
-    let runtime = ExtnUtils::get_runtime("e-t".to_owned());
     let client = ExtnClient::new(receiver, sender);
+    let runtime = ExtnUtils::get_runtime("e-t".to_owned(), client.get_stack_size());
     runtime.block_on(async move {
         let client_for_receiver = client.clone();
         let client_for_thunder = client.clone();

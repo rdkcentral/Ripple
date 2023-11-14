@@ -69,7 +69,7 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     }
     if let Some(ws_url) = client.get_config("ws_url") {
         info!("ws_url={}", ws_url);
-        let runtime = ExtnUtils::get_runtime("e-tm".to_owned());
+        let runtime = ExtnUtils::get_runtime("e-tm".to_owned(), client.get_stack_size());
 
         runtime.block_on(async move {
             let client_c = client.clone();

@@ -41,7 +41,7 @@ use crate::{
         ffi::ffi_message::CExtnMessage,
     },
     framework::{ripple_contract::RippleContract, RippleResponse},
-    utils::error::RippleError,
+    utils::{error::RippleError, extn_utils::ExtnStackSize},
 };
 
 use super::{
@@ -564,6 +564,11 @@ impl ExtnClient {
         let id = uuid::Uuid::new_v4().to_string();
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
         self.sender.send_request(id, payload, other_sender, None)
+    }
+
+    pub fn get_stack_size(&self) -> Option<ExtnStackSize> {
+        self.get_config("stack_size")
+            .map(|v| ExtnStackSize::from(v.as_str()))
     }
 
     /// Method to get configurations on the manifest per extension

@@ -59,10 +59,10 @@ fn init_library() -> CExtnMetadata {
 export_extn_metadata!(CExtnMetadata, init_library);
 
 fn start_launcher(sender: ExtnSender, receiver: Receiver<CExtnMessage>) {
-    let _ = init_logger("e-l".into());
+    let _ = init_logger("launcher".into());
     info!("Starting launcher channel");
-    let runtime = ExtnUtils::get_runtime("e-l".to_owned());
     let client = ExtnClient::new(receiver, sender);
+    let runtime = ExtnUtils::get_runtime("e-l".to_owned(), client.get_stack_size());
     let client_for_receiver = client.clone();
     runtime.block_on(async move {
         tokio::spawn(async move {
