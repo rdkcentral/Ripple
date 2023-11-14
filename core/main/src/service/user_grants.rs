@@ -55,7 +55,7 @@ use ripple_sdk::{
     framework::file_store::FileStore,
     log::{debug, error, warn},
     serde_json::Value,
-    tokio::sync::oneshot,
+    tokio::sync::{oneshot, mpsc},
     utils::error::RippleError,
 };
 use serde::Deserialize;
@@ -68,6 +68,12 @@ use crate::{
 use super::apps::provider_broker::{ProviderBroker, ProviderBrokerRequest};
 
 pub struct UserGrants {}
+pub struct CapStateNotification {
+    pub capability: String,
+    pub status: Option<GrantStatus>,
+}
+
+type CapStateSender = mpsc::Sender<CapStateNotification>;
 
 type GrantAppMap = Arc<RwLock<FileStore<HashMap<String, HashSet<GrantEntry>>>>>;
 
@@ -76,6 +82,7 @@ pub struct GrantState {
     device_grants: Arc<RwLock<FileStore<HashSet<GrantEntry>>>>,
     grant_app_map: GrantAppMap,
     caps_needing_grants: Vec<String>,
+    listener_map: Arc<RwLock<HashMap<String, Vec<CapStateSender>>>>,
 }
 
 impl GrantState {
@@ -100,6 +107,7 @@ impl GrantState {
             grant_app_map: Arc::new(RwLock::new(app_grant_store)),
             caps_needing_grants: manifest.get_caps_requiring_grant(),
             device_grants: Arc::new(RwLock::new(dev_grant_store)),
+            listener_map: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -789,6 +797,9 @@ impl GrantState {
                 }
             }
         }
+        if entry_modified {
+            // notify()
+        }
         entry_modified
     }
 }
@@ -1373,6 +1384,48 @@ impl GrantPolicyEnforcer {
         )
         .await
     }
+
+
+    pub fn subscribe(platform_state: &PlatformState, sender: CapStateSender, capability: String) {
+        debug!("Subscring for {:?} change", capability);
+        let mut listener_map = platform_state.cap_state.grant_state.listener_map.write().unwrap();
+        let listeners = listener_map.entry(capability).or_insert(Vec::new());
+        listeners.push(sender);
+    }
+
+    pub fn get_listeners(
+        platform_state: &PlatformState,
+        capability: String,
+    ) -> Vec<CapStateSender> {
+        let mut vec = Vec::new();
+        let listener_map = platform_state.cap_state.grant_state.listener_map.read().unwrap();
+        match listener_map.get(&capability) {
+            Some(listeners) => {
+                for listener in listeners {
+                    vec.push(listener.clone());
+                }
+            }
+            None => {}
+        }
+        vec
+    }
+
+    pub async fn notify(
+        platform_state: &PlatformState,
+        capability: String,
+        status: Option<GrantStatus>,
+    ) {
+        let listeners = GrantPolicyEnforcer::get_listeners(platform_state, capability.clone());
+        for listener in listeners {
+            let _response = listener
+                .send(CapStateNotification {
+                    capability: capability.clone(),
+                    status: status.clone(),
+                })
+                .await;
+        }
+    }
+
 }
 
 #[derive(Deserialize, Debug, Clone)]
