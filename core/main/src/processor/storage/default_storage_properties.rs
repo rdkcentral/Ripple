@@ -25,6 +25,7 @@ use ripple_sdk::{
         KEY_ALLOW_WATCH_HISTORY, KEY_BACKGROUND_COLOR, KEY_BACKGROUND_OPACITY, KEY_COUNTRY_CODE,
         KEY_ENABLED, KEY_FONT_COLOR, KEY_FONT_EDGE, KEY_FONT_EDGE_COLOR, KEY_FONT_FAMILY,
         KEY_FONT_OPACITY, KEY_FONT_SIZE, KEY_LANGUAGE, KEY_LOCALE, KEY_NAME, KEY_SKIP_RESTRICTION,
+        KEY_WINDOW_COLOR, KEY_TEXT_ALIGN, KEY_TEXT_ALIGN_VERTICAL, KEY_WINDOW_OPACITY,
         NAMESPACE_ADVERTISING, NAMESPACE_CLOSED_CAPTIONS, NAMESPACE_DEVICE_NAME,
         NAMESPACE_LOCALIZATION, NAMESPACE_PRIVACY,
     },
@@ -174,18 +175,18 @@ impl DefaultStorageProperties {
                     Some(val) => Ok(val),
                     _ => Err(not_found),
                 },
-                // KEY_WINDOW_COLOR => match captions.window_color {
-                //     Some(val) => Ok(val),
-                //     _ => Err(not_found),
-                // },
-                // KEY_TEXT_ALIGN => match captions.text_align {
-                //     Some(val) => Ok(val),
-                //     _ => Err(not_found),
-                // },
-                // KEY_TEXT_ALIGN_VERTICAL => match captions.text_align_vertical {
-                //     Some(val) => Ok(val),
-                //     _ => Err(not_found),
-                // },
+                KEY_WINDOW_COLOR => match captions.window_color {
+                    Some(val) => Ok(val),
+                    _ => Err(not_found),
+                },
+                KEY_TEXT_ALIGN => match captions.text_align {
+                    Some(val) => Ok(val),
+                    _ => Err(not_found),
+                },
+                KEY_TEXT_ALIGN_VERTICAL => match captions.text_align_vertical {
+                    Some(val) => Ok(val),
+                    _ => Err(not_found),
+                },
                 _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
                     key.to_owned(),
                 )),
@@ -273,10 +274,10 @@ impl DefaultStorageProperties {
                     Some(val) => Ok(val),
                     _ => Err(not_found),
                 },
-                // KEY_WINDOW_OPACITY => match captions.window_opacity {
-                //     Some(val) => Ok(val),
-                //     _ => Err(not_found),
-                // },
+                KEY_WINDOW_OPACITY => match captions.window_opacity {
+                    Some(val) => Ok(val),
+                    _ => Err(not_found),
+                },
                 _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
                     key.to_owned(),
                 )),
