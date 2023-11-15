@@ -1502,6 +1502,22 @@ impl GrantPolicyEnforcer {
 
     pub async fn notify(platform_state: &PlatformState, cap: String, status: Option<GrantStatus>) {
         debug!("cap:{:?} status:{:?}", cap, status);
+
+        let cap_dependencies: &HashMap<FireboltPermission, Vec<FireboltPermission>> =
+            &platform_state
+                .get_device_manifest()
+                .capabilities
+                .dependencies;
+        println!("--> cap_dependencies {:?}", cap_dependencies);
+
+        let fp = FireboltPermission {
+            cap: FireboltCap::Full(cap.clone()),
+            role: CapabilityRole::Use,
+        };
+        if let Some(dep_perm) = cap_dependencies.get(&fp) {
+            println!("--> dep_perm {:?}", dep_perm);
+        }
+
         let listeners = GrantPolicyEnforcer::get_listeners(platform_state, cap.clone());
         for listener in listeners {
             debug!("sending notification for {:?}", cap);

@@ -627,12 +627,14 @@ impl PrivacyImpl {
         Ok(settings)
     }
 
-    pub async fn on_cap_change(platform_state: PlatformState, cap_state: CapStateNotification) {
+    pub async fn on_cap_change(platform_state: &PlatformState, cap_state: CapStateNotification) {
         debug!(
             "on_cap_change: {:?} {:?}",
             cap_state.capability, cap_state.status
         );
-        if cap_state.capability == "xrn:firebolt:capability:discovery:watched" {
+        //if cap_state.capability == "xrn:firebolt:capability:discovery:watched" {
+        if cap_state.capability == "xrn:firebolt:capability:data:app-usage" {
+            // XXX: jusxt for test
             let property = StorageProperty::ShareWatchHistory;
             let gs_str = match cap_state.status {
                 Some(gs) => gs.as_string(),

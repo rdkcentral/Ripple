@@ -37,12 +37,10 @@ use ripple_sdk::{
         extn_client_message::ExtnMessage,
     },
     log::{debug, error, info},
-    tokio,
-    tokio::sync::{mpsc, mpsc::Receiver as MReceiver, mpsc::Sender as MSender}, // XXX: mpsc => MSender
+    tokio::sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender}, // XXX: mpsc => MSender
 };
 
-use crate::firebolt::handlers::privacy_rpc::PrivacyImpl;
-use crate::service::user_grants::{CapStateNotification, GrantPolicyEnforcer};
+use crate::service::user_grants::GrantPolicyEnforcer;
 use crate::state::{
     cap::cap_state::CapState, metrics_state::MetricsState, platform_state::PlatformState,
 };
@@ -152,20 +150,8 @@ impl MainContextProcessor {
             .delete_all_entries_for_lifespan(&GrantLifespan::PowerActive)
     }
 
-    pub async fn setup_cap_listener(state: PlatformState) {
-        let state_for_cap_listener = state;
-
-        let (tx, mut rx) = mpsc::channel::<CapStateNotification>(16);
-        let cap = "xrn:firebolt:capability:discovery:watched".to_string();
-        GrantPolicyEnforcer::subscribe(state_for_cap_listener.clone(), tx, cap);
-
-        let _ = tokio::spawn(async move {
-            debug!("Starting cap change listener thread");
-            while let Some(cap_state) = rx.recv().await {
-                PrivacyImpl::on_cap_change(state_for_cap_listener.clone(), cap_state).await;
-            }
-            debug!("Exiting cap change listener thread");
-        });
+    pub async fn setup_cap_listener(state: &PlatformState) {
+        GrantPolicyEnforcer::setup_cap_listener(state).await;
     }
 }
 

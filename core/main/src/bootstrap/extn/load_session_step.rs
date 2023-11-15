@@ -46,7 +46,7 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
             .get_client()
             .add_event_processor(MainContextProcessor::new(s.platform_state.clone()));
 
-        MainContextProcessor::setup_cap_listener(s.platform_state).await;
+        MainContextProcessor::setup_cap_listener(&s.platform_state).await;
 
         Ok(())
     }
