@@ -55,7 +55,7 @@ use ripple_sdk::{
     framework::file_store::FileStore,
     log::{debug, error, warn},
     serde_json::Value,
-    tokio::sync::{oneshot, mpsc},
+    tokio::sync::{mpsc, oneshot},
     utils::error::RippleError,
 };
 use serde::Deserialize;
@@ -1442,10 +1442,14 @@ impl GrantPolicyEnforcer {
         .await
     }
 
-
-    pub fn subscribe(platform_state: &PlatformState, sender: CapStateSender, capability: String) {
+    pub fn subscribe(platform_state: PlatformState, sender: CapStateSender, capability: String) {
         debug!("Subscring for {:?} change", capability);
-        let mut listener_map = platform_state.cap_state.grant_state.listener_map.write().unwrap();
+        let mut listener_map = platform_state
+            .cap_state
+            .grant_state
+            .listener_map
+            .write()
+            .unwrap();
         let listeners = listener_map.entry(capability).or_insert(Vec::new());
         listeners.push(sender);
     }
@@ -1455,7 +1459,12 @@ impl GrantPolicyEnforcer {
         capability: String,
     ) -> Vec<CapStateSender> {
         let mut vec = Vec::new();
-        let listener_map = platform_state.cap_state.grant_state.listener_map.read().unwrap();
+        let listener_map = platform_state
+            .cap_state
+            .grant_state
+            .listener_map
+            .read()
+            .unwrap();
         match listener_map.get(&capability) {
             Some(listeners) => {
                 for listener in listeners {
@@ -1482,7 +1491,6 @@ impl GrantPolicyEnforcer {
                 .await;
         }
     }
-
 }
 
 #[derive(Deserialize, Debug, Clone)]

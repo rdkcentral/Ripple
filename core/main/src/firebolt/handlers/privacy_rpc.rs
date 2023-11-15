@@ -18,9 +18,8 @@
 use crate::processor::storage::storage_manager::StorageManager;
 use crate::{
     firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManagerError,
-    service::apps::app_events::AppEvents, state::platform_state::PlatformState,
-    service::user_grants::CapStateNotification,
-
+    service::apps::app_events::AppEvents, service::user_grants::CapStateNotification,
+    state::platform_state::PlatformState,
 };
 use jsonrpsee::{
     core::{async_trait, RpcResult},
@@ -628,7 +627,7 @@ impl PrivacyImpl {
         Ok(settings)
     }
 
-    pub async fn on_cap_change(platform_state: &PlatformState, cap_state: CapStateNotification) {
+    pub async fn on_cap_change(platform_state: PlatformState, cap_state: CapStateNotification) {
         debug!(
             "on_cap_change: {:?} {:?}",
             cap_state.capability, cap_state.status
@@ -640,11 +639,10 @@ impl PrivacyImpl {
                 None => "",
             };
             let _result =
-                StorageManager::set_string(platform_state, property, gs_str.to_string(), None)
+                StorageManager::set_string(&platform_state, property, gs_str.to_string(), None)
                     .await;
         }
     }
-
 }
 
 #[async_trait]
