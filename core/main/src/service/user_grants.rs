@@ -497,11 +497,10 @@ impl GrantState {
         if let Some(status) = self.get_grant_status(app_id, permission) {
             GrantActiveState::ActiveGrant(status.into())
         } else {
-            // This flow is where the capability is not in grant state.
+            // This flow is when the capability is not in grant state.
             // Check if there is a grant policy for the capability.
             // if no, return allowed as active grant state;
             // otherwise, return pending grant.
-            // https://ccp.sys.comcast.net/browse/RPPL-914
             if let Some(state) = platform_state {
                 let grant_polices_map_opt = state.get_device_manifest().capabilities.grant_policies;
                 let capability = permission.cap.as_str();
