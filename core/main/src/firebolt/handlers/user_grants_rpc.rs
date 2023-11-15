@@ -214,54 +214,42 @@ impl UserGrantsServer for UserGrantsImpl {
     }
 
     async fn usergrants_grant(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
-        let result = GrantState::grant_modify(
+        let result = GrantState::update_grant_as_per_policy(
             &self.platform_state,
             GrantStateModify::Grant,
-            request.options.and_then(|x| x.app_id),
+            &request.options.and_then(|x| x.app_id),
             request.role,
             request.capability,
         )
         .await;
 
-        if result {
-            Ok(())
-        } else {
-            Err(rpc_err("Unable to grant the capability"))
-        }
+        result.map_err(rpc_err)
     }
 
     async fn usergrants_deny(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
-        let result = GrantState::grant_modify(
+        let result = GrantState::update_grant_as_per_policy(
             &self.platform_state,
             GrantStateModify::Deny,
-            request.options.and_then(|x| x.app_id),
+            &request.options.and_then(|x| x.app_id),
             request.role,
             request.capability,
         )
         .await;
 
-        if result {
-            Ok(())
-        } else {
-            Err(rpc_err("Unable to deny the capability"))
-        }
+        result.map_err(rpc_err)
     }
 
     async fn usergrants_clear(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
-        let result = GrantState::grant_modify(
+        let result = GrantState::update_grant_as_per_policy(
             &self.platform_state,
             GrantStateModify::Clear,
-            request.options.and_then(|x| x.app_id),
+            &request.options.and_then(|x| x.app_id),
             request.role,
             request.capability,
         )
         .await;
 
-        if result {
-            Ok(())
-        } else {
-            Err(rpc_err("Unable to clear the capability"))
-        }
+        result.map_err(rpc_err)
     }
     async fn usergrants_request(
         &self,

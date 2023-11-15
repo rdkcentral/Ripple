@@ -745,6 +745,10 @@ impl GrantState {
             cap: FireboltCap::Full(capability.clone()),
             role,
         };
+        match modify_operation {
+            GrantStateModify::Grant | GrantStateModify::Deny => {}
+            GrantStateModify::Clear => {}
+        }
 
         if let Some(grant_policy_map) = platform_state.get_device_manifest().get_grant_policies() {
             let result = grant_policy_map.get(&permission.cap.as_str());
@@ -807,6 +811,125 @@ impl GrantState {
             }
         }
         entry_modified
+    }
+    pub fn get_grant_policy(
+        platform_state: &PlatformState,
+        permission: &FireboltPermission,
+        _app_id: &Option<String>,
+    ) -> Option<GrantPolicy> {
+        if let Some(grant_policy_map) = platform_state.get_device_manifest().get_grant_policies() {
+            let grant_policies = grant_policy_map.get(&permission.cap.as_str()).cloned()?;
+            grant_policies.get_policy(permission)
+        } else {
+            None
+        }
+    }
+    pub async fn update_grant_as_per_policy(
+        platform_state: &PlatformState,
+        granted: GrantStateModify,
+        app_id: &Option<String>,
+        // permission: &FireboltPermission,
+        role: CapabilityRole,
+        capability: String,
+    ) -> Result<(), &'static str> {
+        let permission = FireboltPermission {
+            cap: FireboltCap::Full(capability),
+            role,
+        };
+        let grant_policy_opt = Self::get_grant_policy(platform_state, &permission, app_id);
+        if grant_policy_opt.is_none() {
+            error!("There are no grant polices for the requesting cap so cant update user grant");
+            return Err(
+                "There are no grant polices for the requesting cap so cant update user grant",
+            );
+        }
+        let grant_policy = grant_policy_opt.unwrap();
+        if !GrantPolicyEnforcer::is_policy_valid(platform_state, &grant_policy) {
+            return Err(
+                "There are no valid grant polices for the requesting cap so cant update user grant",
+            );
+        }
+        if grant_policy.scope == GrantScope::App && app_id.is_none()
+            || grant_policy.scope == GrantScope::Device && app_id.is_some()
+        {
+            error!("Grant policy scope and request scope doesn't match!");
+            return Err("Grant policy scope and request scope doesn't match!");
+        }
+        // let result = match granted {
+        //     GrantStateModify::Grant =
+        // };
+        if granted != GrantStateModify::Clear {
+            let result = match granted {
+                GrantStateModify::Grant => Ok(()),
+                _ => Err(DenyReasonWithCap {
+                    reason: DenyReason::GrantDenied,
+                    caps: vec![permission.cap.clone()],
+                }),
+            };
+            if grant_policy.privacy_setting.is_none()
+                || !grant_policy
+                    .privacy_setting
+                    .as_ref()
+                    .unwrap()
+                    .update_property
+            {
+                //There is no need to update privacy settings so it is enough to update only user grants storage.
+
+                GrantPolicyEnforcer::store_user_grants(
+                    platform_state,
+                    &permission,
+                    &result,
+                    app_id,
+                    &grant_policy,
+                )
+                .await;
+                return Ok(());
+            } else {
+                GrantPolicyEnforcer::update_privacy_settings_and_user_grants(
+                    platform_state,
+                    &permission,
+                    &result,
+                    app_id,
+                    &grant_policy,
+                )
+                .await;
+                return Ok(());
+            }
+        } else {
+            // For clear user grants, we will only clear the stored user grants.
+            // It is will not affect the privacy settings.
+            let new_entry = GrantEntry {
+                role: permission.role,
+                capability: permission.cap.clone().as_str(),
+                status: None, // status will be updated later based on the modify operation.
+                lifespan: Some(grant_policy.lifespan.clone()),
+                lifespan_ttl_in_secs: grant_policy.lifespan_ttl,
+                last_modified_time: SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap(),
+            };
+            debug!("user grant modified with new entry:{:?}", new_entry.clone());
+            platform_state
+                .cap_state
+                .grant_state
+                .update_grant_entry(app_id.clone(), new_entry.clone());
+
+            debug!(
+                "Sync user grant modified with new entry:{:?} to cloud",
+                new_entry.clone()
+            );
+            let grant_policy_persistence = grant_policy.persistence.clone();
+            if grant_policy_persistence == PolicyPersistenceType::Account {
+                GrantPolicyEnforcer::send_usergrants_for_cloud_storage(
+                    platform_state,
+                    Some(&grant_policy),
+                    &new_entry,
+                    app_id,
+                )
+                .await;
+            }
+        }
+        Ok(())
     }
 }
 
