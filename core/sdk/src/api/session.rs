@@ -265,6 +265,7 @@ pub enum EventAdjective {
     Internet,
     Audio,
     SystemPowerState,
+    TimeZone,
 }
 
 impl ContractAdjective for EventAdjective {
