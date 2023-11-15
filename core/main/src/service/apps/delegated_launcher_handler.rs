@@ -97,6 +97,7 @@ pub struct App {
     pub active_session_id: Option<String>,
     pub internal_state: Option<AppMethod>,
     pub app_id: String,
+    pub is_app_init_params_invoked: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -263,6 +264,7 @@ impl DelegatedLauncherHandler {
                     if let Err(e) = self.ready_check(&app_id) {
                         resp = Err(e)
                     } else {
+                        self.send_app_init_events(app_id.as_str()).await;
                         resp = self
                             .send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Ready(
                                 LifecycleManagementReadyEvent {
@@ -725,6 +727,7 @@ impl DelegatedLauncherHandler {
             state: LifecycleState::Initializing,
             internal_state: None,
             app_id: app_id.clone(),
+            is_app_init_params_invoked: false,
         };
         self.platform_state
             .app_manager_state
@@ -861,17 +864,51 @@ impl DelegatedLauncherHandler {
 
     async fn get_launch_request(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
         match self.platform_state.app_manager_state.get(app_id) {
-            Some(app) => {
+            Some(mut app) => {
                 let launch_request = LaunchRequest {
                     app_id: app.initial_session.app.id.clone(),
-                    intent: app.initial_session.launch.intent,
+                    intent: app.initial_session.launch.intent.clone(),
                 };
+                app.is_app_init_params_invoked = true;
+                self.platform_state
+                    .app_manager_state
+                    .insert(app_id.to_string(), app);
                 Ok(AppManagerResponse::LaunchRequest(launch_request))
             }
             None => Err(AppError::NotFound),
         }
     }
 
+    pub async fn send_app_init_events(&self, app_id: &str) {
+        if let Some(app) = self.platform_state.app_manager_state.get(app_id) {
+            if self
+                .platform_state
+                .get_device_manifest()
+                .get_lifecycle_configuration()
+                .is_emit_event_on_app_init_enabled()
+                && !app.is_app_init_params_invoked
+            {
+                if let Some(intent) = app.initial_session.launch.intent.clone() {
+                    AppEvents::emit_to_app(
+                        &self.platform_state,
+                        app_id.to_string(),
+                        DISCOVERY_EVENT_ON_NAVIGATE_TO,
+                        &serde_json::to_value(intent).unwrap_or_default(),
+                    )
+                    .await;
+                }
+                if let Some(ss) = app.initial_session.launch.second_screen.clone() {
+                    AppEvents::emit_to_app(
+                        &self.platform_state,
+                        app_id.to_string(),
+                        SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST,
+                        &serde_json::to_value(ss).unwrap_or_default(),
+                    )
+                    .await;
+                }
+            }
+        }
+    }
     async fn set_state(
         &mut self,
         app_id: &str,
