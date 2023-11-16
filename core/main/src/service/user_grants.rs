@@ -586,7 +586,6 @@ impl GrantState {
         );
         if let Ok(permission) = FireboltPermission::try_from(role_info) {
             let resolved_perms = FireboltGatekeeper::resolve_dependencies(state, &vec![permission]);
-            println!("resolved_perms {:?}", resolved_perms);
             for perm in resolved_perms {
                 let result = self.get_grant_state(app_id, &perm);
 
@@ -797,7 +796,6 @@ impl GrantState {
                         .await;
                     }
                     if entry_modified {
-                        println!("--> {:?} {:?}", new_entry.capability, new_entry.status);
                         GrantPolicyEnforcer::notify(
                             platform_state,
                             new_entry.capability,
@@ -1452,8 +1450,7 @@ impl GrantPolicyEnforcer {
 
     pub async fn setup_cap_listener(state: &PlatformState) {
         let (tx, mut rx) = mpsc::channel::<CapStateNotification>(16);
-        //let cap = "xrn:firebolt:capability:discovery:watched".to_string();
-        let cap = "xrn:firebolt:capability:data:app-usage".to_string();
+        let cap = "xrn:firebolt:capability:discovery:watched".to_string();
         GrantPolicyEnforcer::subscribe(state, tx, cap);
         let state_for_cap_listener = state.clone();
 
@@ -1500,17 +1497,44 @@ impl GrantPolicyEnforcer {
         vec
     }
 
-    pub async fn notify(platform_state: &PlatformState, cap: String, status: Option<GrantStatus>) {
-        debug!("cap:{:?} status:{:?}", cap, status);
-        let listeners = GrantPolicyEnforcer::get_listeners(platform_state, cap.clone());
-        for listener in listeners {
-            debug!("sending notification for {:?}", cap);
-            let _response = listener
-                .send(CapStateNotification {
-                    capability: cap.clone(),
-                    status: status.clone(),
-                })
-                .await;
+    pub async fn notify(
+        platform_state: &PlatformState,
+        capability: String,
+        status: Option<GrantStatus>,
+    ) {
+        debug!("capability:{:?} status:{:?}", capability, status);
+
+        let cap_dependencies: &HashMap<FireboltPermission, Vec<FireboltPermission>> =
+            &platform_state
+                .get_device_manifest()
+                .capabilities
+                .dependencies;
+
+        let mut caps = Vec::new();
+        caps.push(capability.clone());
+        for (key, value) in cap_dependencies {
+            let mut found = false;
+            for val in value {
+                if val.cap == FireboltCap::Full(capability.clone()) {
+                    found = true;
+                }
+                if found {
+                    caps.push(key.cap.as_str());
+                }
+            }
+        }
+
+        for cap in caps {
+            let listeners = GrantPolicyEnforcer::get_listeners(platform_state, cap.clone());
+            for listener in listeners {
+                debug!("sending notification for {:?}", cap);
+                let _response = listener
+                    .send(CapStateNotification {
+                        capability: cap.clone(),
+                        status: status.clone(),
+                    })
+                    .await;
+            }
         }
     }
 }
