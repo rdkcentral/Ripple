@@ -37,7 +37,7 @@ use ripple_sdk::{
         extn_client_message::ExtnMessage,
     },
     log::{debug, error, info},
-    tokio::sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender}, // XXX: mpsc => MSender
+    tokio::sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
 };
 
 use crate::service::user_grants::GrantPolicyEnforcer;
