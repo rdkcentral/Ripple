@@ -17,6 +17,7 @@
 
 use std::{
     collections::HashMap,
+    env, fs,
     sync::{Arc, RwLock},
 };
 
@@ -70,7 +71,7 @@ use ripple_sdk::{
     log::info,
     tokio::{self, sync::mpsc::Receiver},
 };
-use serde_json::json;
+use serde_json::{json, Value};
 
 use crate::{
     processor::metrics_processor::send_metric_for_app_state_change,
@@ -87,6 +88,7 @@ use crate::{
     utils::rpc_utils::rpc_await_oneshot,
 };
 
+const APP_ID_TITLE_FILE_NAME: &str = "appInfo.json";
 #[derive(Debug, Clone)]
 pub struct App {
     pub initial_session: AppSession,
@@ -105,9 +107,94 @@ pub struct AppManagerState {
     apps: Arc<RwLock<HashMap<String, App>>>,
     // Very useful for internal launcher where the intent might get untagged
     intents: Arc<RwLock<HashMap<String, NavigationIntent>>>,
+    // This is a map <app_id, app_title>
+    app_title: Arc<RwLock<HashMap<String, String>>>,
+    app_title_persist_path: String,
 }
 
 impl AppManagerState {
+    pub fn new(saved_dir: &str) -> Self {
+        let persist_path = Self::get_storage_path(saved_dir);
+        let persisted_app_titles = AppManagerState::load_persisted_app_titles(&persist_path);
+        AppManagerState {
+            apps: Arc::new(RwLock::new(HashMap::new())),
+            intents: Arc::new(RwLock::new(HashMap::new())),
+            app_title: Arc::new(RwLock::new(persisted_app_titles)),
+            app_title_persist_path: persist_path,
+        }
+    }
+    fn restore_app_info_from_storage(storage_path: &str) -> Result<Value, String> {
+        let file_path = format!("{}/{}", storage_path, APP_ID_TITLE_FILE_NAME);
+
+        let file = fs::OpenOptions::new()
+            .read(true)
+            .open(file_path)
+            .map_err(|error| format!("Failed to open AppInfo storage file: {}", error))?;
+
+        let data: Value = serde_json::from_reader(&file)
+            .map_err(|error| format!("Failed to read data from AppInfo storage file: {}", error))?;
+        Ok(data)
+    }
+    fn load_persisted_app_titles(storage_path: &str) -> HashMap<String, String> {
+        // let storage_path = Self::get_storage_path(saved_dir);
+        let stored_value_res = Self::restore_app_info_from_storage(storage_path);
+        if let Ok(stored_value) = stored_value_res {
+            let map_res: Result<HashMap<String, String>, _> = serde_json::from_value(stored_value);
+            map_res.unwrap_or_default()
+        } else {
+            HashMap::new()
+        }
+    }
+    fn get_storage_path(saved_dir: &str) -> String {
+        let mut path = std::path::Path::new(saved_dir).join("app_info/");
+        if !path.exists() {
+            if let Err(_) = fs::create_dir_all(path.clone()) {
+                error!(
+                    "Could not create directory {} for persisting app info, using /tmp",
+                    path.display().to_string()
+                );
+                path =
+                    std::path::Path::new(&env::temp_dir().display().to_string()).join("/app_info");
+                if let Err(_) = fs::create_dir_all(path.clone()) {
+                    error!(
+                        "Could not create directory {} for persisting app info, app title will not persist",
+                        path.display()
+                    );
+                } else {
+                    path = std::path::Path::new("/tmp").to_path_buf();
+                }
+            }
+        }
+        path.display().to_string()
+    }
+    pub fn get_persisted_app_title_for_app_id(&self, app_id: &str) -> Option<String> {
+        self.app_title.read().unwrap().get(app_id).cloned()
+    }
+    pub fn persist_app_title(&self, app_id: &str, title: &str) -> bool {
+        let stored = {
+            self.app_title
+                .write()
+                .unwrap()
+                .insert(app_id.to_owned(), title.to_owned())
+                .is_some()
+        };
+        if stored {
+            let map = { self.app_title.read().unwrap().clone() };
+            // let path = format!("{}/{}", self.app_title_persist_path, APP_ID_TITLE_FILE_NAME);
+            let path =
+                std::path::Path::new(&self.app_title_persist_path).join(APP_ID_TITLE_FILE_NAME);
+            if let Ok(file) = fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .truncate(true)
+                .open(path)
+            {
+                return serde_json::to_writer_pretty(&file, &serde_json::to_value(map).unwrap())
+                    .is_ok();
+            }
+        }
+        false
+    }
     pub fn exists(&self, app_id: &str) -> bool {
         self.apps.read().unwrap().contains_key(app_id)
     }
@@ -464,6 +551,11 @@ impl DelegatedLauncherHandler {
 
         let app_id = session.app.id.clone();
 
+        if let Some(app_title) = session.app.title.as_ref() {
+            self.platform_state
+                .app_manager_state
+                .persist_app_title(app_id.as_str(), app_title);
+        }
         if self.platform_state.has_internal_launcher() {
             // Specifically for internal launcher untagged navigation intent will probably not match the original cold launch usecase
             // if there is a stored intent for this case take it and replace it with session
@@ -1117,7 +1209,16 @@ impl DelegatedLauncherHandler {
     fn get_app_name(&mut self, app_id: String) -> Result<AppManagerResponse, AppError> {
         match self.platform_state.app_manager_state.get(&app_id) {
             Some(app) => Ok(AppManagerResponse::AppName(app.initial_session.app.title)),
-            None => Err(AppError::NotFound),
+            None => {
+                match self
+                    .platform_state
+                    .app_manager_state
+                    .get_persisted_app_title_for_app_id(&app_id)
+                {
+                    Some(app_title) => Ok(AppManagerResponse::AppName(Some(app_title))),
+                    None => Err(AppError::NotFound),
+                }
+            }
         }
     }
 }
