@@ -125,7 +125,7 @@ impl AppManagerState {
         }
     }
     fn restore_app_info_from_storage(storage_path: &str) -> Result<Value, String> {
-        let file_path = format!("{}/{}", storage_path, APP_ID_TITLE_FILE_NAME);
+        let file_path = std::path::Path::new(storage_path).join(APP_ID_TITLE_FILE_NAME);
 
         let file = fs::OpenOptions::new()
             .read(true)
@@ -147,19 +147,21 @@ impl AppManagerState {
         }
     }
     fn get_storage_path(saved_dir: &str) -> String {
-        let mut path = std::path::Path::new(saved_dir).join("app_info/");
+        let mut path = std::path::Path::new(saved_dir).join("app_info");
         if !path.exists() {
-            if let Err(_) = fs::create_dir_all(path.clone()) {
+            if let Err(err) = fs::create_dir_all(path.clone()) {
                 error!(
-                    "Could not create directory {} for persisting app info, using /tmp",
-                    path.display().to_string()
+                    "Could not create directory {} for persisting app info err: {:?}, using /tmp/app_info/",
+                    path.display().to_string(),
+                    err
                 );
                 path =
                     std::path::Path::new(&env::temp_dir().display().to_string()).join("/app_info");
-                if let Err(_) = fs::create_dir_all(path.clone()) {
+                if let Err(err) = fs::create_dir_all(path.clone()) {
                     error!(
-                        "Could not create directory {} for persisting app info, app title will not persist",
-                        path.display()
+                        "Could not create directory {} for persisting app info err: {:?}, app title will persist in /tmp/",
+                        path.display(),
+                        err
                     );
                 } else {
                     path = std::path::Path::new("/tmp").to_path_buf();
@@ -172,27 +174,25 @@ impl AppManagerState {
         self.app_title.read().unwrap().get(app_id).cloned()
     }
     pub fn persist_app_title(&self, app_id: &str, title: &str) -> bool {
-        let stored = {
-            self.app_title
+        {
+            let _ = self
+                .app_title
                 .write()
                 .unwrap()
-                .insert(app_id.to_owned(), title.to_owned())
-                .is_some()
-        };
-        if stored {
-            let map = { self.app_title.read().unwrap().clone() };
-            // let path = format!("{}/{}", self.app_title_persist_path, APP_ID_TITLE_FILE_NAME);
-            let path =
-                std::path::Path::new(&self.app_title_persist_path).join(APP_ID_TITLE_FILE_NAME);
-            if let Ok(file) = fs::OpenOptions::new()
-                .create(true)
-                .write(true)
-                .truncate(true)
-                .open(path)
-            {
-                return serde_json::to_writer_pretty(&file, &serde_json::to_value(map).unwrap())
-                    .is_ok();
-            }
+                .insert(app_id.to_owned(), title.to_owned());
+        }
+        let map = { self.app_title.read().unwrap().clone() };
+        let path = std::path::Path::new(&self.app_title_persist_path).join(APP_ID_TITLE_FILE_NAME);
+        if let Ok(file) = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(path)
+        {
+            return serde_json::to_writer_pretty(&file, &serde_json::to_value(map).unwrap())
+                .is_ok();
+        } else {
+            error!("unable to create file: {}:", APP_ID_TITLE_FILE_NAME);
         }
         false
     }
