@@ -492,10 +492,28 @@ impl GrantState {
         &self,
         app_id: &str,
         permission: &FireboltPermission,
+        platform_state: Option<&PlatformState>,
     ) -> GrantActiveState {
         if let Some(status) = self.get_grant_status(app_id, permission) {
             GrantActiveState::ActiveGrant(status.into())
         } else {
+            // This flow is when the capability is not in grant state.
+            // Check if there is a grant policy for the capability.
+            // if no, return allowed as active grant state;
+            // otherwise, return pending grant.
+            if let Some(state) = platform_state {
+                let grant_polices_map_opt = state.get_device_manifest().capabilities.grant_policies;
+                let capability = permission.cap.as_str();
+                let grant_polices_map = grant_polices_map_opt.unwrap();
+                let filtered_policy_opt = grant_polices_map.get(capability.as_str());
+                if filtered_policy_opt.is_none() {
+                    debug!(
+                        "Capability {:?} is not in grant policy",
+                        capability.as_str()
+                    );
+                    return GrantActiveState::ActiveGrant((GrantStatus::Allowed).into());
+                };
+            }
             GrantActiveState::PendingGrant
         }
     }
@@ -506,6 +524,7 @@ impl GrantState {
         app_requested_for: &AppIdentification,
         fb_perms: &[FireboltPermission],
         fail_on_first_error: bool,
+        apply_exclusion_filter: bool,
     ) -> Result<(), DenyReasonWithCap> {
         /*
          * Instead of just checking for grants previously, if the user grants are not present,
@@ -514,14 +533,30 @@ impl GrantState {
         let grant_state = state.clone().cap_state.grant_state;
         let app_id = app_requested_for.app_id.to_owned();
         let caps_needing_grants = grant_state.caps_needing_grants.clone();
-        let caps_needing_grant_in_request: Vec<FireboltPermission> = fb_perms
+        let mut caps_needing_grant_in_request: Vec<FireboltPermission> = fb_perms
             .iter()
             .cloned()
             .filter(|x| caps_needing_grants.contains(&x.cap.as_str()))
             .collect();
+
+        if apply_exclusion_filter {
+            caps_needing_grant_in_request = GrantPolicyEnforcer::apply_grant_exclusion_filters(
+                state,
+                &app_requested_for.app_id,
+                None,
+                &caps_needing_grant_in_request,
+            )
+            .await;
+
+            if caps_needing_grant_in_request.is_empty() {
+                debug!("check_with_roles: caps_needing_grant_in_request list is empty() after applying grant_exclusion_filters");
+                return Ok(());
+            }
+        }
+
         let mut denied_caps = Vec::new();
         for permission in caps_needing_grant_in_request {
-            let result = grant_state.get_grant_state(&app_id, &permission);
+            let result = grant_state.get_grant_state(&app_id, &permission, None);
             match result {
                 GrantActiveState::ActiveGrant(grant) => {
                     if grant.is_err() {
@@ -578,8 +613,7 @@ impl GrantState {
         if let Ok(permission) = FireboltPermission::try_from(role_info) {
             let resolved_perms = FireboltGatekeeper::resolve_dependencies(state, &vec![permission]);
             for perm in resolved_perms {
-                let result = self.get_grant_state(app_id, &perm);
-
+                let result = self.get_grant_state(app_id, &perm, Some(state));
                 match result {
                     GrantActiveState::ActiveGrant(grant) => {
                         if grant.is_err() {
@@ -728,6 +762,10 @@ impl GrantState {
             cap: FireboltCap::Full(capability.clone()),
             role,
         };
+        match modify_operation {
+            GrantStateModify::Grant | GrantStateModify::Deny => {}
+            GrantStateModify::Clear => {}
+        }
 
         if let Some(grant_policy_map) = platform_state.get_device_manifest().get_grant_policies() {
             let result = grant_policy_map.get(&permission.cap.as_str());
@@ -790,6 +828,125 @@ impl GrantState {
             }
         }
         entry_modified
+    }
+    pub fn get_grant_policy(
+        platform_state: &PlatformState,
+        permission: &FireboltPermission,
+        _app_id: &Option<String>,
+    ) -> Option<GrantPolicy> {
+        if let Some(grant_policy_map) = platform_state.get_device_manifest().get_grant_policies() {
+            let grant_policies = grant_policy_map.get(&permission.cap.as_str()).cloned()?;
+            grant_policies.get_policy(permission)
+        } else {
+            None
+        }
+    }
+    pub async fn update_grant_as_per_policy(
+        platform_state: &PlatformState,
+        granted: GrantStateModify,
+        app_id: &Option<String>,
+        // permission: &FireboltPermission,
+        role: CapabilityRole,
+        capability: String,
+    ) -> Result<(), &'static str> {
+        let permission = FireboltPermission {
+            cap: FireboltCap::Full(capability),
+            role,
+        };
+        let grant_policy_opt = Self::get_grant_policy(platform_state, &permission, app_id);
+        if grant_policy_opt.is_none() {
+            error!("There are no grant polices for the requesting cap so cant update user grant");
+            return Err(
+                "There are no grant polices for the requesting cap so cant update user grant",
+            );
+        }
+        let grant_policy = grant_policy_opt.unwrap();
+        if !GrantPolicyEnforcer::is_policy_valid(platform_state, &grant_policy) {
+            return Err(
+                "There are no valid grant polices for the requesting cap so cant update user grant",
+            );
+        }
+        if grant_policy.scope == GrantScope::App && app_id.is_none()
+            || grant_policy.scope == GrantScope::Device && app_id.is_some()
+        {
+            error!("Grant policy scope and request scope doesn't match!");
+            return Err("Grant policy scope and request scope doesn't match!");
+        }
+        // let result = match granted {
+        //     GrantStateModify::Grant =
+        // };
+        if granted != GrantStateModify::Clear {
+            let result = match granted {
+                GrantStateModify::Grant => Ok(()),
+                _ => Err(DenyReasonWithCap {
+                    reason: DenyReason::GrantDenied,
+                    caps: vec![permission.cap.clone()],
+                }),
+            };
+            if grant_policy.privacy_setting.is_none()
+                || !grant_policy
+                    .privacy_setting
+                    .as_ref()
+                    .unwrap()
+                    .update_property
+            {
+                //There is no need to update privacy settings so it is enough to update only user grants storage.
+
+                GrantPolicyEnforcer::store_user_grants(
+                    platform_state,
+                    &permission,
+                    &result,
+                    app_id,
+                    &grant_policy,
+                )
+                .await;
+                return Ok(());
+            } else {
+                GrantPolicyEnforcer::update_privacy_settings_and_user_grants(
+                    platform_state,
+                    &permission,
+                    &result,
+                    app_id,
+                    &grant_policy,
+                )
+                .await;
+                return Ok(());
+            }
+        } else {
+            // For clear user grants, we will only clear the stored user grants.
+            // It is will not affect the privacy settings.
+            let new_entry = GrantEntry {
+                role: permission.role,
+                capability: permission.cap.clone().as_str(),
+                status: None, // status will be updated later based on the modify operation.
+                lifespan: Some(grant_policy.lifespan.clone()),
+                lifespan_ttl_in_secs: grant_policy.lifespan_ttl,
+                last_modified_time: SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap(),
+            };
+            debug!("user grant modified with new entry:{:?}", new_entry.clone());
+            platform_state
+                .cap_state
+                .grant_state
+                .update_grant_entry(app_id.clone(), new_entry.clone());
+
+            debug!(
+                "Sync user grant modified with new entry:{:?} to cloud",
+                new_entry.clone()
+            );
+            let grant_policy_persistence = grant_policy.persistence.clone();
+            if grant_policy_persistence == PolicyPersistenceType::Account {
+                GrantPolicyEnforcer::send_usergrants_for_cloud_storage(
+                    platform_state,
+                    Some(&grant_policy),
+                    &new_entry,
+                    app_id,
+                )
+                .await;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -1429,6 +1586,106 @@ impl GrantPolicyEnforcer {
             policy,
         )
         .await
+    }
+
+    fn get_app_content_catalog(platform_state: &PlatformState, app_id: &str) -> Option<String> {
+        if let Some(app) = platform_state.app_manager_state.get(app_id) {
+            return app.initial_session.app.catalog;
+        }
+        None
+    }
+
+    pub async fn apply_grant_exclusion_filters(
+        platform_state: &PlatformState,
+        app_id: &str,
+        catalog: Option<String>,
+        permissions: &Vec<FireboltPermission>,
+    ) -> Vec<FireboltPermission> {
+        // If catalog is None, then get catalog from AppSession
+        let grant_exclusion_filters = platform_state
+            .get_device_manifest()
+            .get_grant_exclusion_filters();
+
+        if grant_exclusion_filters.is_empty() {
+            return permissions.clone();
+        }
+
+        let mut filtered_permissions = Vec::new();
+
+        for permission in permissions {
+            let mut exclude_permission = false;
+            for grant_exclusion_filter in &grant_exclusion_filters {
+                let id_and_catalog_match = match (
+                    app_id,
+                    grant_exclusion_filter.id.as_ref(),
+                    &catalog,
+                    &grant_exclusion_filter.catalog,
+                ) {
+                    // 1. id & catalog filters are given. check if both filers are matching
+                    (id, Some(filter_id), Some(app_catalog), Some(filter_catalog)) => {
+                        filter_id.as_str() == id && *filter_catalog == *app_catalog
+                    }
+                    //
+                    // 2. id & catalog filters are given. But app_catalog for this app is not available.
+                    // get catalog from AppSession and check if both filers are matching
+                    (id, Some(filter_id), None, Some(filter_catalog)) => {
+                        if let Some(app_catalog) =
+                            Self::get_app_content_catalog(platform_state, app_id)
+                        {
+                            filter_id.as_str() == id && *filter_catalog == app_catalog
+                        } else {
+                            false
+                        }
+                    }
+                    //
+                    // 3. Only id filter is given. Check if id filter matches
+                    (id, Some(filter_id), _, None) => filter_id.as_str() == id,
+                    //
+                    // 4. Only catalog filter is given. Check if catalog filter matches
+                    (_id, None, Some(app_catalog), Some(filter_catalog)) => {
+                        *filter_catalog == *app_catalog
+                    }
+                    //
+                    // 5. Only catalog filter is given. But app_catalog for this app is not available.
+                    // get catalog from AppSession and check if catalog filter matches
+                    (_id, None, None, Some(filter_catalog)) => {
+                        if let Some(app_catalog) =
+                            Self::get_app_content_catalog(platform_state, app_id)
+                        {
+                            *filter_catalog == app_catalog
+                        } else {
+                            false
+                        }
+                    }
+                    _ => false,
+                };
+
+                if id_and_catalog_match {
+                    if grant_exclusion_filter.capability.is_none() {
+                        return Vec::new(); // Return empty vector if filter capability is None
+                    }
+                    exclude_permission = match (
+                        grant_exclusion_filter.capability.as_ref(),
+                        permission.cap.as_str(),
+                    ) {
+                        (Some(filter_capability), permission_capability) => {
+                            *filter_capability == permission_capability
+                        }
+                        _ => false, // No capability filtering in this case
+                    };
+                    if exclude_permission {
+                        // Not required to iterate further, break from the loop
+                        break;
+                    }
+                }
+            }
+
+            if !exclude_permission {
+                filtered_permissions.push(permission.clone());
+            }
+        }
+
+        filtered_permissions
     }
 }
 
