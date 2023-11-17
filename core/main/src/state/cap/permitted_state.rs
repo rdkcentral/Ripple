@@ -78,7 +78,7 @@ impl PermittedState {
         self.permitted.read().unwrap().clone().value
     }
 
-    pub fn check_cap_role(&self, app_id: &str, role_info: RoleInfo) -> Result<bool, RippleError> {
+    pub fn check_cap_role(&self, app_id: &str, role_info: &RoleInfo) -> Result<bool, RippleError> {
         let role = role_info
             .role
             .unwrap_or(ripple_sdk::api::firebolt::fb_capabilities::CapabilityRole::Use);
@@ -100,7 +100,7 @@ impl PermittedState {
         for role_info in request {
             map.insert(
                 role_info.clone().capability.as_str(),
-                if let Ok(v) = self.check_cap_role(app_id, role_info) {
+                if let Ok(v) = self.check_cap_role(app_id, &role_info) {
                     v
                 } else {
                     false
