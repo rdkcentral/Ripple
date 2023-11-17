@@ -86,6 +86,7 @@ use crate::{
         platform_state::PlatformState, session_state::Session,
     },
     utils::rpc_utils::rpc_await_oneshot,
+    SEMVER_LIGHTWEIGHT,
 };
 
 const APP_ID_TITLE_FILE_NAME: &str = "appInfo.json";
@@ -458,7 +459,7 @@ impl DelegatedLauncherHandler {
 
         let context = BehavioralMetricContext {
             app_id: app_id.to_string(),
-            app_version: String::from("app.version.not.implemented"),
+            app_version: SEMVER_LIGHTWEIGHT.to_string(),
             partner_id: String::from("partner.id.not.set"),
             app_session_id: String::from("app_session_id.not.set"),
             durable_app_id: app_id.to_string(),
@@ -618,8 +619,13 @@ impl DelegatedLauncherHandler {
             loaded_session_id = Some(app.loaded_session_id);
         }
         let mut perms_with_grants_opt = if !session.launch.inactive {
-            Self::check_user_grants_for_active_session(&self.platform_state, session.app.id.clone())
-                .await
+            Self::get_permissions_requiring_user_grant_resolution(
+                &self.platform_state,
+                session.app.id.clone(),
+                // Do not pass None as catalog value from this place, instead pass an empty string when app.catalog is None
+                Some(session.app.catalog.clone().unwrap_or(String::new())),
+            )
+            .await
         } else {
             None
         };
@@ -647,6 +653,7 @@ impl DelegatedLauncherHandler {
                         },
                         &perms_with_grants,
                         true,
+                        false, // false here as we have already applied user grant exclusion filter.
                     )
                     .await;
                     match resolved_result {
@@ -831,9 +838,10 @@ impl DelegatedLauncherHandler {
         sess
     }
 
-    async fn check_user_grants_for_active_session(
+    async fn get_permissions_requiring_user_grant_resolution(
         ps: &PlatformState,
         app_id: String,
+        catalog: Option<String>,
     ) -> Option<Vec<FireboltPermission>> {
         // Get the list of permissions that the calling app currently has
         debug!(" Get the list of permissions that the calling app currently has {app_id}");
@@ -851,7 +859,7 @@ impl DelegatedLauncherHandler {
         grant_polices_map_opt.as_ref()?;
         let grant_polices_map = grant_polices_map_opt.unwrap();
         //Filter out the caps only that has evaluate at
-        let final_perms: Vec<FireboltPermission> = app_perms
+        let mut final_perms: Vec<FireboltPermission> = app_perms
             .into_iter()
             .filter(|perm| {
                 let filtered_policy_opt = grant_polices_map.get(&perm.cap.as_str());
@@ -891,6 +899,9 @@ impl DelegatedLauncherHandler {
                     .is_ok()
             })
             .collect();
+        final_perms =
+            GrantPolicyEnforcer::apply_grant_exclusion_filters(ps, &app_id, catalog, &final_perms)
+                .await;
         debug!(
             "list of permissions that need to be evaluated: {:?}",
             final_perms
