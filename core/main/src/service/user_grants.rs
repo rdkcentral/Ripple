@@ -492,10 +492,28 @@ impl GrantState {
         &self,
         app_id: &str,
         permission: &FireboltPermission,
+        platform_state: Option<&PlatformState>,
     ) -> GrantActiveState {
         if let Some(status) = self.get_grant_status(app_id, permission) {
             GrantActiveState::ActiveGrant(status.into())
         } else {
+            // This flow is when the capability is not in grant state.
+            // Check if there is a grant policy for the capability.
+            // if no, return allowed as active grant state;
+            // otherwise, return pending grant.
+            if let Some(state) = platform_state {
+                let grant_polices_map_opt = state.get_device_manifest().capabilities.grant_policies;
+                let capability = permission.cap.as_str();
+                let grant_polices_map = grant_polices_map_opt.unwrap();
+                let filtered_policy_opt = grant_polices_map.get(capability.as_str());
+                if filtered_policy_opt.is_none() {
+                    debug!(
+                        "Capability {:?} is not in grant policy",
+                        capability.as_str()
+                    );
+                    return GrantActiveState::ActiveGrant((GrantStatus::Allowed).into());
+                };
+            }
             GrantActiveState::PendingGrant
         }
     }
@@ -538,7 +556,7 @@ impl GrantState {
 
         let mut denied_caps = Vec::new();
         for permission in caps_needing_grant_in_request {
-            let result = grant_state.get_grant_state(&app_id, &permission);
+            let result = grant_state.get_grant_state(&app_id, &permission, None);
             match result {
                 GrantActiveState::ActiveGrant(grant) => {
                     if grant.is_err() {
@@ -595,8 +613,7 @@ impl GrantState {
         if let Ok(permission) = FireboltPermission::try_from(role_info) {
             let resolved_perms = FireboltGatekeeper::resolve_dependencies(state, &vec![permission]);
             for perm in resolved_perms {
-                let result = self.get_grant_state(app_id, &perm);
-
+                let result = self.get_grant_state(app_id, &perm, Some(state));
                 match result {
                     GrantActiveState::ActiveGrant(grant) => {
                         if grant.is_err() {
