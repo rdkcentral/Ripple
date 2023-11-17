@@ -42,6 +42,7 @@ use ripple_sdk::{
 use crate::{
     service::{data_governance::DataGovernance, telemetry_builder::TelemetryBuilder},
     state::platform_state::PlatformState,
+    SEMVER_LIGHTWEIGHT,
 };
 
 pub async fn send_metric(
@@ -86,7 +87,7 @@ pub async fn update_app_context(
     if let Some(app) = ps.app_manager_state.get(&ctx.app_id) {
         context.app_session_id = app.loaded_session_id.to_owned();
         context.app_user_session_id = app.active_session_id;
-        context.app_version = "TBD.version()".to_owned();
+        context.app_version = SEMVER_LIGHTWEIGHT.to_string();
     }
     let (tags, drop_data) =
         DataGovernance::resolve_tags(ps, ctx.app_id.clone(), DataEventType::BusinessIntelligence)
@@ -130,7 +131,7 @@ pub async fn send_metric_for_app_state_change(
             if let Some(app) = ps.app_manager_state.get(app_id) {
                 context.app_session_id = app.loaded_session_id.to_owned();
                 context.app_user_session_id = app.active_session_id;
-                context.app_version = "app.version().tbd".to_owned();
+                context.app_version = SEMVER_LIGHTWEIGHT.to_string();
             }
             context.governance_state = Some(AppDataGovernanceState::new(tag_name_set));
             payload.update_context(context);

@@ -213,6 +213,12 @@ impl GrantPolicy {
         None
     }
 }
+#[derive(Deserialize, Debug, Clone, Default)]
+pub struct GrantExclusionFilter {
+    pub capability: Option<String>,
+    pub id: Option<String>,
+    pub catalog: Option<String>,
+}
 
 #[derive(Eq, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum GrantStatus {
