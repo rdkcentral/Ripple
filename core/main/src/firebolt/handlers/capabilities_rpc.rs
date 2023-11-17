@@ -147,7 +147,7 @@ impl CapabilityServer for CapabilityImpl {
             .state
             .cap_state
             .permitted_state
-            .check_cap_role(&ctx.app_id, cap.clone().into())
+            .check_cap_role(&ctx.app_id, &cap.clone().into())
         {
             return Ok(v);
         } else if PermissionHandler::fetch_and_store(&self.state, &ctx.app_id)
@@ -159,7 +159,7 @@ impl CapabilityServer for CapabilityImpl {
                 .state
                 .cap_state
                 .permitted_state
-                .check_cap_role(&ctx.app_id, cap.into())
+                .check_cap_role(&ctx.app_id, &cap.into())
             {
                 return Ok(v);
             }
@@ -263,6 +263,7 @@ impl CapabilityServer for CapabilityImpl {
                 &ctx.clone().into(),
                 &fb_perms,
                 false,
+                true,
             )
             .await;
         }
@@ -291,9 +292,9 @@ impl RippleRPCProvider<CapabilityImpl> for CapRPCProvider {
 }
 
 pub async fn is_permitted(
-    state: PlatformState,
-    ctx: CallContext,
-    cap: RoleInfo,
+    state: &PlatformState,
+    ctx: &CallContext,
+    cap: &RoleInfo,
 ) -> RpcResult<bool> {
     if state.open_rpc_state.is_app_excluded(&ctx.app_id) {
         return Ok(true);
@@ -301,10 +302,10 @@ pub async fn is_permitted(
     if let Ok(v) = state
         .cap_state
         .permitted_state
-        .check_cap_role(&ctx.app_id, cap.clone())
+        .check_cap_role(&ctx.app_id, cap)
     {
         return Ok(v);
-    } else if PermissionHandler::fetch_and_store(&state, &ctx.app_id)
+    } else if PermissionHandler::fetch_and_store(state, &ctx.app_id)
         .await
         .is_ok()
     {

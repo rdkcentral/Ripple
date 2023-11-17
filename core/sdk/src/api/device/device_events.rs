@@ -39,6 +39,7 @@ pub const VOICE_GUIDANCE_SETTINGS_CHANGED: &str = "accessibility.onVoiceGuidance
 pub const VOICE_GUIDANCE_ENABLED_CHANGED: &str = "voiceguidance.onEnabledChanged";
 pub const VOICE_GUIDANCE_SPEED_CHANGED: &str = "voiceguidance.onSpeedChanged";
 pub const POWER_STATE_CHANGED: &str = "device.onPowerStateChanged";
+pub const TIME_ZONE_CHANGED: &str = "localization.onTimeZoneChanged";
 
 // Is this from the device to thunder event handler???
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,6 +53,7 @@ pub enum DeviceEvent {
     AudioChanged,
     SystemPowerStateChanged,
     InternetConnectionStatusChanged,
+    TimeZoneChanged,
 }
 
 impl FromStr for DeviceEvent {
@@ -68,6 +70,7 @@ impl FromStr for DeviceEvent {
             "device.onAudioChanged" => Ok(Self::AudioChanged),
             "device.onPowerStateChanged" => Ok(Self::SystemPowerStateChanged),
             "device.onInternetStatusChange" => Ok(Self::InternetConnectionStatusChanged),
+            "localization.onTimeZoneChanged" => Ok(Self::TimeZoneChanged),
             _ => Err(()),
         }
     }
@@ -128,6 +131,7 @@ impl ExtnPayloadProvider for DeviceEventRequest {
             DeviceEvent::InternetConnectionStatusChanged => {
                 RippleContract::DeviceEvents(EventAdjective::Internet)
             }
+            DeviceEvent::TimeZoneChanged => RippleContract::DeviceEvents(EventAdjective::TimeZone),
         }
     }
 

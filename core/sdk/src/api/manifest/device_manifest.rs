@@ -26,7 +26,10 @@ use std::{
 
 use crate::{
     api::{
-        device::{device_user_grants_data::GrantPolicies, DevicePlatformType},
+        device::{
+            device_user_grants_data::{GrantExclusionFilter, GrantPolicies},
+            DevicePlatformType,
+        },
         distributor::distributor_privacy::DataEventType,
         firebolt::fb_capabilities::{FireboltCap, FireboltPermission},
         storage_property::StorageProperty,
@@ -80,6 +83,8 @@ pub struct CapabilityConfiguration {
     pub supported: Vec<String>,
     pub grant_policies: Option<HashMap<String, GrantPolicies>>,
     #[serde(default)]
+    pub grant_exclusion_filters: Vec<GrantExclusionFilter>,
+    #[serde(default)]
     pub dependencies: HashMap<FireboltPermission, Vec<FireboltPermission>>,
 }
 
@@ -91,8 +96,15 @@ pub struct LifecycleConfiguration {
     pub max_loaded_apps: u64,
     pub min_available_memory_kb: u64,
     pub prioritized: Vec<String>,
+    #[serde(default)]
+    pub emit_app_init_events_enabled: bool,
 }
 
+impl LifecycleConfiguration {
+    pub fn is_emit_event_on_app_init_enabled(&self) -> bool {
+        self.emit_app_init_events_enabled
+    }
+}
 /// Device manifest contains all the specifications required for coniguration of a Ripple application.
 /// Device manifest file should be compliant to the Openrpc schema specified in <https://github.com/rdkcentral/firebolt-configuration>
 #[derive(Deserialize, Debug, Clone)]
@@ -559,6 +571,11 @@ impl DeviceManifest {
     pub fn get_grant_policies(&self) -> Option<HashMap<String, GrantPolicies>> {
         self.clone().capabilities.grant_policies
     }
+
+    pub fn get_grant_exclusion_filters(&self) -> Vec<GrantExclusionFilter> {
+        self.clone().capabilities.grant_exclusion_filters
+    }
+
     pub fn get_distributor_experience_id(&self) -> String {
         self.configuration.distributor_experience_id.clone()
     }
@@ -573,5 +590,9 @@ impl DeviceManifest {
 
     pub fn get_model_friendly_names(&self) -> HashMap<String, String> {
         self.configuration.model_friendly_names.clone()
+    }
+
+    pub fn get_lifecycle_configuration(&self) -> LifecycleConfiguration {
+        self.lifecycle.clone()
     }
 }

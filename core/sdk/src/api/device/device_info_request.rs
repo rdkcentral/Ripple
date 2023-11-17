@@ -15,19 +15,23 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-
 use crate::{
     api::firebolt::fb_openrpc::FireboltSemanticVersion,
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use super::device_request::{
     AudioProfile, DeviceRequest, HDCPStatus, HdcpProfile, HdrProfile, InternetConnectionStatus,
-    OnInternetConnectedRequest, PowerState,
+    OnInternetConnectedRequest, PowerState, TimeZone,
 };
+
+pub const DEVICE_INFO_AUTHORIZED: &str = "device_info_authorized";
+pub const DEVICE_SKU_AUTHORIZED: &str = "device_sku_authorized";
+pub const DEVICE_MAKE_MODEL_AUTHORIZED: &str = "device_make_model_authorized";
+pub const DEVICE_NETWORK_STATUS_AUTHORIZED: &str = "network_status_authorized";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DeviceInfoRequest {
@@ -55,7 +59,7 @@ pub enum DeviceInfoRequest {
     VoiceGuidanceSpeed,
     SetVoiceGuidanceSpeed(f32),
     GetTimezoneWithOffset,
-    FullCapabilities,
+    FullCapabilities(Vec<String>),
     PowerState,
     SerialNumber,
 }
@@ -81,15 +85,14 @@ impl ExtnPayloadProvider for DeviceInfoRequest {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceCapabilities {
-    pub video_resolution: Vec<i32>,
-    pub screen_resolution: Vec<i32>,
-    pub firmware_info: FireboltSemanticVersion,
-    pub hdr: HashMap<HdrProfile, bool>,
-    pub hdcp: HDCPStatus,
-    pub is_wifi: bool,
-    pub make: String,
-    pub model: String,
-    pub audio: HashMap<AudioProfile, bool>,
+    pub video_resolution: Option<Vec<i32>>,
+    pub screen_resolution: Option<Vec<i32>>,
+    pub firmware_info: Option<FireboltSemanticVersion>,
+    pub hdr: Option<HashMap<HdrProfile, bool>>,
+    pub hdcp: Option<HDCPStatus>,
+    pub model: Option<String>,
+    pub make: Option<String>,
+    pub audio: Option<HashMap<AudioProfile, bool>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -106,6 +109,7 @@ pub enum DeviceResponse {
     FullCapabilities(Box<DeviceCapabilities>),
     InternetConnectionStatus(InternetConnectionStatus),
     PowerState(PowerState),
+    TimeZone(TimeZone),
 }
 
 impl ExtnPayloadProvider for DeviceResponse {
