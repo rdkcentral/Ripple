@@ -162,6 +162,7 @@ pub async fn voice_guidance_settings_enabled_changed(
     platform_state: &PlatformState,
     ctx: &CallContext,
     request: &ListenRequest,
+    dec: Option<Box<dyn AppEventDecorator + Send + Sync>>,
 ) -> RpcResult<ListenerResponse> {
     let listen = request.listen;
     // Register for individual change events (no-op if already registered), handlers emit VOICE_GUIDANCE_SETTINGS_CHANGED_EVENT.
@@ -185,7 +186,7 @@ pub async fn voice_guidance_settings_enabled_changed(
         VOICE_GUIDANCE_ENABLED_CHANGED.to_string(),
         ctx.clone(),
         request.clone(),
-        Some(Box::new(VGEnabledEventDecorator {})),
+        dec,
     );
 
     Ok(ListenerResponse {
@@ -255,8 +256,13 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        voice_guidance_settings_enabled_changed(&self.state.clone(), &ctx.clone(), &request.clone())
-            .await
+        voice_guidance_settings_enabled_changed(
+            &self.state.clone(),
+            &ctx.clone(),
+            &request.clone(),
+            Some(Box::new(VGEnabledEventDecorator {})),
+        )
+        .await
     }
 
     async fn voice_guidance_settings_speed_rpc(&self, _ctx: CallContext) -> RpcResult<f32> {

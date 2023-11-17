@@ -32,7 +32,7 @@ use tokio::sync::{
 use crate::{
     api::{
         context::{ActivationStatus, RippleContext, RippleContextUpdateRequest},
-        device::device_request::InternetConnectionStatus,
+        device::device_request::{InternetConnectionStatus, TimeZone},
         manifest::extn_manifest::ExtnSymbol,
     },
     extn::{
@@ -624,5 +624,10 @@ impl ExtnClient {
             ripple_context.internet_connectivity,
             InternetConnectionStatus::FullyConnected | InternetConnectionStatus::LimitedInternet
         )
+    }
+
+    pub fn get_timezone(&self) -> Option<TimeZone> {
+        let ripple_context = self.ripple_context.read().unwrap();
+        Some(ripple_context.time_zone.clone())
     }
 }

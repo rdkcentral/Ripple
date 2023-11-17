@@ -32,7 +32,7 @@ use crate::{
         device::{
             device_events::DeviceEventRequest,
             device_peristence::StorageData,
-            device_request::{DeviceRequest, NetworkResponse, VoiceGuidanceState},
+            device_request::{DeviceRequest, NetworkResponse, TimeZone, VoiceGuidanceState},
         },
         distributor::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
@@ -327,6 +327,7 @@ pub enum ExtnEvent {
     OperationalMetrics(TelemetryPayload),
     Context(RippleContext),
     VoiceGuidanceState(VoiceGuidanceState),
+    TimeZone(TimeZone),
 }
 
 impl ExtnPayloadProvider for ExtnEvent {

@@ -158,6 +158,7 @@ impl FireboltGatekeeper {
             &request.ctx.clone().into(),
             &filtered_perm_list,
             true,
+            true,
         )
         .await
         {
