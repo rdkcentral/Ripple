@@ -212,7 +212,7 @@ pub enum AppManifestLoad {
     Embedded(Box<AppManifest>),
 }
 
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct DefaultValues {
     pub country_code: String,
     pub language: String,
@@ -277,7 +277,7 @@ pub struct SettingsDefaults {
     pub postal_code: String,
 }
 
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct CaptionStyle {
     pub enabled: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -306,7 +306,7 @@ pub struct CaptionStyle {
     pub text_align_vertical: Option<String>,
 }
 
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct VoiceGuidance {
     pub enabled: bool,
