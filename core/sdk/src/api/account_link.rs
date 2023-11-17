@@ -34,8 +34,7 @@ pub enum AccountLinkRequest {
     ContentAccess(CallContext, ContentAccessRequest),
     ClearContentAccess(CallContext),
     Watched(CallContext, WatchedInfo),
-    // TODO: assess if boxing this is a productive move: https://rust-lang.github.io/rust-clippy/master/index.html#/large_enum_variant
-    WatchedNext(CallContext, Box<WatchNextInfo>),
+    WatchedNext(CallContext, WatchNextInfo),
 }
 
 impl ExtnPayloadProvider for AccountLinkRequest {

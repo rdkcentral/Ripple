@@ -358,7 +358,7 @@ impl ExtnRequestProcessor for AccountLinkProcessor {
                 Self::watched(&state, msg, ctx, request).await
             }
             AccountLinkRequest::WatchedNext(ctx, watch_next) => {
-                Self::watch_next(&state, msg, ctx, *watch_next).await
+                Self::watch_next(&state, msg, ctx, watch_next).await
             }
         }
     }

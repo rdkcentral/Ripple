@@ -1381,8 +1381,7 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
                     screen_resolution: Self::get_screen_resolution(&state).await,
                 };
                 if let ExtnPayload::Response(r) =
-                    DeviceResponse::FullCapabilities(Box::new(device_capabilities))
-                        .get_extn_payload()
+                    DeviceResponse::FullCapabilities(device_capabilities).get_extn_payload()
                 {
                     Self::respond(state.get_client(), msg, r).await.is_ok()
                 } else {
