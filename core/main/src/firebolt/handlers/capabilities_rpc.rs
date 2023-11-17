@@ -264,6 +264,7 @@ impl CapabilityServer for CapabilityImpl {
                 &ctx.clone().into(),
                 &fb_perms,
                 false,
+                true,
             )
             .await;
         }
