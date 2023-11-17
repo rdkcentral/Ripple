@@ -23,7 +23,10 @@ use jsonrpsee::{
 };
 use ripple_sdk::{
     api::{
-        distributor::distributor_platform::{PlatformTokenContext, PlatformTokenRequest},
+        distributor::{
+            distributor_platform::{PlatformTokenContext, PlatformTokenRequest},
+            distributor_token::{DistributorTokenContext, DistributorTokenRequest},
+        },
         firebolt::{
             fb_authentication::{TokenRequest, TokenResult},
             fb_capabilities::{FireboltCap, CAPABILITY_NOT_AVAILABLE, CAPABILITY_NOT_SUPPORTED},
@@ -85,7 +88,22 @@ impl AuthenticationServer for AuthenticationImpl {
                     self.token(TokenType::Root, ctx).await
                 }
             }
-            TokenType::Distributor => self.token(TokenType::Distributor, ctx).await,
+            TokenType::Distributor => {
+                let cap = FireboltCap::Short("token:session".into());
+                let supported_caps = self
+                    .platform_state
+                    .get_device_manifest()
+                    .get_supported_caps();
+                if supported_caps.contains(&cap) {
+                    self.token(TokenType::Distributor, ctx).await
+                } else {
+                    return Err(jsonrpsee::core::Error::Call(CallError::Custom {
+                        code: CAPABILITY_NOT_AVAILABLE,
+                        message: format!("{} is not available", cap.as_str()),
+                        data: None,
+                    }));
+                }
+            }
         }
     }
 
@@ -164,6 +182,19 @@ impl AuthenticationImpl {
                     })
                     .await
             }
+            TokenType::Distributor => {
+                let context = DistributorTokenContext {
+                    app_id: ctx.app_id,
+                    dist_session,
+                };
+                self.platform_state
+                    .get_client()
+                    .send_extn_request(DistributorTokenRequest {
+                        options: Vec::new(),
+                        context,
+                    })
+                    .await
+            }
             _ => {
                 let context = TokenContext {
                     distributor_id: dist_session.id,
@@ -181,14 +212,19 @@ impl AuthenticationImpl {
         };
         match resp {
             Ok(payload) => match payload.payload.extract().unwrap() {
-                ExtnResponse::Token(t) => Ok(TokenResult {
-                    value: t.value,
-                    expires: t.expires,
-                    _type: TokenType::Platform,
-                }),
+                ExtnResponse::Token(t) => {
+                    println!("**** payload: {:?}", payload);
+                    Ok(TokenResult {
+                        value: t.value,
+                        expires: t.expires,
+                        _type: token_type,
+                        scope: None,
+                        expires_in: None,
+                    })
+                }
                 e => Err(jsonrpsee::core::Error::Custom(format!(
-                    "unknown error getting platform token {:?}",
-                    e
+                    "unknown error getting {:?} token {:?}",
+                    token_type, e
                 ))),
             },
 

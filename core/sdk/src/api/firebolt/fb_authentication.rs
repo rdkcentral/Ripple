@@ -31,6 +31,10 @@ pub struct TokenResult {
     pub expires: Option<String>,
     #[serde(rename = "type")]
     pub _type: TokenType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_in: Option<i32>,
 }
 
 impl std::fmt::Debug for TokenResult {
