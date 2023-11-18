@@ -220,7 +220,7 @@ impl FireboltWs {
             return;
         }
 
-        if PermissionHandler::fetch_and_store(&state, &app_id)
+        if PermissionHandler::fetch_and_store_from_cache_or_server(&state, &app_id)
             .await
             .is_err()
         {

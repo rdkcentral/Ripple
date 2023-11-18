@@ -526,6 +526,13 @@ impl DelegatedLauncherHandler {
             session_id = Some(app.session_id.clone());
             loaded_session_id = Some(app.loaded_session_id);
         }
+
+        PermissionHandler::fetch_permission_for_app_session(&self.platform_state, &app_id).await;
+        debug!(
+            "precheck_then_load_or_activate: fetch_for_app_session completed for app_id={}",
+            app_id
+        );
+
         let mut perms_with_grants_opt = if !session.launch.inactive {
             Self::get_permissions_requiring_user_grant_resolution(
                 &self.platform_state,
@@ -703,13 +710,6 @@ impl DelegatedLauncherHandler {
                     } else {
                         info!("Bridge connected for {}", id);
                     }
-                    // Fetch permissions on separate thread
-                    if PermissionHandler::fetch_and_store(&platform_state_c, &app_id_c)
-                        .await
-                        .is_err()
-                    {
-                        error!("Couldnt load permissions for app {}", app_id_c)
-                    }
                 });
             }
         }
@@ -753,7 +753,7 @@ impl DelegatedLauncherHandler {
     ) -> Option<Vec<FireboltPermission>> {
         // Get the list of permissions that the calling app currently has
         debug!(" Get the list of permissions that the calling app currently has {app_id}");
-        let app_perms = PermissionHandler::get_app_permission(ps, &app_id).await;
+        let app_perms = PermissionHandler::get_cached_app_permissions(ps, &app_id).await;
         if app_perms.is_empty() {
             return None;
         }
