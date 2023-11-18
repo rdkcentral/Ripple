@@ -220,7 +220,8 @@ impl FireboltWs {
             error!("Error registering the connection {:?}", e);
             return;
         }
-
+        // TBD: Why do we want to pre-cache permissions here?
+        // How do we identify a stale cache?
         if PermissionHandler::fetch_and_store_from_cache_or_server(&state, &app_id)
             .await
             .is_err()

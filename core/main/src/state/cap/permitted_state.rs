@@ -78,7 +78,7 @@ impl PermittedState {
     fn get_all_permissions(&self) -> HashMap<String, Vec<FireboltPermission>> {
         self.permitted.read().unwrap().clone().value
     }
-    pub fn has_permissions(&self, app_id: &String) -> bool {
+    fn has_cached_permissions(&self, app_id: &String) -> bool {
         // check if the app has permissions cached
         self.permitted.read().unwrap().value.contains_key(app_id)
     }
@@ -145,6 +145,7 @@ impl PermissionHandler {
         state: &PlatformState,
         app_id: &str,
     ) -> RippleResponse {
+        // This function will get the permissions from cache if available or else from server
         if let Some(permissions) = state.cap_state.permitted_state.get_app_permissions(app_id) {
             let mut permissions_copy = permissions;
             return Self::process_permissions(state, app_id, &mut permissions_copy);
@@ -153,7 +154,7 @@ impl PermissionHandler {
     }
 
     async fn fetch_and_store(state: &PlatformState, app_id: &str) -> RippleResponse {
-        // This function will get the permissions from server and update the local cache
+        // This function will always get the permissions from server and update the local cache
         let app_id_alias = Self::get_distributor_alias_for_app_id(state, app_id);
         if let Some(session) = state.session_state.get_account_session() {
             match state
@@ -273,9 +274,12 @@ impl PermissionHandler {
     }
 
     pub async fn fetch_permission_for_app_session(state: &PlatformState, app_id: &String) {
-        // This call should hit the server and fetch the permissions for the app
-        // local cache will be updated with the fetched permissions
-        let has_stored = state.cap_state.permitted_state.has_permissions(app_id);
+        // This call should hit the server and fetch permissions for the app.
+        // Local cache will be updated with the fetched permissions
+        let has_stored = state
+            .cap_state
+            .permitted_state
+            .has_cached_permissions(app_id);
         let ps_c = state.clone();
         let app_id_c = app_id.clone();
         let handle = tokio::spawn(async move {

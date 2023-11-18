@@ -700,8 +700,6 @@ impl DelegatedLauncherHandler {
                 };
                 let request = BridgeProtocolRequest::StartSession(request);
                 let client = self.platform_state.get_client();
-                let platform_state_c = self.platform_state.clone();
-                let app_id_c = app_id.clone();
                 // After processing the session response the launcher will launch the app
                 // Below thread is going to wait for the app to be launched and create a connection
                 tokio::spawn(async move {
