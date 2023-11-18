@@ -53,7 +53,7 @@ pub trait Capability {
     #[method(name = "capabilities.permitted")]
     async fn permitted(&self, ctx: CallContext, cap: CapRPCRequest) -> RpcResult<bool>;
     #[method(name = "capabilities.granted")]
-    async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<Option<bool>>;
+    async fn granted(&self, ctx: CallContext, cap: CapRPCRequest) -> RpcResult<Option<bool>>;
     #[method(name = "capabilities.info")]
     async fn info(
         &self,
@@ -147,7 +147,7 @@ impl CapabilityServer for CapabilityImpl {
             .state
             .cap_state
             .permitted_state
-            .check_cap_role(&ctx.app_id, cap.clone().into())
+            .check_cap_role(&ctx.app_id, &cap.clone().into())
         {
             return Ok(v);
         } else if PermissionHandler::fetch_and_store(&self.state, &ctx.app_id)
@@ -159,7 +159,7 @@ impl CapabilityServer for CapabilityImpl {
                 .state
                 .cap_state
                 .permitted_state
-                .check_cap_role(&ctx.app_id, cap.into())
+                .check_cap_role(&ctx.app_id, &cap.into())
             {
                 return Ok(v);
             }
@@ -167,12 +167,13 @@ impl CapabilityServer for CapabilityImpl {
         Ok(false)
     }
 
-    async fn granted(&self, ctx: CallContext, cap: RoleInfo) -> RpcResult<Option<bool>> {
+    async fn granted(&self, ctx: CallContext, cap: CapRPCRequest) -> RpcResult<Option<bool>> {
+        let role_info = cap.into();
         let granted_res =
             self.state
                 .cap_state
                 .grant_state
-                .check_granted(&self.state, &ctx.app_id, cap);
+                .check_granted(&self.state, &ctx.app_id, role_info);
         match granted_res {
             Ok(grant) => Ok(Some(grant)),
             Err(RippleError::Permission(DenyReason::Ungranted)) => Ok(None),
@@ -292,9 +293,9 @@ impl RippleRPCProvider<CapabilityImpl> for CapRPCProvider {
 }
 
 pub async fn is_permitted(
-    state: PlatformState,
-    ctx: CallContext,
-    cap: RoleInfo,
+    state: &PlatformState,
+    ctx: &CallContext,
+    cap: &RoleInfo,
 ) -> RpcResult<bool> {
     if state.open_rpc_state.is_app_excluded(&ctx.app_id) {
         return Ok(true);
@@ -302,10 +303,10 @@ pub async fn is_permitted(
     if let Ok(v) = state
         .cap_state
         .permitted_state
-        .check_cap_role(&ctx.app_id, cap.clone())
+        .check_cap_role(&ctx.app_id, cap)
     {
         return Ok(v);
-    } else if PermissionHandler::fetch_and_store(&state, &ctx.app_id)
+    } else if PermissionHandler::fetch_and_store(state, &ctx.app_id)
         .await
         .is_ok()
     {
