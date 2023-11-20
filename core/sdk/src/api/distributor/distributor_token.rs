@@ -25,7 +25,6 @@ use crate::{
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DistributorTokenRequest {
-    pub options: Vec<String>,
     pub context: DistributorTokenContext,
 }
 

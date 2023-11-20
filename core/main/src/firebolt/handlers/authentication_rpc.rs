@@ -189,10 +189,7 @@ impl AuthenticationImpl {
                 };
                 self.platform_state
                     .get_client()
-                    .send_extn_request(DistributorTokenRequest {
-                        options: Vec::new(),
-                        context,
-                    })
+                    .send_extn_request(DistributorTokenRequest { context })
                     .await
             }
             _ => {
@@ -212,16 +209,14 @@ impl AuthenticationImpl {
         };
         match resp {
             Ok(payload) => match payload.payload.extract().unwrap() {
-                ExtnResponse::Token(t) => {
-                    println!("**** payload: {:?}", payload);
-                    Ok(TokenResult {
-                        value: t.value,
-                        expires: t.expires,
-                        _type: token_type,
-                        scope: None,
-                        expires_in: None,
-                    })
-                }
+                ExtnResponse::Token(t) => Ok(TokenResult {
+                    value: t.value,
+                    expires: t.expires,
+                    _type: token_type,
+                    scope: t.scope,
+                    expires_in: t.expires_in,
+                    token_type: t.token_type,
+                }),
                 e => Err(jsonrpsee::core::Error::Custom(format!(
                     "unknown error getting {:?} token {:?}",
                     token_type, e

@@ -35,6 +35,8 @@ pub struct TokenResult {
     pub scope: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_in: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_type: Option<String>,
 }
 
 impl std::fmt::Debug for TokenResult {
@@ -42,6 +44,9 @@ impl std::fmt::Debug for TokenResult {
         f.debug_struct("TokenResult")
             .field("expires", &self.expires)
             .field("_type", &self._type)
+            .field("expires_in", &self.expires_in)
+            .field("scope", &self.scope)
+            .field("token_type", &self.token_type)
             .finish_non_exhaustive()
     }
 }
