@@ -67,7 +67,7 @@ use ripple_sdk::{
             device_info_request::{
                 DEVICE_INFO_AUTHORIZED, DEVICE_MAKE_MODEL_AUTHORIZED, DEVICE_SKU_AUTHORIZED,
             },
-            device_request::{InternetConnectionStatus, PowerState, TimeZone},
+            device_request::TimeZone,
         },
         manifest::device_manifest::DefaultValues,
     },
