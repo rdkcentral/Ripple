@@ -142,7 +142,7 @@ mod tests {
         let v = get_permissions_map();
         assert!(!v.is_empty());
         assert!(!v.get("refui").unwrap().is_empty());
-        let permission = v.get("refui").unwrap().get(0).unwrap().clone();
+        let permission = v.get("refui").unwrap().get(1).unwrap().clone();
         println!("permission {}", permission.cap.as_str());
         assert!(FireboltCap::short("input:keyboard").eq(&permission.cap))
     }
