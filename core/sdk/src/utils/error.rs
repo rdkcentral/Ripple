@@ -19,8 +19,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::firebolt::fb_capabilities::DenyReason;
 
-use jsonrpsee_core::Error as JsonRpcError;
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum RippleError {
     MissingInput,
@@ -58,16 +56,18 @@ impl std::fmt::Display for RippleError {
         }
     }
 }
-impl From<RippleError> for JsonRpcError {
+
+#[cfg(feature = "rpc")]
+impl From<RippleError> for jsonrpsee_core::Error {
     fn from(value: RippleError) -> Self {
-        JsonRpcError::Custom(format!("{}", value))
+        jsonrpsee_core::Error::Custom(format!("{}", value))
     }
 }
-#[cfg(test)]
+#[cfg(all(test, feature = "rpc"))]
 mod tests {
     use super::*;
-    fn custom_error_match(expected: &str, error: JsonRpcError) {
-        if let JsonRpcError::Custom(e) = error {
+    fn custom_error_match(expected: &str, error: jsonrpsee_core::Error) {
+        if let jsonrpsee_core::Error::Custom(e) = error {
             assert_eq!(expected, e);
         } else {
             unreachable!("{}", " non error passed");

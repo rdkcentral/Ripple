@@ -16,7 +16,7 @@
 //
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::Path,
     sync::{Arc, RwLock},
 };
@@ -78,7 +78,7 @@ impl PermittedState {
         self.permitted.read().unwrap().clone().value
     }
 
-    pub fn check_cap_role(&self, app_id: &str, role_info: RoleInfo) -> Result<bool, RippleError> {
+    pub fn check_cap_role(&self, app_id: &str, role_info: &RoleInfo) -> Result<bool, RippleError> {
         let role = role_info
             .role
             .unwrap_or(ripple_sdk::api::firebolt::fb_capabilities::CapabilityRole::Use);
@@ -100,7 +100,7 @@ impl PermittedState {
         for role_info in request {
             map.insert(
                 role_info.clone().capability.as_str(),
-                if let Ok(v) = self.check_cap_role(app_id, role_info) {
+                if let Ok(v) = self.check_cap_role(app_id, &role_info) {
                     v
                 } else {
                     false
@@ -140,36 +140,76 @@ impl PermissionHandler {
 
     pub async fn fetch_and_store(state: &PlatformState, app_id: &str) -> RippleResponse {
         let app_id_alias = Self::get_distributor_alias_for_app_id(state, app_id);
+        if let Some(permissions) = state.cap_state.permitted_state.get_app_permissions(app_id) {
+            let mut permissions_copy = permissions;
+            return Self::process_permissions(state, app_id, &mut permissions_copy);
+        }
         if let Some(session) = state.session_state.get_account_session() {
-            if let Ok(extn_response) = state
+            match state
                 .get_client()
                 .send_extn_request(PermissionRequest {
                     app_id: app_id_alias,
                     session,
                 })
                 .await
+                .ok()
             {
-                if let Some(permission_response) = extn_response.payload.extract() {
-                    let mut map = HashMap::new();
-                    map.insert(app_id.to_owned(), permission_response);
-                    let mut permitted_state = state.cap_state.permitted_state.clone();
-                    permitted_state.ingest(map);
-                    info!("Permissions fetched for {}", app_id);
-                    return Ok(());
+                Some(extn_response) => {
+                    if let Some(permission_response) =
+                        extn_response.payload.extract::<PermissionResponse>()
+                    {
+                        let mut permission_response_copy = permission_response;
+                        return Self::process_permissions(
+                            state,
+                            app_id,
+                            &mut permission_response_copy,
+                        );
+                    }
+                    Err(RippleError::InvalidOutput)
                 }
+                None => Err(RippleError::InvalidOutput),
+            }
+        } else {
+            Err(RippleError::InvalidOutput)
+        }
+    }
+
+    fn process_permissions(
+        state: &PlatformState,
+        app_id: &str,
+        permissions: &mut Vec<FireboltPermission>,
+    ) -> RippleResponse {
+        info!("Permissions fetched for {}", app_id);
+        let dep_lookup = &state.get_device_manifest().capabilities.dependencies;
+        let mut deps = HashSet::new();
+
+        // Create a HashSet to track unique permissions
+        let mut unique_permissions = HashSet::new();
+
+        for p in permissions.clone() {
+            if let Some(dependent_list) = dep_lookup.get(&p) {
+                deps.extend(dependent_list.iter().cloned());
             }
         }
 
-        if state
-            .cap_state
-            .permitted_state
-            .get_app_permissions(app_id)
-            .is_some()
-        {
-            return Ok(());
+        // Filter out duplicates and insert only unique permissions
+        let unique_deps: Vec<FireboltPermission> = deps.into_iter().collect();
+        for permission in unique_deps {
+            if !unique_permissions.contains(&permission) {
+                permissions.push(permission.clone()); // Clone the permission to avoid the moved value error
+                unique_permissions.insert(permission);
+            }
         }
 
-        Err(ripple_sdk::utils::error::RippleError::InvalidOutput)
+        let map = vec![(app_id.to_owned(), permissions.clone())]
+            .into_iter()
+            .collect::<HashMap<_, _>>();
+
+        let mut permitted_state = state.cap_state.permitted_state.clone();
+        permitted_state.ingest(map.clone());
+        info!("Permissions: {:?}", map);
+
+        Ok(())
     }
 
     pub fn get_permitted_info(

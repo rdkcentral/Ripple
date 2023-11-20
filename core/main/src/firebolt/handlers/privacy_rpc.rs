@@ -16,6 +16,7 @@
 //
 
 use crate::processor::storage::storage_manager::StorageManager;
+use crate::service::apps::app_events::AppEventDecorator;
 use crate::{
     firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManagerError,
     service::apps::app_events::AppEvents, state::platform_state::PlatformState,
@@ -70,10 +71,10 @@ struct AllowAppContentAdTargetingSettings {
 }
 
 impl AllowAppContentAdTargetingSettings {
-    pub fn new(limit_ad_targeting: bool) -> Self {
-        let (lmt, us_privacy) = match limit_ad_targeting {
-            true => ("1", "1-Y-"),
-            false => ("0", "1-N-"),
+    pub fn new(allow_app_content_ad_targeting: bool) -> Self {
+        let (lmt, us_privacy) = match allow_app_content_ad_targeting {
+            true => ("0", "1-N-"),
+            false => ("1", "1-Y-"),
         };
         AllowAppContentAdTargetingSettings {
             lmt: lmt.to_owned(),
@@ -298,33 +299,56 @@ pub struct PrivacyImpl {
 }
 
 impl PrivacyImpl {
+    pub fn listen_content_policy_changed(
+        state: &PlatformState,
+        listen: bool,
+        ctx: &CallContext,
+        event_name: &'static str,
+        request: Option<ContentListenRequest>,
+        dec: Option<Box<dyn AppEventDecorator + Send + Sync>>,
+    ) -> RpcResult<ListenerResponse> {
+        let event_context = if let Some(content_request) = request {
+            //TODO: Check config for storage type? Are we supporting listeners for cloud settings?
+            content_request.app_id.map(|x| {
+                json!({
+                    "appId": x,
+                })
+            })
+        } else {
+            Some(json!({
+                "appId": ctx.app_id.to_owned(),
+            }))
+        };
+
+        AppEvents::add_listener_with_context_and_decorator(
+            state,
+            event_name.to_owned(),
+            ctx.clone(),
+            ListenRequest { listen },
+            event_context,
+            dec,
+        );
+
+        Ok(ListenerResponse {
+            listening: listen,
+            event: event_name.into(),
+        })
+    }
+
     async fn on_content_policy_changed(
         &self,
         ctx: CallContext,
         event_name: &'static str,
         request: ContentListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        //TODO: Check config for storage type? Are we supporting listeners for cloud settings?
-        let event_context = request.app_id.map(|x| {
-            json!({
-                "appId": x,
-            })
-        });
-
-        AppEvents::add_listener_with_context(
+        Self::listen_content_policy_changed(
             &self.state,
-            event_name.to_owned(),
-            ctx,
-            ListenRequest {
-                listen: request.listen,
-            },
-            event_context,
-        );
-
-        Ok(ListenerResponse {
-            listening: request.listen,
-            event: event_name.into(),
-        })
+            request.listen,
+            &ctx,
+            event_name,
+            Some(request),
+            None,
+        )
     }
 
     pub async fn get_allow_app_content_ad_targeting(state: &PlatformState) -> bool {

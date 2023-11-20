@@ -160,4 +160,9 @@ impl SessionState {
             session_state.get(&ctx.session_id).cloned()
         }
     }
+
+    pub fn get_session_for_connection_id(&self, cid: &str) -> Option<Session> {
+        let session_state = self.session_map.read().unwrap();
+        session_state.get(cid).cloned()
+    }
 }
