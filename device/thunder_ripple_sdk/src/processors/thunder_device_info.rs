@@ -801,7 +801,7 @@ impl ThunderDeviceInfoRequestProcessor {
             return Vec::new();
         }
         info!("{}", response.message);
-        let resol = response.message["resolution"].as_str().unwrap();
+        let resol = response.message["resolution"].as_str().unwrap_or_default();
         get_dimension_from_resolution(resol)
     }
 
@@ -838,7 +838,7 @@ impl ThunderDeviceInfoRequestProcessor {
             return Err(());
         }
         info!("{}", response.message);
-        let resol = response.message["resolution"].as_str().unwrap();
+        let resol = response.message["resolution"].as_str().unwrap_or_default();
         Ok(get_dimension_from_resolution(resol))
     }
 
