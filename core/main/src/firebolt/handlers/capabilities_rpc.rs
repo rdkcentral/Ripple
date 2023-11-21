@@ -177,6 +177,7 @@ impl CapabilityServer for CapabilityImpl {
         match granted_res {
             Ok(grant) => Ok(Some(grant)),
             Err(RippleError::Permission(DenyReason::Ungranted)) => Ok(None),
+            Err(RippleError::Permission(DenyReason::GrantDenied)) => Ok(Some(false)),
             Err(_) => Err(Error::Custom("Unable to get user grants".to_owned())),
         }
     }
