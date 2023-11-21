@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
@@ -73,10 +73,40 @@ impl SettingKey {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SettingsRequestParam {
+    pub context: CallContext,
+    pub keys: Vec<SettingKey>,
+    pub alias_map: Option<HashMap<String, String>>,
+}
+
+impl SettingsRequestParam {
+    pub fn new(
+        context: CallContext,
+        keys: Vec<SettingKey>,
+        alias_map: Option<HashMap<String, String>>,
+    ) -> Self {
+        Self {
+            context,
+            keys,
+            alias_map,
+        }
+    }
+
+    pub fn get_alias(&self, key: &SettingKey) -> String {
+        if let Some(alias) = self.alias_map.clone() {
+            if let Some(s) = alias.get(key.to_string().as_str()) {
+                return s.to_owned();
+            }
+        }
+        key.to_string()
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum SettingsRequest {
-    Get(CallContext, Vec<SettingKey>),
-    Subscribe(CallContext, Vec<SettingKey>),
+    Get(SettingsRequestParam),
+    Subscribe(SettingsRequestParam),
 }
 
 impl ExtnPayloadProvider for SettingsRequest {

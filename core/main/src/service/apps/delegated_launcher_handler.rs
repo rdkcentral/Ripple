@@ -17,6 +17,7 @@
 
 use std::{
     collections::HashMap,
+    env, fs,
     sync::{Arc, RwLock},
 };
 
@@ -70,7 +71,7 @@ use ripple_sdk::{
     log::info,
     tokio::{self, sync::mpsc::Receiver},
 };
-use serde_json::json;
+use serde_json::{json, Value};
 
 use crate::{
     processor::metrics_processor::send_metric_for_app_state_change,
@@ -85,8 +86,10 @@ use crate::{
         platform_state::PlatformState, session_state::Session,
     },
     utils::rpc_utils::rpc_await_oneshot,
+    SEMVER_LIGHTWEIGHT,
 };
 
+const APP_ID_TITLE_FILE_NAME: &str = "appInfo.json";
 #[derive(Debug, Clone)]
 pub struct App {
     pub initial_session: AppSession,
@@ -105,9 +108,94 @@ pub struct AppManagerState {
     apps: Arc<RwLock<HashMap<String, App>>>,
     // Very useful for internal launcher where the intent might get untagged
     intents: Arc<RwLock<HashMap<String, NavigationIntent>>>,
+    // This is a map <app_id, app_title>
+    app_title: Arc<RwLock<HashMap<String, String>>>,
+    app_title_persist_path: String,
 }
 
 impl AppManagerState {
+    pub fn new(saved_dir: &str) -> Self {
+        let persist_path = Self::get_storage_path(saved_dir);
+        let persisted_app_titles = AppManagerState::load_persisted_app_titles(&persist_path);
+        AppManagerState {
+            apps: Arc::new(RwLock::new(HashMap::new())),
+            intents: Arc::new(RwLock::new(HashMap::new())),
+            app_title: Arc::new(RwLock::new(persisted_app_titles)),
+            app_title_persist_path: persist_path,
+        }
+    }
+    fn restore_app_info_from_storage(storage_path: &str) -> Result<Value, String> {
+        let file_path = std::path::Path::new(storage_path).join(APP_ID_TITLE_FILE_NAME);
+
+        let file = fs::OpenOptions::new()
+            .read(true)
+            .open(file_path)
+            .map_err(|error| format!("Failed to open AppInfo storage file: {}", error))?;
+
+        let data: Value = serde_json::from_reader(&file)
+            .map_err(|error| format!("Failed to read data from AppInfo storage file: {}", error))?;
+        Ok(data)
+    }
+    fn load_persisted_app_titles(storage_path: &str) -> HashMap<String, String> {
+        // let storage_path = Self::get_storage_path(saved_dir);
+        let stored_value_res = Self::restore_app_info_from_storage(storage_path);
+        if let Ok(stored_value) = stored_value_res {
+            let map_res: Result<HashMap<String, String>, _> = serde_json::from_value(stored_value);
+            map_res.unwrap_or_default()
+        } else {
+            HashMap::new()
+        }
+    }
+    fn get_storage_path(saved_dir: &str) -> String {
+        let mut path = std::path::Path::new(saved_dir).join("app_info");
+        if !path.exists() {
+            if let Err(err) = fs::create_dir_all(path.clone()) {
+                error!(
+                    "Could not create directory {} for persisting app info err: {:?}, using /tmp/app_info/",
+                    path.display().to_string(),
+                    err
+                );
+                path =
+                    std::path::Path::new(&env::temp_dir().display().to_string()).join("/app_info");
+                if let Err(err) = fs::create_dir_all(path.clone()) {
+                    error!(
+                        "Could not create directory {} for persisting app info err: {:?}, app title will persist in /tmp/",
+                        path.display(),
+                        err
+                    );
+                } else {
+                    path = std::path::Path::new("/tmp").to_path_buf();
+                }
+            }
+        }
+        path.display().to_string()
+    }
+    pub fn get_persisted_app_title_for_app_id(&self, app_id: &str) -> Option<String> {
+        self.app_title.read().unwrap().get(app_id).cloned()
+    }
+    pub fn persist_app_title(&self, app_id: &str, title: &str) -> bool {
+        {
+            let _ = self
+                .app_title
+                .write()
+                .unwrap()
+                .insert(app_id.to_owned(), title.to_owned());
+        }
+        let map = { self.app_title.read().unwrap().clone() };
+        let path = std::path::Path::new(&self.app_title_persist_path).join(APP_ID_TITLE_FILE_NAME);
+        if let Ok(file) = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(path)
+        {
+            return serde_json::to_writer_pretty(&file, &serde_json::to_value(map).unwrap())
+                .is_ok();
+        } else {
+            error!("unable to create file: {}:", APP_ID_TITLE_FILE_NAME);
+        }
+        false
+    }
     pub fn exists(&self, app_id: &str) -> bool {
         self.apps.read().unwrap().contains_key(app_id)
     }
@@ -371,7 +459,7 @@ impl DelegatedLauncherHandler {
 
         let context = BehavioralMetricContext {
             app_id: app_id.to_string(),
-            app_version: String::from("app.version.not.implemented"),
+            app_version: SEMVER_LIGHTWEIGHT.to_string(),
             partner_id: String::from("partner.id.not.set"),
             app_session_id: String::from("app_session_id.not.set"),
             durable_app_id: app_id.to_string(),
@@ -464,6 +552,11 @@ impl DelegatedLauncherHandler {
 
         let app_id = session.app.id.clone();
 
+        if let Some(app_title) = session.app.title.as_ref() {
+            self.platform_state
+                .app_manager_state
+                .persist_app_title(app_id.as_str(), app_title);
+        }
         if self.platform_state.has_internal_launcher() {
             // Specifically for internal launcher untagged navigation intent will probably not match the original cold launch usecase
             // if there is a stored intent for this case take it and replace it with session
@@ -526,8 +619,13 @@ impl DelegatedLauncherHandler {
             loaded_session_id = Some(app.loaded_session_id);
         }
         let mut perms_with_grants_opt = if !session.launch.inactive {
-            Self::check_user_grants_for_active_session(&self.platform_state, session.app.id.clone())
-                .await
+            Self::get_permissions_requiring_user_grant_resolution(
+                &self.platform_state,
+                session.app.id.clone(),
+                // Do not pass None as catalog value from this place, instead pass an empty string when app.catalog is None
+                Some(session.app.catalog.clone().unwrap_or(String::new())),
+            )
+            .await
         } else {
             None
         };
@@ -555,6 +653,7 @@ impl DelegatedLauncherHandler {
                         },
                         &perms_with_grants,
                         true,
+                        false, // false here as we have already applied user grant exclusion filter.
                     )
                     .await;
                     match resolved_result {
@@ -739,9 +838,10 @@ impl DelegatedLauncherHandler {
         sess
     }
 
-    async fn check_user_grants_for_active_session(
+    async fn get_permissions_requiring_user_grant_resolution(
         ps: &PlatformState,
         app_id: String,
+        catalog: Option<String>,
     ) -> Option<Vec<FireboltPermission>> {
         // Get the list of permissions that the calling app currently has
         debug!(" Get the list of permissions that the calling app currently has {app_id}");
@@ -759,7 +859,7 @@ impl DelegatedLauncherHandler {
         grant_polices_map_opt.as_ref()?;
         let grant_polices_map = grant_polices_map_opt.unwrap();
         //Filter out the caps only that has evaluate at
-        let final_perms: Vec<FireboltPermission> = app_perms
+        let mut final_perms: Vec<FireboltPermission> = app_perms
             .into_iter()
             .filter(|perm| {
                 let filtered_policy_opt = grant_polices_map.get(&perm.cap.as_str());
@@ -799,6 +899,9 @@ impl DelegatedLauncherHandler {
                     .is_ok()
             })
             .collect();
+        final_perms =
+            GrantPolicyEnforcer::apply_grant_exclusion_filters(ps, &app_id, catalog, &final_perms)
+                .await;
         debug!(
             "list of permissions that need to be evaluated: {:?}",
             final_perms
@@ -1117,7 +1220,16 @@ impl DelegatedLauncherHandler {
     fn get_app_name(&mut self, app_id: String) -> Result<AppManagerResponse, AppError> {
         match self.platform_state.app_manager_state.get(&app_id) {
             Some(app) => Ok(AppManagerResponse::AppName(app.initial_session.app.title)),
-            None => Err(AppError::NotFound),
+            None => {
+                match self
+                    .platform_state
+                    .app_manager_state
+                    .get_persisted_app_title_for_app_id(&app_id)
+                {
+                    Some(app_title) => Ok(AppManagerResponse::AppName(Some(app_title))),
+                    None => Err(AppError::NotFound),
+                }
+            }
         }
     }
 }

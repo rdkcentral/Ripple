@@ -24,6 +24,9 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         device::{
+            device_events::{
+                DeviceEvent, DeviceEventCallback, DeviceEventRequest, TIME_ZONE_CHANGED,
+            },
             device_info_request::DeviceInfoRequest,
             device_peristence::SetStringProperty,
             device_request::{LanguageProperty, TimezoneProperty},
@@ -33,7 +36,7 @@ use ripple_sdk::{
             fb_localization::SetPreferredAudioLanguage,
         },
         gateway::rpc_gateway_api::CallContext,
-        storage_property::{StorageProperty, EVENT_TIMEZONE_CHANGED, KEY_POSTAL_CODE},
+        storage_property::{StorageProperty, KEY_POSTAL_CODE},
     },
     extn::extn_client_message::ExtnResponse,
 };
@@ -490,7 +493,11 @@ impl LocalizationServer for LocalizationImpl {
         .await
     }
 
-    async fn timezone_set(&self, ctx: CallContext, set_request: TimezoneProperty) -> RpcResult<()> {
+    async fn timezone_set(
+        &self,
+        _ctx: CallContext,
+        set_request: TimezoneProperty,
+    ) -> RpcResult<()> {
         let resp = self
             .platform_state
             .get_client()
@@ -519,22 +526,16 @@ impl LocalizationServer for LocalizationImpl {
             )));
         }
 
-        if let Ok(_response) = self
+        if self
             .platform_state
             .get_client()
             .send_extn_request(DeviceInfoRequest::SetTimezone(set_request.value.clone()))
             .await
+            .is_ok()
         {
-            rpc_add_event_listener(
-                &self.platform_state,
-                ctx,
-                ListenRequest { listen: true },
-                EVENT_TIMEZONE_CHANGED,
-            )
-            .await
-            .ok();
             return Ok(());
         }
+
         Err(rpc_err("timezone: error response TBD"))
     }
 
@@ -557,7 +558,21 @@ impl LocalizationServer for LocalizationImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(&self.platform_state, ctx, request, EVENT_TIMEZONE_CHANGED).await
+        if self
+            .platform_state
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::TimeZoneChanged,
+                subscribe: true,
+                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id.to_owned()),
+            })
+            .await
+            .is_err()
+        {
+            error!("on_timezone_changed: Error while registration");
+        }
+
+        rpc_add_event_listener(&self.platform_state, ctx, request, TIME_ZONE_CHANGED).await
     }
 
     async fn preferred_audio_languages(&self, _ctx: CallContext) -> RpcResult<Vec<String>> {
