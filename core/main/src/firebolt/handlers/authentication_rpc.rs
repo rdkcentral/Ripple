@@ -15,6 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use crate::{
+    firebolt::{handlers::discovery_rpc::get_content_partner_id, rpc::RippleRPCProvider},
+    state::platform_state::PlatformState,
+};
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
@@ -35,17 +39,25 @@ use ripple_sdk::{
         session::{SessionTokenRequest, TokenContext, TokenType},
     },
     extn::extn_client_message::ExtnResponse,
+    uuid::Uuid,
 };
+use serde::{Deserialize, Serialize};
 
-use crate::{
-    firebolt::{handlers::discovery_rpc::get_content_partner_id, rpc::RippleRPCProvider},
-    state::platform_state::PlatformState,
-};
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DistributorTokenResponse {
+    pub access_token: String,
+    pub token_type: String,
+    pub scope: String,
+    pub expires_in: i32,
+    pub tid: String,
+}
 
 #[rpc(server)]
 pub trait Authentication {
     #[method(name = "authentication.token", param_kind = map)]
     async fn token(&self, ctx: CallContext, x: TokenRequest) -> RpcResult<TokenResult>;
+    #[method(name = "badger.OAuthBearerToken")]
+    async fn auth_bearer_token(&self, ctx: CallContext) -> RpcResult<DistributorTokenResponse>;
     #[method(name = "authentication.root", param_kind = map)]
     async fn root(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "authentication.device", param_kind = map)]
@@ -133,6 +145,61 @@ impl AuthenticationServer for AuthenticationImpl {
             Err(e) => Err(e),
         }
     }
+
+    async fn auth_bearer_token(&self, ctx: CallContext) -> RpcResult<DistributorTokenResponse> {
+        let cap = FireboltCap::Short("token:session".into());
+        let supported_caps = self
+            .platform_state
+            .get_device_manifest()
+            .get_supported_caps();
+        if supported_caps.contains(&cap) {
+            let dist_session = match self.platform_state.session_state.get_account_session() {
+                Some(session) => session,
+                None => {
+                    return Err(jsonrpsee::core::Error::Custom(String::from(
+                        "Account session is not available",
+                    )));
+                }
+            };
+
+            let context = DistributorTokenContext {
+                app_id: ctx.app_id,
+                dist_session,
+            };
+            match self
+                .platform_state
+                .get_client()
+                .send_extn_request(DistributorTokenRequest { context })
+                .await
+            {
+                Ok(payload) => match payload.payload.extract().unwrap() {
+                    ExtnResponse::Token(t) => Ok(DistributorTokenResponse {
+                        access_token: t.value,
+                        token_type: t.token_type.unwrap_or_default(),
+                        scope: t.scope.unwrap_or_default(),
+                        expires_in: t.expires_in.unwrap_or_default(),
+                        tid: Uuid::new_v4().to_string(),
+                    }),
+                    e => Err(jsonrpsee::core::Error::Custom(format!(
+                        "unknown error getting {:?} token {:?}",
+                        TokenType::Distributor,
+                        e
+                    ))),
+                },
+
+                Err(_e) => Err(jsonrpsee::core::Error::Custom(format!(
+                    "Ripple Error getting {:?} token",
+                    TokenType::Distributor
+                ))),
+            }
+        } else {
+            return Err(jsonrpsee::core::Error::Call(CallError::Custom {
+                code: CAPABILITY_NOT_AVAILABLE,
+                message: format!("{} is not available", cap.as_str()),
+                data: None,
+            }));
+        }
+    }
 }
 
 impl AuthenticationImpl {
@@ -213,9 +280,9 @@ impl AuthenticationImpl {
                     value: t.value,
                     expires: t.expires,
                     _type: token_type,
-                    scope: t.scope,
-                    expires_in: t.expires_in,
-                    token_type: t.token_type,
+                    scope: None,
+                    expires_in: None,
+                    token_type: None,
                 }),
                 e => Err(jsonrpsee::core::Error::Custom(format!(
                     "unknown error getting {:?} token {:?}",
