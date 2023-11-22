@@ -127,6 +127,9 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
                     ExtnResponse::None(())
                 }
             }
+            Config::SupportsDistributorSession => {
+                ExtnResponse::Boolean(state.supports_distributor_session())
+            }
             _ => ExtnResponse::Error(ripple_sdk::utils::error::RippleError::InvalidInput),
         };
         Self::respond(state.get_client().get_extn_client(), msg, response)
