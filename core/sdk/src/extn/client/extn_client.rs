@@ -560,7 +560,7 @@ impl ExtnClient {
         let id = uuid::Uuid::new_v4().to_string();
         let (tx, tr) = bounded(2);
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
-        let timeout_increments = 50;
+        let timeout_increments = 5;
         self.sender
             .send_request(id, payload, other_sender, Some(tx))?;
         let mut current_timeout: u64 = 0;

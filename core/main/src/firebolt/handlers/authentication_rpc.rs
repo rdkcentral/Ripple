@@ -40,16 +40,6 @@ use ripple_sdk::{
     },
     extn::extn_client_message::ExtnResponse,
 };
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DistributorTokenResponse {
-    pub access_token: String,
-    pub token_type: String,
-    pub scope: String,
-    pub expires_in: i32,
-    pub tid: String,
-}
 
 #[rpc(server)]
 pub trait Authentication {
