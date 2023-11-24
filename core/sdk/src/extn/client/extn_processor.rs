@@ -216,9 +216,8 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
         });
     }
 
-    async fn handle_error(extn_client: ExtnClient, req: ExtnMessage, error: RippleError) -> bool {
+    async fn handle_error(mut extn_client: ExtnClient, req: ExtnMessage, error: RippleError) -> bool {
         if let Err(e) = extn_client
-            .clone()
             .respond(req, ExtnResponse::Error(error))
             .await
         {

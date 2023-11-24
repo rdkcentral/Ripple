@@ -178,7 +178,6 @@ impl MetricsState {
         self.operational_telemetry_listeners
             .read()
             .unwrap()
-            .clone()
             .iter()
             .map(|x| x.to_owned())
             .collect()

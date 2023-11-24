@@ -261,9 +261,9 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         voice_guidance_settings_enabled_changed(
-            &self.state.clone(),
-            &ctx.clone(),
-            &request.clone(),
+            &self.state,
+            &ctx,
+            &request,
             Some(Box::new(VGEnabledEventDecorator {})),
         )
         .await

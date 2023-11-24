@@ -259,7 +259,7 @@ impl ExtnRequestProcessor for OpMetricsProcessor {
         msg: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
-        let requestor = msg.clone().requestor.to_string();
+        let requestor = msg.requestor.to_string();
         match extracted_message {
             OperationalMetricRequest::Subscribe => state
                 .metrics

@@ -112,7 +112,7 @@ fn get_app_type(manifest: &AppManifest) -> Option<String> {
 }
 
 impl AppLauncherState {
-    fn get_active_instances(self, manifest: &AppManifest) -> usize {
+    fn get_active_instances(&self, manifest: &AppManifest) -> usize {
         match get_app_type(manifest) {
             Some(t) => self
                 .apps
@@ -203,7 +203,6 @@ impl AppLauncher {
             debug!("set_state: container_id={}", container_id);
             let mut final_resp = Ok(AppManagerResponse::None);
             let item = state
-                .clone()
                 .app_launcher_state
                 .get_app_by_id(&container_id);
 
@@ -217,7 +216,6 @@ impl AppLauncher {
                     final_resp = Err(AppError::UnexpectedState);
                 } else {
                     state
-                        .clone()
                         .app_launcher_state
                         .set_app_state(&container_id, lc_state);
 
@@ -258,11 +256,10 @@ impl AppLauncher {
             } else {
                 // Container ID for app not found, check registered providers to
                 // see if it's a provider container ID.
-                let app_library_state = state.clone().config.app_library_state;
-                let resp = AppLibrary::get_provider(&app_library_state, container_id.to_string());
+                let app_library_state = &state.config.app_library_state;
+                let resp = AppLibrary::get_provider(app_library_state, container_id.to_string());
                 if let Some(provider) = resp {
                     final_resp = state
-                        .clone()
                         .app_launcher_state
                         .get_app_by_id(&provider)
                         .map_or(Err(AppError::NotFound), |_| Ok(AppManagerResponse::None));
@@ -319,7 +316,7 @@ impl AppLauncher {
     }
 
     async fn check_retention_policy(state: &LauncherState) {
-        let policy = state.clone().config.retention_policy;
+        let policy = state.config.retention_policy.clone();
         let mut app_count_exceeded = false;
         let app_count = state.app_launcher_state.get_app_len() as u64;
         if app_count > policy.max_retained {
@@ -373,7 +370,7 @@ impl AppLauncher {
     }
 
     fn get_oldest_removeable_app(state: &LauncherState) -> Option<String> {
-        let policy = state.clone().config.retention_policy;
+        let policy = state.config.retention_policy.clone();
         let mut candidates = state.app_launcher_state.always_retained_apps(policy);
 
         let count = candidates.len();
@@ -440,7 +437,6 @@ impl AppLauncher {
 
         let id = app_id.to_string();
         let timeout = state
-            .clone()
             .config
             .lifecycle_policy
             .app_finished_timeout_ms;
@@ -630,7 +626,6 @@ impl AppLauncher {
             return Err(AppError::NotSupported);
         }
         let instances = state
-            .clone()
             .app_launcher_state
             .get_active_instances(&app_manifest);
         let bnrp = BrowserNameRequestParams {
@@ -695,7 +690,7 @@ impl AppLauncher {
             h: launch_params.h,
         };
 
-        let policy = state.clone().config.retention_policy;
+        let policy = state.config.retention_policy.clone();
         let always_retained = policy
             .always_retained
             .iter()
@@ -740,7 +735,7 @@ impl AppLauncher {
                 Err(_) => return Err(AppError::IoError),
             }
         } else {
-            let timeout = state.clone().config.lifecycle_policy.app_ready_timeout_ms;
+            let timeout = state.config.lifecycle_policy.app_ready_timeout_ms;
             let state_c = state.clone();
             let app_id = request.app_id.clone();
             let launch_time = app.launch_time;
