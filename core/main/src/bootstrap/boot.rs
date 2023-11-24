@@ -68,6 +68,7 @@ pub async fn boot(state: BootstrapState) -> RippleResponse {
     execute_step(CheckLauncherStep, &bootstrap).await?;
     execute_step(StartWsStep, &bootstrap).await?;
     execute_step(FireboltGatewayStep, &bootstrap).await?;
+    // <pca> Add StartAppsUpdateListener? </pca>
     Ok(())
 }
 
