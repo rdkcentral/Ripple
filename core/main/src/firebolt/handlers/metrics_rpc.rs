@@ -77,18 +77,20 @@ pub struct StopContentParams {
     #[serde(rename = "entityId")]
     pub entity_id: Option<String>,
 }
-// fn validate_metrics_action_type(metrics_action: &str) -> RpcResult<bool> {
-//     match metrics_action.len() {
-//         1..=256 => Ok(true),
-//         _ => {
-//             return Err(jsonrpsee::core::Error::Call(CallError::Custom {
-//                 code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
-//                 message: "metrics.action.action_type out of range".to_string(),
-//                 data: None,
-//             }))
-//         }
-//     }
-// }
+
+fn validate_metrics_action_type(metrics_action: &str) -> RpcResult<bool> {
+    match metrics_action.len() {
+        1..=256 => Ok(true),
+        _ => {
+            return Err(jsonrpsee::core::Error::Call(CallError::Custom {
+                code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+                message: "metrics.action.action_type out of range".to_string(),
+                data: None,
+            }))
+        }
+    }
+}
+
 pub const ERROR_MEDIA_POSITION_OUT_OF_RANGE: &str = "absolute media position out of range";
 pub const ERROR_BAD_ABSOLUTE_MEDIA_POSITION: &str =
     "absolute media position must not contain any numbers to the right of the decimal point.";
@@ -346,8 +348,7 @@ impl MetricsServer for MetricsImpl {
         }
     }
     async fn action(&self, ctx: CallContext, action_params: ActionParams) -> RpcResult<bool> {
-        //call it and let it blow up
-        //let _ = validate_metrics_action_type(&action_params.action_type)?;
+        let _ = validate_metrics_action_type(&action_params.action_type)?;
         let p_type = action_params.clone();
 
         let action = BehavioralMetricPayload::Action(Action {
