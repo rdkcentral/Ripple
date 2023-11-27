@@ -78,15 +78,7 @@ impl AuthenticationServer for AuthenticationImpl {
                 }
             }
             TokenType::Root => self.token(TokenType::Root, ctx).await,
-            TokenType::Device => {
-                let feats = self.platform_state.get_device_manifest().get_features();
-                // let feats = self.helper.get_config().get_features();
-                if feats.app_scoped_device_tokens {
-                    self.token(TokenType::Device, ctx).await
-                } else {
-                    self.token(TokenType::Root, ctx).await
-                }
-            }
+            TokenType::Device => self.token(TokenType::Device, ctx).await,
             TokenType::Distributor => {
                 let cap = FireboltCap::Short("token:session".into());
                 let supported_caps = self
