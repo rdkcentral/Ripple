@@ -81,13 +81,11 @@ pub struct StopContentParams {
 fn validate_metrics_action_type(metrics_action: &str) -> RpcResult<bool> {
     match metrics_action.len() {
         1..=256 => Ok(true),
-        _ => {
-            return Err(jsonrpsee::core::Error::Call(CallError::Custom {
-                code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
-                message: "metrics.action.action_type out of range".to_string(),
-                data: None,
-            }))
-        }
+        _ => Err(jsonrpsee::core::Error::Call(CallError::Custom {
+            code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+            message: "metrics.action.action_type out of range".to_string(),
+            data: None,
+        })),
     }
 }
 
