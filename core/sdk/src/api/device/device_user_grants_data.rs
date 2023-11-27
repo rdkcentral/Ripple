@@ -181,12 +181,12 @@ impl GrantPolicies {
             }
             CapabilityRole::Manage => {
                 if let Some(manage) = &self.manage {
-                    return Some(manage.clone())
-                } 
+                    return Some(manage.clone());
+                }
             }
             CapabilityRole::Provide => {
                 if let Some(provide) = &self.provide {
-                    return Some(provide.clone())
+                    return Some(provide.clone());
                 }
             }
         }

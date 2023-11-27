@@ -81,7 +81,7 @@ impl LoadedLibrary {
             .symbols
             .iter()
             .filter(|x| extn_ids.contains(&x.id))
-            .map(|x| x.clone())
+            .cloned()
             .collect()
     }
 
@@ -97,7 +97,7 @@ impl LoadedLibrary {
             .symbols
             .iter()
             .filter(|x| extn_ids.contains(&x.id))
-            .map(|x| x.clone())
+            .cloned()
             .collect()
     }
 

@@ -216,11 +216,12 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
         });
     }
 
-    async fn handle_error(mut extn_client: ExtnClient, req: ExtnMessage, error: RippleError) -> bool {
-        if let Err(e) = extn_client
-            .respond(req, ExtnResponse::Error(error))
-            .await
-        {
+    async fn handle_error(
+        mut extn_client: ExtnClient,
+        req: ExtnMessage,
+        error: RippleError,
+    ) -> bool {
+        if let Err(e) = extn_client.respond(req, ExtnResponse::Error(error)).await {
             error!("Error during responding {:?}", e);
         }
         // to support return chaining in processors

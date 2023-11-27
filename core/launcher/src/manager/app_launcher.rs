@@ -202,9 +202,7 @@ impl AppLauncher {
         async move {
             debug!("set_state: container_id={}", container_id);
             let mut final_resp = Ok(AppManagerResponse::None);
-            let item = state
-                .app_launcher_state
-                .get_app_by_id(&container_id);
+            let item = state.app_launcher_state.get_app_by_id(&container_id);
 
             if let Some(app) = item {
                 let previous_state = app.state;
@@ -436,10 +434,7 @@ impl AppLauncher {
         debug!("on_unloading: entry: app_id={}", app_id);
 
         let id = app_id.to_string();
-        let timeout = state
-            .config
-            .lifecycle_policy
-            .app_finished_timeout_ms;
+        let timeout = state.config.lifecycle_policy.app_finished_timeout_ms;
         let state_c = state.clone();
         tokio::spawn(async move {
             sleep(Duration::from_millis(timeout)).await;
@@ -625,9 +620,7 @@ impl AppLauncher {
         if app_type.is_none() {
             return Err(AppError::NotSupported);
         }
-        let instances = state
-            .app_launcher_state
-            .get_active_instances(&app_manifest);
+        let instances = state.app_launcher_state.get_active_instances(&app_manifest);
         let bnrp = BrowserNameRequestParams {
             name: app_manifest.name.clone(),
             runtime: app_manifest.runtime.clone(),
