@@ -220,10 +220,10 @@ impl FireboltWs {
             error!("Error registering the connection {:?}", e);
             return;
         }
-
-        if PermissionHandler::fetch_and_store(&state, &app_id)
-            .await
-            .is_err()
+        if !gateway_secure
+            && PermissionHandler::fetch_and_store(&state, &app_id)
+                .await
+                .is_err()
         {
             error!("Couldnt pre cache permissions");
         }

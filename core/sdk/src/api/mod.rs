@@ -45,6 +45,7 @@ pub mod distributor {
     pub mod distributor_privacy;
     pub mod distributor_request;
     pub mod distributor_sync;
+    pub mod distributor_token;
     pub mod distributor_usergrants;
 }
 

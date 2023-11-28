@@ -64,6 +64,7 @@ pub enum Config {
     LauncherConfig,
     RippleFeatures,
     SavedDir,
+    SupportsDistributorSession,
 }
 
 impl ExtnPayloadProvider for Config {

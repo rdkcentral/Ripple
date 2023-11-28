@@ -89,12 +89,7 @@ impl ExtnRequestProcessor for DistributorTokenProcessor {
         msg: ripple_sdk::extn::extn_client_message::ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
-        let token = ExtnResponse::Token(TokenResult {
-            _type: extracted_message.clone().token_type,
-            expires: None,
-            // Mock invalidated token for schema validation
-            value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c".into()
-        });
+        let token = ExtnResponse::Token(TokenResult {_type:extracted_message.clone().token_type,expires:None,value:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c".into(),scope:None,expires_in:None, token_type: None });
         Self::respond(state.clone(), msg, token).await.is_ok()
     }
 }
