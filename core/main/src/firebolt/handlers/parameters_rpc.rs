@@ -76,9 +76,16 @@ pub struct ParametersImpl {
 impl ParametersServer for ParametersImpl {
     async fn initialization(&self, ctx: CallContext) -> RpcResult<AppInitParameters> {
         let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
-        let app_request = AppRequest::new(AppMethod::GetLaunchRequest(ctx.app_id), app_resp_tx);
-        let privacy_data =
-            privacy_rpc::get_allow_app_content_ad_targeting_settings(&self.platform_state).await;
+        let app_request = AppRequest::new(
+            AppMethod::GetLaunchRequest(ctx.app_id.to_owned()),
+            app_resp_tx,
+        );
+        let privacy_data = privacy_rpc::get_allow_app_content_ad_targeting_settings(
+            &self.platform_state,
+            None,
+            &ctx.app_id.to_string(),
+        )
+        .await;
 
         let _ = self
             .platform_state

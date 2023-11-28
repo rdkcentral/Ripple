@@ -97,10 +97,47 @@ pub struct SetSkipRestrictionRequest {
     pub value: SkipRestriction,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct AdvertisingIdRPCRequest {
+    pub options: Option<ScopeOption>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ScopeOption {
+    pub scope: Scope,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Scope {
+    #[serde(rename = "type")]
+    pub _type: ScopeType,
+    pub id: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub enum ScopeType {
+    Browse,
+    Content,
+}
+
+impl ScopeType {
+    pub fn as_string(&self) -> &'static str {
+        match self {
+            ScopeType::Browse => "browse",
+            ScopeType::Content => "content",
+        }
+    }
+}
+
 #[rpc(server)]
 pub trait Advertising {
     #[method(name = "advertising.advertisingId")]
-    async fn advertising_id(&self, ctx: CallContext) -> RpcResult<AdvertisingId>;
+    async fn advertising_id(
+        &self,
+        ctx: CallContext,
+        request: AdvertisingIdRPCRequest,
+    ) -> RpcResult<AdvertisingId>;
     #[method(name = "advertising.appBundleId")]
     fn app_bundle_id(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "advertising.config")]
@@ -212,20 +249,37 @@ impl AdvertisingServer for AdvertisingImpl {
             .map_err(|err| err.into())
     }
 
-    async fn advertising_id(&self, ctx: CallContext) -> RpcResult<AdvertisingId> {
+    async fn advertising_id(
+        &self,
+        ctx: CallContext,
+        request: AdvertisingIdRPCRequest,
+    ) -> RpcResult<AdvertisingId> {
         if let Some(session) = self.state.session_state.get_account_session() {
-            let payload = AdvertisingRequest::GetAdIdObject(AdIdRequestParams {
-                privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(&self.state)
-                    .await,
-                app_id: ctx.app_id.to_owned(),
-                dist_session: session,
-            });
-            let resp = self.state.get_client().send_extn_request(payload).await;
+        let mut scope_option_map = HashMap::new();
+        if let Some(req_opt) = &request.options {
+            scope_option_map.insert(
+                "type".to_string(),
+                req_opt.scope._type.as_string().to_string(),
+            );
+            scope_option_map.insert("id".to_string(), req_opt.scope.id.to_string());
+        }
+        let payload = AdvertisingRequest::GetAdIdObject(AdIdRequestParams {
+            privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(
+                &self.state,
+                request.options.as_ref(),
+                &ctx.app_id,
+            )
+            .await,
+            app_id: ctx.app_id.to_owned(),
+            dist_session: session,
+            scope: scope_option_map,
+        });
+        let resp = self.state.get_client().send_extn_request(payload).await;
 
-            if resp.is_err() {
-                error!("Error getting ad init object: {:?}", resp);
-                return Err(rpc_err("Could not get ad init object from the device"));
-            }
+        if resp.is_err() {
+            error!("Error getting ad init object: {:?}", resp);
+            return Err(rpc_err("Could not get ad init object from the device"));
+        }
 
             if let Ok(payload) = resp {
                 if let Some(AdvertisingResponse::AdIdObject(obj)) =
@@ -277,8 +331,12 @@ impl AdvertisingServer for AdvertisingImpl {
             .unwrap_or(false);
 
         let payload = AdvertisingRequest::GetAdInitObject(AdInitObjectRequestParams {
-            privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(&self.state)
-                .await,
+            privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(
+                &self.state,
+                None,
+                &app_id,
+            )
+            .await,
             environment: config.options.environment.to_string(),
             durable_app_id: app_id,
             app_version: "".to_string(),
@@ -288,6 +346,7 @@ impl AdvertisingServer for AdvertisingImpl {
             authentication_entity: config.options.authentication_entity.unwrap_or_default(),
             dist_session: session
                 .ok_or_else(|| Error::Custom(String::from("no session available")))?,
+            scope: HashMap::new(),
         });
 
         match self.state.get_client().send_extn_request(payload).await {

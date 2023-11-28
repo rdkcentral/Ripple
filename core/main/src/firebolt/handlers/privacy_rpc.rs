@@ -59,6 +59,7 @@ use ripple_sdk::{
 
 use std::collections::HashMap;
 
+use super::advertising_rpc::ScopeOption;
 use super::capabilities_rpc::is_granted;
 
 pub const US_PRIVACY_KEY: &str = "us_privacy";
@@ -274,9 +275,24 @@ pub trait Privacy {
 
 pub async fn get_allow_app_content_ad_targeting_settings(
     platform_state: &PlatformState,
+    scope_option: Option<&ScopeOption>,
+    caller_app: &String,
 ) -> HashMap<String, String> {
-    let data = StorageProperty::AllowAppContentAdTargeting.as_data();
-
+    let mut data = StorageProperty::AllowAppContentAdTargeting.as_data();
+    if let Some(scope_opt) = scope_option {
+        let primary_app = platform_state
+            .get_device_manifest()
+            .applications
+            .defaults
+            .main;
+        if primary_app == *caller_app.to_string() {
+            if scope_opt.scope._type.as_string() == "browse" {
+                data = StorageProperty::AllowPrimaryBrowseAdTargeting.as_data();
+            } else if scope_opt.scope._type.as_string() == "content" {
+                data = StorageProperty::AllowPrimaryContentAdTargeting.as_data();
+            }
+        }
+    }
     match StorageManager::get_bool_from_namespace(
         platform_state,
         data.namespace.to_string(),
