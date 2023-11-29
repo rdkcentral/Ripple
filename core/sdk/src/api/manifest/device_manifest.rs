@@ -421,14 +421,12 @@ pub enum PrivacySettingsStorageType {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RippleFeatures {
-    pub app_scoped_device_tokens: bool,
     pub privacy_settings_storage_type: PrivacySettingsStorageType,
     pub intent_validation: IntentValidation,
 }
 
 fn default_ripple_features() -> RippleFeatures {
     RippleFeatures {
-        app_scoped_device_tokens: false,
         privacy_settings_storage_type: PrivacySettingsStorageType::Local,
         intent_validation: IntentValidation::FailOpen,
     }
