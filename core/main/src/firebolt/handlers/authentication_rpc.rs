@@ -33,7 +33,7 @@ use ripple_sdk::{
         },
         firebolt::{
             fb_authentication::{TokenRequest, TokenResult},
-            fb_capabilities::{FireboltCap, CAPABILITY_NOT_AVAILABLE, CAPABILITY_NOT_SUPPORTED},
+            fb_capabilities::{FireboltCap, CAPABILITY_NOT_SUPPORTED},
         },
         gateway::rpc_gateway_api::CallContext,
         session::{SessionTokenRequest, TokenContext, TokenType},
