@@ -60,13 +60,16 @@ use crate::{
 };
 use ripple_sdk::{
     api::{
+        config::Config,
         context::RippleContextUpdateRequest,
+        device::device_request::{InternetConnectionStatus, PowerState},
         device::{
             device_info_request::{
                 DEVICE_INFO_AUTHORIZED, DEVICE_MAKE_MODEL_AUTHORIZED, DEVICE_SKU_AUTHORIZED,
             },
-            device_request::{InternetConnectionStatus, PowerState, TimeZone},
+            device_request::TimeZone,
         },
+        manifest::device_manifest::DefaultValues,
     },
     log::trace,
     serde_json::{Map, Value},
@@ -798,7 +801,7 @@ impl ThunderDeviceInfoRequestProcessor {
             return Vec::new();
         }
         info!("{}", response.message);
-        let resol = response.message["resolution"].as_str().unwrap();
+        let resol = response.message["resolution"].as_str().unwrap_or_default();
         get_dimension_from_resolution(resol)
     }
 
@@ -820,7 +823,26 @@ impl ThunderDeviceInfoRequestProcessor {
         .is_ok()
     }
 
-    async fn get_video_resolution(state: &CachedState) -> Vec<i32> {
+    async fn get_current_resolution(state: &CachedState) -> Result<Vec<i32>, ()> {
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::DisplaySettings.method("getCurrentResolution"),
+                params: None,
+            })
+            .await;
+        if response.message.get("success").is_none()
+            || !response.message["success"].as_bool().unwrap_or_default()
+        {
+            error!("{}", response.message);
+            return Err(());
+        }
+        info!("{}", response.message);
+        let resol = response.message["resolution"].as_str().unwrap_or_default();
+        Ok(get_dimension_from_resolution(resol))
+    }
+
+    async fn get_default_resolution(state: &CachedState) -> Result<Vec<i32>, ()> {
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -832,11 +854,28 @@ impl ThunderDeviceInfoRequestProcessor {
             || !response.message["success"].as_bool().unwrap_or_default()
         {
             error!("{}", response.message);
-            return Vec::new();
+            return Err(());
         }
         info!("{}", response.message);
         let resol = response.message["defaultResolution"].as_str().unwrap();
-        get_dimension_from_resolution(resol)
+        Ok(get_dimension_from_resolution(resol))
+    }
+
+    async fn get_video_resolution(state: &CachedState) -> Vec<i32> {
+        if let Ok(resolution) = Self::get_current_resolution(state).await {
+            return resolution;
+        }
+        if let Ok(resolution) = Self::get_default_resolution(state).await {
+            return resolution;
+        }
+        if let Ok(response) = state.get_client().request(Config::DefaultValues).await {
+            if let Some(ExtnResponse::Value(value)) = response.payload.extract() {
+                if let Ok(default_values) = serde_json::from_value::<DefaultValues>(value) {
+                    return default_values.video_dimensions;
+                }
+            }
+        }
+        vec![]
     }
 
     async fn video_resolution(state: CachedState, req: ExtnMessage) -> bool {

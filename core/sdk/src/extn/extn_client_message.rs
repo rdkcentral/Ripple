@@ -40,6 +40,7 @@ use crate::{
             distributor_privacy::{PrivacyCloudRequest, PrivacySettingsStoreRequest},
             distributor_request::DistributorRequest,
             distributor_sync::SyncAndMonitorRequest,
+            distributor_token::DistributorTokenRequest,
             distributor_usergrants::UserGrantsCloudStoreRequest,
         },
         firebolt::{
@@ -268,6 +269,7 @@ pub enum ExtnRequest {
     Metrics(MetricsRequest),
     OperationalMetricsRequest(OperationalMetricRequest),
     PlatformToken(PlatformTokenRequest),
+    DistributorToken(DistributorTokenRequest),
     Context(RippleContextUpdateRequest),
 }
 

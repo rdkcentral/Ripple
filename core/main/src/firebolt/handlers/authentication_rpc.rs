@@ -15,6 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use crate::{
+    firebolt::{handlers::discovery_rpc::get_content_partner_id, rpc::RippleRPCProvider},
+    state::platform_state::PlatformState,
+};
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
@@ -23,7 +27,10 @@ use jsonrpsee::{
 };
 use ripple_sdk::{
     api::{
-        distributor::distributor_platform::{PlatformTokenContext, PlatformTokenRequest},
+        distributor::{
+            distributor_platform::{PlatformTokenContext, PlatformTokenRequest},
+            distributor_token::{DistributorTokenContext, DistributorTokenRequest},
+        },
         firebolt::{
             fb_authentication::{TokenRequest, TokenResult},
             fb_capabilities::{FireboltCap, CAPABILITY_NOT_AVAILABLE, CAPABILITY_NOT_SUPPORTED},
@@ -32,11 +39,6 @@ use ripple_sdk::{
         session::{SessionTokenRequest, TokenContext, TokenType},
     },
     extn::extn_client_message::ExtnResponse,
-};
-
-use crate::{
-    firebolt::{handlers::discovery_rpc::get_content_partner_id, rpc::RippleRPCProvider},
-    state::platform_state::PlatformState,
 };
 
 #[rpc(server)]
@@ -76,16 +78,23 @@ impl AuthenticationServer for AuthenticationImpl {
                 }
             }
             TokenType::Root => self.token(TokenType::Root, ctx).await,
-            TokenType::Device => {
-                let feats = self.platform_state.get_device_manifest().get_features();
-                // let feats = self.helper.get_config().get_features();
-                if feats.app_scoped_device_tokens {
-                    self.token(TokenType::Device, ctx).await
+            TokenType::Device => self.token(TokenType::Device, ctx).await,
+            TokenType::Distributor => {
+                let cap = FireboltCap::Short("token:session".into());
+                let supported_caps = self
+                    .platform_state
+                    .get_device_manifest()
+                    .get_supported_caps();
+                if supported_caps.contains(&cap) {
+                    self.token(TokenType::Distributor, ctx).await
                 } else {
-                    self.token(TokenType::Root, ctx).await
+                    return Err(jsonrpsee::core::Error::Call(CallError::Custom {
+                        code: CAPABILITY_NOT_AVAILABLE,
+                        message: format!("{} is not available", cap.as_str()),
+                        data: None,
+                    }));
                 }
             }
-            TokenType::Distributor => self.token(TokenType::Distributor, ctx).await,
         }
     }
 
@@ -97,13 +106,10 @@ impl AuthenticationServer for AuthenticationImpl {
     }
 
     async fn device(&self, ctx: CallContext) -> RpcResult<String> {
-        let feats = self.platform_state.get_device_manifest().get_features();
-        let r = if feats.app_scoped_device_tokens {
-            self.token(TokenType::Device, ctx).await
-        } else {
-            self.token(TokenType::Root, ctx).await
-        };
-        match r {
+        if !self.platform_state.supports_device_tokens() {
+            return Err(Self::send_dist_token_not_supported());
+        }
+        match self.token(TokenType::Device, ctx).await {
             Ok(r) => Ok(r.value),
             Err(e) => Err(e),
         }
@@ -130,6 +136,12 @@ impl AuthenticationImpl {
     async fn token(&self, token_type: TokenType, ctx: CallContext) -> RpcResult<TokenResult> {
         if let TokenType::Distributor = &token_type {
             if !self.platform_state.supports_distributor_session() {
+                return Err(Self::send_dist_token_not_supported());
+            }
+        }
+
+        if let TokenType::Device = &token_type {
+            if !self.platform_state.supports_device_tokens() {
                 return Err(Self::send_dist_token_not_supported());
             }
         }
@@ -164,6 +176,16 @@ impl AuthenticationImpl {
                     })
                     .await
             }
+            TokenType::Distributor => {
+                let context = DistributorTokenContext {
+                    app_id: ctx.app_id,
+                    dist_session,
+                };
+                self.platform_state
+                    .get_client()
+                    .send_extn_request(DistributorTokenRequest { context })
+                    .await
+            }
             _ => {
                 let context = TokenContext {
                     distributor_id: dist_session.id,
@@ -184,11 +206,14 @@ impl AuthenticationImpl {
                 ExtnResponse::Token(t) => Ok(TokenResult {
                     value: t.value,
                     expires: t.expires,
-                    _type: TokenType::Platform,
+                    _type: token_type,
+                    scope: None,
+                    expires_in: None,
+                    token_type: None,
                 }),
                 e => Err(jsonrpsee::core::Error::Custom(format!(
-                    "unknown error getting platform token {:?}",
-                    e
+                    "unknown error getting {:?} token {:?}",
+                    token_type, e
                 ))),
             },
 

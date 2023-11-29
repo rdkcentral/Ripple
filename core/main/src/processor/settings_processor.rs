@@ -137,7 +137,7 @@ impl SettingsProcessor {
                         role: Some(CapabilityRole::Use),
                         capability: FireboltCap::Short(sk.use_capability().into()),
                     };
-                    if let Ok(result) = is_permitted(state.clone(), ctx.clone(), role_info).await {
+                    if let Ok(result) = is_permitted(state, &ctx, &role_info).await {
                         if result {
                             settings.insert(request.get_alias(&sk), v);
                         }

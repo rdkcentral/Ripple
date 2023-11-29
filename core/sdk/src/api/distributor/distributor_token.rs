@@ -14,50 +14,40 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    api::session::AccountSession,
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
 };
 
-use super::{
-    firebolt::fb_discovery::{ContentAccessRequest, ProgressUnit, WatchedInfo},
-    gateway::rpc_gateway_api::CallContext,
-};
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub enum AccountLinkRequest {
-    SignIn(CallContext),
-    SignOut(CallContext),
-    ContentAccess(CallContext, ContentAccessRequest),
-    ClearContentAccess(CallContext),
-    Watched(WatchedRequest),
+pub struct DistributorTokenRequest {
+    pub context: DistributorTokenContext,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct WatchedRequest {
-    pub context: CallContext,
-    pub info: WatchedInfo,
-    pub unit: ProgressUnit,
+pub struct DistributorTokenContext {
+    pub app_id: String,
+    pub dist_session: AccountSession,
 }
 
-impl ExtnPayloadProvider for AccountLinkRequest {
+impl ExtnPayloadProvider for DistributorTokenRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::AccountLink(self.clone()))
+        ExtnPayload::Request(ExtnRequest::DistributorToken(self.clone()))
     }
 
-    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        if let ExtnPayload::Request(ExtnRequest::AccountLink(value)) = payload {
-            return Some(value);
+    fn get_from_payload(payload: ExtnPayload) -> Option<DistributorTokenRequest> {
+        if let ExtnPayload::Request(ExtnRequest::DistributorToken(r)) = payload {
+            return Some(r);
         }
 
         None
     }
 
     fn contract() -> RippleContract {
-        RippleContract::AccountLink
+        RippleContract::Session(crate::api::session::SessionAdjective::Distributor)
     }
 }

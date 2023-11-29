@@ -120,7 +120,7 @@ impl PlatformState {
             app_library_state: AppLibraryState::new(app_library),
             app_events_state: AppEventsState::default(),
             provider_broker_state: ProviderBrokerState::default(),
-            app_manager_state: AppManagerState::default(),
+            app_manager_state: AppManagerState::new(&manifest.configuration.saved_dir),
             open_rpc_state: OpenRpcState::new(manifest.configuration.exclusory),
             router_state: RouterState::new(),
             data_governance: DataGovernanceState::default(),
@@ -190,6 +190,11 @@ impl PlatformState {
         let request = BridgeProtocolRequest::Send(id, msg);
         self.get_client().send_extn_request(request).await?;
         Ok(())
+    }
+
+    pub fn supports_device_tokens(&self) -> bool {
+        let contract = RippleContract::Session(SessionAdjective::Device).as_clear_string();
+        self.extn_manifest.required_contracts.contains(&contract)
     }
 }
 

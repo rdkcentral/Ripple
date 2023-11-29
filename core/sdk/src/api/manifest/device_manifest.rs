@@ -223,7 +223,7 @@ pub enum AppManifestLoad {
     Embedded(AppManifest),
 }
 
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct DefaultValues {
     pub country_code: String,
     pub language: String,
@@ -288,7 +288,7 @@ pub struct SettingsDefaults {
     pub postal_code: String,
 }
 
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct CaptionStyle {
     pub enabled: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -317,7 +317,7 @@ pub struct CaptionStyle {
     pub text_align_vertical: Option<String>,
 }
 
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct VoiceGuidance {
     pub enabled: bool,
@@ -420,14 +420,12 @@ pub enum PrivacySettingsStorageType {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RippleFeatures {
-    pub app_scoped_device_tokens: bool,
     pub privacy_settings_storage_type: PrivacySettingsStorageType,
     pub intent_validation: IntentValidation,
 }
 
 fn default_ripple_features() -> RippleFeatures {
     RippleFeatures {
-        app_scoped_device_tokens: false,
         privacy_settings_storage_type: PrivacySettingsStorageType::Local,
         intent_validation: IntentValidation::FailOpen,
     }
