@@ -217,13 +217,10 @@ impl AuthenticationImpl {
                 ))),
             },
 
-            Err(_e) => {
-                // TODO: What do error responses look like?
-                Err(jsonrpsee::core::Error::Custom(format!(
-                    "Ripple Error getting {:?} token",
-                    token_type
-                )))
-            }
+            Err(_e) => Err(jsonrpsee::core::Error::Custom(format!(
+                "Ripple Error getting {:?} token",
+                token_type
+            ))),
         }
     }
 }
