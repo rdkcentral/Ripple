@@ -280,16 +280,18 @@ pub async fn get_allow_app_content_ad_targeting_settings(
 ) -> HashMap<String, String> {
     let mut data = StorageProperty::AllowAppContentAdTargeting.as_data();
     if let Some(scope_opt) = scope_option {
-        let primary_app = platform_state
-            .get_device_manifest()
-            .applications
-            .defaults
-            .main;
-        if primary_app == *caller_app.to_string() {
-            if scope_opt.scope._type.as_string() == "browse" {
-                data = StorageProperty::AllowPrimaryBrowseAdTargeting.as_data();
-            } else if scope_opt.scope._type.as_string() == "content" {
-                data = StorageProperty::AllowPrimaryContentAdTargeting.as_data();
+        if let Some(scope) = &scope_opt.scope {
+            let primary_app = platform_state
+                .get_device_manifest()
+                .applications
+                .defaults
+                .main;
+            if primary_app == *caller_app.to_string() {
+                if scope._type.as_string() == "browse" {
+                    data = StorageProperty::AllowPrimaryBrowseAdTargeting.as_data();
+                } else if scope._type.as_string() == "content" {
+                    data = StorageProperty::AllowPrimaryContentAdTargeting.as_data();
+                }
             }
         }
     }

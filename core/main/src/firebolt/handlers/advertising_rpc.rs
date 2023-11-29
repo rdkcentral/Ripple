@@ -104,7 +104,7 @@ pub struct AdvertisingIdRPCRequest {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct ScopeOption {
-    pub scope: Scope,
+    pub scope: Option<Scope>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -256,12 +256,11 @@ impl AdvertisingServer for AdvertisingImpl {
     ) -> RpcResult<AdvertisingId> {
         if let Some(session) = self.state.session_state.get_account_session() {
         let mut scope_option_map = HashMap::new();
-        if let Some(req_opt) = &request.options {
-            scope_option_map.insert(
-                "type".to_string(),
-                req_opt.scope._type.as_string().to_string(),
-            );
-            scope_option_map.insert("id".to_string(), req_opt.scope.id.to_string());
+        if let Some(scope_opt) = &request.options {
+            if let Some(scope) = &scope_opt.scope {
+                scope_option_map.insert("type".to_string(), scope._type.as_string().to_string());
+                scope_option_map.insert("id".to_string(), scope.id.to_string());
+            }
         }
         let payload = AdvertisingRequest::GetAdIdObject(AdIdRequestParams {
             privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(
