@@ -78,15 +78,7 @@ impl AuthenticationServer for AuthenticationImpl {
                 }
             }
             TokenType::Root => self.token(TokenType::Root, ctx).await,
-            TokenType::Device => {
-                let feats = self.platform_state.get_device_manifest().get_features();
-                // let feats = self.helper.get_config().get_features();
-                if feats.app_scoped_device_tokens {
-                    self.token(TokenType::Device, ctx).await
-                } else {
-                    self.token(TokenType::Root, ctx).await
-                }
-            }
+            TokenType::Device => self.token(TokenType::Device, ctx).await,
             TokenType::Distributor => {
                 let cap = FireboltCap::Short("token:session".into());
                 let supported_caps = self
@@ -114,13 +106,10 @@ impl AuthenticationServer for AuthenticationImpl {
     }
 
     async fn device(&self, ctx: CallContext) -> RpcResult<String> {
-        let feats = self.platform_state.get_device_manifest().get_features();
-        let r = if feats.app_scoped_device_tokens {
-            self.token(TokenType::Device, ctx).await
-        } else {
-            self.token(TokenType::Root, ctx).await
-        };
-        match r {
+        if !self.platform_state.supports_device_tokens() {
+            return Err(Self::send_dist_token_not_supported());
+        }
+        match self.token(TokenType::Device, ctx).await {
             Ok(r) => Ok(r.value),
             Err(e) => Err(e),
         }
@@ -147,6 +136,12 @@ impl AuthenticationImpl {
     async fn token(&self, token_type: TokenType, ctx: CallContext) -> RpcResult<TokenResult> {
         if let TokenType::Distributor = &token_type {
             if !self.platform_state.supports_distributor_session() {
+                return Err(Self::send_dist_token_not_supported());
+            }
+        }
+
+        if let TokenType::Device = &token_type {
+            if !self.platform_state.supports_device_tokens() {
                 return Err(Self::send_dist_token_not_supported());
             }
         }
