@@ -19,7 +19,7 @@ use crate::{
     firebolt::rpc::RippleRPCProvider,
     service::apps::app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
     state::platform_state::PlatformState,
-    utils::rpc_utils::{rpc_add_event_listener, rpc_err},
+    utils::rpc_utils::rpc_add_event_listener,
 };
 
 use jsonrpsee::{
