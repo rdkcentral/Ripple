@@ -54,6 +54,13 @@ pub trait PinChallenge {
         ctx: CallContext,
         resp: ExternalProviderResponse<PinChallengeResponse>,
     ) -> RpcResult<Option<()>>;
+
+    #[method(name = "pinchallenge.challengeError")]
+    async fn challenge_error(
+        &self,
+        ctx: CallContext,
+        resp: ExternalProviderResponse<PinChallengeResponse>,
+    ) -> RpcResult<Option<()>>;
 }
 
 pub struct PinChallengeImpl {
@@ -93,6 +100,14 @@ impl PinChallengeServer for PinChallengeImpl {
             result: ProviderResponsePayload::PinChallengeResponse(resp.result),
         };
         ProviderBroker::provider_response(&self.platform_state, msg).await;
+        Ok(None)
+    }
+
+    async fn challenge_error(
+        &self,
+        _ctx: CallContext,
+        resp: ExternalProviderResponse<PinChallengeResponse>,
+    ) -> RpcResult<Option<()>> {
         Ok(None)
     }
 

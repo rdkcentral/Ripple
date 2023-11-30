@@ -44,6 +44,7 @@ pub enum ProviderRequestPayload {
 #[serde(untagged)]
 pub enum ProviderResponsePayload {
     ChallengeResponse(ChallengeResponse),
+    ChallengeError(ChallengeError),
     PinChallengeResponse(PinChallengeResponse),
     KeyboardResult(KeyboardSessionResponse),
     // TODO: assess if boxing this is a productive move: https://rust-lang.github.io/rust-clippy/master/index.html#/large_enum_variant
@@ -128,6 +129,12 @@ pub struct ExternalProviderResponse<T> {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChallengeResponse {
     pub granted: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ChallengeError {
+    pub code: u32,
+    pub message: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
