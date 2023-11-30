@@ -132,9 +132,13 @@ pub struct ChallengeResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DataObject {}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChallengeError {
     pub code: u32,
     pub message: String,
+    pub data: Option<DataObject>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
