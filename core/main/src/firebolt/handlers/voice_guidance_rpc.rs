@@ -25,6 +25,7 @@ use crate::{
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
+    types::error::CallError,
     RpcModule,
 };
 
@@ -40,7 +41,10 @@ use ripple_sdk::{
             device_info_request::DeviceInfoRequest,
             device_peristence::{SetBoolProperty, SetF32Property},
         },
-        firebolt::fb_general::{ListenRequest, ListenerResponse},
+        firebolt::{
+            fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+            fb_general::{ListenRequest, ListenerResponse},
+        },
         gateway::rpc_gateway_api::CallContext,
     },
     extn::extn_client_message::ExtnResponse,
@@ -307,7 +311,11 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
                 )))
             }
         } else {
-            Err(rpc_err("Invalid Value for set speed".to_owned()))
+            Err(jsonrpsee::core::Error::Call(CallError::Custom {
+                code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+                message: "Invalid Value for set speed".to_owned(),
+                data: None,
+            }))
         }
     }
 
