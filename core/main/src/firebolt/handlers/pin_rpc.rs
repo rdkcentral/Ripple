@@ -20,18 +20,21 @@ use crate::{
     state::platform_state::PlatformState,
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
-use ripple_sdk::api::{
-    firebolt::{
-        fb_general::{ListenRequest, ListenerResponse},
-        fb_pin::{PinChallengeResponse, PIN_CHALLENGE_CAPABILITY, PIN_CHALLENGE_EVENT},
-        provider::{
-            ChallengeError,
-            ExternalProviderResponse, FocusRequest, ProviderResponse, ProviderResponsePayload,
-        },
-    },
-    gateway::rpc_gateway_api::CallContext,
-};
 use ripple_sdk::async_trait::async_trait;
+use ripple_sdk::{
+    api::{
+        firebolt::{
+            fb_general::{ListenRequest, ListenerResponse},
+            fb_pin::{PinChallengeResponse, PIN_CHALLENGE_CAPABILITY, PIN_CHALLENGE_EVENT},
+            provider::{
+                ChallengeError, ExternalProviderResponse, FocusRequest, ProviderResponse,
+                ProviderResponsePayload,
+            },
+        },
+        gateway::rpc_gateway_api::CallContext,
+    },
+    log::debug,
+};
 
 #[rpc(server)]
 pub trait PinChallenge {
@@ -76,6 +79,7 @@ impl PinChallengeServer for PinChallengeImpl {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
+        debug!("PinChallenge provider registered :{:?}", request);
         ProviderBroker::register_or_unregister_provider(
             &self.platform_state,
             String::from(PIN_CHALLENGE_CAPABILITY),
@@ -85,6 +89,7 @@ impl PinChallengeServer for PinChallengeImpl {
             request,
         )
         .await;
+
         Ok(ListenerResponse {
             listening: listen,
             event: PIN_CHALLENGE_EVENT.into(),

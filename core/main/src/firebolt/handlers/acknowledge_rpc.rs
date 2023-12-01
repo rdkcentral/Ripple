@@ -76,7 +76,7 @@ impl AcknowledgeChallengeServer for AcknowledgeChallengeImpl {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
-        debug!("Acknowledgechallenge provider registered :{:?}", request);
+        debug!("AcknowledgeChallenge provider registered :{:?}", request);
         ProviderBroker::register_or_unregister_provider(
             &self.platform_state,
             String::from(ACK_CHALLENGE_CAPABILITY),
