@@ -91,6 +91,7 @@ impl Bootstep<BootstrapState> for FireboltGatewayStep {
     }
 
     async fn setup(&self, state: BootstrapState) -> Result<(), RippleError> {
+        println!("*** _DEBUG: setup: entry");
         let methods = self
             .init_handlers(
                 state.platform_state.clone(),

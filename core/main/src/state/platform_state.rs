@@ -183,6 +183,11 @@ impl PlatformState {
 
     pub fn supports_session(&self) -> bool {
         let contract = RippleContract::Session(SessionAdjective::Account).as_clear_string();
+        println!("*** _DEBUG: supports_session: contract={}", contract);
+        println!(
+            "*** _DEBUG: supports_session: self.extn_manifest.required_contracts={:?}",
+            self.extn_manifest.required_contracts
+        );
         self.extn_manifest.required_contracts.contains(&contract)
     }
 

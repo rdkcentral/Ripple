@@ -65,6 +65,9 @@ pub enum Config {
     RippleFeatures,
     SavedDir,
     SupportsDistributorSession,
+    // <pca>
+    Firebolt,
+    // </pca>
 }
 
 impl ExtnPayloadProvider for Config {

@@ -38,7 +38,9 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
             debug!("Power Active grants were cleaned up");
         }
         ContextManager::setup(&s.platform_state).await;
+        println!("*** _DEBUG: setup: Mark 1");
         if !s.platform_state.supports_session() {
+            println!("*** _DEBUG: setup: !supports_session");
             return Ok(());
         }
         MainContextProcessor::initialize_token(&s.platform_state).await;

@@ -96,9 +96,12 @@ impl MainContextProcessor {
     }
 
     pub async fn initialize_token(state: &PlatformState) {
+        println!("*** _DEBUG: initialize_token: Mark 1");
         if !Self::check_account_session_token(state).await {
+            println!("*** _DEBUG: initialize_token: Mark 2");
             error!("Account session still not available");
         } else if state.supports_cloud_sync() {
+            println!("*** _DEBUG: initialize_token: Mark 3");
             debug!("Cloud Sync  configured as a required contract so starting.");
             if state
                 .get_device_manifest()
@@ -111,6 +114,7 @@ impl MainContextProcessor {
                 "Privacy settings storage type is not set as sync so not starting cloud monitor"
             );
                 if let Some(account_session) = state.session_state.get_account_session() {
+                    println!("*** _DEBUG: initialize_token: Mark 4");
                     debug!("Successfully got account session");
                     let sync_response = state
                         .get_client()
@@ -177,6 +181,7 @@ impl ExtnEventProcessor for MainContextProcessor {
         if let Some(update) = &extracted_message.update_type {
             match update {
                 RippleContextUpdateType::TokenChanged => {
+                    println!("*** _DEBUG: MainContextProcessor::process_event: Got TokenChanged");
                     if let ActivationStatus::AccountToken(_t) = &extracted_message.activation_status
                     {
                         Self::initialize_token(&state.state).await
