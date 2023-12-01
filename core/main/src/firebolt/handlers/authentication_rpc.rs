@@ -33,7 +33,7 @@ use ripple_sdk::{
         },
         firebolt::{
             fb_authentication::{TokenRequest, TokenResult},
-            fb_capabilities::{FireboltCap, CAPABILITY_NOT_AVAILABLE, CAPABILITY_NOT_SUPPORTED},
+            fb_capabilities::{FireboltCap, CAPABILITY_NOT_SUPPORTED},
         },
         gateway::rpc_gateway_api::CallContext,
         session::{SessionTokenRequest, TokenContext, TokenType},
@@ -71,22 +71,14 @@ impl AuthenticationServer for AuthenticationImpl {
                     self.token(TokenType::Platform, ctx).await
                 } else {
                     return Err(jsonrpsee::core::Error::Call(CallError::Custom {
-                        code: CAPABILITY_NOT_AVAILABLE,
-                        message: format!("{} is not available", cap.as_str()),
+                        code: CAPABILITY_NOT_SUPPORTED,
+                        message: format!("{} is not supported", cap.as_str()),
                         data: None,
                     }));
                 }
             }
             TokenType::Root => self.token(TokenType::Root, ctx).await,
-            TokenType::Device => {
-                let feats = self.platform_state.get_device_manifest().get_features();
-                // let feats = self.helper.get_config().get_features();
-                if feats.app_scoped_device_tokens {
-                    self.token(TokenType::Device, ctx).await
-                } else {
-                    self.token(TokenType::Root, ctx).await
-                }
-            }
+            TokenType::Device => self.token(TokenType::Device, ctx).await,
             TokenType::Distributor => {
                 let cap = FireboltCap::Short("token:session".into());
                 let supported_caps = self
@@ -97,8 +89,8 @@ impl AuthenticationServer for AuthenticationImpl {
                     self.token(TokenType::Distributor, ctx).await
                 } else {
                     return Err(jsonrpsee::core::Error::Call(CallError::Custom {
-                        code: CAPABILITY_NOT_AVAILABLE,
-                        message: format!("{} is not available", cap.as_str()),
+                        code: CAPABILITY_NOT_SUPPORTED,
+                        message: format!("{} is not supported", cap.as_str()),
                         data: None,
                     }));
                 }
@@ -114,13 +106,10 @@ impl AuthenticationServer for AuthenticationImpl {
     }
 
     async fn device(&self, ctx: CallContext) -> RpcResult<String> {
-        let feats = self.platform_state.get_device_manifest().get_features();
-        let r = if feats.app_scoped_device_tokens {
-            self.token(TokenType::Device, ctx).await
-        } else {
-            self.token(TokenType::Root, ctx).await
-        };
-        match r {
+        if !self.platform_state.supports_device_tokens() {
+            return Err(Self::send_dist_token_not_supported());
+        }
+        match self.token(TokenType::Device, ctx).await {
             Ok(r) => Ok(r.value),
             Err(e) => Err(e),
         }
@@ -147,6 +136,12 @@ impl AuthenticationImpl {
     async fn token(&self, token_type: TokenType, ctx: CallContext) -> RpcResult<TokenResult> {
         if let TokenType::Distributor = &token_type {
             if !self.platform_state.supports_distributor_session() {
+                return Err(Self::send_dist_token_not_supported());
+            }
+        }
+
+        if let TokenType::Device = &token_type {
+            if !self.platform_state.supports_device_tokens() {
                 return Err(Self::send_dist_token_not_supported());
             }
         }
@@ -222,13 +217,10 @@ impl AuthenticationImpl {
                 ))),
             },
 
-            Err(_e) => {
-                // TODO: What do error responses look like?
-                Err(jsonrpsee::core::Error::Custom(format!(
-                    "Ripple Error getting {:?} token",
-                    token_type
-                )))
-            }
+            Err(_e) => Err(jsonrpsee::core::Error::Custom(format!(
+                "Ripple Error getting {:?} token",
+                token_type
+            ))),
         }
     }
 }

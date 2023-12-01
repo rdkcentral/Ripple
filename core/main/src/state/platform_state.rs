@@ -196,6 +196,11 @@ impl PlatformState {
         self.get_client().send_extn_request(request).await?;
         Ok(())
     }
+
+    pub fn supports_device_tokens(&self) -> bool {
+        let contract = RippleContract::Session(SessionAdjective::Device).as_clear_string();
+        self.extn_manifest.required_contracts.contains(&contract)
+    }
 }
 
 #[cfg(test)]
