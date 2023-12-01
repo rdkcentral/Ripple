@@ -32,7 +32,7 @@ use crate::{
         device::{
             device_events::DeviceEventRequest,
             device_peristence::StorageData,
-            device_request::{DeviceRequest, NetworkResponse, VoiceGuidanceState},
+            device_request::{DeviceRequest, NetworkResponse, TimeZone, VoiceGuidanceState},
         },
         distributor::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
@@ -40,6 +40,7 @@ use crate::{
             distributor_privacy::{PrivacyCloudRequest, PrivacySettingsStoreRequest},
             distributor_request::DistributorRequest,
             distributor_sync::SyncAndMonitorRequest,
+            distributor_token::DistributorTokenRequest,
             distributor_usergrants::UserGrantsCloudStoreRequest,
         },
         firebolt::{
@@ -271,6 +272,7 @@ pub enum ExtnRequest {
     Metrics(MetricsRequest),
     OperationalMetricsRequest(OperationalMetricRequest),
     PlatformToken(PlatformTokenRequest),
+    DistributorToken(DistributorTokenRequest),
     Context(RippleContextUpdateRequest),
 }
 
@@ -331,6 +333,7 @@ pub enum ExtnEvent {
     Context(RippleContext),
     VoiceGuidanceState(VoiceGuidanceState),
     PubSubEvent(PubSubNotifyTopic),
+    TimeZone(TimeZone),
 }
 
 impl ExtnPayloadProvider for ExtnEvent {

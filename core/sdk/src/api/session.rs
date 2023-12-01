@@ -197,6 +197,17 @@ pub enum TokenType {
     Root,
 }
 
+impl ToString for TokenType {
+    fn to_string(&self) -> String {
+        match self {
+            TokenType::Platform => String::from("platform"),
+            TokenType::Device => String::from("device"),
+            TokenType::Distributor => String::from("distributor"),
+            TokenType::Root => String::from("root"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenContext {
     pub distributor_id: String,
@@ -278,6 +289,7 @@ pub enum EventAdjective {
     Internet,
     Audio,
     SystemPowerState,
+    TimeZone,
 }
 
 impl ContractAdjective for EventAdjective {

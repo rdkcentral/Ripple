@@ -1,5 +1,6 @@
 {
     "refui" : [
+        "xrn:firebolt:capability:grants:state[manage]",
         "xrn:firebolt:capability:input:keyboard[provide]",
         "xrn:firebolt:capability:usergrant:pinchallenge[provide]",
         "xrn:firebolt:capability:usergrant:pinchallenge",
@@ -80,6 +81,8 @@
         "xrn:firebolt:capability:device:make",
         "xrn:firebolt:capability:device:model",
         "xrn:firebolt:capability:protocol:wifi",
+        "xrn:firebolt:capability:advertising:configuration",
+        "xrn:firebolt:capability:advertising:identifier",
         "xrn:firebolt:capability:privacy:settings"
     ],
     "test" : [
@@ -186,7 +189,6 @@
         "xrn:firebolt:capability:lifecycle:launch",
         "xrn:firebolt:capability:discovery:sign-in-status",
         "xrn:firebolt:capability:profile:flags",
-        "xrn:firebolt:capability:advertising:identifier",
         "xrn:firebolt:capability:discovery:entity-info",
         "xrn:firebolt:capability:discovery:purchased-content",
         "xrn:firebolt:capability:discovery:sign-in-status[provide]",

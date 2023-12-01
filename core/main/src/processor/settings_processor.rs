@@ -19,13 +19,12 @@ use std::collections::HashMap;
 
 use ripple_sdk::{
     api::{
-        device::device_events::VOICE_GUIDANCE_ENABLED_CHANGED,
         firebolt::{
             fb_capabilities::{CapabilityRole, FireboltCap, RoleInfo},
             fb_general::ListenRequest,
         },
         gateway::rpc_gateway_api::CallContext,
-        settings::{SettingKey, SettingValue, SettingsRequest},
+        settings::{SettingKey, SettingValue, SettingsRequest, SettingsRequestParam},
         storage_property::{
             EVENT_ALLOW_PERSONALIZATION_CHANGED, EVENT_ALLOW_WATCH_HISTORY_CHANGED,
             EVENT_CLOSED_CAPTIONS_ENABLED, EVENT_DEVICE_NAME_CHANGED, EVENT_SHARE_WATCH_HISTORY,
@@ -38,7 +37,7 @@ use ripple_sdk::{
         },
         extn_client_message::{ExtnMessage, ExtnResponse},
     },
-    log::warn,
+    log::{debug, warn},
     tokio::sync::mpsc::{Receiver as MReceiver, Sender as MSender},
     utils::error::RippleError,
 };
@@ -50,52 +49,35 @@ use crate::{
         closed_captions_rpc::ClosedcaptionsImpl,
         device_rpc::get_device_name,
         discovery_rpc::DiscoveryImpl,
+        privacy_rpc::PrivacyImpl,
         voice_guidance_rpc::{
             voice_guidance_settings_enabled, voice_guidance_settings_enabled_changed,
         },
     },
     service::apps::app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
     state::platform_state::PlatformState,
+    utils::rpc_utils::rpc_add_event_listener_with_decorator,
 };
 
 #[derive(Clone, Debug)]
 struct SettingsChangeEventDecorator {
-    keys: Vec<String>,
+    request: SettingsRequestParam,
 }
 
 #[async_trait]
 impl AppEventDecorator for SettingsChangeEventDecorator {
     async fn decorate(
         &self,
-        _state: &PlatformState,
+        state: &PlatformState,
         _ctx: &CallContext,
         _event_name: &str,
-        val: &Value,
+        _val: &Value,
     ) -> Result<Value, AppEventDecorationError> {
-        let keys = self.keys.clone();
-        let data = match val {
-            Value::Bool(bool_val) => {
-                let objects = keys
-                    .iter()
-                    .filter_map(|key| {
-                        if !key.is_empty() {
-                            Some((key.clone(), json!({ "enabled": bool_val })))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<serde_json::Map<String, Value>>();
-
-                json!(objects)
-            }
-            Value::String(string_val) => {
-                let key = keys.last().cloned().unwrap_or_default();
-                json!({ key: { "value": string_val } })
-            }
-            _ => json!({}),
-        };
-
-        Ok(serde_json::to_value(data).unwrap())
+        if let Ok(v) = SettingsProcessor::get_settings_map(state, &self.request).await {
+            Ok(serde_json::to_value(v).unwrap())
+        } else {
+            Ok(json!({}))
+        }
     }
 
     fn dec_clone(&self) -> Box<dyn AppEventDecorator + Send + Sync> {
@@ -103,8 +85,6 @@ impl AppEventDecorator for SettingsChangeEventDecorator {
     }
 }
 
-/// Supports processing of [Config] request from extensions and also
-/// internal services.
 #[derive(Debug)]
 pub struct SettingsProcessor {
     state: PlatformState,
@@ -119,15 +99,17 @@ impl SettingsProcessor {
         }
     }
 
-    async fn get(
+    async fn get_settings_map(
         state: &PlatformState,
-        msg: ExtnMessage,
-        ctx: CallContext,
-        request: Vec<SettingKey>,
-    ) -> bool {
-        if let Ok(cp) = DiscoveryImpl::get_content_policy(&ctx, state, &ctx.app_id).await {
+        request: &SettingsRequestParam,
+    ) -> Result<HashMap<String, SettingValue>, RippleError> {
+        let ctx = request.context.clone();
+        if let Ok(cp) =
+            DiscoveryImpl::get_content_policy(&request.context, state, &request.context.app_id)
+                .await
+        {
             let mut settings = HashMap::default();
-            for sk in request {
+            for sk in request.keys.clone() {
                 use SettingKey::*;
                 let val = match sk.clone() {
                     VoiceGuidanceEnabled => {
@@ -155,13 +137,20 @@ impl SettingsProcessor {
                         role: Some(CapabilityRole::Use),
                         capability: FireboltCap::Short(sk.use_capability().into()),
                     };
-                    if let Ok(result) = is_permitted(state.clone(), ctx.clone(), role_info).await {
+                    if let Ok(result) = is_permitted(state, &ctx, &role_info).await {
                         if result {
-                            settings.insert(sk.to_string(), v);
+                            settings.insert(request.get_alias(&sk), v);
                         }
                     }
                 }
             }
+            return Ok(settings);
+        }
+        Err(RippleError::InvalidOutput)
+    }
+
+    async fn get(state: &PlatformState, msg: ExtnMessage, request: SettingsRequestParam) -> bool {
+        if let Ok(settings) = Self::get_settings_map(state, &request).await {
             return Self::respond(
                 state.get_client().get_extn_client(),
                 msg,
@@ -183,85 +172,132 @@ impl SettingsProcessor {
         state: &PlatformState,
         ctx: CallContext,
         event_name: &str,
-        keys: Vec<String>,
-    ) {
+        request: SettingsRequestParam,
+    ) -> bool {
         AppEvents::add_listener_with_decorator(
             state,
             event_name.to_string(),
             ctx,
             ListenRequest { listen: true },
-            Some(Box::new(SettingsChangeEventDecorator { keys })),
+            Some(Box::new(SettingsChangeEventDecorator { request })),
         );
+        true
     }
 
     async fn subscribe_to_settings(
         state: &PlatformState,
         msg: ExtnMessage,
-        ctx: CallContext,
-        req: Vec<SettingKey>,
+        request: SettingsRequestParam,
     ) -> bool {
-        let mut vg_keys: Vec<String> = Vec::new();
-        let mut cc_keys: Vec<String> = Vec::new();
-        for key in req {
+        let mut resp = true;
+        let ctx = request.context.clone();
+        debug!("Incoming subscribe request");
+        for key in request.keys.clone() {
+            debug!("Checking Key {:?}", key);
             match key {
                 SettingKey::VoiceGuidanceEnabled => {
-                    vg_keys.push(key.clone().to_string());
-                    voice_guidance_settings_enabled_changed(
+                    if voice_guidance_settings_enabled_changed(
                         state,
                         &ctx,
                         &ListenRequest { listen: true },
+                        Some(Box::new(SettingsChangeEventDecorator {
+                            request: request.clone(),
+                        })),
                     )
                     .await
-                    .ok();
-                    Self::subscribe_event(
-                        state,
-                        ctx.clone(),
-                        VOICE_GUIDANCE_ENABLED_CHANGED,
-                        vg_keys.clone(),
-                    )
+                    .is_err()
+                    {
+                        resp = false;
+                    }
                 }
                 SettingKey::ClosedCaptions => {
-                    cc_keys.push(key.clone().to_string());
-                    Self::subscribe_event(
+                    if rpc_add_event_listener_with_decorator(
                         state,
                         ctx.clone(),
+                        ListenRequest { listen: true },
                         EVENT_CLOSED_CAPTIONS_ENABLED,
-                        cc_keys.clone(),
+                        Some(Box::new(SettingsChangeEventDecorator {
+                            request: request.clone(),
+                        })),
                     )
+                    .await
+                    .is_err()
+                    {
+                        resp = false;
+                    }
                 }
-                SettingKey::AllowPersonalization => Self::subscribe_event(
-                    state,
-                    ctx.clone(),
-                    EVENT_ALLOW_PERSONALIZATION_CHANGED,
-                    vec![key.to_string()],
-                ),
-                SettingKey::AllowWatchHistory => Self::subscribe_event(
-                    state,
-                    ctx.clone(),
-                    EVENT_ALLOW_WATCH_HISTORY_CHANGED,
-                    vec![key.to_string()],
-                ),
-                SettingKey::ShareWatchHistory => Self::subscribe_event(
-                    state,
-                    ctx.clone(),
-                    EVENT_SHARE_WATCH_HISTORY,
-                    vec![key.to_string()],
-                ),
-                SettingKey::DeviceName => Self::subscribe_event(
-                    state,
-                    ctx.clone(),
-                    EVENT_DEVICE_NAME_CHANGED,
-                    vec![key.to_string()],
-                ),
+                SettingKey::AllowPersonalization => {
+                    if PrivacyImpl::listen_content_policy_changed(
+                        state,
+                        true,
+                        &ctx,
+                        EVENT_ALLOW_PERSONALIZATION_CHANGED,
+                        None,
+                        Some(Box::new(SettingsChangeEventDecorator {
+                            request: request.clone(),
+                        })),
+                    )
+                    .is_err()
+                    {
+                        resp = false;
+                    }
+                }
+                SettingKey::AllowWatchHistory => {
+                    if PrivacyImpl::listen_content_policy_changed(
+                        state,
+                        true,
+                        &ctx,
+                        EVENT_ALLOW_WATCH_HISTORY_CHANGED,
+                        None,
+                        Some(Box::new(SettingsChangeEventDecorator {
+                            request: request.clone(),
+                        })),
+                    )
+                    .is_err()
+                    {
+                        resp = false;
+                    }
+                }
+                SettingKey::ShareWatchHistory => {
+                    if Self::subscribe_event(
+                        state,
+                        ctx.clone(),
+                        EVENT_SHARE_WATCH_HISTORY,
+                        request.clone(),
+                    ) {
+                        resp = false;
+                    }
+                }
+                SettingKey::DeviceName => {
+                    if rpc_add_event_listener_with_decorator(
+                        state,
+                        ctx.clone(),
+                        ListenRequest { listen: true },
+                        EVENT_DEVICE_NAME_CHANGED,
+                        Some(Box::new(SettingsChangeEventDecorator {
+                            request: request.clone(),
+                        })),
+                    )
+                    .await
+                    .is_err()
+                    {
+                        resp = false;
+                    }
+                }
                 SettingKey::PowerSaving | SettingKey::LegacyMiniGuide => {
-                    warn!("{} Not implemented", key.to_string())
+                    warn!("{} Not implemented", key.to_string());
+                    resp = false
                 }
             }
         }
         Self::respond(
             state.get_client().get_extn_client(),
             msg,
-            ExtnResponse::None(()),
+            if resp {
+                ExtnResponse::None(())
+            } else {
+                ExtnResponse::Error(RippleError::ProcessorError)
+            },
         )
         .await
         .is_ok()
@@ -296,9 +332,9 @@ impl ExtnRequestProcessor for SettingsProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         match extracted_message {
-            SettingsRequest::Get(ctx, request) => Self::get(&state, msg, ctx, request).await,
-            SettingsRequest::Subscribe(ctx, request) => {
-                Self::subscribe_to_settings(&state, msg, ctx, request).await
+            SettingsRequest::Get(request) => Self::get(&state, msg, request).await,
+            SettingsRequest::Subscribe(request) => {
+                Self::subscribe_to_settings(&state, msg, request).await
             }
         }
     }

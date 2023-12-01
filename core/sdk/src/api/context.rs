@@ -26,7 +26,9 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::device::device_request::{AccountToken, InternetConnectionStatus, SystemPowerState};
+use super::device::device_request::{
+    AccountToken, InternetConnectionStatus, SystemPowerState, TimeZone,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ActivationStatus {
@@ -56,6 +58,7 @@ pub struct RippleContext {
     pub activation_status: ActivationStatus,
     pub internet_connectivity: InternetConnectionStatus,
     pub system_power_state: SystemPowerState,
+    pub time_zone: TimeZone,
     pub update_type: Option<RippleContextUpdateType>,
 }
 
@@ -65,6 +68,7 @@ pub enum RippleContextUpdateType {
     TokenChanged,
     InternetConnectionChanged,
     PowerStateChanged,
+    TimeZoneChanged,
 }
 
 impl RippleContext {
@@ -90,12 +94,17 @@ impl RippleContext {
                 self.system_power_state = p;
                 self.update_type = Some(RippleContextUpdateType::PowerStateChanged)
             }
+            RippleContextUpdateRequest::TimeZone(tz) => {
+                self.time_zone = tz;
+                self.update_type = Some(RippleContextUpdateType::TimeZoneChanged)
+            }
         }
     }
 
     pub fn deep_copy(&mut self, context: RippleContext) {
         self.activation_status = context.activation_status;
         self.internet_connectivity = context.internet_connectivity;
+        self.time_zone = context.time_zone;
     }
 
     pub fn get_event_message(&self) -> ExtnMessage {
@@ -113,6 +122,8 @@ impl RippleContext {
     pub fn what_changed(&self, context: &RippleContext) -> RippleContextUpdateType {
         if self.internet_connectivity == context.internet_connectivity {
             RippleContextUpdateType::InternetConnectionChanged
+        } else if self.time_zone == context.time_zone {
+            RippleContextUpdateType::TimeZoneChanged
         } else {
             RippleContextUpdateType::ActivationStatusChanged
         }
@@ -126,6 +137,7 @@ impl Default for RippleContext {
             internet_connectivity: InternetConnectionStatus::NoInternet,
             update_type: None,
             system_power_state: SystemPowerState::default(),
+            time_zone: TimeZone::default(),
         }
     }
 }
@@ -154,6 +166,7 @@ pub enum RippleContextUpdateRequest {
     Token(AccountToken),
     InternetStatus(InternetConnectionStatus),
     PowerState(SystemPowerState),
+    TimeZone(TimeZone),
 }
 
 impl RippleContextUpdateRequest {

@@ -47,7 +47,7 @@ const SYSTEM_CFG: Cfg = Cfg::new("org.rdk.System", true, false);
 const WIFI_CFG: Cfg = Cfg::new("org.rdk.Wifi", false, false);
 const LOCATION_SYNC: Cfg = Cfg::new("LocationSync", false, false);
 const TTS_CFG: Cfg = Cfg::new("org.rdk.TextToSpeech", false, true);
-const TELEMETRY_CFG: Cfg = Cfg::new("org.rdk.Telemetry", true, true);
+const TELEMETRY_CFG: Cfg = Cfg::new("org.rdk.Telemetry", true, false);
 
 impl ThunderPlugin {
     pub fn cfg(&self) -> Cfg {
