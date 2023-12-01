@@ -25,6 +25,7 @@ use ripple_sdk::api::{
         fb_general::{ListenRequest, ListenerResponse},
         fb_pin::{PinChallengeResponse, PIN_CHALLENGE_CAPABILITY, PIN_CHALLENGE_EVENT},
         provider::{
+            ChallengeError,
             ExternalProviderResponse, FocusRequest, ProviderResponse, ProviderResponsePayload,
         },
     },
@@ -59,7 +60,7 @@ pub trait PinChallenge {
     async fn challenge_error(
         &self,
         ctx: CallContext,
-        resp: ExternalProviderResponse<PinChallengeResponse>,
+        resp: ExternalProviderResponse<ChallengeError>,
     ) -> RpcResult<Option<()>>;
 }
 
@@ -106,8 +107,13 @@ impl PinChallengeServer for PinChallengeImpl {
     async fn challenge_error(
         &self,
         _ctx: CallContext,
-        resp: ExternalProviderResponse<PinChallengeResponse>,
+        resp: ExternalProviderResponse<ChallengeError>,
     ) -> RpcResult<Option<()>> {
+        let msg = ProviderResponse {
+            correlation_id: resp.correlation_id,
+            result: ProviderResponsePayload::ChallengeError(resp.result),
+        };
+        ProviderBroker::provider_response(&self.platform_state, msg).await;
         Ok(None)
     }
 
