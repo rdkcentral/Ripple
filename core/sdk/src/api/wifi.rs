@@ -30,13 +30,25 @@ pub struct WifiScanRequestTimeout {
     pub timeout: u64,
 }
 
+const DEFAULT_WIFI_SCAN_TIMEOUT: u64 = 60;
+
 impl WifiScanRequestTimeout {
     pub fn new() -> Self {
-        WifiScanRequestTimeout { timeout: 60 }
+        WifiScanRequestTimeout {
+            timeout: DEFAULT_WIFI_SCAN_TIMEOUT,
+        }
     }
 
     pub fn timeout(&self) -> u64 {
         self.timeout
+    }
+    pub fn set_timeout(&mut self, timeout: u64) {
+        // use default if timeout is 0
+        if timeout == 0 {
+            self.timeout = DEFAULT_WIFI_SCAN_TIMEOUT;
+        } else {
+            self.timeout = timeout;
+        }
     }
 }
 
