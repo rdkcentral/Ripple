@@ -58,11 +58,15 @@ use crate::{
     },
     utils::get_audio_profile_from_value,
 };
+use regex::{Match, Regex};
 use ripple_sdk::{
     api::{
         config::Config,
         context::RippleContextUpdateRequest,
-        device::device_request::{InternetConnectionStatus, PowerState},
+        device::{
+            device_info_request::PlatformBuildInfo,
+            device_request::{InternetConnectionStatus, PowerState},
+        },
         device::{
             device_info_request::{
                 DEVICE_INFO_AUTHORIZED, DEVICE_MAKE_MODEL_AUTHORIZED, DEVICE_SKU_AUTHORIZED,
@@ -443,7 +447,6 @@ impl ThunderDeviceInfoRequestProcessor {
 
     async fn mac_address(state: CachedState, req: ExtnMessage) -> bool {
         let response: String = Self::get_mac_address(&state).await;
-
         Self::respond(state.get_client(), req, ExtnResponse::String(response))
             .await
             .is_ok()
@@ -1409,6 +1412,74 @@ impl ThunderDeviceInfoRequestProcessor {
             Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await
         }
     }
+
+    async fn platform_build_info(state: CachedState, msg: ExtnMessage) -> bool {
+        let resp = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::System.method("getSystemVersions"),
+                params: None,
+            })
+            .await;
+
+        let stb_version = resp.message["stbVersion"].as_str();
+        if let None = stb_version {
+            return Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await;
+        }
+        let full_firmware_version = String::from(stb_version.unwrap());
+        let name = full_firmware_version.clone();
+        let release_regex = Regex::new(r"([^_]*)_(.*)_(VBN|PROD[^_]*)_(.*)").unwrap();
+        let non_release_regex =
+            Regex::new(r"([^_]*)_(VBN|PROD[^_]*)_(.*)_(\d{14}(sdy|sey))(.*)").unwrap();
+        let fallback_regex = Regex::new(r"([^_]*)_(.*)").unwrap();
+        fn match_or_empty(m_opt: Option<Match>) -> String {
+            if let Some(m) = m_opt {
+                String::from(m.as_str())
+            } else {
+                String::from("")
+            }
+        }
+        let info_opt = if let Some(caps) = release_regex.captures(&full_firmware_version) {
+            Some(PlatformBuildInfo {
+                name,
+                device_model: match_or_empty(caps.get(1)),
+                branch: None,
+                release_version: caps.get(2).map(|s| String::from(s.as_str())),
+                debug: match_or_empty(caps.get(3)) == "VBN",
+            })
+        } else if let Some(caps) = non_release_regex.captures(&full_firmware_version) {
+            Some(PlatformBuildInfo {
+                name,
+                device_model: match_or_empty(caps.get(1)),
+                branch: caps.get(3).map(|s| String::from(s.as_str())),
+                release_version: None,
+                debug: match_or_empty(caps.get(2)) == "VBN",
+            })
+        } else if let Some(caps) = fallback_regex.captures(&full_firmware_version) {
+            Some(PlatformBuildInfo {
+                name,
+                device_model: match_or_empty(caps.get(1)),
+                branch: None,
+                release_version: None,
+                debug: match_or_empty(caps.get(2)).contains("VBN"),
+            })
+        } else {
+            error!("Could not parse build name {}", full_firmware_version);
+            None
+        };
+
+        if let Some(info) = info_opt {
+            if let ExtnPayload::Response(r) =
+                DeviceResponse::PlatformBuildInfo(info).get_extn_payload()
+            {
+                Self::respond(state.get_client(), msg, r).await.is_ok()
+            } else {
+                Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await
+            }
+        } else {
+            Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await
+        }
+    }
 }
 
 pub fn get_dimension_from_resolution(resolution: &str) -> Vec<i32> {
@@ -1531,6 +1602,9 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
                 Self::get_device_capabilities(state.clone(), &keys_as_str, msg).await
             }
             DeviceInfoRequest::PowerState => Self::power_state(state.clone(), msg).await,
+            DeviceInfoRequest::PlatformBuildInfo => {
+                Self::platform_build_info(state.clone(), msg).await
+            }
             _ => false,
         }
     }
@@ -1545,4 +1619,116 @@ fn round_to_nearest_quarter_hour(offset_seconds: i64) -> i64 {
 
     // Convert minutes back to seconds
     rounded_minutes * 60
+}
+
+#[cfg(test)]
+pub mod tests {
+    use std::{fs::File, sync::Arc};
+
+    use ripple_sdk::{
+        api::device::{
+            device_info_request::{DeviceInfoRequest, DeviceResponse, PlatformBuildInfo},
+            device_operator::DeviceResponseMessage,
+            device_request::DeviceRequest,
+        },
+        extn::{
+            client::extn_processor::ExtnRequestProcessor,
+            extn_client_message::{ExtnMessage, ExtnRequest},
+        },
+        framework::ripple_contract::RippleContract,
+        serde_json::{self, json},
+        tokio,
+        utils::channel_utils::oneshot_send_and_log,
+    };
+    use serde::{Deserialize, Serialize};
+
+    use crate::{
+        client::{thunder_client::ThunderCallMessage, thunder_plugin::ThunderPlugin},
+        processors::thunder_device_info::ThunderDeviceInfoRequestProcessor,
+        tests::{
+            mock_extension_client::MockExtnClient,
+            mock_thunder_controller::{CustomHandler, MockThunderController, ThunderHandlerFn},
+        },
+    };
+
+    macro_rules! run_platform_info_test {
+        ($build_name:expr) => {
+            test_platform_build_info_with_build_name($build_name, Arc::new(|msg: ThunderCallMessage| {
+                oneshot_send_and_log(
+                    msg.callback,
+                    DeviceResponseMessage::call(json!({"success" : true, "stbVersion": $build_name })),
+                    "",
+                );
+            })).await;
+        };
+    }
+
+    #[derive(Debug, Serialize, Deserialize, Clone)]
+    struct BuildInfoTest {
+        build_name: String,
+        info: PlatformBuildInfo,
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_platform_build_info() {
+        run_platform_info_test!("SCXI11BEI_023.005.03.6.8p12s3_VBN_sdy");
+        run_platform_info_test!("SCXI11BEI_23_VBN_sdy");
+        run_platform_info_test!("SCXI11BEI_VBN_23_20231130001020sdy");
+        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_PRODLOG_sdy");
+        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_PROD_sdy");
+        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_VBN_sdy");
+        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_VBN_sey");
+        run_platform_info_test!("SCXI11BEI_023.003.00.6.8p7s1_PRODLOG_sdy_XOE");
+        run_platform_info_test!("SCXI11BEI_VBN_stable2_20231129231433sdy_XOE_NG");
+        run_platform_info_test!("SCXI11AIC_PROD_6.6_p1v_20231130001020sdy_NG");
+        run_platform_info_test!("SCXI11AIC_VBN_23Q4_sprint_20231129232625sdy_FG_NG");
+        run_platform_info_test!("SCXI11AIC_VBN_23Q4_sprint_20231129232625sey_FG_NG");
+        run_platform_info_test!("SCXI11BEI_PROD_some_branch_20231129233157sdy_FG_NG-signed");
+        run_platform_info_test!("SCXI11BEI_PROD_QS024_20231129231350sdy_XOE_NG");
+        run_platform_info_test!("COESST11AEI_VBN_23Q4_sprint_20231130233011sdy_DFL_FG_GRT");
+        run_platform_info_test!("COESST11AEI_23.40p11d24_EXP_PROD_sdy-signed");
+        run_platform_info_test!(
+            "SCXI11BEI_VBN_23Q4_sprint_20231113173051sdy_FG_EDGE_DISTPDEMO-signed"
+        );
+        run_platform_info_test!("SCXI11BEI_somebuild");
+        run_platform_info_test!("SCXI11BEI_someVBNbuild");
+    }
+
+    async fn test_platform_build_info_with_build_name(
+        build_name: &'static str,
+        handler: Arc<ThunderHandlerFn>,
+    ) {
+        let tests_file = File::open("src/tests/buildinfo-parse-tests.json").unwrap();
+        let tests: Vec<BuildInfoTest> = serde_json::from_reader(tests_file).unwrap();
+        let mut ch = CustomHandler::default();
+        ch.custom_request_handler.insert(
+            ThunderPlugin::System.unversioned_method("getSystemVersions"),
+            handler,
+        );
+        let (state, r) = MockThunderController::state_with_mock(Some(ch));
+        let msg = MockExtnClient::req(
+            RippleContract::DeviceInfo,
+            ExtnRequest::Device(DeviceRequest::DeviceInfo(
+                DeviceInfoRequest::PlatformBuildInfo,
+            )),
+        );
+
+        ThunderDeviceInfoRequestProcessor::process_request(
+            state,
+            msg,
+            DeviceInfoRequest::PlatformBuildInfo,
+        )
+        .await;
+        let msg: ExtnMessage = r.recv().unwrap().try_into().unwrap();
+        let resp_opt = msg.payload.extract::<DeviceResponse>();
+        if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp_opt {
+            let exp = tests.iter().find(|x| x.build_name == build_name).unwrap();
+            assert_eq!(info, exp.info);
+        } else {
+            assert!(
+                false,
+                "Did not get the expected PlatformBuildInfo from extension call"
+            );
+        }
+    }
 }
