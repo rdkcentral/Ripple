@@ -661,6 +661,7 @@ impl DelegatedLauncherHandler {
                         &perms_with_grants,
                         true,
                         false, // false here as we have already applied user grant exclusion filter.
+                        false,
                     )
                     .await;
                     match resolved_result {
