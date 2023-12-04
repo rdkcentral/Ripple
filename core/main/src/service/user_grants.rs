@@ -503,16 +503,20 @@ impl GrantState {
             // otherwise, return pending grant.
             if let Some(state) = platform_state {
                 let grant_polices_map_opt = state.get_device_manifest().capabilities.grant_policies;
-                let capability = permission.cap.as_str();
-                let grant_polices_map = grant_polices_map_opt.unwrap();
-                let filtered_policy_opt = grant_polices_map.get(capability.as_str());
-                if filtered_policy_opt.is_none() {
-                    debug!(
-                        "Capability {:?} is not in grant policy",
-                        capability.as_str()
-                    );
+                if let Some(grant_polices_map) = grant_polices_map_opt.as_ref() {
+                    let capability = permission.cap.as_str();
+                    let filtered_policy_opt = grant_polices_map.get(capability.as_str());
+                    if filtered_policy_opt.is_none() {
+                        debug!(
+                            "Capability {:?} is not in grant policy",
+                            capability.as_str()
+                        );
+                        return GrantActiveState::ActiveGrant((GrantStatus::Allowed).into());
+                    }
+                } else {
+                    debug!("grant_polices_map is not available");
                     return GrantActiveState::ActiveGrant((GrantStatus::Allowed).into());
-                };
+                }
             }
             GrantActiveState::PendingGrant
         }
