@@ -33,7 +33,7 @@ use ripple_sdk::{
         },
         firebolt::{
             fb_authentication::{TokenRequest, TokenResult},
-            fb_capabilities::{FireboltCap, CAPABILITY_NOT_AVAILABLE, CAPABILITY_NOT_SUPPORTED},
+            fb_capabilities::{FireboltCap, CAPABILITY_NOT_SUPPORTED},
         },
         gateway::rpc_gateway_api::CallContext,
         session::{SessionTokenRequest, TokenContext, TokenType},
@@ -71,8 +71,8 @@ impl AuthenticationServer for AuthenticationImpl {
                     self.token(TokenType::Platform, ctx).await
                 } else {
                     return Err(jsonrpsee::core::Error::Call(CallError::Custom {
-                        code: CAPABILITY_NOT_AVAILABLE,
-                        message: format!("{} is not available", cap.as_str()),
+                        code: CAPABILITY_NOT_SUPPORTED,
+                        message: format!("{} is not supported", cap.as_str()),
                         data: None,
                     }));
                 }
@@ -89,8 +89,8 @@ impl AuthenticationServer for AuthenticationImpl {
                     self.token(TokenType::Distributor, ctx).await
                 } else {
                     return Err(jsonrpsee::core::Error::Call(CallError::Custom {
-                        code: CAPABILITY_NOT_AVAILABLE,
-                        message: format!("{} is not available", cap.as_str()),
+                        code: CAPABILITY_NOT_SUPPORTED,
+                        message: format!("{} is not supported", cap.as_str()),
                         data: None,
                     }));
                 }
@@ -217,13 +217,10 @@ impl AuthenticationImpl {
                 ))),
             },
 
-            Err(_e) => {
-                // TODO: What do error responses look like?
-                Err(jsonrpsee::core::Error::Custom(format!(
-                    "Ripple Error getting {:?} token",
-                    token_type
-                )))
-            }
+            Err(_e) => Err(jsonrpsee::core::Error::Custom(format!(
+                "Ripple Error getting {:?} token",
+                token_type
+            ))),
         }
     }
 }
