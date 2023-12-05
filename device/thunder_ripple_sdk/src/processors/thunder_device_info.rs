@@ -1423,7 +1423,7 @@ impl ThunderDeviceInfoRequestProcessor {
             .await;
 
         let stb_version = resp.message["stbVersion"].as_str();
-        if let None = stb_version {
+        if stb_version.is_none() {
             return Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await;
         }
         let full_firmware_version = String::from(stb_version.unwrap());
@@ -1725,10 +1725,7 @@ pub mod tests {
             let exp = tests.iter().find(|x| x.build_name == build_name).unwrap();
             assert_eq!(info, exp.info);
         } else {
-            assert!(
-                false,
-                "Did not get the expected PlatformBuildInfo from extension call"
-            );
+            panic!("Did not get the expected PlatformBuildInfo from extension call");
         }
     }
 }

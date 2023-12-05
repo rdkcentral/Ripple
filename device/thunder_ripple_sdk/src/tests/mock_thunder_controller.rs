@@ -27,7 +27,7 @@ use crate::{
 
 use super::mock_extension_client::MockExtnClient;
 
-pub type ThunderHandlerFn = dyn Fn(ThunderCallMessage) -> () + Send + Sync;
+pub type ThunderHandlerFn = dyn Fn(ThunderCallMessage) + Send + Sync;
 
 #[derive(Default, Clone)]
 pub struct CustomHandler {
@@ -59,7 +59,7 @@ impl MockThunderController {
         for s in &self.state_subscribers {
             let val = serde_json::to_value(event.clone()).unwrap_or_default();
             let msg = DeviceResponseMessage::call(val);
-            mpsc_send_and_log(&s, msg, "StateChange").await;
+            mpsc_send_and_log(s, msg, "StateChange").await;
         }
     }
 
@@ -100,8 +100,7 @@ impl MockThunderController {
         } else {
             println!(
                 "No mock thunder response found for {}.{}",
-                module.to_string(),
-                locator.method_name
+                module, locator.method_name
             );
             return;
         }
@@ -114,15 +113,14 @@ impl MockThunderController {
         } else if let Some(handler) = self
             .custom_handlers
             .custom_subscription_handler
-            .get(&(msg.module.to_string() + &&msg.event_name))
+            .get(&format!("{}.{}", msg.module, msg.event_name))
         {
             let response = (handler)(&msg);
             mpsc_send_and_log(&msg.handler, response, "OnStatusChange").await;
         } else {
             println!(
                 "No mock subscription found for {}.{}",
-                msg.module.to_string(),
-                &&msg.event_name
+                msg.module, &msg.event_name
             );
         }
         if let Some(cb) = msg.callback {
@@ -130,11 +128,6 @@ impl MockThunderController {
         }
     }
 
-    pub fn set_custom_handlers(&mut self, handlers: Option<CustomHandler>) {
-        if let Some(_) = handlers {
-            self.custom_handlers = handlers.unwrap_or_default();
-        }
-    }
     pub fn start() -> mpsc::Sender<ThunderMessage> {
         MockThunderController::start_with_custom_handlers(None)
     }
@@ -144,10 +137,8 @@ impl MockThunderController {
         let (client_tx, mut client_rx) = mpsc::channel(32);
         tokio::spawn(async move {
             let mut mock_controller = MockThunderController::default();
-            if let Some(_) = custom_handlers {
-                mock_controller.set_custom_handlers(custom_handlers);
-            } else {
-                mock_controller.set_custom_handlers(None);
+            if let Some(ch) = custom_handlers {
+                mock_controller.custom_handlers = ch;
             }
             while let Some(tm) = client_rx.recv().await {
                 match tm {
@@ -186,7 +177,7 @@ impl MockThunderController {
         };
 
         let (s, r) = unbounded();
-        let extn_client = MockExtnClient::new(s);
+        let extn_client = MockExtnClient::client(s);
         let thunder_state = ThunderState::new(extn_client, thunder_client);
         (CachedState::new(thunder_state), r)
     }

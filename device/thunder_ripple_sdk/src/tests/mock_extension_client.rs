@@ -13,7 +13,7 @@ use ripple_sdk::{
 pub struct MockExtnClient {}
 
 impl MockExtnClient {
-    pub fn new(response_sender: Sender<CExtnMessage>) -> ExtnClient {
+    pub fn client(response_sender: Sender<CExtnMessage>) -> ExtnClient {
         let (_, ignore) = unbounded();
         ExtnClient::new(
             ignore,
