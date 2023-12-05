@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
+    utils::serde_utils::timeout_value_deserialize,
 };
 
 use super::device_request::DeviceRequest;
@@ -50,6 +51,12 @@ pub struct AccessPointRequest {
     pub ssid: String,
     pub passphrase: String,
     pub security: WifiSecurityMode,
+}
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WifiScanRequest {
+    #[serde(default, deserialize_with = "timeout_value_deserialize")]
+    pub timeout: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
