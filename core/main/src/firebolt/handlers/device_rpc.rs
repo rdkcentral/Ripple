@@ -734,8 +734,8 @@ impl DeviceServer for DeviceImpl {
     }
 
     async fn distributor(&self, _ctx: CallContext) -> RpcResult<String> {
-        if let Some(sess) = self.state.session_state.get_account_session() {
-            Ok(sess.id)
+        if let Some(session) = self.state.session_state.get_account_session() {
+            Ok(session.id)
         } else {
             Err(jsonrpsee::core::Error::Custom(String::from(
                 "Account session is not available",
