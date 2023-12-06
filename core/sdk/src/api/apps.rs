@@ -40,7 +40,9 @@ use super::{
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppSession {
     pub app: AppBasicInfo,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub runtime: Option<AppRuntime>,
+    #[serde(default)]
     pub launch: AppLaunchInfo,
 }
 
@@ -92,7 +94,7 @@ pub struct AppRuntime {
     pub transport: AppRuntimeTransport,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct AppLaunchInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub intent: Option<NavigationIntent>,
@@ -190,7 +192,7 @@ pub enum AppManagerResponse {
     Session(SessionResponse),
 }
 
-#[derive(Debug, Serialize, Deserialize, Copy, Clone)]
+#[derive(Debug, Serialize, Deserialize, Copy, Clone, PartialEq)]
 pub enum AppError {
     General,
     NotFound,
@@ -201,6 +203,7 @@ pub enum AppError {
     Timeout,
     Pending,
     AppNotReady,
+    NoIntentError,
 }
 
 #[derive(Debug, Clone)]
