@@ -513,19 +513,24 @@ impl PrivacyImpl {
                 }
             }
             PrivacySettingsStorageType::Cloud => {
-                let dist_session = platform_state.session_state.get_account_session().unwrap();
-                let request = PrivacyCloudRequest::GetProperty(GetPropertyParams {
-                    setting: property.as_privacy_setting().unwrap(),
-                    dist_session,
-                });
-                if let Ok(resp) = platform_state.get_client().send_extn_request(request).await {
-                    if let Some(ExtnResponse::Boolean(b)) = resp.payload.extract() {
-                        return Ok(b);
+                if let Some(dist_session) = platform_state.session_state.get_account_session() {
+                    let request = PrivacyCloudRequest::GetProperty(GetPropertyParams {
+                        setting: property.as_privacy_setting().unwrap(),
+                        dist_session,
+                    });
+                    if let Ok(resp) = platform_state.get_client().send_extn_request(request).await {
+                        if let Some(ExtnResponse::Boolean(b)) = resp.payload.extract() {
+                            return Ok(b);
+                        }
                     }
+                    Err(jsonrpsee::core::Error::Custom(String::from(
+                        "PrivacySettingsStorageType::Cloud: Not Available",
+                    )))
+                } else {
+                    Err(jsonrpsee::core::Error::Custom(String::from(
+                        "Account session is not available",
+                    )))
                 }
-                Err(jsonrpsee::core::Error::Custom(String::from(
-                    "PrivacySettingsStorageType::Cloud: Not Available",
-                )))
             }
         }
     }
@@ -1006,16 +1011,21 @@ impl PrivacyServer for PrivacyImpl {
                 self.get_settings_local().await
             }
             PrivacySettingsStorageType::Cloud => {
-                let dist_session = self.state.session_state.get_account_session().unwrap();
-                let request = PrivacyCloudRequest::GetProperties(dist_session);
-                if let Ok(resp) = self.state.get_client().send_extn_request(request).await {
-                    if let Some(b) = resp.payload.extract() {
-                        return Ok(b);
+                if let Some(dist_session) = self.state.session_state.get_account_session() {
+                    let request = PrivacyCloudRequest::GetProperties(dist_session);
+                    if let Ok(resp) = self.state.get_client().send_extn_request(request).await {
+                        if let Some(b) = resp.payload.extract() {
+                            return Ok(b);
+                        }
                     }
+                    Err(jsonrpsee::core::Error::Custom(String::from(
+                        "PrivacySettingsStorageType::Cloud: Not Available",
+                    )))
+                } else {
+                    Err(jsonrpsee::core::Error::Custom(String::from(
+                        "Account session is not available",
+                    )))
                 }
-                Err(jsonrpsee::core::Error::Custom(String::from(
-                    "PrivacySettingsStorageType::Cloud: Not Available",
-                )))
             }
         }
     }

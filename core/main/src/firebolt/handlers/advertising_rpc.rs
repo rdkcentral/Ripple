@@ -213,36 +213,41 @@ impl AdvertisingServer for AdvertisingImpl {
     }
 
     async fn advertising_id(&self, ctx: CallContext) -> RpcResult<AdvertisingId> {
-        let session = self.state.session_state.get_account_session().unwrap();
-        let payload = AdvertisingRequest::GetAdIdObject(AdIdRequestParams {
-            privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(&self.state)
-                .await,
-            app_id: ctx.app_id.to_owned(),
-            dist_session: session,
-        });
-        let resp = self.state.get_client().send_extn_request(payload).await;
+        if let Some(session) = self.state.session_state.get_account_session() {
+            let payload = AdvertisingRequest::GetAdIdObject(AdIdRequestParams {
+                privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(&self.state)
+                    .await,
+                app_id: ctx.app_id.to_owned(),
+                dist_session: session,
+            });
+            let resp = self.state.get_client().send_extn_request(payload).await;
 
-        if resp.is_err() {
-            error!("Error getting ad init object: {:?}", resp);
-            return Err(rpc_err("Could not get ad init object from the device"));
-        }
-
-        if let Ok(payload) = resp {
-            if let Some(AdvertisingResponse::AdIdObject(obj)) =
-                payload.payload.extract::<AdvertisingResponse>()
-            {
-                let ad_init_object = AdvertisingId {
-                    ifa: obj.ifa,
-                    ifa_type: obj.ifa_type,
-                    lmt: obj.lmt,
-                };
-                return Ok(ad_init_object);
+            if resp.is_err() {
+                error!("Error getting ad init object: {:?}", resp);
+                return Err(rpc_err("Could not get ad init object from the device"));
             }
-        }
 
-        Err(jsonrpsee::core::Error::Custom(String::from(
-            "Failed to extract ad init object from response",
-        )))
+            if let Ok(payload) = resp {
+                if let Some(AdvertisingResponse::AdIdObject(obj)) =
+                    payload.payload.extract::<AdvertisingResponse>()
+                {
+                    let ad_init_object = AdvertisingId {
+                        ifa: obj.ifa,
+                        ifa_type: obj.ifa_type,
+                        lmt: obj.lmt,
+                    };
+                    return Ok(ad_init_object);
+                }
+            }
+
+            Err(jsonrpsee::core::Error::Custom(String::from(
+                "Failed to extract ad init object from response",
+            )))
+        } else {
+            Err(jsonrpsee::core::Error::Custom(String::from(
+                "Account session is not available",
+            )))
+        }
     }
 
     fn app_bundle_id(&self, ctx: CallContext) -> RpcResult<String> {
