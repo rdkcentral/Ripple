@@ -28,7 +28,8 @@ use ripple_sdk::{
         storage_property::StorageProperty,
     },
     chrono::{DateTime, Utc},
-    extn::extn_client_message::ExtnResponse, uuid::Uuid,
+    extn::extn_client_message::ExtnResponse,
+    uuid::Uuid,
 };
 
 use crate::processor::storage::storage_manager::StorageManager;
