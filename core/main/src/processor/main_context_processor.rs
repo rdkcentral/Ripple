@@ -15,7 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::sync::{Arc, RwLock};
+use std::{
+    sync::{Arc, Once, RwLock},
+    time::Duration,
+};
 
 use ripple_sdk::{
     api::{
@@ -37,11 +40,16 @@ use ripple_sdk::{
         extn_client_message::ExtnMessage,
     },
     log::{debug, error, info},
-    tokio::sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
+    tokio::{
+        self,
+        sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
+    },
 };
+static START_PARTNER_EXCLUSION_SYNC_THREAD: Once = Once::new();
 
-use crate::state::{
-    cap::cap_state::CapState, metrics_state::MetricsState, platform_state::PlatformState,
+use crate::{
+    service::data_governance::DataGovernance,
+    state::{cap::cap_state::CapState, metrics_state::MetricsState, platform_state::PlatformState},
 };
 
 #[derive(Debug, Clone)]
@@ -94,7 +102,29 @@ impl MainContextProcessor {
         .await;
         token_available
     }
-
+    async fn sync_partner_exclusions(state: &PlatformState) {
+        let state_for_exclusion = state.clone();
+        START_PARTNER_EXCLUSION_SYNC_THREAD.call_once(|| {
+            debug!("Starting partner exclusion sync thread");
+            tokio::spawn(async move {
+                let duration = state_for_exclusion
+                    .get_device_manifest()
+                    .configuration
+                    .partner_exclusion_refresh_timeout
+                    .into();
+                let mut interval = tokio::time::interval(Duration::from_secs(duration));
+                loop {
+                    let resp: bool =
+                        DataGovernance::refresh_partner_exclusions(&state_for_exclusion).await;
+                    debug!(
+                        "refresh_partner_exclusions: {:?} interval : {:?}",
+                        resp, interval
+                    );
+                    interval.tick().await;
+                }
+            });
+        });
+    }
     pub async fn initialize_token(state: &PlatformState) {
         if !Self::check_account_session_token(state).await {
             error!("Account session still not available");
@@ -112,6 +142,9 @@ impl MainContextProcessor {
             );
                 if let Some(account_session) = state.session_state.get_account_session() {
                     debug!("Successfully got account session");
+                    //sync up partner exclusion data and setup polling thread for refreshing it.
+                    Self::sync_partner_exclusions(&state).await;
+
                     let sync_response = state
                         .get_client()
                         .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
