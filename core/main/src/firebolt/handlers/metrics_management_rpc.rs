@@ -109,7 +109,7 @@ impl MetricsManagementServer for MetricsManagementImpl {
             if key.as_str() == "deviceSessionId" {
                 self.state
                     .metrics
-                    .update_session_id(Some(Uuid::new_v4().to_string()));
+                    .update_session_id(Some(String::from(&self.state.device_session_id)));
             }
         }
         Ok(())
