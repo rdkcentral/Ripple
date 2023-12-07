@@ -34,6 +34,7 @@ use crate::{
 
 pub const FIRE_BOLT_DEEPLINK_ERROR_CODE: i32 = -40400;
 pub const DOWNSTREAM_SERVICE_UNAVAILABLE_ERROR_CODE: i32 = -50200;
+pub const SESSION_NO_INTENT_ERROR_CODE: i32 = -40000;
 
 pub fn rpc_err(msg: impl Into<String>) -> Error {
     Error::Custom(msg.into())
@@ -91,7 +92,13 @@ pub fn rpc_downstream_service_err(msg: &str) -> jsonrpsee::core::error::Error {
         data: None,
     })
 }
-
+pub fn rpc_session_no_intent_err(msg: &str) -> jsonrpsee::core::error::Error {
+    Error::Call(CallError::Custom {
+        code: SESSION_NO_INTENT_ERROR_CODE,
+        message: msg.to_owned(),
+        data: None,
+    })
+}
 pub fn rpc_navigate_reserved_app_err(msg: &str) -> jsonrpsee::core::error::Error {
     Error::Call(CallError::Custom {
         code: FIRE_BOLT_DEEPLINK_ERROR_CODE,
