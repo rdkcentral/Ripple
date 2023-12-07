@@ -29,7 +29,6 @@ use ripple_sdk::{
     },
     chrono::{DateTime, Utc},
     extn::extn_client_message::ExtnResponse,
-    uuid::Uuid,
 };
 
 use crate::processor::storage::storage_manager::StorageManager;
@@ -123,7 +122,7 @@ impl MetricsState {
             context.device_language = language;
             context.os_ver = os_ver;
             context.device_name = device_name;
-            context.device_session_id = Uuid::new_v4().to_string();
+            context.device_session_id = String::from(&state.device_session_id);
 
             if let Some(t) = timezone {
                 context.device_timezone = t;
