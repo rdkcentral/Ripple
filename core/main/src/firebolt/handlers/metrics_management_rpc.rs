@@ -15,9 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
-use ripple_sdk::{
-    api::gateway::rpc_gateway_api::CallContext, async_trait::async_trait, uuid::Uuid,
-};
+use ripple_sdk::{api::gateway::rpc_gateway_api::CallContext, async_trait::async_trait};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState};
