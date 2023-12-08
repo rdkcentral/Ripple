@@ -105,7 +105,9 @@ impl MetricsManagementServer for MetricsManagementImpl {
         for key in request.keys {
             // currently handling only one key which is deviceSessionId
             if key.as_str() == "deviceSessionId" {
-                self.state.metrics.update_session_id(None);
+                self.state
+                    .metrics
+                    .update_session_id(Some(String::from(&self.state.device_session_id)));
             }
         }
         Ok(())

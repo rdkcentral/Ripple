@@ -288,6 +288,7 @@ impl AppLauncher {
             );
             return;
         }
+        // safe to unwrap
         let app = entry.unwrap();
         let app_id = app.container_props.name.clone();
 
@@ -621,7 +622,7 @@ impl AppLauncher {
         if resp.is_none() {
             return Err(AppError::NotFound);
         }
-
+        // safe to unwrap
         let app_manifest = resp.unwrap();
 
         let app_type = get_app_type(&app_manifest);
@@ -674,9 +675,9 @@ impl AppLauncher {
         }
 
         let launch_params = LaunchParams {
-            uri: modified_url.unwrap(),
+            uri: modified_url.unwrap_or_default(),
             browser_name: callsign,
-            _type: app_type.unwrap(),
+            _type: app_type.unwrap_or_default(),
             name: app_manifest.name.to_string(),
             suspend: false,
             requires_focus: true,
