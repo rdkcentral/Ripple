@@ -255,30 +255,31 @@ impl AdvertisingServer for AdvertisingImpl {
         request: AdvertisingIdRPCRequest,
     ) -> RpcResult<AdvertisingId> {
         if let Some(session) = self.state.session_state.get_account_session() {
-        let mut scope_option_map = HashMap::new();
-        if let Some(scope_opt) = &request.options {
-            if let Some(scope) = &scope_opt.scope {
-                scope_option_map.insert("type".to_string(), scope._type.as_string().to_string());
-                scope_option_map.insert("id".to_string(), scope.id.to_string());
+            let mut scope_option_map = HashMap::new();
+            if let Some(scope_opt) = &request.options {
+                if let Some(scope) = &scope_opt.scope {
+                    scope_option_map
+                        .insert("type".to_string(), scope._type.as_string().to_string());
+                    scope_option_map.insert("id".to_string(), scope.id.to_string());
+                }
             }
-        }
-        let payload = AdvertisingRequest::GetAdIdObject(AdIdRequestParams {
-            privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(
-                &self.state,
-                request.options.as_ref(),
-                &ctx.app_id,
-            )
-            .await,
-            app_id: ctx.app_id.to_owned(),
-            dist_session: session,
-            scope: scope_option_map,
-        });
-        let resp = self.state.get_client().send_extn_request(payload).await;
+            let payload = AdvertisingRequest::GetAdIdObject(AdIdRequestParams {
+                privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(
+                    &self.state,
+                    request.options.as_ref(),
+                    &ctx.app_id,
+                )
+                .await,
+                app_id: ctx.app_id.to_owned(),
+                dist_session: session,
+                scope: scope_option_map,
+            });
+            let resp = self.state.get_client().send_extn_request(payload).await;
 
-        if resp.is_err() {
-            error!("Error getting ad init object: {:?}", resp);
-            return Err(rpc_err("Could not get ad init object from the device"));
-        }
+            if resp.is_err() {
+                error!("Error getting ad init object: {:?}", resp);
+                return Err(rpc_err("Could not get ad init object from the device"));
+            }
 
             if let Ok(payload) = resp {
                 if let Some(AdvertisingResponse::AdIdObject(obj)) =
