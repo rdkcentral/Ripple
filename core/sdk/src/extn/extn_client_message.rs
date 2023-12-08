@@ -56,7 +56,7 @@ use crate::{
         gateway::rpc_gateway_api::RpcRequest,
         manifest::device_manifest::AppLibraryEntry,
         protocol::BridgeProtocolRequest,
-        pubsub::{PubSubNotifyTopic, PubSubRequest, PubSubResponse},
+        pubsub::{PubSubEvents, PubSubRequest, PubSubResponse},
         session::{AccountSessionRequest, AccountSessionResponse, SessionTokenRequest},
         settings::{SettingValue, SettingsRequest},
         status_update::ExtnStatus,
@@ -332,7 +332,7 @@ pub enum ExtnEvent {
     OperationalMetrics(TelemetryPayload),
     Context(RippleContext),
     VoiceGuidanceState(VoiceGuidanceState),
-    PubSubEvent(PubSubNotifyTopic),
+    PubSubEvent(PubSubEvents),
     TimeZone(TimeZone),
 }
 

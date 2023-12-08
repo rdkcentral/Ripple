@@ -49,13 +49,44 @@ pub enum PubSubResponse {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PubSubNotifyTopic {
+    pub connection_id: String,
     pub topic: String,
     pub value: Value,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum PubSubConnectionStatus {
+    Connected(String),
+    Disconnected(String),
+    Reconnecting(String),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum PubSubEvents {
+    PubSubConnectionEvent(PubSubConnectionStatus),
+    PubSubValueChangeEvent(PubSubNotifyTopic),
+}
+
+impl PubSubEvents {
+    pub fn as_pub_sub_value_change_event(&self) -> Option<&PubSubNotifyTopic> {
+        if let Self::PubSubValueChangeEvent(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_pub_sub_connection_event(&self) -> Option<&PubSubConnectionStatus> {
+        if let Self::PubSubConnectionEvent(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PubSubSubscribedParam {
-    pub context: String,
+    pub connection_id: String,
     pub topic: String,
 }
 // #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -68,7 +99,7 @@ pub struct PubSubSubscribedParam {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PubSubPublishRequest {
-    pub context: String,
+    pub connection_id: String,
     pub topic: String,
     pub message: String,
     pub message_type: String,
@@ -102,13 +133,13 @@ pub struct PubSubConnectRequest {
 pub struct PubSubConnectResponse {
     pub connection_status: String,
     // status_code: String,
-    pub context: String,
+    pub connection_id: String,
     // result: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PubSubSubscribeRequest {
-    pub context: String,
+    pub connection_id: String,
     pub topic: String,
 }
 
@@ -140,8 +171,54 @@ pub struct PubSubUnSubscriberResponse {
 }
 impl ExtnPayloadProvider for PubSubNotifyTopic {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        if let ExtnPayload::Event(ExtnEvent::PubSubEvent(topic)) = payload {
+        if let ExtnPayload::Event(ExtnEvent::PubSubEvent(PubSubEvents::PubSubValueChangeEvent(
+            topic,
+        ))) = payload
+        {
             return Some(topic);
+        }
+
+        None
+    }
+
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Event(ExtnEvent::PubSubEvent(
+            PubSubEvents::PubSubValueChangeEvent(self.to_owned()),
+        ))
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::PubSub(PubSubAdjective::Listener)
+    }
+}
+
+impl ExtnPayloadProvider for PubSubConnectionStatus {
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        if let ExtnPayload::Event(ExtnEvent::PubSubEvent(PubSubEvents::PubSubConnectionEvent(
+            connection_status,
+        ))) = payload
+        {
+            return Some(connection_status);
+        }
+
+        None
+    }
+
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Event(ExtnEvent::PubSubEvent(PubSubEvents::PubSubConnectionEvent(
+            self.to_owned(),
+        )))
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::PubSub(PubSubAdjective::Listener)
+    }
+}
+
+impl ExtnPayloadProvider for PubSubEvents {
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        if let ExtnPayload::Event(ExtnEvent::PubSubEvent(event)) = payload {
+            return Some(event);
         }
 
         None
