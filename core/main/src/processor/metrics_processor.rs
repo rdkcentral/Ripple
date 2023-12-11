@@ -89,6 +89,9 @@ pub async fn update_app_context(
         context.app_user_session_id = app.active_session_id;
         context.app_version = SEMVER_LIGHTWEIGHT.to_string();
     }
+    if let Some(session) = ps.session_state.get_account_session() {
+        context.partner_id = session.id;
+    }
     let (tags, drop_data) =
         DataGovernance::resolve_tags(ps, ctx.app_id.clone(), DataEventType::BusinessIntelligence)
             .await;

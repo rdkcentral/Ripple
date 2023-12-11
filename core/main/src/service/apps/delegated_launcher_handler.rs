@@ -310,6 +310,7 @@ fn map_event_for_default(event: &AppMethod) -> Option<AppLifecycleState> {
 
 fn map_event_for_inactive_app(event: &AppMethod) -> Option<AppLifecycleState> {
     match event {
+        AppMethod::Launch(_) => Some(AppLifecycleState::Launching),
         AppMethod::Ready(_) => Some(AppLifecycleState::Suspended),
         AppMethod::SetState(_, lifecycle_state) => Some(lifecycle_state.into()),
         AppMethod::Close(_, _) => Some(AppLifecycleState::NotRunning),
