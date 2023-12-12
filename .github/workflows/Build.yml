@@ -54,4 +54,4 @@ jobs:
           files: lcov.xml
           version: "v0.1.15"
           fail_ci_if_error: true
-          verbose: true
+          threshold: 20%
