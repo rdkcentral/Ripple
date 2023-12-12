@@ -2,9 +2,9 @@ name: Build
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "calculate-unit-test-coverage" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "calculate-unit-test-coverage" ]
 
 env:
   CARGO_TERM_COLOR: always
