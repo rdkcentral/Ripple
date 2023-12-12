@@ -1964,7 +1964,7 @@ mod tests {
             )
             .await;
 
-            assert!(result.is_ok());
+            assert!(result.is_err());
         }
 
         #[tokio::test]
