@@ -28,7 +28,7 @@ use ripple_sdk::{
         session::{AccountSessionRequest, AccountSessionTokenRequest},
     },
     extn::extn_client_message::ExtnResponse,
-    log::error,
+    log::{debug, error},
 };
 
 use crate::{
@@ -71,10 +71,11 @@ impl AccountServer for AccountImpl {
         match resp {
             Ok(payload) => match payload.payload.extract().unwrap() {
                 ExtnResponse::None(()) => {
+                    debug!("LOOK HERE FOR PERMISSION: emitting token:platform as available");
                     CapState::emit(
                         &self.platform_state,
                         CapEvent::OnAvailable,
-                        FireboltCap::Short("token:platform".to_owned()),
+                        FireboltCap::Short("token:account".to_owned()),
                         None,
                     )
                     .await;
@@ -84,7 +85,7 @@ impl AccountServer for AccountImpl {
                     CapState::emit(
                         &self.platform_state,
                         CapEvent::OnUnavailable,
-                        FireboltCap::Short("token:platform".to_owned()),
+                        FireboltCap::Short("token:account".to_owned()),
                         None,
                     )
                     .await;
