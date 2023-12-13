@@ -28,7 +28,7 @@ use ripple_sdk::{
         session::{AccountSessionRequest, AccountSessionTokenRequest},
     },
     extn::extn_client_message::ExtnResponse,
-    log::{debug, error},
+    log::error,
 };
 
 use crate::{
