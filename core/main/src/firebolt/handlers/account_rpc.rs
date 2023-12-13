@@ -71,7 +71,6 @@ impl AccountServer for AccountImpl {
         match resp {
             Ok(payload) => match payload.payload.extract().unwrap() {
                 ExtnResponse::None(()) => {
-                    debug!("LOOK HERE FOR PERMISSION: emitting token:platform as available");
                     CapState::emit(
                         &self.platform_state,
                         CapEvent::OnAvailable,
