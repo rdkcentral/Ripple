@@ -139,7 +139,7 @@ impl OpenRpcState {
     }
 
     pub fn check_privacy_property(&self, property: &str) -> bool {
-        if let Some(method) = self.open_rpc.methods.iter().find(|x| x.name == property) {
+        if let Some(method) = self.open_rpc.methods.iter().find(|x| x.is_named(property)) {
             // Checking if the property tag is havin x-allow-value extension.
             if let Some(tags) = &method.tags {
                 if tags
@@ -154,7 +154,7 @@ impl OpenRpcState {
         {
             let ext_rpcs = self.extended_rpc.read().unwrap();
             for ext_rpc in ext_rpcs.iter() {
-                if let Some(method) = ext_rpc.methods.iter().find(|x| x.name == property) {
+                if let Some(method) = ext_rpc.methods.iter().find(|x| x.is_named(property)) {
                     // Checking if the property tag is havin x-allow-value extension.
                     if let Some(tags) = &method.tags {
                         if tags
@@ -180,7 +180,7 @@ impl OpenRpcState {
             .methods
             .iter()
             .find(|x| {
-                x.name == method_name
+                x.is_named(&method_name)
                     && x.tags.is_some()
                     && x.tags
                         .as_ref()
@@ -199,7 +199,7 @@ impl OpenRpcState {
                     .methods
                     .iter()
                     .find(|x| {
-                        x.name == method_name
+                        x.is_named(&method_name)
                             && x.tags.is_some()
                             && x.tags
                                 .as_ref()
