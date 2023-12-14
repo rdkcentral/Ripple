@@ -78,12 +78,6 @@ impl FireboltGatekeeper {
     }
     // TODO return Deny Reason into ripple error
     pub async fn gate(state: PlatformState, request: RpcRequest) -> Result<(), DenyReasonWithCap> {
-        let open_rpc_state = state.clone().open_rpc_state;
-        if open_rpc_state.is_excluded(request.clone().method, request.clone().ctx.app_id) {
-            trace!("Method is exluded from gating {}", request.method);
-            return Ok(());
-        }
-        // if let Some(caps) = open_rpc_state.get_caps_for_method(&request.method) {
         let caps_opt =
             Self::get_resolved_caps_for_method(&state, &request.method, request.ctx.gateway_secure);
         if caps_opt.is_none() {
@@ -139,7 +133,11 @@ impl FireboltGatekeeper {
         filtered_perm_list: Vec<FireboltPermission>,
     ) -> Result<(), DenyReasonWithCap> {
         // permission checks
-        if let Err(e) =
+        let open_rpc_state = state.clone().open_rpc_state;
+        // check if the app or method is in permission exclusion list
+        if open_rpc_state.is_excluded(request.clone().method, request.clone().ctx.app_id) {
+            trace!("Method is exluded from permission check {}", request.method);
+        } else if let Err(e) =
             PermissionHandler::check_permitted(&state, &request.ctx.app_id, &filtered_perm_list)
                 .await
         {
@@ -150,6 +148,7 @@ impl FireboltGatekeeper {
             );
             return Err(e);
         }
+
         trace!("check_permitted for method ({}) succeded", request.method);
         //usergrants check
         if let Err(e) = GrantState::check_with_roles(
