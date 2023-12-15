@@ -281,7 +281,7 @@ mod tests {
         let value: String = RippleContract::DeviceInfo.into();
         assert!(value.eq("\"device_info\""));
         let result = RippleContract::try_from(value);
-        assert!(result.is_err());
+        assert!(result.is_ok());
         assert!(matches!(result, Ok(RippleContract::DeviceInfo)));
     }
 
