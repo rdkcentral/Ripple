@@ -143,7 +143,7 @@ impl MainContextProcessor {
                 if let Some(account_session) = state.session_state.get_account_session() {
                     debug!("Successfully got account session");
                     //sync up partner exclusion data and setup polling thread for refreshing it.
-                    Self::sync_partner_exclusions(&state).await;
+                    Self::sync_partner_exclusions(state).await;
 
                     let sync_response = state
                         .get_client()
