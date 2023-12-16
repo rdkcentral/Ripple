@@ -52,5 +52,4 @@ jobs:
         uses: codecov/codecov-action@v3
         with:
           files: lcov.xml
-          version: "v0.1.15"
           fail_ci_if_error: true
