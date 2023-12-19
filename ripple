@@ -16,6 +16,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 function print_help() {
+    echo "add new line"
     echo "Instructions to use Rip Utility"
     echo "_______________________________"
     echo ""
