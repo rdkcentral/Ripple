@@ -148,4 +148,3 @@ impl RippleRPCProvider<PinChallengeImpl> for PinRPCProvider {
         .into_rpc()
     }
 }
-
