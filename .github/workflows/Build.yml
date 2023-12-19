@@ -2,9 +2,9 @@ name: Build
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "add-code-coverage-pr-check " ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "add-code-coverage-pr-check " ]
 
 env:
   CARGO_TERM_COLOR: always
