@@ -31,6 +31,7 @@ contract_tests = [
     "expectest",
     "maplit",
     "test-log",
+    "home"
 ]
 
 [dependencies]
@@ -46,3 +47,4 @@ expectest = { version = "0.12.0", optional = true }
 maplit = { version = "1.0.2", optional = true }
 test-log = { version = "0.2.11", optional = true }
 csv = "=1.1.5"
+home = { version = "=0.5.5", optional = true}
