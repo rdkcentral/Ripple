@@ -27,6 +27,8 @@ members = [
     "distributor/general",
     "examples/rpc_extn",
     "examples/tm_extn",
+    "ripple-macros/tests",
+    "ripple-macros/proc-macros",
 ]
 
 [workspace.package]

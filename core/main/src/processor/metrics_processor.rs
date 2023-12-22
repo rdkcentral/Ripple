@@ -35,7 +35,7 @@ use ripple_sdk::{
         extn_client_message::{ExtnMessage, ExtnResponse},
     },
     framework::RippleResponse,
-    log::debug,
+    log::{debug, info},
     tokio::sync::mpsc::{Receiver as MReceiver, Sender as MSender},
 };
 
@@ -45,22 +45,19 @@ use crate::{
     SEMVER_LIGHTWEIGHT,
 };
 
-pub async fn send_metric(
+pub async fn send_behavioral_metric(
     platform_state: &PlatformState,
     mut payload: BehavioralMetricPayload,
     ctx: &CallContext,
 ) -> RippleResponse {
-    // TODO use _ctx for any governance stuff
-    let drop_data = update_app_context(platform_state, ctx, &mut payload).await;
     /*
     not opted in, or configured out, do nothing
     */
-    if drop_data {
+    if update_app_context(platform_state, ctx, &mut payload).await {
         debug!("drop data is true, not sending BI metrics");
         return Ok(());
     }
-    let session = platform_state.session_state.get_account_session();
-    if let Some(session) = session {
+    if let Some(session) = platform_state.session_state.get_account_session() {
         let request = BehavioralMetricRequest {
             context: Some(platform_state.metrics.get_context()),
             payload,
@@ -198,72 +195,168 @@ impl ExtnRequestProcessor for MetricsProcessor {
         let client = state.get_client().get_extn_client();
         match extracted_message.payload {
             MetricsPayload::BehaviorMetric(b, c) => {
-                return match send_metric(&state, b, &c).await {
+                return match send_behavioral_metric(&state, b, &c).await {
                     Ok(_) => Self::ack(client, msg).await.is_ok(),
                     Err(e) => Self::handle_error(client, msg, e).await,
                 }
             }
-            MetricsPayload::OperationalMetric(t) => {
+            MetricsPayload::TelemetryPayload(t) => {
                 TelemetryBuilder::update_session_id_and_send_telemetry(&state, t).is_ok()
+            }
+            MetricsPayload::OperationalMetric(operational_metric) => {
+                println!("operational_metric: {:?}", operational_metric);
+                true
             }
         }
     }
 }
 
 /// Supports processing of Metrics request from extensions and forwards the metrics accordingly.
-#[derive(Debug)]
-pub struct OpMetricsProcessor {
-    state: PlatformState,
-    streamer: DefaultExtnStreamer,
-}
+// #[derive(Debug)]
+// pub struct OpMetricsProcessor {
+//     state: PlatformState,
+//     streamer: DefaultExtnStreamer,
+// }
 
-impl OpMetricsProcessor {
-    pub fn new(state: PlatformState) -> OpMetricsProcessor {
-        OpMetricsProcessor {
-            state,
-            streamer: DefaultExtnStreamer::new(),
-        }
-    }
-}
+// impl OpMetricsProcessor {
+//     pub fn new(state: PlatformState) -> OpMetricsProcessor {
+//         OpMetricsProcessor {
+//             state,
+//             streamer: DefaultExtnStreamer::new(),
+//         }
+//     }
+// }
 
-impl ExtnStreamProcessor for OpMetricsProcessor {
-    type STATE = PlatformState;
-    type VALUE = OperationalMetricRequest;
-    fn get_state(&self) -> Self::STATE {
-        self.state.clone()
-    }
+// impl ExtnStreamProcessor for OpMetricsProcessor {
+//     type STATE = PlatformState;
+//     type VALUE = OperationalMetricRequest;
+//     fn get_state(&self) -> Self::STATE {
+//         self.state.clone()
+//     }
 
-    fn sender(&self) -> MSender<ExtnMessage> {
-        self.streamer.sender()
-    }
+//     fn sender(&self) -> MSender<ExtnMessage> {
+//         self.streamer.sender()
+//     }
 
-    fn receiver(&mut self) -> MReceiver<ExtnMessage> {
-        self.streamer.receiver()
-    }
-}
+//     fn receiver(&mut self) -> MReceiver<ExtnMessage> {
+//         self.streamer.receiver()
+//     }
+// }
 
-#[async_trait]
-impl ExtnRequestProcessor for OpMetricsProcessor {
-    fn get_client(&self) -> ripple_sdk::extn::client::extn_client::ExtnClient {
-        self.state.get_client().get_extn_client()
-    }
+// #[async_trait]
+// impl ExtnRequestProcessor for OpMetricsProcessor {
+//     fn get_client(&self) -> ripple_sdk::extn::client::extn_client::ExtnClient {
+//         self.state.get_client().get_extn_client()
+//     }
 
-    async fn process_request(
-        state: Self::STATE,
-        msg: ExtnMessage,
-        extracted_message: Self::VALUE,
-    ) -> bool {
-        let requestor = msg.clone().requestor.to_string();
-        match extracted_message {
-            OperationalMetricRequest::Subscribe => state
-                .metrics
-                .operational_telemetry_listener(&requestor, true),
-            OperationalMetricRequest::UnSubscribe => state
-                .metrics
-                .operational_telemetry_listener(&requestor, true),
-        }
-        Self::ack(state.get_client().get_extn_client(), msg)
-            .await
-            .is_ok()
+//     async fn process_request(
+//         state: Self::STATE,
+//         msg: ExtnMessage,
+//         extracted_message: Self::VALUE,
+//     ) -> bool {
+//         let requestor = msg.clone().requestor.to_string();
+//         match extracted_message {
+//             OperationalMetricRequest::Subscribe => state
+//                 .metrics
+//                 .operational_telemetry_listener(&requestor, true),
+//             OperationalMetricRequest::UnSubscribe => state
+//                 .metrics
+//                 .operational_telemetry_listener(&requestor,false),
+//             OperationalMetricRequest::Counter(counter) => {
+//                 //todo!();
+//                 println!("counter: {:?}",counter);
+//                 //state.metrics.update_counter(&requestor, counter)
+//             },
+//             OperationalMetricRequest::Timer(timer) => {
+//                 todo!();
+//                 //state.metrics.update_timer(&requestor, timer)
+//             },
+//         }
+//         Self::ack(state.get_client().get_extn_client(), msg)
+//             .await
+//             .is_ok()
+//     }
+// }
+#[cfg(test)]
+pub mod tests {
+    use ripple_sdk::api::firebolt::fb_metrics::Counter;
+    use ripple_sdk::{
+        api::firebolt::{
+            fb_metrics::{MetricsPayload, MetricsRequest, OperationalMetricPayload},
+            fb_telemetry::OperationalMetricRequest,
+        },
+        extn::{
+            client::extn_processor::ExtnRequestProcessor,
+            extn_client_message::{ExtnMessage, ExtnPayload, ExtnRequest},
+            extn_id::ExtnId,
+        },
+        framework::ripple_contract::RippleContract,
+        tokio,
+    };
+    use ripple_tdk::utils::test_utils::Mockable;
+
+    use crate::{
+        processor::metrics_processor::MetricsProcessor, state::platform_state::PlatformState,
+    };
+
+    // #[tokio::test]
+    // pub async fn test_ops_metrics_processor_send() {
+
+    //     let extn_id = ExtnId::new_extn(ripple_sdk::extn::extn_id::ExtnClassId::Device, "test".to_string());
+    //     let counter = Counter::new("test".to_string(),1,vec![]);
+    //     let payload = OperationalMetricPayload::Counter(counter.clone());
+    //     let metrics_payload = MetricsPayload::OperationalMetric(payload);
+    //     let metrics_request = MetricsRequest{
+    //         payload: metrics_payload,
+    //         context: None,
+    //     };
+    //     let extn_request = ExtnRequest::Metrics(metrics_request);
+    //     let payload = ExtnPayload::Request(extn_request);
+    //     //let payload = ExtnPayload::Request(ExtnRequest::Metrics(MetricsRequest::);
+    //     let extn_message = ExtnMessage {
+    //         id: "123".to_string(),
+    //         requestor: extn_id,
+    //         target: RippleContract::Metrics,
+    //         payload: payload,
+    //         callback: None,
+    //         ts: None,
+    //     };
+
+    //     let foo = OpMetricsProcessor::process_request(PlatformState::mock(), extn_message, OperationalMetricRequest::Counter(counter)).await;
+
+    //     assert!(foo);
+
+    // }
+
+    #[tokio::test]
+    pub async fn test_metrics_processor_send() {
+        let extn_id = ExtnId::new_extn(
+            ripple_sdk::extn::extn_id::ExtnClassId::Device,
+            "test".to_string(),
+        );
+        let counter = Counter::new("test".to_string(), 1, vec![]);
+        let payload = OperationalMetricPayload::Counter(counter.clone());
+        let metrics_payload = MetricsPayload::OperationalMetric(payload);
+        let metrics_request = MetricsRequest {
+            payload: metrics_payload,
+            context: None,
+        };
+        let extn_request = ExtnRequest::Metrics(metrics_request.clone());
+        let payload = ExtnPayload::Request(extn_request);
+        //let payload = ExtnPayload::Request(ExtnRequest::Metrics(MetricsRequest::);
+        let extn_message = ExtnMessage {
+            id: "123".to_string(),
+            requestor: extn_id,
+            target: RippleContract::Metrics,
+            payload: payload,
+            callback: None,
+            ts: None,
+        };
+
+        let foo =
+            MetricsProcessor::process_request(PlatformState::mock(), extn_message, metrics_request)
+                .await;
+
+        assert!(foo);
     }
 }

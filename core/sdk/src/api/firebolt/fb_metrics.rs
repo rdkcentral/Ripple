@@ -390,6 +390,94 @@ impl BehavioralMetricPayload {
         }
     }
 }
+/*
+Operational Metrics. These are metrics that are not directly related to the user's behavior. They are
+more related to the operation of the platform itself. These metrics are not sent to the BI system, and
+are only used for operational/performance measurement - timers, counters, etc -all of low cardinality.
+
+*/
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Counter {
+    pub name: String,
+    pub value: u32,
+    pub tags: Vec<String>,
+}
+impl Counter {
+    pub fn new(name: String, value: u32, tags: Vec<String>) -> Counter {
+        Counter { name, value, tags }
+    }
+    pub fn increment(&mut self) {
+        self.value += 1;
+    }
+    pub fn decrement(&mut self) {
+        self.value -= 1;
+    }
+    pub fn set_value(&mut self, value: u32) {
+        self.value = value;
+    }
+    pub fn add(&mut self, value: u32) {
+        self.value += value;
+    }
+    pub fn subtract(&mut self, value: u32) {
+        self.value -= value;
+    }
+    pub fn reset(&mut self) {
+        self.value = 0;
+    }
+    pub fn get(&self) -> u32 {
+        self.value
+    }
+    pub fn tag(&mut self, tag: String) -> () {
+        self.tags.push(tag);
+    }
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Timer {
+    pub name: String,
+    #[serde(with = "serde_millis")]
+    pub start: std::time::Instant,
+    #[serde(with = "serde_millis")]
+    pub stop: Option<std::time::Instant>,
+    pub tags: Vec<String>,
+}
+impl Timer {
+    pub fn start(name: String, tags: Option<Vec<String>>) -> Timer {
+        Timer {
+            name: name,
+            start: std::time::Instant::now(),
+            stop: None,
+            tags: tags.unwrap_or(vec![]),
+        }
+    }
+    pub fn new(name: String, start: std::time::Instant, tags: Option<Vec<String>>) -> Timer {
+        Timer {
+            name: name,
+            start: start,
+            stop: None,
+            tags: tags.unwrap_or(vec![]),
+        }
+    }
+    pub fn stop(&mut self) {
+        self.stop = Some(std::time::Instant::now());
+    }
+    pub fn restart(&mut self) {
+        self.start = std::time::Instant::now();
+        self.stop = None;
+    }
+    pub fn elapsed(&self) -> std::time::Duration {
+        match self.stop {
+            Some(stop) => stop.duration_since(self.start),
+            None => self.start.elapsed(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum OperationalMetricPayload {
+    Timer(Timer),
+    Counter(Counter),
+}
 
 /// all the things that are provided by platform that need to
 /// be updated, and eventually in/outjected into/out of a payload
@@ -537,7 +625,8 @@ impl ExtnPayloadProvider for MetricsResponse {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum MetricsPayload {
     BehaviorMetric(BehavioralMetricPayload, CallContext),
-    OperationalMetric(TelemetryPayload),
+    TelemetryPayload(TelemetryPayload),
+    OperationalMetric(OperationalMetricPayload),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -605,5 +694,43 @@ mod tests {
         assert!(InternalInitializeParams::deserialize(value).is_err());
         let value = json!({ "version":{"major": 0,"minor": 13,"patch": 0,"readable": 1}} );
         assert!(InternalInitializeParams::deserialize(value).is_err());
+    }
+
+    #[test]
+    pub fn test_counter() {
+        let mut counter = super::Counter::new("test".to_string(), 0, vec![]);
+        counter.increment();
+        assert_eq!(counter.get(), 1);
+        counter.decrement();
+        assert_eq!(counter.get(), 0);
+        counter.set_value(10);
+        assert_eq!(counter.get(), 10);
+        counter.add(5);
+        assert_eq!(counter.get(), 15);
+        counter.subtract(5);
+        assert_eq!(counter.get(), 10);
+        counter.reset();
+        assert_eq!(counter.get(), 0);
+    }
+    #[test]
+    pub fn test_counter_with_tags() {
+        let mut counter = super::Counter::new("test".to_string(), 0, vec![]);
+        assert_eq!(counter.tags, vec![] as Vec<String>);
+        counter.tag("tag1".to_string());
+        counter.tag("tag2".to_string());
+        assert_eq!(counter.tags, vec!["tag1".to_string(), "tag2".to_string()]);
+    }
+    #[test]
+    pub fn test_timer() {
+        let mut timer = super::Timer::start("test".to_string(), None);
+        std::thread::sleep(std::time::Duration::from_millis(101));
+        timer.stop();
+        assert_eq!(timer.elapsed().as_millis() > 100, true);
+        assert_eq!(timer.elapsed().as_millis() < 200, true);
+        timer.restart();
+        std::thread::sleep(std::time::Duration::from_millis(101));
+        timer.stop();
+        assert_eq!(timer.elapsed().as_millis() > 100, true);
+        assert_eq!(timer.elapsed().as_millis() < 200, true);
     }
 }

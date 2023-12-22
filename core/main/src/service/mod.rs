@@ -19,5 +19,6 @@ pub mod apps;
 pub mod context_manager;
 pub mod data_governance;
 pub mod extn;
+pub mod observability;
 pub mod telemetry_builder;
 pub mod user_grants;

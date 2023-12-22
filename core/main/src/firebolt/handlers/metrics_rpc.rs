@@ -44,7 +44,7 @@ use ripple_sdk::{
 use serde::Deserialize;
 
 use crate::{
-    firebolt::rpc::RippleRPCProvider, processor::metrics_processor::send_metric,
+    firebolt::rpc::RippleRPCProvider, processor::metrics_processor::send_behavioral_metric,
     service::telemetry_builder::TelemetryBuilder, state::platform_state::PlatformState,
     utils::rpc_utils::rpc_err,
 };
@@ -313,7 +313,7 @@ impl MetricsServer for MetricsImpl {
         });
 
         trace!("metrics.startContent={:?}", start_content);
-        match send_metric(&self.state, start_content, &ctx).await {
+        match send_behavioral_metric(&self.state, start_content, &ctx).await {
             Ok(_) => Ok(true),
             Err(_) => Err(rpc_err("parse error")),
         }
@@ -329,7 +329,7 @@ impl MetricsServer for MetricsImpl {
             entity_id: stop_content_params.entity_id,
         });
         trace!("metrics.stopContent={:?}", stop_content);
-        match send_metric(&self.state, stop_content, &ctx).await {
+        match send_behavioral_metric(&self.state, stop_content, &ctx).await {
             Ok(_) => Ok(true),
             Err(_) => Err(rpc_err("parse error")),
         }
@@ -340,7 +340,7 @@ impl MetricsServer for MetricsImpl {
             page_id: page_params.page_id,
         });
         trace!("metrics.page={:?}", page);
-        match send_metric(&self.state, page, &ctx).await {
+        match send_behavioral_metric(&self.state, page, &ctx).await {
             Ok(_) => Ok(true),
             Err(_) => Err(rpc_err("parse error")),
         }
@@ -358,7 +358,7 @@ impl MetricsServer for MetricsImpl {
         });
         trace!("metrics.action={:?}", action);
 
-        match send_metric(&self.state, action, &ctx).await {
+        match send_behavioral_metric(&self.state, action, &ctx).await {
             Ok(_) => Ok(true),
             Err(_) => Err(rpc_err("parse error")),
         }
@@ -369,7 +369,7 @@ impl MetricsServer for MetricsImpl {
             ttmu_ms: 12,
         });
         trace!("metrics.action = {:?}", data);
-        match send_metric(&self.state, data, &ctx).await {
+        match send_behavioral_metric(&self.state, data, &ctx).await {
             Ok(_) => Ok(true),
             Err(_) => Err(rpc_err("parse error")),
         }
@@ -389,7 +389,7 @@ impl MetricsServer for MetricsImpl {
         });
         trace!("metrics.error={:?}", error_message);
         TelemetryBuilder::send_error(&self.state, ctx.app_id.to_owned(), error_params);
-        match send_metric(&self.state, error_message, &ctx).await {
+        match send_behavioral_metric(&self.state, error_message, &ctx).await {
             Ok(_) => Ok(true),
             Err(_) => Err(rpc_err("parse error")),
         }
@@ -399,7 +399,9 @@ impl MetricsServer for MetricsImpl {
             context: ctx.clone().into(),
         });
         trace!("metrics.action = {:?}", data);
-        Ok(send_metric(&self.state, data, &ctx).await.is_ok())
+        Ok(send_behavioral_metric(&self.state, data, &ctx)
+            .await
+            .is_ok())
     }
 
     async fn sign_out(&self, ctx: CallContext) -> RpcResult<bool> {
@@ -407,7 +409,9 @@ impl MetricsServer for MetricsImpl {
             context: ctx.clone().into(),
         });
         trace!("metrics.action = {:?}", data);
-        Ok(send_metric(&self.state, data, &ctx).await.is_ok())
+        Ok(send_behavioral_metric(&self.state, data, &ctx)
+            .await
+            .is_ok())
     }
 
     async fn internal_initialize(
@@ -443,7 +447,7 @@ impl MetricsServer for MetricsImpl {
             entity_id: media_load_start_params.entity_id,
         });
         trace!("metrics.media_load_start={:?}", media_load_start_message);
-        match send_metric(&self.state, media_load_start_message, &ctx).await {
+        match send_behavioral_metric(&self.state, media_load_start_message, &ctx).await {
             Ok(_) => Ok(true),
             Err(_) => Err(rpc_err("parse error")),
         }
@@ -458,7 +462,7 @@ impl MetricsServer for MetricsImpl {
             entity_id: media_play_params.entity_id,
         });
         trace!("metrics.media_play={:?}", media_play_message);
-        match send_metric(&self.state, media_play_message, &ctx).await {
+        match send_behavioral_metric(&self.state, media_play_message, &ctx).await {
             Ok(_) => Ok(true),
             Err(_) => Err(rpc_err("parse error")),
         }
@@ -473,7 +477,7 @@ impl MetricsServer for MetricsImpl {
             entity_id: media_playing_params.entity_id,
         });
         trace!("metrics.media_playing={:?}", media_playing);
-        match send_metric(&self.state, media_playing, &ctx).await {
+        match send_behavioral_metric(&self.state, media_playing, &ctx).await {
             Ok(_) => Ok(true),
             Err(_) => Err(rpc_err("parse error")),
         }
@@ -488,7 +492,7 @@ impl MetricsServer for MetricsImpl {
             entity_id: media_pause_params.entity_id,
         });
         trace!("metrics.media_pause={:?}", media_pause);
-        match send_metric(&self.state, media_pause, &ctx).await {
+        match send_behavioral_metric(&self.state, media_pause, &ctx).await {
             Ok(_) => Ok(true),
             Err(_) => Err(rpc_err("parse error")),
         }
@@ -503,7 +507,7 @@ impl MetricsServer for MetricsImpl {
             entity_id: media_waiting_params.entity_id,
         });
         trace!("metrics.media_waiting={:?}", media_waiting);
-        match send_metric(&self.state, media_waiting, &ctx).await {
+        match send_behavioral_metric(&self.state, media_waiting, &ctx).await {
             Ok(_) => Ok(true),
             Err(_) => Err(rpc_err("parse error")),
         }
@@ -520,7 +524,7 @@ impl MetricsServer for MetricsImpl {
             progress: Some(progress),
         });
         trace!("metrics.media_progress={:?}", media_progress);
-        match send_metric(&self.state, media_progress, &ctx).await {
+        match send_behavioral_metric(&self.state, media_progress, &ctx).await {
             Ok(_) => Ok(true),
             Err(_) => Err(rpc_err("parse error")),
         }
@@ -538,7 +542,7 @@ impl MetricsServer for MetricsImpl {
             target: Some(target),
         });
         trace!("metrics.media_seeking={:?}", media_seeking);
-        match send_metric(&self.state, media_seeking, &ctx).await {
+        match send_behavioral_metric(&self.state, media_seeking, &ctx).await {
             Ok(_) => Ok(true),
             Err(_) => Err(rpc_err("parse error")),
         }
@@ -555,7 +559,7 @@ impl MetricsServer for MetricsImpl {
             position: Some(position),
         });
         trace!("metrics.media_seeked={:?}", media_seeked);
-        match send_metric(&self.state, media_seeked, &ctx).await {
+        match send_behavioral_metric(&self.state, media_seeked, &ctx).await {
             Ok(_) => Ok(true),
             Err(_) => Err(rpc_err("parse error")),
         }
@@ -571,7 +575,7 @@ impl MetricsServer for MetricsImpl {
             rate: media_rate_changed_params.rate,
         });
         trace!("metrics.media_seeked={:?}", media_rate_change);
-        match send_metric(&self.state, media_rate_change, &ctx).await {
+        match send_behavioral_metric(&self.state, media_rate_change, &ctx).await {
             Ok(_) => Ok(true),
             Err(_) => Err(rpc_err("parse error")),
         }
@@ -594,7 +598,7 @@ impl MetricsServer for MetricsImpl {
             "metrics.media_rendition_change={:?}",
             media_rendition_change
         );
-        match send_metric(&self.state, media_rendition_change, &ctx).await {
+        match send_behavioral_metric(&self.state, media_rendition_change, &ctx).await {
             Ok(_) => Ok(true),
             Err(_) => Err(rpc_err("parse error")),
         }
@@ -610,7 +614,7 @@ impl MetricsServer for MetricsImpl {
         });
         trace!("metrics.media_ended={:?}", media_ended);
 
-        match send_metric(&self.state, media_ended, &ctx).await {
+        match send_behavioral_metric(&self.state, media_ended, &ctx).await {
             Ok(_) => Ok(true),
             Err(_) => Err(rpc_err("parse error")),
         }
