@@ -1,4 +1,3 @@
-
 extern crate proc_macro;
 extern crate proc_macro2;
 extern crate quote;
@@ -7,29 +6,23 @@ use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::parse::{Nothing, Result};
-use syn::{
-    parse_quote, FnArg, ItemFn, PatType, 
-    ReturnType,
-};
+use syn::{parse_quote, FnArg, ItemFn, PatType, ReturnType};
 
 //use main::*;
 
-
 /*
- Given a fn f(...) wrap f in g such that g starts a timer, calls f, stops the timer, and then passes
- it onto something else to render , transmit, etc. the value of the timer
- */
- /*
- hat tip: https://github.com/dtolnay/no-panic/blob/master/src/lib.rs
- */
+Given a fn f(...) wrap f in g such that g starts a timer, calls f, stops the timer, and then passes
+it onto something else to render , transmit, etc. the value of the timer
+*/
+/*
+hat tip: https://github.com/dtolnay/no-panic/blob/master/src/lib.rs
+*/
 #[proc_macro_attribute]
 //  args are...args, and input is the function to be decorated
 pub fn timed(_args: TokenStream, input: TokenStream) -> TokenStream {
     let input = TokenStream2::from(input);
     TokenStream::from(input)
 }
-
-
 
 #[proc_macro_attribute]
 // attr is args to macro, item is the function to be decorated
@@ -44,13 +37,12 @@ pub fn counted(args: TokenStream, input: TokenStream) -> TokenStream {
         }
     };
     TokenStream::from(expanded)
-   
 }
 
 fn parse(args: TokenStream2, input: TokenStream2) -> Result<ItemFn> {
     let function: ItemFn = syn::parse2(input)?;
     let _: Nothing = syn::parse2::<Nothing>(args)?;
- 
+
     Ok(function)
 }
 //write a function that takes a function and returns a f
@@ -74,9 +66,14 @@ fn wrap_counted(function: ItemFn) -> TokenStream2 {
     for (_i, input) in wrapper.sig.inputs.iter_mut().enumerate() {
         let arg: &FnArg = input;
         match arg {
-            FnArg::Typed(PatType { attrs:_,pat,colon_token: _,ty  }) => {
+            FnArg::Typed(PatType {
+                attrs: _,
+                pat,
+                colon_token: _,
+                ty,
+            }) => {
                 let arg_name = quote!(#pat: #ty);
-               // let arg_type = quote!(#ty);
+                // let arg_type = quote!(#ty);
                 args.push(arg_name);
             }
             FnArg::Receiver(_) => {
@@ -84,7 +81,7 @@ fn wrap_counted(function: ItemFn) -> TokenStream2 {
             }
         }
     }
-    
+
     let original_block = function.block.clone();
     //println!("original block: {:?}",quote!{#original_block});
     let mut mutant = function.block.clone();
@@ -92,35 +89,25 @@ fn wrap_counted(function: ItemFn) -> TokenStream2 {
     mutant.stmts.insert(0,parse_quote!({
         let mut timer = ripple_sdk::api::firebolt::fb_metrics::Timer::start(String::from("atimer"), None);
         let result = #original_block;
-        timer.stop();       
-        
-        // let payload = ripple_sdk::api::observability::ObservabilityPayload::Timer(timer);
-        // main::service::observability::ObservabilityClient::report(ripple_sdk::api::observability::ObservabilityPayload::Timer(timer));
-        
+        timer.stop();        
         result
     }));
 
-  
     let wrapper = if is_async {
-        quote!{
-            pub async  fn #function_name(#(#args),*) #return_type 
+        quote! {
+            pub async  fn #function_name(#(#args),*) #return_type
                 #mutant
         }
-
-    }else{
-         quote!{
-            pub fn #function_name(#(#args),*) #return_type 
+    } else {
+        quote! {
+            pub fn #function_name(#(#args),*) #return_type
                 #mutant
         }
     };
-    println!("wrapper: \n {}",wrapper);
+    println!("wrapper: \n {}", wrapper);
 
     wrapper
-
 }
-
-
-
 
 // fn _enclose_with_counted(mut function: ItemFn) -> TokenStream2 {
 //     let mut move_self = None;
@@ -152,7 +139,6 @@ fn wrap_counted(function: ItemFn) -> TokenStream2 {
 //             }
 //         }
 //     }
-    
 
 //     let has_inline = function
 //         .attrs
@@ -175,8 +161,7 @@ fn wrap_counted(function: ItemFn) -> TokenStream2 {
 //         "\n\nERROR[no-panic]: detected panic in function `{}`\n",
 //         function.sig.ident,
 //     );
-    
-    
+
 //     function.block = Box::new(parse_quote!({
 //         let mut timer = std::timer::
 //     }));
