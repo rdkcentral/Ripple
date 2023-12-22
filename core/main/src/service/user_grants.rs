@@ -503,16 +503,20 @@ impl GrantState {
             // otherwise, return pending grant.
             if let Some(state) = platform_state {
                 let grant_polices_map_opt = state.get_device_manifest().capabilities.grant_policies;
-                let capability = permission.cap.as_str();
-                let grant_polices_map = grant_polices_map_opt.unwrap();
-                let filtered_policy_opt = grant_polices_map.get(capability.as_str());
-                if filtered_policy_opt.is_none() {
-                    debug!(
-                        "Capability {:?} is not in grant policy",
-                        capability.as_str()
-                    );
+                if let Some(grant_polices_map) = grant_polices_map_opt.as_ref() {
+                    let capability = permission.cap.as_str();
+                    let filtered_policy_opt = grant_polices_map.get(capability.as_str());
+                    if filtered_policy_opt.is_none() {
+                        debug!(
+                            "Capability {:?} is not in grant policy",
+                            capability.as_str()
+                        );
+                        return GrantActiveState::ActiveGrant((GrantStatus::Allowed).into());
+                    }
+                } else {
+                    debug!("grant_polices_map is not available");
                     return GrantActiveState::ActiveGrant((GrantStatus::Allowed).into());
-                };
+                }
             }
             GrantActiveState::PendingGrant
         }
@@ -1442,6 +1446,10 @@ impl GrantPolicyEnforcer {
         );
         let method_name = Self::get_setter_method_name(platform_state, &privacy_setting.property);
         if method_name.is_none() {
+            error!(
+                "Unable to find setter method for property: {}",
+                privacy_setting.property.as_str()
+            );
             return;
         }
         let method_name = method_name.unwrap();
@@ -1876,7 +1884,7 @@ impl GrantStepExecutor {
         if let Err(reason) = result {
             Err(DenyReasonWithCap {
                 reason,
-                caps: vec![cap.clone()],
+                caps: vec![permission.cap.clone()],
             })
         } else {
             Ok(())
@@ -2171,7 +2179,9 @@ mod tests {
                 result.err().unwrap(),
                 DenyReasonWithCap {
                     reason: DenyReason::GrantDenied,
-                    caps: vec![FireboltCap::Full(PIN_CHALLENGE_CAPABILITY.to_owned())]
+                    caps: vec![FireboltCap::Full(
+                        "xrn:firebolt:capability:localization:postal-code".to_owned()
+                    )]
                 }
             );
         }
@@ -2219,7 +2229,9 @@ mod tests {
                 result.err().unwrap(),
                 DenyReasonWithCap {
                     reason: DenyReason::GrantDenied,
-                    caps: vec![FireboltCap::Full(ACK_CHALLENGE_CAPABILITY.to_owned())]
+                    caps: vec![FireboltCap::Full(
+                        "xrn:firebolt:capability:localization:postal-code".to_owned()
+                    )]
                 }
             );
         }

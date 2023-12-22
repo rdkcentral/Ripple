@@ -28,7 +28,9 @@ use jsonrpsee::{
 };
 
 use ripple_sdk::api::{
-    device::device_wifi::{AccessPoint, AccessPointList, AccessPointRequest, WifiRequest},
+    device::device_wifi::{
+        AccessPoint, AccessPointList, AccessPointRequest, WifiRequest, WifiScanRequest,
+    },
     gateway::rpc_gateway_api::CallContext,
     wifi::{WifiResponse, WifiScanRequestTimeout},
 };
@@ -36,7 +38,11 @@ use ripple_sdk::api::{
 #[rpc(server)]
 pub trait Wifi {
     #[method(name = "wifi.scan")]
-    async fn scan(&self, ctx: CallContext) -> RpcResult<AccessPointList>;
+    async fn scan(
+        &self,
+        ctx: CallContext,
+        wifi_scan_request: Option<WifiScanRequest>,
+    ) -> RpcResult<AccessPointList>;
     #[method(name = "wifi.connect")]
     async fn connect(
         &self,
@@ -52,8 +58,15 @@ pub struct WifiImpl {
 
 #[async_trait]
 impl WifiServer for WifiImpl {
-    async fn scan(&self, _ctx: CallContext) -> RpcResult<AccessPointList> {
-        let scan_time = WifiScanRequestTimeout::new();
+    async fn scan(
+        &self,
+        _ctx: CallContext,
+        wifi_scan_request: Option<WifiScanRequest>,
+    ) -> RpcResult<AccessPointList> {
+        let mut scan_time = WifiScanRequestTimeout::new();
+        if let Some(wifi_scan_request) = wifi_scan_request {
+            scan_time.set_timeout(wifi_scan_request.timeout);
+        }
         let client = self.state.get_client();
         if let Ok(response) = client
             .send_extn_request(WifiRequest::Scan(scan_time.timeout))

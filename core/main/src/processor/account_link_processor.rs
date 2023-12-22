@@ -72,6 +72,12 @@ impl AccountLinkProcessor {
         ctx: CallContext,
         is_signed_in: bool,
     ) -> bool {
+        if state.session_state.get_account_session().is_none() {
+            error!("No account session found");
+            return false;
+        }
+
+        // safe to unwrap as we have checked for None above
         let session = state.session_state.get_account_session().unwrap();
 
         let payload = DiscoveryRequest::SignIn(SignInRequestParams {
@@ -110,6 +116,11 @@ impl AccountLinkProcessor {
         ctx: CallContext,
         request: ContentAccessRequest,
     ) -> bool {
+        if state.session_state.get_account_session().is_none() {
+            error!("No account session found");
+            return false;
+        }
+        // safe to unwrap as we have checked for None above
         let session = state.session_state.get_account_session().unwrap();
 
         // If both entitlement & availability are None return EmptyResult
@@ -180,6 +191,11 @@ impl AccountLinkProcessor {
         msg: ExtnMessage,
         ctx: CallContext,
     ) -> bool {
+        if state.session_state.get_account_session().is_none() {
+            error!("No account session found");
+            return false;
+        }
+        // safe to unwrap as we have checked for None above
         let session = state.session_state.get_account_session().unwrap();
 
         let payload = DiscoveryRequest::ClearContent(ClearContentSetParams {
