@@ -164,20 +164,28 @@ impl FireboltGateway {
                     // Route
                     match request.clone().ctx.protocol {
                         ApiProtocol::Extn => {
-                            RpcRouter::route_extn_protocol(
-                                &platform_state,
-                                request.clone(),
-                                extn_msg.unwrap(),
-                            )
-                            .await
+                            if let Some(extn_msg) = extn_msg {
+                                RpcRouter::route_extn_protocol(
+                                    &platform_state,
+                                    request.clone(),
+                                    extn_msg,
+                                )
+                                .await
+                            } else {
+                                error!("missing invalid message not forwarding");
+                            }
                         }
                         _ => {
-                            let session = platform_state
+                            if let Some(session) = platform_state
                                 .clone()
                                 .session_state
-                                .get_session(&request_c.ctx);
-                            // session is already prechecked before gating so it is safe to unwrap
-                            RpcRouter::route(platform_state, request_c, session.unwrap()).await;
+                                .get_session(&request_c.ctx)
+                            {
+                                // if the websocket disconnects before the session is recieved this leads to an error
+                                RpcRouter::route(platform_state, request_c, session).await;
+                            } else {
+                                error!("session is missing request is not forwarded");
+                            }
                         }
                     }
                 }
