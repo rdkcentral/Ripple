@@ -42,6 +42,7 @@ pub struct AdInitObjectRequestParams {
     pub coppa: bool,
     pub authentication_entity: String,
     pub dist_session: AccountSession,
+    pub scope: HashMap<String, String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -69,6 +70,7 @@ pub struct AdIdRequestParams {
     pub privacy_data: HashMap<String, String>,
     pub app_id: String,
     pub dist_session: AccountSession,
+    pub scope: HashMap<String, String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
