@@ -1446,6 +1446,10 @@ impl GrantPolicyEnforcer {
         );
         let method_name = Self::get_setter_method_name(platform_state, &privacy_setting.property);
         if method_name.is_none() {
+            error!(
+                "Unable to find setter method for property: {}",
+                privacy_setting.property.as_str()
+            );
             return;
         }
         let method_name = method_name.unwrap();
@@ -1878,7 +1882,7 @@ impl GrantStepExecutor {
         if let Err(reason) = result {
             Err(DenyReasonWithCap {
                 reason,
-                caps: vec![cap.clone()],
+                caps: vec![permission.cap.clone()],
             })
         } else {
             Ok(())
@@ -2284,7 +2288,9 @@ mod tests {
                 result.err().unwrap(),
                 DenyReasonWithCap {
                     reason: DenyReason::GrantDenied,
-                    caps: vec![FireboltCap::Full(PIN_CHALLENGE_CAPABILITY.to_owned())]
+                    caps: vec![FireboltCap::Full(
+                        "xrn:firebolt:capability:localization:postal-code".to_owned()
+                    )]
                 }
             );
         }
@@ -2345,7 +2351,9 @@ mod tests {
                 result.err().unwrap(),
                 DenyReasonWithCap {
                     reason: DenyReason::GrantDenied,
-                    caps: vec![FireboltCap::Full(ACK_CHALLENGE_CAPABILITY.to_owned())]
+                    caps: vec![FireboltCap::Full(
+                        "xrn:firebolt:capability:localization:postal-code".to_owned()
+                    )]
                 }
             );
         }
