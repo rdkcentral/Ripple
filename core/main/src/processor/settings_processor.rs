@@ -19,6 +19,7 @@ use std::collections::HashMap;
 
 use ripple_sdk::{
     api::{
+        distributor::distributor_privacy::ContentListenRequest,
         firebolt::{
             fb_capabilities::{CapabilityRole, FireboltCap, RoleInfo},
             fb_general::ListenRequest,
@@ -232,7 +233,10 @@ impl SettingsProcessor {
                         true,
                         &ctx,
                         EVENT_ALLOW_PERSONALIZATION_CHANGED,
-                        None,
+                        Some(ContentListenRequest {
+                            listen: true,
+                            app_id: None,
+                        }),
                         Some(Box::new(SettingsChangeEventDecorator {
                             request: request.clone(),
                         })),
@@ -248,7 +252,10 @@ impl SettingsProcessor {
                         true,
                         &ctx,
                         EVENT_ALLOW_WATCH_HISTORY_CHANGED,
-                        None,
+                        Some(ContentListenRequest {
+                            listen: true,
+                            app_id: None,
+                        }),
                         Some(Box::new(SettingsChangeEventDecorator {
                             request: request.clone(),
                         })),
