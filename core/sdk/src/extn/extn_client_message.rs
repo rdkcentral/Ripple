@@ -25,11 +25,13 @@ use serde_json::Value;
 use crate::{
     api::{
         account_link::AccountLinkRequest,
+        app_catalog::{AppCatalogRequest, AppMetadata, AppsUpdate},
         apps::AppEventRequest,
         caps::CapsRequest,
         config::{Config, ConfigResponse},
         context::{RippleContext, RippleContextUpdateRequest},
         device::{
+            device_apps::InstalledApp,
             device_events::DeviceEventRequest,
             device_peristence::StorageData,
             device_request::{DeviceRequest, NetworkResponse, TimeZone, VoiceGuidanceState},
@@ -271,6 +273,9 @@ pub enum ExtnRequest {
     PlatformToken(PlatformTokenRequest),
     DistributorToken(DistributorTokenRequest),
     Context(RippleContextUpdateRequest),
+    // <pca>
+    AppCatalog(AppCatalogRequest),
+    // </pca>
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -300,6 +305,10 @@ pub enum ExtnResponse {
     BoolMap(HashMap<String, bool>),
     Advertising(AdvertisingResponse),
     SecureStorage(SecureStorageResponse),
+    // <pca>
+    AppCatalog(Vec<AppMetadata>),
+    InstalledApps(Vec<InstalledApp>),
+    // </pca>
 }
 
 impl ExtnPayloadProvider for ExtnResponse {
@@ -330,6 +339,9 @@ pub enum ExtnEvent {
     Context(RippleContext),
     VoiceGuidanceState(VoiceGuidanceState),
     TimeZone(TimeZone),
+    // <pca>
+    AppsUpdate(AppsUpdate),
+    // </pca>
 }
 
 impl ExtnPayloadProvider for ExtnEvent {

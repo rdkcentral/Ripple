@@ -41,8 +41,8 @@ use crate::{
     state::{bootstrap_state::BootstrapState, platform_state::PlatformState},
 };
 use jsonrpsee::core::{async_trait, server::rpc_module::Methods};
-use ripple_sdk::log::debug;
 use ripple_sdk::{framework::bootstrap::Bootstep, utils::error::RippleError};
+use ripple_sdk::{log::debug, tokio};
 pub struct FireboltGatewayStep;
 
 impl FireboltGatewayStep {
@@ -91,7 +91,6 @@ impl Bootstep<BootstrapState> for FireboltGatewayStep {
     }
 
     async fn setup(&self, state: BootstrapState) -> Result<(), RippleError> {
-        println!("*** _DEBUG: setup: entry");
         let methods = self
             .init_handlers(
                 state.platform_state.clone(),
@@ -114,6 +113,7 @@ impl Bootstep<BootstrapState> for FireboltGatewayStep {
         }
         TelemetryBuilder::send_ripple_telemetry(&state.platform_state);
         gateway.start().await;
+
         Ok(())
     }
 }

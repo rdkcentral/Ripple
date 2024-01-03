@@ -18,6 +18,7 @@
 use ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest;
 use ripple_sdk::log::error;
 
+use crate::processors::thunder_package_manager::ThunderPackageManagerRequestProcessor;
 use crate::processors::thunder_telemetry::ThunderTelemetryProcessor;
 use crate::thunder_state::ThunderBootstrapStateWithClient;
 
@@ -52,6 +53,12 @@ impl SetupThunderProcessor {
             state.clone().state,
         ));
         extn_client.add_request_processor(ThunderOpenEventsProcessor::new(state.clone().state));
+        // <pca>
+        let package_manager_processor =
+            ThunderPackageManagerRequestProcessor::new(state.clone().state);
+        package_manager_processor.init(state.state.clone()).await;
+        extn_client.add_request_processor(package_manager_processor);
+        // </pca>
 
         if extn_client.get_bool_config("rdk_telemetry") {
             match extn_client

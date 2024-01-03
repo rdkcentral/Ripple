@@ -93,7 +93,6 @@ case ${1} in
         echo "All Done!"
     ;;
     "run")
-		echo "*** _DEBUG: THUNDER_HOST=${2}"
         cargo build --features local_dev
         THUNDER_HOST=${2} cargo run --features local_dev core/main 
     ;;

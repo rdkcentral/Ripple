@@ -121,6 +121,10 @@ pub enum RippleContract {
     Session(SessionAdjective),
 
     RippleContext,
+    // <pca>
+    AppCatalog,
+    Apps,
+    // </pca>
 }
 
 pub trait ContractAdjective: serde::ser::Serialize {

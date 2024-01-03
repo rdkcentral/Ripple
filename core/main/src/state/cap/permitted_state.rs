@@ -23,6 +23,7 @@ use std::{
 
 use ripple_sdk::{
     api::{
+        device::device_apps::AppsRequest,
         //config::Config,
         distributor::distributor_permissions::{PermissionRequest, PermissionResponse},
         firebolt::{
@@ -33,6 +34,7 @@ use ripple_sdk::{
         },
         manifest::device_manifest::DeviceManifest,
     },
+    extn::extn_client_message::{ExtnPayload, ExtnResponse},
     framework::{file_store::FileStore, RippleResponse},
     log::{debug, error, info},
     tokio,
@@ -141,19 +143,74 @@ impl PermissionHandler {
             app_id.to_string()
         }
     }
-    pub async fn fetch_and_store_from_cache_or_server(
+
+    // <pca>
+    // pub async fn fetch_and_store_from_cache_or_server(
+    //     state: &PlatformState,
+    //     app_id: &str,
+    // ) -> RippleResponse {
+    //     // This function will get the permissions from cache if available or else from server
+    //     if let Some(permissions) = state.cap_state.permitted_state.get_app_permissions(app_id) {
+    //         let mut permissions_copy = permissions;
+    //         return Self::process_permissions(state, app_id, &mut permissions_copy);
+    //     }
+    //     Self::fetch_and_store(state, app_id).await
+    // }
+
+    // pub async fn fetch_and_store(state: &PlatformState, app_id: &str) -> RippleResponse {
+    //     // This function will always get the permissions from server and update the local cache
+    //     let app_id_alias = Self::get_distributor_alias_for_app_id(state, app_id);
+    //     if let Some(session) = state.session_state.get_account_session() {
+    //         match state
+    //             .get_client()
+    //             .send_extn_request(PermissionRequest {
+    //                 app_id: app_id_alias,
+    //                 session,
+    //             })
+    //             .await
+    //             .ok()
+    //         {
+    //             Some(extn_response) => {
+    //                 if let Some(permission_response) =
+    //                     extn_response.payload.extract::<PermissionResponse>()
+    //                 {
+    //                     let mut permission_response_copy = permission_response;
+    //                     return Self::process_permissions(
+    //                         state,
+    //                         app_id,
+    //                         &mut permission_response_copy,
+    //                     );
+    //                 }
+    //                 Err(RippleError::InvalidOutput)
+    //             }
+    //             None => Err(RippleError::InvalidOutput),
+    //         }
+    //     } else {
+    //         Err(RippleError::InvalidOutput)
+    //     }
+    // }
+    pub async fn fetch_and_store(
         state: &PlatformState,
         app_id: &str,
+        allow_cached: bool,
     ) -> RippleResponse {
-        // This function will get the permissions from cache if available or else from server
-        if let Some(permissions) = state.cap_state.permitted_state.get_app_permissions(app_id) {
-            let mut permissions_copy = permissions;
-            return Self::process_permissions(state, app_id, &mut permissions_copy);
+        if state.get_device_manifest().get_features().cloud_permissions {
+            if allow_cached {
+                if let Some(permissions) =
+                    state.cap_state.permitted_state.get_app_permissions(app_id)
+                {
+                    let mut permissions_copy = permissions;
+                    return Self::process_permissions(state, app_id, &mut permissions_copy);
+                }
+            }
+            Self::cloud_fetch_and_store(state, app_id).await
+        } else {
+            // Never use cache, always fetch from device.
+            Self::device_fetch_and_store(state, app_id).await
         }
-        Self::fetch_and_store(state, app_id).await
     }
 
-    pub async fn fetch_and_store(state: &PlatformState, app_id: &str) -> RippleResponse {
+    pub async fn cloud_fetch_and_store(state: &PlatformState, app_id: &str) -> RippleResponse {
         // This function will always get the permissions from server and update the local cache
         let app_id_alias = Self::get_distributor_alias_for_app_id(state, app_id);
         if let Some(session) = state.session_state.get_account_session() {
@@ -185,6 +242,30 @@ impl PermissionHandler {
             Err(RippleError::InvalidOutput)
         }
     }
+
+    pub async fn device_fetch_and_store(state: &PlatformState, app_id: &str) -> RippleResponse {
+        let mut client = state.get_client().get_extn_client();
+        let resp = client
+            .request(AppsRequest::GetFireboltPermissions(app_id.to_string()))
+            .await?;
+
+        let mut permissions = match resp.payload {
+            ExtnPayload::Response(response) => match response {
+                ExtnResponse::Permission(perms) => perms,
+                _ => {
+                    error!("device_fetch_and_store: Unexpected response");
+                    return Err(RippleError::ExtnError);
+                }
+            },
+            _ => {
+                error!("device_fetch_and_store: Unexpected payload");
+                return Err(RippleError::ExtnError);
+            }
+        };
+
+        Self::process_permissions(state, app_id, &mut permissions)
+    }
+    // </pca>
 
     fn process_permissions(
         state: &PlatformState,
@@ -283,7 +364,10 @@ impl PermissionHandler {
         let ps_c = state.clone();
         let app_id_c = app_id.clone();
         let handle = tokio::spawn(async move {
-            let perm_res = Self::fetch_and_store(&ps_c, &app_id_c).await;
+            // <pca>
+            //let perm_res = Self::fetch_and_store(&ps_c, &app_id_c).await;
+            let perm_res = Self::fetch_and_store(&ps_c, &app_id_c, false).await;
+            // </pca>
             if perm_res.is_err() {
                 if has_stored {
                     error!(
@@ -314,7 +398,10 @@ impl PermissionHandler {
             return Self::is_all_permitted(&permitted, request);
         } else {
             // check to retrieve it one more time
-            if (Self::fetch_and_store_from_cache_or_server(state, app_id).await).is_ok() {
+            // <pca>
+            //if (Self::fetch_and_store_from_cache_or_server(state, app_id).await).is_ok() {
+            if (Self::fetch_and_store(state, app_id, true).await).is_ok() {
+                // </pca>
                 // cache primed try again
                 if let Some(permitted) = state.cap_state.permitted_state.get_app_permissions(app_id)
                 {

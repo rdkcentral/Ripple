@@ -22,3 +22,6 @@ pub mod setup_extn_client_step;
 pub mod start_app_manager_step;
 pub mod start_fbgateway_step;
 pub mod start_ws_step;
+// <pca>
+pub mod start_apps_updater_step;
+// </pca>
