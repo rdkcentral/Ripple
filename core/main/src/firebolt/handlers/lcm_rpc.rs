@@ -18,7 +18,7 @@
 use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
 use ripple_sdk::{
     api::{
-        apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
+        apps::{AppError, AppManagerResponse, AppMethod, AppRequest, AppResponse},
         firebolt::{
             fb_capabilities::FireboltCap,
             fb_general::{ListenRequest, ListenerResponse},
@@ -40,7 +40,7 @@ use crate::{
     firebolt::{handlers::discovery_rpc::validate_navigation_intent, rpc::RippleRPCProvider},
     service::apps::{app_events::AppEvents, provider_broker::ProviderBroker},
     state::platform_state::PlatformState,
-    utils::rpc_utils::{rpc_await_oneshot, rpc_err},
+    utils::rpc_utils::{rpc_await_oneshot, rpc_err, rpc_session_no_intent_err},
 };
 
 #[rpc(server)]
@@ -202,13 +202,22 @@ impl LifecycleManagementServer for LifecycleManagementImpl {
             return Err(rpc_err("Unable send app request"));
         }
         if let Ok(r) = app_resp_rx.await {
-            if let Ok(s) = r {
-                match s {
-                    AppManagerResponse::Session(s) => return Ok(s),
+            match r {
+                Ok(s) => match s {
+                    AppManagerResponse::Session(session) => {
+                        return Ok(session);
+                    }
                     _ => error!("unable to register session"),
+                },
+                Err(err) => {
+                    if AppError::NoIntentError == err {
+                        return Err(rpc_session_no_intent_err(
+                            "An intent must be provided for new app running sessions",
+                        ));
+                    } else {
+                        error!("Unable to register session")
+                    }
                 }
-            } else {
-                error!("Unable to register session")
             }
         } else {
             error!("Unable to register session")

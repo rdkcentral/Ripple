@@ -239,34 +239,32 @@ impl FireboltOpenRpc {
         &self,
         getter_method: &str,
     ) -> Option<FireboltOpenRpcMethod> {
-        let mut result = None;
         let tokens: Vec<&str> = getter_method.split_terminator('.').collect();
-        if tokens.len() == 2 {
-            let setter = self.get_setter_method_for_property(tokens[1]);
-            if let Some(method) = setter {
-                let setter_tokens: Vec<&str> = method.name.split_terminator('.').collect();
-                if !setter_tokens[0].eq(tokens[0]) {
-                    result = None;
-                } else {
-                    result = Some(method);
-                }
-            }
-        } else {
-            result = None;
+
+        if tokens.len() != 2 {
+            return None;
         }
-        result
+
+        let setter = self.get_setter_method_for_property(tokens[1]);
+        setter.filter(|method| {
+            if let Some(suffix) = method.name.to_lowercase().strip_prefix(tokens[0]) {
+                !suffix.is_empty() && suffix.starts_with('.')
+            } else {
+                false
+            }
+        })
     }
 
     pub fn get_setter_method_for_property(&self, property: &str) -> Option<FireboltOpenRpcMethod> {
         self.methods
             .iter()
             .find(|method| {
-                method.tags.is_some()
-                    && method.tags.as_ref().unwrap().iter().any(|tag| {
+                method.tags.as_ref().map_or(false, |tags| {
+                    tags.iter().any(|tag| {
                         (tag.name == "rpc-only" || tag.name == "setter")
-                            && tag.setter_for.is_some()
-                            && tag.setter_for.as_ref().unwrap().as_str() == property
+                            && tag.setter_for.as_deref() == Some(property)
                     })
+                })
             })
             .cloned()
     }
