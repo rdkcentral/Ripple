@@ -992,6 +992,22 @@ impl GrantHandler {
 
         Ok(())
     }
+
+    pub fn are_all_user_grants_resolved(
+        state: &PlatformState,
+        app_id: &str,
+        permissions: Vec<FireboltPermission>,
+    ) -> Vec<FireboltPermission> {
+        let user_grant = state.clone().cap_state.grant_state;
+        let mut final_perms = Vec::new();
+        for permission in permissions {
+            let result = user_grant.get_grant_state(app_id, &permission, Some(state));
+            if let GrantActiveState::PendingGrant = result {
+                final_perms.push(permission.clone());
+            }
+        }
+        final_perms
+    }
 }
 
 pub struct GrantPolicyEnforcer;
