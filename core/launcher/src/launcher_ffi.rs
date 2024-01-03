@@ -17,7 +17,7 @@
 
 use ripple_sdk::{
     api::status_update::ExtnStatus,
-    crossbeam::channel::Receiver,
+    async_channel::Receiver,
     export_channel_builder, export_extn_metadata,
     extn::{
         client::{extn_client::ExtnClient, extn_sender::ExtnSender},
@@ -31,8 +31,8 @@ use ripple_sdk::{
     framework::ripple_contract::{ContractFulfiller, RippleContract},
     log::{debug, info},
     semver::Version,
-    tokio::{self, runtime::Runtime},
-    utils::{error::RippleError, logger::init_logger},
+    tokio,
+    utils::{error::RippleError, extn_utils::ExtnUtils, logger::init_logger},
 };
 
 use crate::{
@@ -59,10 +59,10 @@ fn init_library() -> CExtnMetadata {
 export_extn_metadata!(CExtnMetadata, init_library);
 
 fn start_launcher(sender: ExtnSender, receiver: Receiver<CExtnMessage>) {
-    let _ = init_logger("launcher_channel".into());
+    let _ = init_logger("launcher".into());
     info!("Starting launcher channel");
-    let runtime = Runtime::new().unwrap();
     let client = ExtnClient::new(receiver, sender);
+    let runtime = ExtnUtils::get_runtime("e-l".to_owned(), client.get_stack_size());
     let client_for_receiver = client.clone();
     runtime.block_on(async move {
         tokio::spawn(async move {
