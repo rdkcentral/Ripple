@@ -74,11 +74,18 @@ pub struct ExtnClient {
     ripple_context: Arc<RwLock<RippleContext>>,
 }
 
+///
+/// This is a utility method simply inserts the key and value to a given Arc<RwLock<HashMap<K,V>>>
+///
 fn add_stream_processor<P>(id: String, context: P, map: Arc<RwLock<HashMap<String, P>>>) {
     let mut processor_state = map.write().unwrap();
     processor_state.insert(id, context);
 }
 
+///
+/// Utility method which adds a key and list value to a given Arc<RWlock<HashMap<K,Vec<V>>>>
+/// If an entry is already present it adds to the Vec if not creates a new one
+///
 fn add_vec_stream_processor<P>(id: String, context: P, map: Arc<RwLock<HashMap<String, Vec<P>>>>) {
     let mut processor_state = map.write().unwrap();
     if let std::collections::hash_map::Entry::Vacant(e) = processor_state.entry(id.clone()) {
@@ -88,17 +95,12 @@ fn add_vec_stream_processor<P>(id: String, context: P, map: Arc<RwLock<HashMap<S
     }
 }
 
-fn add_single_processor<P>(id: String, processor: Option<P>, map: Arc<RwLock<HashMap<String, P>>>) {
-    if let Some(processor) = processor {
-        let mut processor_state = map.write().unwrap();
-        processor_state.insert(id, processor);
-    }
-}
-
-pub fn remove_processor<P>(id: String, map: Arc<RwLock<HashMap<String, P>>>) {
+///
+/// Utility function which adds a single processor used for response processors
+///
+fn add_single_processor<P>(id: String, processor: P, map: Arc<RwLock<HashMap<String, P>>>) {
     let mut processor_state = map.write().unwrap();
-    let sender = processor_state.remove(&id);
-    drop(sender);
+    processor_state.insert(id, processor);
 }
 
 impl ExtnClient {
@@ -158,11 +160,6 @@ impl ExtnClient {
         }
     }
 
-    /// Removes a request processor reference on the internal map of processors
-    pub fn remove_request_processor(&mut self, capability: ExtnId) {
-        remove_processor(capability.to_string(), self.request_processors.clone());
-    }
-
     /// Adds a new event processor reference to the internal map of processors
     ///
     /// Uses the capability provided by the Processor for registration
@@ -184,6 +181,10 @@ impl ExtnClient {
 
     /// Used mainly by `Main` application to add senders of the extensions for IEC
     pub fn add_sender(&mut self, id: ExtnId, symbol: ExtnSymbol, sender: CSender<CExtnMessage>) {
+        if !self.sender.get_cap().is_main() {
+            error!("Senders cannot be added in an extension");
+            return;
+        }
         let id = id.to_string();
         {
             let mut sender_map = self.extn_sender_map.write().unwrap();
@@ -506,7 +507,7 @@ impl ExtnClient {
     ) -> Result<ExtnMessage, RippleError> {
         let id = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = oneshot::channel();
-        add_single_processor(id.clone(), Some(tx), self.response_processors.clone());
+        add_single_processor(id.clone(), tx, self.response_processors.clone());
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
         self.sender.send_request(id, payload, other_sender, None)?;
         if let Ok(r) = rx.await {
@@ -630,4 +631,52 @@ impl ExtnClient {
         let ripple_context = self.ripple_context.read().unwrap();
         Some(ripple_context.time_zone.clone())
     }
+}
+
+#[cfg(test)]
+pub mod tests {
+    // Add straightforward test cases
+    // -- add_stream_processor
+    // -- add_vec_stream_processor
+    // -- add_single_processor
+
+    // Mockable for ExtnClient
+    // Abilities required for reusablity
+    // --Setting up the sender cap as main and not main
+    // --Supporting or Unsupporting a given contract
+    // --Adding a mock stream processor and returning a result
+    // --Adding a mock extension (Sender async_channel) for a contract
+
+    // Testcases for add_request_processor
+    // Change this method to return a boolean to indicate whether it was successfully added. (return contracts_supported.is_empty()
+    // -- Add a request processor for which contract is supported
+    // -- Add a request processor for which a contract is un supported
+
+    // Testcases for add_event_processor , cleanup_event_stream, get_other_senders
+    // there are conditions here just a plain operation
+
+    // Testcases for add_sender
+    // Check from an extension
+    // Check from main
+
+    // Testcases for Inititalizes
+    // Check if latency is printed as log (use testing_logger dependency )
+    // Check if invalid message is printed
+    // Check if debug message is printed with the message
+    // Send a response and expect it in a mock processor
+    // Send an event which is not ripple context to main
+    // Send an event which is not ripple context to extension
+    // Send an event which is ripple context to main
+    // Send an event which is ripple context to extension
+    // Send a request to main for a contract in extension.
+    // Send a request to main which is a ripple context update request
+    // Send a request to main for an internal contract
+
+    // Testcase for context update
+    // Call the method for a client which is not main
+    // Other cases
+
+    // Testcase for handle_no_processor_error
+    // Try sending to an extension with the fulfiillment
+    // Try sending a request for a contract not fulfilled and expect error
 }
