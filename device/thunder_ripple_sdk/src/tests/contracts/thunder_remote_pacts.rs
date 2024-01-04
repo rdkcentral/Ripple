@@ -28,7 +28,7 @@ use crate::{
             },
             device_request::DeviceRequest,
         },
-        crossbeam::channel::unbounded,
+        async_channel::unbounded,
         extn::extn_client_message::{ExtnPayload, ExtnRequest},
         serde_json::{self},
     },

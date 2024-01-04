@@ -17,7 +17,7 @@
 
 use crate::ripple_sdk::{
     api::device::{device_request::DeviceRequest, device_window_manager::WindowManagerRequest},
-    crossbeam::channel::unbounded,
+    async_channel::unbounded,
     extn::client::extn_processor::ExtnRequestProcessor,
     extn::extn_client_message::{ExtnPayload, ExtnRequest},
     serde_json, tokio,

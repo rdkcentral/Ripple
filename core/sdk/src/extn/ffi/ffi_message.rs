@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crossbeam::channel::Sender as CSender;
+use async_channel::Sender as CSender;
 
 use crate::{
     extn::{
