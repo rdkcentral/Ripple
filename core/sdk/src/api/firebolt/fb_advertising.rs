@@ -101,8 +101,7 @@ impl ExtnPayloadProvider for AdvertisingRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum AdvertisingResponse {
     None,
-    // TODO: assess if boxing this is a productive move: https://rust-lang.github.io/rust-clippy/master/index.html#/large_enum_variant
-    AdInitObject(Box<AdInitObjectResponse>),
+    AdInitObject(AdInitObjectResponse),
     AdIdObject(AdIdResponse),
 }
 

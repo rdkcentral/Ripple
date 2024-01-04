@@ -46,8 +46,7 @@ pub enum ProviderResponsePayload {
     ChallengeResponse(ChallengeResponse),
     PinChallengeResponse(PinChallengeResponse),
     KeyboardResult(KeyboardSessionResponse),
-    // TODO: assess if boxing this is a productive move: https://rust-lang.github.io/rust-clippy/master/index.html#/large_enum_variant
-    EntityInfoResponse(Box<Option<EntityInfoResult>>),
+    EntityInfoResponse(Option<EntityInfoResult>),
     PurchasedContentResponse(PurchasedContentResult),
 }
 
@@ -84,7 +83,7 @@ impl ProviderResponsePayload {
 
     pub fn as_entity_info_result(&self) -> Option<Option<EntityInfoResult>> {
         match self {
-            ProviderResponsePayload::EntityInfoResponse(res) => Some(*res.clone()),
+            ProviderResponsePayload::EntityInfoResponse(res) => Some(res.clone()),
             _ => None,
         }
     }

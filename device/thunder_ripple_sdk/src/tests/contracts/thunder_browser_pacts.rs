@@ -26,7 +26,7 @@ use ripple_sdk::{
         device_browser::{BrowserDestroyParams, BrowserLaunchParams, BrowserRequest},
         device_request::DeviceRequest,
     },
-    crossbeam::channel::unbounded,
+    async_channel::unbounded,
     extn::extn_client_message::{ExtnPayload, ExtnRequest},
     serde_json, tokio,
 };
