@@ -82,30 +82,3 @@ impl ExtnPayloadProvider for AppsRequest {
         RippleContract::Apps
     }
 }
-
-// #[derive(Debug, Serialize, Deserialize, Clone)]
-// pub struct GetAppsResponse {
-//     apps: Vec<AppMetadata>,
-// }
-
-// impl ExtnPayloadProvider for AppsResponse {
-//     fn get_extn_payload(&self) -> ExtnPayload {
-//         ExtnPayload::Response(ExtnResponse::Value(
-//             serde_json::to_value(self.clone()).unwrap(),
-//         ))
-//     }
-
-//     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-//         if let ExtnPayload::Response(ExtnResponse::Value(value)) = payload {
-//             if let Ok(v) = serde_json::from_value(value) {
-//                 return Some(v);
-//             }
-//         }
-
-//         None
-//     }
-
-//     fn contract() -> RippleContract {
-//         RippleContract::Apps
-//     }
-// }
