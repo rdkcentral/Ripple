@@ -145,7 +145,6 @@ impl ContextManager {
                 }
             }
 
-            // <pca>
             // Get Account session
             if let Ok(resp) = ps_c
                 .get_client()
@@ -164,7 +163,6 @@ impl ContextManager {
                     }
                 }
             }
-            // </pca>
         });
     }
 }

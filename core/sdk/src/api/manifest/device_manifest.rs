@@ -423,27 +423,21 @@ pub enum PrivacySettingsStorageType {
 pub struct RippleFeatures {
     pub privacy_settings_storage_type: PrivacySettingsStorageType,
     pub intent_validation: IntentValidation,
-    // <pca>
     #[serde(default = "default_cloud_permissions")]
     pub cloud_permissions: bool,
-    // </pca>
 }
 
 fn default_ripple_features() -> RippleFeatures {
     RippleFeatures {
         privacy_settings_storage_type: PrivacySettingsStorageType::Local,
         intent_validation: IntentValidation::FailOpen,
-        // <pca>
         cloud_permissions: true,
-        // </pca>
     }
 }
 
-// <pca>
 fn default_cloud_permissions() -> bool {
     true
 }
-// </pca>
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -607,9 +601,7 @@ impl DeviceManifest {
         self.lifecycle.clone()
     }
 
-    // <pca>
     pub fn get_applications_configuration(&self) -> ApplicationsConfiguration {
         self.applications.clone()
     }
-    // </pca>
 }

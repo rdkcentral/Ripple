@@ -144,51 +144,6 @@ impl PermissionHandler {
         }
     }
 
-    // <pca>
-    // pub async fn fetch_and_store_from_cache_or_server(
-    //     state: &PlatformState,
-    //     app_id: &str,
-    // ) -> RippleResponse {
-    //     // This function will get the permissions from cache if available or else from server
-    //     if let Some(permissions) = state.cap_state.permitted_state.get_app_permissions(app_id) {
-    //         let mut permissions_copy = permissions;
-    //         return Self::process_permissions(state, app_id, &mut permissions_copy);
-    //     }
-    //     Self::fetch_and_store(state, app_id).await
-    // }
-
-    // pub async fn fetch_and_store(state: &PlatformState, app_id: &str) -> RippleResponse {
-    //     // This function will always get the permissions from server and update the local cache
-    //     let app_id_alias = Self::get_distributor_alias_for_app_id(state, app_id);
-    //     if let Some(session) = state.session_state.get_account_session() {
-    //         match state
-    //             .get_client()
-    //             .send_extn_request(PermissionRequest {
-    //                 app_id: app_id_alias,
-    //                 session,
-    //             })
-    //             .await
-    //             .ok()
-    //         {
-    //             Some(extn_response) => {
-    //                 if let Some(permission_response) =
-    //                     extn_response.payload.extract::<PermissionResponse>()
-    //                 {
-    //                     let mut permission_response_copy = permission_response;
-    //                     return Self::process_permissions(
-    //                         state,
-    //                         app_id,
-    //                         &mut permission_response_copy,
-    //                     );
-    //                 }
-    //                 Err(RippleError::InvalidOutput)
-    //             }
-    //             None => Err(RippleError::InvalidOutput),
-    //         }
-    //     } else {
-    //         Err(RippleError::InvalidOutput)
-    //     }
-    // }
     pub async fn fetch_and_store(
         state: &PlatformState,
         app_id: &str,
@@ -265,7 +220,6 @@ impl PermissionHandler {
 
         Self::process_permissions(state, app_id, &mut permissions)
     }
-    // </pca>
 
     fn process_permissions(
         state: &PlatformState,
@@ -364,10 +318,7 @@ impl PermissionHandler {
         let ps_c = state.clone();
         let app_id_c = app_id.clone();
         let handle = tokio::spawn(async move {
-            // <pca>
-            //let perm_res = Self::fetch_and_store(&ps_c, &app_id_c).await;
             let perm_res = Self::fetch_and_store(&ps_c, &app_id_c, false).await;
-            // </pca>
             if perm_res.is_err() {
                 if has_stored {
                     error!(
@@ -398,10 +349,7 @@ impl PermissionHandler {
             return Self::is_all_permitted(&permitted, request);
         } else {
             // check to retrieve it one more time
-            // <pca>
-            //if (Self::fetch_and_store_from_cache_or_server(state, app_id).await).is_ok() {
             if (Self::fetch_and_store(state, app_id, true).await).is_ok() {
-                // </pca>
                 // cache primed try again
                 if let Some(permitted) = state.cap_state.permitted_state.get_app_permissions(app_id)
                 {

@@ -134,11 +134,9 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
                 serde_json::to_value(device_manifest.configuration.default_values.clone())
                     .unwrap_or_default(),
             ),
-            // <pca>
             Config::Firebolt => ExtnResponse::Value(
                 serde_json::to_value(state.open_rpc_state.get_open_rpc()).unwrap_or_default(),
             ),
-            // </pca>
             _ => ExtnResponse::Error(ripple_sdk::utils::error::RippleError::InvalidInput),
         };
         Self::respond(state.get_client().get_extn_client(), msg, response)

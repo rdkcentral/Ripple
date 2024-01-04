@@ -221,10 +221,7 @@ impl FireboltWs {
             return;
         }
         if !gateway_secure
-            // <pca>
-            //&& PermissionHandler::fetch_and_store(&state, &app_id)
             && PermissionHandler::fetch_and_store(&state, &app_id, false)
-            // </pca>
                 .await
                 .is_err()
         {

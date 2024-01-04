@@ -273,9 +273,7 @@ pub enum ExtnRequest {
     PlatformToken(PlatformTokenRequest),
     DistributorToken(DistributorTokenRequest),
     Context(RippleContextUpdateRequest),
-    // <pca>
     AppCatalog(AppCatalogRequest),
-    // </pca>
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -305,10 +303,8 @@ pub enum ExtnResponse {
     BoolMap(HashMap<String, bool>),
     Advertising(AdvertisingResponse),
     SecureStorage(SecureStorageResponse),
-    // <pca>
     AppCatalog(Vec<AppMetadata>),
     InstalledApps(Vec<InstalledApp>),
-    // </pca>
 }
 
 impl ExtnPayloadProvider for ExtnResponse {
@@ -339,9 +335,7 @@ pub enum ExtnEvent {
     Context(RippleContext),
     VoiceGuidanceState(VoiceGuidanceState),
     TimeZone(TimeZone),
-    // <pca>
     AppsUpdate(AppsUpdate),
-    // </pca>
 }
 
 impl ExtnPayloadProvider for ExtnEvent {
