@@ -220,8 +220,7 @@ pub struct AppLibraryEntry {
 pub enum AppManifestLoad {
     Remote(String),
     Local(String),
-    // TODO: assess if boxing this is a productive move: https://rust-lang.github.io/rust-clippy/master/index.html#/large_enum_variant
-    Embedded(Box<AppManifest>),
+    Embedded(AppManifest),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]

@@ -17,8 +17,8 @@
 
 use std::collections::HashMap;
 
+use async_channel::Sender as CSender;
 use chrono::Utc;
-use crossbeam::channel::Sender as CSender;
 use log::{error, trace};
 
 use crate::{
@@ -51,7 +51,6 @@ pub struct ExtnSender {
 
 impl ExtnSender {
     pub fn get_cap(&self) -> ExtnId {
-        println!("**** get_cap() called");
         self.id.clone()
     }
 
@@ -62,22 +61,15 @@ impl ExtnSender {
         fulfills: Vec<String>,
         config: Option<HashMap<String, String>>,
     ) -> Self {
-        println!("**** new() called");
-        let s = ExtnSender {
+        ExtnSender {
             tx,
             id,
             permitted: context,
             fulfills,
             config,
-        };
-        println!("**** new() ExtnSender: {:?}", s.clone());
-        s
+        }
     }
     pub fn check_contract_permission(&self, contract: RippleContract) -> bool {
-        println!(
-            "**** check_contract_permission() called {:?}",
-            contract.clone()
-        );
         if self.id.is_main() {
             true
         } else {
@@ -86,7 +78,6 @@ impl ExtnSender {
     }
 
     pub fn check_contract_fulfillment(&self, contract: RippleContract) -> bool {
-        println!("**** check_contract_fulfillment() called");
         if self.id.is_main() {
             true
         } else {
@@ -95,7 +86,6 @@ impl ExtnSender {
     }
 
     pub fn get_config(&self, key: &str) -> Option<String> {
-        println!("**** get_config() called");
         if let Some(c) = self.config.clone() {
             if let Some(v) = c.get(key) {
                 return Some(v.clone());
@@ -111,15 +101,10 @@ impl ExtnSender {
         other_sender: Option<CSender<CExtnMessage>>,
         callback: Option<CSender<CExtnMessage>>,
     ) -> Result<(), RippleError> {
-        println!("**** send_request() called {:?}", id);
         // Extns can only send request to which it has permissions through Extn manifest
         if !self.check_contract_permission(payload.get_contract()) {
             return Err(RippleError::InvalidAccess);
         }
-        println!(
-            "**** send_request() extn payload:  {:?}",
-            payload.get_extn_payload().clone()
-        );
         let p = payload.get_extn_payload();
         let c_request = p.into();
         let msg = CExtnMessage {
@@ -130,28 +115,6 @@ impl ExtnSender {
             target: payload.get_contract().into(),
             ts: Utc::now().timestamp_millis(),
         };
-        println!(
-            "**** get_extn_payload() msg:  {:?}",
-            payload.get_extn_payload().clone()
-        );
-        println!(
-            "**** get_contract() msg:  {:?}",
-            payload.get_contract().clone()
-        );
-        // serde json to get the payload
-        println!(
-            "**** get_extn_payload() msg:  {:?}",
-            serde_json::to_value(payload.get_extn_payload().clone()).unwrap()
-        );
-        println!(
-            "**** get_contract() msg:  {:?}",
-            serde_json::to_value(payload.get_contract().clone()).unwrap()
-        );
-        println!("**** send_request() msg:  {:?}", msg.clone());
-        println!(
-            "**** send_request() other_sender:  {:?}",
-            other_sender.clone()
-        );
         self.send(msg, other_sender)
     }
 
@@ -160,7 +123,6 @@ impl ExtnSender {
         payload: impl ExtnPayloadProvider,
         other_sender: Option<CSender<CExtnMessage>>,
     ) -> Result<(), RippleError> {
-        println!("**** send_event() called");
         let id = uuid::Uuid::new_v4().to_string();
         let p = payload.get_extn_payload();
         let c_event = p.into();
@@ -180,15 +142,9 @@ impl ExtnSender {
         msg: CExtnMessage,
         other_sender: Option<CSender<CExtnMessage>>,
     ) -> Result<(), RippleError> {
-        println!(
-            "**** send() called other_sender: {:?}",
-            other_sender.clone()
-        );
-        println!("**** send() msg: {:?}", msg.clone());
-
         if let Some(other_sender) = other_sender {
             trace!("Sending message on the other sender");
-            if let Err(e) = other_sender.send(msg) {
+            if let Err(e) = other_sender.try_send(msg) {
                 error!("send() error for message in other sender {}", e.to_string());
                 return Err(RippleError::SendFailure);
             }
@@ -197,7 +153,7 @@ impl ExtnSender {
             let tx = self.tx.clone();
             //tokio::spawn(async move {
             trace!("sending to main channel");
-            if let Err(e) = tx.send(msg) {
+            if let Err(e) = tx.try_send(msg) {
                 error!("send() error for message in main sender {}", e.to_string());
                 return Err(RippleError::SendFailure);
             }
@@ -210,10 +166,9 @@ impl ExtnSender {
         msg: CExtnMessage,
         other_sender: Option<CSender<CExtnMessage>>,
     ) -> RippleResponse {
-        println!("**** respond() called");
         if msg.callback.is_some() {
             trace!("Sending message on the callback sender");
-            if let Err(e) = msg.clone().callback.unwrap().send(msg) {
+            if let Err(e) = msg.clone().callback.unwrap().try_send(msg) {
                 error!(
                     "respond() error for message in callback sender {}",
                     e.to_string()
@@ -235,9 +190,8 @@ pub mod tests {
     };
 
     use super::*;
-    use crossbeam::channel::Receiver as CReceiver;
+    use async_channel::Receiver as CReceiver;
     use mockall::automock;
-    use parameterized::parameterized;
     use rstest::rstest;
     use std::collections::HashMap;
     // Mockable trait with generic mock method
@@ -315,7 +269,7 @@ pub mod tests {
         }
 
         fn build(self) -> (ExtnSender, CReceiver<CExtnMessage>) {
-            let (tx, _rx) = crossbeam::channel::unbounded();
+            let (tx, _rx) = async_channel::unbounded();
             (
                 ExtnSender {
                     tx,
@@ -411,12 +365,12 @@ pub mod tests {
         assert_eq!(result, expected);
     }
 
-    #[parameterized(device_info_request = {
-        &DeviceInfoRequest::Make,
-        &DeviceInfoRequest::Name,
-        // Add more request variants as needed
-    })]
-    fn test_send_request_with_device_info_request(device_info_request: &DeviceInfoRequest) {
+    #[rstest]
+    #[case(&DeviceInfoRequest::Make)]
+    #[case(&DeviceInfoRequest::Name)]
+    async fn test_send_request_with_device_info_request(
+        #[case] device_info_request: &DeviceInfoRequest,
+    ) {
         let config: Option<HashMap<String, String>> = Some(
             [("rdk_telemetry", "true")]
                 .iter()
@@ -457,14 +411,14 @@ pub mod tests {
 
         // Assertions
         assert!(result.is_ok());
-        if let Ok(r) = receiver.recv() {
+        if let Ok(r) = receiver.recv().await {
             println!(
                 "**** test_send_request_with_device_info_request() r: {:?}",
                 r
             );
             assert_eq!(r.requestor, sender.id.to_string());
             assert_eq!(
-                r.target.clone(),
+                r.target,
                 format!("\"{}\"", RippleContract::DeviceInfo.as_clear_string())
             );
 

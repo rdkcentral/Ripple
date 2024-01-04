@@ -17,7 +17,7 @@
 
 use std::collections::HashMap;
 
-use crossbeam::channel::Sender as CSender;
+use async_channel::Sender as CSender;
 use log::error;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -82,7 +82,7 @@ use super::{extn_id::ExtnId, ffi::ffi_message::CExtnMessage};
 ///
 /// `payload` | [ExtnPayload]| Type of payload could be [ExtnRequest], [ExtnResponse] or [ExtnEvent]
 ///
-/// `callback` |Crossbeam [crossbeam::channel::Sender<CExtnMessage>] | Usually added by `Main` to the `target` to respond back to the `requestor`|
+/// `callback` |Async Channel [async_channel::Sender<CExtnMessage>] | Usually added by `Main` to the `target` to respond back to the `requestor`|
 
 #[derive(Debug, Clone)]
 pub struct ExtnMessage {

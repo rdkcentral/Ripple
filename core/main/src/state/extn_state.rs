@@ -27,7 +27,7 @@ use ripple_sdk::{
         manifest::extn_manifest::{ExtnManifest, ExtnManifestEntry, ExtnSymbol},
         status_update::ExtnStatus,
     },
-    crossbeam::channel::Sender as CSender,
+    async_channel::Sender as CSender,
     extn::{
         client::extn_sender::ExtnSender,
         extn_id::ExtnId,
@@ -200,7 +200,7 @@ impl ExtnState {
             symbol.clone().fulfills,
             symbol.clone().config,
         );
-        let (extn_tx, extn_rx) = ChannelsState::get_crossbeam_channel();
+        let (extn_tx, extn_rx) = ChannelsState::get_iec_channel();
         let extn_channel = channel.channel;
         thread::spawn(move || {
             (extn_channel.start)(extn_sender, extn_rx);
