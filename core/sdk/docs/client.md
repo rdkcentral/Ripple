@@ -6,7 +6,7 @@ __*FFI*__ - [Foreign Functional Interface](https://en.wikipedia.org/wiki/Foreign
 
 __*ABI*__ - [Application Binary Interface](https://en.wikipedia.org/wiki/Application_binary_interface) is the interface between the dynamic link library and the loader
 
-__*Crossbeam Channel*__ - [Rust library](https://docs.rs/crossbeam/latest/crossbeam/channel/index.html) which provides channels that can work across the loader and the dynamic link libraries.
+__*Async Channel Channel*__ - [Rust library](https://docs.rs/async-channel/latest/async_channel/) which provides channels that can work across the loader and the dynamic link libraries.
 
 __*Extension*__ - Ripple Dynamic link library which can be loaded during runtime and offer more extensive capabilities. 
 
@@ -36,8 +36,8 @@ Above image is a very good example of how `Main` rejects any requests from `c` i
 
 ![Capability Permitted](./images/cappermitted.jpeg)
 
-### Crossbeam Channel
-Crossbeam provides a safe FFI bridge between Extensions and `Main` any communication between `Client` happens on this channel. It uses MPMC which expands to Multiple Producer and Multiple Consumer model. 
+### Async Channel Channel
+Async Channel provides a safe FFI bridge between Extensions and `Main` any communication between `Client` happens on this channel. It uses MPMC which expands to Multiple Producer and Multiple Consumer model. 
 
 Each extension `Client` gets a Sender to call `Main` with requests. It also uses this same sender to send back the response if there is no callback supplied for a given request.
 
@@ -64,7 +64,7 @@ Below table explains what each field means
 | requestor      | ExtnCapability      | Looks something like `ripple:main:internal:rpc` when converted to String for a request coming from `Main`  |
 | target | ExtnCapability      |    Something like `ripple:channel:device:info` for the device channel info request|
 | payload| ExtnPayload| Payloads will be discussed in detail on the next section|
-|callback|Crossbeam `Sender<CExtnMessage>` | Usually added by `Main` to the `target` to respond back to the `requestor`|
+|callback|Async Channel `Sender<CExtnMessage>` | Usually added by `Main` to the `target` to respond back to the `requestor`|
 
 ### Extn Payloads
 There are 3 types of Extn Payloads
@@ -76,13 +76,13 @@ There are 3 types of Extn Payloads
 ![Payload types](./images/ExtnMessageTypes.jpeg)
 
 ### Encoding/Decoding
-For a given Message to travel between dynamic link libraries it needs to make sure that the data is ABI friendly. To achieve this feature ExtnClient has an encoder and decoder to pass the data safely and securely across crossbeam channels.
+For a given Message to travel between dynamic link libraries it needs to make sure that the data is ABI friendly. To achieve this feature ExtnClient has an encoder and decoder to pass the data safely and securely across async_channel channels.
 ![Encoding Decoding](./images/enc_dec.jpeg)
 Extn client uses a C friendly Structure called CExtnMessage to safely convert the ExtnMessage object for FFI transport.
 Each Extn client has a encoder and decoder for sending and receiving messages.
 
 ![Client Bone](./images/client_backbone.jpeg)
-Above diagram explains how 2 clients are binded within a crossbeam channel using encoder and decoder this is the backbone for the Extn client.
+Above diagram explains how 2 clients are binded within a async_channel channel using encoder and decoder this is the backbone for the Extn client.
 ## Implementation
 `Client` contains a `Sender` and `Processors`. 
 
@@ -164,7 +164,7 @@ Below diagram explains the a simple usecase where `Main` calls an `Extension` fo
 ![Request Response Lifecycle](./images/request_response_lifecycle.jpeg)
 
 1. Caller provides the `ExtnPayload` this payload has to implement `ExtnPayloadProvider` provided in the `core/sdk`
-2. Client finds the Crossbeam sender passes it down the `Sender` along with message.
+2. Client finds the Async Channel sender passes it down the `Sender` along with message.
 2a. Client adds a Response processor using the `id` field in the message. This will be used for callback in step `10`.
 3. `Sender` receives the request and adds the `requestor` field and sends the message to `Main`. In this step `Encoder` converts the `ExtnMessage` to `CExtnMessage`.
 4. Target `Client` receives the request and decodes it back to `ExtnMessage` passes it down to the `Request` handler.
@@ -181,7 +181,7 @@ There is a small variation when a call is made from an extension and the intende
 1. `Client` receives the payload and forwards the request to `Sender`
 1.a Client adds a Response processor using the `id` field in the message. This will be used for callback in step `10`.
 2. `Sender` sends the request to `Main` Extn client.
-3. `Client` receives the message in `Main` and checks for the requestor permissions. Once Permissions are satisfied it will check for the capability if it needs forwarding. If required it forwards the request to the Target extn client using `Crossbeam Sender` and adds a `callback`. This usecase is explained in the [Response needs no stopovers](#response-needs-no-stopovers) section.
+3. `Client` receives the message in `Main` and checks for the requestor permissions. Once Permissions are satisfied it will check for the capability if it needs forwarding. If required it forwards the request to the Target extn client using `Async Channel Sender` and adds a `callback`. This usecase is explained in the [Response needs no stopovers](#response-needs-no-stopovers) section.
 
 Othersteps are same as the above usecase.
 

@@ -1402,7 +1402,7 @@ impl ThunderDeviceInfoRequestProcessor {
             screen_resolution: native_dimensions,
         };
         if let ExtnPayload::Response(r) =
-            DeviceResponse::FullCapabilities(Box::new(device_capabilities)).get_extn_payload()
+            DeviceResponse::FullCapabilities(device_capabilities).get_extn_payload()
         {
             Self::respond(state.get_client(), msg, r).await.is_ok()
         } else {

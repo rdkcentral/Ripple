@@ -25,7 +25,7 @@ use crate::ripple_sdk::{
         device_request::DeviceRequest,
         device_wifi::{AccessPointRequest, WifiSecurityMode},
     },
-    crossbeam::channel::unbounded,
+    async_channel::unbounded,
     extn::extn_client_message::{ExtnPayload, ExtnRequest},
     serde_json,
 };

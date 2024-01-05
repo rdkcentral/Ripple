@@ -86,7 +86,7 @@ impl AppLibrary {
                 error!("Local manifests not supported yet");
                 None
             }
-            AppManifestLoad::Embedded(manifest) => Some(*manifest.clone()),
+            AppManifestLoad::Embedded(manifest) => Some(manifest.clone()),
         }
     }
 

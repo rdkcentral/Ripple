@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crossbeam::channel::Receiver as CReceiver;
+use async_channel::Receiver as CReceiver;
 use libloading::{Library, Symbol};
 use log::{debug, error};
 
@@ -61,7 +61,7 @@ pub unsafe fn load_channel_builder(lib: &Library) -> Result<Box<ExtnChannelBuild
 /// use ripple_sdk::extn::ffi::ffi_message::CExtnMessage;
 /// use ripple_sdk::extn::ffi::ffi_channel::{ExtnChannel,ExtnChannelBuilder};
 /// use ripple_sdk::extn::extn_id::{ExtnClassId};
-/// use ripple_sdk::crossbeam::channel::Receiver as CReceiver;
+/// use ripple_sdk::async_channel::Receiver as CReceiver;
 /// use semver::Version;
 /// use ripple_sdk::utils::error::RippleError;
 /// use ripple_sdk::export_channel_builder;

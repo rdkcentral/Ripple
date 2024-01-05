@@ -121,7 +121,7 @@ impl ExtnRequestProcessor for DistributorAdvertisingProcessor {
                     .respond(
                         msg,
                         if let ExtnPayload::Response(r) =
-                            AdvertisingResponse::AdInitObject(Box::new(resp)).get_extn_payload()
+                            AdvertisingResponse::AdInitObject(resp).get_extn_payload()
                         {
                             r
                         } else {
