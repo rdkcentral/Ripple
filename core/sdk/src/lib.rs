@@ -29,6 +29,7 @@ pub extern crate chrono;
 pub extern crate futures;
 pub extern crate libloading;
 pub extern crate log;
+pub extern crate parking_lot;
 pub extern crate semver;
 pub extern crate serde;
 pub extern crate serde_json;

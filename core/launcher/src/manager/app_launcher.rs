@@ -17,7 +17,7 @@
 
 use std::{
     collections::HashMap,
-    sync::{Arc, RwLock},
+    sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -45,6 +45,7 @@ use ripple_sdk::{
     extn::extn_client_message::ExtnResponse,
     framework::ripple_contract::RippleContract,
     log::{debug, error, info, warn},
+    parking_lot::RwLock,
     tokio::{
         self,
         time::{sleep, Duration},
@@ -117,7 +118,6 @@ impl AppLauncherState {
             Some(t) => self
                 .apps
                 .read()
-                .unwrap()
                 .iter()
                 .filter(|(_app_id, app)| app.launch_params._type.eq(&t))
                 .count(),
@@ -129,11 +129,11 @@ impl AppLauncherState {
     }
 
     fn get_app_len(&self) -> usize {
-        self.apps.read().unwrap().len()
+        self.apps.read().len()
     }
 
     fn get_app_by_id(&self, app_id: &str) -> Option<App> {
-        let v = self.apps.read().unwrap();
+        let v = self.apps.read();
         let r = v.get(app_id);
         if let Some(r) = r {
             let v = r.clone();
@@ -143,12 +143,12 @@ impl AppLauncherState {
     }
 
     fn get_apps(&self) -> Vec<App> {
-        let r = self.apps.read().unwrap();
+        let r = self.apps.read();
         r.iter().map(|(_s, app)| app.clone()).collect()
     }
 
     fn set_app_state(&self, container_id: &str, lifecycle_state: LifecycleState) {
-        let mut v = self.apps.write().unwrap();
+        let mut v = self.apps.write();
         let r = v.get_mut(container_id);
         if let Some(r) = r {
             r.state = lifecycle_state
@@ -156,7 +156,7 @@ impl AppLauncherState {
     }
 
     fn set_app_ready(&self, app_id: &str) {
-        let mut v = self.apps.write().unwrap();
+        let mut v = self.apps.write();
         let r = v.get_mut(app_id);
         if let Some(r) = r {
             r.ready = true;
@@ -164,7 +164,7 @@ impl AppLauncherState {
     }
 
     fn set_app_viewid(&self, container_id: &str, view_id: Uuid) {
-        let mut v = self.apps.write().unwrap();
+        let mut v = self.apps.write();
         let r = v.get_mut(container_id);
         if let Some(r) = r {
             r.container_props.view_id = view_id
@@ -172,18 +172,18 @@ impl AppLauncherState {
     }
 
     fn add_app(&self, key: String, app: App) {
-        let mut r = self.apps.write().unwrap();
+        let mut r = self.apps.write();
         r.insert(key, app);
     }
 
     fn remove_app(&self, key: &str) -> Option<App> {
-        let mut r = self.apps.write().unwrap();
+        let mut r = self.apps.write();
         r.remove(key)
     }
 
     fn always_retained_apps(&self, policy: RetentionPolicy) -> Vec<App> {
         let mut candidates = Vec::new();
-        for (_id, app) in self.apps.read().unwrap().iter() {
+        for (_id, app) in self.apps.read().iter() {
             if policy.always_retained.contains(&app.app_id) {
                 continue;
             }

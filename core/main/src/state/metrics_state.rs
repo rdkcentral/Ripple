@@ -15,10 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{
-    collections::HashSet,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashSet, sync::Arc};
 
 use jsonrpsee::tracing::debug;
 use ripple_sdk::{
@@ -29,6 +26,7 @@ use ripple_sdk::{
     },
     chrono::{DateTime, Utc},
     extn::extn_client_message::ExtnResponse,
+    parking_lot::RwLock,
 };
 
 use crate::processor::storage::storage_manager::StorageManager;
@@ -44,7 +42,7 @@ pub struct MetricsState {
 
 impl MetricsState {
     pub fn get_context(&self) -> MetricsContext {
-        self.context.read().unwrap().clone()
+        self.context.read().clone()
     }
 
     pub async fn initialize(state: &PlatformState) {
@@ -106,7 +104,7 @@ impl MetricsState {
         }
         {
             // Time to set them
-            let mut context = state.metrics.context.write().unwrap();
+            let mut context = state.metrics.context.write();
             if let Some(mac) = mac_address {
                 context.mac_address = mac;
             }
@@ -152,7 +150,7 @@ impl MetricsState {
     }
 
     pub async fn update_account_session(state: &PlatformState) {
-        let mut context = state.metrics.context.write().unwrap();
+        let mut context = state.metrics.context.write();
         let account_session = state.session_state.get_account_session();
         if let Some(session) = account_session {
             context.account_id = session.account_id;
@@ -166,7 +164,7 @@ impl MetricsState {
     }
 
     pub fn operational_telemetry_listener(&self, target: &str, listen: bool) {
-        let mut listeners = self.operational_telemetry_listeners.write().unwrap();
+        let mut listeners = self.operational_telemetry_listeners.write();
         if listen {
             listeners.insert(target.to_string());
         } else {
@@ -177,7 +175,6 @@ impl MetricsState {
     pub fn get_listeners(&self) -> Vec<String> {
         self.operational_telemetry_listeners
             .read()
-            .unwrap()
             .clone()
             .iter()
             .map(|x| x.to_owned())
@@ -186,7 +183,7 @@ impl MetricsState {
 
     pub fn update_session_id(&self, value: Option<String>) {
         let value = value.unwrap_or_default();
-        let mut context = self.context.write().unwrap();
+        let mut context = self.context.write();
         context.device_session_id = value;
     }
 }

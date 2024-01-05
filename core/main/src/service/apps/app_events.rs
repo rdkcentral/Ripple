@@ -27,15 +27,13 @@ use ripple_sdk::{
         protocol::BridgeProtocolRequest,
     },
     log::error,
+    parking_lot::RwLock,
     serde_json::{json, Value},
     tokio::sync::mpsc,
     utils::channel_utils::mpsc_send_and_log,
 };
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, sync::Arc};
 
 use crate::state::platform_state::PlatformState;
 
@@ -85,7 +83,7 @@ impl std::fmt::Debug for AppEventsState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut listeners_debug = HashMap::<String, String>::default();
 
-        for (event_name, context_map) in self.listeners.read().unwrap().iter() {
+        for (event_name, context_map) in self.listeners.read().iter() {
             for (context, listeners) in context_map.iter() {
                 listeners
                     .iter()
@@ -240,7 +238,7 @@ impl AppEvents {
         }
         let session = session.unwrap();
         let app_events_state = &state.app_events_state;
-        let mut listeners = app_events_state.listeners.write().unwrap();
+        let mut listeners = app_events_state.listeners.write();
         let event_ctx_string = event_context.map(|x| x.to_string());
 
         if listen_request.listen {
@@ -301,7 +299,7 @@ impl AppEvents {
         event_name: &str,
         context: Option<String>,
     ) -> Vec<EventListener> {
-        let listeners = state.listeners.read().unwrap();
+        let listeners = state.listeners.read();
         let mut vec = Vec::new();
 
         if let Some(entry) = listeners.get(event_name) {
@@ -416,7 +414,7 @@ impl AppEvents {
 
     pub fn remove_session(state: &PlatformState, session_id: String) {
         state.session_state.clear_session(&session_id);
-        let mut listeners = state.app_events_state.listeners.write().unwrap();
+        let mut listeners = state.app_events_state.listeners.write();
         let all_events = listeners.keys().cloned().collect::<Vec<String>>();
         for event_name in all_events {
             if let Some(ctx_map) = listeners.get_mut(&event_name) {
@@ -462,15 +460,7 @@ pub mod tests {
             call_context,
             listen_request,
         );
-        assert!(
-            platform_state
-                .app_events_state
-                .listeners
-                .read()
-                .unwrap()
-                .len()
-                == 1
-        );
+        assert!(platform_state.app_events_state.listeners.read().len() == 1);
         let listeners =
             AppEvents::get_listeners(&platform_state.app_events_state, "test_event", None);
         assert!(listeners.len() == 1);
