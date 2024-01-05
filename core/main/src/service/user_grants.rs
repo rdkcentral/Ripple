@@ -529,6 +529,7 @@ impl GrantState {
         fb_perms: &[FireboltPermission],
         fail_on_first_error: bool,
         apply_exclusion_filter: bool,
+        force: bool,
     ) -> Result<(), DenyReasonWithCap> {
         /*
          * Instead of just checking for grants previously, if the user grants are not present,
@@ -560,7 +561,12 @@ impl GrantState {
 
         let mut denied_caps = Vec::new();
         for permission in caps_needing_grant_in_request {
-            let result = grant_state.get_grant_state(&app_id, &permission, None);
+            let result = if force {
+                GrantActiveState::PendingGrant
+            } else {
+                grant_state.get_grant_state(&app_id, &permission, None)
+            };
+
             match result {
                 GrantActiveState::ActiveGrant(grant) => {
                     if grant.is_err() {
