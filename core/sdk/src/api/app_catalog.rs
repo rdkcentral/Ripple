@@ -66,12 +66,6 @@ impl AppsUpdate {
     }
 }
 
-impl Default for AppsUpdate {
-    fn default() -> Self {
-        AppsUpdate { apps: vec![] }
-    }
-}
-
 impl ExtnPayloadProvider for AppsUpdate {
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Event(ExtnEvent::AppsUpdate(self.clone()))
