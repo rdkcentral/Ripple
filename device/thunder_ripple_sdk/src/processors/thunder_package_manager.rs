@@ -421,7 +421,6 @@ impl ThunderPackageManagerRequestProcessor {
         {
             state
                 .active_operations
-                .clone()
                 .lock()
                 .unwrap()
                 .insert(handle.clone(), operation);
@@ -439,7 +438,7 @@ impl ThunderPackageManagerRequestProcessor {
             "operation_in_progress: operation_type={:?}, app_id={}, version={}",
             operation_type, app_id, version
         );
-        for (handle, operation) in state.active_operations.clone().lock().unwrap().iter() {
+        for (handle, operation) in state.active_operations.lock().unwrap().iter() {
             if operation_type == operation.operation_type
                 && app_id.eq(&operation.durable_app_id)
                 && version.eq(&operation.app_data.version)
@@ -661,7 +660,7 @@ impl ThunderPackageManagerRequestProcessor {
             };
 
         let installed_app = installed_apps.iter().find(|app| app.id.eq(&app_id));
-        if let None = installed_app {
+        if installed_app.is_none() {
             error!("get_firebolt_permissions: Failed to determine version");
             return Self::respond(
                 state.thunder_state.get_client(),

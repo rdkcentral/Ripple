@@ -151,16 +151,13 @@ impl ContextManager {
                 .send_extn_request(AccountSessionRequest::GetAccessToken)
                 .await
             {
-                if let Some(ExtnResponse::AccountSession(account_session_response)) =
-                    resp.payload.extract::<ExtnResponse>()
+                if let Some(ExtnResponse::AccountSession(
+                    AccountSessionResponse::AccountSessionToken(account_token),
+                )) = resp.payload.extract::<ExtnResponse>()
                 {
-                    if let AccountSessionResponse::AccountSessionToken(account_token) =
-                        account_session_response
-                    {
-                        ps_c.get_client()
-                            .get_extn_client()
-                            .context_update(RippleContextUpdateRequest::Token(account_token));
-                    }
+                    ps_c.get_client()
+                        .get_extn_client()
+                        .context_update(RippleContextUpdateRequest::Token(account_token));
                 }
             }
         });
