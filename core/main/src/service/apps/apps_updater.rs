@@ -100,12 +100,11 @@ pub async fn update(mut client: ExtnClient, apps_update: AppsUpdate, ignore_list
             continue;
         }
 
-        if apps_update
+        if !apps_update
             .apps
             .clone()
             .into_iter()
-            .find(|app| app.id.eq(&installed_app.id))
-            .is_none()
+            .any(|app| app.id.eq(&installed_app.id))
         {
             debug!("update: Existing application is no longer in the updated catalog, uninstalling: id={}, version={}", installed_app.id, installed_app.version);
 
@@ -129,13 +128,9 @@ pub async fn update(mut client: ExtnClient, apps_update: AppsUpdate, ignore_list
 
     for app in apps_update.apps {
         let installed_ids = installed_apps.clone();
-        if installed_ids
-            .into_iter()
-            .find(|installed_app| {
-                installed_app.id.eq(&app.id) && installed_app.version.eq(&app.version)
-            })
-            .is_none()
-        {
+        if !installed_ids.into_iter().any(|installed_app| {
+            installed_app.id.eq(&app.id) && installed_app.version.eq(&app.version)
+        }) {
             debug!("update: Application is not currently installed, installing: title={}, id={}, version={}", app.title, app.id, app.version);
             let metadata = AppMetadata::new(app.id, app.title, app.version, app.uri, app.data);
             let resp = client.request(AppsRequest::InstallApp(metadata)).await;
