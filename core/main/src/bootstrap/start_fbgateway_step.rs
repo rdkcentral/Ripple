@@ -41,8 +41,8 @@ use crate::{
     state::{bootstrap_state::BootstrapState, platform_state::PlatformState},
 };
 use jsonrpsee::core::{async_trait, server::rpc_module::Methods};
+use ripple_sdk::log::debug;
 use ripple_sdk::{framework::bootstrap::Bootstep, utils::error::RippleError};
-use ripple_sdk::{log::debug, tokio};
 pub struct FireboltGatewayStep;
 
 impl FireboltGatewayStep {

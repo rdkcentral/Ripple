@@ -129,7 +129,7 @@ impl InstallAppRequest {
             url: app.uri,
             app_name: app.title,
             _type: app_type,
-            category: category,
+            category,
         }
     }
 }
@@ -319,10 +319,8 @@ fn get_string_field(
     status: &serde_json::Map<std::string::String, serde_json::Value>,
     field_name: &str,
 ) -> String {
-    if let Some(value) = status.get(field_name) {
-        if let Value::String(field_value) = value {
-            return field_value.clone();
-        }
+    if let Some(Value::String(field_value)) = status.get(field_name) {
+        return field_value.clone();
     }
     String::default()
 }
@@ -416,7 +414,6 @@ impl ThunderPackageManagerRequestProcessor {
     ) {
         if state
             .active_operations
-            .clone()
             .lock()
             .unwrap()
             .remove(&handle)
@@ -428,7 +425,7 @@ impl ThunderPackageManagerRequestProcessor {
                 .lock()
                 .unwrap()
                 .insert(handle.clone(), operation);
-            Self::start_operation_timer(state.clone(), handle, None);
+            Self::start_operation_timer(state, handle, None);
         }
     }
 
@@ -443,12 +440,11 @@ impl ThunderPackageManagerRequestProcessor {
             operation_type, app_id, version
         );
         for (handle, operation) in state.active_operations.clone().lock().unwrap().iter() {
-            if operation_type == operation.operation_type {
-                if app_id.eq(&operation.durable_app_id) {
-                    if version.eq(&operation.app_data.version) {
-                        return Some(handle.to_string());
-                    }
-                }
+            if operation_type == operation.operation_type
+                && app_id.eq(&operation.durable_app_id)
+                && version.eq(&operation.app_data.version)
+            {
+                return Some(handle.to_string());
             }
         }
         None
@@ -487,7 +483,7 @@ impl ThunderPackageManagerRequestProcessor {
         let device_response = thunder_state
             .get_thunder_client()
             .call(DeviceCallRequest {
-                method: method,
+                method,
                 params: Some(DeviceChannelParams::Json(
                     serde_json::to_string(&request).unwrap(),
                 )),
@@ -537,7 +533,7 @@ impl ThunderPackageManagerRequestProcessor {
             .thunder_state
             .get_thunder_client()
             .call(DeviceCallRequest {
-                method: method,
+                method,
                 params: Some(DeviceChannelParams::Json(
                     serde_json::to_string(&request).unwrap(),
                 )),
@@ -592,7 +588,7 @@ impl ThunderPackageManagerRequestProcessor {
             .thunder_state
             .get_thunder_client()
             .call(DeviceCallRequest {
-                method: method,
+                method,
                 params: Some(DeviceChannelParams::Json(
                     serde_json::to_string(&request).unwrap(),
                 )),
@@ -683,7 +679,7 @@ impl ThunderPackageManagerRequestProcessor {
             .thunder_state
             .get_thunder_client()
             .call(DeviceCallRequest {
-                method: method,
+                method,
                 params: Some(DeviceChannelParams::Json(
                     serde_json::to_string(&request).unwrap(),
                 )),
@@ -732,7 +728,7 @@ impl ThunderPackageManagerRequestProcessor {
         let device_response = thunder_state
             .get_thunder_client()
             .call(DeviceCallRequest {
-                method: method,
+                method,
                 params: Some(DeviceChannelParams::Json(
                     serde_json::to_string(&request).unwrap(),
                 )),
