@@ -16,10 +16,8 @@
 //
 
 use chrono::{LocalResult, TimeZone, Utc};
-use std::{
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use parking_lot::Mutex;
+use std::{sync::Arc, time::Duration};
 
 use futures::Future;
 use tokio::task::JoinHandle;
@@ -71,7 +69,7 @@ impl Timer {
         let cancelled = cancelled_flag_mutex.clone();
         let handle = tokio::spawn(async move {
             tokio::time::sleep(Duration::from_millis(delay_ms)).await;
-            let cancelled = { *cancelled_flag_mutex.lock().unwrap() };
+            let cancelled = { *cancelled_flag_mutex.lock() };
             if !cancelled {
                 callback.await;
             }
@@ -80,7 +78,7 @@ impl Timer {
     }
 
     pub fn cancel(self) {
-        let mut cancelled_flag = self.cancelled.lock().unwrap();
+        let mut cancelled_flag = self.cancelled.lock();
         *cancelled_flag = true;
         self.handle.abort();
     }

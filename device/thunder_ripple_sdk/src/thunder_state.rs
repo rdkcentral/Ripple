@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use ripple_sdk::{
     api::device::device_operator::{
@@ -25,6 +25,7 @@ use ripple_sdk::{
         client::extn_client::ExtnClient,
         extn_client_message::{ExtnMessage, ExtnPayloadProvider},
     },
+    parking_lot::RwLock,
     tokio,
     tokio::sync::mpsc,
     tokio::sync::{Mutex, Notify},
@@ -142,7 +143,7 @@ impl ThunderState {
     }
 
     pub fn start_event_thread(&self) {
-        let mut rx = self.receiver.write().unwrap();
+        let mut rx = self.receiver.write();
         let rx = rx.take();
         if let Some(mut r) = rx {
             let state_c = self.clone();

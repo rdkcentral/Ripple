@@ -32,6 +32,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::{CallContext, CallerSession},
     },
     log::{debug, error, info, warn},
+    parking_lot::RwLock,
     serde_json,
     tokio::sync::oneshot,
     utils::channel_utils::oneshot_send_and_log,
@@ -39,10 +40,7 @@ use ripple_sdk::{
 };
 use serde::{Deserialize, Serialize};
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     service::apps::app_events::AppEvents,
@@ -146,7 +144,7 @@ impl ProviderBroker {
         method: String,
         provider: CallContext,
     ) {
-        let mut provider_methods = pst.provider_broker_state.provider_methods.write().unwrap();
+        let mut provider_methods = pst.provider_broker_state.provider_methods.write();
         let cap_method = format!("{}:{}", capability, method);
         if let Some(method) = provider_methods.get(&cap_method) {
             // unregister the capability if it is provided by the session
@@ -180,7 +178,7 @@ impl ProviderBroker {
             listen_request,
         );
         {
-            let mut provider_methods = pst.provider_broker_state.provider_methods.write().unwrap();
+            let mut provider_methods = pst.provider_broker_state.provider_methods.write();
             provider_methods.insert(
                 cap_method,
                 ProviderMethod {
@@ -205,7 +203,7 @@ impl ProviderBroker {
     }
 
     pub fn get_provider_methods(pst: &PlatformState) -> ProviderResult {
-        let provider_methods = pst.provider_broker_state.provider_methods.read().unwrap();
+        let provider_methods = pst.provider_broker_state.provider_methods.read();
         let mut result: HashMap<String, Vec<String>> = HashMap::new();
         let caps_keys = provider_methods.keys();
         let all_caps = caps_keys.cloned().collect::<Vec<String>>();
@@ -229,7 +227,7 @@ impl ProviderBroker {
         debug!("invoking provider for {}", cap_method);
 
         let provider_opt = {
-            let provider_methods = pst.provider_broker_state.provider_methods.read().unwrap();
+            let provider_methods = pst.provider_broker_state.provider_methods.read();
             provider_methods.get(&cap_method).cloned()
         };
         if let Some(provider) = provider_opt {
@@ -275,7 +273,7 @@ impl ProviderBroker {
         provider: ProviderMethod,
     ) -> String {
         let c_id = Uuid::new_v4().to_string();
-        let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
+        let mut active_sessions = pst.provider_broker_state.active_sessions.write();
         debug!("started provider session {} {}", c_id, request.capability);
         active_sessions.insert(
             c_id.clone(),
@@ -296,7 +294,7 @@ impl ProviderBroker {
         // Remove any duplicate requests.
         ProviderBroker::remove_request(pst, &request.capability);
 
-        let mut request_queue = pst.provider_broker_state.request_queue.write().unwrap();
+        let mut request_queue = pst.provider_broker_state.request_queue.write();
         if request_queue.is_full() {
             warn!("invoke_method: Request queue full, removing oldest request");
             request_queue.remove(0);
@@ -309,7 +307,7 @@ impl ProviderBroker {
             "provider_response, {}, {:?}",
             resp.correlation_id, resp.result
         );
-        let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
+        let mut active_sessions = pst.provider_broker_state.active_sessions.write();
         match active_sessions.remove(&resp.correlation_id) {
             Some(session) => {
                 oneshot_send_and_log(session.caller.tx, resp.result, "ProviderResponse");
@@ -331,7 +329,7 @@ impl ProviderBroker {
     }
 
     fn cleanup_caps_for_unregister(pst: &PlatformState, session_id: String) -> Vec<String> {
-        let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
+        let mut active_sessions = pst.provider_broker_state.active_sessions.write();
         let cid_keys = active_sessions.keys();
         let all_cids = cid_keys.cloned().collect::<Vec<String>>();
         let mut clear_cids = Vec::<String>::new();
@@ -353,7 +351,7 @@ impl ProviderBroker {
         for cid in clear_cids {
             active_sessions.remove(&cid);
         }
-        let mut provider_methods = pst.provider_broker_state.provider_methods.write().unwrap();
+        let mut provider_methods = pst.provider_broker_state.provider_methods.write();
         // find all providers for the session being unregistered
         // remove the provided capability
         let mut clear_caps = Vec::new();
@@ -384,7 +382,7 @@ impl ProviderBroker {
     }
 
     fn remove_request(pst: &PlatformState, capability: &String) -> Option<ProviderBrokerRequest> {
-        let mut request_queue = pst.provider_broker_state.request_queue.write().unwrap();
+        let mut request_queue = pst.provider_broker_state.request_queue.write();
         let mut iter = request_queue.iter();
         let cap = iter.position(|request| request.capability.eq(capability));
         if let Some(index) = cap {
@@ -400,7 +398,7 @@ impl ProviderBroker {
         _capability: String,
         request: FocusRequest,
     ) {
-        let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
+        let mut active_sessions = pst.provider_broker_state.active_sessions.write();
         if let Some(session) = active_sessions.get_mut(&request.correlation_id) {
             session.focused = true;
             if pst.has_internal_launcher() {

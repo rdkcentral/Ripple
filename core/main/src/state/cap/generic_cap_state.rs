@@ -17,7 +17,7 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    sync::{Arc, RwLock},
+    sync::Arc,
 };
 
 use ripple_sdk::{
@@ -28,6 +28,7 @@ use ripple_sdk::{
         manifest::device_manifest::DeviceManifest,
     },
     log::debug,
+    parking_lot::RwLock,
 };
 
 use crate::state::platform_state::PlatformState;
@@ -55,7 +56,7 @@ impl GenericCapState {
     }
 
     pub fn ingest_supported(&self, request: Vec<FireboltCap>) {
-        let mut supported = self.supported.write().unwrap();
+        let mut supported = self.supported.write();
         supported.extend(
             request
                 .iter()
@@ -65,7 +66,7 @@ impl GenericCapState {
     }
 
     pub fn ingest_availability(&self, request: Vec<FireboltCap>, is_available: bool) {
-        let mut not_available = self.not_available.write().unwrap();
+        let mut not_available = self.not_available.write();
         for cap in request {
             if is_available {
                 not_available.remove(&cap.as_str());
@@ -77,7 +78,7 @@ impl GenericCapState {
     }
 
     pub fn check_for_processor(&self, request: Vec<String>) -> HashMap<String, bool> {
-        let supported = self.supported.read().unwrap();
+        let supported = self.supported.read();
         let mut result = HashMap::new();
         for cap in request {
             result.insert(cap.clone(), supported.contains(&cap));
@@ -86,7 +87,7 @@ impl GenericCapState {
     }
 
     pub fn check_supported(&self, request: &[FireboltPermission]) -> Result<(), DenyReasonWithCap> {
-        let supported = self.supported.read().unwrap();
+        let supported = self.supported.read();
         let not_supported: Vec<FireboltCap> = request
             .iter()
             .filter(|fb_perm| !supported.contains(&fb_perm.cap.as_str()))
@@ -111,7 +112,7 @@ impl GenericCapState {
         &self,
         request: &Vec<FireboltPermission>,
     ) -> Result<(), DenyReasonWithCap> {
-        let not_available = self.not_available.read().unwrap();
+        let not_available = self.not_available.read();
         let mut result: Vec<FireboltCap> = Vec::new();
         for fb_perm in request {
             if fb_perm.role == CapabilityRole::Use && not_available.contains(&fb_perm.cap.as_str())

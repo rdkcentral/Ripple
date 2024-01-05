@@ -15,11 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-    thread,
-};
+use std::{collections::HashMap, sync::Arc, thread};
 
 use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::{
@@ -35,6 +31,7 @@ use ripple_sdk::{
     },
     libloading::Library,
     log::info,
+    parking_lot::RwLock,
     tokio::sync::mpsc,
     utils::error::RippleError,
 };
@@ -144,7 +141,7 @@ impl ExtnState {
     }
 
     pub fn update_extn_status(&self, id: ExtnId, status: ExtnStatus) {
-        let mut extn_status_map = self.extn_status_map.write().unwrap();
+        let mut extn_status_map = self.extn_status_map.write();
         let _ = extn_status_map.insert(id.to_string(), status);
     }
 
@@ -152,7 +149,6 @@ impl ExtnState {
         if let Some(ExtnStatus::Ready) = self
             .extn_status_map
             .read()
-            .unwrap()
             .get(extn_id.to_string().as_str())
         {
             return true;
@@ -166,18 +162,18 @@ impl ExtnState {
                 return true;
             }
         }
-        let mut extn_status_listeners = self.extn_status_listeners.write().unwrap();
+        let mut extn_status_listeners = self.extn_status_listeners.write();
         let _ = extn_status_listeners.insert(id.to_string(), sender);
         false
     }
 
     pub fn get_extn_status_listener(&self, id: ExtnId) -> Option<mpsc::Sender<ExtnStatus>> {
-        let extn_status_listeners = self.extn_status_listeners.read().unwrap();
+        let extn_status_listeners = self.extn_status_listeners.read();
         extn_status_listeners.get(id.to_string().as_str()).cloned()
     }
 
     pub fn clear_status_listener(&self, extn_id: ExtnId) {
-        let mut extn_status_listeners = self.extn_status_listeners.write().unwrap();
+        let mut extn_status_listeners = self.extn_status_listeners.write();
         let _ = extn_status_listeners.remove(extn_id.to_string().as_str());
     }
 
@@ -210,11 +206,11 @@ impl ExtnState {
     }
 
     pub fn extend_methods(&self, methods: Methods) {
-        let mut methods_state = self.extn_methods.write().unwrap();
+        let mut methods_state = self.extn_methods.write();
         let _ = methods_state.merge(methods);
     }
 
     pub fn get_extn_methods(&self) -> Methods {
-        self.extn_methods.read().unwrap().clone()
+        self.extn_methods.read().clone()
     }
 }

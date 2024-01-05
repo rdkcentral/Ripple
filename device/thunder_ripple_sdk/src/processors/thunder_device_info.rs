@@ -15,11 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-    time::Duration,
-};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use crate::{
     client::{thunder_client::ThunderClient, thunder_plugin::ThunderPlugin},
@@ -77,6 +73,7 @@ use ripple_sdk::{
         manifest::device_manifest::DefaultValues,
     },
     log::trace,
+    parking_lot::RwLock,
     serde_json::{Map, Value},
     tokio::join,
 };
@@ -175,74 +172,74 @@ impl CachedState {
     }
 
     fn get_hdcp_support(&self) -> Option<HashMap<HdcpProfile, bool>> {
-        self.cached.read().unwrap().hdcp_support.clone()
+        self.cached.read().hdcp_support.clone()
     }
 
     fn update_hdcp_support(&self, value: HashMap<HdcpProfile, bool>) {
-        let mut hdcp = self.cached.write().unwrap();
+        let mut hdcp = self.cached.write();
         let _ = hdcp.hdcp_support.insert(value);
     }
 
     fn get_hdcp_status(&self) -> Option<HDCPStatus> {
-        self.cached.read().unwrap().hdcp_status.clone()
+        self.cached.read().hdcp_status.clone()
     }
 
     fn update_hdcp_status(&self, value: HDCPStatus) {
-        let mut hdcp = self.cached.write().unwrap();
+        let mut hdcp = self.cached.write();
         let _ = hdcp.hdcp_status.insert(value);
     }
 
     fn get_hdr(&self) -> Option<HashMap<HdrProfile, bool>> {
-        self.cached.read().unwrap().hdr_profile.clone()
+        self.cached.read().hdr_profile.clone()
     }
 
     fn update_hdr_support(&self, value: HashMap<HdrProfile, bool>) {
-        let mut hdr = self.cached.write().unwrap();
+        let mut hdr = self.cached.write();
         let _ = hdr.hdr_profile.insert(value);
     }
 
     fn get_mac_address(&self) -> Option<String> {
-        self.cached.read().unwrap().mac_address.clone()
+        self.cached.read().mac_address.clone()
     }
 
     fn get_serial_number(&self) -> Option<String> {
-        self.cached.read().unwrap().serial_number.clone()
+        self.cached.read().serial_number.clone()
     }
 
     fn update_serial_number(&self, serial_number: String) {
-        let mut cached = self.cached.write().unwrap();
+        let mut cached = self.cached.write();
         let _ = cached.serial_number.insert(serial_number);
     }
 
     fn update_mac_address(&self, mac: String) {
-        let mut cached = self.cached.write().unwrap();
+        let mut cached = self.cached.write();
         let _ = cached.mac_address.insert(mac);
     }
 
     fn get_model(&self) -> Option<String> {
-        self.cached.read().unwrap().model.clone()
+        self.cached.read().model.clone()
     }
 
     fn update_model(&self, model: String) {
-        let mut cached = self.cached.write().unwrap();
+        let mut cached = self.cached.write();
         let _ = cached.model.insert(model);
     }
 
     fn get_make(&self) -> Option<String> {
-        self.cached.read().unwrap().make.clone()
+        self.cached.read().make.clone()
     }
 
     fn update_make(&self, make: String) {
-        let mut cached = self.cached.write().unwrap();
+        let mut cached = self.cached.write();
         let _ = cached.make.insert(make);
     }
 
     fn get_version(&self) -> Option<FireboltSemanticVersion> {
-        self.cached.read().unwrap().version.clone()
+        self.cached.read().version.clone()
     }
 
     fn update_version(&self, version: FireboltSemanticVersion) {
-        let mut cached = self.cached.write().unwrap();
+        let mut cached = self.cached.write();
         let _ = cached.version.insert(version);
     }
 }

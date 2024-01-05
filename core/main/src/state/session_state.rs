@@ -15,10 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, sync::Arc};
 
 use ripple_sdk::{
     api::{
@@ -26,6 +23,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::{ApiMessage, CallContext},
         session::{AccountSession, ProvisionRequest},
     },
+    parking_lot::RwLock,
     tokio::sync::mpsc::Sender,
     utils::error::RippleError,
 };
@@ -104,7 +102,7 @@ pub struct PendingSessionInfo {
 
 impl SessionState {
     pub fn insert_session_token(&self, token: String) {
-        let mut session_state = self.account_session.write().unwrap();
+        let mut session_state = self.account_session.write();
         let account_session = session_state.take();
         if let Some(mut session) = account_session {
             session.token = token;
@@ -113,12 +111,12 @@ impl SessionState {
     }
 
     pub fn insert_account_session(&self, account_session: AccountSession) {
-        let mut session_state = self.account_session.write().unwrap();
+        let mut session_state = self.account_session.write();
         let _ = session_state.insert(account_session);
     }
 
     pub fn get_account_session(&self) -> Option<AccountSession> {
-        let session_state = self.account_session.read().unwrap();
+        let session_state = self.account_session.read();
         if let Some(session) = session_state.clone() {
             return Some(session);
         }
@@ -127,7 +125,7 @@ impl SessionState {
     }
 
     pub fn get_app_id(&self, session_id: String) -> Option<String> {
-        let session_map = self.session_map.read().unwrap();
+        let session_map = self.session_map.read();
         if let Some(session) = session_map.get(&session_id) {
             return Some(session.get_app_id());
         }
@@ -135,21 +133,21 @@ impl SessionState {
     }
 
     pub fn has_session(&self, ctx: &CallContext) -> bool {
-        self.session_map.read().unwrap().contains_key(&ctx.get_id())
+        self.session_map.read().contains_key(&ctx.get_id())
     }
 
     pub fn add_session(&self, id: String, session: Session) {
-        let mut session_state = self.session_map.write().unwrap();
+        let mut session_state = self.session_map.write();
         session_state.insert(id, session);
     }
 
     pub fn clear_session(&self, id: &str) {
-        let mut session_state = self.session_map.write().unwrap();
+        let mut session_state = self.session_map.write();
         session_state.remove(id);
     }
 
     pub fn update_account_session(&self, provision: ProvisionRequest) {
-        let mut session_state = self.account_session.write().unwrap();
+        let mut session_state = self.account_session.write();
         let account_session = session_state.take();
         if let Some(mut session) = account_session {
             session.device_id = provision.device_id;
@@ -162,7 +160,7 @@ impl SessionState {
     }
 
     pub fn get_session(&self, ctx: &CallContext) -> Option<Session> {
-        let session_state = self.session_map.read().unwrap();
+        let session_state = self.session_map.read();
         if let Some(cid) = &ctx.cid {
             session_state.get(cid).cloned()
         } else {
@@ -171,12 +169,12 @@ impl SessionState {
     }
 
     pub fn get_session_for_connection_id(&self, cid: &str) -> Option<Session> {
-        let session_state = self.session_map.read().unwrap();
+        let session_state = self.session_map.read();
         session_state.get(cid).cloned()
     }
 
     pub fn add_pending_session(&self, app_id: String, info: Option<PendingSessionInfo>) {
-        let mut pending_sessions = self.pending_sessions.write().unwrap();
+        let mut pending_sessions = self.pending_sessions.write();
         if info.is_none() && pending_sessions.get(&app_id).is_some() {
             return;
         }
@@ -184,10 +182,10 @@ impl SessionState {
     }
 
     pub fn clear_pending_session(&self, app_id: &String) {
-        self.pending_sessions.write().unwrap().remove(app_id);
+        self.pending_sessions.write().remove(app_id);
     }
 
     pub fn get_pending_session_info(&self, app_id: &String) -> Option<Option<PendingSessionInfo>> {
-        self.pending_sessions.read().unwrap().get(app_id).cloned()
+        self.pending_sessions.read().get(app_id).cloned()
     }
 }

@@ -16,6 +16,7 @@ use ripple_sdk::{
         extn_client_message::{ExtnMessage, ExtnPayload, ExtnResponse},
     },
     log::info,
+    parking_lot::RwLock,
     tokio::sync::mpsc::{Receiver, Sender},
 };
 
@@ -26,7 +27,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     fs,
     path::{Path, PathBuf},
-    sync::{Arc, RwLock},
+    sync::Arc,
 };
 #[cfg(test)]
 use std::{println as debug, println as error};
@@ -75,7 +76,7 @@ impl AppsUpdaterState {
     }
 
     pub fn persist_failed_installs(&self) -> bool {
-        let failed_installs = self.failed_app_installs.read().unwrap();
+        let failed_installs = self.failed_app_installs.read();
         let path = std::path::Path::new(&self.failed_app_installs_persist_path)
             .join(FAILED_INSTALLS_FILE_NAME);
         match fs::OpenOptions::new()
@@ -101,7 +102,7 @@ impl AppsUpdaterState {
 
     pub fn success_install(&self, app_id: String) {
         let did_change = {
-            let mut failed = self.failed_app_installs.write().unwrap();
+            let mut failed = self.failed_app_installs.write();
             let len_before = failed.len();
             failed.retain(|a| a.app_id != app_id);
             failed.len() != len_before
@@ -113,7 +114,7 @@ impl AppsUpdaterState {
 
     pub fn fail_install(&self, install: FailedAppInstall) {
         {
-            let mut failed = self.failed_app_installs.write().unwrap();
+            let mut failed = self.failed_app_installs.write();
             if let Some(exists_pos) = failed.iter().position(|a| a.app_id == install.app_id) {
                 if let Some(exists) = failed.get_mut(exists_pos) {
                     exists.failed_install_version = install.failed_install_version.clone();
@@ -126,7 +127,7 @@ impl AppsUpdaterState {
     }
 
     pub fn remove_pending(&mut self, app_id: &String, version: &String) -> Option<AppInstall> {
-        let mut pi = self.pending_installs.write().unwrap();
+        let mut pi = self.pending_installs.write();
 
         pi.iter()
             .position(|a| a.app_id == *app_id && a.version == *version)
@@ -255,7 +256,7 @@ fn is_expected_install(
         return in_old_catalog;
     }
     // If not in the old catalog, check if it failed to install
-    let fis = failed_installs.read().unwrap();
+    let fis = failed_installs.read();
     let failed_install = fis.iter().find(|a| a.app_id == installed_app.id);
     match failed_install {
         Some(fi) => match &fi.last_good_version {
@@ -393,7 +394,7 @@ pub async fn update(mut state: AppsUpdaterState, apps_catalog_update: AppsCatalo
             Some(c) => c.iter().find(|a| a.id == app.id).map(|a| a.version.clone()),
             None => None,
         };
-        state.pending_installs.write().unwrap().push(AppInstall {
+        state.pending_installs.write().push(AppInstall {
             app_id: app.id.clone(),
             version: app.version.clone(),
             previous_version: previous_version.clone(),
@@ -434,11 +435,7 @@ fn install_complete(mut state: AppsUpdaterState, op: AppOperationComplete) {
 #[cfg(test)]
 pub mod tests {
 
-    use std::{
-        path::Path,
-        sync::{Arc, RwLock},
-        time::Duration,
-    };
+    use std::{path::Path, sync::Arc, time::Duration};
 
     use super::{AppsUpdater, AppsUpdaterState};
     use crate::{service::extn::ripple_client::RippleClient, state::platform_state::PlatformState};
@@ -456,6 +453,7 @@ pub mod tests {
             extn_client_message::{ExtnMessage, ExtnResponse},
             mock_extension_client::{MockExtnClient, MockExtnRequest},
         },
+        parking_lot::RwLock,
         tokio::{self, spawn, sync::mpsc, task::JoinHandle, time::sleep},
     };
     use ripple_sdk::{

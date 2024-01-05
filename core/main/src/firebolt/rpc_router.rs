@@ -27,6 +27,7 @@ use jsonrpsee::{
     },
     types::{error::ErrorCode, Id, Params},
 };
+
 use ripple_sdk::{
     api::{
         apps::EffectiveTransport,
@@ -36,11 +37,12 @@ use ripple_sdk::{
     chrono::Utc,
     extn::extn_client_message::{ExtnMessage, ExtnResponse},
     log::{error, info},
+    parking_lot::RwLock,
     serde_json::{self, Result as SResult},
     tokio::{self},
     utils::error::RippleError,
 };
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use crate::{
     service::telemetry_builder::TelemetryBuilder,
@@ -64,12 +66,12 @@ impl RouterState {
     }
 
     pub fn update_methods(&self, methods: Methods) {
-        let mut methods_state = self.methods.write().unwrap();
+        let mut methods_state = self.methods.write();
         let _ = methods_state.merge(methods.initialize_resources(&self.resources).unwrap());
     }
 
     fn get_methods(&self) -> Methods {
-        self.methods.read().unwrap().clone()
+        self.methods.read().clone()
     }
 }
 

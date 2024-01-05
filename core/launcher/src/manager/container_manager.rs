@@ -15,10 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, sync::Arc};
 
 use ripple_sdk::{
     api::{
@@ -26,6 +23,7 @@ use ripple_sdk::{
         firebolt::fb_lifecycle::LifecycleState,
     },
     log::{debug, error},
+    parking_lot::RwLock,
 };
 use serde::{Deserialize, Serialize};
 
@@ -63,7 +61,7 @@ pub struct ContainerState {
 impl ContainerState {
     fn get_prev_stack(&self) -> Option<String> {
         let prev_container = {
-            let stack = self.stack.read().unwrap();
+            let stack = self.stack.read();
             stack.peek().cloned()
         };
         prev_container
@@ -71,48 +69,48 @@ impl ContainerState {
 
     fn get_container_by_name(&self, id: &String) -> Option<ContainerProperties> {
         {
-            let container = self.containers.read().unwrap();
+            let container = self.containers.read();
             container.get(id).cloned()
         }
     }
 
     fn add_container(&self, k: String, v: ContainerProperties) {
-        let mut containers = self.containers.write().unwrap();
+        let mut containers = self.containers.write();
         containers.insert(k, v);
     }
 
     fn remove_container(&self, k: String) {
-        let mut containers = self.containers.write().unwrap();
+        let mut containers = self.containers.write();
         containers.remove(&k);
     }
 
     fn contains_stack_by_name(&self, id: &String) -> bool {
-        let mut stack = self.stack.write().unwrap();
+        let mut stack = self.stack.write();
         stack.contains(id)
     }
 
     fn stack_len(&self) -> usize {
-        let stack = self.stack.write().unwrap();
+        let stack = self.stack.write();
         stack.len()
     }
 
     fn add_stack(&self, id: String) {
-        let mut stack = self.stack.write().unwrap();
+        let mut stack = self.stack.write();
         stack.push(id);
     }
 
     fn pop_stack_by_name(&self, name: &str) {
-        let mut stack = self.stack.write().unwrap();
+        let mut stack = self.stack.write();
         stack.pop_item(name);
     }
 
     fn bring_stack_to_front(&self, name: &str) {
-        let mut stack = self.stack.write().unwrap();
+        let mut stack = self.stack.write();
         stack.bring_to_front(name);
     }
 
     fn send_stack_to_back(&self, name: &str) {
-        let mut stack = self.stack.write().unwrap();
+        let mut stack = self.stack.write();
         stack.send_to_back(name);
     }
 }

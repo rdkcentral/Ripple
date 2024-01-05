@@ -69,7 +69,7 @@ impl Bootstep<BootstrapState> for LoadExtensionMetadataStep {
             })
             .collect();
         unsafe {
-            let mut loaded_extns = state.extn_state.loaded_libraries.write().unwrap();
+            let mut loaded_extns = state.extn_state.loaded_libraries.write();
             for (extn_path, entry) in extn_paths {
                 debug!("");
                 debug!("");

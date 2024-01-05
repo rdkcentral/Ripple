@@ -14,18 +14,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-use std::{
-    collections::HashMap,
-    net::SocketAddr,
-    sync::{Arc, RwLock},
-    time::Duration,
-};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 
 use http::{HeaderMap, StatusCode};
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiRequest,
     futures::{stream::SplitSink, SinkExt, StreamExt},
     log::{debug, error, warn},
+    parking_lot::RwLock,
     tokio::{
         self,
         net::{TcpListener, TcpStream},
@@ -354,7 +350,7 @@ impl MockWebSocketServer {
     }
 
     fn responses_for_key_v2(&self, req: &JsonRpcApiRequest) -> Option<ParamResponse> {
-        let mock_data = self.mock_data_v2.read().unwrap();
+        let mock_data = self.mock_data_v2.read();
         if let Some(v) = mock_data.get(&req.method.to_lowercase()).cloned() {
             if v.len() == 1 {
                 return v.first().cloned();
@@ -384,7 +380,7 @@ impl MockWebSocketServer {
     }
 
     pub async fn add_request_response_v2(&self, request: MockData) -> Result<(), MockDataError> {
-        let mut mock_data = self.mock_data_v2.write().unwrap();
+        let mut mock_data = self.mock_data_v2.write();
         let lower_key_mock_data: MockData = request
             .into_iter()
             .map(|(k, v)| (k.to_lowercase(), v))
@@ -394,7 +390,7 @@ impl MockWebSocketServer {
     }
 
     pub async fn remove_request_response_v2(&self, request: MockData) -> Result<(), MockDataError> {
-        let mut mock_data = self.mock_data_v2.write().unwrap();
+        let mut mock_data = self.mock_data_v2.write();
         for (cleanup_key, cleanup_params) in request {
             if let Some(v) = mock_data.remove(&cleanup_key.to_lowercase()) {
                 let mut new_param_response = Vec::new();

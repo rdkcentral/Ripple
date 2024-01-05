@@ -15,11 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-    time::Duration,
-};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use async_channel::{bounded, Receiver as CReceiver, Sender as CSender};
 use chrono::Utc;
@@ -29,6 +25,7 @@ use log::{debug, error, info, trace};
 #[cfg(test)]
 use {println as info, println as trace, println as debug, println as error};
 
+use parking_lot::RwLock;
 use tokio::sync::{
     mpsc::Sender as MSender,
     oneshot::{self, Sender as OSender},
@@ -86,12 +83,12 @@ pub struct ExtnClient {
 }
 
 fn add_stream_processor<P>(id: String, context: P, map: Arc<RwLock<HashMap<String, P>>>) {
-    let mut processor_state = map.write().unwrap();
+    let mut processor_state = map.write();
     processor_state.insert(id, context);
 }
 
 fn add_vec_stream_processor<P>(id: String, context: P, map: Arc<RwLock<HashMap<String, Vec<P>>>>) {
-    let mut processor_state = map.write().unwrap();
+    let mut processor_state = map.write();
     if let std::collections::hash_map::Entry::Vacant(e) = processor_state.entry(id.clone()) {
         e.insert(vec![context]);
     } else {
@@ -101,13 +98,13 @@ fn add_vec_stream_processor<P>(id: String, context: P, map: Arc<RwLock<HashMap<S
 
 fn add_single_processor<P>(id: String, processor: Option<P>, map: Arc<RwLock<HashMap<String, P>>>) {
     if let Some(processor) = processor {
-        let mut processor_state = map.write().unwrap();
+        let mut processor_state = map.write();
         processor_state.insert(id, processor);
     }
 }
 
 pub fn remove_processor<P>(id: String, map: Arc<RwLock<HashMap<String, P>>>) {
-    let mut processor_state = map.write().unwrap();
+    let mut processor_state = map.write();
     let sender = processor_state.remove(&id);
     drop(sender);
 }
@@ -203,7 +200,7 @@ impl ExtnClient {
         let id = id.to_string();
         {
             // creating a map - extnId & sender used for requestor mapping to add to callback in extnMessage
-            let mut sender_map = self.extn_sender_map.write().unwrap();
+            let mut sender_map = self.extn_sender_map.write();
             sender_map.insert(id.clone(), sender);
         }
         {
@@ -219,7 +216,7 @@ impl ExtnClient {
                     None => error!("Unknown contract {}", contract),
                 }
             }
-            let mut contract_map = self.contract_map.write().unwrap();
+            let mut contract_map = self.contract_map.write();
             contract_map.extend(map);
         }
     }
@@ -227,7 +224,6 @@ impl ExtnClient {
     pub fn get_other_senders(&self) -> Vec<CSender<CExtnMessage>> {
         self.extn_sender_map
             .read()
-            .unwrap()
             .iter()
             .inspect(|item| debug!("other sender: {:?}", item.0))
             .map(|(_, v)| v)
@@ -281,7 +277,7 @@ impl ExtnClient {
                                 message
                             );
                             {
-                                let mut ripple_context = self.ripple_context.write().unwrap();
+                                let mut ripple_context = self.ripple_context.write();
                                 ripple_context.deep_copy(context);
                             }
                         }
@@ -367,14 +363,14 @@ impl ExtnClient {
         // context members then it propagates the event to other extension's extn client.
         // Propagating 'known information' to other clients increases processing but no meaningful task is performed.
         let propagate = {
-            let mut ripple_context = self.ripple_context.write().unwrap();
+            let mut ripple_context = self.ripple_context.write();
             debug!(
                 "Received context request: {:?} current ripple_context: {:?}",
                 request, ripple_context
             );
             ripple_context.update(request)
         };
-        let new_context = { self.ripple_context.read().unwrap().clone() };
+        let new_context = { self.ripple_context.read().clone() };
         let message = new_context.get_event_message();
         if propagate {
             debug!("Formed Context update event: {:?}", message);
@@ -408,7 +404,7 @@ impl ExtnClient {
     ) {
         let id_c = msg.id.clone();
         let processor_result = {
-            let mut processors = processor.write().unwrap();
+            let mut processors = processor.write();
             processors.remove(&id_c)
         };
 
@@ -430,7 +426,7 @@ impl ExtnClient {
         let id_c: String = msg.target.as_clear_string();
 
         let v = {
-            let processors = processor.read().unwrap();
+            let processors = processor.read();
             processors.get(&id_c).cloned()
         };
         if let Some(sender) = v {
@@ -454,7 +450,7 @@ impl ExtnClient {
         let mut gc_sender_indexes: Vec<usize> = Vec::new();
         let read_processor = processor.clone();
         {
-            let processors = read_processor.read().unwrap();
+            let processors = read_processor.read();
             let v = processors.get(&id_c).cloned();
             if let Some(v) = v {
                 for (index, s) in v.iter().enumerate() {
@@ -492,7 +488,7 @@ impl ExtnClient {
     ) {
         let indices = match gc_sender_indexes {
             Some(i) => Some(i),
-            None => processor.read().unwrap().get(&id_c).map(|v| {
+            None => processor.read().get(&id_c).map(|v| {
                 v.iter()
                     .filter(|x| x.is_closed())
                     .enumerate()
@@ -502,7 +498,7 @@ impl ExtnClient {
         };
         if let Some(indices) = indices {
             if !indices.is_empty() {
-                let mut gc_cleanup = processor.write().unwrap();
+                let mut gc_cleanup = processor.write();
                 if let Some(sender_list) = gc_cleanup.get_mut(&id_c) {
                     for index in indices {
                         let r = sender_list.remove(index);
@@ -521,13 +517,7 @@ impl ExtnClient {
         contract: RippleContract,
     ) -> Option<CSender<CExtnMessage>> {
         let contract_str: String = contract.as_clear_string();
-        let id = {
-            self.contract_map
-                .read()
-                .unwrap()
-                .get(&contract_str)
-                .cloned()
-        };
+        let id = { self.contract_map.read().get(&contract_str).cloned() };
         if let Some(extn_id) = id {
             return self.get_extn_sender_with_extn_id(&extn_id);
         }
@@ -536,7 +526,7 @@ impl ExtnClient {
     }
 
     fn get_extn_sender_with_extn_id(&self, id: &str) -> Option<CSender<CExtnMessage>> {
-        return self.extn_sender_map.read().unwrap().get(id).cloned();
+        return self.extn_sender_map.read().get(id).cloned();
     }
 
     /// Critical method used by request processors to send response message back to the requestor
@@ -708,7 +698,7 @@ impl ExtnClient {
     }
 
     pub fn has_token(&self) -> bool {
-        let ripple_context = self.ripple_context.read().unwrap();
+        let ripple_context = self.ripple_context.read();
         // matches!(
         //     ripple_context.activation_status.clone(),
         //     ActivationStatus::AccountToken(_)
@@ -721,35 +711,35 @@ impl ExtnClient {
 
     pub fn get_activation_status(&self) -> Option<ActivationStatus> {
         // pub fn get_activation_status(&self) -> ActivationStatus {
-        let ripple_context = self.ripple_context.read().unwrap();
+        let ripple_context = self.ripple_context.read();
         ripple_context.activation_status.clone()
     }
 
     pub fn has_internet(&self) -> bool {
-        let ripple_context = self.ripple_context.read().unwrap();
+        let ripple_context = self.ripple_context.read();
         matches!(
             ripple_context.internet_connectivity.as_ref(), Some(internet_connectivity) if matches!(internet_connectivity, InternetConnectionStatus::FullyConnected | InternetConnectionStatus::LimitedInternet)
         )
     }
 
     pub fn internet_status(&self) -> Option<InternetConnectionStatus> {
-        let ripple_contract = self.ripple_context.read().unwrap();
+        let ripple_contract = self.ripple_context.read();
         ripple_contract.internet_connectivity.clone()
     }
 
     pub fn get_timezone(&self) -> Option<TimeZone> {
-        let ripple_context = self.ripple_context.read().unwrap();
+        let ripple_context = self.ripple_context.read();
         // Some(ripple_context.time_zone.clone())
         ripple_context.time_zone.clone()
     }
 
     pub fn get_features(&self) -> Vec<String> {
-        let ripple_context = self.ripple_context.read().unwrap();
+        let ripple_context = self.ripple_context.read();
         ripple_context.features.clone()
     }
 
     pub fn get_metrics_context(&self) -> Option<MetricsContext> {
-        let ripple_context = self.ripple_context.read().unwrap();
+        let ripple_context = self.ripple_context.read();
         ripple_context.metrics_context.clone()
     }
 }
@@ -847,7 +837,7 @@ pub mod tests {
             extn_client.request_processors.clone(),
         );
 
-        assert!(extn_client.request_processors.read().unwrap().len() == 1);
+        assert!(extn_client.request_processors.read().len() == 1);
     }
 
     #[test]
@@ -863,12 +853,11 @@ pub mod tests {
             extn_client.event_processors.clone(),
         );
 
-        assert!(extn_client.event_processors.read().unwrap().len() == 1);
+        assert!(extn_client.event_processors.read().len() == 1);
         assert_eq!(
             extn_client
                 .event_processors
                 .read()
-                .unwrap()
                 .get(&id)
                 .map(|v| v.len()),
                 Some(1),
@@ -883,7 +872,7 @@ pub mod tests {
         let (tx, _rx) = oneshot::channel();
         add_single_processor(id, Some(tx), extn_client.response_processors.clone());
 
-        assert!(extn_client.response_processors.read().unwrap().len() == 1);
+        assert!(extn_client.response_processors.read().len() == 1);
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -895,7 +884,7 @@ pub mod tests {
         extn_client.add_request_processor(processor);
         tokio::time::sleep(Duration::from_millis(10)).await;
 
-        assert!(extn_client.request_processors.read().unwrap().len() == 1);
+        assert!(extn_client.request_processors.read().len() == 1);
         validate(|captured_logs| {
             for log in captured_logs {
                 assert!(log
@@ -914,12 +903,11 @@ pub mod tests {
         let id = processor.contract().as_clear_string();
         extn_client.add_event_processor(processor);
 
-        assert!(extn_client.event_processors.read().unwrap().len() == 1);
+        assert!(extn_client.event_processors.read().len() == 1);
         assert_eq!(
             extn_client
                 .event_processors
                 .read()
-                .unwrap()
                 .get(&id)
                 .map(|v| v.len()),
             Some(1),
@@ -1069,7 +1057,7 @@ pub mod tests {
         drop(rx);
 
         assert_eq!(
-            extn_client.event_processors.read().unwrap().len(),
+            extn_client.event_processors.read().len(),
             1,
             "Assertion failed: event_processors map should be empty before cleanup"
         );
@@ -1077,7 +1065,7 @@ pub mod tests {
         ExtnClient::cleanup_vec_stream(id_clone, None, processor_clone);
 
         assert_eq!(
-            extn_client.event_processors.read().unwrap().len(),
+            extn_client.event_processors.read().len(),
             0,
             "Assertion failed: event_processors map should be empty after cleanup"
         );
@@ -1459,7 +1447,7 @@ pub mod tests {
         tokio::time::sleep(Duration::from_millis(100)).await;
         assert!(result.is_ok());
 
-        let ripple_context = main_client.ripple_context.read().unwrap();
+        let ripple_context = main_client.ripple_context.read();
         assert_eq!(
             ripple_context.time_zone.as_ref().unwrap().time_zone,
             time_zone
@@ -1503,7 +1491,7 @@ pub mod tests {
         // how to verify the event response in other sender?
         tokio::time::sleep(Duration::from_millis(100)).await;
         assert_eq!(
-            extn_client.event_processors.read().unwrap().len(),
+            extn_client.event_processors.read().len(),
             0,
             "Assertion failed: event_processors map should be empty after cleanup"
         );
@@ -1544,7 +1532,7 @@ pub mod tests {
         });
 
         extn_client.context_update(request);
-        let ripple_context = extn_client.ripple_context.read().unwrap();
+        let ripple_context = extn_client.ripple_context.read();
 
         assert!(
             matches!(&ripple_context.time_zone, Some(time_zone) if time_zone.time_zone == test_string && time_zone.offset == 1)
@@ -1625,10 +1613,10 @@ pub mod tests {
                 Some(tx),
                 extn_client.response_processors.clone(),
             );
-            assert!(extn_client.response_processors.read().unwrap().len() == 1);
+            assert!(extn_client.response_processors.read().len() == 1);
         } else {
-            extn_client.response_processors.write().unwrap().clear();
-            assert!(extn_client.response_processors.read().unwrap().len() == 0);
+            extn_client.response_processors.write().clear();
+            assert!(extn_client.response_processors.read().len() == 0);
         }
 
         let msg = ExtnMessage {
@@ -1674,15 +1662,15 @@ pub mod tests {
             MockRequestProcessor::new_v1(extn_client.clone(), vec![RippleContract::Internal]);
 
         if tc.contains("req processor err") {
-            extn_client.request_processors.write().unwrap().clear();
-            assert!(extn_client.request_processors.read().unwrap().len() == 0);
+            extn_client.request_processors.write().clear();
+            assert!(extn_client.request_processors.read().len() == 0);
         } else {
             add_stream_processor(
                 processor.contract().as_clear_string(),
                 processor.sender(),
                 extn_client.request_processors.clone(),
             );
-            assert!(extn_client.request_processors.read().unwrap().len() == 1);
+            assert!(extn_client.request_processors.read().len() == 1);
         }
 
         add_stream_processor(
@@ -1691,7 +1679,7 @@ pub mod tests {
             extn_client.request_processors.clone(),
         );
 
-        assert!(extn_client.request_processors.read().unwrap().len() == 1);
+        assert!(extn_client.request_processors.read().len() == 1);
 
         let msg = ExtnMessage {
             id: "some-id".to_string(),
@@ -1743,12 +1731,11 @@ pub mod tests {
             extn_client.event_processors.clone(),
         );
 
-        assert!(extn_client.event_processors.read().unwrap().len() == 1);
+        assert!(extn_client.event_processors.read().len() == 1);
         assert_eq!(
             extn_client
                 .event_processors
                 .read()
-                .unwrap()
                 .get(&id)
                 .map(|v| v.len()),
                 Some(1),
@@ -1788,7 +1775,7 @@ pub mod tests {
             Some(tx),
             extn_client.response_processors.clone(),
         );
-        assert!(extn_client.response_processors.read().unwrap().len() == 1);
+        assert!(extn_client.response_processors.read().len() == 1);
 
         let req = ExtnMessage {
             id: id.clone(),
@@ -1833,7 +1820,7 @@ pub mod tests {
             Some(tx),
             extn_client.response_processors.clone(),
         );
-        assert!(extn_client.response_processors.read().unwrap().len() == 1);
+        assert!(extn_client.response_processors.read().len() == 1);
 
         let msg = ExtnMessage {
             id: id.clone(),
@@ -2094,7 +2081,7 @@ pub mod tests {
 
         // Set activation status to AccountToken
         {
-            let mut ripple_context = extn_client.ripple_context.write().unwrap();
+            let mut ripple_context = extn_client.ripple_context.write();
             ripple_context.activation_status = Some(ActivationStatus::AccountToken(AccountToken {
                 token: "some_token".to_string(),
                 expires: 123,
@@ -2107,7 +2094,7 @@ pub mod tests {
 
         // Reset activation status to None
         {
-            let mut ripple_context = extn_client.ripple_context.write().unwrap();
+            let mut ripple_context = extn_client.ripple_context.write();
             ripple_context.activation_status = None;
         }
 
@@ -2122,7 +2109,7 @@ pub mod tests {
 
         // Set activation status to AccountToken
         {
-            let mut ripple_context = extn_client.ripple_context.write().unwrap();
+            let mut ripple_context = extn_client.ripple_context.write();
             ripple_context.activation_status = Some(ActivationStatus::AccountToken(AccountToken {
                 token: "some_token".to_string(),
                 expires: 123,
@@ -2141,7 +2128,7 @@ pub mod tests {
 
         // Reset activation status to None
         {
-            let mut ripple_context = extn_client.ripple_context.write().unwrap();
+            let mut ripple_context = extn_client.ripple_context.write();
             ripple_context.activation_status = None;
         }
 
@@ -2161,11 +2148,7 @@ pub mod tests {
     #[tokio::test]
     async fn test_has_internet(connectivity: InternetConnectionStatus, expected_result: bool) {
         let extn_client = ExtnClient::mock();
-        extn_client
-            .ripple_context
-            .write()
-            .unwrap()
-            .internet_connectivity = Some(connectivity);
+        extn_client.ripple_context.write().internet_connectivity = Some(connectivity);
 
         let has_internet = extn_client.has_internet();
         assert_eq!(has_internet, expected_result);
@@ -2179,7 +2162,7 @@ pub mod tests {
             offset: -5,
         };
 
-        extn_client.ripple_context.write().unwrap().time_zone = Some(test_timezone.clone());
+        extn_client.ripple_context.write().time_zone = Some(test_timezone.clone());
         let result = extn_client.get_timezone();
         assert_eq!(result, Some(test_timezone));
     }
