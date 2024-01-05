@@ -44,6 +44,7 @@ pub enum ProviderRequestPayload {
 #[serde(untagged)]
 pub enum ProviderResponsePayload {
     ChallengeResponse(ChallengeResponse),
+    ChallengeError(ChallengeError),
     PinChallengeResponse(PinChallengeResponse),
     KeyboardResult(KeyboardSessionResponse),
     EntityInfoResponse(Option<EntityInfoResult>),
@@ -127,6 +128,16 @@ pub struct ExternalProviderResponse<T> {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChallengeResponse {
     pub granted: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DataObject {}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ChallengeError {
+    pub code: u32,
+    pub message: String,
+    pub data: Option<DataObject>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
