@@ -32,7 +32,7 @@ use ripple_sdk::{
         client::extn_processor::{
             DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
         },
-        extn_client_message::{ExtnMessage, ExtnResponse},
+        extn_client_message::ExtnMessage,
     },
     framework::RippleResponse,
     log::debug,
@@ -59,21 +59,15 @@ pub async fn send_metric(
         debug!("drop data is true, not sending BI metrics");
         return Ok(());
     }
-    let session = platform_state.session_state.get_account_session();
-    if let Some(session) = session {
+    if let Some(session) = platform_state.session_state.get_account_session() {
         let request = BehavioralMetricRequest {
             context: Some(platform_state.metrics.get_context()),
             payload,
             session,
         };
-
-        if let Ok(resp) = platform_state.get_client().send_extn_request(request).await {
-            if let Some(ExtnResponse::Boolean(b)) = resp.payload.extract() {
-                if b {
-                    return Ok(());
-                }
-            }
-        }
+        return platform_state
+            .get_client()
+            .send_extn_request_transient(request);
     }
     Err(ripple_sdk::utils::error::RippleError::ProcessorError)
 }
@@ -149,9 +143,7 @@ pub async fn send_metric_for_app_state_change(
                     payload,
                     session,
                 };
-
-                let _ = ps.get_client().send_extn_request_transient(request);
-                return Ok(());
+                return ps.get_client().send_extn_request_transient(request);
             }
             Err(ripple_sdk::utils::error::RippleError::ProcessorError)
         }
