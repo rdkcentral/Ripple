@@ -194,11 +194,14 @@ impl ContainerManager {
             return Err(ContainerError::NotFound);
         }
 
-        let item = state.container_state.get_container_by_name(&name.into());
-        if item.is_none() {
-            debug!("bring_to_front: Container not found:  name={}", name);
-            return Err(ContainerError::NotFound);
-        }
+        let item = state
+            .container_state
+            .get_container_by_name(&name.into())
+            .ok_or_else(|| {
+                debug!("bring_to_front: Container not found:  name={}", name);
+                ContainerError::NotFound
+            })?;
+
         if prev_props.is_none() {
             let prev_container = state.container_state.get_prev_stack();
             if let Some(pc) = prev_container {
@@ -212,7 +215,7 @@ impl ContainerManager {
 
         state.container_state.bring_stack_to_front(name);
 
-        let props = item.unwrap();
+        let props = item.clone();
         let resp = ViewManager::set_position(state, props.view_id, Position::Front).await;
         if let Err(e) = resp {
             debug!("bring_to_front: error: req_id={:?}", e);
@@ -233,12 +236,8 @@ impl ContainerManager {
 
     async fn focus_top_container(state: &LauncherState) -> Result<ViewId, ContainerError> {
         let item = state.container_state.get_prev_stack();
+        let top_container = item.ok_or(ContainerError::NotFound)?;
 
-        if item.is_none() {
-            return Err(ContainerError::NotFound);
-        }
-
-        let top_container = item.unwrap();
         let p = state
             .container_state
             .get_container_by_name(&top_container)
@@ -276,14 +275,15 @@ impl ContainerManager {
             return Err(ContainerError::General);
         }
 
-        let item = state.container_state.get_container_by_name(&name.into());
+        let item = state
+            .container_state
+            .get_container_by_name(&name.into())
+            .ok_or_else(|| {
+                error!("send_to_back: Container not found:  name={}", name);
+                ContainerError::NotFound
+            })?;
 
-        if item.is_none() {
-            error!("send_to_back: Container not found:  name={}", name);
-            return Err(ContainerError::NotFound);
-        }
-
-        let props = item.unwrap().clone();
+        let props = item.clone();
         state.container_state.send_stack_to_back(name);
         let view_id = props.view_id;
         let mut result = Ok(ResultType::None);
@@ -317,13 +317,14 @@ impl ContainerManager {
             return Err(ContainerError::NotFound);
         }
 
-        let item = state.container_state.get_container_by_name(&name.into());
-        if item.is_none() {
-            debug!("set_visible: Container not found:  name={}", name);
-            return Err(ContainerError::NotFound);
-        }
+        let props = state
+            .container_state
+            .get_container_by_name(&name.into())
+            .ok_or_else(|| {
+                debug!("set_visible: Container not found:  name={}", name);
+                ContainerError::NotFound
+            })?;
 
-        let props = item.unwrap();
         let view_id = props.view_id;
         let resp = ViewManager::set_visibility(state, view_id, visible).await;
         match resp {

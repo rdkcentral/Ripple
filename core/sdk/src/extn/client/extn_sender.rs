@@ -203,9 +203,9 @@ impl ExtnSender {
         msg: CExtnMessage,
         other_sender: Option<CSender<CExtnMessage>>,
     ) -> RippleResponse {
-        if msg.callback.is_some() {
+        if let Some(callback) = msg.callback.clone() {
             trace!("Sending message on the callback sender");
-            if let Err(e) = msg.clone().callback.unwrap().try_send(msg) {
+            if let Err(e) = callback.try_send(msg) {
                 error!("respond() error for message in callback sender {}", e);
                 return Err(RippleError::SendFailure);
             }

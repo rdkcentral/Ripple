@@ -160,15 +160,16 @@ impl Param {
 
 pub fn hashmap_to_param_vec(the_map: Option<HashMap<String, FlatMapValue>>) -> Vec<Param> {
     let mut result = Vec::new();
-    if the_map.is_none() {
-        return vec![];
-    };
 
-    let params_map = the_map.unwrap();
+    let params_map = match the_map {
+        Some(params_map) => params_map,
+        None => return Vec::new(),
+    };
 
     for (key, value) in params_map {
         result.push(Param { name: key, value });
     }
+
     result
 }
 

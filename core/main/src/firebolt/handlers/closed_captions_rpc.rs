@@ -391,11 +391,14 @@ impl ClosedcaptionsImpl {
         property: SP,
         request: SetPropertyOpt<u32>,
     ) -> RpcResult<()> {
-        if request.value.is_some() && request.value.unwrap() > 100 {
-            return Err(jsonrpsee::core::error::Error::Custom(
-                "Invalid Value for opacity".to_owned(),
-            ));
+        if let Some(value) = request.value {
+            if value > 100 {
+                return Err(jsonrpsee::core::error::Error::Custom(
+                    "Invalid Value for opacity".to_owned(),
+                ));
+            }
         }
+
         ClosedcaptionsImpl::set_u32(ps, property, request).await
     }
 
@@ -497,12 +500,14 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         _ctx: CallContext,
         request: SetPropertyOpt<f32>,
     ) -> RpcResult<()> {
-        if request.value.is_some() && (request.value.unwrap() < 0.5 || request.value.unwrap() > 2.0)
-        {
-            return Err(jsonrpsee::core::error::Error::Custom(
-                "Invalid Value for set font".to_owned(),
-            ));
+        if let Some(value) = request.value {
+            if !(0.5..=2.0).contains(&value) {
+                return Err(jsonrpsee::core::error::Error::Custom(
+                    "Invalid Value for set font".to_owned(),
+                ));
+            }
         }
+
         ClosedcaptionsImpl::set_f32(&self.state, SP::ClosedCaptionsFontSize, request).await
     }
 

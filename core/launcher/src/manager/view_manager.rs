@@ -88,11 +88,12 @@ impl ViewRequest {
 
     pub fn send_response(&self, response: ViewResponse) -> Result<(), RippleError> {
         let mut sender = self.resp_tx.write().unwrap();
-        if sender.is_some() {
-            oneshot_send_and_log(sender.take().unwrap(), response, "ViewManager response");
-            Ok(())
-        } else {
-            Err(RippleError::SenderMissing)
+        match sender.take() {
+            Some(tx) => {
+                oneshot_send_and_log(tx, response, "ViewManager response");
+                Ok(())
+            }
+            None => Err(RippleError::SenderMissing),
         }
     }
 }

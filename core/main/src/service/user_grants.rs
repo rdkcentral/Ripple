@@ -582,14 +582,10 @@ impl GrantState {
             };
 
             match result {
-                GrantActiveState::ActiveGrant(grant) => {
-                    if grant.is_err() {
-                        return Err(DenyReasonWithCap {
-                            reason: grant.err().unwrap(),
-                            caps: vec![permission.cap.clone()],
-                        });
-                    }
-                }
+                GrantActiveState::ActiveGrant(grant) => grant.map_err(|err| DenyReasonWithCap {
+                    reason: err,
+                    caps: vec![permission.cap.clone()],
+                })?,
                 GrantActiveState::PendingGrant => {
                     let result = GrantPolicyEnforcer::determine_grant_policies_for_permission(
                         state,
@@ -878,14 +874,14 @@ impl GrantState {
             cap: FireboltCap::Full(capability),
             role,
         };
-        let grant_policy_opt = Self::get_grant_policy(platform_state, &permission, app_id);
-        if grant_policy_opt.is_none() {
-            error!("There are no grant polices for the requesting cap so cant update user grant");
-            return Err(
-                "There are no grant polices for the requesting cap so cant update user grant",
-            );
-        }
-        let grant_policy = grant_policy_opt.unwrap();
+
+        let grant_policy =
+            Self::get_grant_policy(platform_state, &permission, app_id).ok_or_else(|| {
+                error!(
+                    "There are no grant polices for the requesting cap so cant update user grant"
+                );
+                "There are no grant polices for the requesting cap so cant update user grant"
+            })?;
         if !GrantPolicyEnforcer::is_policy_valid(platform_state, &grant_policy) {
             return Err(
                 "There are no valid grant polices for the requesting cap so cant update user grant",
@@ -1041,10 +1037,7 @@ impl GrantPolicyEnforcer {
         app_id: &Option<String>,
     ) {
         if let Some(account_session) = platform_state.session_state.get_account_session() {
-            let mut s = None;
-            if grant_entry.status.is_some() {
-                s = Some(grant_entry.status.to_owned().unwrap());
-            };
+            let s = grant_entry.status.to_owned();
 
             let user_grant_info = if let Some(policy) = grant_policy {
                 // Modifying user grant flow goes in here
@@ -1055,19 +1048,24 @@ impl GrantPolicyEnforcer {
                     last_modified_time: Duration::new(0, 0),
                     expiry_time: match policy.lifespan {
                         GrantLifespan::Seconds => {
-                            let now = SystemTime::now().duration_since(UNIX_EPOCH);
-                            if now.is_err() {
-                                error!("Unable to sync usergrants to cloud. unable to get duration since epoch");
-                                return;
+                            let now = match SystemTime::now().duration_since(UNIX_EPOCH) {
+                                Ok(now) => now,
+                                Err(_) => {
+                                    error!("Unable to sync usergrants to cloud. unable to get duration since epoch");
+                                    return;
+                                }
+                            };
+
+                            let now_dur =
+                                now.checked_add(Duration::new(policy.lifespan_ttl.unwrap(), 0));
+
+                            match now_dur {
+                                Some(now_dur) => Some(now_dur),
+                                None => {
+                                    error!("Unable to sync usergrants to cloud. unable to get duration since epoch for lifespan_ttl");
+                                    return;
+                                }
                             }
-                            let now_dur = now
-                                .unwrap()
-                                .checked_add(Duration::new(policy.lifespan_ttl.unwrap(), 0));
-                            if now_dur.is_none() {
-                                error!("Unable to sync usergrants to cloud. unable to get duration since epoch for lifespan_ttl");
-                                return;
-                            }
-                            Some(now_dur.unwrap())
                         }
                         _ => None,
                     },
@@ -1171,20 +1169,17 @@ impl GrantPolicyEnforcer {
         grant_policy: &GrantPolicy,
     ) {
         // Updating privacy settings
-        if grant_policy.privacy_setting.is_some()
-            && grant_policy
-                .privacy_setting
-                .as_ref()
-                .unwrap()
-                .update_property
-        {
-            Self::update_privacy_settings_with_grant(
-                platform_state,
-                grant_policy.privacy_setting.as_ref().unwrap(),
-                result.is_ok(),
-            )
-            .await;
+        if let Some(privacy_setting) = &grant_policy.privacy_setting {
+            if privacy_setting.update_property {
+                Self::update_privacy_settings_with_grant(
+                    platform_state,
+                    privacy_setting,
+                    result.is_ok(),
+                )
+                .await;
+            }
         }
+
         Self::store_user_grants(platform_state, permission, result, app_id, grant_policy).await;
     }
 
@@ -1196,24 +1191,25 @@ impl GrantPolicyEnforcer {
         permissions: &Vec<FireboltPermission>,
     ) -> bool {
         let mut check_status = false;
-        let grant_policy_opt = platform_state.get_device_manifest().get_grant_policies();
-        if grant_policy_opt.is_none() {
-            debug!("There are no grant policies for the requesting cap so bailing out");
-            return false;
-        }
-        for permission in permissions {
-            let grant_policies_map = grant_policy_opt.as_ref().unwrap();
-            let grant_policies_opt = grant_policies_map.get(&permission.cap.as_str());
+        let grant_policies_map = match platform_state.get_device_manifest().get_grant_policies() {
+            Some(policy) => policy,
+            None => {
+                debug!("There are no grant policies for the requesting cap so bailing out");
+                return false;
+            }
+        };
 
-            if let Some(policy) = grant_policies_opt {
-                if let Some(p) = policy.get_policy(permission) {
-                    if p.privacy_setting.is_some()
-                        && p.privacy_setting.as_ref().unwrap().auto_apply_policy
-                            != AutoApplyPolicy::Never
-                    {
+        for permission in permissions {
+            let policy_opt = grant_policies_map
+                .get(&permission.cap.as_str())
+                .and_then(|policies| policies.get_policy(permission));
+
+            if let Some(policy) = policy_opt {
+                if let Some(privacy_setting) = policy.privacy_setting {
+                    if privacy_setting.auto_apply_policy != AutoApplyPolicy::Never {
                         let result = GrantPolicyEnforcer::evaluate_privacy_settings(
                             platform_state,
-                            p.privacy_setting.as_ref().unwrap(),
+                            &privacy_setting,
                         )
                         .await;
 
@@ -1222,25 +1218,26 @@ impl GrantPolicyEnforcer {
                             return false;
                         }
                     }
-                    // Now check if provider and capability are available.
-                    for grant_requirements in &p.options {
-                        let step_caps: Vec<FireboltPermission> = grant_requirements
-                            .steps
-                            .iter()
-                            .map(|step| FireboltPermission {
-                                cap: step.capability_as_fb_cap(),
-                                role: CapabilityRole::Use,
-                            })
-                            .collect();
+                }
 
-                        if platform_state
-                            .cap_state
-                            .generic
-                            .check_all(&step_caps)
-                            .is_ok()
-                        {
-                            check_status = true
-                        }
+                // Now check if provider and capability are available.
+                for grant_requirements in &policy.options {
+                    let step_caps: Vec<FireboltPermission> = grant_requirements
+                        .steps
+                        .iter()
+                        .map(|step| FireboltPermission {
+                            cap: step.capability_as_fb_cap(),
+                            role: CapabilityRole::Use,
+                        })
+                        .collect();
+
+                    if platform_state
+                        .cap_state
+                        .generic
+                        .check_all(&step_caps)
+                        .is_ok()
+                    {
+                        check_status = true
                     }
                 }
             }
@@ -1295,31 +1292,41 @@ impl GrantPolicyEnforcer {
             // session id is None, so caller is from lifecyclemanagement.session
             debug!("Lifecyclemanagement.session caller, skip app state check. Check if cap is supported and available")
         }
+
         let grant_policy_opt = platform_state.get_device_manifest().get_grant_policies();
-        if grant_policy_opt.is_none() {
-            debug!("There are no grant policies for the requesting cap so bailing out");
-            return Ok(());
-        }
-        let grant_policies_map = grant_policy_opt.unwrap();
+        let grant_policies_map = match grant_policy_opt {
+            Some(map) => map,
+            None => {
+                debug!("There are no grant policies for the requesting cap so bailing out");
+                return Ok(());
+            }
+        };
+
         let grant_policies_opt = grant_policies_map.get(&permission.cap.as_str());
-        if grant_policies_opt.is_none() {
-            debug!(
-                "There are no policies for the cap: {} so granting request",
-                permission.cap.as_str()
-            );
-            return Ok(());
-        }
-        let policies = grant_policies_opt.unwrap();
+        let policies = match grant_policies_opt {
+            Some(policies) => policies,
+            None => {
+                debug!(
+                    "There are no policies for the cap: {} so granting request",
+                    permission.cap.as_str()
+                );
+                return Ok(());
+            }
+        };
+
         let policy_opt = policies.get_policy(permission);
-        if policy_opt.is_none() {
-            debug!(
-                "There are no polices for cap: {} for role: {:?}",
-                permission.cap.as_str(),
-                permission.role
-            );
-            return Ok(());
-        }
-        let policy = policy_opt.unwrap();
+        let policy = match policy_opt {
+            Some(policy) => policy,
+            None => {
+                debug!(
+                    "There are no polices for cap: {} for role: {:?}",
+                    permission.cap.as_str(),
+                    permission.role
+                );
+                return Ok(());
+            }
+        };
+
         if !Self::is_policy_valid(platform_state, &policy) {
             error!("Configured policy is not valid {:?}", policy);
             return Err(DenyReasonWithCap {
@@ -1393,27 +1400,29 @@ impl GrantPolicyEnforcer {
         platform_state: &PlatformState,
         privacy_setting: &GrantPrivacySetting,
     ) -> Option<Result<(), DenyReason>> {
-        let allow_value_opt =
-            Self::get_allow_value(platform_state, privacy_setting.property.as_str());
-        if allow_value_opt.is_none() {
-            debug!(
-                "Allow value not present for property: {}",
-                privacy_setting.property.as_str()
-            );
-            return None;
-        }
-        let allow_value = allow_value_opt.unwrap();
+        let allow_value = Self::get_allow_value(platform_state, privacy_setting.property.as_str())
+            .or_else(|| {
+                debug!(
+                    "Allow value not present for property: {}",
+                    privacy_setting.property.as_str()
+                );
+                None
+            })?;
+
         // From privacyImpl make the call to the registered method for the configured privacy settings.
-        let res_stored_value =
-            PrivacyImpl::handle_allow_get_requests(&privacy_setting.property, platform_state).await;
-        if res_stored_value.is_err() {
-            debug!(
-                "Unable to get stored value for privacy settings: {}",
-                privacy_setting.property.as_str()
-            );
-            return None;
-        }
-        let stored_value = res_stored_value.unwrap();
+        let stored_value =
+            PrivacyImpl::handle_allow_get_requests(&privacy_setting.property, platform_state)
+                .await
+                .ok()
+                .or_else(|| {
+                    debug!(
+                        "Unable to get stored value for privacy settings: {}",
+                        privacy_setting.property.as_str()
+                    );
+
+                    None
+                })?;
+
         debug!(
             "auto apply policy: {:?}, stored_value: {}, allow_value: {}",
             privacy_setting.auto_apply_policy, stored_value, allow_value
@@ -1489,15 +1498,17 @@ impl GrantPolicyEnforcer {
             "x-allow-value: {}, grant: {}, set_value: {}",
             allow_value, grant, set_value
         );
-        let method_name = Self::get_setter_method_name(platform_state, &privacy_setting.property);
-        if method_name.is_none() {
-            error!(
-                "Unable to find setter method for property: {}",
-                privacy_setting.property.as_str()
-            );
-            return;
-        }
-        let method_name = method_name.unwrap();
+        let method_name =
+            match Self::get_setter_method_name(platform_state, &privacy_setting.property) {
+                Some(method_name) => method_name,
+                None => {
+                    error!(
+                        "Unable to find setter method for property: {}",
+                        privacy_setting.property.as_str()
+                    );
+                    return;
+                }
+            };
         debug!("Resolved method_name: {}", &method_name);
         let set_request = SetBoolProperty { value: set_value };
         let _res =
@@ -1613,19 +1624,16 @@ impl GrantPolicyEnforcer {
         permission: &FireboltPermission,
         policy: &GrantPolicy,
     ) -> Result<(), DenyReasonWithCap> {
-        if policy.privacy_setting.is_some()
-            && policy.privacy_setting.as_ref().unwrap().auto_apply_policy != AutoApplyPolicy::Never
-        {
-            if let Some(priv_sett_response) = Self::evaluate_privacy_settings(
-                platform_state,
-                policy.privacy_setting.as_ref().unwrap(),
-            )
-            .await
-            {
-                return priv_sett_response.map_err(|err| DenyReasonWithCap {
-                    reason: err,
-                    caps: vec![permission.cap.clone()],
-                });
+        if let Some(privacy_setting) = &policy.privacy_setting {
+            if privacy_setting.auto_apply_policy != AutoApplyPolicy::Never {
+                if let Some(priv_sett_response) =
+                    Self::evaluate_privacy_settings(platform_state, privacy_setting).await
+                {
+                    return priv_sett_response.map_err(|err| DenyReasonWithCap {
+                        reason: err,
+                        caps: vec![permission.cap.clone()],
+                    });
+                }
             }
         }
 
