@@ -141,17 +141,13 @@ pub struct Param {
     pub value: String,
 }
 pub fn hashmap_to_param_vec(the_map: Option<HashMap<String, String>>) -> Vec<Param> {
-    let mut result = Vec::new();
-    if the_map.is_none() {
-        return vec![];
-    };
-
-    let params_map = the_map.unwrap();
-
-    for (key, value) in params_map {
-        result.push(Param { name: key, value });
+    match the_map {
+        Some(map) => map,
+        None => return vec![],
     }
-    result
+    .into_iter()
+    .map(|(key, value)| Param { name: key, value })
+    .collect()
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

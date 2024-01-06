@@ -138,14 +138,14 @@ impl EventListener {
         event_name: &str,
         result: &Value,
     ) -> Result<Value, AppEventDecorationError> {
-        if self.decorator.is_none() {
-            return Ok(result.clone());
+        match &self.decorator {
+            Some(decorator) => {
+                decorator
+                    .decorate(state, &self.call_ctx, event_name, result)
+                    .await
+            }
+            None => Ok(result.clone()),
         }
-        self.decorator
-            .as_ref()
-            .unwrap()
-            .decorate(state, &self.call_ctx, event_name, result)
-            .await
     }
 }
 

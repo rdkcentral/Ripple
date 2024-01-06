@@ -50,14 +50,15 @@ pub struct OpenRpcState {
 
 impl OpenRpcState {
     pub fn load_additional_rpc(rpc: &mut FireboltOpenRpc, file_contents: &'static str) {
-        let addl_rpc = serde_json::from_str::<OpenRPCParser>(file_contents);
-        if addl_rpc.is_err() {
-            error!("Could not read additional RPC file");
-            return;
-        }
-
-        for m in addl_rpc.unwrap().methods {
-            rpc.methods.push(m);
+        match serde_json::from_str::<OpenRPCParser>(file_contents) {
+            Ok(addl_rpc) => {
+                for m in addl_rpc.methods {
+                    rpc.methods.push(m.clone());
+                }
+            }
+            Err(_) => {
+                error!("Could not read additional RPC file");
+            }
         }
     }
     pub fn new(exclusory: Option<ExclusoryImpl>) -> OpenRpcState {
