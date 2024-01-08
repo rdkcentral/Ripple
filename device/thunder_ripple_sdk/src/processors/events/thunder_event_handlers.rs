@@ -23,9 +23,9 @@ use ripple_sdk::api::{
     device::{
         device_accessibility_data::VoiceGuidanceSettings,
         device_events::{
-            INTERNET_CHANGED_EVENT, TIME_ZONE_CHANGED, VOICE_GUIDANCE_SETTINGS_CHANGED,
+            INTERNET_CHANGED_EVENT, TIME_ZONE_CHANGED, VOICE_GUIDANCE_SETTINGS_CHANGED, ONLAUNCHED_EVENT, ON_DESTROYED_EVENT,
         },
-        device_request::{InternetConnectionStatus, TimeZone, VoiceGuidanceState},
+        device_request::{InternetConnectionStatus, TimeZone, VoiceGuidanceState, OnLaunchedEvent, OnDestroyedEvent},
     },
 };
 use ripple_sdk::serde_json;
@@ -656,6 +656,123 @@ impl ThunderEventHandlerProvider for TimezoneChangedEventHandler {
         Self::get_mapped_event()
     }
 
+    fn get_extn_event(
+        _r: Self::EVENT,
+        _callback_type: DeviceEventCallback,
+    ) -> Result<ExtnEvent, RippleError> {
+        Err(RippleError::InvalidOutput)
+    }
+}
+
+
+// -----------------------
+// onLaunched Events
+pub struct OnLaunchedEventHandler;
+
+impl OnLaunchedEventHandler {
+    pub fn handle(
+        state: ThunderState,
+        value: ThunderEventMessage,
+        _callback_type: DeviceEventCallback,
+    ) {
+        if let ThunderEventMessage::Custom(v) = value {
+            todo!()
+        }
+    }
+
+    pub fn is_valid(message: ThunderEventMessage) -> bool {
+        if let ThunderEventMessage::Custom(_) = message {
+            return true;
+        }
+        false
+    }
+}
+
+impl ThunderEventHandlerProvider for OnLaunchedEventHandler {
+    type EVENT = OnLaunchedEvent;
+    fn provide(id: String, callback_type: DeviceEventCallback) -> ThunderEventHandler {
+        ThunderEventHandler {
+            request: Self::get_device_request(),
+            handle: Self::handle,
+            is_valid: Self::is_valid,
+            listeners: vec![id],
+            id: Self::get_mapped_event(),
+            callback_type,
+        }
+    }
+
+    // This is the thunder event name
+    fn event_name() -> String {
+        "onLaunched".into()
+    }
+
+    // This is the event at the application level
+    fn get_mapped_event() -> String {
+        ONLAUNCHED_EVENT.into()
+    }
+
+    fn module() -> String {
+        ThunderPlugin::RDKShell.callsign_and_version()
+    }
+    fn get_extn_event(
+        _r: Self::EVENT,
+        _callback_type: DeviceEventCallback,
+    ) -> Result<ExtnEvent, RippleError> {
+        Err(RippleError::InvalidOutput)
+    }
+}
+
+
+
+// -----------------------
+// onDestroyed Events
+pub struct OnDestroyedEventHandler;
+
+impl OnDestroyedEventHandler {
+    pub fn handle(
+        mut state: ThunderState,
+        value: ThunderEventMessage,
+        _callback_type: DeviceEventCallback,
+    ) {
+        if let ThunderEventMessage::Custom(v) = value {
+            todo!()
+        }
+    }
+
+    pub fn is_valid(message: ThunderEventMessage) -> bool {
+        if let ThunderEventMessage::Custom(_) = message {
+            return true;
+        }
+        false
+    }
+}
+
+impl ThunderEventHandlerProvider for OnDestroyedEventHandler {
+    type EVENT = OnDestroyedEvent;
+    fn provide(id: String, callback_type: DeviceEventCallback) -> ThunderEventHandler {
+        ThunderEventHandler {
+            request: Self::get_device_request(),
+            handle: Self::handle,
+            is_valid: Self::is_valid,
+            listeners: vec![id],
+            id: Self::get_mapped_event(),
+            callback_type,
+        }
+    }
+
+    // This is the thunder event name
+    fn event_name() -> String {
+        "onDestroyed".into()
+    }
+
+    // This is the event at the application level
+    fn get_mapped_event() -> String {
+        ON_DESTROYED_EVENT.into()
+    }
+
+    fn module() -> String {
+        ThunderPlugin::RDKShell.callsign_and_version()
+    }
     fn get_extn_event(
         _r: Self::EVENT,
         _callback_type: DeviceEventCallback,

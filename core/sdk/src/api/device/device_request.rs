@@ -314,6 +314,18 @@ impl ExtnPayloadProvider for VoiceGuidanceState {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OnLaunchedEvent {
+    pub client: String,
+    #[serde(rename = "launchType")]
+    pub launch_type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OnDestroyedEvent {
+    pub client: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -43,7 +43,7 @@ use super::events::thunder_event_handlers::{
     AudioChangedEvent, HDCPEventHandler, HDREventHandler, InternetEventHandler,
     NetworkEventHandler, ScreenResolutionEventHandler, SystemPowerStateChangeEventHandler,
     TimezoneChangedEventHandler, VideoResolutionEventHandler,
-    VoiceGuidanceEnabledChangedEventHandler,
+    VoiceGuidanceEnabledChangedEventHandler, OnLaunchedEventHandler, OnDestroyedEventHandler,
 };
 
 #[derive(Debug)]
@@ -158,8 +158,16 @@ impl ExtnRequestProcessor for ThunderOpenEventsProcessor {
                 id.clone(),
                 TimezoneChangedEventHandler::provide(id, callback_type),
             )),
-            DeviceEvent::OnLaunchedEvent => todo!(),
-            DeviceEvent::OnDestroyedEvent => todo!(),
+            DeviceEvent::OnLaunchedEvent => Some(state.handle_listener(
+                listen,
+                id.clone(),
+                OnLaunchedEventHandler::provide(id, callback_type),
+            )),
+            DeviceEvent::OnDestroyedEvent => Some(state.handle_listener(
+                listen,
+                id.clone(),
+                OnDestroyedEventHandler::provide(id, callback_type),
+            )),
         } {
             v.await;
             Self::ack(state.get_client(), msg).await.is_ok()
