@@ -70,7 +70,7 @@ impl ExtnEventProcessor for AppEventsProcessor {
     ) -> Option<bool> {
         match extracted_message.clone() {
             AppEventRequest::Emit(event) => {
-                if let Some(app_id) = event.clone().app_id {
+                if let Some(app_id) = event.app_id {
                     let event_name = &event.event_name;
                     let result = &event.result;
                     AppEvents::emit_to_app(&state, app_id, event_name, result).await;

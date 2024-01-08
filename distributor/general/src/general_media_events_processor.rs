@@ -69,12 +69,11 @@ impl ExtnRequestProcessor for DistributorMediaEventProcessor {
         self.client.clone()
     }
     async fn process_request(
-        state: Self::STATE,
+        mut state: Self::STATE,
         msg: ripple_sdk::extn::extn_client_message::ExtnMessage,
         _: Self::VALUE,
     ) -> bool {
         state
-            .clone()
             .respond(
                 msg,
                 ripple_sdk::extn::extn_client_message::ExtnResponse::None(()),

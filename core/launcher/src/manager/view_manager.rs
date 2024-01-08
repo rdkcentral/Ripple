@@ -185,7 +185,7 @@ impl ViewManager {
                 y: params.y,
                 w: params.w,
                 h: params.h,
-                properties: params.properties.clone().map(|r| r.get_browser_props()),
+                properties: params.properties.map(|r| r.get_browser_props()),
             }))
             .await;
 
