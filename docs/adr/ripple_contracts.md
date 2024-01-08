@@ -134,11 +134,11 @@ Bootstrap would start the `DeviceChannel`(s) and then start all of the other cha
 
 ### Extn Client routing using Contracts and ExtnId
 
-`ExtnClient` currently uses the top level `ExtnClass` and `ExtnType` to identify a Crossbeam sender to pass on the message to the extension. For eg `ripple:class:device:thunder` it uses the key `class:device` to store a value of Crossbeam Sender. 
+`ExtnClient` currently uses the top level `ExtnClass` and `ExtnType` to identify a Async Channel sender to pass on the message to the extension. For eg `ripple:class:device:thunder` it uses the key `class:device` to store a value of Async Channel Sender. 
 
 This logic would now change to 2 levels of mapping
-1. Map<ExtnId,CrossbeamSender<CExtnMessage>> - To store the Extn Id to cross beam sender mapping.
-2. Map<Contract,ExtnId> - To help reduce duplication of CrossbeamSender across multiple redundant key values for similar contracts like device:info, device:windowmanager and other OSS RDK services
+1. Map<ExtnId,Async Channel Sender<CExtnMessage>> - To store the Extn Id to cross beam sender mapping.
+2. Map<Contract,ExtnId> - To help reduce duplication of Async Channel across multiple redundant key values for similar contracts like device:info, device:windowmanager and other OSS RDK services
 
 ### Extn Payload provider to use Contracts
 

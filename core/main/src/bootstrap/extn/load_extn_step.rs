@@ -97,7 +97,7 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                     if let Ok(extn_id) = ExtnId::try_from(extension.id.clone()) {
                         let builder = load_jsonrpsee_methods(library);
                         if let Some(builder) = builder {
-                            let (_tx, tr) = ChannelsState::get_crossbeam_channel();
+                            let (_tx, tr) = ChannelsState::get_iec_channel();
                             let extn_sender = ExtnSender::new(
                                 main_sender.clone(),
                                 extn_id,

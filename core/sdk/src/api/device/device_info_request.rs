@@ -105,8 +105,7 @@ pub enum DeviceResponse {
     FirmwareInfo(FireboltSemanticVersion),
     ScreenResolutionResponse(Vec<i32>),
     VideoResolutionResponse(Vec<i32>),
-    // TODO: assess if boxing this is a productive move: https://rust-lang.github.io/rust-clippy/master/index.html#/large_enum_variant
-    FullCapabilities(Box<DeviceCapabilities>),
+    FullCapabilities(DeviceCapabilities),
     InternetConnectionStatus(InternetConnectionStatus),
     PowerState(PowerState),
     TimeZone(TimeZone),
