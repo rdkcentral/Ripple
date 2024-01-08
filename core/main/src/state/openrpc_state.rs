@@ -57,7 +57,7 @@ impl OpenRpcState {
         }
 
         for m in addl_rpc.unwrap().methods {
-            rpc.methods.push(m.clone());
+            rpc.methods.push(m);
         }
     }
     pub fn new(exclusory: Option<ExclusoryImpl>) -> OpenRpcState {
@@ -69,8 +69,8 @@ impl OpenRpcState {
         Self::load_additional_rpc(&mut ripple_open_rpc, ripple_rpc_file);
 
         OpenRpcState {
-            firebolt_cap_map: Arc::new(RwLock::new(firebolt_open_rpc.clone().get_methods_caps())),
-            ripple_cap_map: Arc::new(RwLock::new(ripple_open_rpc.clone().get_methods_caps())),
+            firebolt_cap_map: Arc::new(RwLock::new(firebolt_open_rpc.get_methods_caps())),
+            ripple_cap_map: Arc::new(RwLock::new(ripple_open_rpc.get_methods_caps())),
             exclusory,
             cap_policies: Arc::new(RwLock::new(version_manifest.capabilities)),
             open_rpc: firebolt_open_rpc,
