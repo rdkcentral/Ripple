@@ -72,7 +72,7 @@ impl Session {
     }
 
     pub fn get_transport(&self) -> EffectiveTransport {
-        self.data.clone().transport
+        self.data.transport.clone()
     }
 }
 
