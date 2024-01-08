@@ -25,4 +25,5 @@ pub mod manager {
     pub mod container_message;
     pub mod stack;
     pub mod view_manager;
+    pub mod device_launcher_event_manager;
 }
