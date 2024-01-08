@@ -20,17 +20,21 @@ use crate::{
     state::platform_state::PlatformState,
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
-use ripple_sdk::api::{
-    firebolt::{
-        fb_general::{ListenRequest, ListenerResponse},
-        fb_pin::{PinChallengeResponse, PIN_CHALLENGE_CAPABILITY, PIN_CHALLENGE_EVENT},
-        provider::{
-            ExternalProviderResponse, FocusRequest, ProviderResponse, ProviderResponsePayload,
-        },
-    },
-    gateway::rpc_gateway_api::CallContext,
-};
 use ripple_sdk::async_trait::async_trait;
+use ripple_sdk::{
+    api::{
+        firebolt::{
+            fb_general::{ListenRequest, ListenerResponse},
+            fb_pin::{PinChallengeResponse, PIN_CHALLENGE_CAPABILITY, PIN_CHALLENGE_EVENT},
+            provider::{
+                ChallengeError, ExternalProviderResponse, FocusRequest, ProviderResponse,
+                ProviderResponsePayload,
+            },
+        },
+        gateway::rpc_gateway_api::CallContext,
+    },
+    log::debug,
+};
 
 #[rpc(server)]
 pub trait PinChallenge {
@@ -54,6 +58,13 @@ pub trait PinChallenge {
         ctx: CallContext,
         resp: ExternalProviderResponse<PinChallengeResponse>,
     ) -> RpcResult<Option<()>>;
+
+    #[method(name = "pinchallenge.challengeError")]
+    async fn challenge_error(
+        &self,
+        ctx: CallContext,
+        resp: ExternalProviderResponse<ChallengeError>,
+    ) -> RpcResult<Option<()>>;
 }
 
 pub struct PinChallengeImpl {
@@ -68,6 +79,7 @@ impl PinChallengeServer for PinChallengeImpl {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
+        debug!("PinChallenge provider registered :{:?}", request);
         ProviderBroker::register_or_unregister_provider(
             &self.platform_state,
             String::from(PIN_CHALLENGE_CAPABILITY),
@@ -77,6 +89,7 @@ impl PinChallengeServer for PinChallengeImpl {
             request,
         )
         .await;
+
         Ok(ListenerResponse {
             listening: listen,
             event: PIN_CHALLENGE_EVENT.into(),
@@ -91,6 +104,19 @@ impl PinChallengeServer for PinChallengeImpl {
         let msg = ProviderResponse {
             correlation_id: resp.correlation_id,
             result: ProviderResponsePayload::PinChallengeResponse(resp.result),
+        };
+        ProviderBroker::provider_response(&self.platform_state, msg).await;
+        Ok(None)
+    }
+
+    async fn challenge_error(
+        &self,
+        _ctx: CallContext,
+        resp: ExternalProviderResponse<ChallengeError>,
+    ) -> RpcResult<Option<()>> {
+        let msg = ProviderResponse {
+            correlation_id: resp.correlation_id,
+            result: ProviderResponsePayload::ChallengeError(resp.result),
         };
         ProviderBroker::provider_response(&self.platform_state, msg).await;
         Ok(None)

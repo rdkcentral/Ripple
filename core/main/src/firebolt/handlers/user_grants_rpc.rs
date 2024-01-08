@@ -256,6 +256,12 @@ impl UserGrantsServer for UserGrantsImpl {
         ctx: CallContext,
         request: UserGrantRequestParam,
     ) -> RpcResult<Vec<GrantInfo>> {
+        let force = request
+            .options
+            .as_ref()
+            .map(|x| x.force)
+            .unwrap_or_default();
+
         let fb_perms: Vec<FireboltPermission> = request.clone().into();
         self.platform_state
             .cap_state
@@ -271,6 +277,7 @@ impl UserGrantsServer for UserGrantsImpl {
             &fb_perms,
             false,
             true,
+            force,
         )
         .await;
         debug!("Check with roles result: {:?}", grant_entries);

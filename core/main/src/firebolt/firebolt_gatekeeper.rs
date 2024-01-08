@@ -158,6 +158,7 @@ impl FireboltGatekeeper {
             &filtered_perm_list,
             true,
             true,
+            false,
         )
         .await
         {

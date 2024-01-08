@@ -16,7 +16,7 @@
 //
 
 use crate::{api::apps::AppError, extn::client::extn_sender::ExtnSender};
-use crossbeam::channel::Receiver as CReceiver;
+use async_channel::Receiver as CReceiver;
 use jsonrpsee_core::server::rpc_module::Methods;
 use libloading::{Library, Symbol};
 use log::{debug, error};

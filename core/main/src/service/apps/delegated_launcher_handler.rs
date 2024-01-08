@@ -79,7 +79,7 @@ use crate::{
         apps::app_events::AppEvents,
         extn::ripple_client::RippleClient,
         telemetry_builder::TelemetryBuilder,
-        user_grants::{GrantPolicyEnforcer, GrantState},
+        user_grants::{GrantHandler, GrantPolicyEnforcer, GrantState},
     },
     state::{
         bootstrap_state::ChannelsState, cap::permitted_state::PermissionHandler,
@@ -664,6 +664,7 @@ impl DelegatedLauncherHandler {
                         &perms_with_grants,
                         true,
                         false, // false here as we have already applied user grant exclusion filter.
+                        false,
                     )
                     .await;
                     match resolved_result {
@@ -908,10 +909,13 @@ impl DelegatedLauncherHandler {
             final_perms
         );
         if !final_perms.is_empty() {
-            Some(final_perms)
-        } else {
-            None
+            // check if grants are resolved after checking for partner exclusion
+            let final_perms = GrantHandler::are_all_user_grants_resolved(ps, &app_id, final_perms);
+            if !final_perms.is_empty() {
+                return Some(final_perms);
+            }
         }
+        None
     }
 
     fn to_completed_session(app: &App) -> CompletedSessionResponse {

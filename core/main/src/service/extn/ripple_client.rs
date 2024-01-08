@@ -22,7 +22,7 @@ use ripple_sdk::{
         apps::{AppError, AppManagerResponse, AppMethod, AppRequest},
         manifest::extn_manifest::ExtnSymbol,
     },
-    crossbeam::channel::Sender as CSender,
+    async_channel::Sender as CSender,
     extn::{
         client::{
             extn_client::ExtnClient,
