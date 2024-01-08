@@ -25,10 +25,11 @@ use ripple_sdk::{
         storage_property::StorageProperty,
     },
     log::{debug, info},
+    parking_lot::RwLock,
     utils::error::RippleError,
 };
 use std::collections::HashSet;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use crate::{
     processor::storage::storage_manager::StorageManager, state::platform_state::PlatformState,
@@ -65,12 +66,12 @@ impl std::fmt::Debug for DataGovernanceState {
 
 impl DataGovernance {
     fn update_local_exclusion_policy(state: &DataGovernanceState, excl: ExclusionPolicy) {
-        let mut dg = state.exclusions.write().unwrap();
+        let mut dg = state.exclusions.write();
         *dg = Some(excl)
     }
 
     fn get_local_exclusion_policy(state: &DataGovernanceState) -> Option<ExclusionPolicy> {
-        let dg = state.exclusions.read().unwrap();
+        let dg = state.exclusions.read();
         (*dg).clone()
     }
 

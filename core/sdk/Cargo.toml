@@ -52,4 +52,5 @@ futures = "0.3.21"
 jsonrpsee-core = { version = "0.9.0", features = ["server"], optional = true }
 regex = "=1.7.3"
 async-channel = "2.1.0"
+parking_lot = "0.12.1"
 

@@ -15,15 +15,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-    time::Duration,
-};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use async_channel::{bounded, Receiver as CReceiver, Sender as CSender};
 use chrono::Utc;
 use log::{debug, error, info, trace};
+use parking_lot::RwLock;
 use tokio::sync::{
     mpsc::Sender as MSender,
     oneshot::{self, Sender as OSender},
@@ -75,12 +72,12 @@ pub struct ExtnClient {
 }
 
 fn add_stream_processor<P>(id: String, context: P, map: Arc<RwLock<HashMap<String, P>>>) {
-    let mut processor_state = map.write().unwrap();
+    let mut processor_state = map.write();
     processor_state.insert(id, context);
 }
 
 fn add_vec_stream_processor<P>(id: String, context: P, map: Arc<RwLock<HashMap<String, Vec<P>>>>) {
-    let mut processor_state = map.write().unwrap();
+    let mut processor_state = map.write();
     if let std::collections::hash_map::Entry::Vacant(e) = processor_state.entry(id.clone()) {
         e.insert(vec![context]);
     } else {
@@ -90,13 +87,13 @@ fn add_vec_stream_processor<P>(id: String, context: P, map: Arc<RwLock<HashMap<S
 
 fn add_single_processor<P>(id: String, processor: Option<P>, map: Arc<RwLock<HashMap<String, P>>>) {
     if let Some(processor) = processor {
-        let mut processor_state = map.write().unwrap();
+        let mut processor_state = map.write();
         processor_state.insert(id, processor);
     }
 }
 
 pub fn remove_processor<P>(id: String, map: Arc<RwLock<HashMap<String, P>>>) {
-    let mut processor_state = map.write().unwrap();
+    let mut processor_state = map.write();
     let sender = processor_state.remove(&id);
     drop(sender);
 }
@@ -186,7 +183,7 @@ impl ExtnClient {
     pub fn add_sender(&mut self, id: ExtnId, symbol: ExtnSymbol, sender: CSender<CExtnMessage>) {
         let id = id.to_string();
         {
-            let mut sender_map = self.extn_sender_map.write().unwrap();
+            let mut sender_map = self.extn_sender_map.write();
             sender_map.insert(id.clone(), sender);
         }
         {
@@ -201,7 +198,7 @@ impl ExtnClient {
                     None => error!("Unknown contract {}", contract),
                 }
             }
-            let mut contract_map = self.contract_map.write().unwrap();
+            let mut contract_map = self.contract_map.write();
             contract_map.extend(map);
         }
     }
@@ -209,7 +206,6 @@ impl ExtnClient {
     pub fn get_other_senders(&self) -> Vec<CSender<CExtnMessage>> {
         self.extn_sender_map
             .read()
-            .unwrap()
             .iter()
             .map(|(_, v)| v)
             .cloned()
@@ -244,7 +240,7 @@ impl ExtnClient {
                             message
                         );
                         {
-                            let mut ripple_context = self.ripple_context.write().unwrap();
+                            let mut ripple_context = self.ripple_context.write();
                             ripple_context.deep_copy(context);
                         }
                     }
@@ -301,10 +297,10 @@ impl ExtnClient {
         }
 
         {
-            let mut ripple_context = self.ripple_context.write().unwrap();
+            let mut ripple_context = self.ripple_context.write();
             ripple_context.update(request)
         }
-        let new_context = { self.ripple_context.read().unwrap().clone() };
+        let new_context = { self.ripple_context.read().clone() };
         let message = new_context.get_event_message();
         let c_message: CExtnMessage = message.clone().into();
         {
@@ -334,7 +330,7 @@ impl ExtnClient {
     ) {
         let id_c = msg.id.clone();
         let processor_result = {
-            let mut processors = processor.write().unwrap();
+            let mut processors = processor.write();
             processors.remove(&id_c)
         };
 
@@ -356,7 +352,7 @@ impl ExtnClient {
         let id_c: String = msg.target.as_clear_string();
 
         let v = {
-            let processors = processor.read().unwrap();
+            let processors = processor.read();
             processors.get(&id_c).cloned()
         };
         if let Some(sender) = v {
@@ -381,7 +377,7 @@ impl ExtnClient {
         let mut sender: Option<MSender<ExtnMessage>> = None;
         let read_processor = processor.clone();
         {
-            let processors = read_processor.read().unwrap();
+            let processors = read_processor.read();
             let v = processors.get(&id_c).cloned();
             if let Some(v) = v {
                 for (index, s) in v.iter().enumerate() {
@@ -415,7 +411,7 @@ impl ExtnClient {
     ) {
         let indices = match gc_sender_indexes {
             Some(i) => Some(i),
-            None => processor.read().unwrap().get(&id_c).map(|v| {
+            None => processor.read().get(&id_c).map(|v| {
                 v.iter()
                     .filter(|x| x.is_closed())
                     .enumerate()
@@ -425,7 +421,7 @@ impl ExtnClient {
         };
         if let Some(indices) = indices {
             if !indices.is_empty() {
-                let mut gc_cleanup = processor.write().unwrap();
+                let mut gc_cleanup = processor.write();
                 if let Some(sender_list) = gc_cleanup.get_mut(&id_c) {
                     for index in indices {
                         let r = sender_list.remove(index);
@@ -441,13 +437,7 @@ impl ExtnClient {
         contract: RippleContract,
     ) -> Option<CSender<CExtnMessage>> {
         let contract_str: String = contract.as_clear_string();
-        let id = {
-            self.contract_map
-                .read()
-                .unwrap()
-                .get(&contract_str)
-                .cloned()
-        };
+        let id = { self.contract_map.read().get(&contract_str).cloned() };
         if let Some(extn_id) = id {
             return self.get_extn_sender_with_extn_id(&extn_id);
         }
@@ -456,7 +446,7 @@ impl ExtnClient {
     }
 
     fn get_extn_sender_with_extn_id(&self, id: &str) -> Option<CSender<CExtnMessage>> {
-        return self.extn_sender_map.read().unwrap().get(id).cloned();
+        return self.extn_sender_map.read().get(id).cloned();
     }
 
     /// Critical method used by request processors to send response message back to the requestor
@@ -606,7 +596,7 @@ impl ExtnClient {
     }
 
     pub fn has_token(&self) -> bool {
-        let ripple_context = self.ripple_context.read().unwrap();
+        let ripple_context = self.ripple_context.read();
         matches!(
             ripple_context.activation_status.clone(),
             ActivationStatus::AccountToken(_)
@@ -614,12 +604,12 @@ impl ExtnClient {
     }
 
     pub fn get_activation_status(&self) -> ActivationStatus {
-        let ripple_context = self.ripple_context.read().unwrap();
+        let ripple_context = self.ripple_context.read();
         ripple_context.activation_status.clone()
     }
 
     pub fn has_internet(&self) -> bool {
-        let ripple_context = self.ripple_context.read().unwrap();
+        let ripple_context = self.ripple_context.read();
         matches!(
             ripple_context.internet_connectivity,
             InternetConnectionStatus::FullyConnected | InternetConnectionStatus::LimitedInternet
@@ -627,7 +617,7 @@ impl ExtnClient {
     }
 
     pub fn get_timezone(&self) -> Option<TimeZone> {
-        let ripple_context = self.ripple_context.read().unwrap();
+        let ripple_context = self.ripple_context.read();
         Some(ripple_context.time_zone.clone())
     }
 }

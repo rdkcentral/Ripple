@@ -15,10 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, sync::Arc};
 
 use ripple_sdk::{
     api::distributor::distributor_privacy::{
@@ -36,6 +33,7 @@ use ripple_sdk::{
         extn_client_message::{ExtnPayloadProvider, ExtnResponse},
     },
     framework::file_store::FileStore,
+    parking_lot::RwLock,
 };
 use serde::{Deserialize, Serialize};
 
@@ -73,7 +71,7 @@ impl PrivacyState {
     }
 
     fn get_property(&self, params: GetPropertyParams) -> bool {
-        let data = self.privacy_data.read().unwrap();
+        let data = self.privacy_data.read();
         match params.setting {
             PrivacySetting::AppDataCollection(a) => data.value.get_data_collections(a),
             PrivacySetting::AppEntitlementCollection(e) => data.value.get_ent_collections(e),
@@ -104,7 +102,7 @@ impl PrivacyState {
     }
 
     fn set_property(&self, params: SetPropertyParams) -> bool {
-        let mut data = self.privacy_data.write().unwrap();
+        let mut data = self.privacy_data.write();
         match params.setting.clone() {
             PrivacySetting::AppDataCollection(a) => {
                 data.value.set_data_collections(a, params.value)
@@ -118,7 +116,7 @@ impl PrivacyState {
     }
 
     fn get_settings(&self) -> PrivacySettings {
-        let data = self.privacy_data.read().unwrap();
+        let data = self.privacy_data.read();
         data.value.settings.clone()
     }
 }

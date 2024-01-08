@@ -15,10 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, sync::Arc};
 
 use ripple_sdk::{
     api::{
@@ -30,6 +27,7 @@ use ripple_sdk::{
         manifest::apps::AppProperties,
     },
     log::error,
+    parking_lot::RwLock,
     tokio::sync::oneshot,
     utils::{channel_utils::oneshot_send_and_log, error::RippleError},
     uuid::Uuid,
@@ -87,12 +85,13 @@ impl ViewRequest {
     }
 
     pub fn send_response(&self, response: ViewResponse) -> Result<(), RippleError> {
-        let mut sender = self.resp_tx.write().unwrap();
-        if sender.is_some() {
-            oneshot_send_and_log(sender.take().unwrap(), response, "ViewManager response");
-            Ok(())
-        } else {
-            Err(RippleError::SenderMissing)
+        let mut sender = self.resp_tx.write();
+        match sender.take() {
+            Some(tx) => {
+                oneshot_send_and_log(tx, response, "ViewManager response");
+                Ok(())
+            }
+            None => Err(RippleError::SenderMissing),
         }
     }
 }
@@ -142,27 +141,23 @@ pub struct ViewState {
 
 impl ViewState {
     fn insert_view(&self, key: String, view: ViewId) {
-        let _ = self.view_pool.write().unwrap().insert(key, view);
+        let _ = self.view_pool.write().insert(key, view);
     }
 
     fn get_name(&self, key: ViewId) -> Option<String> {
-        self.view_pool
-            .read()
-            .unwrap()
-            .iter()
-            .find_map(
-                |(name, &id)| {
-                    if id == key {
-                        Some(name.clone())
-                    } else {
-                        None
-                    }
-                },
-            )
+        self.view_pool.read().iter().find_map(
+            |(name, &id)| {
+                if id == key {
+                    Some(name.clone())
+                } else {
+                    None
+                }
+            },
+        )
     }
 
     fn remove(&self, key: &str) {
-        let _ = self.view_pool.write().unwrap().remove(key);
+        let _ = self.view_pool.write().remove(key);
     }
 }
 

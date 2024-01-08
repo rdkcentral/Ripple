@@ -16,7 +16,7 @@
 //
 
 use std::{
-    sync::{Arc, Once, RwLock},
+    sync::{Arc, Once},
     time::Duration,
 };
 
@@ -40,6 +40,7 @@ use ripple_sdk::{
         extn_client_message::ExtnMessage,
     },
     log::{debug, error, info},
+    parking_lot::RwLock,
     tokio::{
         self,
         sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
@@ -221,7 +222,7 @@ impl ExtnEventProcessor for MainContextProcessor {
                 _ => {}
             }
             {
-                let mut context = state.current_context.write().unwrap();
+                let mut context = state.current_context.write();
                 context.deep_copy(extracted_message);
             }
         }

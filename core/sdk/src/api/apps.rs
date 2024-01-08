@@ -15,8 +15,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::oneshot;
@@ -167,12 +168,13 @@ impl AppRequest {
     }
 
     pub fn send_response(&self, response: AppResponse) -> Result<(), RippleError> {
-        let mut sender = self.resp_tx.write().unwrap();
-        if sender.is_some() {
-            oneshot_send_and_log(sender.take().unwrap(), response, "AppManager response");
-            Ok(())
-        } else {
-            Err(RippleError::SenderMissing)
+        let mut sender = self.resp_tx.write();
+        match sender.take() {
+            Some(tx) => {
+                oneshot_send_and_log(tx, response, "AppManager response");
+                Ok(())
+            }
+            None => Err(RippleError::SenderMissing),
         }
     }
 }

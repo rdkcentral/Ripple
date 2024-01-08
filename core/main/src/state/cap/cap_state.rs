@@ -18,14 +18,14 @@
 use std::{
     collections::HashSet,
     hash::{Hash, Hasher},
-    sync::{Arc, RwLock},
+    sync::Arc,
 };
 
 use crate::{
     service::{apps::app_events::AppEvents, user_grants::GrantState},
     state::platform_state::PlatformState,
 };
-use ripple_sdk::{api::firebolt::fb_capabilities::RolePermission, serde_json};
+use ripple_sdk::{api::firebolt::fb_capabilities::RolePermission, parking_lot::RwLock, serde_json};
 use ripple_sdk::{
     api::{
         firebolt::{
@@ -72,7 +72,7 @@ impl CapState {
         event: CapEvent,
         request: CapListenRPCRequest,
     ) {
-        let mut r = ps.cap_state.primed_listeners.write().unwrap();
+        let mut r = ps.cap_state.primed_listeners.write();
         if let Some(cap) = FireboltCap::parse(request.clone().capability) {
             let check = CapEventEntry {
                 app_id: call_context.clone().app_id,
@@ -114,7 +114,7 @@ impl CapState {
         cap: FireboltCap,
         app_id: Option<String>,
     ) -> bool {
-        let r = ps.cap_state.primed_listeners.read().unwrap();
+        let r = ps.cap_state.primed_listeners.read();
         debug!("primed entries {:?}", r);
         if r.iter().any(|x| {
             if x.event == event && x.cap == cap {

@@ -15,10 +15,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use log::debug;
+use parking_lot::RwLock;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::utils::error::RippleError;
@@ -83,11 +84,10 @@ impl<T> TransientChannel<T> {
     }
 
     pub fn get_receiver(&self) -> Result<Receiver<T>, RippleError> {
-        let mut tr = self.tr.write().unwrap();
-        if tr.is_some() {
-            return Ok(tr.take().unwrap());
+        let mut tr = self.tr.write();
+        match tr.take() {
+            Some(receiver) => Ok(receiver),
+            None => Err(RippleError::InvalidAccess),
         }
-
-        Err(RippleError::InvalidAccess)
     }
 }

@@ -34,9 +34,10 @@ use ripple_sdk::{
     },
     framework::file_store::FileStore,
     log::error,
+    parking_lot::RwLock,
     utils::error::RippleError,
 };
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct DistSessionState {
@@ -86,7 +87,7 @@ impl DistributorSessionProcessor {
     }
 
     async fn get_token(mut state: DistSessionState, msg: ExtnMessage) -> bool {
-        let session = state.session.read().unwrap().value.clone();
+        let session = state.session.read().value.clone();
         if let Err(e) = state
             .client
             .respond(
@@ -110,7 +111,7 @@ impl DistributorSessionProcessor {
         token: AccountSessionTokenRequest,
     ) -> bool {
         {
-            let mut session = state.session.write().unwrap();
+            let mut session = state.session.write();
             session.value.token = token.token;
             session.sync();
         }
@@ -123,7 +124,7 @@ impl DistributorSessionProcessor {
         provision: ProvisionRequest,
     ) -> bool {
         {
-            let mut session = state.session.write().unwrap();
+            let mut session = state.session.write();
             session.value.account_id = provision.account_id;
             session.value.device_id = provision.device_id;
             if let Some(distributor) = provision.distributor_id {
