@@ -236,23 +236,24 @@ impl ThunderRemoteAccessoryRequestProcessor {
                     match pairing_status.as_str() {
                         "CONFIGURATION_COMPLETE" => {
                             info!("successfully paired");
-                            let success_accessory_response: AccessoryDeviceResponse =
-                            if !remote_status_event.status.remote_data.is_empty() {
-                                let remote = remote_status_event.status.remote_data.get(0).unwrap();
 
-                                ThunderRemoteAccessoryRequestProcessor::get_accessory_response(
+                            let success_accessory_response = match remote_status_event.status.remote_data.get(0) {
+                                Some(remote) => {
+                                    ThunderRemoteAccessoryRequestProcessor::get_accessory_response(
                                         protocol,
                                         remote.make.clone(),
                                         remote.model.clone(),
                                     )
-                            } else {
-                                warn!("No Remote info");
+                                }
+                                None => {
+                                    warn!("No Remote info");
 
-                                ThunderRemoteAccessoryRequestProcessor::get_accessory_response(
-                                        protocol,
-                                        "".into(),
-                                        "".into(),
-                                    )
+                                    ThunderRemoteAccessoryRequestProcessor::get_accessory_response(
+                                            protocol,
+                                            "".into(),
+                                            "".into(),
+                                        )
+                                }
                             };
                             info!("{:?}", success_accessory_response);
                             tx.send(RemoteAccessoryResponse::AccessoryPairResponse(success_accessory_response)).await.unwrap();

@@ -66,8 +66,8 @@ impl FireboltGatekeeper {
         let perm_based_on_spec_opt = platform_state
             .open_rpc_state
             .get_perms_for_method(method, api_surface);
-        perm_based_on_spec_opt.as_ref()?;
-        let perm_based_on_spec = perm_based_on_spec_opt.unwrap();
+
+        let perm_based_on_spec = perm_based_on_spec_opt?;
         if perm_based_on_spec.is_empty() {
             return Some(perm_based_on_spec);
         }
@@ -83,16 +83,14 @@ impl FireboltGatekeeper {
             trace!("Method is exluded from gating {}", request.method);
             return Ok(());
         }
-        // if let Some(caps) = open_rpc_state.get_caps_for_method(&request.method) {
-        let caps_opt =
-            Self::get_resolved_caps_for_method(&state, &request.method, request.ctx.gateway_secure);
-        if caps_opt.is_none() {
-            return Err(DenyReasonWithCap {
-                reason: DenyReason::NotFound,
-                caps: Vec::new(),
-            });
-        }
-        let caps = caps_opt.unwrap();
+
+        let caps =
+            Self::get_resolved_caps_for_method(&state, &request.method, request.ctx.gateway_secure)
+                .ok_or(DenyReasonWithCap {
+                    reason: DenyReason::NotFound,
+                    caps: Vec::new(),
+                })?;
+
         if caps.is_empty() {
             // Couldnt find any capabilities for the method
             trace!(
