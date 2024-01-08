@@ -144,6 +144,16 @@ impl ThunderEventMessage {
                         return Some(ThunderEventMessage::TimeZone(v));
                     }
                 }
+                DeviceEvent::OnLaunchedEvent => {
+                    if let Ok(v) = serde_json::from_value(value.clone()) {
+                        return Some(ThunderEventMessage::Custom(v));
+                    }
+                }
+                DeviceEvent::OnDestroyedEvent => {
+                    if let Ok(v) = serde_json::from_value(value.clone()) {
+                        return Some(ThunderEventMessage::Custom(v));
+                    }
+                }
             }
         } else {
             debug!(

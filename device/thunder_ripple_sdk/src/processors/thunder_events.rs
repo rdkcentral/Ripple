@@ -158,6 +158,8 @@ impl ExtnRequestProcessor for ThunderOpenEventsProcessor {
                 id.clone(),
                 TimezoneChangedEventHandler::provide(id, callback_type),
             )),
+            DeviceEvent::OnLaunchedEvent => todo!(),
+            DeviceEvent::OnDestroyedEvent => todo!(),
         } {
             v.await;
             Self::ack(state.get_client(), msg).await.is_ok()

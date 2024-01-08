@@ -40,6 +40,8 @@ pub const VOICE_GUIDANCE_ENABLED_CHANGED: &str = "voiceguidance.onEnabledChanged
 pub const VOICE_GUIDANCE_SPEED_CHANGED: &str = "voiceguidance.onSpeedChanged";
 pub const POWER_STATE_CHANGED: &str = "device.onPowerStateChanged";
 pub const TIME_ZONE_CHANGED: &str = "localization.onTimeZoneChanged";
+pub const ONLAUNCHED_EVENT: &str = "device.onLanchedEvent";
+pub const ON_DESTROYED_EVENT: &str = "device.onDestroyedEvent";
 
 // Is this from the device to thunder event handler???
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,6 +56,8 @@ pub enum DeviceEvent {
     SystemPowerStateChanged,
     InternetConnectionStatusChanged,
     TimeZoneChanged,
+    OnLaunchedEvent,
+    OnDestroyedEvent,
 }
 
 impl FromStr for DeviceEvent {
@@ -71,6 +75,8 @@ impl FromStr for DeviceEvent {
             "device.onPowerStateChanged" => Ok(Self::SystemPowerStateChanged),
             "device.onInternetStatusChange" => Ok(Self::InternetConnectionStatusChanged),
             "localization.onTimeZoneChanged" => Ok(Self::TimeZoneChanged),
+            "device.onLanchedEvent" => Ok(Self::OnLaunchedEvent),
+            "device.onDestroyedEvent" => Ok(Self::OnDestroyedEvent),
             _ => Err(()),
         }
     }
@@ -132,6 +138,12 @@ impl ExtnPayloadProvider for DeviceEventRequest {
                 RippleContract::DeviceEvents(EventAdjective::Internet)
             }
             DeviceEvent::TimeZoneChanged => RippleContract::DeviceEvents(EventAdjective::TimeZone),
+            DeviceEvent::OnLaunchedEvent => {
+                RippleContract::DeviceEvents(EventAdjective::LauncherEvents)
+            }
+            DeviceEvent::OnDestroyedEvent => {
+                RippleContract::DeviceEvents(EventAdjective::LauncherEvents)
+            }
         }
     }
 

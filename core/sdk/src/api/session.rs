@@ -277,6 +277,7 @@ pub enum EventAdjective {
     Audio,
     SystemPowerState,
     TimeZone,
+    LauncherEvents,
 }
 
 impl ContractAdjective for EventAdjective {
