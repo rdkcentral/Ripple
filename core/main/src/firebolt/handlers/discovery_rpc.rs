@@ -681,7 +681,7 @@ impl DiscoveryServer for DiscoveryImpl {
     ) -> RpcResult<bool> {
         let response = ProviderResponse {
             correlation_id: entity_info.correlation_id,
-            result: ProviderResponsePayload::EntityInfoResponse(Box::new(entity_info.result)),
+            result: ProviderResponsePayload::EntityInfoResponse(entity_info.result),
         };
         ProviderBroker::provider_response(&self.state, response).await;
         Ok(true)
