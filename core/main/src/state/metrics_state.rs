@@ -24,6 +24,7 @@ use jsonrpsee::tracing::debug;
 use ripple_sdk::{
     api::{
         device::device_info_request::{DeviceInfoRequest, DeviceResponse},
+        distributor::distributor_privacy::PrivacySettingsData,
         firebolt::{fb_metrics::MetricsContext, fb_openrpc::FireboltSemanticVersion},
         storage_property::StorageProperty,
     },
@@ -39,6 +40,7 @@ use super::platform_state::PlatformState;
 pub struct MetricsState {
     pub start_time: DateTime<Utc>,
     pub context: Arc<RwLock<MetricsContext>>,
+    pub privacy_settings_cache: Arc<RwLock<PrivacySettingsData>>,
     operational_telemetry_listeners: Arc<RwLock<HashSet<String>>>,
 }
 
@@ -46,7 +48,13 @@ impl MetricsState {
     pub fn get_context(&self) -> MetricsContext {
         self.context.read().unwrap().clone()
     }
-
+    pub fn get_privacy_settings_cache(&self) -> PrivacySettingsData {
+        self.privacy_settings_cache.read().unwrap().clone()
+    }
+    pub fn update_privacy_settings_cache(&self, value: &PrivacySettingsData) {
+        let mut cache = self.privacy_settings_cache.write().unwrap();
+        *cache = value.clone();
+    }
     pub async fn initialize(state: &PlatformState) {
         let mut mac_address: Option<String> = None;
         if let Ok(resp) = state
@@ -122,6 +130,7 @@ impl MetricsState {
             context.device_language = language;
             context.os_ver = os_ver;
             context.device_name = device_name;
+            context.device_session_id = String::from(&state.device_session_id);
 
             if let Some(t) = timezone {
                 context.device_timezone = t;
@@ -177,7 +186,6 @@ impl MetricsState {
         self.operational_telemetry_listeners
             .read()
             .unwrap()
-            .clone()
             .iter()
             .map(|x| x.to_owned())
             .collect()

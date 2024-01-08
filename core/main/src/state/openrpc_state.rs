@@ -57,7 +57,7 @@ impl OpenRpcState {
         }
 
         for m in addl_rpc.unwrap().methods {
-            rpc.methods.push(m.clone());
+            rpc.methods.push(m);
         }
     }
     pub fn new(exclusory: Option<ExclusoryImpl>) -> OpenRpcState {
@@ -69,8 +69,8 @@ impl OpenRpcState {
         Self::load_additional_rpc(&mut ripple_open_rpc, ripple_rpc_file);
 
         OpenRpcState {
-            firebolt_cap_map: Arc::new(RwLock::new(firebolt_open_rpc.clone().get_methods_caps())),
-            ripple_cap_map: Arc::new(RwLock::new(ripple_open_rpc.clone().get_methods_caps())),
+            firebolt_cap_map: Arc::new(RwLock::new(firebolt_open_rpc.get_methods_caps())),
+            ripple_cap_map: Arc::new(RwLock::new(ripple_open_rpc.get_methods_caps())),
             exclusory,
             cap_policies: Arc::new(RwLock::new(version_manifest.capabilities)),
             open_rpc: firebolt_open_rpc,
@@ -139,7 +139,7 @@ impl OpenRpcState {
     }
 
     pub fn check_privacy_property(&self, property: &str) -> bool {
-        if let Some(method) = self.open_rpc.methods.iter().find(|x| x.name == property) {
+        if let Some(method) = self.open_rpc.methods.iter().find(|x| x.is_named(property)) {
             // Checking if the property tag is havin x-allow-value extension.
             if let Some(tags) = &method.tags {
                 if tags
@@ -154,7 +154,7 @@ impl OpenRpcState {
         {
             let ext_rpcs = self.extended_rpc.read().unwrap();
             for ext_rpc in ext_rpcs.iter() {
-                if let Some(method) = ext_rpc.methods.iter().find(|x| x.name == property) {
+                if let Some(method) = ext_rpc.methods.iter().find(|x| x.is_named(property)) {
                     // Checking if the property tag is havin x-allow-value extension.
                     if let Some(tags) = &method.tags {
                         if tags
@@ -180,7 +180,7 @@ impl OpenRpcState {
             .methods
             .iter()
             .find(|x| {
-                x.name == method_name
+                x.is_named(&method_name)
                     && x.tags.is_some()
                     && x.tags
                         .as_ref()
@@ -199,7 +199,7 @@ impl OpenRpcState {
                     .methods
                     .iter()
                     .find(|x| {
-                        x.name == method_name
+                        x.is_named(&method_name)
                             && x.tags.is_some()
                             && x.tags
                                 .as_ref()

@@ -46,7 +46,7 @@ impl SetupThunderProcessor {
         extn_client.add_request_processor(ThunderWifiRequestProcessor::new(state.clone().state));
         extn_client.add_request_processor(ThunderStorageRequestProcessor::new(state.clone().state));
         extn_client.add_request_processor(ThunderWindowManagerRequestProcessor::new(
-            state.clone().state,
+            state.state.clone(),
         ));
         extn_client.add_request_processor(ThunderRemoteAccessoryRequestProcessor::new(
             state.clone().state,

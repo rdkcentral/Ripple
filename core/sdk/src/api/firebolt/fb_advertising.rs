@@ -42,6 +42,7 @@ pub struct AdInitObjectRequestParams {
     pub coppa: bool,
     pub authentication_entity: String,
     pub dist_session: AccountSession,
+    pub scope: HashMap<String, String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -69,6 +70,7 @@ pub struct AdIdRequestParams {
     pub privacy_data: HashMap<String, String>,
     pub app_id: String,
     pub dist_session: AccountSession,
+    pub scope: HashMap<String, String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -99,8 +101,7 @@ impl ExtnPayloadProvider for AdvertisingRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum AdvertisingResponse {
     None,
-    // TODO: assess if boxing this is a productive move: https://rust-lang.github.io/rust-clippy/master/index.html#/large_enum_variant
-    AdInitObject(Box<AdInitObjectResponse>),
+    AdInitObject(AdInitObjectResponse),
     AdIdObject(AdIdResponse),
 }
 

@@ -79,7 +79,7 @@ use crate::{
         apps::app_events::AppEvents,
         extn::ripple_client::RippleClient,
         telemetry_builder::TelemetryBuilder,
-        user_grants::{GrantPolicyEnforcer, GrantState},
+        user_grants::{GrantHandler, GrantPolicyEnforcer, GrantState},
     },
     state::{
         bootstrap_state::ChannelsState, cap::permitted_state::PermissionHandler,
@@ -575,13 +575,16 @@ impl DelegatedLauncherHandler {
                 ))
             }
             _ => {
+                // New loaded Session, Caller must provide Intent.
+                if session.launch.intent.is_none() {
+                    return Err(AppError::NoIntentError);
+                }
+                // app is unloading
                 if self.platform_state.app_manager_state.get(&app_id).is_some() {
                     // app exist so we are creating a new session
                     // because the other one is unloading, remove the old session now
                     self.end_session(&app_id).await.ok();
                 }
-                // New loaded Session, Caller must provide Intent.
-                // app is unloading
                 Ok(AppManagerResponse::Session(
                     self.precheck_then_load_or_activate(session, true).await,
                 ))
@@ -661,6 +664,7 @@ impl DelegatedLauncherHandler {
                         &perms_with_grants,
                         true,
                         false, // false here as we have already applied user grant exclusion filter.
+                        false,
                     )
                     .await;
                     match resolved_result {
@@ -729,6 +733,7 @@ impl DelegatedLauncherHandler {
         if app_opt.is_none() {
             return;
         }
+        // safe to unwrap here as app_opt is not None
         let app = app_opt.unwrap();
         if app.active_session_id.is_none() {
             self.platform_state
@@ -741,21 +746,22 @@ impl DelegatedLauncherHandler {
         if emit_event {
             self.emit_completed(app_id.clone()).await;
         }
-
-        AppEvents::emit_to_app(
-            &self.platform_state,
-            app_id.clone(),
-            DISCOVERY_EVENT_ON_NAVIGATE_TO,
-            &serde_json::to_value(session.launch.intent).unwrap(),
-        )
-        .await;
+        if let Some(intent) = session.launch.intent {
+            AppEvents::emit_to_app(
+                &self.platform_state,
+                app_id.clone(),
+                DISCOVERY_EVENT_ON_NAVIGATE_TO,
+                &serde_json::to_value(intent).unwrap_or_default(),
+            )
+            .await;
+        }
 
         if let Some(ss) = session.launch.second_screen {
             AppEvents::emit_to_app(
                 &self.platform_state,
                 app_id.clone(),
                 SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST,
-                &serde_json::to_value(ss).unwrap(),
+                &serde_json::to_value(ss).unwrap_or_default(),
             )
             .await;
         }
@@ -905,10 +911,13 @@ impl DelegatedLauncherHandler {
             final_perms
         );
         if !final_perms.is_empty() {
-            Some(final_perms)
-        } else {
-            None
+            // check if grants are resolved after checking for partner exclusion
+            let final_perms = GrantHandler::are_all_user_grants_resolved(ps, &app_id, final_perms);
+            if !final_perms.is_empty() {
+                return Some(final_perms);
+            }
         }
+        None
     }
 
     fn to_completed_session(app: &App) -> CompletedSessionResponse {

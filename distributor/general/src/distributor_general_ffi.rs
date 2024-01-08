@@ -20,7 +20,7 @@ use ripple_sdk::{
         config::Config, session::SessionAdjective, status_update::ExtnStatus,
         storage_property::StorageAdjective,
     },
-    crossbeam::channel::Receiver as CReceiver,
+    async_channel::Receiver as CReceiver,
     export_channel_builder, export_extn_metadata,
     extn::{
         client::{extn_client::ExtnClient, extn_sender::ExtnSender},
@@ -35,8 +35,8 @@ use ripple_sdk::{
     framework::ripple_contract::{ContractFulfiller, RippleContract},
     log::{debug, info},
     semver::Version,
-    tokio::{self, runtime::Runtime},
-    utils::{error::RippleError, logger::init_logger},
+    tokio,
+    utils::{error::RippleError, extn_utils::ExtnUtils, logger::init_logger},
 };
 
 use crate::{
@@ -84,8 +84,8 @@ export_extn_metadata!(CExtnMetadata, init_library);
 fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     let _ = init_logger("distributor_general".into());
     info!("Starting distributor channel");
-    let runtime = Runtime::new().unwrap();
-    let mut client = ExtnClient::new(receiver, sender);
+    let mut client: ExtnClient = ExtnClient::new(receiver, sender);
+    let runtime = ExtnUtils::get_runtime("e-dg".to_owned(), client.get_stack_size());
     runtime.block_on(async move {
         let client_c = client.clone();
         tokio::spawn(async move {

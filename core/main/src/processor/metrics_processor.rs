@@ -32,7 +32,7 @@ use ripple_sdk::{
         client::extn_processor::{
             DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
         },
-        extn_client_message::{ExtnMessage, ExtnResponse},
+        extn_client_message::ExtnMessage,
     },
     framework::RippleResponse,
     log::debug,
@@ -59,21 +59,15 @@ pub async fn send_metric(
         debug!("drop data is true, not sending BI metrics");
         return Ok(());
     }
-    let session = platform_state.session_state.get_account_session();
-    if let Some(session) = session {
+    if let Some(session) = platform_state.session_state.get_account_session() {
         let request = BehavioralMetricRequest {
             context: Some(platform_state.metrics.get_context()),
             payload,
             session,
         };
-
-        if let Ok(resp) = platform_state.get_client().send_extn_request(request).await {
-            if let Some(ExtnResponse::Boolean(b)) = resp.payload.extract() {
-                if b {
-                    return Ok(());
-                }
-            }
-        }
+        return platform_state
+            .get_client()
+            .send_extn_request_transient(request);
     }
     Err(ripple_sdk::utils::error::RippleError::ProcessorError)
 }
@@ -89,6 +83,10 @@ pub async fn update_app_context(
         context.app_user_session_id = app.active_session_id;
         context.app_version = SEMVER_LIGHTWEIGHT.to_string();
     }
+    if let Some(session) = ps.session_state.get_account_session() {
+        context.partner_id = session.id;
+    }
+
     let (tags, drop_data) =
         DataGovernance::resolve_tags(ps, ctx.app_id.clone(), DataEventType::BusinessIntelligence)
             .await;
@@ -128,24 +126,24 @@ pub async fn send_metric_for_app_state_change(
             }
 
             let mut context: BehavioralMetricContext = payload.get_context();
-            if let Some(app) = ps.app_manager_state.get(app_id) {
-                context.app_session_id = app.loaded_session_id.to_owned();
-                context.app_user_session_id = app.active_session_id;
-                context.app_version = SEMVER_LIGHTWEIGHT.to_string();
-            }
-            context.governance_state = Some(AppDataGovernanceState::new(tag_name_set));
-            payload.update_context(context);
 
             let session = ps.session_state.get_account_session();
             if let Some(session) = session {
+                if let Some(app) = ps.app_manager_state.get(app_id) {
+                    context.app_session_id = app.loaded_session_id.to_owned();
+                    context.app_user_session_id = app.active_session_id;
+                    context.app_version = SEMVER_LIGHTWEIGHT.to_string();
+                }
+                context.governance_state = Some(AppDataGovernanceState::new(tag_name_set));
+                context.partner_id = session.clone().id;
+                payload.update_context(context);
+
                 let request = BehavioralMetricRequest {
                     context: Some(ps.metrics.get_context()),
                     payload,
                     session,
                 };
-
-                let _ = ps.get_client().send_extn_request_transient(request);
-                return Ok(());
+                return ps.get_client().send_extn_request_transient(request);
             }
             Err(ripple_sdk::utils::error::RippleError::ProcessorError)
         }
@@ -253,7 +251,7 @@ impl ExtnRequestProcessor for OpMetricsProcessor {
         msg: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
-        let requestor = msg.clone().requestor.to_string();
+        let requestor = msg.requestor.to_string();
         match extracted_message {
             OperationalMetricRequest::Subscribe => state
                 .metrics

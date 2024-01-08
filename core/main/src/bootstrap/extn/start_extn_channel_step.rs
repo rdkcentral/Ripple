@@ -34,7 +34,7 @@ fn start_preloaded_channel(
 ) -> RippleResponse {
     let client = state.platform_state.get_client();
 
-    if let Err(e) = state.clone().extn_state.start_channel(channel, client) {
+    if let Err(e) = state.extn_state.clone().start_channel(channel, client) {
         error!("Error during Device channel bootstrap");
         return Err(e);
     }
@@ -58,7 +58,7 @@ impl Bootstep<BootstrapState> for StartExtnChannelsStep {
             let mut device_channels = state.extn_state.device_channels.write().unwrap();
             while let Some(device_channel) = device_channels.pop() {
                 let id = device_channel.extn_id.clone();
-                extn_ids.push(id.clone());
+                extn_ids.push(id);
                 if let Err(e) = start_preloaded_channel(&state, device_channel) {
                     error!("Error during Device channel bootstrap");
                     return Err(e);
@@ -70,7 +70,7 @@ impl Bootstep<BootstrapState> for StartExtnChannelsStep {
             let mut deferred_channels = state.extn_state.deferred_channels.write().unwrap();
             while let Some(deferred_channel) = deferred_channels.pop() {
                 let id = deferred_channel.extn_id.clone();
-                extn_ids.push(id.clone());
+                extn_ids.push(id);
                 if let Err(e) = start_preloaded_channel(&state, deferred_channel) {
                     error!("Error during channel bootstrap");
                     return Err(e);

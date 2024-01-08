@@ -27,7 +27,7 @@ use ripple_sdk::{
         manifest::extn_manifest::{ExtnManifest, ExtnManifestEntry, ExtnSymbol},
         status_update::ExtnStatus,
     },
-    crossbeam::channel::Sender as CSender,
+    async_channel::Sender as CSender,
     extn::{
         client::extn_sender::ExtnSender,
         extn_id::ExtnId,
@@ -69,7 +69,7 @@ impl LoadedLibrary {
             .symbols
             .iter()
             .filter(|x| x.id.is_channel())
-            .map(|x| x.id.clone().to_string())
+            .map(|x| x.id.to_string())
             .collect();
         info!(
             "getting channels {} lib_metadata={:?} extn_metadata={:?}",
@@ -78,10 +78,10 @@ impl LoadedLibrary {
             self.entry
         );
         self.entry
-            .clone()
             .symbols
-            .into_iter()
+            .iter()
             .filter(|x| extn_ids.contains(&x.id))
+            .cloned()
             .collect()
     }
 
@@ -91,13 +91,13 @@ impl LoadedLibrary {
             .symbols
             .iter()
             .filter(|x| x.id.is_extn())
-            .map(|x| x.id.clone().to_string())
+            .map(|x| x.id.to_string())
             .collect();
         self.entry
-            .clone()
             .symbols
-            .into_iter()
+            .iter()
             .filter(|x| extn_ids.contains(&x.id))
+            .cloned()
             .collect()
     }
 
@@ -196,11 +196,11 @@ impl ExtnState {
         let extn_sender = ExtnSender::new(
             sender,
             extn_id.clone(),
-            symbol.clone().uses,
-            symbol.clone().fulfills,
-            symbol.clone().config,
+            symbol.uses.clone(),
+            symbol.fulfills.clone(),
+            symbol.config.clone(),
         );
-        let (extn_tx, extn_rx) = ChannelsState::get_crossbeam_channel();
+        let (extn_tx, extn_rx) = ChannelsState::get_iec_channel();
         let extn_channel = channel.channel;
         thread::spawn(move || {
             (extn_channel.start)(extn_sender, extn_rx);

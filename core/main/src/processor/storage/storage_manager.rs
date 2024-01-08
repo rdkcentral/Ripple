@@ -106,6 +106,14 @@ impl StorageManager {
         {
             return Err(StorageManager::get_firebolt_error(&property));
         }
+        // Update privacy settings cache if the change is for a privacy settings storage property
+        if property.is_a_privacy_setting_property() {
+            let mut privacy_settings_cache = state.metrics.get_privacy_settings_cache();
+            property.set_privacy_setting_value(&mut privacy_settings_cache, value);
+            state
+                .metrics
+                .update_privacy_settings_cache(&privacy_settings_cache);
+        }
         Ok(())
     }
 
