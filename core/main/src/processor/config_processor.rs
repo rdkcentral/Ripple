@@ -16,7 +16,7 @@
 //
 
 use ripple_sdk::{
-    api::config::{Config, ConfigResponse, LauncherConfig},
+    api::config::{Config, ConfigResponse, LauncherConfig, RfcRequest},
     async_trait::async_trait,
     extn::{
         client::extn_processor::{
@@ -134,6 +134,22 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
                 serde_json::to_value(device_manifest.configuration.default_values.clone())
                     .unwrap_or_default(),
             ),
+            Config::RFC(flag) => {
+                let mut resp =
+                    ExtnResponse::Error(ripple_sdk::utils::error::RippleError::InvalidAccess);
+                if state.supports_rfc() {
+                    if let Ok(v) = state
+                        .get_client()
+                        .send_extn_request(RfcRequest { flag })
+                        .await
+                    {
+                        if let Some(ExtnResponse::Value(v)) = v.payload.extract() {
+                            resp = ExtnResponse::Value(v);
+                        }
+                    }
+                }
+                resp
+            }
             _ => ExtnResponse::Error(ripple_sdk::utils::error::RippleError::InvalidInput),
         };
         Self::respond(state.get_client().get_extn_client(), msg, response)
