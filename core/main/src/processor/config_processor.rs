@@ -89,7 +89,7 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
                 let config = LauncherConfig {
                     lifecycle_policy: device_manifest.get_lifecycle_policy(),
                     retention_policy: device_manifest.get_retention_policy(),
-                    app_library_state: state.clone().app_library_state,
+                    app_library_state: state.app_library_state.clone(),
                 };
                 if let ExtnPayload::Response(r) = config.get_extn_payload() {
                     r
@@ -107,22 +107,22 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
                 ExtnResponse::DefaultApp(state.app_library_state.get_default_app().unwrap())
             }
             Config::SavedDir => {
-                ExtnResponse::String(device_manifest.clone().configuration.saved_dir)
+                ExtnResponse::String(device_manifest.configuration.saved_dir.clone())
             }
             Config::FormFactor => ExtnResponse::String(device_manifest.get_form_factor()),
             Config::DistributorExperienceId => {
                 ExtnResponse::String(device_manifest.get_distributor_experience_id())
             }
             Config::DistributorServices => {
-                if let Some(v) = device_manifest.clone().configuration.distributor_services {
-                    ExtnResponse::Value(v)
+                if let Some(v) = &device_manifest.configuration.distributor_services {
+                    ExtnResponse::Value(v.clone())
                 } else {
                     ExtnResponse::None(())
                 }
             }
             Config::IdSalt => {
-                if let Some(v) = device_manifest.clone().configuration.distribution_id_salt {
-                    ExtnResponse::Config(ConfigResponse::IdSalt(v))
+                if let Some(v) = &device_manifest.configuration.distribution_id_salt {
+                    ExtnResponse::Config(ConfigResponse::IdSalt(v.clone()))
                 } else {
                     ExtnResponse::None(())
                 }

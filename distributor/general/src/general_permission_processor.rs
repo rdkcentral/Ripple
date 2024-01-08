@@ -100,7 +100,7 @@ impl ExtnRequestProcessor for DistributorPermissionProcessor {
         self.state.client.clone()
     }
     async fn process_request(
-        state: Self::STATE,
+        mut state: Self::STATE,
         msg: ripple_sdk::extn::extn_client_message::ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
@@ -111,7 +111,6 @@ impl ExtnRequestProcessor for DistributorPermissionProcessor {
             );
             if let Err(e) = state
                 .client
-                .clone()
                 .respond(msg, ExtnResponse::Permission(v.clone()))
                 .await
             {

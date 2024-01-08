@@ -175,18 +175,18 @@ impl GrantPolicies {
     pub fn get_policy(&self, permission: &FireboltPermission) -> Option<GrantPolicy> {
         match permission.role {
             CapabilityRole::Use => {
-                if self.use_.is_some() {
-                    return Some(self.use_.clone().unwrap());
+                if let Some(value) = &self.use_ {
+                    return Some(value.clone());
                 }
             }
             CapabilityRole::Manage => {
-                if self.manage.is_some() {
-                    return Some(self.manage.clone().unwrap());
+                if let Some(manage) = &self.manage {
+                    return Some(manage.clone());
                 }
             }
             CapabilityRole::Provide => {
-                if self.provide.is_some() {
-                    return Some(self.provide.clone().unwrap());
+                if let Some(provide) = &self.provide {
+                    return Some(provide.clone());
                 }
             }
         }
