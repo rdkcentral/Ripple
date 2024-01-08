@@ -70,6 +70,12 @@ pub struct GrantRequest {
 pub struct UserGrantRequestParam {
     pub app_id: String,
     pub permissions: Vec<CapabilityAndRole>,
+    pub options: Option<RequestOptions>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct RequestOptions {
+    pub force: bool,
 }
 
 #[derive(Debug, Deserialize, Clone)]
