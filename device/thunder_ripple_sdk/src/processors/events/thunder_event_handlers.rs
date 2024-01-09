@@ -23,9 +23,13 @@ use ripple_sdk::api::{
     device::{
         device_accessibility_data::VoiceGuidanceSettings,
         device_events::{
-            INTERNET_CHANGED_EVENT, TIME_ZONE_CHANGED, VOICE_GUIDANCE_SETTINGS_CHANGED, ONLAUNCHED_EVENT, ON_DESTROYED_EVENT,
+            INTERNET_CHANGED_EVENT, ONLAUNCHED_EVENT, ON_DESTROYED_EVENT, TIME_ZONE_CHANGED,
+            VOICE_GUIDANCE_SETTINGS_CHANGED,
         },
-        device_request::{InternetConnectionStatus, TimeZone, VoiceGuidanceState, OnLaunchedEvent, OnDestroyedEvent},
+        device_request::{
+            InternetConnectionStatus, OnDestroyedEvent, OnLaunchedEvent, TimeZone,
+            VoiceGuidanceState,
+        },
     },
 };
 use ripple_sdk::serde_json;

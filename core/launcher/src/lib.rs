@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+pub mod launcher_event_processor;
 pub mod launcher_ffi;
 pub mod launcher_lifecycle_processor;
 pub mod launcher_state;
@@ -23,7 +24,7 @@ pub mod manager {
     pub mod app_launcher;
     pub mod container_manager;
     pub mod container_message;
+    pub mod device_launcher_event_manager;
     pub mod stack;
     pub mod view_manager;
-    pub mod device_launcher_event_manager;
 }

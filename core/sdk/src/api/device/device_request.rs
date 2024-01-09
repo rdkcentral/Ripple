@@ -17,7 +17,7 @@
 
 use crate::{
     api::{firebolt::fb_openrpc::FireboltSemanticVersion, session::EventAdjective},
-    extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
+    extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
     utils::serde_utils::language_code_serde,
 };
@@ -38,6 +38,7 @@ pub enum DeviceRequest {
     Storage(DevicePersistenceRequest),
     Wifi(WifiRequest),
     Accessory(RemoteAccessoryRequest),
+    LaunchEvents(DeviceLaunchEvents),
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]
@@ -324,6 +325,32 @@ pub struct OnLaunchedEvent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OnDestroyedEvent {
     pub client: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DeviceLaunchEvents {
+    Onlaunched(OnLaunchedEvent),
+    Ondestroyed(OnDestroyedEvent),
+}
+
+impl ExtnPayloadProvider for DeviceLaunchEvents {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::LaunchEvents(
+            self.clone(),
+        )))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        if let ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::LaunchEvents(d))) = payload {
+            return Some(d);
+        }
+
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::AllowWebpageApps
+    }
 }
 
 #[cfg(test)]

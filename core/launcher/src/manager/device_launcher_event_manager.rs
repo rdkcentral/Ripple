@@ -15,21 +15,19 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 use crate::launcher_state::LauncherState;
-use std::{thread, time};
 use ripple_sdk::api::device::device_events::{
     DeviceEvent, DeviceEventCallback, DeviceEventRequest,
 };
-
+use std::{thread, time};
 
 use ripple_sdk::log::warn;
 pub struct ControllerEventManager;
 
 impl ControllerEventManager {
     pub async fn setup(state: LauncherState) {
-
-//  wait setup thunder extn
-//  let millis = time::Duration::from_millis(5);
-thread::sleep(time::Duration::from_millis(200));
+        //  wait setup thunder extn
+        //  let millis = time::Duration::from_millis(5);
+        thread::sleep(time::Duration::from_millis(200));
 
         // Setup listeners here
         println!("\n\n DEBUG: Ripple is allowing non firebolt apps \n\n");
@@ -48,7 +46,6 @@ thread::sleep(time::Duration::from_millis(200));
             warn!("No processor to set Internet status listener")
         }
 
-
         // Setup the onLaunched event listener
         let state_x = state.clone();
         if state_x
@@ -63,5 +60,5 @@ thread::sleep(time::Duration::from_millis(200));
         {
             warn!("No processor to set Internet status listener")
         }
-}
+    }
 }

@@ -36,7 +36,9 @@ use ripple_sdk::{
 };
 
 use crate::{
-    launcher_lifecycle_processor::LauncherLifecycleEventProcessor, launcher_state::LauncherState, manager::device_launcher_event_manager::ControllerEventManager,
+    launcher_event_processor::LauncherEventRequestProcessor,
+    launcher_lifecycle_processor::LauncherLifecycleEventProcessor, launcher_state::LauncherState,
+    manager::device_launcher_event_manager::ControllerEventManager,
 };
 
 fn init_library() -> CExtnMetadata {
@@ -74,14 +76,18 @@ fn start_launcher(sender: ExtnSender, receiver: Receiver<CExtnMessage>) {
             let mut client_for_processor = client.clone();
 
             // All Lifecyclemanagement events will come through this processor
-            client_for_processor.add_event_processor(LauncherLifecycleEventProcessor::new(state.clone()));
+            client_for_processor
+                .add_event_processor(LauncherLifecycleEventProcessor::new(state.clone()));
+
+            // All Device launch events request processor
+            client_for_processor
+                .add_request_processor(LauncherEventRequestProcessor::new(state.clone()));
 
             // Lets Main know that the launcher is ready
             let _ = client_for_processor.event(ExtnStatus::Ready);
 
             // Subscribing for device launch events listeners
             ControllerEventManager::setup(state.clone()).await;
-
         });
         client_for_receiver.initialize().await;
     });

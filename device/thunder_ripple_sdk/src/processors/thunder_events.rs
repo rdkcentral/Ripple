@@ -41,9 +41,9 @@ use crate::{
 
 use super::events::thunder_event_handlers::{
     AudioChangedEvent, HDCPEventHandler, HDREventHandler, InternetEventHandler,
-    NetworkEventHandler, ScreenResolutionEventHandler, SystemPowerStateChangeEventHandler,
-    TimezoneChangedEventHandler, VideoResolutionEventHandler,
-    VoiceGuidanceEnabledChangedEventHandler, OnLaunchedEventHandler, OnDestroyedEventHandler,
+    NetworkEventHandler, OnDestroyedEventHandler, OnLaunchedEventHandler,
+    ScreenResolutionEventHandler, SystemPowerStateChangeEventHandler, TimezoneChangedEventHandler,
+    VideoResolutionEventHandler, VoiceGuidanceEnabledChangedEventHandler,
 };
 
 #[derive(Debug)]

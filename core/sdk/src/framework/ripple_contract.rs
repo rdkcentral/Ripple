@@ -121,6 +121,8 @@ pub enum RippleContract {
     Session(SessionAdjective),
 
     RippleContext,
+
+    AllowWebpageApps,
 }
 
 pub trait ContractAdjective: serde::ser::Serialize {
