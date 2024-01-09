@@ -27,8 +27,8 @@ use ripple_sdk::api::{
             VOICE_GUIDANCE_SETTINGS_CHANGED,
         },
         device_request::{
-            InternetConnectionStatus, OnDestroyedEvent, OnLaunchedEvent, TimeZone,
-            VoiceGuidanceState,
+            DeviceLaunchEvents, InternetConnectionStatus, OnDestroyedEvent, OnLaunchedEvent,
+            TimeZone, VoiceGuidanceState,
         },
     },
 };
@@ -668,7 +668,6 @@ impl ThunderEventHandlerProvider for TimezoneChangedEventHandler {
     }
 }
 
-
 // -----------------------
 // onLaunched Events
 pub struct OnLaunchedEventHandler;
@@ -680,7 +679,18 @@ impl OnLaunchedEventHandler {
         _callback_type: DeviceEventCallback,
     ) {
         if let ThunderEventMessage::Custom(v) = value {
-            todo!()
+            let mut resp: OnLaunchedEvent = serde_json::from_value(v.clone()).unwrap();
+            //resp.client = resp.client.to_lowercase();
+            println!("\n DEBUG : controller event : {:?} \n", resp.clone());
+
+            tokio::spawn(async move {
+                println!("\n\nDEBUG: LAUNCH STARTED\n\n");
+                let request = DeviceLaunchEvents::Onlaunched(resp.clone());
+                if let Err(e) = state.clone().send_payload(request).await {
+                    debug!("Failed to send Onlaunched event, Error {:?} ", e);
+                }
+                println!("\n\nDEBUG: LAUNCH STARTED\n\n");
+            });
         }
     }
 
@@ -726,8 +736,6 @@ impl ThunderEventHandlerProvider for OnLaunchedEventHandler {
     }
 }
 
-
-
 // -----------------------
 // onDestroyed Events
 pub struct OnDestroyedEventHandler;
@@ -739,7 +747,18 @@ impl OnDestroyedEventHandler {
         _callback_type: DeviceEventCallback,
     ) {
         if let ThunderEventMessage::Custom(v) = value {
-            todo!()
+            let mut resp: OnDestroyedEvent = serde_json::from_value(v.clone()).unwrap();
+            //resp.client = resp.client.to_lowercase();
+            println!("\n DEBUG : controller event : {:?} \n", resp.clone());
+
+            tokio::spawn(async move {
+                println!("\n\nDEBUG: LAUNCH STARTED\n\n");
+                let request = DeviceLaunchEvents::Ondestroyed(resp.clone());
+                if let Err(e) = state.clone().send_payload(request).await {
+                    debug!("Failed to send Ondestroyed event, Error {:?} ", e);
+                }
+                println!("\n\nDEBUG: Destroy STARTED\n\n");
+            });
         }
     }
 
