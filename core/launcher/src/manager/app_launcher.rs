@@ -70,7 +70,7 @@ use ripple_sdk::futures::future::{BoxFuture, FutureExt};
 
 pub const NAVIGATION_INTENT_PROVIDER_REQUEST: &str = "providerRequest";
 #[derive(Debug, Clone)]
-struct App {
+pub struct App {
     #[allow(dead_code)]
     pub manifest: AppManifest,
     pub state: LifecycleState,
@@ -132,7 +132,7 @@ impl AppLauncherState {
         self.apps.read().unwrap().len()
     }
 
-    fn get_app_by_id(&self, app_id: &str) -> Option<App> {
+    pub fn get_app_by_id(&self, app_id: &str) -> Option<App> {
         let v = self.apps.read().unwrap();
         let r = v.get(app_id);
         if let Some(r) = r {

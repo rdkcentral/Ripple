@@ -25,20 +25,15 @@ use ripple_sdk::{
     async_trait::async_trait,
     extn::{
         client::{
-            self,
-            extn_client::ExtnClient,
             extn_processor::{
                 DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
-            },
+            }, extn_client::ExtnClient,
         },
         extn_client_message::ExtnMessage,
-    },
-    futures::future::ok,
-    log::debug,
-    tokio::sync::mpsc::{self},
+    }, log::debug, tokio::sync::mpsc,
 };
 
-use crate::{launcher_state::LauncherState, manager::app_launcher::AppLauncher};
+use crate::{launcher_state::LauncherState};
 
 #[derive(Debug)]
 pub struct LauncherEventRequestProcessor {
@@ -61,19 +56,13 @@ impl LauncherEventRequestProcessor {
             AppLibrary::get_manifest(&state.config.app_library_state, &app_id).unwrap();
 
         if event.client.contains("Html-") && app_manifest.runtime == "web".to_string() {
-            println!(
-                "\n\nLAUNCHER : web app : {:?} : type : {:?}\n\n",
-                app_id, app_manifest.runtime
-            );
+
             let request = LifecycleManagementRequest::Ready(app_id.clone());
 
             if let Err(e) = state.clone().send_extn_request(request).await {
                 debug!("Failed to send Lifecycle.ready() event, Error {:?} ", e);
             };
-        } else {
-            println!("\n\nLAUNCHER : not a web app : {:?}\n\n", app_id);
         }
-
         true
     }
 
@@ -83,27 +72,26 @@ impl LauncherEventRequestProcessor {
         let app_manifest =
             AppLibrary::get_manifest(&state.config.app_library_state, &app_id).unwrap();
 
-        // let app_library_state = state.clone().config.app_library_state;
-        // let resp = AppLibrary::get_provider(&app_library_state, app_id.clone().to_string());
 
-        // let entry = state.clone().app_launcher_state.get_app_by_id(&app_id);
-        // println!("\n\n App status : web app : {:?} : status : {:?}\n\n",app_id,entry);
 
-        if event.client.contains("Html-") && app_manifest.runtime == "web".to_string() {
-            println!(
-                "\n\nDestroyed : web app : {:?} : type : {:?}\n\n",
-                app_id, app_manifest.runtime
+        let entry = state.clone().app_launcher_state.get_app_by_id(&app_id);
+        println!("App status : web app : {:?} : status : {:?}",app_id,entry);
+
+        if entry.is_none() {
+            debug!(
+                "launcher : app_id={} Not found",app_id
             );
-            let request =
-                LifecycleManagementRequest::Close(app_id.clone(), CloseReason::AppNotReady);
-
-            if let Err(e) = state.clone().send_extn_request(request).await {
-                debug!("Failed to send Lifecycle.close() event, Error {:?} ", e);
-            };
-        } else {
-            println!("\n\nDestroyed : not a web app : {:?}\n\n", app_id);
         }
-
+        else {
+            if event.client.contains("Html-") && app_manifest.runtime == "web".to_string() {
+                let request =
+                    LifecycleManagementRequest::Close(app_id.clone(), CloseReason::AppNotReady);
+    
+                if let Err(e) = state.clone().send_extn_request(request).await {
+                    debug!("Failed to send Lifecycle.close() event, Error {:?} ", e);
+                };
+            }
+        }
         true
     }
 }
@@ -132,16 +120,16 @@ impl ExtnRequestProcessor for LauncherEventRequestProcessor {
     }
     async fn process_request(
         state: Self::STATE,
-        msg: ExtnMessage,
+        _msg: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
         match extracted_message {
             DeviceLaunchEvents::Onlaunched(val) => {
-                println!("LAUNCHER : event recived : {:?}", val);
+                println!("Launcher : event recived : {:?}", val);
                 Self::onlaunch(state.clone(), val).await;
             }
             DeviceLaunchEvents::Ondestroyed(val) => {
-                println!("Destroyed : event recived : {:?}", val);
+                println!("Launcher : event recived : {:?}", val);
                 Self::ondestroyed(state.clone(), val).await;
             }
         };
