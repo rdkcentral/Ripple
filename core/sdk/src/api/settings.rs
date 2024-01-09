@@ -93,8 +93,8 @@ impl SettingsRequestParam {
     }
 
     pub fn get_alias(&self, key: &SettingKey) -> String {
-        if let Some(alias) = self.alias_map.clone() {
-            if let Some(s) = alias.get(key.to_string().as_str()) {
+        if let Some(alias) = &self.alias_map {
+            if let Some(s) = alias.get(&key.to_string()) {
                 return s.to_owned();
             }
         }

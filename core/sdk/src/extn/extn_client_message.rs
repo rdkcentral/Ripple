@@ -101,7 +101,7 @@ impl ExtnMessage {
     ///
     /// Note: If used in a processor this method can be safely unwrapped
     pub fn get_response(&self, response: ExtnResponse) -> Result<ExtnMessage, RippleError> {
-        match self.clone().payload {
+        match self.payload {
             ExtnPayload::Request(_) => Ok(ExtnMessage {
                 callback: self.callback.clone(),
                 id: self.id.clone(),

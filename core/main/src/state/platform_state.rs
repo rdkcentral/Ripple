@@ -196,6 +196,11 @@ impl PlatformState {
         let contract = RippleContract::Session(SessionAdjective::Device).as_clear_string();
         self.extn_manifest.required_contracts.contains(&contract)
     }
+
+    pub fn supports_rfc(&self) -> bool {
+        let contract = RippleContract::RemoteFeatureControl.as_clear_string();
+        self.extn_manifest.required_contracts.contains(&contract)
+    }
 }
 
 #[cfg(test)]

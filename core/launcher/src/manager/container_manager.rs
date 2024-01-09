@@ -212,8 +212,8 @@ impl ContainerManager {
 
         state.container_state.bring_stack_to_front(name);
 
-        let props = item.unwrap().clone();
-        let resp = ViewManager::set_position(state, props.clone().view_id, Position::Front).await;
+        let props = item.unwrap();
+        let resp = ViewManager::set_position(state, props.view_id, Position::Front).await;
         if let Err(e) = resp {
             debug!("bring_to_front: error: req_id={:?}", e);
             return Err(ContainerError::General);

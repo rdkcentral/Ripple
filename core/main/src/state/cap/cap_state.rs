@@ -73,9 +73,9 @@ impl CapState {
         request: CapListenRPCRequest,
     ) {
         let mut r = ps.cap_state.primed_listeners.write().unwrap();
-        if let Some(cap) = FireboltCap::parse(request.clone().capability) {
+        if let Some(cap) = FireboltCap::parse(request.capability) {
             let check = CapEventEntry {
-                app_id: call_context.clone().app_id,
+                app_id: call_context.app_id.clone(),
                 cap,
                 event: event.clone(),
                 role: request.role,
@@ -118,8 +118,8 @@ impl CapState {
         debug!("primed entries {:?}", r);
         if r.iter().any(|x| {
             if x.event == event && x.cap == cap {
-                if let Some(a) = app_id.clone() {
-                    x.app_id.eq(&a)
+                if let Some(a) = &app_id {
+                    x.app_id.eq(a)
                 } else {
                     true
                 }
@@ -138,14 +138,12 @@ impl CapState {
         cap: FireboltCap,
         role: Option<CapabilityRole>,
     ) {
-        match event.clone() {
+        match &event {
             CapEvent::OnAvailable => ps
-                .clone()
                 .cap_state
                 .generic
                 .ingest_availability(vec![cap.clone()], true),
             CapEvent::OnUnavailable => ps
-                .clone()
                 .cap_state
                 .generic
                 .ingest_availability(vec![cap.clone()], false),
@@ -153,12 +151,11 @@ impl CapState {
         }
         // check if given event and capability needs emitting
         if Self::check_primed(ps, event.clone(), cap.clone(), None) {
-            let f = cap.clone().as_str();
-            debug!("preparing cap event emit {}", f);
+            debug!("preparing cap event emit {}", cap.as_str());
             // if its a grant or revoke it could be done per app
             // these require additional
             let is_app_check_necessary =
-                matches!(event.clone(), CapEvent::OnGranted | CapEvent::OnRevoked);
+                matches!(&event, CapEvent::OnGranted | CapEvent::OnRevoked);
             let event_name = format!(
                 "{}.{}",
                 "capabilities",
@@ -177,7 +174,7 @@ impl CapState {
                 let cc = listener.call_ctx.clone();
                 // Step 2: Check if the given event is valid for the app
                 if is_app_check_necessary
-                    && !Self::check_primed(ps, event.clone(), cap.clone(), Some(cc.clone().app_id))
+                    && !Self::check_primed(ps, event.clone(), cap.clone(), Some(cc.app_id.clone()))
                 {
                     continue;
                 }

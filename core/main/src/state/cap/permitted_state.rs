@@ -76,7 +76,7 @@ impl PermittedState {
     }
 
     fn get_all_permissions(&self) -> HashMap<String, Vec<FireboltPermission>> {
-        self.permitted.read().unwrap().clone().value
+        self.permitted.read().unwrap().value.clone()
     }
     fn has_cached_permissions(&self, app_id: &String) -> bool {
         // check if the app has permissions cached
@@ -103,7 +103,7 @@ impl PermittedState {
         let mut map = HashMap::new();
         for role_info in request {
             map.insert(
-                role_info.clone().capability.as_str(),
+                role_info.capability.as_str(),
                 if let Ok(v) = self.check_cap_role(app_id, &role_info) {
                     v
                 } else {
@@ -198,15 +198,14 @@ impl PermissionHandler {
         // Create a HashSet to track unique permissions
         let mut unique_permissions = HashSet::new();
 
-        for p in permissions.clone() {
-            if let Some(dependent_list) = dep_lookup.get(&p) {
+        for p in permissions.iter() {
+            if let Some(dependent_list) = dep_lookup.get(p) {
                 deps.extend(dependent_list.iter().cloned());
             }
         }
 
         // Filter out duplicates and insert only unique permissions
-        let unique_deps: Vec<FireboltPermission> = deps.into_iter().collect();
-        for permission in unique_deps {
+        for permission in deps {
             if !unique_permissions.contains(&permission) {
                 permissions.push(permission.clone()); // Clone the permission to avoid the moved value error
                 unique_permissions.insert(permission);
