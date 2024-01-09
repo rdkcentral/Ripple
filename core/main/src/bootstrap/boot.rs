@@ -33,7 +33,6 @@ use super::{
     },
     setup_extn_client_step::SetupExtnClientStep,
     start_app_manager_step::StartAppManagerStep,
-    start_apps_updater_step::StartAppsUpdaterStep,
     start_fbgateway_step::FireboltGatewayStep,
     start_ws_step::StartWsStep,
 };
@@ -65,7 +64,6 @@ pub async fn boot(state: BootstrapState) -> RippleResponse {
     execute_step(LoadExtensionsStep, &bootstrap).await?;
     execute_step(StartExtnChannelsStep, &bootstrap).await?;
     execute_step(StartAppManagerStep, &bootstrap).await?;
-    execute_step(StartAppsUpdaterStep, &bootstrap).await?;
     execute_step(LoadDistributorValuesStep, &bootstrap).await?;
     execute_step(CheckLauncherStep, &bootstrap).await?;
     execute_step(StartWsStep, &bootstrap).await?;
