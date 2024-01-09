@@ -182,7 +182,7 @@ impl ThunderBrowserRequestProcessor {
         req: ExtnMessage,
     ) -> bool {
         let browser_name = match bnr.runtime.as_str() {
-            "web" => Some(format!("Html-{}", bnr.instances)),
+            "web" => Some(format!("Html-{}", bnr.name)),
             "lightning" => Some(format!("FireboltMainApp-{}", bnr.name)),
             _ => None,
         };
