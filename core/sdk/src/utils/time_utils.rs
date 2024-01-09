@@ -18,7 +18,6 @@
 use chrono::{LocalResult, TimeZone, Utc};
 use std::{
     sync::{Arc, Mutex},
-    thread,
     time::Duration,
 };
 
@@ -71,7 +70,7 @@ impl Timer {
         let cancelled_flag_mutex = Arc::new(Mutex::new(false));
         let cancelled = cancelled_flag_mutex.clone();
         let handle = tokio::spawn(async move {
-            thread::sleep(Duration::from_millis(delay_ms));
+            tokio::time::sleep(Duration::from_millis(delay_ms)).await;
             let cancelled = { *cancelled_flag_mutex.lock().unwrap() };
             if !cancelled {
                 callback.await;

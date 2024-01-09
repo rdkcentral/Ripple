@@ -122,6 +122,8 @@ pub enum RippleContract {
     RippleContext,
     AppCatalog,
     Apps,
+    // Runtime ability for a given distributor to turn off a certian feature
+    RemoteFeatureControl,
 }
 
 pub trait ContractAdjective: serde::ser::Serialize {

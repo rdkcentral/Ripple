@@ -17,7 +17,7 @@
 
 use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::{
-    crossbeam::channel::Receiver,
+    async_channel::Receiver,
     export_extn_metadata, export_jsonrpc_extn_builder,
     extn::{
         client::{extn_client::ExtnClient, extn_sender::ExtnSender},

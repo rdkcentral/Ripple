@@ -266,6 +266,7 @@ impl CapabilityServer for CapabilityImpl {
                 &fb_perms,
                 false,
                 true,
+                false,
             )
             .await;
         }

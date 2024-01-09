@@ -23,7 +23,7 @@ use crate::{
 };
 
 use super::{
-    distributor::distributor_privacy::PrivacySetting,
+    distributor::distributor_privacy::{PrivacySetting, PrivacySettingsData},
     firebolt::fb_discovery::EVENT_DISCOVERY_POLICY_CHANGED,
 };
 
@@ -573,6 +573,83 @@ impl StorageProperty {
             StorageProperty::AllowWatchHistory => Some(PrivacySetting::WatchHistory),
             _ => None,
         }
+    }
+
+    pub fn get_privacy_setting_value(&self, settings: &PrivacySettingsData) -> Option<bool> {
+        match self {
+            StorageProperty::AllowAcrCollection => settings.allow_acr_collection,
+            StorageProperty::AllowResumePoints => settings.allow_resume_points,
+            StorageProperty::AllowAppContentAdTargeting => settings.allow_app_content_ad_targeting,
+            StorageProperty::AllowBusinessAnalytics => settings.allow_business_analytics,
+            StorageProperty::AllowCameraAnalytics => settings.allow_camera_analytics,
+            StorageProperty::AllowPersonalization => settings.allow_personalization,
+            StorageProperty::AllowPrimaryBrowseAdTargeting => {
+                settings.allow_primary_browse_ad_targeting
+            }
+            StorageProperty::AllowPrimaryContentAdTargeting => {
+                settings.allow_primary_content_ad_targeting
+            }
+            StorageProperty::AllowProductAnalytics => settings.allow_product_analytics,
+            StorageProperty::AllowRemoteDiagnostics => settings.allow_remote_diagnostics,
+            StorageProperty::AllowUnentitledPersonalization => {
+                settings.allow_unentitled_personalization
+            }
+            StorageProperty::AllowUnentitledResumePoints => settings.allow_unentitled_resume_points,
+            StorageProperty::AllowWatchHistory => settings.allow_watch_history,
+            _ => None,
+        }
+    }
+    pub fn set_privacy_setting_value(&self, settings: &mut PrivacySettingsData, value: bool) {
+        match self {
+            StorageProperty::AllowAcrCollection => settings.allow_acr_collection = Some(value),
+            StorageProperty::AllowResumePoints => settings.allow_resume_points = Some(value),
+            StorageProperty::AllowAppContentAdTargeting => {
+                settings.allow_app_content_ad_targeting = Some(value)
+            }
+            StorageProperty::AllowBusinessAnalytics => {
+                settings.allow_business_analytics = Some(value)
+            }
+            StorageProperty::AllowCameraAnalytics => settings.allow_camera_analytics = Some(value),
+            StorageProperty::AllowPersonalization => settings.allow_personalization = Some(value),
+            StorageProperty::AllowPrimaryBrowseAdTargeting => {
+                settings.allow_primary_browse_ad_targeting = Some(value)
+            }
+            StorageProperty::AllowPrimaryContentAdTargeting => {
+                settings.allow_primary_content_ad_targeting = Some(value)
+            }
+            StorageProperty::AllowProductAnalytics => {
+                settings.allow_product_analytics = Some(value)
+            }
+            StorageProperty::AllowRemoteDiagnostics => {
+                settings.allow_remote_diagnostics = Some(value)
+            }
+            StorageProperty::AllowUnentitledPersonalization => {
+                settings.allow_unentitled_personalization = Some(value)
+            }
+            StorageProperty::AllowUnentitledResumePoints => {
+                settings.allow_unentitled_resume_points = Some(value)
+            }
+            StorageProperty::AllowWatchHistory => settings.allow_watch_history = Some(value),
+            _ => {}
+        }
+    }
+    pub fn is_a_privacy_setting_property(&self) -> bool {
+        matches!(
+            self,
+            StorageProperty::AllowAcrCollection
+                | StorageProperty::AllowResumePoints
+                | StorageProperty::AllowAppContentAdTargeting
+                | StorageProperty::AllowBusinessAnalytics
+                | StorageProperty::AllowCameraAnalytics
+                | StorageProperty::AllowPersonalization
+                | StorageProperty::AllowPrimaryBrowseAdTargeting
+                | StorageProperty::AllowPrimaryContentAdTargeting
+                | StorageProperty::AllowProductAnalytics
+                | StorageProperty::AllowRemoteDiagnostics
+                | StorageProperty::AllowUnentitledPersonalization
+                | StorageProperty::AllowUnentitledResumePoints
+                | StorageProperty::AllowWatchHistory
+        )
     }
 }
 

@@ -66,6 +66,7 @@ pub enum Config {
     SavedDir,
     SupportsDistributorSession,
     Firebolt,
+    RFC(String),
 }
 
 impl ExtnPayloadProvider for Config {
@@ -83,6 +84,29 @@ impl ExtnPayloadProvider for Config {
 
     fn contract() -> RippleContract {
         RippleContract::Config
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RfcRequest {
+    pub flag: String,
+}
+
+impl ExtnPayloadProvider for RfcRequest {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(ExtnRequest::Extn(Value::String(self.flag.clone())))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        if let ExtnPayload::Request(ExtnRequest::Extn(Value::String(flag))) = payload {
+            return Some(RfcRequest { flag });
+        }
+
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::RemoteFeatureControl
     }
 }
 

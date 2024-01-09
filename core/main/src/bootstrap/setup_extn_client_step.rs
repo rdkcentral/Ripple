@@ -52,15 +52,15 @@ impl Bootstep<BootstrapState> for SetupExtnClientStep {
         client.add_request_processor(ConfigRequestProcessor::new(state.platform_state.clone()));
         client.add_request_processor(PinProcessor::new(state.platform_state.clone()));
         client.add_request_processor(KeyboardProcessor::new(state.platform_state.clone()));
-        client.add_event_processor(ExtnStatusProcessor::new(state.clone().extn_state));
+        client.add_event_processor(ExtnStatusProcessor::new(state.extn_state.clone()));
         client.add_event_processor(AppEventsProcessor::new(state.platform_state.clone()));
         client.add_request_processor(StorageManagerProcessor::new(state.platform_state.clone()));
         client.add_request_processor(StoreUserGrantsProcessor::new(state.platform_state.clone()));
         client.add_request_processor(StorePrivacySettingsProcessor::new(
             state.platform_state.clone(),
         ));
-        client.add_request_processor(AuthorizedInfoProcessor::new(state.clone().platform_state));
-        client.add_request_processor(AccountLinkProcessor::new(state.clone().platform_state));
+        client.add_request_processor(AuthorizedInfoProcessor::new(state.platform_state.clone()));
+        client.add_request_processor(AccountLinkProcessor::new(state.platform_state.clone()));
         client.add_request_processor(SettingsProcessor::new(state.platform_state.clone()));
         client.add_request_processor(MetricsProcessor::new(state.platform_state.clone()));
         client.add_request_processor(OpMetricsProcessor::new(state.platform_state.clone()));
