@@ -88,6 +88,7 @@ impl ExtnStreamProcessor for ThunderOpenEventsProcessor {
             RippleContract::DeviceEvents(EventAdjective::Audio),
             RippleContract::DeviceEvents(EventAdjective::SystemPowerState),
             RippleContract::DeviceEvents(EventAdjective::TimeZone),
+            RippleContract::DeviceEvents(EventAdjective::LauncherEvents),
         ])
     }
 }
