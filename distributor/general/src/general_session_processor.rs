@@ -101,7 +101,7 @@ impl DistributorSessionProcessor {
             return false;
         }
 
-        Self::handle_error(state.clone().client, msg, RippleError::ExtnError).await
+        Self::handle_error(state.client, msg, RippleError::ExtnError).await
     }
 
     async fn set_token(
@@ -187,7 +187,7 @@ impl ExtnStreamProcessor for DistributorSessionProcessor {
 #[async_trait]
 impl ExtnRequestProcessor for DistributorSessionProcessor {
     fn get_client(&self) -> ExtnClient {
-        self.state.clone().client
+        self.state.client.clone()
     }
     async fn process_request(
         state: Self::STATE,
@@ -195,13 +195,11 @@ impl ExtnRequestProcessor for DistributorSessionProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         match extracted_message {
-            AccountSessionRequest::Get => Self::get_token(state.clone(), msg).await,
-            AccountSessionRequest::Provision(p) => Self::provision(state.clone(), msg, p).await,
+            AccountSessionRequest::Get => Self::get_token(state, msg).await,
+            AccountSessionRequest::Provision(p) => Self::provision(state, msg, p).await,
             AccountSessionRequest::SetAccessToken(s) => Self::set_token(state, msg, s).await,
-            AccountSessionRequest::GetAccessToken => {
-                Self::get_accesstoken(state.clone(), msg).await
-            }
-            AccountSessionRequest::Subscribe => Self::ack(state.clone().client, msg).await.is_ok(),
+            AccountSessionRequest::GetAccessToken => Self::get_accesstoken(state, msg).await,
+            AccountSessionRequest::Subscribe => Self::ack(state.client, msg).await.is_ok(),
         }
     }
 }

@@ -86,7 +86,7 @@ impl ExtnSender {
     }
 
     pub fn get_config(&self, key: &str) -> Option<String> {
-        if let Some(c) = self.config.clone() {
+        if let Some(c) = &self.config {
             if let Some(v) = c.get(key) {
                 return Some(v.clone());
             }

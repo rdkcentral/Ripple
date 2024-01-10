@@ -26,8 +26,9 @@ use ripple_sdk::{
         firebolt::{
             fb_general::{ListenRequest, ListenerResponse},
             provider::{
-                ChallengeResponse, ExternalProviderResponse, FocusRequest, ProviderResponse,
-                ProviderResponsePayload, ACK_CHALLENGE_CAPABILITY, ACK_CHALLENGE_EVENT,
+                ChallengeError, ChallengeResponse, ExternalProviderResponse, FocusRequest,
+                ProviderResponse, ProviderResponsePayload, ACK_CHALLENGE_CAPABILITY,
+                ACK_CHALLENGE_EVENT,
             },
         },
         gateway::rpc_gateway_api::CallContext,
@@ -55,6 +56,12 @@ pub trait AcknowledgeChallenge {
         ctx: CallContext,
         resp: ExternalProviderResponse<ChallengeResponse>,
     ) -> RpcResult<Option<()>>;
+    #[method(name = "acknowledgechallenge.challengeError")]
+    async fn challenge_error(
+        &self,
+        ctx: CallContext,
+        resp: ExternalProviderResponse<ChallengeError>,
+    ) -> RpcResult<Option<()>>;
 }
 
 pub struct AcknowledgeChallengeImpl {
@@ -69,7 +76,7 @@ impl AcknowledgeChallengeServer for AcknowledgeChallengeImpl {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
-        debug!("Acknowledgechallenge provider registered :{:?}", request);
+        debug!("AcknowledgeChallenge provider registered :{:?}", request);
         ProviderBroker::register_or_unregister_provider(
             &self.platform_state,
             String::from(ACK_CHALLENGE_CAPABILITY),
@@ -96,6 +103,22 @@ impl AcknowledgeChallengeServer for AcknowledgeChallengeImpl {
             ProviderResponse {
                 correlation_id: resp.correlation_id,
                 result: ProviderResponsePayload::ChallengeResponse(resp.result),
+            },
+        )
+        .await;
+        Ok(None)
+    }
+
+    async fn challenge_error(
+        &self,
+        _ctx: CallContext,
+        resp: ExternalProviderResponse<ChallengeError>,
+    ) -> RpcResult<Option<()>> {
+        ProviderBroker::provider_response(
+            &self.platform_state,
+            ProviderResponse {
+                correlation_id: resp.correlation_id,
+                result: ProviderResponsePayload::ChallengeError(resp.result),
             },
         )
         .await;
