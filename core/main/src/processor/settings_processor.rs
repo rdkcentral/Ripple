@@ -19,6 +19,7 @@ use std::collections::HashMap;
 
 use ripple_sdk::{
     api::{
+        distributor::distributor_privacy::ContentListenRequest,
         firebolt::{
             fb_capabilities::{CapabilityRole, FireboltCap, RoleInfo},
             fb_general::ListenRequest,
@@ -111,7 +112,7 @@ impl SettingsProcessor {
             let mut settings = HashMap::default();
             for sk in request.keys.clone() {
                 use SettingKey::*;
-                let val = match sk.clone() {
+                let val = match sk {
                     VoiceGuidanceEnabled => {
                         let enabled = voice_guidance_settings_enabled(state)
                             .await
@@ -190,15 +191,15 @@ impl SettingsProcessor {
         request: SettingsRequestParam,
     ) -> bool {
         let mut resp = true;
-        let ctx = request.context.clone();
+        let ctx = &request.context;
         debug!("Incoming subscribe request");
-        for key in request.keys.clone() {
+        for key in &request.keys {
             debug!("Checking Key {:?}", key);
             match key {
                 SettingKey::VoiceGuidanceEnabled => {
                     if voice_guidance_settings_enabled_changed(
                         state,
-                        &ctx,
+                        ctx,
                         &ListenRequest { listen: true },
                         Some(Box::new(SettingsChangeEventDecorator {
                             request: request.clone(),
@@ -230,9 +231,12 @@ impl SettingsProcessor {
                     if PrivacyImpl::listen_content_policy_changed(
                         state,
                         true,
-                        &ctx,
+                        ctx,
                         EVENT_ALLOW_PERSONALIZATION_CHANGED,
-                        None,
+                        Some(ContentListenRequest {
+                            listen: true,
+                            app_id: None,
+                        }),
                         Some(Box::new(SettingsChangeEventDecorator {
                             request: request.clone(),
                         })),
@@ -246,9 +250,12 @@ impl SettingsProcessor {
                     if PrivacyImpl::listen_content_policy_changed(
                         state,
                         true,
-                        &ctx,
+                        ctx,
                         EVENT_ALLOW_WATCH_HISTORY_CHANGED,
-                        None,
+                        Some(ContentListenRequest {
+                            listen: true,
+                            app_id: None,
+                        }),
                         Some(Box::new(SettingsChangeEventDecorator {
                             request: request.clone(),
                         })),

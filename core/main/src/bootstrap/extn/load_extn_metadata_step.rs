@@ -23,7 +23,7 @@ use ripple_sdk::{
     extn::ffi::ffi_library::load_extn_library_metadata,
     framework::bootstrap::Bootstep,
     libloading::Library,
-    log::{debug, error, info, warn},
+    log::{debug, info, warn},
     utils::error::RippleError,
 };
 
@@ -62,8 +62,8 @@ impl Bootstep<BootstrapState> for LoadExtensionMetadataStep {
     async fn setup(&self, state: BootstrapState) -> Result<(), RippleError> {
         debug!("Starting Extension Library step");
         let manifest = state.platform_state.get_manifest();
-        let default_path = manifest.default_path.clone();
-        let default_extn = manifest.default_extension.clone();
+        let default_path = manifest.default_path;
+        let default_extn = manifest.default_extension;
         let extn_paths: Vec<(String, ExtnManifestEntry)> = manifest
             .extns
             .into_iter()
@@ -98,8 +98,7 @@ impl Bootstep<BootstrapState> for LoadExtensionMetadataStep {
             }
             let valid_extension_libraries = loaded_extns.len();
             if valid_extension_libraries == 0 {
-                error!("No valid extensions");
-                return Err(RippleError::ExtnError);
+                warn!("No valid extensions");
             }
             info!("Total Libraries loaded={}", valid_extension_libraries);
         }

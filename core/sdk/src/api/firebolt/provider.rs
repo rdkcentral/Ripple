@@ -44,10 +44,10 @@ pub enum ProviderRequestPayload {
 #[serde(untagged)]
 pub enum ProviderResponsePayload {
     ChallengeResponse(ChallengeResponse),
+    ChallengeError(ChallengeError),
     PinChallengeResponse(PinChallengeResponse),
     KeyboardResult(KeyboardSessionResponse),
-    // TODO: assess if boxing this is a productive move: https://rust-lang.github.io/rust-clippy/master/index.html#/large_enum_variant
-    EntityInfoResponse(Box<Option<EntityInfoResult>>),
+    EntityInfoResponse(Option<EntityInfoResult>),
     PurchasedContentResponse(PurchasedContentResult),
 }
 
@@ -84,7 +84,7 @@ impl ProviderResponsePayload {
 
     pub fn as_entity_info_result(&self) -> Option<Option<EntityInfoResult>> {
         match self {
-            ProviderResponsePayload::EntityInfoResponse(res) => Some(*res.clone()),
+            ProviderResponsePayload::EntityInfoResponse(res) => Some(res.clone()),
             _ => None,
         }
     }
@@ -128,6 +128,16 @@ pub struct ExternalProviderResponse<T> {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChallengeResponse {
     pub granted: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DataObject {}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ChallengeError {
+    pub code: u32,
+    pub message: String,
+    pub data: Option<DataObject>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
