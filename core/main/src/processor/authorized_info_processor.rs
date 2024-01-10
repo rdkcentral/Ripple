@@ -72,7 +72,7 @@ impl ExtnRequestProcessor for AuthorizedInfoProcessor {
         msg: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
-        match extracted_message.clone() {
+        match extracted_message {
             CapsRequest::Permitted(app_id, request) => {
                 let result = state
                     .cap_state

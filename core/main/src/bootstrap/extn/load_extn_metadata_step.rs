@@ -62,8 +62,8 @@ impl Bootstep<BootstrapState> for LoadExtensionMetadataStep {
     async fn setup(&self, state: BootstrapState) -> Result<(), RippleError> {
         debug!("Starting Extension Library step");
         let manifest = state.platform_state.get_manifest();
-        let default_path = manifest.default_path.clone();
-        let default_extn = manifest.default_extension.clone();
+        let default_path = manifest.default_path;
+        let default_extn = manifest.default_extension;
         let extn_paths: Vec<(String, ExtnManifestEntry)> = manifest
             .extns
             .into_iter()
