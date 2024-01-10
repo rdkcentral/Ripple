@@ -428,18 +428,6 @@ pub struct RippleFeatures {
     pub cloud_permissions: bool,
 }
 
-fn default_ripple_features() -> RippleFeatures {
-    RippleFeatures {
-        privacy_settings_storage_type: PrivacySettingsStorageType::Local,
-        intent_validation: IntentValidation::FailOpen,
-        cloud_permissions: true,
-    }
-}
-
-fn default_cloud_permissions() -> bool {
-    true
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum IntentValidation {
@@ -469,6 +457,7 @@ fn default_ripple_features() -> RippleFeatures {
     RippleFeatures {
         privacy_settings_storage_type: default_privacy_settings_storage_type(),
         intent_validation: default_intent_validation(),
+        cloud_permissions: default_cloud_permissions(),
     }
 }
 
@@ -478,6 +467,10 @@ fn default_intent_validation() -> IntentValidation {
 
 fn default_privacy_settings_storage_type() -> PrivacySettingsStorageType {
     PrivacySettingsStorageType::Local
+}
+
+fn default_cloud_permissions() -> bool {
+    true
 }
 
 pub fn default_enforcement_value() -> bool {

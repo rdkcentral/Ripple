@@ -146,15 +146,18 @@ impl ContextManager {
             }
 
             // Get Account session
+            println!("*** _DEBUG: setup: mark 1");
             if let Ok(resp) = ps_c
                 .get_client()
                 .send_extn_request(AccountSessionRequest::GetAccessToken)
                 .await
             {
+                println!("*** _DEBUG: setup: mark 2");
                 if let Some(ExtnResponse::AccountSession(
                     AccountSessionResponse::AccountSessionToken(account_token),
                 )) = resp.payload.extract::<ExtnResponse>()
                 {
+                    println!("*** _DEBUG: setup: mark 3");
                     ps_c.get_client()
                         .get_extn_client()
                         .context_update(RippleContextUpdateRequest::Token(account_token));

@@ -309,6 +309,7 @@ impl ExtnClient {
         let c_message: CExtnMessage = message.clone().into();
         {
             let senders = self.get_other_senders();
+            println!("*** _DEBUG: senders={:?}", senders);
 
             for sender in senders {
                 let send_res = sender.send(c_message.clone());
