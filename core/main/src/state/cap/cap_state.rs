@@ -150,7 +150,7 @@ impl CapState {
             _ => {}
         }
         // check if given event and capability needs emitting
-        if Self::check_primed(ps, &event, &cap, None) {
+        if Self::check_primed(ps, event, &cap, None) {
             debug!("preparing cap event emit {}", cap.as_str());
             // if its a grant or revoke it could be done per app
             // these require additional
@@ -174,7 +174,7 @@ impl CapState {
                 let cc = listener.call_ctx.clone();
                 // Step 2: Check if the given event is valid for the app
                 if is_app_check_necessary
-                    && !Self::check_primed(ps, &event, &cap, Some(cc.app_id.clone()))
+                    && !Self::check_primed(ps, event, &cap, Some(cc.app_id.clone()))
                 {
                     continue;
                 }
