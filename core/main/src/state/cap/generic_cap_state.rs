@@ -112,7 +112,7 @@ impl GenericCapState {
         let not_available = self.not_available.read().unwrap();
         let mut result: Vec<FireboltCap> = Vec::new();
         for fb_perm in request {
-            if not_available.contains(&fb_perm.cap.as_str()) {
+            if fb_perm.role == CapabilityRole::Use && not_available.contains(&fb_perm.cap.as_str()) {
                 result.push(fb_perm.cap.clone())
             }
         }
