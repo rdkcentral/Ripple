@@ -95,7 +95,14 @@ impl MainContextProcessor {
         }
         CapState::emit(
             state,
-            event,
+            &event,
+            FireboltCap::Short("token:account".to_owned()),
+            None,
+        )
+        .await;
+        CapState::emit(
+            state,
+            &event,
             FireboltCap::Short("token:platform".to_owned()),
             None,
         )

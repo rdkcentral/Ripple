@@ -244,7 +244,11 @@ impl FireboltOpenRpc {
 
         let setter = self.get_setter_method_for_property(tokens[1]);
         setter.filter(|method| {
-            if let Some(suffix) = method.name.to_lowercase().strip_prefix(tokens[0]) {
+            if let Some(suffix) = method
+                .name
+                .to_lowercase()
+                .strip_prefix(tokens[0].to_lowercase().as_str())
+            {
                 !suffix.is_empty() && suffix.starts_with('.')
             } else {
                 false

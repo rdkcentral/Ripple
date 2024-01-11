@@ -23,7 +23,6 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         distributor::distributor_encoder::EncoderRequest,
-        firebolt::fb_capabilities::{CapEvent, FireboltCap},
         gateway::rpc_gateway_api::CallContext,
         session::{AccountSessionRequest, AccountSessionTokenRequest},
     },
@@ -32,8 +31,7 @@ use ripple_sdk::{
 };
 
 use crate::{
-    firebolt::rpc::RippleRPCProvider,
-    state::{cap::cap_state::CapState, platform_state::PlatformState},
+    firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState,
     utils::rpc_utils::rpc_err,
 };
 
@@ -67,34 +65,7 @@ impl AccountServer for AccountImpl {
             error!("Error in session {:?}", resp);
             return Err(rpc_err("session error response TBD"));
         }
-
-        match resp {
-            Ok(payload) => match payload.payload.extract().unwrap() {
-                ExtnResponse::None(()) => {
-                    CapState::emit(
-                        &self.platform_state,
-                        CapEvent::OnAvailable,
-                        FireboltCap::Short("token:account".to_owned()),
-                        None,
-                    )
-                    .await;
-                    Ok(())
-                }
-                _ => {
-                    CapState::emit(
-                        &self.platform_state,
-                        CapEvent::OnUnavailable,
-                        FireboltCap::Short("token:account".to_owned()),
-                        None,
-                    )
-                    .await;
-                    Err(rpc_err("Provision Status error response TBD"))
-                }
-            },
-            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-                "Provision Status error response TBD",
-            ))),
-        }
+        Ok(())
     }
 
     async fn id_rpc(&self, _ctx: CallContext) -> RpcResult<String> {

@@ -46,6 +46,7 @@ impl GenericCapState {
         let caps = vec![
             FireboltCap::Short("input:keyboard".to_owned()),
             FireboltCap::Short("token:account".to_owned()),
+            FireboltCap::Short("token:platform".to_owned()),
             FireboltCap::Short("usergrant:acknowledgechallenge".to_owned()),
             FireboltCap::Short("usergrant:pinchallenge".to_owned()),
         ];
@@ -72,6 +73,7 @@ impl GenericCapState {
                 not_available.insert(cap.as_str());
             }
         }
+        debug!("Caps that are not available: {:?}", not_available);
     }
 
     pub fn check_for_processor(&self, request: Vec<String>) -> HashMap<String, bool> {
