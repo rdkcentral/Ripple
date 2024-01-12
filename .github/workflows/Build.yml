@@ -71,3 +71,7 @@ jobs:
           recreate: true
           path: code-coverage-results.md
       - uses: marocchino/sticky-pull-request-comment@v2
+        if: ${{ vars.CURRENT_COVERAGE }} > ${{ vars.COVERAGE_THRESHOLDS }}
+        with:
+          append: true
+          path: current_coverage.md
