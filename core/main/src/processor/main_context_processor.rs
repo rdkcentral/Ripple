@@ -22,9 +22,10 @@ use std::{
 
 use ripple_sdk::{
     api::{
-        context::{ActivationStatus, RippleContext, RippleContextUpdateType},
+        context::{ActivationStatus, RippleContext, RippleContextCommand, RippleContextUpdateType},
         device::{
-            device_request::{PowerState, SystemPowerState},
+            device_info_request::DeviceInfoRequest,
+            device_request::{InternetConnectionStatus, PowerState, SystemPowerState},
             device_user_grants_data::GrantLifespan,
         },
         distributor::distributor_sync::{SyncAndMonitorModule, SyncAndMonitorRequest},
@@ -60,6 +61,12 @@ pub struct ContextState {
 
 #[derive(Debug)]
 pub struct MainContextProcessor {
+    state: ContextState,
+    streamer: DefaultExtnStreamer,
+}
+
+#[derive(Debug)]
+pub struct ContextCommandProcessor {
     state: ContextState,
     streamer: DefaultExtnStreamer,
 }
@@ -169,6 +176,18 @@ impl MainContextProcessor {
         }
     }
 
+    fn handle_internet_connection_change(
+        state: &PlatformState,
+        internet_state: &InternetConnectionStatus,
+    ) {
+        if !matches!(internet_state, InternetConnectionStatus::FullyConnected) {
+            //Send request to start internet monitoring.
+            let _result = state
+                .get_client()
+                .get_extn_client()
+                .request_transient(DeviceInfoRequest::StartMonitoringInternetChanges);
+        }
+    }
     fn handle_power_state(state: &PlatformState, power_state: &SystemPowerState) {
         if power_state.power_state != PowerState::On && Self::handle_power_active_cleanup(state) {
             info!("Usergrants updated for Powerstate");
@@ -180,6 +199,23 @@ impl MainContextProcessor {
             .cap_state
             .grant_state
             .delete_all_entries_for_lifespan(&GrantLifespan::PowerActive)
+    }
+}
+
+impl ExtnStreamProcessor for ContextCommandProcessor {
+    type VALUE = RippleContextCommand;
+    type STATE = ContextState;
+
+    fn get_state(&self) -> Self::STATE {
+        self.state.clone()
+    }
+
+    fn sender(&self) -> MSender<ExtnMessage> {
+        self.streamer.sender()
+    }
+
+    fn receiver(&mut self) -> MReceiver<ExtnMessage> {
+        self.streamer.receiver()
     }
 }
 
@@ -217,6 +253,12 @@ impl ExtnEventProcessor for MainContextProcessor {
                 }
                 RippleContextUpdateType::PowerStateChanged => {
                     Self::handle_power_state(&state.state, &extracted_message.system_power_state)
+                }
+                RippleContextUpdateType::InternetConnectionChanged => {
+                    Self::handle_internet_connection_change(
+                        &state.state,
+                        &extracted_message.internet_connectivity,
+                    )
                 }
                 _ => {}
             }

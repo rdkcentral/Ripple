@@ -562,12 +562,34 @@ impl ThunderDeviceInfoRequestProcessor {
         response
     }
 
+    async fn start_internet_monitoring_changes(state: CachedState, request: ExtnMessage) -> bool {
+        // Self::start_internet_monitoring(&state).await
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::Network.method("startConnectivityMonitoring"),
+                params: Some(DeviceChannelParams::Json(
+                    json!({"interval": 3000}).to_string(),
+                )),
+            })
+            .await;
+        if response.message.get("success").is_none()
+            || response.message["success"].as_bool().unwrap_or_default()
+        {
+            return Self::respond(state.get_client(), request, ExtnResponse::None(()))
+                .await
+                .is_ok();
+        }
+        Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
+    }
     async fn internet_connection_status(state: CachedState, req: ExtnMessage) -> bool {
         if let Some(response) = Self::get_internet_connection_status(&state).await {
             trace!(
                 "Successfully got internetConnection status from thunder: {:?}",
                 response
             );
+            let event = RippleContextUpdateRequest::InternetStatus(response.clone());
+            let _send_event_result = state.get_client().event(event);
             Self::respond(
                 state.get_client(),
                 req,
@@ -1525,6 +1547,9 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             }
             DeviceInfoRequest::InternetConnectionStatus => {
                 Self::internet_connection_status(state.clone(), msg).await
+            }
+            DeviceInfoRequest::StartMonitoringInternetChanges => {
+                Self::start_internet_monitoring_changes(state.clone(), msg).await
             }
             DeviceInfoRequest::FullCapabilities(keys) => {
                 let keys_as_str: Vec<&str> = keys.iter().map(String::as_str).collect();

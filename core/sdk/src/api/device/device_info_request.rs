@@ -62,6 +62,8 @@ pub enum DeviceInfoRequest {
     FullCapabilities(Vec<String>),
     PowerState,
     SerialNumber,
+    StartMonitoringInternetChanges,
+    StopMonitoringInternetChanges,
 }
 
 impl ExtnPayloadProvider for DeviceInfoRequest {

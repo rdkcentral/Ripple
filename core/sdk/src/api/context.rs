@@ -52,7 +52,22 @@ impl From<AccountToken> for ActivationStatus {
         ActivationStatus::AccountToken(value)
     }
 }
+// TODO:
+/*   1. Make it service oriented Arch
+ *   2. Any extensions can send event to Set,
+ *      Get, and Refresh context
+ *   3. The current RippleContext will come under
+ *      RippleContextCommand
+ *   4. Extensions will send only RippleContextCommands
+ *   5.
+ */
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum RippleContextCommand {
+    SetRippleContext(RippleContext),
+    GetRippleContext,
+    RefreshContext(Option<RippleContextUpdateType>),
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RippleContext {
     pub activation_status: ActivationStatus,
@@ -156,6 +171,20 @@ impl ExtnPayloadProvider for RippleContext {
 
     fn contract() -> RippleContract {
         RippleContract::RippleContext
+    }
+}
+
+impl ExtnPayloadProvider for RippleContextCommand {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        todo!()
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        todo!()
+    }
+
+    fn contract() -> RippleContract {
+        todo!()
     }
 }
 
