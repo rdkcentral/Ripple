@@ -64,7 +64,7 @@ jobs:
           CURRENT_COVERAGE=$(grep '<coverage' coverage.cobertura.xml | grep -o 'line-rate="[0-9.]\+"' | grep -o '[0-9.]\+')
           CURRENT_COVERAGE=$(printf %.0f $(echo "$CURRENT_COVERAGE*100" | bc))
           echo "CURRENT_COVERAGE=$CURRENT_COVERAGE" >> $GITHUB_ENV
-          echo "### Current coverage:"$CURRENT_COVERAGE"% exceeds coverage threshold\n###Repo admin, please update coverage threshold environment variable to reflect to the latest coverage">>current_coverage.md
+          echo "### Current coverage:"$CURRENT_COVERAGE"% exceeds coverage threshold\n### Repo admin, please update coverage threshold environment variable to reflect to the latest coverage">>current_coverage.md
       - uses: marocchino/sticky-pull-request-comment@v2
         if: always()
         with:
