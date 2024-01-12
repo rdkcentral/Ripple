@@ -529,6 +529,7 @@ impl GrantState {
         fb_perms: &[FireboltPermission],
         fail_on_first_error: bool,
         apply_exclusion_filter: bool,
+        force: bool,
     ) -> Result<(), DenyReasonWithCap> {
         /*
          * Instead of just checking for grants previously, if the user grants are not present,
@@ -560,7 +561,12 @@ impl GrantState {
 
         let mut denied_caps = Vec::new();
         for permission in caps_needing_grant_in_request {
-            let result = grant_state.get_grant_state(&app_id, &permission, None);
+            let result = if force {
+                GrantActiveState::PendingGrant
+            } else {
+                grant_state.get_grant_state(&app_id, &permission, None)
+            };
+
             match result {
                 GrantActiveState::ActiveGrant(grant) => {
                     if grant.is_err() {
@@ -1821,19 +1827,23 @@ impl GrantStepExecutor {
                 let pin_space_res = serde_json::from_value::<PinChallengeConfiguration>(
                     param.as_ref().unwrap_or(&Value::Null).clone(),
                 );
+                if pin_space_res.is_err() {
+                    error!("Missing pin space for {}", permission.cap.as_str());
+                }
                 pin_space_res.map_or(None, |pin_conf| {
+                    let challenge = PinChallengeRequest {
+                        pin_space: pin_conf.pin_space,
+                        requestor: ChallengeRequestor {
+                            id: for_app_id.clone(),
+                            name: app_name,
+                        },
+                        capability: Some(permission.cap.as_str()),
+                    };
                     Some(ProviderBrokerRequest {
                         capability: p_cap.as_str(),
                         method: "challenge".to_owned(),
                         caller: caller_session.clone(),
-                        request: ProviderRequestPayload::PinChallenge(PinChallengeRequest {
-                            pin_space: pin_conf.pin_space,
-                            requestor: ChallengeRequestor {
-                                id: for_app_id.clone(),
-                                name: app_name,
-                            },
-                            capability: Some(permission.cap.as_str()),
-                        }),
+                        request: ProviderRequestPayload::PinChallenge(challenge),
                         tx: session_tx,
                         app_id: None,
                     })
@@ -1858,6 +1868,7 @@ impl GrantStepExecutor {
                 })
             }
         };
+
         let result = if let Some(pr_msg) = pr_msg_opt {
             ProviderBroker::invoke_method(&platform_state.clone(), pr_msg).await;
             match session_rx.await {

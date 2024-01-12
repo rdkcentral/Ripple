@@ -17,8 +17,8 @@
 
 use std::collections::HashMap;
 
+use async_channel::Sender as CSender;
 use chrono::Utc;
-use crossbeam::channel::Sender as CSender;
 use log::{error, trace};
 
 use crate::{
@@ -86,7 +86,7 @@ impl ExtnSender {
     }
 
     pub fn get_config(&self, key: &str) -> Option<String> {
-        if let Some(c) = self.config.clone() {
+        if let Some(c) = &self.config {
             if let Some(v) = c.get(key) {
                 return Some(v.clone());
             }
@@ -144,7 +144,7 @@ impl ExtnSender {
     ) -> Result<(), RippleError> {
         if let Some(other_sender) = other_sender {
             trace!("Sending message on the other sender");
-            if let Err(e) = other_sender.send(msg) {
+            if let Err(e) = other_sender.try_send(msg) {
                 error!("send() error for message in other sender {}", e.to_string());
                 return Err(RippleError::SendFailure);
             }
@@ -153,7 +153,7 @@ impl ExtnSender {
             let tx = self.tx.clone();
             //tokio::spawn(async move {
             trace!("sending to main channel");
-            if let Err(e) = tx.send(msg) {
+            if let Err(e) = tx.try_send(msg) {
                 error!("send() error for message in main sender {}", e.to_string());
                 return Err(RippleError::SendFailure);
             }
@@ -168,7 +168,7 @@ impl ExtnSender {
     ) -> RippleResponse {
         if msg.callback.is_some() {
             trace!("Sending message on the callback sender");
-            if let Err(e) = msg.clone().callback.unwrap().send(msg) {
+            if let Err(e) = msg.clone().callback.unwrap().try_send(msg) {
                 error!(
                     "respond() error for message in callback sender {}",
                     e.to_string()

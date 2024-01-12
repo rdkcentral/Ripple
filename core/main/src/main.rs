@@ -30,7 +30,7 @@ pub mod state;
 pub mod utils;
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
-#[tokio::main]
+#[tokio::main(worker_threads = 2)]
 async fn main() {
     // Init logger
     if let Err(e) = init_logger("gateway".into()) {
