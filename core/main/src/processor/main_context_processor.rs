@@ -31,14 +31,14 @@ use ripple_sdk::{
         distributor::distributor_sync::{SyncAndMonitorModule, SyncAndMonitorRequest},
         firebolt::fb_capabilities::{CapEvent, FireboltCap},
         manifest::device_manifest::PrivacySettingsStorageType,
-        session::AccountSessionRequest,
+        session::{AccountSessionRequest, AccountSessionResponse},
     },
     async_trait::async_trait,
     extn::{
         client::extn_processor::{
             DefaultExtnStreamer, ExtnEventProcessor, ExtnStreamProcessor, ExtnStreamer,
         },
-        extn_client_message::ExtnMessage,
+        extn_client_message::{ExtnMessage, ExtnResponse},
     },
     log::{debug, error, info},
     tokio::{
@@ -84,6 +84,9 @@ impl MainContextProcessor {
         }
     }
 
+    ///
+    /// Method which gets called on bootstrap for a presence of account session
+    ///
     async fn check_account_session_token(state: &PlatformState) -> bool {
         let mut token_available = false;
         let mut event = CapEvent::OnUnavailable;
@@ -97,6 +100,26 @@ impl MainContextProcessor {
                 state.session_state.insert_account_session(session);
                 MetricsState::update_account_session(state).await;
                 event = CapEvent::OnAvailable;
+                let state_c = state.clone();
+                // update ripple context for token asynchronously
+                tokio::spawn(async move {
+                    if let Ok(response) = state_c
+                        .get_client()
+                        .send_extn_request(AccountSessionRequest::GetAccessToken)
+                        .await
+                    {
+                        if let Some(ExtnResponse::AccountSession(
+                            AccountSessionResponse::AccountSessionToken(token),
+                        )) = response.payload.extract::<ExtnResponse>()
+                        {
+                            state_c.get_client().get_extn_client().context_update(
+                                ripple_sdk::api::context::RippleContextUpdateRequest::Token(token),
+                            )
+                        } else {
+                            error!("couldnt update the session response")
+                        }
+                    }
+                });
                 token_available = true;
             }
         }
