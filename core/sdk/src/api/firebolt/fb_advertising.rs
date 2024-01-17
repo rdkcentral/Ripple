@@ -29,6 +29,9 @@ pub enum AdvertisingRequest {
     GetAdInitObject(AdInitObjectRequestParams),
     GetAdIdObject(AdIdRequestParams),
     ResetAdIdentifier(AccountSession),
+    // <pca>
+    GetAdRouter(AdRouterRequestParams),
+    // </pca>
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -80,6 +83,24 @@ pub struct AdIdResponse {
     pub lmt: String,
 }
 
+// <pca>
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AdRouterRequestParams {
+    pub durable_app_id: String,
+    pub environment: String,
+    pub dist_session: AccountSession,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AdRouterResponse {
+    pub ad_server_url: String,
+    pub ad_server_url_template: String,
+    pub ad_network_id: String,
+    pub ad_profile_id: String,
+    pub ad_site_section_id: String,
+}
+// </pca>
+
 impl ExtnPayloadProvider for AdvertisingRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Request(ExtnRequest::Advertising(self.clone()))
@@ -103,6 +124,9 @@ pub enum AdvertisingResponse {
     None,
     AdInitObject(AdInitObjectResponse),
     AdIdObject(AdIdResponse),
+    // <pca>
+    AdRouter(AdRouterResponse),
+    // </pca>
 }
 
 #[derive(Serialize, Deserialize)]

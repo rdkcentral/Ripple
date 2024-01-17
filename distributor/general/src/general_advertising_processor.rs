@@ -17,7 +17,8 @@
 
 use ripple_sdk::{
     api::firebolt::fb_advertising::{
-        AdIdResponse, AdInitObjectResponse, AdvertisingRequest, AdvertisingResponse,
+        AdIdResponse, AdInitObjectResponse, AdRouterResponse, AdvertisingRequest,
+        AdvertisingResponse,
     },
     async_trait::async_trait,
     extn::{
@@ -162,6 +163,37 @@ impl ExtnRequestProcessor for DistributorAdvertisingProcessor {
                 }
                 true
             }
+
+            // <pca>
+            AdvertisingRequest::GetAdRouter(_ad_router_req) => {
+                let resp = AdRouterResponse{
+                    ad_server_url: "https://demo.v.fwmrm.net/ad/p/1".into(),
+                    ad_server_url_template: "https://demo.v.fwmrm.net/ad/p/1?flag=+sltp+exvt+slcb+emcr+amcb+aeti&prof=12345:caf_allinone_profile &nw=12345&mode=live&vdur=123&caid=a110523018&asnw=372464&csid=gmott_ios_tablet_watch_live_ESPNU&ssnw=372464&vip=198.205.92.1&resp=vmap1&metr=1031&pvrn=12345&vprn=12345&vcid=1X0Ce7L3xRWlTeNhc7br8Q%3D%3D".into(),
+                    ad_network_id: "519178".into(),
+                    ad_profile_id: "12345:caf_allinone_profile".into(),
+                    ad_site_section_id: "caf_allinone_profile_section".into(),
+            };
+
+                if let Err(e) = state
+                    .respond(
+                        msg,
+                        if let ExtnPayload::Response(r) =
+                            AdvertisingResponse::AdRouter(resp).get_extn_payload()
+                        {
+                            r
+                        } else {
+                            ExtnResponse::Error(
+                                ripple_sdk::utils::error::RippleError::ProcessorError,
+                            )
+                        },
+                    )
+                    .await
+                {
+                    error!("Error sending back response {:?}", e);
+                    return false;
+                }
+                true
+            } // </pca>
         }
     }
 }
