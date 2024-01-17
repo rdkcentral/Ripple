@@ -94,25 +94,30 @@ impl MainContextProcessor {
                 MetricsState::update_account_session(state).await;
                 event = CapEvent::OnAvailable;
                 let state_c = state.clone();
-                // update ripple context for token asynchronously
-                tokio::spawn(async move {
-                    if let Ok(response) = state_c
-                        .get_client()
-                        .send_extn_request(AccountSessionRequest::GetAccessToken)
-                        .await
-                    {
-                        if let Some(ExtnResponse::AccountSession(
-                            AccountSessionResponse::AccountSessionToken(token),
-                        )) = response.payload.extract::<ExtnResponse>()
+                if !state_c.get_client().get_extn_client().has_token() {
+                    // update ripple context for token asynchronously
+                    tokio::spawn(async move {
+                        if let Ok(response) = state_c
+                            .get_client()
+                            .send_extn_request(AccountSessionRequest::GetAccessToken)
+                            .await
                         {
-                            state_c.get_client().get_extn_client().context_update(
-                                ripple_sdk::api::context::RippleContextUpdateRequest::Token(token),
-                            )
-                        } else {
-                            error!("couldnt update the session response")
+                            if let Some(ExtnResponse::AccountSession(
+                                AccountSessionResponse::AccountSessionToken(token),
+                            )) = response.payload.extract::<ExtnResponse>()
+                            {
+                                state_c.get_client().get_extn_client().context_update(
+                                    ripple_sdk::api::context::RippleContextUpdateRequest::Token(
+                                        token,
+                                    ),
+                                )
+                            } else {
+                                error!("couldnt update the session response")
+                            }
                         }
-                    }
-                });
+                    });
+                }
+
                 token_available = true;
             }
         }
