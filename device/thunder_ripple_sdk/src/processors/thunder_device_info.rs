@@ -1640,15 +1640,13 @@ pub mod tests {
         tokio,
         utils::channel_utils::oneshot_send_and_log,
     };
+    use ripple_tdk::utils::mock_extension_client::MockExtnClient;
     use serde::{Deserialize, Serialize};
 
     use crate::{
         client::{thunder_client::ThunderCallMessage, thunder_plugin::ThunderPlugin},
         processors::thunder_device_info::ThunderDeviceInfoRequestProcessor,
-        tests::{
-            mock_extension_client::MockExtnClient,
-            mock_thunder_controller::{CustomHandler, MockThunderController, ThunderHandlerFn},
-        },
+        tests::mock_thunder_controller::{CustomHandler, MockThunderController, ThunderHandlerFn},
     };
 
     macro_rules! run_platform_info_test {

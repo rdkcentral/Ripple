@@ -9,6 +9,7 @@ use ripple_sdk::{
     utils::channel_utils::{mpsc_send_and_log, oneshot_send_and_log},
     uuid::Uuid,
 };
+use ripple_tdk::utils::mock_extension_client::MockExtnClient;
 use serde_json::Value;
 
 use crate::{
@@ -24,8 +25,6 @@ use crate::{
     processors::thunder_device_info::CachedState,
     thunder_state::ThunderState,
 };
-
-use super::mock_extension_client::MockExtnClient;
 
 pub type ThunderHandlerFn = dyn Fn(ThunderCallMessage) + Send + Sync;
 
