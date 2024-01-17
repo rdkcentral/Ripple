@@ -257,6 +257,11 @@ impl<'de> Deserialize<'de> for FireboltPermission {
     }
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct FireboltPermissions {
+    pub capabilities: Vec<FireboltPermission>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RolePermission {
     pub permitted: bool,
