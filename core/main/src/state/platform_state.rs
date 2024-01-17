@@ -21,6 +21,7 @@ use ripple_sdk::{
         manifest::{
             app_library::AppLibraryState,
             device_manifest::{AppLibraryEntry, DeviceManifest},
+            exclusory::ExclusoryImpl,
             extn_manifest::ExtnManifest,
         },
         protocol::BridgeProtocolRequest,
@@ -111,6 +112,8 @@ impl PlatformState {
         client: RippleClient,
         app_library: Vec<AppLibraryEntry>,
     ) -> PlatformState {
+        let exclusory = ExclusoryImpl::get(&manifest);
+
         Self {
             extn_manifest,
             cap_state: CapState::new(manifest.clone()),
@@ -121,7 +124,7 @@ impl PlatformState {
             app_events_state: AppEventsState::default(),
             provider_broker_state: ProviderBrokerState::default(),
             app_manager_state: AppManagerState::new(&manifest.configuration.saved_dir),
-            open_rpc_state: OpenRpcState::new(manifest.configuration.exclusory),
+            open_rpc_state: OpenRpcState::new(Some(exclusory)),
             router_state: RouterState::new(),
             data_governance: DataGovernanceState::default(),
             metrics: MetricsState::default(),
