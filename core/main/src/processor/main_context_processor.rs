@@ -129,7 +129,7 @@ impl MainContextProcessor {
             });
         });
     }
-    pub async fn initialize_token(state: &PlatformState) {
+    pub async fn initialize_session(state: &PlatformState) {
         if !Self::check_account_session_token(state).await {
             error!("Account session still not available");
         } else if state.supports_cloud_sync() {
@@ -218,7 +218,7 @@ impl ExtnEventProcessor for MainContextProcessor {
                     {
                         //Call initialize token only when account session was not initialized the first time
                         if state.state.session_state.get_account_session().is_none() {
-                            Self::initialize_token(&state.state).await
+                            Self::initialize_session(&state.state).await
                         } else {
                             // update the token
                             state
