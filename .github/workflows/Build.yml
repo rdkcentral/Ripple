@@ -43,8 +43,6 @@ jobs:
   code_coverage:
     name: Generate Code Coverage
     runs-on: ubuntu-latest
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     permissions:
       pull-requests: write
       contents: read
