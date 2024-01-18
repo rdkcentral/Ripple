@@ -26,7 +26,7 @@ use ripple_sdk::api::device::device_request::{
 };
 use ripple_sdk::api::session::{AccountSessionRequest, AccountSessionResponse};
 use ripple_sdk::extn::extn_client_message::ExtnResponse;
-use ripple_sdk::log::warn;
+use ripple_sdk::log::{error, warn};
 use ripple_sdk::tokio;
 
 pub struct ContextManager;
@@ -158,6 +158,29 @@ impl ContextManager {
                     ps_c.get_client()
                         .get_extn_client()
                         .context_update(RippleContextUpdateRequest::Token(account_token));
+                }
+            }
+        });
+    }
+
+    // Update the Context with session information during startup
+    pub fn update_context_for_session(state_c: PlatformState) {
+        // update ripple context for token asynchronously
+        tokio::spawn(async move {
+            if let Ok(response) = state_c
+                .get_client()
+                .send_extn_request(AccountSessionRequest::GetAccessToken)
+                .await
+            {
+                if let Some(ExtnResponse::AccountSession(
+                    AccountSessionResponse::AccountSessionToken(token),
+                )) = response.payload.extract::<ExtnResponse>()
+                {
+                    state_c.get_client().get_extn_client().context_update(
+                        ripple_sdk::api::context::RippleContextUpdateRequest::Token(token),
+                    )
+                } else {
+                    error!("couldnt update the session response")
                 }
             }
         });
