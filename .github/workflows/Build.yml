@@ -75,7 +75,7 @@ jobs:
           echo "### Current coverage:"$CURRENT_COVERAGE"% exceeds coverage threshold. Coverage threshold is updated to reflect to the latest coverage.">>current_coverage.md
           echo "$CURRENT_LOWER_THRESHOLD $CURRENT_UPPER_THRESHOLD" > ./.github/coverage_threshold_temp.txt
       - name: add coverage summary to pr comment
-        run: cat code-coverage-results.md >> $GITHUB_STEP_SUMMARY
+        run: echo ‘### Hello world!’ >> $GITHUB_STEP_SUMMARY
       - uses: marocchino/sticky-pull-request-comment@v2
         if: always()
         with:
