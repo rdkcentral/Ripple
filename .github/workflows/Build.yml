@@ -39,3 +39,40 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - run: cargo test
+
+  code_coverage:
+    name: Generate Code Coverage
+    runs-on: ubuntu-latest
+    environment: development 
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - run:  cargo llvm-cov --cobertura --output-path coverage.cobertura.xml
+      - uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: coverage.cobertura.xml
+          badge: true
+          fail_below_min: true
+          format: markdown
+          hide_branch_rate: false
+          hide_complexity: true
+          indicators: true
+          output: both
+          thresholds: ${{ vars.COVERAGE_THRESHOLDS }} 
+      - run: |
+          CURRENT_COVERAGE=$(grep '<coverage' coverage.cobertura.xml | grep -o 'line-rate="[0-9.]\+"' | grep -o '[0-9.]\+')
+          CURRENT_COVERAGE=$(printf %.0f $(echo "$CURRENT_COVERAGE*100" | bc))
+          echo "CURRENT_COVERAGE=$CURRENT_COVERAGE" >> $GITHUB_ENV
+          echo "### Current coverage:"$CURRENT_COVERAGE"% exceeds coverage threshold" >>current_coverage.md
+          echo "### Repo admin, please update coverage threshold environment variable to reflect to the latest coverage">>current_coverage.md
+      - uses: marocchino/sticky-pull-request-comment@v2
+        if: always()
+        with:
+          recreate: true
+          path: code-coverage-results.md
+      - uses: marocchino/sticky-pull-request-comment@v2
+        if: ${{ vars.CURRENT_COVERAGE }} > ${{ vars.COVERAGE_THRESHOLDS }}
+        with:
+          append: true
+          path: current_coverage.md

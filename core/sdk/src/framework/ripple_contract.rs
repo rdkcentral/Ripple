@@ -119,9 +119,9 @@ pub enum RippleContract {
     /// Distributor gets the ability to configure and customize the generation of
     /// the Session information based on their policies. Used by [crate::api::session::AccountSession]
     Session(SessionAdjective),
-
     RippleContext,
-
+    AppCatalog,
+    Apps,
     // Runtime ability for a given distributor to turn off a certian feature
     RemoteFeatureControl,
 }

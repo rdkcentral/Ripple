@@ -24,7 +24,7 @@ use ripple_sdk::api::device::device_info_request::{DeviceInfoRequest, DeviceResp
 use ripple_sdk::api::device::device_request::{
     OnInternetConnectedRequest, SystemPowerState, TimeZone,
 };
-use ripple_sdk::api::session::AccountSessionRequest;
+use ripple_sdk::api::session::{AccountSessionRequest, AccountSessionResponse};
 use ripple_sdk::extn::extn_client_message::ExtnResponse;
 use ripple_sdk::log::warn;
 use ripple_sdk::tokio;
@@ -142,6 +142,22 @@ impl ContextManager {
                             offset,
                         }),
                     );
+                }
+            }
+
+            // Get Account session
+            if let Ok(resp) = ps_c
+                .get_client()
+                .send_extn_request(AccountSessionRequest::GetAccessToken)
+                .await
+            {
+                if let Some(ExtnResponse::AccountSession(
+                    AccountSessionResponse::AccountSessionToken(account_token),
+                )) = resp.payload.extract::<ExtnResponse>()
+                {
+                    ps_c.get_client()
+                        .get_extn_client()
+                        .context_update(RippleContextUpdateRequest::Token(account_token));
                 }
             }
         });

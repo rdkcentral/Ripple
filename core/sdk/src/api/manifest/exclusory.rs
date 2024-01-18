@@ -19,6 +19,8 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
+use crate::api::firebolt::fb_openrpc::FireboltOpenRpcMethod;
+
 use super::device_manifest::DeviceManifest;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -37,8 +39,14 @@ pub struct ExclusoryImpl {
 }
 
 impl ExclusoryImpl {
-    pub fn get(dm: DeviceManifest) -> ExclusoryImpl {
-        if let Some(e) = dm.configuration.exclusory {
+    pub fn get(dm: &DeviceManifest) -> ExclusoryImpl {
+        if let Some(mut e) = dm.configuration.exclusory.clone() {
+            // convert module part of method in method_ignore_rules to lowercase
+            e.method_ignore_rules = e
+                .method_ignore_rules
+                .iter()
+                .map(|m| FireboltOpenRpcMethod::name_with_lowercase_module(m))
+                .collect();
             return e;
         }
         ExclusoryImpl {
