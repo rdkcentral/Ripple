@@ -93,7 +93,7 @@ impl std::fmt::Display for AudioProfile {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AccountToken {
     pub token: String,
     pub expires: u64,
@@ -250,7 +250,7 @@ impl FromStr for PowerState {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemPowerState {
     pub power_state: PowerState,

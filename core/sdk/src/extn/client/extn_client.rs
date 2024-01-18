@@ -316,23 +316,21 @@ impl ExtnClient {
             error!("Updating context is not allowed outside main");
         }
 
-        let propagate_change = {
+        {
             let mut ripple_context = self.ripple_context.write().unwrap();
             ripple_context.update(request)
-        };
-        if propagate_change {
-            let new_context = { self.ripple_context.read().unwrap().clone() };
-            let message = new_context.get_event_message();
-            let c_message: CExtnMessage = message.clone().into();
-            {
-                let senders = self.get_other_senders();
-                for sender in senders {
-                    let send_res = sender.try_send(c_message.clone());
-                    trace!("Send to other client result: {:?}", send_res);
-                }
-            }
-            Self::handle_vec_stream(message, self.event_processors.clone());
         }
+        let new_context = { self.ripple_context.read().unwrap().clone() };
+        let message = new_context.get_event_message();
+        let c_message: CExtnMessage = message.clone().into();
+        {
+            let senders = self.get_other_senders();
+            for sender in senders {
+                let send_res = sender.try_send(c_message.clone());
+                trace!("Send to other client result: {:?}", send_res);
+            }
+        }
+        Self::handle_vec_stream(message, self.event_processors.clone());
     }
 
     fn handle_no_processor_error(&self, message: ExtnMessage) {
