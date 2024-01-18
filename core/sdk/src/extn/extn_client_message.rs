@@ -28,7 +28,7 @@ use crate::{
         apps::AppEventRequest,
         caps::CapsRequest,
         config::{Config, ConfigResponse},
-        context::{RippleContext, RippleContextUpdateRequest},
+        context::{RippleContext, RippleContextCommand, RippleContextUpdateRequest},
         device::{
             device_events::DeviceEventRequest,
             device_peristence::StorageData,
@@ -328,6 +328,7 @@ pub enum ExtnEvent {
     AppEvent(AppEventRequest),
     OperationalMetrics(TelemetryPayload),
     Context(RippleContext),
+    ContextCommand(RippleContextCommand),
     VoiceGuidanceState(VoiceGuidanceState),
     TimeZone(TimeZone),
 }

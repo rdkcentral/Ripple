@@ -176,15 +176,19 @@ impl ExtnPayloadProvider for RippleContext {
 
 impl ExtnPayloadProvider for RippleContextCommand {
     fn get_extn_payload(&self) -> ExtnPayload {
-        todo!()
+        ExtnPayload::Event(ExtnEvent::ContextCommand(self.clone()))
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        todo!()
+        if let ExtnPayload::Event(ExtnEvent::ContextCommand(cmd)) = payload {
+            Some(cmd)
+        } else {
+            None
+        }
     }
 
     fn contract() -> RippleContract {
-        todo!()
+        RippleContract::RippleContext
     }
 }
 
