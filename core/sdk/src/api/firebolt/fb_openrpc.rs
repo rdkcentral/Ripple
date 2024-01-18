@@ -113,7 +113,7 @@ pub struct OpenRPCParser {
     pub methods: Vec<FireboltOpenRpcMethod>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FireboltOpenRpc {
     pub openrpc: String,
     pub info: FireboltSemanticVersion,
@@ -291,7 +291,7 @@ pub struct FireboltOpenRpcCapabilities {
     pub name: String,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FireboltOpenRpcTag {
     pub name: String,
     #[serde(rename = "x-uses")]
@@ -333,7 +333,7 @@ impl FireboltOpenRpcTag {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FireboltOpenRpcMethod {
     pub name: String,
     pub tags: Option<Vec<FireboltOpenRpcTag>>,
