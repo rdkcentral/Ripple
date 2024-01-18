@@ -31,14 +31,14 @@ use ripple_sdk::{
         distributor::distributor_sync::{SyncAndMonitorModule, SyncAndMonitorRequest},
         firebolt::fb_capabilities::{CapEvent, CapabilityRole, FireboltCap, FireboltPermission},
         manifest::device_manifest::PrivacySettingsStorageType,
-        session::{AccountSessionRequest, AccountSessionResponse},
+        session::AccountSessionRequest,
     },
     async_trait::async_trait,
     extn::{
         client::extn_processor::{
             DefaultExtnStreamer, ExtnEventProcessor, ExtnStreamProcessor, ExtnStreamer,
         },
-        extn_client_message::{ExtnMessage, ExtnResponse},
+        extn_client_message::ExtnMessage,
     },
     log::{debug, error, info},
     tokio::{
@@ -94,26 +94,6 @@ impl MainContextProcessor {
                 state.session_state.insert_account_session(session);
                 MetricsState::update_account_session(state).await;
                 event = CapEvent::OnAvailable;
-                let state_c = state.clone();
-                // update ripple context for token asynchronously
-                tokio::spawn(async move {
-                    if let Ok(response) = state_c
-                        .get_client()
-                        .send_extn_request(AccountSessionRequest::GetAccessToken)
-                        .await
-                    {
-                        if let Some(ExtnResponse::AccountSession(
-                            AccountSessionResponse::AccountSessionToken(token),
-                        )) = response.payload.extract::<ExtnResponse>()
-                        {
-                            state_c.get_client().get_extn_client().context_update(
-                                ripple_sdk::api::context::RippleContextUpdateRequest::Token(token),
-                            )
-                        } else {
-                            error!("couldnt update the session response")
-                        }
-                    }
-                });
                 token_available = true;
             }
         }
@@ -162,8 +142,7 @@ impl MainContextProcessor {
             });
         });
     }
-
-    pub async fn initialize_token(state: &PlatformState) {
+    pub async fn initialize_session(state: &PlatformState) {
         let update_token = Self::is_update_token(state);
         if !Self::check_account_session_token(state).await {
             error!("Account session still not available");
@@ -275,9 +254,18 @@ impl ExtnEventProcessor for MainContextProcessor {
         if let Some(update) = &extracted_message.update_type {
             match update {
                 RippleContextUpdateType::TokenChanged => {
-                    if let ActivationStatus::AccountToken(_t) = &extracted_message.activation_status
+                    if let ActivationStatus::AccountToken(t) = &extracted_message.activation_status
                     {
-                        Self::initialize_token(&state.state).await
+                        //Call initialize token only when account session was not initialized the first time
+                        if state.state.session_state.get_account_session().is_none() {
+                            Self::initialize_session(&state.state).await
+                        } else {
+                            // update the token
+                            state
+                                .state
+                                .session_state
+                                .insert_session_token(t.token.clone())
+                        }
                     }
                 }
                 RippleContextUpdateType::PowerStateChanged => {
