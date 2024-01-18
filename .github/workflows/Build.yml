@@ -74,8 +74,11 @@ jobs:
           echo "CURRENT_LOWER_THRESHOLD=$CURRENT_LOWER_THRESHOLD" >> $GITHUB_ENV
           echo "### Current coverage:"$CURRENT_COVERAGE"% exceeds coverage threshold. Coverage threshold is updated to reflect to the latest coverage.">>current_coverage.md
           echo "$CURRENT_LOWER_THRESHOLD $CURRENT_UPPER_THRESHOLD" > ./.github/coverage_threshold_temp.txt
-      - name: add coverage summary to pr comment
-        run: echo ‘### Hello world!’ >> $GITHUB_STEP_SUMMARY
+      - uses: mshick/add-pr-comment@v2
+        with:
+          message: |
+            **Howdie!**
+          proxy-url: https://add-pr-comment-proxy-94idvmwyie-uc.a.run.app
       - uses: marocchino/sticky-pull-request-comment@v2
         if: always()
         with:
