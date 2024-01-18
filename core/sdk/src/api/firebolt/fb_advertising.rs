@@ -30,6 +30,7 @@ pub enum AdvertisingRequest {
     GetAdIdObject(AdIdRequestParams),
     ResetAdIdentifier(AccountSession),
     // <pca>
+    GetXifa(XifaRequestParams),
     GetAdRouter(AdRouterRequestParams),
     // </pca>
 }
@@ -85,6 +86,19 @@ pub struct AdIdResponse {
 
 // <pca>
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct XifaRequestParams {
+    pub privacy_data: HashMap<String, String>,
+    pub durable_app_id: String,
+    pub dist_session: AccountSession,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct XifaResponse {
+    pub ifa_value: String,
+    pub ifa: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AdRouterRequestParams {
     pub durable_app_id: String,
     pub environment: String,
@@ -125,6 +139,7 @@ pub enum AdvertisingResponse {
     AdInitObject(AdInitObjectResponse),
     AdIdObject(AdIdResponse),
     // <pca>
+    Xifa(XifaResponse),
     AdRouter(AdRouterResponse),
     // </pca>
 }

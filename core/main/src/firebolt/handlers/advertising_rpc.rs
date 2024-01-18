@@ -28,8 +28,9 @@ use ripple_sdk::{
     api::{
         firebolt::{
             fb_advertising::{
-                AdIdRequestParams, AdInitObjectRequestParams, AdRouterRequestParams,
-                AdvertisingFrameworkConfig, AdvertisingRequest, AdvertisingResponse, GetAdConfig,
+                AdIdRequestParams, AdRouterRequestParams, AdvertisingFrameworkConfig,
+                AdvertisingRequest, AdvertisingResponse, GetAdConfig, XifaRequestParams,
+                XifaResponse,
             },
             fb_capabilities::{CapabilityRole, FireboltCap, RoleInfo},
             fb_general::{ListenRequest, ListenerResponse},
@@ -406,8 +407,8 @@ impl AdvertisingServer for AdvertisingImpl {
         config: GetAdConfig,
     ) -> RpcResult<AdvertisingFrameworkConfig> {
         let session = self.state.session_state.get_account_session();
-        let app_id = ctx.app_id.to_string();
-        let distributor_experience_id = self
+        let durable_app_id = ctx.app_id.to_string();
+        let distributor_app_id = self
             .state
             .get_device_manifest()
             .get_distributor_experience_id();
@@ -421,26 +422,50 @@ impl AdvertisingServer for AdvertisingImpl {
 
         let ad_opt_out = PrivacyImpl::get_allow_app_content_ad_targeting(&self.state).await;
 
-        let privacy_data =
-            privacy_rpc::get_allow_app_content_ad_targeting_settings(&self.state, None, &app_id)
-                .await;
+        let privacy_data = privacy_rpc::get_allow_app_content_ad_targeting_settings(
+            &self.state,
+            None,
+            &durable_app_id,
+        )
+        .await;
 
-        // let advertising_request = AdvertisingRequest::GetAdIdObject(AdIdRequestParams {
-        //     privacy_data: privacy_data.clone(),
-        //     app_id,
-        //     dist_session: session
-        //         .clone()
-        //         .ok_or_else(|| Error::Custom(String::from("no session available")))?,
-        //     scope: HashMap::new(),
-        // });
+        let coppa = match config.options.coppa {
+            Some(c) => c as u32,
+            None => 0,
+        };
 
-        let advertising_id = Self::advertising_id(ctx, AdvertisingIdRPCRequest::default()).await?;
+        let advertising_request = AdvertisingRequest::GetXifa(XifaRequestParams {
+            privacy_data: privacy_data.clone(),
+            durable_app_id: durable_app_id.clone(),
+            dist_session: session
+                .clone()
+                .ok_or_else(|| Error::Custom(String::from("no session available")))?,
+        });
 
         let advertising_request = AdvertisingRequest::GetAdRouter(AdRouterRequestParams {
             environment: config.options.environment.to_string(),
-            durable_app_id: app_id,
+            durable_app_id: durable_app_id.clone(),
             dist_session: session.unwrap(),
         });
+
+        let xifa = match self
+            .state
+            .get_client()
+            .send_extn_request(advertising_request)
+            .await
+        {
+            Ok(message) => match message.payload.extract().unwrap() {
+                AdvertisingResponse::Xifa(resp) => resp,
+                _ => {
+                    error!("config: Unexpected response payload, xifa not available");
+                    XifaResponse::default()
+                }
+            },
+            Err(e) => {
+                error!("config: Could not get xifa: e={}", e);
+                XifaResponse::default()
+            }
+        };
 
         match self
             .state
@@ -459,14 +484,14 @@ impl AdvertisingServer for AdvertisingImpl {
                         ad_opt_out,
                         privacy_data: serde_json::to_string(&privacy_data).unwrap_or_default(),
                         ifa: if ad_id_authorised {
-                            resp.ifa
+                            xifa.ifa
                         } else {
                             IFA_ZERO_BASE64.to_string()
                         },
                         ifa_value: if ad_id_authorised {
-                            resp.ifa_value
+                            xifa.ifa_value
                         } else {
-                            let ifa_val_zero = resp
+                            let ifa_val_zero = xifa
                                 .ifa_value
                                 .chars()
                                 .map(|x| match x {
@@ -476,12 +501,15 @@ impl AdvertisingServer for AdvertisingImpl {
                                 .collect();
                             ifa_val_zero
                         },
-                        app_name: resp.app_name,
-                        app_bundle_id: resp.app_bundle_id,
-                        distributor_app_id: resp.distributor_app_id,
-                        device_ad_attributes: resp.device_ad_attributes,
-                        coppa: resp.coppa.to_string().parse::<u32>().unwrap_or(0),
-                        authentication_entity: resp.authentication_entity,
+                        app_name: durable_app_id.clone(),
+                        app_bundle_id: format!("{}.{}", durable_app_id, "Comcast"),
+                        distributor_app_id,
+                        device_ad_attributes: HashMap::new(),
+                        coppa,
+                        authentication_entity: config
+                            .options
+                            .authentication_entity
+                            .unwrap_or_default(),
                     };
                     Ok(ad_init_object)
                 }

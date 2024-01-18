@@ -18,7 +18,7 @@
 use ripple_sdk::{
     api::firebolt::fb_advertising::{
         AdIdResponse, AdInitObjectResponse, AdRouterResponse, AdvertisingRequest,
-        AdvertisingResponse,
+        AdvertisingResponse, XifaResponse,
     },
     async_trait::async_trait,
     extn::{
@@ -165,6 +165,33 @@ impl ExtnRequestProcessor for DistributorAdvertisingProcessor {
             }
 
             // <pca>
+            AdvertisingRequest::GetXifa(_xifa_req) => {
+                let resp = XifaResponse {
+                    ifa_value: "01234567-89AB-CDEF-GH01-23456789ABCD".into(),
+                    ifa: "ewogICJ2YWx1ZSI6ICIwMTIzNDU2Ny04OUFCLUNERUYtR0gwMS0yMzQ1Njc4OUFCQ0QiLAogICJpZmFfdHlwZSI6ICJzc3BpZCIsCiAgImxtdCI6ICIwIgp9Cg==".into(),
+                };
+
+                if let Err(e) = state
+                    .respond(
+                        msg,
+                        if let ExtnPayload::Response(r) =
+                            AdvertisingResponse::Xifa(resp).get_extn_payload()
+                        {
+                            r
+                        } else {
+                            ExtnResponse::Error(
+                                ripple_sdk::utils::error::RippleError::ProcessorError,
+                            )
+                        },
+                    )
+                    .await
+                {
+                    error!("Error sending back response {:?}", e);
+                    return false;
+                }
+                true
+            }
+
             AdvertisingRequest::GetAdRouter(_ad_router_req) => {
                 let resp = AdRouterResponse{
                     ad_server_url: "https://demo.v.fwmrm.net/ad/p/1".into(),
