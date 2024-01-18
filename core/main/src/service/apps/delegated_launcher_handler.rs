@@ -867,8 +867,6 @@ impl DelegatedLauncherHandler {
             .into_iter()
             .filter(|perm| {
                 let filtered_policy_opt = grant_polices_map.get(&perm.cap.as_str());
-                debug!("permission: {:?}", perm);
-                debug!("filtered_policy_opt: {:?}", filtered_policy_opt);
                 if filtered_policy_opt.is_none() {
                     return false;
                 }

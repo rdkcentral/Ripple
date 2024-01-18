@@ -34,6 +34,7 @@ pub enum ThunderPlugin {
     TextToSpeech,
     Hdcp,
     Telemetry,
+    PackageManager,
 }
 const CONTROLLER_CFG: Cfg = Cfg::new("Controller", false, true);
 const DEVICE_INFO_CFG: Cfg = Cfg::new("DeviceInfo", true, false);
@@ -48,6 +49,7 @@ const WIFI_CFG: Cfg = Cfg::new("org.rdk.Wifi", false, false);
 const LOCATION_SYNC: Cfg = Cfg::new("LocationSync", false, false);
 const TTS_CFG: Cfg = Cfg::new("org.rdk.TextToSpeech", false, true);
 const TELEMETRY_CFG: Cfg = Cfg::new("org.rdk.Telemetry", true, false);
+const PACKAGE_MANAGER_CFG: Cfg = Cfg::new("PackageManager", false, false);
 
 impl ThunderPlugin {
     pub fn cfg(&self) -> Cfg {
@@ -66,6 +68,7 @@ impl ThunderPlugin {
             LocationSync => LOCATION_SYNC,
             TextToSpeech => TTS_CFG,
             Telemetry => TELEMETRY_CFG,
+            PackageManager => PACKAGE_MANAGER_CFG,
         }
     }
     pub fn callsign(&self) -> &str {
