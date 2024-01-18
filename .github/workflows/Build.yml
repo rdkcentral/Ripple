@@ -3,7 +3,7 @@ name: Build
 on:
   push:
     branches: [ "main" ]
-  pull_request:
+  pull_request_target:
     branches: [ "main" ]
 
 env:
@@ -81,6 +81,7 @@ jobs:
         with:
           recreate: true
           path: code-coverage-results.md
+          name: pr-number
       - uses: marocchino/sticky-pull-request-comment@v2
         if: ${{ fromJSON(env.CURRENT_LOWER_THRESHOLD) > fromJSON(env.LOWER_COVERAGE_THRESHOLD) }}
         with:
