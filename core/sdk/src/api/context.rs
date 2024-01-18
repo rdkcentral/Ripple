@@ -30,7 +30,7 @@ use super::device::device_request::{
     AccountToken, InternetConnectionStatus, SystemPowerState, TimeZone,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ActivationStatus {
     NotActivated,
     AccountToken(AccountToken),
@@ -76,29 +76,48 @@ impl RippleContext {
         RippleContext::get_from_payload(msg.clone())
     }
 
-    pub fn update(&mut self, request: RippleContextUpdateRequest) {
+    pub fn update(&mut self, request: RippleContextUpdateRequest) -> bool {
+        let mut updated: bool = false;
         match request {
             RippleContextUpdateRequest::Activation(a) => {
-                self.activation_status = a.into();
-                self.update_type = Some(RippleContextUpdateType::ActivationStatusChanged);
+                let activation_status: ActivationStatus = a.into();
+                if activation_status != self.activation_status {
+                    self.activation_status = activation_status;
+                    self.update_type = Some(RippleContextUpdateType::ActivationStatusChanged);
+                    updated = true;
+                }
             }
             RippleContextUpdateRequest::InternetStatus(s) => {
-                self.internet_connectivity = s;
-                self.update_type = Some(RippleContextUpdateType::InternetConnectionChanged);
+                if s != self.internet_connectivity {
+                    self.internet_connectivity = s;
+                    self.update_type = Some(RippleContextUpdateType::InternetConnectionChanged);
+                    updated = true;
+                }
             }
             RippleContextUpdateRequest::Token(t) => {
-                self.activation_status = t.into();
-                self.update_type = Some(RippleContextUpdateType::TokenChanged);
+                let activation_status: ActivationStatus = t.into();
+                if activation_status != self.activation_status {
+                    self.activation_status = activation_status;
+                    self.update_type = Some(RippleContextUpdateType::TokenChanged);
+                    updated = true;
+                }
             }
             RippleContextUpdateRequest::PowerState(p) => {
-                self.system_power_state = p;
-                self.update_type = Some(RippleContextUpdateType::PowerStateChanged)
+                if p != self.system_power_state {
+                    self.system_power_state = p;
+                    self.update_type = Some(RippleContextUpdateType::PowerStateChanged);
+                    updated = true;
+                }
             }
             RippleContextUpdateRequest::TimeZone(tz) => {
-                self.time_zone = tz;
-                self.update_type = Some(RippleContextUpdateType::TimeZoneChanged)
+                if tz != self.time_zone {
+                    self.time_zone = tz;
+                    self.update_type = Some(RippleContextUpdateType::TimeZoneChanged);
+                    updated = true;
+                }
             }
         }
+        updated
     }
 
     pub fn deep_copy(&mut self, context: RippleContext) {
