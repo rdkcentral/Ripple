@@ -312,7 +312,6 @@ impl ExtnClient {
         let c_message: CExtnMessage = message.clone().into();
         {
             let senders = self.get_other_senders();
-
             for sender in senders {
                 let send_res = sender.try_send(c_message.clone());
                 trace!("Send to other client result: {:?}", send_res);

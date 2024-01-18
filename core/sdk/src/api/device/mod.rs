@@ -19,6 +19,7 @@ use serde::Deserialize;
 
 pub mod device_accessibility_data;
 pub mod device_accessory;
+pub mod device_apps;
 pub mod device_browser;
 pub mod device_events;
 pub mod device_info_request;
