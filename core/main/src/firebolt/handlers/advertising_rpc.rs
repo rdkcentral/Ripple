@@ -442,12 +442,6 @@ impl AdvertisingServer for AdvertisingImpl {
                 .ok_or_else(|| Error::Custom(String::from("no session available")))?,
         });
 
-        let advertising_request = AdvertisingRequest::GetAdRouter(AdRouterRequestParams {
-            environment: config.options.environment.to_string(),
-            durable_app_id: durable_app_id.clone(),
-            dist_session: session.unwrap(),
-        });
-
         let xifa = match self
             .state
             .get_client()
@@ -466,6 +460,12 @@ impl AdvertisingServer for AdvertisingImpl {
                 XifaResponse::default()
             }
         };
+
+        let advertising_request = AdvertisingRequest::GetAdRouter(AdRouterRequestParams {
+            environment: config.options.environment.to_string(),
+            durable_app_id: durable_app_id.clone(),
+            dist_session: session.unwrap(),
+        });
 
         match self
             .state
@@ -504,7 +504,7 @@ impl AdvertisingServer for AdvertisingImpl {
                         app_name: durable_app_id.clone(),
                         app_bundle_id: format!("{}.{}", durable_app_id, "Comcast"),
                         distributor_app_id,
-                        device_ad_attributes: HashMap::new(),
+                        device_ad_attributes: String::default(),
                         coppa,
                         authentication_entity: config
                             .options
