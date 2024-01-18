@@ -40,35 +40,6 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - run: cargo test
 
-  test_commment_pr_from_forked_pr:
-    name: Run a demo test
-    runs-on: ubuntu-latest
-    steps:
-
-      - name: main
-        run: |
-          mkdir -p artifacts
-          cat > artifacts/message.md <<EOF
-          # Test Message
-          
-          Note that there are no secrets exposed in this test...
-
-          <details>
-          <summary>PR to merge $GITHUB_HEAD_REF $GITHUB_SHA -> $GITHUB_BASE_REF</summary>
-
-          \`\`\`
-          $(env | sort)
-          \`\`\`
-
-          </details>
-          EOF
-
-      - name: Save PR message as artifact
-        uses: actions/upload-artifact@v1
-        with:
-          name: pr_message
-          path: artifacts
-
   code_coverage:
     name: Generate Code Coverage
     runs-on: ubuntu-latest
@@ -103,21 +74,18 @@ jobs:
           echo "CURRENT_LOWER_THRESHOLD=$CURRENT_LOWER_THRESHOLD" >> $GITHUB_ENV
           echo "### Current coverage:"$CURRENT_COVERAGE"% exceeds coverage threshold. Coverage threshold is updated to reflect to the latest coverage.">>current_coverage.md
           echo "$CURRENT_LOWER_THRESHOLD $CURRENT_UPPER_THRESHOLD" > ./.github/coverage_threshold_temp.txt
-      - uses: mshick/add-pr-comment@v2
-        with:
-          message: |
-            **Howdie!**
-          proxy-url: https://add-pr-comment-proxy-94idvmwyie-uc.a.run.app
       - uses: marocchino/sticky-pull-request-comment@v2
         if: always()
         with:
           recreate: true
           path: code-coverage-results.md
+        continue-on-error: true
       - uses: marocchino/sticky-pull-request-comment@v2
         if: ${{ fromJSON(env.CURRENT_LOWER_THRESHOLD) > fromJSON(env.LOWER_COVERAGE_THRESHOLD) }}
         with:
           append: true
           path: current_coverage.md
+        continue-on-error: true   
       - name: update threshold and push changes
         if: ${{ fromJSON(env.CURRENT_LOWER_THRESHOLD) > fromJSON(env.LOWER_COVERAGE_THRESHOLD) }}
         run: |
