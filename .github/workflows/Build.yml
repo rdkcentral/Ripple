@@ -94,7 +94,7 @@ jobs:
         run: |
           rm ./.github/coverage_threshold.txt
           cp ./.github/coverage_threshold_temp.txt ./.github/coverage_threshold.txt
-          git config remote.origin.url https://github.com/<username>/<repo>.git
+          git config remote.origin.url https://github.com/maggie98choy/Ripple.git
           git config --global user.name "git commit and push"
           git config --global user.email url."git@github.com"
           git add ./.github/coverage_threshold.txt
