@@ -93,6 +93,7 @@ jobs:
           cp ./.github/coverage_threshold_temp.txt ./.github/coverage_threshold.txt
           git config --global user.name "git commit and push"
           git config --global user.email url."git@github.com"
+          git init
           git fetch
           git checkout -b store_coverage_threshold_to_local-file origin/store_coverage_threshold_to_local-file
           git add ./.github/coverage_threshold.txt
