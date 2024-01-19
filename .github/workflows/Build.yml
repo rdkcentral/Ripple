@@ -48,6 +48,9 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v3
+        with: 
+          persist_credentials: false
+          fetch-depth: 0
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - name: read threshold file into environment variable
         run: |
@@ -91,7 +94,7 @@ jobs:
         run: |
           rm ./.github/coverage_threshold.txt
           cp ./.github/coverage_threshold_temp.txt ./.github/coverage_threshold.txt
-        
+          git config remote.origin.url https://github.com/<username>/<repo>.git
           git config --global user.name "git commit and push"
           git config --global user.email url."git@github.com"
           git add ./.github/coverage_threshold.txt
