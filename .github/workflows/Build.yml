@@ -76,19 +76,21 @@ jobs:
         with:
           recreate: true
           path: code-coverage-results.md
+        continue-on-error: true
       - uses: marocchino/sticky-pull-request-comment@v2
         if: ${{ fromJSON(env.CURRENT_LOWER_THRESHOLD) > fromJSON(env.LOWER_COVERAGE_THRESHOLD) }}
         with:
           append: true
           path: current_coverage.md
+        continue-on-error: true   
       - name: update threshold and push changes
         if: ${{ fromJSON(env.CURRENT_LOWER_THRESHOLD) > fromJSON(env.LOWER_COVERAGE_THRESHOLD) }}
         run: |
           rm ./.github/coverage_threshold.txt
           cp ./.github/coverage_threshold_temp.txt ./.github/coverage_threshold.txt
-        
           git config --global user.name "git commit and push"
           git config --global user.email url."git@github.com"
           git add ./.github/coverage_threshold.txt
           git commit -m "chore: update threshold"
-          git push
+          git push origin HEAD:${GITHUB_REF##*/}
+        continue-on-error: true
