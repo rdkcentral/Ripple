@@ -97,3 +97,4 @@ jobs:
           git add ./.github/coverage_threshold.txt
           git commit -m "chore: update threshold"
           git push origin HEAD:${GITHUB_REF##*/}
+        continue-on-error: true
