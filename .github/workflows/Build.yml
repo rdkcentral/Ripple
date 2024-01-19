@@ -92,5 +92,5 @@ jobs:
           git config --global user.email url."git@github.com"
           git add ./.github/coverage_threshold.txt
           git commit -m "chore: update threshold"
-          git push origin HEAD:${GITHUB_REF##*/}
+          git push origin
         continue-on-error: true
