@@ -10,6 +10,9 @@ env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-Dwarnings"
 
+permissions:
+  contents: write
+
 jobs:
   formatting: 
     name: Format checker
@@ -92,6 +95,5 @@ jobs:
           git config --global user.email url."git@github.com"
           git add ./.github/coverage_threshold.txt
           git commit -m "chore: update threshold"
-          git switch -c store_coverage_threshold_to_local-file
-          git push origin HEAD:store_coverage_threshold_to_local-file
+          git push
         continue-on-error: true
