@@ -93,6 +93,5 @@ jobs:
           git add ./.github/coverage_threshold.txt
           git commit -m "chore: update threshold"
           git switch -c store_coverage_threshold_to_local-file
-          git pull origin store_coverage_threshold_to_local-file
           git push origin HEAD:store_coverage_threshold_to_local-file
         continue-on-error: true
