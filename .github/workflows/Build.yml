@@ -2,9 +2,9 @@ name: Build
 
 on:
   push:
-    branches: [ "calculate-code-coverage-summary-1" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "calculate-code-coverage-summary-1" ]
+    branches: [ "main" ]
 
 env:
   CARGO_TERM_COLOR: always
