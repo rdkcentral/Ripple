@@ -164,7 +164,6 @@ impl ExtnRequestProcessor for DistributorAdvertisingProcessor {
                 true
             }
 
-            // <pca>
             AdvertisingRequest::GetXifa(_xifa_req) => {
                 let resp = XifaResponse {
                     ifa_value: "01234567-89AB-CDEF-GH01-23456789ABCD".into(),
@@ -220,7 +219,7 @@ impl ExtnRequestProcessor for DistributorAdvertisingProcessor {
                     return false;
                 }
                 true
-            } // </pca>
+            }
         }
     }
 }

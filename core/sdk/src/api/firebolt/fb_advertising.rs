@@ -29,10 +29,8 @@ pub enum AdvertisingRequest {
     GetAdInitObject(AdInitObjectRequestParams),
     GetAdIdObject(AdIdRequestParams),
     ResetAdIdentifier(AccountSession),
-    // <pca>
     GetXifa(XifaRequestParams),
     GetAdRouter(AdRouterRequestParams),
-    // </pca>
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -84,7 +82,6 @@ pub struct AdIdResponse {
     pub lmt: String,
 }
 
-// <pca>
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct XifaRequestParams {
     pub privacy_data: HashMap<String, String>,
@@ -105,7 +102,7 @@ pub struct AdRouterRequestParams {
     pub dist_session: AccountSession,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AdRouterResponse {
     pub ad_server_url: String,
     pub ad_server_url_template: String,
@@ -113,7 +110,6 @@ pub struct AdRouterResponse {
     pub ad_profile_id: String,
     pub ad_site_section_id: String,
 }
-// </pca>
 
 impl ExtnPayloadProvider for AdvertisingRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
@@ -138,10 +134,8 @@ pub enum AdvertisingResponse {
     None,
     AdInitObject(AdInitObjectResponse),
     AdIdObject(AdIdResponse),
-    // <pca>
     Xifa(XifaResponse),
     AdRouter(AdRouterResponse),
-    // </pca>
 }
 
 #[derive(Serialize, Deserialize)]
