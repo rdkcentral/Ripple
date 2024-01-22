@@ -88,9 +88,13 @@ jobs:
         run: |
           rm ./.github/coverage_threshold.txt
           cp ./.github/coverage_threshold_temp.txt ./.github/coverage_threshold.txt
-          git config --global user.name "git commit and push"
-          git config --global user.email url."git@github.com"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
           git add ./.github/coverage_threshold.txt
           git commit -m "chore: update threshold"
-          git push
         continue-on-error: true
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          branch: ${{ github.head_ref }}
+          github_token: ${{ secrets.PAT}}
