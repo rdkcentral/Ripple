@@ -347,9 +347,6 @@ impl AdvertisingServer for AdvertisingImpl {
         )
         .await;
 
-        // RPPL-1413: Switch to GetAdRouting API instead of GetAdInitObject on APS: GetAdInitObject would modify the passed-in
-        // privacy data to include a hard-coded pdt value. Temporarily hard-coding on ripple-side until we deteremine what
-        // it's for and if it's still needed.
         privacy_data.insert("pdt".into(), "gdp:v1".into());
 
         let coppa = match config.options.coppa {
@@ -377,21 +374,19 @@ impl AdvertisingServer for AdvertisingImpl {
             .send_extn_request(advertising_request)
             .await
         {
-            Ok(message) => {
-                let advertising_resp: Option<AdvertisingResponse> = message.payload.extract();
-                if advertising_resp.is_none() {
+            Ok(message) => match message.payload.extract() {
+                Some(advertising_resp) => match advertising_resp {
+                    AdvertisingResponse::AdConfig(resp) => resp,
+                    _ => {
+                        error!("config: Unexpected response payload, ad config not available");
+                        AdConfigResponse::default()
+                    }
+                },
+                None => {
                     error!("config: Ad config payload missing");
                     AdConfigResponse::default()
-                } else {
-                    match advertising_resp.unwrap() {
-                        AdvertisingResponse::AdConfig(resp) => resp,
-                        _ => {
-                            error!("config: Unexpected response payload, ad config not available");
-                            AdConfigResponse::default()
-                        }
-                    }
                 }
-            }
+            },
             Err(e) => {
                 error!("config: Could not get ad config: e={}", e);
                 AdConfigResponse::default()
