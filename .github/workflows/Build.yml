@@ -44,7 +44,7 @@ jobs:
     name: Generate Code Coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - name: read threshold file into environment variable
         run: |
@@ -87,13 +87,15 @@ jobs:
         if: ${{ fromJSON(env.CURRENT_LOWER_THRESHOLD) > fromJSON(env.LOWER_COVERAGE_THRESHOLD) }}
         run: |
           rm ./.github/coverage_threshold.txt
-          cp ./.github/coverage_threshold_temp.txt ./.github/coverage_threshold.txt          
+          cp ./.github/coverage_threshold_temp.txt ./.github/coverage_threshold.txt
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
           git config --global user.name "git commit and push"
           git config --global user.email "maggie98choy@yahoo.com"
           git init
           git fetch
           git checkout -b store_coverage_threshold_to_local-file origin/store_coverage_threshold_to_local-file
           git add ./.github/coverage_threshold.txt
-          git commit -m "chore: update threshold"
+          git commit -m "[skip ci] chore: update threshold"
           git push
         continue-on-error: true
