@@ -47,6 +47,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          persist-credentials: false
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - name: read threshold file into environment variable
         run: |
@@ -94,8 +96,5 @@ jobs:
           git config --local user.name "github-actions[bot]
           git add ./.github/coverage_threshold.txt
           git commit -m "chore: update threshold"
+          git push
         continue-on-error: true
-      - name: Push changes
-        uses: ad-m/github-push-action@master
-        with:
-          branch: ${{ github.head_ref }}
