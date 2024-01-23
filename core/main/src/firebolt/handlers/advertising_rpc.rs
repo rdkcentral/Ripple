@@ -362,8 +362,6 @@ impl AdvertisingServer for AdvertisingImpl {
                 .ok_or_else(|| Error::Custom(String::from("no session available")))?,
             environment: environment.to_string(),
             scope: get_scope_option_map(&None),
-            // TODO: I think we need to modify the firebolt spec to add scope options to AdConfig,
-            // similar to advertising.advertisingId requests.
         });
 
         debug!("config: advertising_request: {:?}", advertising_request);
