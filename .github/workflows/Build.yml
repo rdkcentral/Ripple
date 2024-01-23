@@ -37,6 +37,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          persist-credentials: false
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - run: cargo test
 
@@ -89,7 +91,7 @@ jobs:
           rm ./.github/coverage_threshold.txt
           cp ./.github/coverage_threshold_temp.txt ./.github/coverage_threshold.txt
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
+          git config --local user.name "github-actions[bot]
           git add ./.github/coverage_threshold.txt
           git commit -m "chore: update threshold"
         continue-on-error: true
@@ -97,4 +99,3 @@ jobs:
         uses: ad-m/github-push-action@master
         with:
           branch: ${{ github.head_ref }}
-          persist-credentials: false
