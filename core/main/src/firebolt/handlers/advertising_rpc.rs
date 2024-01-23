@@ -29,9 +29,8 @@ use ripple_sdk::{
     api::{
         firebolt::{
             fb_advertising::{
-                AdIdRequestParams, AdRouterRequestParams, AdRouterResponse,
+                AdConfigRequestParams, AdConfigResponse, AdIdRequestParams,
                 AdvertisingFrameworkConfig, AdvertisingRequest, AdvertisingResponse, GetAdConfig,
-                XifaRequestParams, XifaResponse,
             },
             fb_capabilities::{CapabilityRole, FireboltCap, RoleInfo},
             fb_general::{ListenRequest, ListenerResponse},
@@ -238,6 +237,17 @@ pub struct AdvertisingImpl {
     pub state: PlatformState,
 }
 
+fn get_scope_option_map(options: &Option<ScopeOption>) -> HashMap<String, String> {
+    let mut scope_option_map = HashMap::new();
+    if let Some(scope_opt) = options {
+        if let Some(scope) = &scope_opt.scope {
+            scope_option_map.insert("type".to_string(), scope._type.as_string().to_string());
+            scope_option_map.insert("id".to_string(), scope.id.to_string());
+        }
+    }
+    scope_option_map
+}
+
 #[async_trait]
 impl AdvertisingServer for AdvertisingImpl {
     async fn reset_identifier(&self, _ctx: CallContext) -> RpcResult<()> {
@@ -260,14 +270,6 @@ impl AdvertisingServer for AdvertisingImpl {
         request: AdvertisingIdRPCRequest,
     ) -> RpcResult<AdvertisingId> {
         if let Some(session) = self.state.session_state.get_account_session() {
-            let mut scope_option_map = HashMap::new();
-            if let Some(scope_opt) = &request.options {
-                if let Some(scope) = &scope_opt.scope {
-                    scope_option_map
-                        .insert("type".to_string(), scope._type.as_string().to_string());
-                    scope_option_map.insert("id".to_string(), scope.id.to_string());
-                }
-            }
             let payload = AdvertisingRequest::GetAdIdObject(AdIdRequestParams {
                 privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(
                     &self.state,
@@ -277,7 +279,7 @@ impl AdvertisingServer for AdvertisingImpl {
                 .await,
                 app_id: ctx.app_id.to_owned(),
                 dist_session: session,
-                scope: scope_option_map,
+                scope: get_scope_option_map(&request.options),
             });
             let resp = self.state.get_client().send_extn_request(payload).await;
 
@@ -290,12 +292,12 @@ impl AdvertisingServer for AdvertisingImpl {
                 if let Some(AdvertisingResponse::AdIdObject(obj)) =
                     payload.payload.extract::<AdvertisingResponse>()
                 {
-                    let ad_init_object = AdvertisingId {
+                    let ad_id = AdvertisingId {
                         ifa: obj.ifa,
                         ifa_type: obj.ifa_type,
                         lmt: obj.lmt,
                     };
-                    return Ok(ad_init_object);
+                    return Ok(ad_id);
                 }
             }
 
@@ -355,17 +357,21 @@ impl AdvertisingServer for AdvertisingImpl {
             None => 0,
         };
 
-        let advertising_request = AdvertisingRequest::GetXifa(XifaRequestParams {
+        let advertising_request = AdvertisingRequest::GetAdConfig(AdConfigRequestParams {
             privacy_data: privacy_data.clone(),
             durable_app_id: durable_app_id.clone(),
             dist_session: session
                 .clone()
                 .ok_or_else(|| Error::Custom(String::from("no session available")))?,
+            environment: environment.to_string(),
+            scope: get_scope_option_map(&None),
+            // TODO: I think we need to modify the firebolt spec to add scope options to AdConfig,
+            // similar to advertising.advertisingId requests.
         });
 
         debug!("config: advertising_request: {:?}", advertising_request);
 
-        let xifa = match self
+        let ad_config = match self
             .state
             .get_client()
             .send_extn_request(advertising_request)
@@ -374,78 +380,43 @@ impl AdvertisingServer for AdvertisingImpl {
             Ok(message) => {
                 let advertising_resp: Option<AdvertisingResponse> = message.payload.extract();
                 if advertising_resp.is_none() {
-                    error!("config: Xifa payload missing");
-                    XifaResponse::default()
+                    error!("config: Ad config payload missing");
+                    AdConfigResponse::default()
                 } else {
                     match advertising_resp.unwrap() {
-                        AdvertisingResponse::Xifa(resp) => resp,
+                        AdvertisingResponse::AdConfig(resp) => resp,
                         _ => {
-                            error!("config: Unexpected response payload, xifa not available");
-                            XifaResponse::default()
+                            error!("config: Unexpected response payload, ad config not available");
+                            AdConfigResponse::default()
                         }
                     }
                 }
             }
             Err(e) => {
-                error!("config: Could not get xifa: e={}", e);
-                XifaResponse::default()
-            }
-        };
-
-        let advertising_request = AdvertisingRequest::GetAdRouter(AdRouterRequestParams {
-            environment: environment.to_string(),
-            durable_app_id: durable_app_id.clone(),
-            dist_session: session.unwrap(),
-        });
-
-        debug!("config: advertising_request: {:?}", advertising_request);
-
-        let ad_router = match self
-            .state
-            .get_client()
-            .send_extn_request(advertising_request)
-            .await
-        {
-            Ok(message) => {
-                let advertising_resp: Option<AdvertisingResponse> = message.payload.extract();
-                if advertising_resp.is_none() {
-                    error!("config: Ad router payload missing");
-                    AdRouterResponse::default()
-                } else {
-                    match advertising_resp.unwrap() {
-                        AdvertisingResponse::AdRouter(resp) => resp,
-                        _ => {
-                            error!("config: Device returned an invalid type for ad router");
-                            AdRouterResponse::default()
-                        }
-                    }
-                }
-            }
-            Err(_e) => {
-                error!("config: Failed to extract ad router from response");
-                AdRouterResponse::default()
+                error!("config: Could not get ad config: e={}", e);
+                AdConfigResponse::default()
             }
         };
 
         let privacy_data_enc = encode(serde_json::to_string(&privacy_data).unwrap_or_default());
 
-        let ad_init_object = AdvertisingFrameworkConfig {
-            ad_server_url: ad_router.ad_server_url,
-            ad_server_url_template: ad_router.ad_server_url_template,
-            ad_network_id: ad_router.ad_network_id,
-            ad_profile_id: ad_router.ad_profile_id,
+        let ad_framework_config = AdvertisingFrameworkConfig {
+            ad_server_url: ad_config.ad_server_url,
+            ad_server_url_template: ad_config.ad_server_url_template,
+            ad_network_id: ad_config.ad_network_id,
+            ad_profile_id: ad_config.ad_profile_id,
             ad_site_section_id: "".to_string(),
             ad_opt_out,
             privacy_data: privacy_data_enc,
             ifa: if ad_id_authorised {
-                xifa.ifa
+                ad_config.ifa
             } else {
                 IFA_ZERO_BASE64.to_string()
             },
             ifa_value: if ad_id_authorised {
-                xifa.ifa_value
+                ad_config.ifa_value
             } else {
-                let ifa_val_zero = xifa
+                let ifa_val_zero = ad_config
                     .ifa_value
                     .chars()
                     .map(|x| match x {
@@ -456,14 +427,14 @@ impl AdvertisingServer for AdvertisingImpl {
                 ifa_val_zero
             },
             app_name: durable_app_id.clone(),
-            app_bundle_id: format!("{}.{}", durable_app_id, "Comcast"),
+            app_bundle_id: ad_config.app_bundle_id,
             distributor_app_id,
             device_ad_attributes: String::default(),
             coppa,
             authentication_entity: config.options.authentication_entity.unwrap_or_default(),
         };
 
-        Ok(ad_init_object)
+        Ok(ad_framework_config)
     }
 
     async fn device_attributes(&self, ctx: CallContext) -> RpcResult<Value> {

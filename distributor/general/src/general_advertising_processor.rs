@@ -17,8 +17,7 @@
 
 use ripple_sdk::{
     api::firebolt::fb_advertising::{
-        AdIdResponse, AdInitObjectResponse, AdRouterResponse, AdvertisingRequest,
-        AdvertisingResponse, XifaResponse,
+        AdConfigResponse, AdIdResponse, AdvertisingRequest, AdvertisingResponse,
     },
     async_trait::async_trait,
     extn::{
@@ -94,49 +93,6 @@ impl ExtnRequestProcessor for DistributorAdvertisingProcessor {
                 }
                 true
             }
-            AdvertisingRequest::GetAdInitObject(_as_init_obj) => {
-                let resp = AdInitObjectResponse{
-                    ad_server_url: "https://demo.v.fwmrm.net/ad/p/1".into(),
-                    ad_server_url_template: "https://demo.v.fwmrm.net/ad/p/1?flag=+sltp+exvt+slcb+emcr+amcb+aeti&prof=12345:caf_allinone_profile &nw=12345&mode=live&vdur=123&caid=a110523018&asnw=372464&csid=gmott_ios_tablet_watch_live_ESPNU&ssnw=372464&vip=198.205.92.1&resp=vmap1&metr=1031&pvrn=12345&vprn=12345&vcid=1X0Ce7L3xRWlTeNhc7br8Q%3D%3D".into(),
-                    ad_network_id: "519178".into(),
-                    ad_profile_id: "12345:caf_allinone_profile".into(),
-                    ad_site_section_id: "caf_allinone_profile_section".into(),
-                    ad_opt_out: true,
-                    // Mock invalidated token for schema validation
-                    privacy_data: "ew0KICAicGR0IjogImdkcDp2MSIsDQogICJ1c19wcml2YWN5IjogIjEtTi0iLA0KICAibG10IjogIjEiIA0KfQ0K".into(),
-                    ifa_value: "01234567-89AB-CDEF-GH01-23456789ABCD".into(),
-                    // Mock invalidated token for schema validation
-                    ifa: "ewogICJ2YWx1ZSI6ICIwMTIzNDU2Ny04OUFCLUNERUYtR0gwMS0yMzQ1Njc4OUFCQ0QiLAogICJpZmFfdHlwZSI6ICJzc3BpZCIsCiAgImxtdCI6ICIwIgp9Cg==".into(),
-                    app_name: "FutureToday".into(),
-                    app_version: "".into(),
-                    app_bundle_id: "FutureToday.comcast".into(),
-                    distributor_app_id: "1001".into(),
-                    device_ad_attributes: "ewogICJib0F0dHJpYnV0ZXNGb3JSZXZTaGFyZUlkIjogIjEyMzQiCn0=".into(),
-                    coppa: 0.to_string(),
-                    authentication_entity: "60f72475281cfba3852413bd53e957f6".into(),
-            };
-
-                if let Err(e) = state
-                    .respond(
-                        msg,
-                        if let ExtnPayload::Response(r) =
-                            AdvertisingResponse::AdInitObject(resp).get_extn_payload()
-                        {
-                            r
-                        } else {
-                            ExtnResponse::Error(
-                                ripple_sdk::utils::error::RippleError::ProcessorError,
-                            )
-                        },
-                    )
-                    .await
-                {
-                    error!("Error sending back response {:?}", e);
-                    return false;
-                }
-                true
-            }
-
             AdvertisingRequest::GetAdIdObject(_ad_id_req) => {
                 let resp = AdIdResponse {
                     ifa: "01234567-89AB-CDEF-GH01-23456789ABCD".into(),
@@ -163,48 +119,23 @@ impl ExtnRequestProcessor for DistributorAdvertisingProcessor {
                 }
                 true
             }
-
-            AdvertisingRequest::GetXifa(_xifa_req) => {
-                let resp = XifaResponse {
+            AdvertisingRequest::GetAdConfig(_config_req) => {
+                let resp = AdConfigResponse {
+                    ad_server_url: "https://demo.v.fwmrm.net/ad/p/1".into(),
+                    ad_server_url_template: "https://demo.v.fwmrm.net/ad/p/1?flag=+sltp+exvt+slcb+emcr+amcb+aeti&prof=12345:caf_allinone_profile &nw=12345&mode=live&vdur=123&caid=a110523018&asnw=372464&csid=gmott_ios_tablet_watch_live_ESPNU&ssnw=372464&vip=198.205.92.1&resp=vmap1&metr=1031&pvrn=12345&vprn=12345&vcid=1X0Ce7L3xRWlTeNhc7br8Q%3D%3D".into(),
+                    ad_network_id: "519178".into(),
+                    ad_profile_id: "12345:caf_allinone_profile".into(),
+                    ad_site_section_id: "caf_allinone_profile_section".into(),
                     ifa_value: "01234567-89AB-CDEF-GH01-23456789ABCD".into(),
                     ifa: "ewogICJ2YWx1ZSI6ICIwMTIzNDU2Ny04OUFCLUNERUYtR0gwMS0yMzQ1Njc4OUFCQ0QiLAogICJpZmFfdHlwZSI6ICJzc3BpZCIsCiAgImxtdCI6ICIwIgp9Cg==".into(),
+                    app_bundle_id: "FutureToday.comcast".into(),
                 };
 
                 if let Err(e) = state
                     .respond(
                         msg,
                         if let ExtnPayload::Response(r) =
-                            AdvertisingResponse::Xifa(resp).get_extn_payload()
-                        {
-                            r
-                        } else {
-                            ExtnResponse::Error(
-                                ripple_sdk::utils::error::RippleError::ProcessorError,
-                            )
-                        },
-                    )
-                    .await
-                {
-                    error!("Error sending back response {:?}", e);
-                    return false;
-                }
-                true
-            }
-
-            AdvertisingRequest::GetAdRouter(_ad_router_req) => {
-                let resp = AdRouterResponse{
-                    ad_server_url: "https://demo.v.fwmrm.net/ad/p/1".into(),
-                    ad_server_url_template: "https://demo.v.fwmrm.net/ad/p/1?flag=+sltp+exvt+slcb+emcr+amcb+aeti&prof=12345:caf_allinone_profile &nw=12345&mode=live&vdur=123&caid=a110523018&asnw=372464&csid=gmott_ios_tablet_watch_live_ESPNU&ssnw=372464&vip=198.205.92.1&resp=vmap1&metr=1031&pvrn=12345&vprn=12345&vcid=1X0Ce7L3xRWlTeNhc7br8Q%3D%3D".into(),
-                    ad_network_id: "519178".into(),
-                    ad_profile_id: "12345:caf_allinone_profile".into(),
-                    ad_site_section_id: "caf_allinone_profile_section".into(),
-            };
-
-                if let Err(e) = state
-                    .respond(
-                        msg,
-                        if let ExtnPayload::Response(r) =
-                            AdvertisingResponse::AdRouter(resp).get_extn_payload()
+                            AdvertisingResponse::AdConfig(resp).get_extn_payload()
                         {
                             r
                         } else {
