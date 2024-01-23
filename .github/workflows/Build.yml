@@ -92,7 +92,7 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git init
           git fetch
-          git checkout -b store_coverage_threshold_to_local-file 
+          git checkout -b store_coverage_threshold_to_local-file origin/store_coverage_threshold_to_local-file
           git add ./.github/coverage_threshold.txt
           git commit -m "chore: update threshold"
           git push
