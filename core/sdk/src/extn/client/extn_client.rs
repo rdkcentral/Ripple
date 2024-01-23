@@ -241,21 +241,36 @@ impl ExtnClient {
                 Self::handle_single(message, self.response_processors.clone());
             } else if message.payload.is_event() {
                 let is_main = self.sender.get_cap().is_main();
-                if !is_main {
-                    if let Some(context) = RippleContext::is_ripple_context(&message.payload) {
-                        trace!(
-                            "Received ripple context in {} message: {:?}",
-                            self.sender.get_cap().to_string(),
-                            message
-                        );
-                        {
-                            let mut ripple_context = self.ripple_context.write().unwrap();
-                            ripple_context.deep_copy(context);
+                if is_main // This part of code is for the main ExntClient to handle
+                            && message.target_id.is_some() // The sender knew the target
+                            && !message.target_id.as_ref().unwrap().is_main()
+                // But it is not for main. So main has to fwd it.
+                {
+                    if let Some(sender) = self.get_extn_sender_with_extn_id(
+                        &message.target_id.as_ref().unwrap().to_string(),
+                    ) {
+                        let send_response = self.sender.respond(message.into(), Some(sender));
+                        debug!("fwding event result: {:?}", send_response);
+                    } else {
+                        debug!("unable to get sender for target: {:?}", message.target_id);
+                        self.handle_no_processor_error(message);
+                    }
+                } else {
+                    if !is_main {
+                        if let Some(context) = RippleContext::is_ripple_context(&message.payload) {
+                            trace!(
+                                "Received ripple context in {} message: {:?}",
+                                self.sender.get_cap().to_string(),
+                                message
+                            );
+                            {
+                                let mut ripple_context = self.ripple_context.write().unwrap();
+                                ripple_context.deep_copy(context);
+                            }
                         }
                     }
+                    Self::handle_vec_stream(message, self.event_processors.clone());
                 }
-
-                Self::handle_vec_stream(message, self.event_processors.clone());
             } else {
                 let current_cap = self.sender.get_cap();
                 let target_contract = message.clone().target;
@@ -277,6 +292,7 @@ impl ExtnClient {
                             if let Some(sender) = req_sender {
                                 let _ = new_message.callback.insert(sender);
                             }
+                            Self::handle_vec_stream(message, self.event_processors.clone());
                         }
 
                         tokio::spawn(async move {
@@ -605,7 +621,8 @@ impl ExtnClient {
         if let Some(sender) = self.get_extn_sender_with_extn_id(id) {
             self.sender.send_event(event, Some(sender))
         } else {
-            Err(RippleError::SendFailure)
+            debug!("current client has so sender information so call forward event");
+            self.sender.forward_event(id, event)
         }
     }
 

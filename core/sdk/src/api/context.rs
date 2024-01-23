@@ -127,6 +127,7 @@ impl RippleContext {
             id: "context_update".to_owned(),
             requestor: ExtnId::get_main_target("ripple_context".to_owned()),
             target: RippleContract::RippleContext,
+            target_id: None,
             payload: self.get_extn_payload(),
             callback: None,
             ts: None,
