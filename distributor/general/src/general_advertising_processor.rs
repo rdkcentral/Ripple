@@ -121,14 +121,14 @@ impl ExtnRequestProcessor for DistributorAdvertisingProcessor {
             }
             AdvertisingRequest::GetAdConfig(_config_req) => {
                 let resp = AdConfigResponse {
-                    ad_server_url: "https://demo.v.fwmrm.net/ad/p/1".into(),
-                    ad_server_url_template: "https://demo.v.fwmrm.net/ad/p/1?flag=+sltp+exvt+slcb+emcr+amcb+aeti&prof=12345:caf_allinone_profile &nw=12345&mode=live&vdur=123&caid=a110523018&asnw=372464&csid=gmott_ios_tablet_watch_live_ESPNU&ssnw=372464&vip=198.205.92.1&resp=vmap1&metr=1031&pvrn=12345&vprn=12345&vcid=1X0Ce7L3xRWlTeNhc7br8Q%3D%3D".into(),
+                    ad_server_url: "https://some.host/ad/p/1".into(),
+                    ad_server_url_template: "https://some.host/ad/p/1?flag=+sltp+exvt+slcb+emcr+amcb+aeti&prof=12345:caf_allinone_profile &nw=12345&mode=live&vdur=123&caid=a110523018&asnw=372464&csid=gmott_ios_tablet_watch_live_ESPNU&ssnw=372464&vip=198.205.92.1&resp=vmap1&metr=1031&pvrn=12345&vprn=12345&vcid=1X0Ce7L3xRWlTeNhc7br8Q%3D%3D".into(),
                     ad_network_id: "519178".into(),
                     ad_profile_id: "12345:caf_allinone_profile".into(),
                     ad_site_section_id: "caf_allinone_profile_section".into(),
-                    ifa_value: "01234567-89AB-CDEF-GH01-23456789ABCD".into(),
-                    ifa: "ewogICJ2YWx1ZSI6ICIwMTIzNDU2Ny04OUFCLUNERUYtR0gwMS0yMzQ1Njc4OUFCQ0QiLAogICJpZmFfdHlwZSI6ICJzc3BpZCIsCiAgImxtdCI6ICIwIgp9Cg==".into(),
-                    app_bundle_id: "FutureToday.comcast".into(),
+                    ifa_value: "01234567-89AB-AHSG-GH01-23456789ABCD".into(),
+                    ifa: "ewogICJ2YWx1ZSI6ICIwMTIzNDUKDSFHJDFKHJFKDSHFKJDHFhfQiLAogICJpZmFfdHlwZSI6ICJzc3BpZCIsCiAgImxtdCI6ICIwIgp9Cg==".into(),
+                    app_bundle_id: "SomeApp.company".into(),
                 };
 
                 if let Err(e) = state
