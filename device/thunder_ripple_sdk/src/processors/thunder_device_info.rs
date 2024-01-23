@@ -569,7 +569,10 @@ impl ThunderDeviceInfoRequestProcessor {
             .call(DeviceCallRequest {
                 method: ThunderPlugin::Network.method("startConnectivityMonitoring"),
                 params: Some(DeviceChannelParams::Json(
-                    json!({"interval": 3000}).to_string(),
+                     /* This interval is in seconds. Arrived at this magical number 180 secs
+                      * after discussing with NetworkPlugin developer.
+                      */
+                    json!({"interval": 180}).to_string(),
                 )),
             })
             .await;

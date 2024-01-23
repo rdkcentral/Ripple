@@ -31,7 +31,9 @@ use tokio::sync::{
 
 use crate::{
     api::{
-        context::{ActivationStatus, RippleContext, RippleContextUpdateRequest},
+        context::{
+            ActivationStatus, RippleContext, RippleContextUpdateRequest, RippleContextUpdateType,
+        },
         device::{
             device_info_request::DeviceInfoRequest,
             device_request::{InternetConnectionStatus, TimeZone},
@@ -301,8 +303,18 @@ impl ExtnClient {
         let current_cap = self.sender.get_cap();
         if !current_cap.is_main() {
             error!("Updating context is not allowed outside main");
+            return;
         }
-
+        if let RippleContextUpdateRequest::RefreshContext(refresh_context) = &request {
+            if let Some(RippleContextUpdateType::InternetConnectionChanged) = refresh_context {
+                let resp =
+                    self.request_transient(DeviceInfoRequest::StartMonitoringInternetChanges);
+                if let Err(_err) = resp {
+                    error!("Error in starting internet monitoring");
+                }
+            }
+            return;
+        }
         {
             let mut ripple_context = self.ripple_context.write().unwrap();
             ripple_context.update(request)
@@ -491,7 +503,7 @@ impl ExtnClient {
     /// Critical method used by event processors to emit event back to the requestor
     /// # Arguments
     /// `msg` - [ExtnMessage] event object
-    pub fn event(&mut self, event: impl ExtnPayloadProvider) -> Result<(), RippleError> {
+    pub fn event(&self, event: impl ExtnPayloadProvider) -> Result<(), RippleError> {
         let other_sender = self.get_extn_sender_with_contract(event.get_contract());
         self.sender.send_event(event, other_sender)
     }
@@ -562,7 +574,7 @@ impl ExtnClient {
     ///
     /// # Arguments
     /// `payload` - impl [ExtnPayloadProvider]
-    pub fn request_transient(&mut self, payload: impl ExtnPayloadProvider) -> RippleResponse {
+    pub fn request_transient(&self, payload: impl ExtnPayloadProvider) -> RippleResponse {
         let id = uuid::Uuid::new_v4().to_string();
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
         self.sender.send_request(id, payload, other_sender, None)
@@ -626,10 +638,6 @@ impl ExtnClient {
             ripple_context.internet_connectivity,
             InternetConnectionStatus::FullyConnected | InternetConnectionStatus::LimitedInternet
         )
-    }
-
-    pub fn refresh_internet_context(&self) {
-        let payload = DeviceInfoRequest::InternetConnectionStatus;
     }
 
     pub fn get_timezone(&self) -> Option<TimeZone> {

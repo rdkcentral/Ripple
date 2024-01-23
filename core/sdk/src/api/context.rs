@@ -30,7 +30,7 @@ use super::device::device_request::{
     AccountToken, InternetConnectionStatus, SystemPowerState, TimeZone,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ActivationStatus {
     NotActivated,
     AccountToken(AccountToken),
@@ -52,22 +52,7 @@ impl From<AccountToken> for ActivationStatus {
         ActivationStatus::AccountToken(value)
     }
 }
-// TODO:
-/*   1. Make it service oriented Arch
- *   2. Any extensions can send event to Set,
- *      Get, and Refresh context
- *   3. The current RippleContext will come under
- *      RippleContextCommand
- *   4. Extensions will send only RippleContextCommands
- *   5.
- */
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum RippleContextCommand {
-    SetRippleContext(RippleContext),
-    GetRippleContext,
-    RefreshContext(Option<RippleContextUpdateType>),
-}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RippleContext {
     pub activation_status: ActivationStatus,
@@ -94,24 +79,39 @@ impl RippleContext {
     pub fn update(&mut self, request: RippleContextUpdateRequest) {
         match request {
             RippleContextUpdateRequest::Activation(a) => {
-                self.activation_status = a.into();
-                self.update_type = Some(RippleContextUpdateType::ActivationStatusChanged);
+                let activation_status: ActivationStatus = a.into();
+                if self.activation_status != activation_status {
+                    self.activation_status = a.into();
+                    self.update_type = Some(RippleContextUpdateType::ActivationStatusChanged);
+                }
             }
             RippleContextUpdateRequest::InternetStatus(s) => {
-                self.internet_connectivity = s;
-                self.update_type = Some(RippleContextUpdateType::InternetConnectionChanged);
+                if self.internet_connectivity != s {
+                    self.internet_connectivity = s;
+                    self.update_type = Some(RippleContextUpdateType::InternetConnectionChanged);
+                }
             }
             RippleContextUpdateRequest::Token(t) => {
-                self.activation_status = t.into();
-                self.update_type = Some(RippleContextUpdateType::TokenChanged);
+                let account_token: ActivationStatus = t.into();
+                if account_token == self.activation_status {
+                    self.activation_status = account_token;
+                    self.update_type = Some(RippleContextUpdateType::TokenChanged);
+                }
             }
             RippleContextUpdateRequest::PowerState(p) => {
-                self.system_power_state = p;
-                self.update_type = Some(RippleContextUpdateType::PowerStateChanged)
+                if self.system_power_state != p {
+                    self.system_power_state = p;
+                    self.update_type = Some(RippleContextUpdateType::PowerStateChanged);
+                }
             }
             RippleContextUpdateRequest::TimeZone(tz) => {
-                self.time_zone = tz;
-                self.update_type = Some(RippleContextUpdateType::TimeZoneChanged)
+                if tz != self.time_zone {
+                    self.time_zone = tz;
+                    self.update_type = Some(RippleContextUpdateType::TimeZoneChanged);
+                }
+            }
+            RippleContextUpdateRequest::RefreshContext(_context) => {
+                // This is not an update request so need not to honour it
             }
         }
     }
@@ -174,24 +174,6 @@ impl ExtnPayloadProvider for RippleContext {
     }
 }
 
-impl ExtnPayloadProvider for RippleContextCommand {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Event(ExtnEvent::ContextCommand(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        if let ExtnPayload::Event(ExtnEvent::ContextCommand(cmd)) = payload {
-            Some(cmd)
-        } else {
-            None
-        }
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::RippleContext
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RippleContextUpdateRequest {
     Activation(bool),
@@ -199,6 +181,7 @@ pub enum RippleContextUpdateRequest {
     InternetStatus(InternetConnectionStatus),
     PowerState(SystemPowerState),
     TimeZone(TimeZone),
+    RefreshContext(Option<RippleContextUpdateType>),
 }
 
 impl RippleContextUpdateRequest {

@@ -23,7 +23,9 @@ use std::{
 use ripple_sdk::{
     api::{
         app_catalog::AppCatalogRequest,
-        context::{ActivationStatus, RippleContext, RippleContextCommand, RippleContextUpdateType},
+        context::{
+            ActivationStatus, RippleContext, RippleContextUpdateRequest, RippleContextUpdateType,
+        },
         device::{
             device_info_request::DeviceInfoRequest,
             device_request::{InternetConnectionStatus, PowerState, SystemPowerState},
@@ -62,12 +64,6 @@ pub struct ContextState {
 
 #[derive(Debug)]
 pub struct MainContextProcessor {
-    state: ContextState,
-    streamer: DefaultExtnStreamer,
-}
-
-#[derive(Debug)]
-pub struct ContextCommandProcessor {
     state: ContextState,
     streamer: DefaultExtnStreamer,
 }
@@ -243,23 +239,6 @@ impl MainContextProcessor {
     }
 }
 
-impl ExtnStreamProcessor for ContextCommandProcessor {
-    type VALUE = RippleContextCommand;
-    type STATE = ContextState;
-
-    fn get_state(&self) -> Self::STATE {
-        self.state.clone()
-    }
-
-    fn sender(&self) -> MSender<ExtnMessage> {
-        self.streamer.sender()
-    }
-
-    fn receiver(&mut self) -> MReceiver<ExtnMessage> {
-        self.streamer.receiver()
-    }
-}
-
 impl ExtnStreamProcessor for MainContextProcessor {
     type VALUE = RippleContext;
     type STATE = ContextState;
@@ -306,64 +285,6 @@ impl ExtnEventProcessor for MainContextProcessor {
             {
                 let mut context = state.current_context.write().unwrap();
                 context.deep_copy(extracted_message);
-            }
-        }
-        None
-    }
-}
-
-#[async_trait]
-impl ExtnEventProcessor for ContextCommandProcessor {
-    async fn process_event(
-        state: Self::STATE,
-        _msg: ExtnMessage,
-        extracted_message: Self::VALUE,
-    ) -> Option<bool> {
-        match extracted_message {
-            RippleContextCommand::SetRippleContext(ripple_context) => {
-                if let Some(update) = &ripple_context.update_type {
-                    match update {
-                        RippleContextUpdateType::TokenChanged => {
-                            if let ActivationStatus::AccountToken(_t) =
-                                &ripple_context.activation_status
-                            {
-                                MainContextProcessor::initialize_token(&state.state).await
-                            }
-                        }
-                        RippleContextUpdateType::PowerStateChanged => {
-                            MainContextProcessor::handle_power_state(
-                                &state.state,
-                                &ripple_context.system_power_state,
-                            )
-                        }
-                        RippleContextUpdateType::InternetConnectionChanged => {
-                            MainContextProcessor::handle_internet_connection_change(
-                                &state.state,
-                                &ripple_context.internet_connectivity,
-                            )
-                        }
-                        _ => {}
-                    }
-                    {
-                        let mut context = state.current_context.write().unwrap();
-                        context.deep_copy(ripple_context);
-                    }
-                }
-            }
-            RippleContextCommand::GetRippleContext => {
-                todo!()
-            }
-            RippleContextCommand::RefreshContext(context_type) => {
-                if let Some(RippleContextUpdateType::InternetConnectionChanged) = context_type {
-                    let resp = state
-                        .state
-                        .get_client()
-                        .send_extn_request(DeviceInfoRequest::StartMonitoringInternetChanges)
-                        .await;
-                    if let Err(_err) = resp {
-                        error!("Error in starting internet monitoring");
-                    }
-                }
             }
         }
         None
