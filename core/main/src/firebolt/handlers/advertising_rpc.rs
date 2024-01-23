@@ -398,7 +398,7 @@ impl AdvertisingServer for AdvertisingImpl {
             ad_server_url_template: ad_config.ad_server_url_template,
             ad_network_id: ad_config.ad_network_id,
             ad_profile_id: ad_config.ad_profile_id,
-            ad_site_section_id: "".to_string(),
+            ad_site_section_id: ad_config.ad_site_section_id,
             ad_opt_out,
             privacy_data: privacy_data_enc,
             ifa: if ad_id_authorised {
