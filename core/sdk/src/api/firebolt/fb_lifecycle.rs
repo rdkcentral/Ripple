@@ -19,6 +19,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::apps::CloseReason;
 
+use super::fb_metrics::AppLifecycleState;
+
 pub const LIFECYCLE_EVENT_ON_INACTIVE: &str = "lifecycle.onInactive";
 pub const LIFECYCLE_EVENT_ON_FOREGROUND: &str = "lifecycle.onForeground";
 pub const LIFECYCLE_EVENT_ON_BACKGROUND: &str = "lifecycle.onBackground";
@@ -34,6 +36,19 @@ pub enum LifecycleState {
     Background,
     Unloading,
     Suspended,
+}
+
+impl From<&LifecycleState> for AppLifecycleState {
+    fn from(value: &LifecycleState) -> Self {
+        match value {
+            LifecycleState::Initializing => Self::Initializing,
+            LifecycleState::Background => Self::Background,
+            LifecycleState::Foreground => Self::Foreground,
+            LifecycleState::Inactive => Self::Inactive,
+            LifecycleState::Suspended => Self::Suspended,
+            LifecycleState::Unloading => Self::NotRunning,
+        }
+    }
 }
 
 impl LifecycleState {
