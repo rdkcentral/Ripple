@@ -38,7 +38,6 @@ jobs:
               CURRENT_LOWER_THRESHOLD=$(echo "$CURRENT_COVERAGE-2" | bc)
               CURRENT_UPPER_THRESHOLD=$(echo "$CURRENT_COVERAGE+2" | bc)
               echo "CURRENT_LOWER_THRESHOLD=$CURRENT_LOWER_THRESHOLD" >> $GITHUB_ENV
-              echo "### Current coverage:"$CURRENT_COVERAGE"% exceeds coverage threshold. Coverage threshold is updated to reflect to the latest coverage.">>current_coverage.md
               echo "$CURRENT_LOWER_THRESHOLD $CURRENT_UPPER_THRESHOLD" > ./ci/coverage_threshold_temp.txt  
           - name: update threshold and push changes
             if: ${{ fromJSON(env.CURRENT_LOWER_THRESHOLD) > fromJSON(env.LOWER_COVERAGE_THRESHOLD) }}
