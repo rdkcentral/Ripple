@@ -17,16 +17,17 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
+use std::sync::Arc;
 
 use jsonrpsee::core::client::{Client, ClientT, SubscriptionClientT};
 use jsonrpsee::ws_client::WsClientBuilder;
 
-use jsonrpsee::core::async_trait;
+use jsonrpsee::core::{async_trait, error::Error as JsonRpcError};
 use jsonrpsee::types::ParamsSer;
-use ripple_sdk::tokio::task::JoinHandle;
 use ripple_sdk::{
     api::device::device_operator::DeviceResponseMessage,
     tokio::sync::mpsc::{self, Sender as MpscSender},
+    tokio::{sync::Mutex, task::JoinHandle, time::sleep},
 };
 use ripple_sdk::{
     api::device::device_operator::{
@@ -157,6 +158,7 @@ pub struct ThunderClient {
     pub pooled_sender: Option<MpscSender<ThunderPoolCommand>>,
     pub id: Uuid,
     pub plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
+    pub subscriptions: Option<Arc<Mutex<HashMap<String, ThunderSubscription>>>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -231,8 +233,10 @@ impl DeviceOperator for ThunderClient {
     }
 }
 
-struct ThunderSubscription {
+#[derive(Debug)]
+pub struct ThunderSubscription {
     handle: JoinHandle<()>,
+    params: Option<String>,
     listeners: HashMap<String, MpscSender<DeviceResponseMessage>>,
     rpc_response: DeviceResponseMessage,
 }
@@ -241,7 +245,7 @@ impl ThunderClient {
     async fn subscribe(
         client_id: Uuid,
         client: &Client,
-        subscriptions: &mut HashMap<String, ThunderSubscription>,
+        subscriptions_map: &Arc<Mutex<HashMap<String, ThunderSubscription>>>,
         thunder_message: ThunderSubscribeMessage,
         pool_tx: Option<mpsc::Sender<ThunderPoolCommand>>,
     ) {
@@ -254,6 +258,7 @@ impl ThunderClient {
             Some(sid) => sid.clone(),
             None => Uuid::new_v4().to_string(),
         };
+        let mut subscriptions = subscriptions_map.lock().await;
         if let Some(sub) = subscriptions.get_mut(&subscribe_method) {
             // rpc subscription already exists, just add a listener
             sub.listeners
@@ -287,7 +292,6 @@ impl ThunderClient {
         .send_request(client)
         .await;
         let handler_channel = thunder_message.handler.clone();
-        let resub_message = ThunderMessage::ThunderSubscribeMessage(thunder_message.resubscribe());
         let sub_id_c = sub_id.clone();
         let handle = ripple_sdk::tokio::spawn(async move {
             while let Some(ev_res) = subscription.next().await {
@@ -301,17 +305,17 @@ impl ThunderClient {
                     "Client {} became disconnected, resubscribing to events",
                     client_id
                 );
-                // Remove the client and then resubscribe with a new client
-                let pool_msg = ThunderPoolCommand::RemoveFromPool(client_id);
+                // ResetThunderClient. Resubscribe would happen automatically when the client resets.
+                let pool_msg = ThunderPoolCommand::ResetThunderClient(client_id);
                 mpsc_send_and_log(&ptx, pool_msg, "RemoveThunderClient").await;
-                let pool_msg = ThunderPoolCommand::ThunderMessage(resub_message);
-                mpsc_send_and_log(&ptx, pool_msg, "RetryThunderMessage").await;
+                return;
             }
         });
 
         let msg = DeviceResponseMessage::sub(response, sub_id.clone());
         let mut tsub = ThunderSubscription {
             handle,
+            params: thunder_message.params.clone(),
             listeners: HashMap::default(),
             rpc_response: msg.clone(),
         };
@@ -324,7 +328,7 @@ impl ThunderClient {
 
     async fn unsubscribe(
         client: &Client,
-        subscriptions: &mut HashMap<String, ThunderSubscription>,
+        subscriptions_map: &Arc<Mutex<HashMap<String, ThunderSubscription>>>,
         thunder_message: ThunderUnsubscribeMessage,
     ) {
         let subscribe_method = format!(
@@ -335,6 +339,7 @@ impl ThunderClient {
             Some(sub_id) => {
                 // Remove the listener for the given sub_id, if there are no more listeners then
                 // unsubscribe through rpc
+                let mut subscriptions = subscriptions_map.lock().await;
                 if let Some(sub) = subscriptions.get_mut(&subscribe_method) {
                     sub.listeners.remove(&sub_id);
                     if sub.listeners.is_empty() {
@@ -346,6 +351,7 @@ impl ThunderClient {
             }
             None => {
                 // removing all subscriptions for a method
+                let mut subscriptions = subscriptions_map.lock().await;
                 if let Some(sub) = subscriptions.remove(&subscribe_method) {
                     sub.handle.abort();
                 }
@@ -422,11 +428,12 @@ impl ThunderClientBuilder {
         url: Url,
         plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
         pool_tx: Option<mpsc::Sender<ThunderPoolCommand>>,
+        existing_client: Option<ThunderClient>,
     ) -> Result<ThunderClient, RippleError> {
         let id = Uuid::new_v4();
 
         info!("initiating thunder connection {}", url);
-        let mut subscriptions = HashMap::<String, ThunderSubscription>::default();
+        let subscriptions = Arc::new(Mutex::new(HashMap::<String, ThunderSubscription>::default()));
         let (s, mut r) = mpsc::channel::<ThunderMessage>(32);
         let pmtx_c = plugin_manager_tx.clone();
         let url_with_token = if let Ok(token) = env::var("THUNDER_TOKEN") {
@@ -434,21 +441,35 @@ impl ThunderClientBuilder {
         } else {
             url.clone()
         };
-        let client = WsClientBuilder::default()
-            .build(url_with_token.to_string())
-            .await;
-        if client.is_err() {
-            return Err(RippleError::BootstrapError);
+        let mut client: Result<Client, JsonRpcError>;
+        let mut delay_duration = tokio::time::Duration::from_millis(50);
+        loop {
+            client = WsClientBuilder::default()
+                .build(url_with_token.to_string())
+                .await;
+            if client.is_err() {
+                warn!("Attempt to connect to thunder, retrying");
+                sleep(delay_duration).await;
+                if delay_duration < tokio::time::Duration::from_secs(1) {
+                    delay_duration = delay_duration * 2;
+                }
+                continue;
+            }
+            break;
         }
 
         let client = client.unwrap();
+        let subscriptions_c = subscriptions.clone();
         tokio::spawn(async move {
             while let Some(message) = r.recv().await {
                 if !client.is_connected() {
                     if let Some(ptx) = pool_tx {
-                        warn!("Client {} became disconnected, removing from pool", id);
+                        warn!(
+                            "Client {} became disconnected, removing from pool message {:?}",
+                            id, message
+                        );
                         // Remove the client and then try the message again with a new client
-                        let pool_msg = ThunderPoolCommand::RemoveFromPool(id);
+                        let pool_msg = ThunderPoolCommand::ResetThunderClient(id);
                         mpsc_send_and_log(&ptx, pool_msg, "RemoveThunderClient").await;
                         let pool_msg = ThunderPoolCommand::ThunderMessage(message);
                         mpsc_send_and_log(&ptx, pool_msg, "RetryThunderMessage").await;
@@ -465,25 +486,55 @@ impl ThunderClientBuilder {
                         ThunderClient::subscribe(
                             id,
                             &client,
-                            &mut subscriptions,
+                            &subscriptions_c,
                             thunder_message,
                             pool_tx.clone(),
                         )
                         .await;
                     }
                     ThunderMessage::ThunderUnsubscribeMessage(thunder_message) => {
-                        ThunderClient::unsubscribe(&client, &mut subscriptions, thunder_message)
+                        ThunderClient::unsubscribe(&client, &subscriptions_c, thunder_message)
                             .await;
                     }
                 }
             }
         });
 
+        if let Some(old_client) = existing_client {
+            // Re-subscribe for each subscription that was active on the old client
+            if let Some(subscriptions) = old_client.subscriptions {
+                let mut subs = subscriptions.lock().await;
+                for (subscribe_method, tsub) in subs.iter_mut() {
+                    let mut listeners =
+                        HashMap::<String, MpscSender<DeviceResponseMessage>>::default();
+                    std::mem::swap(&mut listeners, &mut tsub.listeners);
+                    for (sub_id, listener) in listeners {
+                        let thunder_message: ThunderSubscribeMessage = {
+                            let module_event_name_parts: Vec<&str> =
+                                subscribe_method.split('.').collect();
+                            ThunderSubscribeMessage {
+                                module: module_event_name_parts[1].to_string(),
+                                event_name: module_event_name_parts[3].to_string(),
+                                params: tsub.params.clone(),
+                                handler: listener,
+                                callback: None,
+                                sub_id: Some(sub_id),
+                            }
+                        };
+                        let _ = s
+                            .send(ThunderMessage::ThunderSubscribeMessage(thunder_message))
+                            .await;
+                    }
+                }
+            }
+        }
+
         Ok(ThunderClient {
             sender: Some(s),
             pooled_sender: None,
             id,
             plugin_manager_tx: pmtx_c,
+            subscriptions: Some(subscriptions),
         })
     }
 
@@ -494,6 +545,7 @@ impl ThunderClientBuilder {
             pooled_sender: None,
             id: Uuid::new_v4(),
             plugin_manager_tx: None,
+            subscriptions: None,
         }
     }
 }

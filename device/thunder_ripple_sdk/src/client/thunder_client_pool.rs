@@ -50,7 +50,7 @@ struct PooledThunderClient {
 #[derive(Debug)]
 pub enum ThunderPoolCommand {
     ThunderMessage(ThunderMessage),
-    RemoveFromPool(Uuid),
+    ResetThunderClient(Uuid),
 }
 
 impl ThunderClientPool {
@@ -67,6 +67,7 @@ impl ThunderClientPool {
                 url.clone(),
                 plugin_manager_tx.clone(),
                 Some(s.clone()),
+                None,
             )
             .await;
             if let Ok(c) = client {
@@ -119,26 +120,28 @@ impl ThunderClientPool {
                         });
                         c.client.send_message(msg_with_intercept).await;
                     }
-                    ThunderPoolCommand::RemoveFromPool(client_id) => {
-                        // Remove the given client and then start a new one
-                        // to replace it
+                    ThunderPoolCommand::ResetThunderClient(client_id) => {
+                        // Remove the given client and then start a new one to replace it
                         let mut itr = pool.clients.iter();
                         let i = itr.position(|x| x.client.id == client_id);
                         if let Some(index) = i {
-                            pool.clients.remove(index);
-                        }
-
-                        let client = ThunderClientBuilder::get_client(
-                            url.clone(),
-                            plugin_manager_tx.clone(),
-                            Some(sender_for_thread.clone()),
-                        )
-                        .await;
-                        if let Ok(client) = client {
-                            pool.clients.push(PooledThunderClient {
-                                in_use: Arc::new(AtomicBool::new(false)),
-                                client,
-                            });
+                            let client = ThunderClientBuilder::get_client(
+                                url.clone(),
+                                plugin_manager_tx.clone(),
+                                Some(sender_for_thread.clone()),
+                                pool.clients.get(index).map(|x| x.client.clone()),
+                            )
+                            .await;
+                            if let Ok(client) = client {
+                                pool.clients.remove(index);
+                                pool.clients.insert(
+                                    index,
+                                    PooledThunderClient {
+                                        in_use: Arc::new(AtomicBool::new(false)),
+                                        client,
+                                    },
+                                );
+                            }
                         }
                     }
                 }
@@ -149,6 +152,7 @@ impl ThunderClientPool {
             pooled_sender: Some(s),
             id: Uuid::new_v4(),
             plugin_manager_tx: pmtx_c,
+            subscriptions: None,
         })
     }
 
