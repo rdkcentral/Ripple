@@ -86,7 +86,6 @@ pub async fn update_app_context(
     if let Some(session) = ps.session_state.get_account_session() {
         context.partner_id = session.id;
     }
-
     let (tags, drop_data) =
         DataGovernance::resolve_tags(ps, ctx.app_id.clone(), DataEventType::BusinessIntelligence)
             .await;
@@ -126,7 +125,6 @@ pub async fn send_metric_for_app_state_change(
             }
 
             let mut context: BehavioralMetricContext = payload.get_context();
-
             let session = ps.session_state.get_account_session();
             if let Some(session) = session {
                 if let Some(app) = ps.app_manager_state.get(app_id) {
