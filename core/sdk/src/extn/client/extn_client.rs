@@ -99,6 +99,11 @@ fn add_vec_stream_processor<P>(id: String, context: P, map: Arc<RwLock<HashMap<S
     } else {
         processor_state.get_mut(&id).unwrap().push(context)
     }
+
+    println!(
+        "**** extn_client: add_vec_stream_processor: processor_state: {:?}",
+        processor_state.len()
+    );
 }
 
 ///
@@ -718,18 +723,17 @@ pub mod tests {
     };
     use async_channel::unbounded;
     use async_trait::async_trait;
-    use ripple_tdk::utils::mock_extension_sender::MockExtnSender;
     use serde::{Deserialize, Serialize};
     use tokio::{sync::mpsc, time::Duration};
 
-    #[derive(Debug)]
-    pub struct MockRequestProcessor {
-        state: MockState,
-        streamer: DefaultExtnStreamer,
-    }
+    // TODO
+    // rename tests to be more descriptive
+    // add more tests for - contracts, fullfills, ExtnId, etc
+
     #[derive(Debug, Clone)]
     pub struct MockState {
         client: ExtnClient,
+        // todo - add config
     }
 
     impl MockState {
@@ -738,22 +742,78 @@ pub mod tests {
         }
     }
 
+    fn get_mock_state(ignore: CReceiver<CExtnMessage>, s: CSender<CExtnMessage>) -> MockState {
+        MockState {
+            client: ExtnClient::new(
+                ignore,
+                ExtnSender::new(
+                    s,
+                    ExtnId::new_channel(ExtnClassId::Internal, "test".into()),
+                    Vec::new(),
+                    Vec::new(),
+                    None,
+                ),
+            ),
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct MockEventProcessor {
+        state: MockState,
+        streamer: DefaultExtnStreamer,
+    }
+
+    impl MockEventProcessor {
+        pub fn new() -> Self {
+            let (s, ignore) = unbounded();
+            MockEventProcessor {
+                state: get_mock_state(ignore, s),
+                streamer: DefaultExtnStreamer::new(),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl ExtnStreamProcessor for MockEventProcessor {
+        type STATE = MockState;
+        type VALUE = MockRequest;
+
+        fn get_state(&self) -> Self::STATE {
+            self.state.clone()
+        }
+
+        fn receiver(&mut self) -> mpsc::Receiver<ExtnMessage> {
+            self.streamer.receiver()
+        }
+
+        fn sender(&self) -> mpsc::Sender<ExtnMessage> {
+            self.streamer.sender()
+        }
+    }
+
+    #[async_trait]
+    impl ExtnEventProcessor for MockEventProcessor {
+        async fn process_event(
+            _state: Self::STATE,
+            _msg: ExtnMessage,
+            _extracted_message: Self::VALUE,
+        ) -> Option<bool> {
+            println!("**** Success reached process_request");
+            Some(true)
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct MockRequestProcessor {
+        state: MockState,
+        streamer: DefaultExtnStreamer,
+    }
+
     impl MockRequestProcessor {
         pub fn new() -> Self {
             let (s, ignore) = unbounded();
             MockRequestProcessor {
-                state: MockState {
-                    client: ExtnClient::new(
-                        ignore,
-                        ExtnSender::new(
-                            s,
-                            ExtnId::new_channel(ExtnClassId::Internal, "test".into()),
-                            Vec::new(),
-                            Vec::new(),
-                            None,
-                        ),
-                    ),
-                },
+                state: get_mock_state(ignore, s),
                 streamer: DefaultExtnStreamer::new(),
             }
         }
@@ -762,7 +822,7 @@ pub mod tests {
     #[async_trait]
     impl ExtnStreamProcessor for MockRequestProcessor {
         type STATE = MockState;
-        type VALUE = MockDistributorTokenRequest;
+        type VALUE = MockRequest;
 
         fn get_state(&self) -> Self::STATE {
             self.state.clone()
@@ -793,24 +853,24 @@ pub mod tests {
         }
     }
 
+    // #[derive(Debug, Clone, Serialize, Deserialize)]
+    // pub struct MockRequest {
+    //     pub app_id: String,
+    // }
+
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct MockRequest {
-        pub app_id: String,
+        pub context: MockContext,
     }
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct MockDistributorTokenRequest {
-        pub context: MockDistributorTokenContext,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct MockDistributorTokenContext {
+    pub struct MockContext {
         pub app_id: String,
         pub dist_session: AccountSession,
     }
 
     // Implement ExtnPayloadProvider for MockDistributorTokenRequest
-    impl ExtnPayloadProvider for MockDistributorTokenRequest {
+    impl ExtnPayloadProvider for MockRequest {
         fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
             if let ExtnPayload::Request(ExtnRequest::Extn(mock_request)) = payload {
                 return Some(serde_json::from_value(mock_request).unwrap());
@@ -825,32 +885,77 @@ pub mod tests {
             ))
         }
 
+        // TODO - customize contract from test ?
         fn contract() -> RippleContract {
             RippleContract::Internal
         }
     }
 
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_distributor_platform_token_processor() {
-        // let (mock_sender, receiver) = MockExtnSender::mock_with_params(
-        //     ExtnId::new_channel(ExtnClassId::Device, "thunder_comcast".into()),
-        //     vec![
-        //         "config".to_string(),
-        //         "app_events".to_string(),
-        //         "rpc".to_string(),
-        //         "ripple_context".to_string(),
-        //         "operational_metric_listener".to_string(),
-        //         RippleContract::DeviceInfo.as_clear_string(),
-        //     ],
-        //     vec![
-        //         "root.session".to_string(),
-        //         "device.session".to_string(),
-        //         "bridge_protocol".to_string(),
-        //         // Add more fulfills as needed
-        //     ],
-        //     None,
-        // );
+    // TODO - Update to mock with params
+    fn get_mock_extn_client() -> ExtnClient {
+        let (s, receiver) = unbounded();
+        let mock_sender = ExtnSender::new(
+            s,
+            ExtnId::get_main_target("main".into()),
+            vec!["context".to_string()],
+            vec!["fulfills".to_string()],
+            Some(HashMap::new()),
+        );
 
+        ExtnClient::new(receiver, mock_sender)
+    }
+
+    #[test]
+    fn test_add_stream_processor() {
+        let extn_client = get_mock_extn_client();
+        let processor = MockRequestProcessor {
+            state: MockState {
+                client: extn_client.clone(),
+            },
+            streamer: DefaultExtnStreamer::new(),
+        };
+
+        add_stream_processor(
+            processor.contract().as_clear_string(),
+            processor.sender(),
+            extn_client.request_processors.clone(),
+        );
+
+        assert!(extn_client.request_processors.read().unwrap().len() == 1);
+    }
+
+    #[test]
+    fn test_add_vec_stream_processor() {
+        let extn_client = get_mock_extn_client();
+        let processor = MockEventProcessor {
+            state: MockState {
+                client: extn_client.clone(),
+            },
+            streamer: DefaultExtnStreamer::new(),
+        };
+
+        add_vec_stream_processor(
+            processor.contract().as_clear_string(),
+            processor.sender(),
+            extn_client.event_processors.clone(),
+        );
+
+        assert!(extn_client.event_processors.read().unwrap().len() == 1);
+    }
+
+    #[test]
+    fn test_add_single_processor() {
+        let extn_client = get_mock_extn_client();
+        let id = uuid::Uuid::new_v4().to_string();
+        let (tx, _rx) = oneshot::channel();
+        add_single_processor(id, tx, extn_client.response_processors.clone());
+
+        assert!(extn_client.response_processors.read().unwrap().len() == 1);
+    }
+
+    // TODO rename tests to be more descriptive
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_distributor_processor() {
         let (s, receiver) = unbounded();
         let mock_sender = ExtnSender::new(
             s,
@@ -867,29 +972,18 @@ pub mod tests {
             streamer: DefaultExtnStreamer::new(),
         };
 
-        // Add the mock request processor
         let res = extn_client.add_request_processor(processor);
         assert!(res);
 
-        // Simulate initialization
         tokio::spawn(async move {
-            extn_client.initialize().await;
+            extn_client.clone().initialize().await;
         });
-
-        let msg = CExtnMessage {
-            requestor: "some_id".to_string(),
-            callback: None,
-            payload: "payload".to_string(),
-            id: "some_id".to_string(),
-            target: ExtnClassId::Internal.to_string(),
-            ts: Utc::now().timestamp_millis(),
-        };
 
         tokio::spawn(async move {
             let result = mock_sender.clone().send_request(
                 "some_id".to_string(),
-                MockDistributorTokenRequest {
-                    context: MockDistributorTokenContext {
+                MockRequest {
+                    context: MockContext {
                         app_id: "app_id".to_string(),
                         dist_session: AccountSession {
                             id: "id".to_string(),
@@ -917,27 +1011,7 @@ pub mod tests {
 
         // Allow some time for the async tasks to complete
         tokio::time::sleep(Duration::from_secs(2)).await;
-
-        // assert_eq!(extn_client.response_processors.read().unwrap().len(), 0);
     }
-
-    // running 1 test
-    // **** ExtnSender: new() called
-    // **** ExtnClient: add_request_processor "internal"
-    // **** ExtnClient: add_request_processor contracts: [Internal]
-    // **** ExtnClient: add_request_processor contracts_supported: [Internal]
-    // **** ExtnClient: add_request_processor: add_stream_processor - processor.sender(): Sender { chan: Tx { inner: Chan { tx: Tx { block_tail: 0x7fb4ee018a00, tail_position: 0 }, semaphore: Semaphore { semaphore: Semaphore { permits: 10 }, bound: 10 }, rx_waker: AtomicWaker, tx_count: 2, rx_fields: "..." } } }
-    // **** extn_client: add_stream_processor id: internal
-    // **** extn_client: add_stream_processor: processor_state: 1
-    // **** ExtnClient: add_request_processor: contracts_supported: [Internal]
-    // **** Success: ()
-    // **** extn_client: getting extn sender with contract
-    // **** extn_client: handling stream
-    // **** extn_processor: run: extracted_message: Some(MockDistributorTokenRequest { context: MockDistributorTokenContext { app_id: "app_id", dist_session: AccountSession { id: "id", account_id: "account_id", device_id: "device_id" } } })
-    // **** Success reached process_request
-    // test extn::client::extn_client::tests::test_distributor_platform_token_processor ... ok
-
-    // test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 32 filtered out; finished in 2.00s
 
     // Add straightforward test cases
     // -- add_stream_processor
