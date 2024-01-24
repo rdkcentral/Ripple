@@ -19,7 +19,7 @@ jobs:
           - uses: actions-rust-lang/setup-rust-toolchain@v1
           - name: read threshold file into environment variable
             run: |
-              LOWER_COVERAGE_THRESHOLD=$(cat ./.github/coverage_threshold.txt |  cut -d ' ' -f1)
+              LOWER_COVERAGE_THRESHOLD=$(cat ./ci/coverage_threshold.txt |  cut -d ' ' -f1)
               echo "LOWER_COVERAGE_THRESHOLD=$LOWER_COVERAGE_THRESHOLD" >> $GITHUB_ENV
           - uses: taiki-e/install-action@cargo-llvm-cov
           - run:  cargo llvm-cov --cobertura --output-path coverage.cobertura.xml
@@ -45,8 +45,8 @@ jobs:
           - name: update threshold and push changes
             if: ${{ fromJSON(env.CURRENT_LOWER_THRESHOLD) > fromJSON(env.LOWER_COVERAGE_THRESHOLD) }}
             run: |
-              rm ./.github/coverage_threshold.txt
-              cp ./.github/coverage_threshold_temp.txt ./.github/coverage_threshold.txt
+              rm ./ci/coverage_threshold.txt
+              cp ./ci/coverage_threshold_temp.txt ./ci/coverage_threshold.txt
               git config --global user.name "git bot commit and push"
               git config --global user.email url."git@github.com"            
               git init
