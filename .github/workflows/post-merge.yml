@@ -2,7 +2,7 @@ name: Post Merge
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "coverage-check-forked-repo-main" ]
 
 env:
     CARGO_TERM_COLOR: always
