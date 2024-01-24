@@ -1,0 +1,58 @@
+name: Post_Merge
+
+on:
+  pull_request:
+    branches: [ "coverage-check-forked-repo-main" ]
+    types: closed
+
+env:
+    CARGO_TERM_COLOR: always
+    RUSTFLAGS: "-Dwarnings"
+    
+jobs:
+    update_code_coverage_threshold:
+        if: github.event.pull_request.merged == true
+        name: Generate Code Coverage
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v3
+          - uses: actions-rust-lang/setup-rust-toolchain@v1
+          - name: read threshold file into environment variable
+            run: |
+              LOWER_COVERAGE_THRESHOLD=$(cat ./ci/coverage_threshold.txt |  cut -d ' ' -f1)
+              echo "LOWER_COVERAGE_THRESHOLD=$LOWER_COVERAGE_THRESHOLD" >> $GITHUB_ENV
+          - uses: taiki-e/install-action@cargo-llvm-cov
+          - run:  cargo llvm-cov --cobertura --output-path coverage.cobertura.xml
+          - uses: irongut/CodeCoverageSummary@v1.3.0
+            with:
+              filename: coverage.cobertura.xml
+              badge: true
+              fail_below_min: true
+              format: markdown
+              hide_branch_rate: false
+              hide_complexity: true
+              indicators: true
+              output: both
+              thresholds: ${{ env.LOWER_COVERAGE_THRESHOLD }} 
+          - run: |
+              CURRENT_COVERAGE=$(grep '<coverage' coverage.cobertura.xml | grep -o 'line-rate="[0-9.]\+"' | grep -o '[0-9.]\+')
+              CURRENT_COVERAGE=$(printf %.0f $(echo "$CURRENT_COVERAGE*100" | bc))
+              CURRENT_LOWER_THRESHOLD=$(echo "$CURRENT_COVERAGE-2" | bc)
+              CURRENT_UPPER_THRESHOLD=$(echo "$CURRENT_COVERAGE+2" | bc)
+              echo "CURRENT_LOWER_THRESHOLD=$CURRENT_LOWER_THRESHOLD" >> $GITHUB_ENV
+              echo "### Current coverage:"$CURRENT_COVERAGE"% exceeds coverage threshold. Coverage threshold is updated to reflect to the latest coverage.">>current_coverage.md
+              echo "$CURRENT_LOWER_THRESHOLD $CURRENT_UPPER_THRESHOLD" > ./ci/coverage_threshold_temp.txt  
+          - name: update threshold and push changes
+            if: ${{ fromJSON(env.CURRENT_LOWER_THRESHOLD) > fromJSON(env.LOWER_COVERAGE_THRESHOLD) }}
+            run: |
+              rm ./ci/coverage_threshold.txt
+              cp ./ci/coverage_threshold_temp.txt ./ci/coverage_threshold.txt
+              git config --global user.name "git bot commit and push"
+              git config --global user.email url."git@github.com"            
+              git init
+              git fetch
+              git branch              
+              git add ./ci/coverage_threshold.txt
+              git commit -m "chore: update threshold"
+              git push
+            continue-on-error: true
