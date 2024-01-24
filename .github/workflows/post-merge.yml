@@ -1,9 +1,8 @@
 name: Post_Merge
 
 on:
-  pull_request:
+  push:
     branches: [ "coverage-check-forked-repo-main" ]
-    types: closed
 
 env:
     CARGO_TERM_COLOR: always
@@ -11,7 +10,6 @@ env:
     
 jobs:
     update_code_coverage_threshold:
-        if: github.event.pull_request.merged == true
         name: Generate Code Coverage
         runs-on: ubuntu-latest
         steps:
