@@ -16,4 +16,5 @@
 //
 
 pub mod mock_extension_client;
+pub mod mock_extension_sender;
 pub mod test_utils;

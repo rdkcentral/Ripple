@@ -42,11 +42,11 @@ use crate::{
 #[repr(C)]
 #[derive(Clone, Debug)]
 pub struct ExtnSender {
-    tx: CSender<CExtnMessage>,
-    id: ExtnId,
-    permitted: Vec<String>,
-    fulfills: Vec<String>,
-    config: Option<HashMap<String, String>>,
+    pub tx: CSender<CExtnMessage>,
+    pub id: ExtnId,
+    pub permitted: Vec<String>,
+    pub fulfills: Vec<String>,
+    pub config: Option<HashMap<String, String>>,
 }
 
 impl ExtnSender {
@@ -61,6 +61,7 @@ impl ExtnSender {
         fulfills: Vec<String>,
         config: Option<HashMap<String, String>>,
     ) -> Self {
+        println!("**** ExtnSender: new() called");
         ExtnSender {
             tx,
             id,
@@ -125,6 +126,14 @@ impl ExtnSender {
     ) -> Result<(), RippleError> {
         let id = uuid::Uuid::new_v4().to_string();
         let p = payload.get_extn_payload();
+        println!(
+            "**** send_event(): get_extn_payload() msg:  {:?}",
+            serde_json::to_value(payload.get_extn_payload().clone()).unwrap()
+        );
+        println!(
+            "**** send_event(): other_sender:  {:?}",
+            other_sender.clone()
+        );
         let c_event = p.into();
         let msg = CExtnMessage {
             requestor: self.id.to_string(),
@@ -184,16 +193,16 @@ impl ExtnSender {
 
 #[cfg(test)]
 pub mod tests {
+    use super::*;
     pub use crate::{
         api::device::device_info_request::{self, DeviceInfoRequest},
         extn::extn_id::ExtnClassId,
     };
-
-    use super::*;
     use async_channel::Receiver as CReceiver;
     use mockall::automock;
     use rstest::rstest;
     use std::collections::HashMap;
+
     // Mockable trait with generic mock method
     #[automock]
     pub trait Mockable {
@@ -412,14 +421,212 @@ pub mod tests {
         // Assertions
         assert!(result.is_ok());
         if let Ok(r) = receiver.recv().await {
-            println!(
-                "**** test_send_request_with_device_info_request() r: {:?}",
-                r
-            );
+            // Print received message for debugging
+            println!("Received message: {:?}", r);
+
+            // Assertions based on the received message
             assert_eq!(r.requestor, sender.id.to_string());
             assert_eq!(
                 r.target,
                 format!("\"{}\"", RippleContract::DeviceInfo.as_clear_string())
+            );
+
+            // Generate the ExtnPayload using get_extn_payload
+            let extn_payload = device_info_request.get_extn_payload();
+
+            // Convert the ExtnPayload to a JSON string
+            let exp_payload_str = serde_json::to_string(&extn_payload).unwrap();
+
+            // Assert the payload matches the expected payload string
+            assert_eq!(r.payload, exp_payload_str);
+        } else {
+            // Handle the case when no message is received
+            panic!("Expected a message to be received");
+        }
+    }
+
+    #[rstest]
+    #[case(&DeviceInfoRequest::Make)]
+    async fn test_send_event_with_device_info_request(
+        #[case] device_info_event: &DeviceInfoRequest,
+    ) {
+        let config: Option<HashMap<String, String>> = Some(
+            [("rdk_telemetry", "true")]
+                .iter()
+                .cloned()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+        );
+        let (sender, receiver) = ExtnSender::mock_with_params(
+            ExtnId::new_channel(ExtnClassId::Device, "thunder_comcast".into()),
+            vec![
+                "config".to_string(),
+                "app_events".to_string(),
+                "rpc".to_string(),
+                "ripple_context".to_string(),
+                "operational_metric_listener".to_string(),
+                RippleContract::DeviceInfo.as_clear_string(),
+            ],
+            vec![
+                "root.session".to_string(),
+                "device.session".to_string(),
+                "bridge_protocol".to_string(),
+                // Add more fulfills as needed
+            ],
+            config,
+        );
+
+        // Perform the send_request operation with DeviceInfoRequest
+        let result = sender.send_event(device_info_event.clone(), Some(sender.tx.clone()));
+        println!(
+            "**** test_send_event_with_device_info_request() result: {:?}",
+            result
+        );
+
+        // Assertions
+        assert!(result.is_ok());
+        if let Ok(r) = receiver.recv().await {
+            println!("**** test_send_event_with_device_info_request() r: {:?}", r);
+            assert_eq!(r.requestor, sender.id.to_string());
+            assert_eq!(
+                r.target.clone(),
+                format!("\"{}\"", RippleContract::DeviceInfo.as_clear_string())
+            );
+
+            // Generate the ExtnPayload using get_extn_payload
+            let extn_payload = device_info_event.get_extn_payload();
+
+            // Convert the ExtnPayload to a JSON string
+            let exp_payload_str = serde_json::to_string(&extn_payload).unwrap();
+
+            assert_eq!(r.payload, exp_payload_str);
+        } else {
+            panic!("Expected a message to be received");
+        };
+    }
+
+    #[rstest]
+    #[case(&DeviceInfoRequest::Make)]
+    async fn test_send_with_device_info_request(#[case] device_info_request: &DeviceInfoRequest) {
+        let config: Option<HashMap<String, String>> = Some(
+            [("rdk_telemetry", "true")]
+                .iter()
+                .cloned()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+        );
+        let (sender, receiver) = ExtnSender::mock_with_params(
+            ExtnId::new_channel(ExtnClassId::Device, "thunder_comcast".into()),
+            vec![
+                "config".to_string(),
+                "app_events".to_string(),
+                "rpc".to_string(),
+                "ripple_context".to_string(),
+                "operational_metric_listener".to_string(),
+                RippleContract::DeviceInfo.as_clear_string(),
+            ],
+            vec![
+                "root.session".to_string(),
+                "device.session".to_string(),
+                "bridge_protocol".to_string(),
+                // Add more fulfills as needed
+            ],
+            config,
+        );
+
+        let msg = CExtnMessage {
+            requestor: sender.id.to_string(),
+            callback: None,
+            payload: device_info_request.get_extn_payload().into(),
+            id: "some_id".to_string(),
+            target: RippleContract::DeviceInfo.as_clear_string(),
+            ts: Utc::now().timestamp_millis(),
+        };
+
+        // Perform the send_request operation with DeviceInfoRequest
+        let result = sender.send(msg, Some(sender.tx.clone()));
+        println!(
+            "**** test_send_with_device_info_request() result: {:?}",
+            result
+        );
+
+        // Assertions
+        assert!(result.is_ok());
+        if let Ok(r) = receiver.recv().await {
+            println!("**** test_send_with_device_info_request() r: {:?}", r);
+            assert_eq!(r.requestor, sender.id.to_string());
+            assert_eq!(
+                r.target.clone(),
+                RippleContract::DeviceInfo.as_clear_string()
+            );
+
+            // Generate the ExtnPayload using get_extn_payload
+            let extn_payload = device_info_request.get_extn_payload();
+
+            // Convert the ExtnPayload to a JSON string
+            let exp_payload_str = serde_json::to_string(&extn_payload).unwrap();
+
+            assert_eq!(r.payload, exp_payload_str);
+        } else {
+            panic!("Expected a message to be received");
+        };
+    }
+
+    #[rstest]
+    #[case(&DeviceInfoRequest::Make)]
+    async fn test_respond_with_device_info_request(
+        #[case] device_info_request: &DeviceInfoRequest,
+    ) {
+        let config: Option<HashMap<String, String>> = Some(
+            [("rdk_telemetry", "true")]
+                .iter()
+                .cloned()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+        );
+        let (sender, receiver) = ExtnSender::mock_with_params(
+            ExtnId::new_channel(ExtnClassId::Device, "thunder_comcast".into()),
+            vec![
+                "config".to_string(),
+                "app_events".to_string(),
+                "rpc".to_string(),
+                "ripple_context".to_string(),
+                "operational_metric_listener".to_string(),
+                RippleContract::DeviceInfo.as_clear_string(),
+            ],
+            vec![
+                "root.session".to_string(),
+                "device.session".to_string(),
+                "bridge_protocol".to_string(),
+                // Add more fulfills as needed
+            ],
+            config,
+        );
+
+        let msg = CExtnMessage {
+            requestor: sender.id.to_string(),
+            callback: None,
+            payload: device_info_request.get_extn_payload().into(),
+            id: "some_id".to_string(),
+            target: RippleContract::DeviceInfo.as_clear_string(),
+            ts: Utc::now().timestamp_millis(),
+        };
+
+        // Perform the send_request operation with DeviceInfoRequest
+        let result = sender.respond(msg, Some(sender.tx.clone()));
+        println!(
+            "**** test_respond_with_device_info_request() result: {:?}",
+            result
+        );
+
+        // Assertions
+        assert!(result.is_ok());
+        if let Ok(r) = receiver.recv().await {
+            println!("**** test_respond_with_device_info_request() r: {:?}", r);
+            assert_eq!(r.requestor, sender.id.to_string());
+            assert_eq!(
+                r.target.clone(),
+                RippleContract::DeviceInfo.as_clear_string()
             );
 
             // Generate the ExtnPayload using get_extn_payload

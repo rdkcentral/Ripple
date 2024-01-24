@@ -78,8 +78,13 @@ pub struct ExtnClient {
 /// This is a utility method simply inserts the key and value to a given Arc<RwLock<HashMap<K,V>>>
 ///
 fn add_stream_processor<P>(id: String, context: P, map: Arc<RwLock<HashMap<String, P>>>) {
+    println!("**** extn_client: add_stream_processor id: {}", id);
     let mut processor_state = map.write().unwrap();
     processor_state.insert(id, context);
+    println!(
+        "**** extn_client: add_stream_processor: processor_state: {:?}",
+        processor_state.len()
+    );
 }
 
 ///
@@ -87,6 +92,7 @@ fn add_stream_processor<P>(id: String, context: P, map: Arc<RwLock<HashMap<Strin
 /// If an entry is already present it adds to the Vec if not creates a new one
 ///
 fn add_vec_stream_processor<P>(id: String, context: P, map: Arc<RwLock<HashMap<String, Vec<P>>>>) {
+    println!("**** extn_client: add_vec_stream_processor {}", id);
     let mut processor_state = map.write().unwrap();
     if let std::collections::hash_map::Entry::Vacant(e) = processor_state.entry(id.clone()) {
         e.insert(vec![context]);
@@ -99,6 +105,8 @@ fn add_vec_stream_processor<P>(id: String, context: P, map: Arc<RwLock<HashMap<S
 /// Utility function which adds a single processor used for response processors
 ///
 fn add_single_processor<P>(id: String, processor: P, map: Arc<RwLock<HashMap<String, P>>>) {
+    println!("**** extn_client: add_single_processor: id: {:?}", id);
+    // println!("**** add_single_processor: context: {:?}", processor);
     let mut processor_state = map.write().unwrap();
     processor_state.insert(id, processor);
 }
@@ -128,36 +136,69 @@ impl ExtnClient {
     /// Uses the capability provided by the Processor for registration
     ///
     /// Also starts the thread in the processor to accept incoming requests.
-    pub fn add_request_processor(&mut self, mut processor: impl ExtnRequestProcessor) {
+    pub fn add_request_processor(&mut self, mut processor: impl ExtnRequestProcessor) -> bool {
+        println!(
+            "**** ExtnClient: add_request_processor {:?}",
+            processor.contract().as_clear_string()
+        );
         let contracts = if let Some(multiple_contracts) = processor.fulfills_mutiple() {
             multiple_contracts
         } else {
             vec![processor.contract()]
         };
+
+        println!(
+            "**** ExtnClient: add_request_processor contracts: {:?}",
+            contracts
+        );
+
         let contracts_supported: Vec<RippleContract> = contracts
             .into_iter()
             .filter(|contract| self.sender.check_contract_fulfillment(contract.clone()))
             .collect();
 
+        println!(
+            "**** ExtnClient: add_request_processor contracts_supported: {:?}",
+            contracts_supported
+        );
+
+        // TODO - contracts_supported to boolean?
         contracts_supported.iter().for_each(|contract| {
             let processor_string: String = contract.as_clear_string();
-            info!("adding request processor {}", processor_string);
+            info!(
+                "**** ExtnClient: adding stream processor {}",
+                processor_string
+            );
+            println!(
+                "**** ExtnClient: add_request_processor: add_stream_processor - processor.sender(): {:?}",
+                processor.sender()
+            );
+
             add_stream_processor(
                 processor_string,
                 processor.sender(),
                 self.request_processors.clone(),
             );
+
         });
+
+        println!(
+            "**** ExtnClient: add_request_processor: contracts_supported: {:?}",
+            contracts_supported
+        );
+
         // Dont add and start a request processor if there is no contract fulfillment
         if !contracts_supported.is_empty() {
             tokio::spawn(async move {
                 trace!(
-                    "starting request processor green tokio thread for {:?}",
+                    "**** starting request processor green tokio thread for {:?}",
                     contracts_supported
                 );
-                processor.run().await
+                processor.run().await;
             });
+            return true;
         }
+        false
     }
 
     /// Adds a new event processor reference to the internal map of processors
@@ -166,6 +207,10 @@ impl ExtnClient {
     ///
     /// Also starts the thread in the processor to accept incoming events.
     pub fn add_event_processor(&mut self, mut processor: impl ExtnEventProcessor) {
+        println!(
+            "**** extn_client: add_event_processor {}",
+            processor.contract().as_clear_string()
+        );
         add_vec_stream_processor(
             processor.contract().as_clear_string(),
             processor.sender(),
@@ -176,13 +221,15 @@ impl ExtnClient {
 
     /// Removes an event processor reference on the internal map of processors
     pub fn cleanup_event_stream(&mut self, capability: ExtnId) {
+        println!("**** cleanup_event_stream {}", capability.to_string());
         Self::cleanup_vec_stream(capability.to_string(), None, self.event_processors.clone());
     }
 
     /// Used mainly by `Main` application to add senders of the extensions for IEC
     pub fn add_sender(&mut self, id: ExtnId, symbol: ExtnSymbol, sender: CSender<CExtnMessage>) {
+        println!("**** extn_client: add_sender {:?}", id.clone());
         if !self.sender.get_cap().is_main() {
-            error!("Senders cannot be added in an extension");
+            error!("**** extn_client: Senders cannot be added in an extension");
             return;
         }
         let id = id.to_string();
@@ -196,10 +243,10 @@ impl ExtnClient {
                 match RippleContract::from_manifest(&contract) {
                     Some(v) => {
                         let ripple_contract_string = v.as_clear_string();
-                        info!("{} will fulfill {}", id, ripple_contract_string);
+                        info!("**** {} will fulfill {}", id, ripple_contract_string);
                         let _ = map.insert(ripple_contract_string, id.clone());
                     }
-                    None => error!("Unknown contract {}", contract),
+                    None => error!("**** Unknown contract {}", contract),
                 }
             }
             let mut contract_map = self.contract_map.write().unwrap();
@@ -208,6 +255,7 @@ impl ExtnClient {
     }
 
     pub fn get_other_senders(&self) -> Vec<CSender<CExtnMessage>> {
+        println!("**** extn_client: getting other senders");
         self.extn_sender_map
             .read()
             .unwrap()
@@ -219,7 +267,7 @@ impl ExtnClient {
 
     /// Called once per client initialization this is a blocking method. Use a spawned thread to call this method
     pub async fn initialize(&self) {
-        debug!("Starting initialize");
+        debug!("**** extn_client: Starting initialize");
         let receiver = self.receiver.clone();
         while let Ok(c_message) = receiver.recv().await {
             let latency = Utc::now().timestamp_millis() - c_message.ts;
@@ -232,7 +280,10 @@ impl ExtnClient {
                 error!("invalid message {:?}", c_message);
             }
             let message = message_result.unwrap();
-            debug!("** receiving message latency={} msg={:?}", latency, message);
+            debug!(
+                "** extn_client: receiving message latency={} msg={:?}",
+                latency, message
+            );
             if message.payload.is_response() {
                 Self::handle_single(message, self.response_processors.clone());
             } else if message.payload.is_event() {
@@ -296,9 +347,10 @@ impl ExtnClient {
     }
 
     pub fn context_update(&self, request: RippleContextUpdateRequest) {
+        println!("**** extn_client: updating context");
         let current_cap = self.sender.get_cap();
         if !current_cap.is_main() {
-            error!("Updating context is not allowed outside main");
+            error!("**** Updating context is not allowed outside main");
         }
 
         {
@@ -319,6 +371,7 @@ impl ExtnClient {
     }
 
     fn handle_no_processor_error(&self, message: ExtnMessage) {
+        println!("**** extn_client: handling no processor error");
         let req_sender = self.get_extn_sender_with_extn_id(&message.requestor.to_string());
 
         if let Ok(resp) = message.get_response(ExtnResponse::Error(RippleError::ProcessorError)) {
@@ -332,6 +385,7 @@ impl ExtnClient {
         msg: ExtnMessage,
         processor: Arc<RwLock<HashMap<String, OSender<ExtnMessage>>>>,
     ) {
+        println!("**** extn_client: handling single");
         let id_c = msg.id.clone();
         let processor_result = {
             let mut processors = processor.write().unwrap();
@@ -353,6 +407,7 @@ impl ExtnClient {
         msg: ExtnMessage,
         processor: Arc<RwLock<HashMap<String, MSender<ExtnMessage>>>>,
     ) -> bool {
+        println!("**** extn_client: handling stream");
         let id_c: String = msg.target.as_clear_string();
 
         let v = {
@@ -376,6 +431,7 @@ impl ExtnClient {
         msg: ExtnMessage,
         processor: Arc<RwLock<HashMap<String, Vec<MSender<ExtnMessage>>>>>,
     ) {
+        println!("**** extn_client: handling vec stream");
         let id_c = msg.target.as_clear_string();
         let mut gc_sender_indexes: Vec<usize> = Vec::new();
         let mut sender: Option<MSender<ExtnMessage>> = None;
@@ -413,6 +469,7 @@ impl ExtnClient {
         gc_sender_indexes: Option<Vec<usize>>,
         processor: Arc<RwLock<HashMap<String, Vec<MSender<ExtnMessage>>>>>,
     ) {
+        println!("**** extn_client: cleaning up vec stream");
         let indices = match gc_sender_indexes {
             Some(i) => Some(i),
             None => processor.read().unwrap().get(&id_c).map(|v| {
@@ -440,6 +497,7 @@ impl ExtnClient {
         &self,
         contract: RippleContract,
     ) -> Option<CSender<CExtnMessage>> {
+        println!("**** extn_client: getting extn sender with contract");
         let contract_str: String = contract.as_clear_string();
         let id = {
             self.contract_map
@@ -456,6 +514,7 @@ impl ExtnClient {
     }
 
     fn get_extn_sender_with_extn_id(&self, id: &str) -> Option<CSender<CExtnMessage>> {
+        println!("**** extn_client: get_extn_sender_with_extn_id");
         return self.extn_sender_map.read().unwrap().get(id).cloned();
     }
 
@@ -468,6 +527,7 @@ impl ExtnClient {
         req: ExtnMessage,
         response: ExtnResponse,
     ) -> Result<(), RippleError> {
+        println!("**** extn_client: responding");
         if !req.payload.is_request() {
             Err(RippleError::InvalidInput)
         } else {
@@ -480,6 +540,7 @@ impl ExtnClient {
     /// # Arguments
     /// `msg` - [ExtnMessage]
     pub async fn send_message(&mut self, msg: ExtnMessage) -> RippleResponse {
+        println!("**** extn_client: sending message");
         self.sender.respond(
             msg.clone().into(),
             self.get_extn_sender_with_extn_id(&msg.requestor.to_string()),
@@ -490,6 +551,7 @@ impl ExtnClient {
     /// # Arguments
     /// `msg` - [ExtnMessage] event object
     pub fn event(&mut self, event: impl ExtnPayloadProvider) -> Result<(), RippleError> {
+        println!("**** extn_client: event: event {:?}", event.clone());
         let other_sender = self.get_extn_sender_with_contract(event.get_contract());
         self.sender.send_event(event, other_sender)
     }
@@ -504,9 +566,11 @@ impl ExtnClient {
         &mut self,
         payload: impl ExtnPayloadProvider,
     ) -> Result<ExtnMessage, RippleError> {
+        println!("**** extn_client: request: payload {:?}", payload.clone());
         let id = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = oneshot::channel();
         add_single_processor(id.clone(), tx, self.response_processors.clone());
+
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
         self.sender.send_request(id, payload, other_sender, None)?;
         if let Ok(r) = rx.await {
@@ -527,6 +591,7 @@ impl ExtnClient {
         payload: impl ExtnPayloadProvider,
         timeout_in_msecs: u64,
     ) -> Result<T, RippleError> {
+        println!("**** extn_client: standalone requesting");
         let id = uuid::Uuid::new_v4().to_string();
         let (tx, tr) = bounded(2);
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
@@ -534,7 +599,7 @@ impl ExtnClient {
             .send_request(id, payload, other_sender, Some(tx))?;
         match tokio::time::timeout(Duration::from_millis(timeout_in_msecs), tr.recv()).await {
             Ok(Ok(cmessage)) => {
-                debug!("** receiving message msg={:?}", cmessage);
+                debug!("** extn_client: receiving message msg={:?}", cmessage);
                 let message: Result<ExtnMessage, RippleError> = cmessage.try_into();
 
                 if let Ok(message) = message {
@@ -561,6 +626,7 @@ impl ExtnClient {
     /// # Arguments
     /// `payload` - impl [ExtnPayloadProvider]
     pub fn request_transient(&mut self, payload: impl ExtnPayloadProvider) -> RippleResponse {
+        println!("**** extn_client: request_transient");
         let id = uuid::Uuid::new_v4().to_string();
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
         self.sender.send_request(id, payload, other_sender, None)
@@ -573,6 +639,7 @@ impl ExtnClient {
 
     /// Method to get configurations on the manifest per extension
     pub fn get_config(&self, key: &str) -> Option<String> {
+        println!("**** extn_client: getting config");
         self.sender.get_config(key)
     }
 
@@ -588,6 +655,7 @@ impl ExtnClient {
 
     /// Method to send event to an extension based on its Id
     pub fn send_event_with_id(&self, id: &str, event: impl ExtnPayloadProvider) -> RippleResponse {
+        println!("**** extn_client: send_event_with_id");
         if let Some(sender) = self.get_extn_sender_with_extn_id(id) {
             self.sender.send_event(event, Some(sender))
         } else {
@@ -597,11 +665,13 @@ impl ExtnClient {
 
     /// Method to get configurations on the manifest per extension
     pub fn check_contract_fulfillment(&self, contract: RippleContract) -> bool {
+        println!("**** extn_client: check_contract_fulfillment");
         self.sender.check_contract_fulfillment(contract)
     }
 
     // Method to check if contract is permitted
     pub fn check_contract_permitted(&self, contract: RippleContract) -> bool {
+        println!("**** extn_client: check_contract_permitted");
         self.sender.check_contract_permission(contract)
     }
 
@@ -634,6 +704,241 @@ impl ExtnClient {
 
 #[cfg(test)]
 pub mod tests {
+    use super::*;
+    use crate::{
+        api::session::AccountSession,
+        extn::{
+            self,
+            client::extn_processor::{
+                DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
+            },
+            extn_client_message::{ExtnPayload, ExtnRequest},
+            extn_id::{ExtnClassId, ExtnId},
+        },
+    };
+    use async_channel::unbounded;
+    use async_trait::async_trait;
+    use ripple_tdk::utils::mock_extension_sender::MockExtnSender;
+    use serde::{Deserialize, Serialize};
+    use tokio::{sync::mpsc, time::Duration};
+
+    #[derive(Debug)]
+    pub struct MockRequestProcessor {
+        state: MockState,
+        streamer: DefaultExtnStreamer,
+    }
+    #[derive(Debug, Clone)]
+    pub struct MockState {
+        client: ExtnClient,
+    }
+
+    impl MockState {
+        pub fn get_client(&self) -> ExtnClient {
+            self.client.clone()
+        }
+    }
+
+    impl MockRequestProcessor {
+        pub fn new() -> Self {
+            let (s, ignore) = unbounded();
+            MockRequestProcessor {
+                state: MockState {
+                    client: ExtnClient::new(
+                        ignore,
+                        ExtnSender::new(
+                            s,
+                            ExtnId::new_channel(ExtnClassId::Internal, "test".into()),
+                            Vec::new(),
+                            Vec::new(),
+                            None,
+                        ),
+                    ),
+                },
+                streamer: DefaultExtnStreamer::new(),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl ExtnStreamProcessor for MockRequestProcessor {
+        type STATE = MockState;
+        type VALUE = MockDistributorTokenRequest;
+
+        fn get_state(&self) -> Self::STATE {
+            self.state.clone()
+        }
+
+        fn receiver(&mut self) -> mpsc::Receiver<ExtnMessage> {
+            self.streamer.receiver()
+        }
+
+        fn sender(&self) -> mpsc::Sender<ExtnMessage> {
+            self.streamer.sender()
+        }
+    }
+
+    #[async_trait]
+    impl ExtnRequestProcessor for MockRequestProcessor {
+        async fn process_request(
+            state: MockState,
+            msg: extn::extn_client_message::ExtnMessage,
+            val: Self::VALUE,
+        ) -> bool {
+            println!("**** Success reached process_request");
+            true
+        }
+
+        fn get_client(&self) -> extn::client::extn_client::ExtnClient {
+            self.state.client.clone()
+        }
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct MockRequest {
+        pub app_id: String,
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct MockDistributorTokenRequest {
+        pub context: MockDistributorTokenContext,
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct MockDistributorTokenContext {
+        pub app_id: String,
+        pub dist_session: AccountSession,
+    }
+
+    // Implement ExtnPayloadProvider for MockDistributorTokenRequest
+    impl ExtnPayloadProvider for MockDistributorTokenRequest {
+        fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+            if let ExtnPayload::Request(ExtnRequest::Extn(mock_request)) = payload {
+                return Some(serde_json::from_value(mock_request).unwrap());
+            }
+
+            None
+        }
+
+        fn get_extn_payload(&self) -> ExtnPayload {
+            ExtnPayload::Request(ExtnRequest::Extn(
+                serde_json::to_value(self.clone()).unwrap(),
+            ))
+        }
+
+        fn contract() -> RippleContract {
+            RippleContract::Internal
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_distributor_platform_token_processor() {
+        // let (mock_sender, receiver) = MockExtnSender::mock_with_params(
+        //     ExtnId::new_channel(ExtnClassId::Device, "thunder_comcast".into()),
+        //     vec![
+        //         "config".to_string(),
+        //         "app_events".to_string(),
+        //         "rpc".to_string(),
+        //         "ripple_context".to_string(),
+        //         "operational_metric_listener".to_string(),
+        //         RippleContract::DeviceInfo.as_clear_string(),
+        //     ],
+        //     vec![
+        //         "root.session".to_string(),
+        //         "device.session".to_string(),
+        //         "bridge_protocol".to_string(),
+        //         // Add more fulfills as needed
+        //     ],
+        //     None,
+        // );
+
+        let (s, receiver) = unbounded();
+        let mock_sender = ExtnSender::new(
+            s,
+            ExtnId::get_main_target("main".into()),
+            vec!["context".to_string()],
+            vec!["fulfills".to_string()],
+            Some(HashMap::new()),
+        );
+        let mut extn_client = ExtnClient::new(receiver, mock_sender.clone());
+        let processor = MockRequestProcessor {
+            state: MockState {
+                client: extn_client.clone(),
+            },
+            streamer: DefaultExtnStreamer::new(),
+        };
+
+        // Add the mock request processor
+        let res = extn_client.add_request_processor(processor);
+        assert!(res);
+
+        // Simulate initialization
+        tokio::spawn(async move {
+            extn_client.initialize().await;
+        });
+
+        let msg = CExtnMessage {
+            requestor: "some_id".to_string(),
+            callback: None,
+            payload: "payload".to_string(),
+            id: "some_id".to_string(),
+            target: ExtnClassId::Internal.to_string(),
+            ts: Utc::now().timestamp_millis(),
+        };
+
+        tokio::spawn(async move {
+            let result = mock_sender.clone().send_request(
+                "some_id".to_string(),
+                MockDistributorTokenRequest {
+                    context: MockDistributorTokenContext {
+                        app_id: "app_id".to_string(),
+                        dist_session: AccountSession {
+                            id: "id".to_string(),
+                            token: "token".to_string(),
+                            account_id: "account_id".to_string(),
+                            device_id: "device_id".to_string(),
+                        },
+                    },
+                },
+                Some(mock_sender.clone().tx),
+                None,
+            );
+
+            match result {
+                Ok(response) => {
+                    // Handle successful response
+                    println!("**** Success: {:?}", response);
+                }
+                Err(err) => {
+                    // Handle error
+                    println!("**** Error: {:?}", err);
+                }
+            }
+        });
+
+        // Allow some time for the async tasks to complete
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        // assert_eq!(extn_client.response_processors.read().unwrap().len(), 0);
+    }
+
+    // running 1 test
+    // **** ExtnSender: new() called
+    // **** ExtnClient: add_request_processor "internal"
+    // **** ExtnClient: add_request_processor contracts: [Internal]
+    // **** ExtnClient: add_request_processor contracts_supported: [Internal]
+    // **** ExtnClient: add_request_processor: add_stream_processor - processor.sender(): Sender { chan: Tx { inner: Chan { tx: Tx { block_tail: 0x7fb4ee018a00, tail_position: 0 }, semaphore: Semaphore { semaphore: Semaphore { permits: 10 }, bound: 10 }, rx_waker: AtomicWaker, tx_count: 2, rx_fields: "..." } } }
+    // **** extn_client: add_stream_processor id: internal
+    // **** extn_client: add_stream_processor: processor_state: 1
+    // **** ExtnClient: add_request_processor: contracts_supported: [Internal]
+    // **** Success: ()
+    // **** extn_client: getting extn sender with contract
+    // **** extn_client: handling stream
+    // **** extn_processor: run: extracted_message: Some(MockDistributorTokenRequest { context: MockDistributorTokenContext { app_id: "app_id", dist_session: AccountSession { id: "id", account_id: "account_id", device_id: "device_id" } } })
+    // **** Success reached process_request
+    // test extn::client::extn_client::tests::test_distributor_platform_token_processor ... ok
+
+    // test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 32 filtered out; finished in 2.00s
+
     // Add straightforward test cases
     // -- add_stream_processor
     // -- add_vec_stream_processor

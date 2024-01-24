@@ -9,7 +9,7 @@ use ripple_sdk::{
     framework::ripple_contract::RippleContract,
     uuid::Uuid,
 };
-
+#[derive(Debug, Clone)]
 pub struct MockExtnClient {}
 
 impl MockExtnClient {
