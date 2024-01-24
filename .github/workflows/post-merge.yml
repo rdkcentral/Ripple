@@ -1,9 +1,8 @@
 name: Post_Merge
 
 on:
-  pull_request:
+  push:
     branches: [ "coverage-check-forked-repo-main" ]
-    types: closed
 
 env:
     CARGO_TERM_COLOR: always
