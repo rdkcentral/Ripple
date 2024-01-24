@@ -46,10 +46,7 @@ jobs:
               rm ./ci/coverage_threshold.txt
               cp ./ci/coverage_threshold_temp.txt ./ci/coverage_threshold.txt
               git config user.name "github-actions[bot]""
-              git config user.email "github-actions[bot]@users.noreply.github.com"
-              git init
-              git fetch
-              git branch              
+              git config user.email "github-actions[bot]@users.noreply.github.com"            
               git add ./ci/coverage_threshold.txt
               git commit -m "chore: git bot update threshold"
               git push
