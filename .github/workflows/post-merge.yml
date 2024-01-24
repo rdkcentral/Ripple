@@ -48,9 +48,6 @@ jobs:
               git init
               git fetch
               git branch
-              git config --get user.name
-              git config --global user.name "git bot commit and push"
-              git config --global user.email url."git@github.com"                         
               git add ./ci/coverage_threshold.txt
               git commit -m "chore: git bot update threshold"
               git push
