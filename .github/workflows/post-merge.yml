@@ -1,4 +1,4 @@
-name: Post_Merge
+name: Post Merge
 
 on:
   push:
@@ -45,12 +45,13 @@ jobs:
             run: |
               rm ./ci/coverage_threshold.txt
               cp ./ci/coverage_threshold_temp.txt ./ci/coverage_threshold.txt
+              git config --get user.name
               git config --global user.name "git bot commit and push"
               git config --global user.email url."git@github.com"            
               git init
               git fetch
               git branch              
               git add ./ci/coverage_threshold.txt
-              git commit -m "chore: update threshold"
+              git commit -m "chore: git bot update threshold"
               git push
             continue-on-error: true
