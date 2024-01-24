@@ -52,7 +52,7 @@ jobs:
               git init
               git fetch
               git branch              
-              git add ./.github/coverage_threshold.txt
+              git add ./ci/coverage_threshold.txt
               git commit -m "chore: update threshold"
               git push
             continue-on-error: true
