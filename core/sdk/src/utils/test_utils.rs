@@ -15,15 +15,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::extn::extn_client_message::ExtnPayloadProvider;
+use crate::framework::ripple_contract::RippleContract;
 
-pub fn test_extn_payload_provider<T>(request: T)
+pub fn test_extn_payload_provider<T>(request: T, contract_type: RippleContract)
 where
     T: ExtnPayloadProvider + PartialEq + std::fmt::Debug,
 {
     let value = request.get_extn_payload();
     if let Some(v) = T::get_from_payload(value) {
         assert_eq!(v, request);
-        assert_eq!(v.get_contract(), T::contract());
+        assert_eq!(contract_type, T::contract());
     } else {
         panic!("Test failed for ExtnRequest variant: {:?}", request);
     }

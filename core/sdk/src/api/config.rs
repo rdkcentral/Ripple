@@ -158,6 +158,7 @@ mod tests {
 
     #[test]
     fn test_extn_request_config() {
-        test_extn_payload_provider(Config::DefaultValues);
+        let contract_type: RippleContract = RippleContract::Config;
+        test_extn_payload_provider(Config::DefaultValues, contract_type);
     }
 }

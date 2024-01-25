@@ -60,6 +60,7 @@ mod tests {
 
     #[test]
     fn test_extn_event_extn_status() {
-        test_extn_payload_provider(ExtnStatus::Ready);
+        let contract_type: RippleContract = RippleContract::ExtnStatus;
+        test_extn_payload_provider(ExtnStatus::Ready, contract_type);
     }
 }

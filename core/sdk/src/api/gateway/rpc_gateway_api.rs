@@ -312,6 +312,7 @@ mod tests {
             params_json: r#"{"key": "value"}"#.to_string(),
             ctx: call_context,
         };
-        test_extn_payload_provider(rpc_request);
+        let contract_type: RippleContract = RippleContract::Rpc;
+        test_extn_payload_provider(rpc_request, contract_type);
     }
 }

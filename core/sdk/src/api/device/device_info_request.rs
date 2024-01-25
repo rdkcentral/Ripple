@@ -151,6 +151,7 @@ mod tests {
 
     #[test]
     fn test_extn_request_device_request() {
-        test_extn_payload_provider(DeviceInfoRequest::MacAddress);
+        let contract_type: RippleContract = RippleContract::DeviceInfo;
+        test_extn_payload_provider(DeviceInfoRequest::MacAddress, contract_type);
     }
 }

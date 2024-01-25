@@ -152,6 +152,7 @@ mod tests {
             subscribe: true,
             callback_type: DeviceEventCallback::FireboltAppEvent("id".to_string()),
         };
-        test_extn_payload_provider(device_event_request);
+        let contract_type: RippleContract = RippleContract::DeviceEvents(EventAdjective::Input);
+        test_extn_payload_provider(device_event_request, contract_type);
     }
 }

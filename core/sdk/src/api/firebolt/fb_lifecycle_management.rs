@@ -230,6 +230,7 @@ mod tests {
             },
         };
         let lifecycle_management_request = LifecycleManagementRequest::Session(app_session_request);
-        test_extn_payload_provider(lifecycle_management_request);
+        let contract_type: RippleContract = RippleContract::LifecycleManagement;
+        test_extn_payload_provider(lifecycle_management_request, contract_type);
     }
 }
