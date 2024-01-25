@@ -32,7 +32,7 @@ use super::manifest::{
 
 use super::manifest::device_manifest::AppLibraryEntry;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum Config {
     AllDefaultApps,
     DefaultApp,
@@ -123,5 +123,16 @@ impl ExtnPayloadProvider for LauncherConfig {
 
     fn contract() -> RippleContract {
         RippleContract::Config
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_config() {
+        test_extn_payload_provider(Config::DefaultValues);
     }
 }

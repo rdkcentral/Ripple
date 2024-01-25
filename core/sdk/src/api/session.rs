@@ -39,7 +39,7 @@ where
 }
 
 type Expiry = u32;
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountSessionTokenRequest {
     pub token: String,
@@ -47,7 +47,7 @@ pub struct AccountSessionTokenRequest {
     pub expires_in: Expiry,
 }
 
-#[derive(Serialize, Clone, Debug, Deserialize)]
+#[derive(Serialize, PartialEq, Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvisionRequest {
     pub account_id: String,
@@ -55,7 +55,7 @@ pub struct ProvisionRequest {
     pub distributor_id: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AccountSessionRequest {
     Get,
     Provision(ProvisionRequest),

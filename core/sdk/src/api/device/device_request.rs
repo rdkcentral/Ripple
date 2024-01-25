@@ -206,7 +206,7 @@ impl Resolution {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct OnInternetConnectedRequest {
     pub timeout: u64,
 }

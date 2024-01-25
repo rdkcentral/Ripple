@@ -203,7 +203,7 @@ impl Default for EntityInfo {
 #[allow(dead_code)]
 pub const SYNOPSIS: &str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Pulvinar sapien et ligula ullamcorper malesuada proin libero nunc.";
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum ProgramType {
     Movie,
@@ -220,7 +220,7 @@ pub enum ProgramType {
     Minisode,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum MusicType {
     Song,
@@ -384,7 +384,7 @@ pub struct ContentPolicy {
     pub remember_watched_programs: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum NavigationIntent {
     NavigationIntentStrict(NavigationIntentStrict),
@@ -428,7 +428,7 @@ impl Default for NavigationIntent {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(tag = "action", rename_all = "kebab-case", deny_unknown_fields)]
 
 pub enum NavigationIntentStrict {
@@ -505,7 +505,7 @@ pub struct Context {
 }
 */
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, PartialEq, Deserialize, Clone, Debug)]
 pub struct NavigationIntentLoose {
     pub action: String,
     pub data: Option<Value>,
@@ -518,7 +518,7 @@ impl Default for NavigationIntentStrict {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct HomeIntent {
     pub context: DiscoveryContext,
 }
@@ -533,19 +533,19 @@ impl Default for HomeIntent {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct LaunchIntent {
     pub context: DiscoveryContext,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct EntityIntent {
     #[serde(deserialize_with = "entity_data_deserialize")]
     pub data: EntityIntentData,
     pub context: DiscoveryContext,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct InternalEntityIntent {
     pub data: EntityIntentData,
     pub context: DiscoveryContext,
@@ -569,7 +569,7 @@ impl From<EntityIntent> for InternalEntityIntent {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum EntityIntentData {
     Program(ProgramEntityIntentData),
@@ -625,7 +625,7 @@ where
     Ok(val)
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(tag = "programType", rename_all = "lowercase")]
 pub enum ProgramEntityIntentData {
     Movie(MovieEntity),
@@ -642,7 +642,7 @@ pub enum ProgramEntityIntentData {
     Extra(AdditionalEntity),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct BaseEntity {
     #[serde(default = "default_program_type")]
@@ -654,7 +654,7 @@ pub struct BaseEntity {
     pub app_content_data: Option<AppContentDataString>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppContentDataString(String);
 
 impl fmt::Display for AppContentDataString {
@@ -669,7 +669,7 @@ impl fmt::Display for AppContentDataString {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct ProgramEntityType(String);
 
 impl Default for ProgramEntityType {
@@ -682,14 +682,14 @@ fn default_program_type() -> ProgramEntityType {
     ProgramEntityType::default()
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct MovieEntity {
     #[serde(flatten)]
     pub base_entity: BaseEntity,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TVEpisodeEntity {
     #[serde(flatten)]
@@ -698,7 +698,7 @@ pub struct TVEpisodeEntity {
     pub season_id: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TVSeasonEntity {
     #[serde(flatten)]
@@ -706,28 +706,28 @@ pub struct TVSeasonEntity {
     pub series_id: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TVSeriesEntity {
     #[serde(flatten)]
     pub base_entity: BaseEntity,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AdditionalEntity {
     #[serde(flatten)]
     pub base_entity: BaseEntity,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaylistEntity {
     #[serde(flatten)]
     pub base_entity: BaseEntity,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct UntypedEntity {
     pub entity_id: String,
@@ -735,19 +735,19 @@ pub struct UntypedEntity {
     pub app_content_data: Option<AppContentDataString>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct TuneIntent {
     pub data: TuneIntentData,
     pub context: DiscoveryContext,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct TuneIntentData {
     pub entity: ChannelEntity,
     pub options: TuneIntentDataOptions,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct ChannelEntityType(String);
 
 impl Default for ChannelEntityType {
@@ -756,7 +756,7 @@ impl Default for ChannelEntityType {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ChannelEntity {
     pub entity_type: ChannelEntityType,
@@ -765,14 +765,14 @@ pub struct ChannelEntity {
     pub app_content_data: Option<AppContentDataString>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum ChannelType {
     Streaming,
     OverTheAir,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TuneIntentDataOptions {
     pub asset_id: Option<String>,
@@ -780,13 +780,13 @@ pub struct TuneIntentDataOptions {
     pub time: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PlaybackIntent {
     pub data: ProgramTypeEntity,
     pub context: DiscoveryContext,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PlayEntityIntent {
     #[serde(deserialize_with = "play_entity_intent_validator")]
     pub data: PlayEntityIntentData,
@@ -815,13 +815,13 @@ where
     Ok(val)
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PlayEntityIntentData {
     pub entity: BaseEntity,
     pub options: Option<PlayEntityIntentDataOptions>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayEntityIntentDataOptions {
     pub play_first_id: Option<String>,
@@ -843,26 +843,26 @@ impl PlayEntityIntentDataOptions {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PlayQueryIntent {
     pub data: PlayQueryIntentData,
     pub context: DiscoveryContext,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PlayQueryIntentData {
     pub query: String,
     pub options: Option<PlayQueryIntentDataOptions>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayQueryIntentDataOptions {
     pub program_types: Option<Vec<ProgramType>>,
     pub music_types: Option<Vec<MusicType>>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(tag = "programType", rename_all = "camelCase")]
 pub enum ProgramTypeEntity {
     Movie(MovieEntity),
@@ -878,30 +878,30 @@ pub enum ProgramTypeEntity {
     Playlist(PlaylistEntity),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SearchIntent {
     pub data: SearchIntentData,
     pub context: DiscoveryContext,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SearchIntentData {
     pub query: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SectionIntent {
     pub data: SectionIntentData,
     pub context: DiscoveryContext,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SectionIntentData {
     pub section_name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct ProviderRequestIntent {
     pub context: DiscoveryContext,
 }

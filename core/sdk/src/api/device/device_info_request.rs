@@ -33,7 +33,7 @@ pub const DEVICE_SKU_AUTHORIZED: &str = "device_sku_authorized";
 pub const DEVICE_MAKE_MODEL_AUTHORIZED: &str = "device_make_model_authorized";
 pub const DEVICE_NETWORK_STATUS_AUTHORIZED: &str = "network_status_authorized";
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum DeviceInfoRequest {
     MacAddress,
     Model,
@@ -130,5 +130,16 @@ impl ExtnPayloadProvider for DeviceResponse {
 
     fn contract() -> RippleContract {
         RippleContract::DeviceInfo
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_device_request() {
+        test_extn_payload_provider(DeviceInfoRequest::MacAddress);
     }
 }

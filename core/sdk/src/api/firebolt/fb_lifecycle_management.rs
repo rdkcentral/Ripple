@@ -67,7 +67,7 @@ impl ExtnPayloadProvider for LifecycleManagementEventRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum LifecycleManagementRequest {
     Session(AppSessionRequest),
     SetState(SetStateRequest),
@@ -165,7 +165,7 @@ pub struct LifecycleManagementFinishedParameters {
     pub app_id: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SetStateRequest {
     pub app_id: String,
@@ -199,7 +199,37 @@ pub struct PendingSessionResponse {
     pub transition_pending: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppSessionRequest {
     pub session: AppSession,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::apps::{
+        AppBasicInfo, AppLaunchInfo, AppRuntime, AppRuntimeTransport, AppSession,
+    };
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_lifecycle_management() {
+        let app_session_request = AppSessionRequest {
+            session: AppSession {
+                app: AppBasicInfo {
+                    id: "sample_id".to_string(),
+                    catalog: None,
+                    url: None,
+                    title: None,
+                },
+                runtime: Some(AppRuntime {
+                    id: Some("sample_runtime_id".to_string()),
+                    transport: AppRuntimeTransport::Bridge, // Modify based on actual enum variant
+                }),
+                launch: AppLaunchInfo::default(),
+            },
+        };
+        let lifecycle_management_request = LifecycleManagementRequest::Session(app_session_request);
+        test_extn_payload_provider(lifecycle_management_request);
+    }
 }

@@ -37,7 +37,7 @@ use super::{
     gateway::rpc_gateway_api::CallContext,
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppSession {
     pub app: AppBasicInfo,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -68,7 +68,7 @@ impl AppSession {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppBasicInfo {
     pub id: String,
     pub catalog: Option<String>,
@@ -76,7 +76,7 @@ pub struct AppBasicInfo {
     pub title: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum AppRuntimeTransport {
     Bridge,
@@ -87,14 +87,14 @@ fn runtime_transport_default() -> AppRuntimeTransport {
     AppRuntimeTransport::Websocket
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppRuntime {
     pub id: Option<String>,
     #[serde(default = "runtime_transport_default")]
     pub transport: AppRuntimeTransport,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Default, Serialize, Deserialize, Clone)]
 pub struct AppLaunchInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub intent: Option<NavigationIntent>,
@@ -227,7 +227,7 @@ pub enum AppMethod {
     NewLoadedSession(AppSession),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum CloseReason {
     RemoteButton,
