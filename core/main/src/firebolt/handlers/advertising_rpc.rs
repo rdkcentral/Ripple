@@ -68,7 +68,7 @@ impl Serialize for AdvertisingId {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serde_json::Map::new();
         map.insert("ifa".to_string(), self.ifa.clone().into());
-        // include both ifaType and ifa_type for backwards compatibility
+        // include both ifaType and ifa_type for backward compatibility
         map.insert("ifaType".to_string(), self.ifa_type.clone().into());
         map.insert("ifa_type".to_string(), self.ifa_type.clone().into());
         map.insert("lmt".to_string(), self.lmt.clone().into());
