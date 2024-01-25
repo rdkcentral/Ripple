@@ -204,7 +204,6 @@ impl Default for EntityInfo {
 pub const SYNOPSIS: &str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Pulvinar sapien et ligula ullamcorper malesuada proin libero nunc.";
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
 pub enum ProgramType {
     Movie,
     Episode,
@@ -594,7 +593,13 @@ where
             let pgm = serde_json::from_value(val).map_err(serde::de::Error::custom)?;
             return Ok(EntityIntentData::Program(pgm));
         }
-        _ => {}
+        _ => {
+            let program_type = val.get("programType");
+            if let Some(_) = program_type {
+                let pgm = serde_json::from_value(val.clone()).map_err(serde::de::Error::custom)?;
+                return Ok(EntityIntentData::Program(pgm));
+            }
+        }
     }
     let ut = serde_json::from_value(val).map_err(serde::de::Error::custom)?;
 
@@ -626,26 +631,38 @@ where
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(tag = "programType", rename_all = "lowercase")]
+#[serde(tag = "programType", rename_all = "camelCase")]
 pub enum ProgramEntityIntentData {
+    #[serde(alias = "Movie", alias = "MOVIE")]
     Movie(MovieEntity),
+    #[serde(alias = "Episode", alias = "EPISODE")]
     Episode(TVEpisodeEntity),
+    #[serde(alias = "Season", alias = "SEASON")]
     Season(TVSeasonEntity),
+    #[serde(alias = "Series", alias = "SERIES")]
     Series(TVSeriesEntity),
+    #[serde(alias = "Concert", alias = "CONCERT")]
     Concert(AdditionalEntity),
+    #[serde(alias = "SportingEvent", alias = "SPORTINGEVENT")]
     SportingEvent(AdditionalEntity),
+    #[serde(alias = "Preview", alias = "PREVIEW")]
     Preview(AdditionalEntity),
+    #[serde(alias = "Other", alias = "OTHER")]
     Other(AdditionalEntity),
+    #[serde(alias = "Advertisement", alias = "ADVERTISEMENT")]
     Advertisement(AdditionalEntity),
+    #[serde(alias = "MusicVideo", alias = "MUSICVIDEO")]
     MusicVideo(AdditionalEntity),
+    #[serde(alias = "Minisode", alias = "MINISODE")]
     Minisode(AdditionalEntity),
+    #[serde(alias = "Extra", alias = "EXTRA")]
     Extra(AdditionalEntity),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct BaseEntity {
-    #[serde(default = "default_program_type")]
+    #[serde(default)]
     pub entity_type: ProgramEntityType,
     pub entity_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -676,10 +693,6 @@ impl Default for ProgramEntityType {
     fn default() -> Self {
         Self(String::from("program"))
     }
-}
-
-fn default_program_type() -> ProgramEntityType {
-    ProgramEntityType::default()
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -759,6 +772,7 @@ impl Default for ChannelEntityType {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ChannelEntity {
+    #[serde(default)]
     pub entity_type: ChannelEntityType,
     pub channel_type: ChannelType,
     pub entity_id: String,
@@ -865,16 +879,27 @@ pub struct PlayQueryIntentDataOptions {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "programType", rename_all = "camelCase")]
 pub enum ProgramTypeEntity {
+    #[serde(alias = "Movie", alias = "MOVIE")]
     Movie(MovieEntity),
+    #[serde(alias = "Episode", alias = "EPISODE")]
     Episode(TVEpisodeEntity),
+    #[serde(alias = "Concert", alias = "CONCERT")]
     Concert(AdditionalEntity),
+    #[serde(alias = "SportingEvent", alias = "SPORTINGEVENT")]
     SportingEvent(AdditionalEntity),
+    #[serde(alias = "Preview", alias = "PREVIEW")]
     Preview(AdditionalEntity),
+    #[serde(alias = "Other", alias = "OTHER")]
     Other(AdditionalEntity),
+    #[serde(alias = "Advertisement", alias = "ADVERTISEMENT")]
     Advertisement(AdditionalEntity),
+    #[serde(alias = "MusicVideo", alias = "MUSICVIDEO")]
     MusicVideo(AdditionalEntity),
+    #[serde(alias = "Minisode", alias = "MINISODE")]
     Minisode(AdditionalEntity),
+    #[serde(alias = "Extra", alias = "EXTRA")]
     Extra(AdditionalEntity),
+    #[serde(alias = "Playlist", alias = "PLAYLIST")]
     Playlist(PlaylistEntity),
 }
 
@@ -1282,6 +1307,58 @@ mod tests {
             assert!(e.to_string().contains("missing field"))
         } else {
             panic!("expecting error for query field")
+        }
+    }
+
+    #[tokio::test]
+    async fn test_navigation_intent_missing_entity_type() {
+        // missing entityType should look to see if programType is defined
+        // if yes, then should be program entity and parse as such
+        // if no, then should be strict untyped entity
+        let json = r#"{
+            "action": "entity",
+            "context": {
+                "source": "voice"
+            },
+            "data": {
+                "entityId": "123",
+                "programType": "movie"
+            }
+        }"#;
+        match serde_json::from_str::<NavigationIntentStrict>(json) {
+            Ok(i) => match i {
+                NavigationIntentStrict::Entity(ei) => match ei.data {
+                    EntityIntentData::Program(pei) => match pei {
+                        ProgramEntityIntentData::Movie(_) => {
+                            println!("parsed a movie intent")
+                        }
+                        _ => panic!(),
+                    },
+                    EntityIntentData::Untyped(_) => panic!(),
+                },
+                _ => panic!(),
+            },
+            Err(_) => panic!(),
+        }
+        let json = r#"{
+            "action": "entity",
+            "context": {
+                "source": "voice"
+            },
+            "data": {
+                "entityId": "123"
+            }
+        }"#;
+
+        match serde_json::from_str::<NavigationIntentStrict>(json) {
+            Ok(i) => match i {
+                NavigationIntentStrict::Entity(ei) => match ei.data {
+                    EntityIntentData::Program(_) => panic!(),
+                    EntityIntentData::Untyped(_) => println!("parsed a untyped entity intent"),
+                },
+                _ => panic!(),
+            },
+            Err(_) => panic!(),
         }
     }
 }
