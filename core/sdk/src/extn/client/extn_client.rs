@@ -62,7 +62,7 @@ use super::{
 ///
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct ExtnClient {
     receiver: CReceiver<CExtnMessage>,
     sender: ExtnSender,
@@ -1019,6 +1019,42 @@ pub mod tests {
         // TODO - add assertion for running tokio thread?
     }
 
+    // #[tokio::test]
+    // async fn test_get_other_senders() {
+    //     let (s, receiver) = unbounded();
+    //     let mock_sender_1 = ExtnSender::new(
+    //         s,
+    //         ExtnId::get_main_target("main".into()),
+    //         vec!["context".to_string()],
+    //         vec!["fulfills".to_string()],
+    //         Some(HashMap::new()),
+    //     );
+    //     let (s1, receiver1) = unbounded();
+    //     let mock_sender_2 = ExtnSender::new(
+    //         s1,
+    //         ExtnId::get_main_target("main".into()),
+    //         vec!["context".to_string()],
+    //         vec!["fulfills".to_string()],
+    //         Some(HashMap::new()),
+    //     );
+
+    //     let extn_client = ExtnClient::new(receiver, mock_sender_1);
+
+    //     let mut extn_client = get_mock_extn_client();
+    //     let processor = MockEventProcessor {
+    //         state: MockState {
+    //             client: extn_client.clone(),
+    //         },
+    //         streamer: DefaultExtnStreamer::new(),
+    //     };
+
+    //     // Call the function to get other senders
+    //     let other_senders = extn_client.get_other_senders();
+
+    //     // Ensure that sender2 is in the result
+    //     assert!(other_senders.contains(&sender2));
+    // }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn test_cleanup_event_stream() {
         let (s, receiver) = unbounded();
@@ -1030,6 +1066,8 @@ pub mod tests {
             Some(HashMap::new()),
         );
         let mut extn_client = ExtnClient::new(receiver, mock_sender.clone());
+        let mut extn_client_for_thread = extn_client.clone();
+
         let processor = MockEventProcessor {
             state: MockState {
                 client: extn_client.clone(),
@@ -1041,7 +1079,7 @@ pub mod tests {
         assert!(extn_client.clone().event_processors.read().unwrap().len() == 1);
 
         tokio::spawn(async move {
-            extn_client.clone().initialize().await;
+            extn_client_for_thread.initialize().await;
         });
 
         tokio::spawn(async move {
@@ -1079,14 +1117,14 @@ pub mod tests {
 
         println!(
             "**** extn_client: cleanup_event_stream: len before close: {:?}",
-            extn_client.clone().event_processors.read().unwrap().len()
+            extn_client.event_processors.read().unwrap().len()
         );
         let capability = ExtnId::get_main_target("main".into());
-        extn_client.clone().cleanup_event_stream(capability);
+        extn_client.cleanup_event_stream(capability);
 
         println!(
             "**** extn_client: cleanup_event_stream: len after cleanup: {:?}",
-            extn_client.clone().event_processors.read().unwrap().len()
+            extn_client.event_processors.read().unwrap().len()
         );
 
         // assert!(extn_client.event_processors.read().unwrap().len() == 0);
