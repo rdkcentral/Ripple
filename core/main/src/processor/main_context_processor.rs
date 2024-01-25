@@ -176,16 +176,8 @@ impl MainContextProcessor {
 
             if state.supports_app_catalog() {
                 let ignore_list = vec![state.get_device_manifest().applications.defaults.main];
-
                 let client = state.get_client().clone();
                 client.add_event_processor(AppsUpdater::new(client.get_extn_client(), ignore_list));
-
-                let on_apps_update_resp = state
-                    .ripple_client
-                    .send_extn_request(AppCatalogRequest::OnAppsUpdate)
-                    .await;
-
-                debug!("Received OnAppsUpdate response: {:?}", on_apps_update_resp);
             }
         }
     }
