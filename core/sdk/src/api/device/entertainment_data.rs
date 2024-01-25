@@ -310,7 +310,7 @@ impl ProviderResult {
     pub fn new(entries: HashMap<String, Vec<String>>) -> Self {
         ProviderResult { entries }
     }
-}Pr
+}
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 #[serde(rename_all = "camelCase")]
