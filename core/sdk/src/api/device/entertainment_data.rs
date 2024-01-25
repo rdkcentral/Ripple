@@ -204,6 +204,7 @@ impl Default for EntityInfo {
 pub const SYNOPSIS: &str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Pulvinar sapien et ligula ullamcorper malesuada proin libero nunc.";
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub enum ProgramType {
     Movie,
     Episode,
@@ -309,7 +310,7 @@ impl ProviderResult {
     pub fn new(entries: HashMap<String, Vec<String>>) -> Self {
         ProviderResult { entries }
     }
-}
+}Pr
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 #[serde(rename_all = "camelCase")]
