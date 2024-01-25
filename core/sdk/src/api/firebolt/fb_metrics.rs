@@ -397,6 +397,23 @@ impl BehavioralMetricPayload {
 /// process starts, so this service may need a way to wait for the values
 /// to become available
 /// This design assumes that all of the items will be available at the same times
+/// // <pca>
+// #[derive(Debug, Serialize, Deserialize, Clone, Default)]
+// pub struct MetricsContext {
+//     pub device_language: String,
+//     pub device_model: String,
+//     pub device_id: String,
+//     pub account_id: String,
+//     pub device_timezone: String,
+//     pub device_timezone_offset: String,
+//     pub device_name: String,
+//     pub platform: String,
+//     pub os_ver: String,
+//     pub distribution_tenant_id: String,
+//     pub device_session_id: String,
+//     pub mac_address: String,
+//     pub serial_number: String,
+// }
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct MetricsContext {
     pub device_language: String,
@@ -407,13 +424,32 @@ pub struct MetricsContext {
     pub device_timezone_offset: String,
     pub device_name: String,
     pub platform: String,
+    pub os_name: String,
     pub os_ver: String,
     pub distribution_tenant_id: String,
     pub device_session_id: String,
     pub mac_address: String,
     pub serial_number: String,
 }
+// </pca>
 
+// <pca>
+// #[allow(non_camel_case_types)]
+// pub enum MetricsContextField {
+//     device_language,
+//     device_model,
+//     device_id,
+//     account_id,
+//     device_timezone,
+//     device_timezone_offset,
+//     device_name,
+//     platform,
+//     os_ver,
+//     distributor_id,
+//     session_id,
+//     mac_address,
+//     serial_number,
+// }
 #[allow(non_camel_case_types)]
 pub enum MetricsContextField {
     device_language,
@@ -424,12 +460,54 @@ pub enum MetricsContextField {
     device_timezone_offset,
     device_name,
     platform,
+    os_name,
     os_ver,
     distributor_id,
     session_id,
     mac_address,
     serial_number,
 }
+// </pca>
+
+// <pca>
+// impl MetricsContext {
+//     pub fn new() -> MetricsContext {
+//         MetricsContext {
+//             device_language: String::from(""),
+//             device_model: String::from(""),
+//             device_id: String::from(""),
+//             device_timezone: String::from(""),
+//             device_timezone_offset: String::from(""),
+//             device_name: String::from(""),
+//             mac_address: String::from(""),
+//             serial_number: String::from(""),
+//             account_id: String::from(""),
+//             platform: String::from(""),
+//             os_ver: String::from(""),
+//             device_session_id: String::from(""),
+//             distribution_tenant_id: String::from(""),
+//         }
+//     }
+//     pub fn set(&mut self, field: MetricsContextField, value: String) {
+//         match field {
+//             MetricsContextField::device_language => self.device_language = value,
+//             MetricsContextField::device_model => self.device_model = value,
+//             MetricsContextField::device_id => self.device_id = value,
+//             MetricsContextField::account_id => self.account_id = value,
+//             MetricsContextField::device_timezone => self.device_timezone = value.parse().unwrap(),
+//             MetricsContextField::device_timezone_offset => {
+//                 self.device_timezone_offset = value.parse().unwrap()
+//             }
+//             MetricsContextField::platform => self.platform = value,
+//             MetricsContextField::os_ver => self.os_ver = value,
+//             MetricsContextField::distributor_id => self.distribution_tenant_id = value,
+//             MetricsContextField::session_id => self.device_session_id = value,
+//             MetricsContextField::mac_address => self.mac_address = value,
+//             MetricsContextField::serial_number => self.serial_number = value,
+//             MetricsContextField::device_name => self.device_name = value,
+//         };
+//     }
+// }
 impl MetricsContext {
     pub fn new() -> MetricsContext {
         MetricsContext {
@@ -443,6 +521,7 @@ impl MetricsContext {
             serial_number: String::from(""),
             account_id: String::from(""),
             platform: String::from(""),
+            os_name: String::from(""),
             os_ver: String::from(""),
             device_session_id: String::from(""),
             distribution_tenant_id: String::from(""),
@@ -459,6 +538,7 @@ impl MetricsContext {
                 self.device_timezone_offset = value.parse().unwrap()
             }
             MetricsContextField::platform => self.platform = value,
+            MetricsContextField::os_name => self.os_name = value,
             MetricsContextField::os_ver => self.os_ver = value,
             MetricsContextField::distributor_id => self.distribution_tenant_id = value,
             MetricsContextField::session_id => self.device_session_id = value,
@@ -468,6 +548,7 @@ impl MetricsContext {
         };
     }
 }
+// </pca>
 
 #[async_trait]
 pub trait BehavioralMetricsService {

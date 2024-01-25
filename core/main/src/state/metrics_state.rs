@@ -94,6 +94,11 @@ impl MetricsState {
             Err(_) => "no.language.set".to_string(),
         };
 
+        // <pca>
+        let os_name = Self::get_os_ver_from_firebolt(state).await;
+        debug!("got os_name={}", &os_name);
+        // </pca>
+
         let os_ver = Self::get_os_ver_from_firebolt(state).await;
         debug!("got os_ver={}", &os_ver);
 
@@ -128,6 +133,9 @@ impl MetricsState {
             }
 
             context.device_language = language;
+            // <pca>
+            context.os_name = os_name;
+            // </pca>
             context.os_ver = os_ver;
             context.device_name = device_name;
             context.device_session_id = String::from(&state.device_session_id);
@@ -138,6 +146,28 @@ impl MetricsState {
         }
         Self::update_account_session(state).await
     }
+
+    // <pca>
+    async fn get_os_name_from_firebolt(platform_state: &PlatformState) -> String {
+        let mut os = FireboltSemanticVersion::new(0, 0, 0, "".to_string());
+
+        if let Ok(val) = platform_state
+            .get_client()
+            .send_extn_request(DeviceInfoRequest::Version)
+            .await
+        {
+            if let Some(DeviceResponse::FirmwareInfo(value)) = val.payload.extract() {
+                os = value;
+            }
+        }
+        let os_ver: String = if !os.readable.is_empty() {
+            os.readable.to_string()
+        } else {
+            "no.os.ver.set".to_string()
+        };
+        os_ver
+    }
+    // </pca>
 
     async fn get_os_ver_from_firebolt(platform_state: &PlatformState) -> String {
         let mut os = FireboltSemanticVersion::new(0, 0, 0, "".to_string());
