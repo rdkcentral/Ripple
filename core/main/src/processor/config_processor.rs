@@ -16,7 +16,7 @@
 //
 
 use ripple_sdk::{
-    api::config::{Config, ConfigResponse, LauncherConfig},
+    api::config::{Config, ConfigResponse, LauncherConfig, RfcRequest},
     async_trait::async_trait,
     extn::{
         client::extn_processor::{
@@ -89,7 +89,7 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
                 let config = LauncherConfig {
                     lifecycle_policy: device_manifest.get_lifecycle_policy(),
                     retention_policy: device_manifest.get_retention_policy(),
-                    app_library_state: state.clone().app_library_state,
+                    app_library_state: state.app_library_state.clone(),
                 };
                 if let ExtnPayload::Response(r) = config.get_extn_payload() {
                     r
@@ -107,22 +107,22 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
                 ExtnResponse::DefaultApp(state.app_library_state.get_default_app().unwrap())
             }
             Config::SavedDir => {
-                ExtnResponse::String(device_manifest.clone().configuration.saved_dir)
+                ExtnResponse::String(device_manifest.configuration.saved_dir.clone())
             }
             Config::FormFactor => ExtnResponse::String(device_manifest.get_form_factor()),
             Config::DistributorExperienceId => {
                 ExtnResponse::String(device_manifest.get_distributor_experience_id())
             }
             Config::DistributorServices => {
-                if let Some(v) = device_manifest.clone().configuration.distributor_services {
-                    ExtnResponse::Value(v)
+                if let Some(v) = &device_manifest.configuration.distributor_services {
+                    ExtnResponse::Value(v.clone())
                 } else {
                     ExtnResponse::None(())
                 }
             }
             Config::IdSalt => {
-                if let Some(v) = device_manifest.clone().configuration.distribution_id_salt {
-                    ExtnResponse::Config(ConfigResponse::IdSalt(v))
+                if let Some(v) = &device_manifest.configuration.distribution_id_salt {
+                    ExtnResponse::Config(ConfigResponse::IdSalt(v.clone()))
                 } else {
                     ExtnResponse::None(())
                 }
@@ -134,6 +134,25 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
                 serde_json::to_value(device_manifest.configuration.default_values.clone())
                     .unwrap_or_default(),
             ),
+            Config::Firebolt => ExtnResponse::Value(
+                serde_json::to_value(state.open_rpc_state.get_open_rpc()).unwrap_or_default(),
+            ),
+            Config::RFC(flag) => {
+                let mut resp =
+                    ExtnResponse::Error(ripple_sdk::utils::error::RippleError::InvalidAccess);
+                if state.supports_rfc() {
+                    if let Ok(v) = state
+                        .get_client()
+                        .send_extn_request(RfcRequest { flag })
+                        .await
+                    {
+                        if let Some(ExtnResponse::Value(v)) = v.payload.extract() {
+                            resp = ExtnResponse::Value(v);
+                        }
+                    }
+                }
+                resp
+            }
             _ => ExtnResponse::Error(ripple_sdk::utils::error::RippleError::InvalidInput),
         };
         Self::respond(state.get_client().get_extn_client(), msg, response)

@@ -62,6 +62,7 @@ pub enum DeviceInfoRequest {
     FullCapabilities(Vec<String>),
     PowerState,
     SerialNumber,
+    PlatformBuildInfo,
 }
 
 impl ExtnPayloadProvider for DeviceInfoRequest {
@@ -95,6 +96,15 @@ pub struct DeviceCapabilities {
     pub audio: Option<HashMap<AudioProfile, bool>>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PlatformBuildInfo {
+    pub name: String,
+    pub device_model: String,
+    pub branch: Option<String>,
+    pub release_version: Option<String>,
+    pub debug: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DeviceResponse {
     CustomError(String),
@@ -109,6 +119,7 @@ pub enum DeviceResponse {
     InternetConnectionStatus(InternetConnectionStatus),
     PowerState(PowerState),
     TimeZone(TimeZone),
+    PlatformBuildInfo(PlatformBuildInfo),
 }
 
 impl ExtnPayloadProvider for DeviceResponse {

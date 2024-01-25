@@ -22,6 +22,7 @@ use std::{
 
 use ripple_sdk::{
     api::{
+        app_catalog::AppCatalogRequest,
         context::{ActivationStatus, RippleContext, RippleContextUpdateType},
         device::{
             device_request::{PowerState, SystemPowerState},
@@ -48,7 +49,7 @@ use ripple_sdk::{
 static START_PARTNER_EXCLUSION_SYNC_THREAD: Once = Once::new();
 
 use crate::{
-    service::data_governance::DataGovernance,
+    service::{apps::apps_updater::AppsUpdater, data_governance::DataGovernance},
     state::{cap::cap_state::CapState, metrics_state::MetricsState, platform_state::PlatformState},
 };
 
@@ -77,6 +78,9 @@ impl MainContextProcessor {
         }
     }
 
+    ///
+    /// Method which gets called on bootstrap for a presence of account session
+    ///
     async fn check_account_session_token(state: &PlatformState) -> bool {
         let mut token_available = false;
         let mut event = CapEvent::OnUnavailable;
@@ -102,6 +106,7 @@ impl MainContextProcessor {
         .await;
         token_available
     }
+
     async fn sync_partner_exclusions(state: &PlatformState) {
         let state_for_exclusion = state.clone();
         START_PARTNER_EXCLUSION_SYNC_THREAD.call_once(|| {
@@ -125,46 +130,62 @@ impl MainContextProcessor {
             });
         });
     }
-    pub async fn initialize_token(state: &PlatformState) {
+    pub async fn initialize_session(state: &PlatformState) {
         if !Self::check_account_session_token(state).await {
             error!("Account session still not available");
-        } else if state.supports_cloud_sync() {
-            debug!("Cloud Sync  configured as a required contract so starting.");
-            if state
-                .get_device_manifest()
-                .configuration
-                .features
-                .privacy_settings_storage_type
-                == PrivacySettingsStorageType::Sync
-            {
-                debug!(
-                "Privacy settings storage type is not set as sync so not starting cloud monitor"
-            );
-                if let Some(account_session) = state.session_state.get_account_session() {
-                    debug!("Successfully got account session");
-                    //sync up partner exclusion data and setup polling thread for refreshing it.
-                    Self::sync_partner_exclusions(state).await;
-
-                    let sync_response = state
-                        .get_client()
-                        .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
-                            SyncAndMonitorModule::Privacy,
-                            account_session.clone(),
-                        ))
-                        .await;
-                    debug!("Received Sync response for privacy: {:?}", sync_response);
-                    let sync_response = state
-                        .get_client()
-                        .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
-                            SyncAndMonitorModule::UserGrants,
-                            account_session.clone(),
-                        ))
-                        .await;
+        } else {
+            if state.supports_cloud_sync() {
+                debug!("Cloud Sync  configured as a required contract so starting.");
+                if state
+                    .get_device_manifest()
+                    .configuration
+                    .features
+                    .privacy_settings_storage_type
+                    == PrivacySettingsStorageType::Sync
+                {
                     debug!(
-                        "Received Sync response for user grants: {:?}",
-                        sync_response
-                    );
+                    "Privacy settings storage type is not set as sync so not starting cloud monitor"
+                );
+                    if let Some(account_session) = state.session_state.get_account_session() {
+                        debug!("Successfully got account session");
+                        //sync up partner exclusion data and setup polling thread for refreshing it.
+                        Self::sync_partner_exclusions(state).await;
+
+                        let sync_response = state
+                            .get_client()
+                            .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
+                                SyncAndMonitorModule::Privacy,
+                                account_session.clone(),
+                            ))
+                            .await;
+                        debug!("Received Sync response for privacy: {:?}", sync_response);
+                        let sync_response = state
+                            .get_client()
+                            .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
+                                SyncAndMonitorModule::UserGrants,
+                                account_session.clone(),
+                            ))
+                            .await;
+                        debug!(
+                            "Received Sync response for user grants: {:?}",
+                            sync_response
+                        );
+                    }
                 }
+            }
+
+            if state.supports_app_catalog() {
+                let ignore_list = vec![state.get_device_manifest().applications.defaults.main];
+
+                let client = state.get_client().clone();
+                client.add_event_processor(AppsUpdater::new(client.get_extn_client(), ignore_list));
+
+                let on_apps_update_resp = state
+                    .ripple_client
+                    .send_extn_request(AppCatalogRequest::OnAppsUpdate)
+                    .await;
+
+                debug!("Received OnAppsUpdate response: {:?}", on_apps_update_resp);
             }
         }
     }
@@ -210,9 +231,18 @@ impl ExtnEventProcessor for MainContextProcessor {
         if let Some(update) = &extracted_message.update_type {
             match update {
                 RippleContextUpdateType::TokenChanged => {
-                    if let ActivationStatus::AccountToken(_t) = &extracted_message.activation_status
+                    if let ActivationStatus::AccountToken(t) = &extracted_message.activation_status
                     {
-                        Self::initialize_token(&state.state).await
+                        //Call initialize token only when account session was not initialized the first time
+                        if state.state.session_state.get_account_session().is_none() {
+                            Self::initialize_session(&state.state).await
+                        } else {
+                            // update the token
+                            state
+                                .state
+                                .session_state
+                                .insert_session_token(t.token.clone())
+                        }
                     }
                 }
                 RippleContextUpdateType::PowerStateChanged => {

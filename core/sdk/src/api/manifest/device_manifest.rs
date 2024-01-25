@@ -420,15 +420,12 @@ pub enum PrivacySettingsStorageType {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RippleFeatures {
+    #[serde(default = "default_privacy_settings_storage_type")]
     pub privacy_settings_storage_type: PrivacySettingsStorageType,
+    #[serde(default = "default_intent_validation")]
     pub intent_validation: IntentValidation,
-}
-
-fn default_ripple_features() -> RippleFeatures {
-    RippleFeatures {
-        privacy_settings_storage_type: PrivacySettingsStorageType::Local,
-        intent_validation: IntentValidation::FailOpen,
-    }
+    #[serde(default = "default_cloud_permissions")]
+    pub cloud_permissions: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -454,6 +451,26 @@ impl DataGovernanceConfig {
             .find(|p| p.data_type == data_type)
             .cloned()
     }
+}
+
+fn default_ripple_features() -> RippleFeatures {
+    RippleFeatures {
+        privacy_settings_storage_type: default_privacy_settings_storage_type(),
+        intent_validation: default_intent_validation(),
+        cloud_permissions: default_cloud_permissions(),
+    }
+}
+
+fn default_intent_validation() -> IntentValidation {
+    IntentValidation::FailOpen
+}
+
+fn default_privacy_settings_storage_type() -> PrivacySettingsStorageType {
+    PrivacySettingsStorageType::Local
+}
+
+fn default_cloud_permissions() -> bool {
+    true
 }
 
 pub fn default_enforcement_value() -> bool {
@@ -591,5 +608,42 @@ impl DeviceManifest {
 
     pub fn get_lifecycle_configuration(&self) -> LifecycleConfiguration {
         self.lifecycle.clone()
+    }
+
+    pub fn get_applications_configuration(&self) -> ApplicationsConfiguration {
+        self.applications.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn check_default_features() {
+        if let Ok(v) = serde_json::from_str::<RippleFeatures>("{}") {
+            assert!(matches!(v.intent_validation, IntentValidation::FailOpen));
+            assert!(matches!(
+                v.privacy_settings_storage_type,
+                PrivacySettingsStorageType::Local
+            ));
+        }
+
+        if let Ok(v) =
+            serde_json::from_str::<RippleFeatures>("{\"privacy_settings_storage_type\": \"sync\"}")
+        {
+            assert!(matches!(v.intent_validation, IntentValidation::FailOpen));
+            assert!(matches!(
+                v.privacy_settings_storage_type,
+                PrivacySettingsStorageType::Sync
+            ));
+        }
+
+        if let Ok(v) = serde_json::from_str::<RippleFeatures>("{\"intent_validation\": \"fail\"}") {
+            assert!(matches!(v.intent_validation, IntentValidation::Fail));
+            assert!(matches!(
+                v.privacy_settings_storage_type,
+                PrivacySettingsStorageType::Local
+            ));
+        }
     }
 }

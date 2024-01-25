@@ -150,7 +150,7 @@ impl CapabilityServer for CapabilityImpl {
             .check_cap_role(&ctx.app_id, &cap.clone().into())
         {
             return Ok(v);
-        } else if PermissionHandler::fetch_and_store_from_cache_or_server(&self.state, &ctx.app_id)
+        } else if PermissionHandler::fetch_and_store(&self.state, &ctx.app_id, true)
             .await
             .is_ok()
         {
@@ -266,6 +266,7 @@ impl CapabilityServer for CapabilityImpl {
                 &fb_perms,
                 false,
                 true,
+                false,
             )
             .await;
         }
@@ -307,7 +308,7 @@ pub async fn is_permitted(
         .check_cap_role(&ctx.app_id, cap)
     {
         return Ok(v);
-    } else if PermissionHandler::fetch_and_store_from_cache_or_server(state, &ctx.app_id)
+    } else if PermissionHandler::fetch_and_store(state, &ctx.app_id, true)
         .await
         .is_ok()
     {

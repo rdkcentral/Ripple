@@ -18,6 +18,8 @@
 use ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest;
 use ripple_sdk::log::error;
 
+use crate::processors::thunder_package_manager::ThunderPackageManagerRequestProcessor;
+use crate::processors::thunder_rfc::ThunderRFCProcessor;
 use crate::processors::thunder_telemetry::ThunderTelemetryProcessor;
 use crate::thunder_state::ThunderBootstrapStateWithClient;
 
@@ -46,23 +48,28 @@ impl SetupThunderProcessor {
         extn_client.add_request_processor(ThunderWifiRequestProcessor::new(state.clone().state));
         extn_client.add_request_processor(ThunderStorageRequestProcessor::new(state.clone().state));
         extn_client.add_request_processor(ThunderWindowManagerRequestProcessor::new(
-            state.clone().state,
+            state.state.clone(),
         ));
         extn_client.add_request_processor(ThunderRemoteAccessoryRequestProcessor::new(
             state.clone().state,
         ));
         extn_client.add_request_processor(ThunderOpenEventsProcessor::new(state.clone().state));
 
+        let package_manager_processor =
+            ThunderPackageManagerRequestProcessor::new(state.clone().state);
+        package_manager_processor.init(state.state.clone()).await;
+        extn_client.add_request_processor(package_manager_processor);
+
         if extn_client.get_bool_config("rdk_telemetry") {
             match extn_client
                 .request(OperationalMetricRequest::Subscribe)
                 .await
             {
-                Ok(_) => {
-                    extn_client.add_event_processor(ThunderTelemetryProcessor::new(state.state))
-                }
+                Ok(_) => extn_client
+                    .add_event_processor(ThunderTelemetryProcessor::new(state.clone().state)),
                 Err(_) => error!("Telemetry not setup"),
             }
         }
+        extn_client.add_request_processor(ThunderRFCProcessor::new(state.clone().state));
     }
 }

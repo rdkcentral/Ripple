@@ -304,7 +304,7 @@ impl DeviceServer for DeviceImpl {
     }
 
     async fn uid(&self, ctx: CallContext) -> RpcResult<String> {
-        get_uid(&self.state, ctx.app_id.clone()).await
+        get_uid(&self.state, ctx.app_id).await
     }
 
     async fn platform(&self, _ctx: CallContext) -> RpcResult<String> {
@@ -320,7 +320,7 @@ impl DeviceServer for DeviceImpl {
         );
         os.readable = format!("Firebolt OS v{}", env!("CARGO_PKG_VERSION"));
 
-        let firmware = self.firmware_info(ctx.clone()).await?;
+        let firmware = self.firmware_info(ctx).await?;
 
         let open_rpc_state = self.state.clone().open_rpc_state;
         let api = open_rpc_state.get_open_rpc().info;
