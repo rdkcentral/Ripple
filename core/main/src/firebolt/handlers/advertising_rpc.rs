@@ -57,12 +57,23 @@ const ADVERTISING_APP_BUNDLE_ID_SUFFIX: &str = "Comcast";
 //{"xifa":"00000000-0000-0000-0000-000000000000","xifaType":"sessionId","lmt":"0"}
 const IFA_ZERO_BASE64: &str = "eyJ4aWZhIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwIiwieGlmYVR5cGUiOiJzZXNzaW9uSWQiLCJsbXQiOiIwIn0K";
 
-#[derive(Serialize, Debug)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug)]
 pub struct AdvertisingId {
     pub ifa: String,
     pub ifa_type: String,
     pub lmt: String,
+}
+
+impl Serialize for AdvertisingId {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serde_json::Map::new();
+        map.insert("ifa".to_string(), self.ifa.clone().into());
+        // include both ifaType and ifa_type for backwards compatibility
+        map.insert("ifaType".to_string(), self.ifa_type.clone().into());
+        map.insert("ifa_type".to_string(), self.ifa_type.clone().into());
+        map.insert("lmt".to_string(), self.lmt.clone().into());
+        map.serialize(serializer)
+    }
 }
 
 #[derive(Serialize)]
