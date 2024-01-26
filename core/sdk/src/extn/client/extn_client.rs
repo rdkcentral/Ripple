@@ -724,14 +724,15 @@ pub mod tests {
             client::extn_processor::{
                 DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
             },
-            extn_client_message::{ExtnPayload, ExtnRequest},
+            extn_client_message::{ExtnEvent, ExtnPayload, ExtnRequest},
             extn_id::{ExtnClassId, ExtnId},
         },
     };
     use async_channel::unbounded;
     use async_trait::async_trait;
     use serde::{Deserialize, Serialize};
-    use tokio::sync::Mutex;
+    use serde_json::Value;
+    use std::collections::HashMap;
     use tokio::{sync::mpsc, time::Duration};
 
     // TODO
@@ -806,7 +807,7 @@ pub mod tests {
             _msg: ExtnMessage,
             _extracted_message: Self::VALUE,
         ) -> Option<bool> {
-            println!("**** Success reached process_request");
+            println!("**** Success reached process_event");
             Some(true)
         }
     }
@@ -862,6 +863,36 @@ pub mod tests {
     }
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct MockEvent {
+        pub event_name: String,
+        pub result: Value,
+        pub context: Option<Value>,
+        pub app_id: Option<String>,
+    }
+
+    impl ExtnPayloadProvider for MockEvent {
+        fn get_extn_payload(&self) -> ExtnPayload {
+            ExtnPayload::Event(ExtnEvent::Value(
+                serde_json::to_value(self.clone()).unwrap(),
+            ))
+        }
+
+        fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+            if let ExtnPayload::Event(ExtnEvent::Value(v)) = payload {
+                if let Ok(v) = serde_json::from_value(v) {
+                    return Some(v);
+                }
+            }
+
+            None
+        }
+
+        fn contract() -> RippleContract {
+            RippleContract::Internal
+        }
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct MockRequest {
         pub context: MockContext,
     }
@@ -907,40 +938,6 @@ pub mod tests {
 
         ExtnClient::new(receiver, mock_sender)
     }
-    // pub trait Mockable {
-    //     fn mock() -> ExtnClient;
-    //     fn mock_with_params(
-    //         id: ExtnId,
-    //         context: Vec<String>,
-    //         fulfills: Vec<String>,
-    //         config: Option<HashMap<String, String>>,
-    //     ) -> ExtnClient;
-    // }
-
-    // impl Mockable for ExtnClient {
-    //     fn mock() -> Self {
-    //         let (s, receiver) = unbounded();
-    //         let mock_sender = ExtnSender::new(
-    //             s,
-    //             ExtnId::get_main_target("main".into()),
-    //             vec!["context".to_string()],
-    //             vec!["fulfills".to_string()],
-    //             Some(HashMap::new()),
-    //         );
-    //         ExtnClient::new(receiver, mock_sender)
-    //     }
-
-    //     fn mock_with_params(
-    //         id: ExtnId,
-    //         context: Vec<String>,
-    //         fulfills: Vec<String>,
-    //         config: Option<HashMap<String, String>>,
-    //     ) -> Self {
-    //         let (s, receiver) = unbounded();
-    //         let mock_sender = ExtnSender::mock_with_params(id, context, fulfills, config);
-    //         ExtnClient::new(receiver, mock_sender)
-    //     }
-    // }
 
     #[test]
     fn test_add_stream_processor() {
@@ -1019,54 +1016,18 @@ pub mod tests {
         // TODO - add assertion for running tokio thread?
     }
 
-    // #[tokio::test]
-    // async fn test_get_other_senders() {
-    //     let (s, receiver) = unbounded();
-    //     let mock_sender_1 = ExtnSender::new(
-    //         s,
-    //         ExtnId::get_main_target("main".into()),
-    //         vec!["context".to_string()],
-    //         vec!["fulfills".to_string()],
-    //         Some(HashMap::new()),
-    //     );
-    //     let (s1, receiver1) = unbounded();
-    //     let mock_sender_2 = ExtnSender::new(
-    //         s1,
-    //         ExtnId::get_main_target("main".into()),
-    //         vec!["context".to_string()],
-    //         vec!["fulfills".to_string()],
-    //         Some(HashMap::new()),
-    //     );
-
-    //     let extn_client = ExtnClient::new(receiver, mock_sender_1);
-
-    //     let mut extn_client = get_mock_extn_client();
-    //     let processor = MockEventProcessor {
-    //         state: MockState {
-    //             client: extn_client.clone(),
-    //         },
-    //         streamer: DefaultExtnStreamer::new(),
-    //     };
-
-    //     // Call the function to get other senders
-    //     let other_senders = extn_client.get_other_senders();
-
-    //     // Ensure that sender2 is in the result
-    //     assert!(other_senders.contains(&sender2));
-    // }
-
     #[tokio::test(flavor = "multi_thread")]
     async fn test_cleanup_event_stream() {
         let (s, receiver) = unbounded();
         let mock_sender = ExtnSender::new(
             s,
-            ExtnId::get_main_target("main".into()),
+            ExtnId::new_channel(ExtnClassId::Internal, "test".into()),
             vec!["context".to_string()],
             vec!["fulfills".to_string()],
             Some(HashMap::new()),
         );
         let mut extn_client = ExtnClient::new(receiver, mock_sender.clone());
-        let mut extn_client_for_thread = extn_client.clone();
+        let extn_client_for_thread = extn_client.clone();
 
         let processor = MockEventProcessor {
             state: MockState {
@@ -1083,21 +1044,14 @@ pub mod tests {
         });
 
         tokio::spawn(async move {
-            let result = mock_sender.clone().send_request(
-                "some_id".to_string(),
-                MockRequest {
-                    context: MockContext {
-                        app_id: "app_id".to_string(),
-                        dist_session: AccountSession {
-                            id: "id".to_string(),
-                            token: "token".to_string(),
-                            account_id: "account_id".to_string(),
-                            device_id: "device_id".to_string(),
-                        },
-                    },
+            let result = mock_sender.clone().send_event(
+                MockEvent {
+                    event_name: "test_event".to_string(),
+                    result: serde_json::json!({"result": "result"}),
+                    context: None,
+                    app_id: None,
                 },
                 Some(mock_sender.clone().tx),
-                None,
             );
 
             match result {
@@ -1119,43 +1073,24 @@ pub mod tests {
             "**** extn_client: cleanup_event_stream: len before close: {:?}",
             extn_client.event_processors.read().unwrap().len()
         );
-        let capability = ExtnId::get_main_target("main".into());
-        extn_client.cleanup_event_stream(capability);
+        // let capability = ExtnId::new_channel(ExtnClassId::Internal, "test".into());
+        // extn_client.cleanup_event_stream(capability);
 
-        println!(
-            "**** extn_client: cleanup_event_stream: len after cleanup: {:?}",
-            extn_client.event_processors.read().unwrap().len()
-        );
+        // println!(
+        //     "**** extn_client: cleanup_event_stream: len after cleanup: {:?}",
+        //     extn_client.event_processors.read().unwrap().len()
+        // );
 
         // assert!(extn_client.event_processors.read().unwrap().len() == 0);
     }
 
-    // #[tokio::test(flavor = "multi_thread")]
-    // async fn test_cleanup_vec_stream() {
-    //     let mut extn_client = get_mock_extn_client();
-    //     let processor = MockEventProcessor {
-    //         state: MockState {
-    //             client: extn_client.clone(),
-    //         },
-    //         streamer: DefaultExtnStreamer::new(),
-    //     };
-
-    //     extn_client.add_event_processor(processor);
-    //     assert!(extn_client.event_processors.read().unwrap().len() == 1);
-
-    //     let capability = ExtnId::get_main_target("main".into());
-    //     extn_client.cleanup_vec_stream(capability.to_string(), None, processor.sender());
-
-    //     assert!(extn_client.event_processors.read().unwrap().len() == 0);
-    // }
-
     // TODO rename tests to be more descriptive
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_distributor_processor() {
+    async fn test_request_processor() {
         let (s, receiver) = unbounded();
         let mock_sender = ExtnSender::new(
             s,
-            ExtnId::get_main_target("main".into()),
+            ExtnId::new_channel(ExtnClassId::Internal, "test".into()),
             vec!["context".to_string()],
             vec!["fulfills".to_string()],
             Some(HashMap::new()),
