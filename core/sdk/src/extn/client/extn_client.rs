@@ -1018,15 +1018,16 @@ pub mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_cleanup_event_stream() {
+        let capability = ExtnId::new_channel(ExtnClassId::Internal, "test".into());
         let (s, receiver) = unbounded();
         let mock_sender = ExtnSender::new(
             s,
-            ExtnId::new_channel(ExtnClassId::Internal, "test".into()),
+            capability.clone(),
             vec!["context".to_string()],
             vec!["fulfills".to_string()],
             Some(HashMap::new()),
         );
-        let mut extn_client = ExtnClient::new(receiver, mock_sender.clone());
+        let extn_client = ExtnClient::new(receiver, mock_sender.clone());
         let extn_client_for_thread = extn_client.clone();
 
         let processor = MockEventProcessor {
@@ -1068,20 +1069,19 @@ pub mod tests {
 
         // Allow some time for the async tasks to complete
         tokio::time::sleep(Duration::from_secs(2)).await;
+        assert!(extn_client.event_processors.read().unwrap().len() == 1);
 
-        println!(
-            "**** extn_client: cleanup_event_stream: len before close: {:?}",
-            extn_client.event_processors.read().unwrap().len()
+        // Add the assertion to check if there are no Vec<MSender<ExtnMessage> in event_processors map after cleanup
+        assert_eq!(
+            extn_client
+                .event_processors
+                .read()
+                .unwrap()
+                .get(&capability.to_string())
+                .map(|v| v.len()),
+            None,
+            "Assertion failed: Vec<MSender<ExtnMessage> in event_processors map does not have the expected length after cleanup"
         );
-        // let capability = ExtnId::new_channel(ExtnClassId::Internal, "test".into());
-        // extn_client.cleanup_event_stream(capability);
-
-        // println!(
-        //     "**** extn_client: cleanup_event_stream: len after cleanup: {:?}",
-        //     extn_client.event_processors.read().unwrap().len()
-        // );
-
-        // assert!(extn_client.event_processors.read().unwrap().len() == 0);
     }
 
     // TODO rename tests to be more descriptive
