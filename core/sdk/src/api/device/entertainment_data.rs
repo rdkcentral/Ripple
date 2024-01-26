@@ -596,7 +596,7 @@ where
         }
         _ => {
             let program_type = val.get("programType");
-            if let Some(_) = program_type {
+            if program_type.is_some() {
                 let pgm = serde_json::from_value(val.clone()).map_err(serde::de::Error::custom)?;
                 return Ok(EntityIntentData::Program(pgm));
             }
