@@ -45,7 +45,7 @@ impl From<PinChallengeRequestWithContext> for PinChallengeRequest {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PinChallengeRequestWithContext {
     pub pin_space: PinSpace,
@@ -99,7 +99,7 @@ impl PinChallengeResponse {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum PinSpace {
     Purchase,
@@ -127,5 +127,36 @@ impl ExtnPayloadProvider for PinChallengeResponse {
 
     fn contract() -> RippleContract {
         RippleContract::PinChallenge
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::gateway::rpc_gateway_api::{ApiProtocol, CallContext};
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_pin_challenge_with_context() {
+        let pin_challenge_request = PinChallengeRequestWithContext {
+            pin_space: PinSpace::Purchase,
+            requestor: ChallengeRequestor {
+                id: "test_requestor_id".to_string(),
+                name: "eest_requestor_name".to_string(),
+            },
+            capability: Some("test_capability".to_string()),
+            call_ctx: CallContext {
+                session_id: "test_session_id".to_string(),
+                request_id: "test_request_id".to_string(),
+                app_id: "test_app_id".to_string(),
+                call_id: 123,
+                protocol: ApiProtocol::Bridge,
+                method: "POST".to_string(),
+                cid: Some("test_cid".to_string()),
+                gateway_secure: true,
+            },
+        };
+        let contract_type: RippleContract = RippleContract::PinChallenge;
+        test_extn_payload_provider(pin_challenge_request, contract_type);
     }
 }
