@@ -7,7 +7,6 @@ use crate::{
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum AppCatalogRequest {
-    OnAppsUpdate,
     CheckForUpdates,
 }
 
