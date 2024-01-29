@@ -39,7 +39,10 @@ pub enum DeviceInfoRequest {
     Model,
     Make,
     Name,
-    Version,
+    // <pca>
+    //Version,
+    FirmwareInfo,
+    // </pca>
     HdcpSupport,
     HdcpStatus,
     Hdr,
@@ -105,6 +108,14 @@ pub struct PlatformBuildInfo {
     pub debug: bool,
 }
 
+// <pca>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FirmwareInfo {
+    pub name: String,
+    pub version: FireboltSemanticVersion,
+}
+// </pca>
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DeviceResponse {
     CustomError(String),
@@ -112,7 +123,10 @@ pub enum DeviceResponse {
     HdcpSupportResponse(HashMap<HdcpProfile, bool>),
     HdcpStatusResponse(HDCPStatus),
     HdrResponse(HashMap<HdrProfile, bool>),
-    FirmwareInfo(FireboltSemanticVersion),
+    // <pca>
+    //FirmwareInfo(FireboltSemanticVersion),
+    FirmwareInfo(FirmwareInfo),
+    // </pca>
     ScreenResolutionResponse(Vec<i32>),
     VideoResolutionResponse(Vec<i32>),
     FullCapabilities(DeviceCapabilities),

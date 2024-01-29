@@ -38,7 +38,7 @@ use ripple_sdk::{
                 HDCP_CHANGED_EVENT, HDR_CHANGED_EVENT, NETWORK_CHANGED_EVENT,
                 SCREEN_RESOLUTION_CHANGED_EVENT, VIDEO_RESOLUTION_CHANGED_EVENT,
             },
-            device_info_request::{DeviceInfoRequest, DeviceResponse},
+            device_info_request::{DeviceInfoRequest, DeviceResponse, FirmwareInfo},
             device_operator::DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS,
             device_peristence::SetStringProperty,
             device_request::{
@@ -248,11 +248,31 @@ pub struct DeviceImpl {
 }
 
 impl DeviceImpl {
-    async fn firmware_info(&self, _ctx: CallContext) -> RpcResult<FireboltSemanticVersion> {
+    // <pca>
+    // async fn firmware_info(&self, _ctx: CallContext) -> RpcResult<FireboltSemanticVersion> {
+    //     let resp = self
+    //         .state
+    //         .get_client()
+    //         .send_extn_request(DeviceInfoRequest::Version)
+    //         .await;
+
+    //     match resp {
+    //         Ok(dab_payload) => match dab_payload.payload.extract().unwrap() {
+    //             DeviceResponse::FirmwareInfo(value) => Ok(value),
+    //             _ => Err(jsonrpsee::core::Error::Custom(String::from(
+    //                 "Firmware Info error response TBD",
+    //             ))),
+    //         },
+    //         Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
+    //             "Firmware Info error response TBD",
+    //         ))),
+    //     }
+    // }
+    async fn firmware_info(&self, _ctx: CallContext) -> RpcResult<FirmwareInfo> {
         let resp = self
             .state
             .get_client()
-            .send_extn_request(DeviceInfoRequest::Version)
+            .send_extn_request(DeviceInfoRequest::FirmwareInfo)
             .await;
 
         match resp {
@@ -267,6 +287,7 @@ impl DeviceImpl {
             ))),
         }
     }
+    // </pca>
 }
 
 #[async_trait]
@@ -320,13 +341,19 @@ impl DeviceServer for DeviceImpl {
         );
         os.readable = format!("Firebolt OS v{}", env!("CARGO_PKG_VERSION"));
 
-        let firmware = self.firmware_info(ctx).await?;
+        // <pca>
+        //let firmware = self.firmware_info(ctx).await?;
+        let firmware_info = self.firmware_info(ctx).await?;
+        // </pca>
 
         let open_rpc_state = self.state.clone().open_rpc_state;
         let api = open_rpc_state.get_open_rpc().info;
         Ok(DeviceVersionResponse {
             api,
-            firmware,
+            // <pca>
+            //firmware,
+            firmware: firmware_info.version,
+            // </pca>
             os,
             debug: format!("{} ({})", env!("CARGO_PKG_VERSION"), SHA_SHORT),
         })
