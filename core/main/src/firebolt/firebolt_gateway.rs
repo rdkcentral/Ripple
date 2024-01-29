@@ -161,6 +161,7 @@ impl FireboltGateway {
         tokio::spawn(async move {
             match FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await {
                 Ok(_) => {
+                    if !platform_state.endpoint_state.handle_brokerage(request_c.clone()) {
                     // Route
                     match request.clone().ctx.protocol {
                         ApiProtocol::Extn => {
@@ -188,6 +189,8 @@ impl FireboltGateway {
                             }
                         }
                     }
+                }
+
                 }
                 Err(e) => {
                     let deny_reason = e.reason;

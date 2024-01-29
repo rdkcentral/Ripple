@@ -32,7 +32,32 @@ pub struct ExtnManifest {
     pub required_contracts: Vec<String>,
     pub rpc_aliases: HashMap<String, Vec<String>>,
     pub timeout: Option<u64>,
+    pub passthrough_rpcs: Option<PassthroughRpcs>
 }
+
+#[derive(Deserialize,Debug,Clone)]
+pub struct PassthroughRpcs{
+    pub endpoints: Vec<PassthroughEndpoint>
+}
+
+
+
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct PassthroughEndpoint{
+    pub url:String,
+    pub protocol: PassthroughProtocol,
+    pub rpcs: Vec<String>
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum PassthroughProtocol {
+    Websocket,
+    Http
+}
+
+
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct ExtnResolutionEntry {

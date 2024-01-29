@@ -106,3 +106,16 @@ pub fn rpc_navigate_reserved_app_err(msg: &str) -> jsonrpsee::core::error::Error
         data: None,
     })
 }
+
+pub fn is_wildcard_method(method:&str) -> Option<String> {
+    if method.ends_with(".*") {
+        Some(get_base_method(method))
+    } else {
+        None
+    }
+}
+
+pub fn get_base_method(method:&str) -> String {
+    let method_vec:Vec<&str> = method.split(".").collect();
+    method_vec.get(0).unwrap().to_string()
+}

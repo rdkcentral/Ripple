@@ -29,7 +29,7 @@ use crate::{
         apps::LoadAppLibraryStep, device::LoadDeviceManifestStep, extn::LoadExtnManifestStep,
     },
     firebolt::firebolt_gateway::FireboltGatewayCommand,
-    service::extn::ripple_client::RippleClient,
+    service::extn::ripple_client::RippleClient, broker::endpoint_broker::BrokerOutput,
 };
 
 use super::{extn_state::ExtnState, platform_state::PlatformState};
@@ -40,6 +40,7 @@ pub struct ChannelsState {
     app_req_channel: TransientChannel<AppRequest>,
     extn_sender: CSender<CExtnMessage>,
     extn_receiver: CReceiver<CExtnMessage>,
+    broker_channel: TransientChannel<BrokerOutput>
 }
 
 impl ChannelsState {
@@ -47,11 +48,14 @@ impl ChannelsState {
         let (gateway_tx, gateway_tr) = mpsc::channel(32);
         let (app_req_tx, app_req_tr) = mpsc::channel(32);
         let (ctx, ctr) = unbounded();
+        let (broker_tx, broker_rx) = mpsc::channel(10);
+
         ChannelsState {
             gateway_channel: TransientChannel::new(gateway_tx, gateway_tr),
             app_req_channel: TransientChannel::new(app_req_tx, app_req_tr),
             extn_sender: ctx,
             extn_receiver: ctr,
+            broker_channel: TransientChannel::new(broker_tx, broker_rx)
         }
     }
 
@@ -81,6 +85,14 @@ impl ChannelsState {
 
     pub fn get_iec_channel() -> (CSender<CExtnMessage>, CReceiver<CExtnMessage>) {
         unbounded()
+    }
+
+    pub fn get_broker_sender(&self) -> Sender<BrokerOutput> {
+        self.broker_channel.get_sender()
+    }
+
+    pub fn get_broker_receiver(&self) -> Result<Receiver<BrokerOutput>,RippleError> {
+        self.broker_channel.get_receiver()
     }
 }
 
