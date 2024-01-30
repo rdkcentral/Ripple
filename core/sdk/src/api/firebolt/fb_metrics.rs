@@ -534,13 +534,13 @@ impl ExtnPayloadProvider for MetricsResponse {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum MetricsPayload {
     BehaviorMetric(BehavioralMetricPayload, CallContext),
     OperationalMetric(TelemetryPayload),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct MetricsRequest {
     pub payload: MetricsPayload,
     /// Additional info extensions want to send which can be appended to the context of the Metrics data
@@ -590,6 +590,7 @@ pub struct SystemErrorParams {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::gateway::rpc_gateway_api::ApiProtocol;
     use crate::utils::test_utils::test_extn_payload_provider;
     use serde_json::json;
 
@@ -608,7 +609,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extn_request_behavioral_metric_ready() {
+    fn test_extn_request_behavioral_metric() {
         let behavioral_metric_context = BehavioralMetricContext {
             app_id: "test_app_id".to_string(),
             app_version: "test_app_version".to_string(),
@@ -653,5 +654,41 @@ mod tests {
 
         let contract_type: RippleContract = RippleContract::BehaviorMetrics;
         test_extn_payload_provider(behavioral_metric_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_request_metrics() {
+        let behavior_metric_payload = BehavioralMetricPayload::Ready(Ready {
+            context: BehavioralMetricContext {
+                app_id: "test_app_id".to_string(),
+                app_version: "test_app_version".to_string(),
+                partner_id: "test_partner_id".to_string(),
+                app_session_id: "test_app_session_id".to_string(),
+                app_user_session_id: Some("test_user_session_id".to_string()),
+                durable_app_id: "test_durable_app_id".to_string(),
+                governance_state: Some(AppDataGovernanceState {
+                    data_tags_to_apply: HashSet::new(),
+                }),
+            },
+            ttmu_ms: 100,
+        });
+        let call_context = CallContext {
+            session_id: "test_session_id".to_string(),
+            request_id: "test_request_id".to_string(),
+            app_id: "test_app_id".to_string(),
+            call_id: 123,
+            protocol: ApiProtocol::Extn,
+            method: "some method".to_string(),
+            cid: Some("test_cid".to_string()),
+            gateway_secure: true,
+        };
+
+        let metrics_request = MetricsRequest {
+            payload: MetricsPayload::BehaviorMetric(behavior_metric_payload, call_context),
+            context: None,
+        };
+
+        let contract_type: RippleContract = RippleContract::Metrics;
+        test_extn_payload_provider(metrics_request, contract_type);
     }
 }

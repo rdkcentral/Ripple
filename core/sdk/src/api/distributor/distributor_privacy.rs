@@ -92,14 +92,14 @@ impl Default for PrivacySettings {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum PrivacySettingsStoreRequest {
     GetPrivacySettings(StorageProperty),
     SetPrivacySettings(StorageProperty, bool),
     SetAllPrivacySettings(PrivacySettingsData),
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct PrivacySettingsData {
     pub allow_acr_collection: Option<bool>,
     pub allow_resume_points: Option<bool>,
@@ -306,7 +306,7 @@ mod tests {
     use crate::utils::test_utils::test_extn_payload_provider;
 
     #[test]
-    fn test_extn_request_get_property() {
+    fn test_extn_request_privacy_cloud() {
         let get_property_params = GetPropertyParams {
             setting: PrivacySetting::AppDataCollection("test_app_data_collection".to_string()),
             dist_session: AccountSession {
@@ -321,5 +321,14 @@ mod tests {
         let contract_type: RippleContract = RippleContract::Storage(StorageAdjective::PrivacyCloud);
 
         test_extn_payload_provider(privacy_cloud_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_request_privacy_settings_store() {
+        let storage_property = StorageProperty::ClosedCaptionsEnabled;
+        let privacy_settings_request =
+            PrivacySettingsStoreRequest::GetPrivacySettings(storage_property);
+        let contract_type: RippleContract = RippleContract::Storage(StorageAdjective::PrivacyLocal);
+        test_extn_payload_provider(privacy_settings_request, contract_type);
     }
 }

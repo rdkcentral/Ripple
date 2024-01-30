@@ -59,7 +59,7 @@ mod tests {
     use crate::utils::test_utils::test_extn_payload_provider;
 
     #[test]
-    fn test_extn_request_sync_and_monitor_sync_privacy() {
+    fn test_extn_request_sync_and_monitor() {
         let sync_and_monitor_module = SyncAndMonitorModule::Privacy;
         let account_session = AccountSession {
             id: "test_session_id".to_string(),

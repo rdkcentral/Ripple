@@ -194,7 +194,7 @@ mod tests {
     use crate::utils::test_utils::test_extn_payload_provider;
 
     #[test]
-    fn test_extn_request_ad_init_object() {
+    fn test_extn_request_advertising() {
         let ad_init_request_params = AdInitObjectRequestParams {
             privacy_data: HashMap::new(),
             environment: "test_environment".to_string(),

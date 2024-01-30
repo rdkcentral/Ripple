@@ -159,7 +159,7 @@ impl ExtnPayloadProvider for RippleContext {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum RippleContextUpdateRequest {
     Activation(bool),
     Token(AccountToken),
@@ -189,5 +189,18 @@ impl ExtnPayloadProvider for RippleContextUpdateRequest {
 
     fn contract() -> RippleContract {
         RippleContract::RippleContext
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_ripple_context_update() {
+        let activation_request = RippleContextUpdateRequest::Activation(true);
+        let contract_type: RippleContract = RippleContract::RippleContext;
+        test_extn_payload_provider(activation_request, contract_type);
     }
 }

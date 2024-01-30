@@ -157,7 +157,7 @@ mod tests {
     use crate::utils::test_utils::test_extn_payload_provider;
 
     #[test]
-    fn test_extn_request_settings_get() {
+    fn test_extn_request_settings() {
         let settings_request_param = SettingsRequestParam {
             context: CallContext {
                 session_id: "test_session_id".to_string(),

@@ -318,7 +318,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extn_request_account_link_sign_in() {
+    fn test_extn_request_account_link() {
         let call_context = CallContext {
             session_id: "test_session_id".to_string(),
             request_id: "test_request_id".to_string(),

@@ -168,7 +168,7 @@ mod tests {
     use crate::utils::test_utils::test_extn_payload_provider;
 
     #[test]
-    fn test_extn_request_pub_sub_connect() {
+    fn test_extn_request_pub_sub() {
         let connect_param = PubSubConnectParam {
             endpoint_url: "test_endpoint_url".to_string(),
             client_name: "test_client_name".to_string(),

@@ -5,7 +5,7 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AppCatalogRequest {
     CheckForUpdates,
 }
@@ -80,5 +80,19 @@ impl ExtnPayloadProvider for AppsUpdate {
 
     fn contract() -> RippleContract {
         RippleContract::AppCatalog
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_app_catalog() {
+        let check_for_updates_request = AppCatalogRequest::CheckForUpdates;
+
+        let contract_type: RippleContract = RippleContract::AppCatalog;
+        test_extn_payload_provider(check_for_updates_request, contract_type);
     }
 }
