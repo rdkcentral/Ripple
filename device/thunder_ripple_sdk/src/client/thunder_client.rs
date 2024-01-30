@@ -307,7 +307,7 @@ impl ThunderClient {
                 );
                 // ResetThunderClient. Resubscribe would happen automatically when the client resets.
                 let pool_msg = ThunderPoolCommand::ResetThunderClient(client_id);
-                mpsc_send_and_log(&ptx, pool_msg, "RemoveThunderClient").await;
+                mpsc_send_and_log(&ptx, pool_msg, "ResetThunderClient").await;
                 return;
             }
         });
@@ -424,6 +424,19 @@ impl ThunderClient {
 }
 
 impl ThunderClientBuilder {
+    fn parse_subscribe_method(subscribe_method: &str) -> Option<(String, String)> {
+        if let Some(client_start) = subscribe_method.find("client.") {
+            if let Some(events_start) = subscribe_method[client_start..].find(".events.") {
+                let module = subscribe_method
+                    [client_start + "client.".len()..client_start + events_start]
+                    .to_string();
+                let event_name =
+                    subscribe_method[client_start + events_start + ".events.".len()..].to_string();
+                return Some((module, event_name));
+            }
+        }
+        None
+    }
     pub async fn get_client(
         url: Url,
         plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
@@ -470,7 +483,7 @@ impl ThunderClientBuilder {
                         );
                         // Remove the client and then try the message again with a new client
                         let pool_msg = ThunderPoolCommand::ResetThunderClient(id);
-                        mpsc_send_and_log(&ptx, pool_msg, "RemoveThunderClient").await;
+                        mpsc_send_and_log(&ptx, pool_msg, "ResetThunderClient").await;
                         let pool_msg = ThunderPoolCommand::ThunderMessage(message);
                         mpsc_send_and_log(&ptx, pool_msg, "RetryThunderMessage").await;
                         return;
@@ -510,17 +523,28 @@ impl ThunderClientBuilder {
                     std::mem::swap(&mut listeners, &mut tsub.listeners);
                     for (sub_id, listener) in listeners {
                         let thunder_message: ThunderSubscribeMessage = {
-                            let module_event_name_parts: Vec<&str> =
-                                subscribe_method.split('.').collect();
-                            ThunderSubscribeMessage {
-                                module: module_event_name_parts[1].to_string(),
-                                event_name: module_event_name_parts[3].to_string(),
-                                params: tsub.params.clone(),
-                                handler: listener,
-                                callback: None,
-                                sub_id: Some(sub_id),
-                            }
+                            Self::parse_subscribe_method(subscribe_method)
+                                .map(|(module, event_name)| ThunderSubscribeMessage {
+                                    module,
+                                    event_name,
+                                    params: tsub.params.clone(),
+                                    handler: listener,
+                                    callback: None,
+                                    sub_id: Some(sub_id),
+                                })
+                                .unwrap()
                         };
+                        let (plugin_rdy_tx, plugin_rdy_rx) =
+                            oneshot::channel::<PluginActivatedResult>();
+
+                        if let Some(tx) = pmtx_c.clone() {
+                            let msg =
+                                PluginManagerCommand::ReactivatePluginState { tx: plugin_rdy_tx };
+                            mpsc_send_and_log(&tx, msg, "ResetPluginState").await;
+                            if let Ok(res) = plugin_rdy_rx.await {
+                                res.ready().await;
+                            }
+                        }
                         let _ = s
                             .send(ThunderMessage::ThunderSubscribeMessage(thunder_message))
                             .await;

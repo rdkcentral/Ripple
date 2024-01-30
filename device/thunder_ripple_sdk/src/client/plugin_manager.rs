@@ -42,6 +42,7 @@ pub struct PluginManager {
     thunder_client: Box<ThunderClient>,
     plugin_states: HashMap<String, PluginState>,
     state_subscribers: Vec<ActivationSubscriber>,
+    plugin_request: ThunderPluginBootParam,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -98,6 +99,9 @@ pub enum PluginManagerCommand {
         callsign: String,
         tx: oneshot::Sender<PluginActivatedResult>,
     },
+    ReactivatePluginState {
+        tx: oneshot::Sender<PluginActivatedResult>,
+    },
 }
 
 #[derive(Debug)]
@@ -141,6 +145,7 @@ impl PluginManager {
             thunder_client: thunder_client.clone(),
             plugin_states: HashMap::default(),
             state_subscribers: Vec::default(),
+            plugin_request: plugin_request.clone(),
         };
         let expected = plugin_request.clone().expected;
         match expected {
@@ -202,6 +207,10 @@ impl PluginManager {
                     PluginManagerCommand::WaitForActivation { callsign, tx } => {
                         let res = pm.wait_for_activation(callsign, false).await;
                         oneshot_send_and_log(tx, res, "WaitForActivation");
+                    }
+                    PluginManagerCommand::ReactivatePluginState { tx } => {
+                        let res = pm.reactivate_plugin_state().await;
+                        oneshot_send_and_log(tx, res, "ReactivatePluginState");
                     }
                 }
             }
@@ -321,5 +330,23 @@ impl PluginManager {
                 PluginState::Missing
             }
         }
+    }
+
+    pub async fn reactivate_plugin_state(&mut self) -> PluginActivatedResult {
+        let mut plugins = Vec::new();
+        self.plugin_states.clear();
+        match self.plugin_request.activate_on_boot.clone() {
+            ThunderPluginParam::Default => {
+                for p in ThunderPlugin::activate_on_boot_plugins() {
+                    plugins.push(p.callsign().to_string())
+                }
+            }
+            ThunderPluginParam::Custom(p) => plugins.extend(p),
+            ThunderPluginParam::None => {}
+        }
+        for p in plugins {
+            self.wait_for_activation(p.clone(), true).await;
+        }
+        PluginActivatedResult::Ready
     }
 }
