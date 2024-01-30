@@ -173,6 +173,7 @@ impl MockThunderController {
             pooled_sender: None,
             id: Uuid::new_v4(),
             plugin_manager_tx: None,
+            subscriptions: None,
         };
 
         let (s, r) = unbounded();
