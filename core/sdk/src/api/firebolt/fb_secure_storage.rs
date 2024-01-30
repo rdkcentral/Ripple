@@ -22,25 +22,25 @@ use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum StorageScope {
     Device,
     Account,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SecureStorageGetRequest {
     pub scope: StorageScope,
     pub key: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct StorageOptions {
     pub ttl: i32,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SecureStorageSetRequest {
     pub app_id: Option<String>,
@@ -50,7 +50,7 @@ pub struct SecureStorageSetRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub options: Option<StorageOptions>,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SecureStorageRemoveRequest {
     pub scope: StorageScope,
@@ -58,7 +58,7 @@ pub struct SecureStorageRemoveRequest {
     pub app_id: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SecureStorageClearRequest {
     pub app_id: Option<String>,
@@ -72,7 +72,7 @@ pub struct SecureStorageGetResponse {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SecureStorageDefaultResponse {}
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum SecureStorageRequest {
     Get(String, SecureStorageGetRequest, AccountSession),
     Set(SecureStorageSetRequest, AccountSession),
@@ -140,5 +140,56 @@ impl ExtnPayloadProvider for SecureStorageResponse {
 
     fn contract() -> RippleContract {
         RippleContract::Storage(StorageAdjective::Secure)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_secure_storage_get() {
+        let account_session = AccountSession {
+            id: "test_session_id".to_string(),
+            token: "test_token".to_string(),
+            account_id: "test_account_id".to_string(),
+            device_id: "test_device_id".to_string(),
+        };
+
+        let get_request = SecureStorageGetRequest {
+            scope: StorageScope::Device,
+            key: "test_key".to_string(),
+        };
+
+        let secure_storage_request = SecureStorageRequest::Get(
+            "test_secure_storage".to_string(),
+            get_request,
+            account_session,
+        );
+
+        let contract_type: RippleContract = RippleContract::Storage(StorageAdjective::Secure);
+        test_extn_payload_provider(secure_storage_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_request_secure_storage_remove() {
+        let account_session = AccountSession {
+            id: "test_session_id".to_string(),
+            token: "test_token".to_string(),
+            account_id: "test_account_id".to_string(),
+            device_id: "test_device_id".to_string(),
+        };
+
+        let remove_request = SecureStorageRemoveRequest {
+            scope: StorageScope::Account,
+            key: "test_key".to_string(),
+            app_id: Some("app_id".to_string()),
+        };
+
+        let secure_storage_request = SecureStorageRequest::Remove(remove_request, account_session);
+
+        let contract_type: RippleContract = RippleContract::Storage(StorageAdjective::Secure);
+        test_extn_payload_provider(secure_storage_request, contract_type);
     }
 }

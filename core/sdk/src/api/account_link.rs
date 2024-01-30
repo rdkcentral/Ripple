@@ -26,7 +26,7 @@ use super::{
     gateway::rpc_gateway_api::CallContext,
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum AccountLinkRequest {
     SignIn(CallContext),
@@ -36,7 +36,7 @@ pub enum AccountLinkRequest {
     Watched(WatchedRequest),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct WatchedRequest {
     pub context: CallContext,

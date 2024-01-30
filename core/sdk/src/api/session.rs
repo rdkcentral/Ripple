@@ -185,7 +185,7 @@ impl AccountSession {
  * https://developer.comcast.com/firebolt/core/sdk/latest/api/authentication
  */
 /*TokenType and Token are Firebolt spec types */
-#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
 pub enum TokenType {
     #[serde(rename = "platform")]
     Platform,
@@ -208,13 +208,13 @@ impl ToString for TokenType {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct TokenContext {
     pub distributor_id: String,
     pub app_id: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SessionTokenRequest {
     pub token_type: TokenType,
     pub options: Vec<String>,
@@ -282,5 +282,50 @@ pub enum EventAdjective {
 impl ContractAdjective for EventAdjective {
     fn get_contract(&self) -> RippleContract {
         RippleContract::DeviceEvents(self.clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::config::Config;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_account_session() {
+        let account_session_request = AccountSessionRequest::Get;
+        let contract_type: RippleContract = RippleContract::Session(SessionAdjective::Account);
+        test_extn_payload_provider(account_session_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_request_account_session_none() {
+        let other_payload = ExtnPayload::Request(ExtnRequest::Config(Config::DefaultApp));
+        let result = AccountSessionRequest::get_from_payload(other_payload);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_extn_request_session_token() {
+        let token_context = TokenContext {
+            distributor_id: String::from("test_distributor"),
+            app_id: String::from("test_app"),
+        };
+        let session_token_request = SessionTokenRequest {
+            token_type: TokenType::Device,
+            options: vec![String::from("option1"), String::from("option2")],
+            context: Some(token_context),
+        };
+
+        let contract_type: RippleContract = RippleContract::Session(SessionAdjective::Device);
+        test_extn_payload_provider(session_token_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_request_session_token_none() {
+        let other_payload =
+            ExtnPayload::Request(ExtnRequest::AccountSession(AccountSessionRequest::Get));
+        let result = SessionTokenRequest::get_from_payload(other_payload);
+        assert_eq!(result, None);
     }
 }

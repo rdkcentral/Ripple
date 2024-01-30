@@ -25,7 +25,7 @@ use crate::{
 
 use super::gateway::rpc_gateway_api::CallContext;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum SettingKey {
     VoiceGuidanceEnabled,
     ClosedCaptions,
@@ -72,7 +72,7 @@ impl SettingKey {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SettingsRequestParam {
     pub context: CallContext,
     pub keys: Vec<SettingKey>,
@@ -102,7 +102,7 @@ impl SettingsRequestParam {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum SettingsRequest {
     Get(SettingsRequestParam),
@@ -147,5 +147,35 @@ impl SettingValue {
             value: None,
             enabled: Some(enabled),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::gateway::rpc_gateway_api::ApiProtocol;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_settings_get() {
+        let settings_request_param = SettingsRequestParam {
+            context: CallContext {
+                session_id: "test_session_id".to_string(),
+                request_id: "test_request_id".to_string(),
+                app_id: "test_app_id".to_string(),
+                call_id: 123,
+                protocol: ApiProtocol::JsonRpc,
+                method: "some method".to_string(),
+                cid: Some("test_cid".to_string()),
+                gateway_secure: true,
+            },
+            keys: vec![SettingKey::VoiceGuidanceEnabled, SettingKey::ClosedCaptions],
+            alias_map: Some(HashMap::new()),
+        };
+
+        let settings_request = SettingsRequest::Get(settings_request_param);
+
+        let contract_type: RippleContract = RippleContract::Settings;
+        test_extn_payload_provider(settings_request, contract_type);
     }
 }

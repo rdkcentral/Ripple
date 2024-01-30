@@ -24,14 +24,14 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum AdvertisingRequest {
     GetAdInitObject(AdInitObjectRequestParams),
     GetAdIdObject(AdIdRequestParams),
     ResetAdIdentifier(AccountSession),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AdInitObjectRequestParams {
     pub privacy_data: HashMap<String, String>,
     pub environment: String,
@@ -65,7 +65,7 @@ pub struct AdInitObjectResponse {
     pub authentication_entity: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AdIdRequestParams {
     pub privacy_data: HashMap<String, String>,
     pub app_id: String,
@@ -185,5 +185,37 @@ impl Default for GetAdConfig {
                 authentication_entity: Some("".to_owned()),
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_ad_init_object() {
+        let ad_init_request_params = AdInitObjectRequestParams {
+            privacy_data: HashMap::new(),
+            environment: "test_environment".to_string(),
+            durable_app_id: "test_durable_app_id".to_string(),
+            app_version: "test_app_version".to_string(),
+            distributor_app_id: "test_distributor_app_id".to_string(),
+            device_ad_attributes: HashMap::new(),
+            coppa: true,
+            authentication_entity: "test_authentication_entity".to_string(),
+            dist_session: AccountSession {
+                id: "test_session_id".to_string(),
+                token: "test_token".to_string(),
+                account_id: "test_account_id".to_string(),
+                device_id: "test_device_id".to_string(),
+            },
+            scope: HashMap::new(),
+        };
+
+        let advertising_request = AdvertisingRequest::GetAdInitObject(ad_init_request_params);
+        let contract_type: RippleContract = RippleContract::Advertising;
+
+        test_extn_payload_provider(advertising_request, contract_type);
     }
 }

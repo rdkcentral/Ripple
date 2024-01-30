@@ -23,7 +23,7 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum SyncAndMonitorRequest {
     SyncAndMonitor(SyncAndMonitorModule, AccountSession),
     UpdateDistributorToken(String),
@@ -50,5 +50,28 @@ impl ExtnPayloadProvider for SyncAndMonitorRequest {
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
         RippleContract::CloudSync
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_sync_and_monitor_sync_privacy() {
+        let sync_and_monitor_module = SyncAndMonitorModule::Privacy;
+        let account_session = AccountSession {
+            id: "test_session_id".to_string(),
+            token: "test_token".to_string(),
+            account_id: "test_account_id".to_string(),
+            device_id: "test_device_id".to_string(),
+        };
+
+        let sync_and_monitor_request =
+            SyncAndMonitorRequest::SyncAndMonitor(sync_and_monitor_module, account_session);
+        let contract_type: RippleContract = RippleContract::CloudSync;
+
+        test_extn_payload_provider(sync_and_monitor_request, contract_type);
     }
 }

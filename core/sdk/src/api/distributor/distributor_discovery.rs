@@ -28,7 +28,7 @@ use crate::{
 
 use super::distributor_request::DistributorRequest;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum DiscoveryRequest {
     SetContentAccess(ContentAccessListSetParams),
     ClearContent(ClearContentSetParams),
@@ -81,5 +81,49 @@ impl ExtnPayloadProvider for MediaEventRequest {
 
     fn contract() -> RippleContract {
         RippleContract::MediaEvents
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::firebolt::fb_discovery::{
+        ContentAccessEntitlement, ContentAccessInfo, ContentAccessListSetParams, SessionParams,
+    };
+    use crate::api::session::AccountSession;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_discovery() {
+        let content_access_entitlement = ContentAccessEntitlement {
+            entitlement_id: "test_entitlement_id".to_string(),
+            start_time: Some("2024-01-26T12:00:00Z".to_string()),
+            end_time: Some("2024-02-01T12:00:00Z".to_string()),
+        };
+
+        let content_access_info = ContentAccessInfo {
+            availabilities: Some(vec![]),
+            entitlements: Some(vec![content_access_entitlement]),
+        };
+
+        let session_params = SessionParams {
+            app_id: "test_app_id".to_string(),
+            dist_session: AccountSession {
+                id: "test_session_id".to_string(),
+                token: "test_token".to_string(),
+                account_id: "test_account_id".to_string(),
+                device_id: "test_device_id".to_string(),
+            },
+        };
+
+        let content_access_list_set_params = ContentAccessListSetParams {
+            session_info: session_params,
+            content_access_info,
+        };
+
+        let discovery_request = DiscoveryRequest::SetContentAccess(content_access_list_set_params);
+        let contract_type: RippleContract = RippleContract::Discovery;
+
+        test_extn_payload_provider(discovery_request, contract_type);
     }
 }

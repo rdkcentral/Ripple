@@ -28,7 +28,7 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum PrivacySetting {
     AppDataCollection(String),
     AppEntitlementCollection(String),
@@ -188,20 +188,20 @@ pub struct ContentListenRequest {
     pub listen: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct GetPropertyParams {
     pub setting: PrivacySetting,
     pub dist_session: AccountSession,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct SetPropertyParams {
     pub setting: PrivacySetting,
     pub value: bool,
     pub dist_session: AccountSession,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum PrivacyCloudRequest {
     GetProperty(GetPropertyParams),
     GetProperties(AccountSession),
@@ -297,5 +297,29 @@ impl FromStr for DataEventType {
             "Watch_History" => Ok(DataEventType::Watched),
             _ => Err(()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_get_property() {
+        let get_property_params = GetPropertyParams {
+            setting: PrivacySetting::AppDataCollection("test_app_data_collection".to_string()),
+            dist_session: AccountSession {
+                id: "test_session_id".to_string(),
+                token: "test_token".to_string(),
+                account_id: "test_account_id".to_string(),
+                device_id: "test_device_id".to_string(),
+            },
+        };
+
+        let privacy_cloud_request = PrivacyCloudRequest::GetProperty(get_property_params);
+        let contract_type: RippleContract = RippleContract::Storage(StorageAdjective::PrivacyCloud);
+
+        test_extn_payload_provider(privacy_cloud_request, contract_type);
     }
 }

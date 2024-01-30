@@ -103,7 +103,7 @@ pub enum ApiProtocol {
     JsonRpc,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct ApiMessage {
     pub protocol: ApiProtocol,
     pub jsonrpc_msg: String,
@@ -291,15 +291,16 @@ pub enum PermissionCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::account_link::AccountLinkRequest;
     use crate::api::gateway::rpc_gateway_api::{ApiProtocol, CallContext};
     use crate::utils::test_utils::test_extn_payload_provider;
 
     #[test]
     fn test_extn_request_rpc() {
         let call_context = CallContext {
-            session_id: "session123".to_string(),
-            request_id: "request456".to_string(),
-            app_id: "app789".to_string(),
+            session_id: "test_session_id".to_string(),
+            request_id: "test_request_id".to_string(),
+            app_id: "test_app_id".to_string(),
             call_id: 123,
             protocol: ApiProtocol::Bridge,
             method: "some_method".to_string(),
@@ -314,5 +315,24 @@ mod tests {
         };
         let contract_type: RippleContract = RippleContract::Rpc;
         test_extn_payload_provider(rpc_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_request_account_link_sign_in() {
+        let call_context = CallContext {
+            session_id: "test_session_id".to_string(),
+            request_id: "test_request_id".to_string(),
+            app_id: "test_app_id".to_string(),
+            call_id: 123,
+            protocol: ApiProtocol::Bridge,
+            method: "some_method".to_string(),
+            cid: Some("test_cid".to_string()),
+            gateway_secure: true,
+        };
+
+        let account_link_request = AccountLinkRequest::SignIn(call_context);
+        let contract_type: RippleContract = RippleContract::AccountLink;
+
+        test_extn_payload_provider(account_link_request, contract_type);
     }
 }

@@ -433,7 +433,7 @@ pub struct PropertyData {
     pub event_names: Option<&'static [&'static str]>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum StorageProperty {
     ClosedCaptionsEnabled,
     ClosedCaptionsFontFamily,
@@ -653,7 +653,7 @@ impl StorageProperty {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum StorageManagerRequest {
     GetBool(StorageProperty, bool),
     GetString(StorageProperty),
@@ -692,5 +692,20 @@ pub enum StorageAdjective {
 impl ContractAdjective for StorageAdjective {
     fn get_contract(&self) -> RippleContract {
         RippleContract::Storage(self.clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_storage_manager() {
+        let storage_request =
+            StorageManagerRequest::GetBool(StorageProperty::ClosedCaptionsEnabled, true);
+        let contract_type: RippleContract = RippleContract::Storage(StorageAdjective::Manager);
+
+        test_extn_payload_provider(storage_request, contract_type);
     }
 }
