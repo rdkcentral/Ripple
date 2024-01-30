@@ -41,7 +41,16 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
         if !s.platform_state.supports_session() {
             return Ok(());
         }
-        MainContextProcessor::initialize_token(&s.platform_state).await;
+        MainContextProcessor::initialize_session(&s.platform_state).await;
+        // Session available during startup make sure the context is updated with the token for first time
+        if s.platform_state
+            .session_state
+            .get_account_session()
+            .is_some()
+        {
+            ContextManager::update_context_for_session(s.platform_state.clone());
+        }
+
         s.platform_state
             .get_client()
             .add_event_processor(MainContextProcessor::new(s.platform_state.clone()));

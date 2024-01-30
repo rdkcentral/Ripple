@@ -65,6 +65,7 @@ pub enum Config {
     RippleFeatures,
     SavedDir,
     SupportsDistributorSession,
+    Firebolt,
     RFC(String),
 }
 

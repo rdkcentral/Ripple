@@ -288,10 +288,31 @@ pub struct DelegatedLauncherHandler {
 /*
 Tell lifecycle metrics which methods map to which metrics AppLifecycleStates
 */
-fn map_event(event: &AppMethod) -> Option<AppLifecycleState> {
+
+fn map_event(event: &AppMethod, inactive: bool) -> Option<AppLifecycleState> {
+    if inactive {
+        map_event_for_inactive_app(event)
+    } else {
+        map_event_for_default(event)
+    }
+}
+
+fn map_event_for_default(event: &AppMethod) -> Option<AppLifecycleState> {
     match event {
         AppMethod::Launch(_) => Some(AppLifecycleState::Launching),
         AppMethod::Ready(_) => Some(AppLifecycleState::Foreground),
+        AppMethod::Close(_, _) => Some(AppLifecycleState::NotRunning),
+        AppMethod::Finished(_) => Some(AppLifecycleState::NotRunning),
+        AppMethod::GetLaunchRequest(_) => Some(AppLifecycleState::Initializing),
+        _ => None,
+    }
+}
+
+fn map_event_for_inactive_app(event: &AppMethod) -> Option<AppLifecycleState> {
+    match event {
+        AppMethod::Launch(_) => Some(AppLifecycleState::Launching),
+        AppMethod::Ready(_) => Some(AppLifecycleState::Suspended),
+        AppMethod::SetState(_, lifecycle_state) => Some(lifecycle_state.into()),
         AppMethod::Close(_, _) => Some(AppLifecycleState::NotRunning),
         AppMethod::Finished(_) => Some(AppLifecycleState::NotRunning),
         AppMethod::GetLaunchRequest(_) => Some(AppLifecycleState::Initializing),
@@ -498,7 +519,13 @@ impl DelegatedLauncherHandler {
                 send_metric_for_app_state_change(&self.platform_state, error_message, app_id).await;
         };
 
-        let to_state = map_event(method);
+        let inactive = self
+            .platform_state
+            .app_manager_state
+            .get(app_id)
+            .map_or(false, |app| app.initial_session.launch.inactive);
+
+        let to_state = map_event(method, inactive);
 
         if to_state.is_none() {
             /*
@@ -506,7 +533,7 @@ impl DelegatedLauncherHandler {
             return;
         };
         let from_state = match previous_state {
-            Some(state) => map_event(&state),
+            Some(state) => map_event(&state, inactive),
             None => None,
         };
 
@@ -867,8 +894,6 @@ impl DelegatedLauncherHandler {
             .into_iter()
             .filter(|perm| {
                 let filtered_policy_opt = grant_polices_map.get(&perm.cap.as_str());
-                debug!("permission: {:?}", perm);
-                debug!("filtered_policy_opt: {:?}", filtered_policy_opt);
                 if filtered_policy_opt.is_none() {
                     return false;
                 }
