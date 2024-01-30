@@ -467,11 +467,10 @@ impl DiscoveryServer for DiscoveryImpl {
 
     async fn watched(&self, context: CallContext, info: WatchedInfo) -> RpcResult<bool> {
         info!("Discovery.watched");
-        let unit = info.get_progress();
         let request = WatchedRequest {
             context,
             info,
-            unit,
+            unit: None,
         };
         if let Ok(response) = self
             .state
@@ -504,7 +503,7 @@ impl DiscoveryServer for DiscoveryImpl {
         let request = WatchedRequest {
             context: ctx.clone(),
             info: watched_info,
-            unit: ripple_sdk::api::firebolt::fb_discovery::ProgressUnit::WatchNext,
+            unit: None,
         };
         if let Ok(response) = self
             .state
