@@ -15,24 +15,25 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::time::Duration;
 use futures_util::{SinkExt, StreamExt};
-use ripple_sdk::{tokio::{self, sync::mpsc, net::TcpStream}, api::manifest::extn_manifest::PassthroughEndpoint, log::error};
+use ripple_sdk::{
+    api::manifest::extn_manifest::PassthroughEndpoint,
+    log::error,
+    tokio::{self, net::TcpStream, sync::mpsc},
+};
+use std::time::Duration;
 use tokio_tungstenite::client_async;
 
-use super::endpoint_broker::{BrokerSender, EndpointBroker, BrokerCallback};
+use super::endpoint_broker::{BrokerCallback, BrokerSender, EndpointBroker};
 
-pub struct WebsocketBroker{
+pub struct WebsocketBroker {
     sender: BrokerSender,
 }
 
 impl EndpointBroker for WebsocketBroker {
-    
-    fn get_broker(endpoint:PassthroughEndpoint, callback:BrokerCallback) -> Self {
-        let (tx,mut tr) = mpsc::channel(10);
-        let broker = BrokerSender {
-            sender: tx.clone()
-        };
+    fn get_broker(endpoint: PassthroughEndpoint, callback: BrokerCallback) -> Self {
+        let (tx, mut tr) = mpsc::channel(10);
+        let broker = BrokerSender { sender: tx };
         tokio::spawn(async move {
             let tcp = loop {
                 if let Ok(v) = TcpStream::connect(&endpoint.url).await {
@@ -43,9 +44,7 @@ impl EndpointBroker for WebsocketBroker {
                 }
             };
             let url = url::Url::parse(&endpoint.url).unwrap();
-            let (stream, _) = client_async(url, tcp)
-            .await
-            .unwrap();
+            let (stream, _) = client_async(url, tcp).await.unwrap();
             let (mut ws_tx, mut ws_rx) = stream.split();
 
             tokio::pin! {
@@ -56,12 +55,9 @@ impl EndpointBroker for WebsocketBroker {
                     Some(value) = &mut read => {
                         match value {
                             Ok(v) => {
-                                match v {
-                                    tokio_tungstenite::tungstenite::Message::Text(t) => {
-                                        // send the incoming text without context back to the sender
-                                        Self::handle_response(&t,callback.clone())
-                                    }
-                                    _ => {}
+                                if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
+                                    // send the incoming text without context back to the sender
+                                    Self::handle_response(&t,callback.clone())
                                 }
                             },
                             Err(e) => {
@@ -69,26 +65,22 @@ impl EndpointBroker for WebsocketBroker {
                                 break false
                             }
                         }
-    
+
                     },
                     Some(request) = tr.recv() => {
                         if let Ok(request) = Self::update_request(&request) {
                              let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(request)).await;
                             let _flush = ws_tx.flush().await;
                         }
-                    
+
                     }
                 }
             }
         });
-        Self {
-            sender: broker
-        }
+        Self { sender: broker }
     }
 
     fn get_sender(&self) -> BrokerSender {
         self.sender.clone()
     }
 }
-
-

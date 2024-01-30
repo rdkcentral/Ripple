@@ -22,7 +22,6 @@ use ripple_sdk::{
 use crate::broker::endpoint_broker::BrokerOutputForwarder;
 use crate::state::bootstrap_state::BootstrapState;
 
-
 pub struct StartCommunicationBroker;
 
 #[async_trait]
@@ -38,8 +37,12 @@ impl Bootstep<BootstrapState> for StartCommunicationBroker {
             BrokerOutputForwarder::start_forwarder(ps.clone(), rx)
         }
         // Setup the endpoints from the manifests
-        let mut endpoint_state = ps.clone().endpoint_state;
-        state.platform_state.get_endpoints().iter().for_each(|x| endpoint_state.add_endpoint_broker(x));
+        let mut endpoint_state = ps.endpoint_state;
+        state
+            .platform_state
+            .get_endpoints()
+            .iter()
+            .for_each(|x| endpoint_state.add_endpoint_broker(x));
         Ok(())
     }
 }

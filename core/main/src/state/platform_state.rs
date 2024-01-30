@@ -35,6 +35,7 @@ use ripple_sdk::{
 use std::collections::HashMap;
 
 use crate::{
+    broker::endpoint_broker::EndpointBrokerState,
     firebolt::rpc_router::RouterState,
     service::{
         apps::{
@@ -43,7 +44,7 @@ use crate::{
         },
         data_governance::DataGovernanceState,
         extn::ripple_client::RippleClient,
-    }, broker::endpoint_broker::EndpointBrokerState,
+    },
 };
 
 use super::{
@@ -103,7 +104,7 @@ pub struct PlatformState {
     pub data_governance: DataGovernanceState,
     pub metrics: MetricsState,
     pub device_session_id: DeviceSessionIdentifier,
-    pub endpoint_state: EndpointBrokerState
+    pub endpoint_state: EndpointBrokerState,
 }
 
 impl PlatformState {
@@ -130,7 +131,7 @@ impl PlatformState {
             data_governance: DataGovernanceState::default(),
             metrics: MetricsState::default(),
             device_session_id: DeviceSessionIdentifier::default(),
-            endpoint_state: EndpointBrokerState::get(broker_sender)
+            endpoint_state: EndpointBrokerState::get(broker_sender),
         }
     }
 
@@ -218,7 +219,6 @@ impl PlatformState {
         } else {
             Vec::new()
         }
-        
     }
 }
 

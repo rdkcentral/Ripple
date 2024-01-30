@@ -28,8 +28,9 @@ use crate::{
     bootstrap::manifest::{
         apps::LoadAppLibraryStep, device::LoadDeviceManifestStep, extn::LoadExtnManifestStep,
     },
+    broker::endpoint_broker::BrokerOutput,
     firebolt::firebolt_gateway::FireboltGatewayCommand,
-    service::extn::ripple_client::RippleClient, broker::endpoint_broker::BrokerOutput,
+    service::extn::ripple_client::RippleClient,
 };
 
 use super::{extn_state::ExtnState, platform_state::PlatformState};
@@ -40,7 +41,7 @@ pub struct ChannelsState {
     app_req_channel: TransientChannel<AppRequest>,
     extn_sender: CSender<CExtnMessage>,
     extn_receiver: CReceiver<CExtnMessage>,
-    broker_channel: TransientChannel<BrokerOutput>
+    broker_channel: TransientChannel<BrokerOutput>,
 }
 
 impl ChannelsState {
@@ -55,7 +56,7 @@ impl ChannelsState {
             app_req_channel: TransientChannel::new(app_req_tx, app_req_tr),
             extn_sender: ctx,
             extn_receiver: ctr,
-            broker_channel: TransientChannel::new(broker_tx, broker_rx)
+            broker_channel: TransientChannel::new(broker_tx, broker_rx),
         }
     }
 
@@ -91,7 +92,7 @@ impl ChannelsState {
         self.broker_channel.get_sender()
     }
 
-    pub fn get_broker_receiver(&self) -> Result<Receiver<BrokerOutput>,RippleError> {
+    pub fn get_broker_receiver(&self) -> Result<Receiver<BrokerOutput>, RippleError> {
         self.broker_channel.get_receiver()
     }
 }

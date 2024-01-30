@@ -23,12 +23,12 @@ use ripple_sdk::{
 };
 use state::bootstrap_state::BootstrapState;
 pub mod bootstrap;
+pub mod broker;
 pub mod firebolt;
 pub mod processor;
 pub mod service;
 pub mod state;
 pub mod utils;
-pub mod broker;
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
 #[tokio::main(worker_threads = 2)]

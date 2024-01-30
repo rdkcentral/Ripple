@@ -14,5 +14,5 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-pub mod websocket_broker;
 pub mod endpoint_broker;
+pub mod websocket_broker;

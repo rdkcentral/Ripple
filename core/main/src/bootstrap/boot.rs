@@ -33,8 +33,9 @@ use super::{
     },
     setup_extn_client_step::SetupExtnClientStep,
     start_app_manager_step::StartAppManagerStep,
+    start_communication_broker::StartCommunicationBroker,
     start_fbgateway_step::FireboltGatewayStep,
-    start_ws_step::StartWsStep, start_communication_broker::StartCommunicationBroker,
+    start_ws_step::StartWsStep,
 };
 /// Starts up Ripple uses `PlatformState` to manage State
 /// # Arguments
