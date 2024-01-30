@@ -26,7 +26,7 @@ use ripple_sdk::{
         firebolt::fb_discovery::{
             ClearContentSetParams, ContentAccessAvailability, ContentAccessEntitlement,
             ContentAccessInfo, ContentAccessListSetParams, ContentAccessRequest, MediaEvent,
-            MediaEventsAccountLinkRequestParams, ProgressUnit, SessionParams, SignInRequestParams,
+            MediaEventsAccountLinkRequestParams, SessionParams, SignInRequestParams,
         },
         gateway::rpc_gateway_api::CallContext,
     },
@@ -264,12 +264,6 @@ impl AccountLinkProcessor {
             .await
             .is_ok();
         }
-        let progress =
-            if matches!(request.unit, ProgressUnit::WatchNext) || watched_info.progress > 1.0 {
-                watched_info.progress
-            } else {
-                watched_info.progress * 100.0
-            };
 
         if let Some(dist_session) = state.session_state.get_account_session() {
             let request =
@@ -277,7 +271,7 @@ impl AccountLinkProcessor {
                     media_event: MediaEvent {
                         content_id: watched_info.entity_id.to_owned(),
                         completed: watched_info.completed.unwrap_or(true),
-                        progress,
+                        progress: watched_info.progress,
                         progress_unit: request.unit.clone(),
                         watched_on: watched_info.watched_on.clone(),
                         app_id: ctx.app_id.to_owned(),
