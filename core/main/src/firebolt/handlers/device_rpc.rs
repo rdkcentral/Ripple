@@ -248,26 +248,6 @@ pub struct DeviceImpl {
 }
 
 impl DeviceImpl {
-    // <pca>
-    // async fn firmware_info(&self, _ctx: CallContext) -> RpcResult<FireboltSemanticVersion> {
-    //     let resp = self
-    //         .state
-    //         .get_client()
-    //         .send_extn_request(DeviceInfoRequest::Version)
-    //         .await;
-
-    //     match resp {
-    //         Ok(dab_payload) => match dab_payload.payload.extract().unwrap() {
-    //             DeviceResponse::FirmwareInfo(value) => Ok(value),
-    //             _ => Err(jsonrpsee::core::Error::Custom(String::from(
-    //                 "Firmware Info error response TBD",
-    //             ))),
-    //         },
-    //         Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-    //             "Firmware Info error response TBD",
-    //         ))),
-    //     }
-    // }
     async fn firmware_info(&self, _ctx: CallContext) -> RpcResult<FirmwareInfo> {
         let resp = self
             .state
@@ -287,7 +267,6 @@ impl DeviceImpl {
             ))),
         }
     }
-    // </pca>
 }
 
 #[async_trait]
@@ -339,21 +318,16 @@ impl DeviceServer for DeviceImpl {
             env!("CARGO_PKG_VERSION_PATCH").parse().unwrap(),
             "".to_string(),
         );
+
         os.readable = format!("Firebolt OS v{}", env!("CARGO_PKG_VERSION"));
 
-        // <pca>
-        //let firmware = self.firmware_info(ctx).await?;
         let firmware_info = self.firmware_info(ctx).await?;
-        // </pca>
-
         let open_rpc_state = self.state.clone().open_rpc_state;
         let api = open_rpc_state.get_open_rpc().info;
+
         Ok(DeviceVersionResponse {
             api,
-            // <pca>
-            //firmware,
             firmware: firmware_info.version,
-            // </pca>
             os,
             debug: format!("{} ({})", env!("CARGO_PKG_VERSION"), SHA_SHORT),
         })

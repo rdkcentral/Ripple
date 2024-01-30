@@ -95,9 +95,6 @@ impl MetricsState {
             Err(_) => "no.language.set".to_string(),
         };
 
-        // <pca>
-        // let os_ver = Self::get_os_ver_from_firebolt(state).await;
-        // debug!("got os_ver={}", &os_ver);
         let os_info = match Self::get_os_info_from_firebolt(state).await {
             Ok(info) => info,
             Err(_) => FirmwareInfo {
@@ -105,8 +102,8 @@ impl MetricsState {
                 version: FireboltSemanticVersion::new(0, 0, 0, "no.os.ver.set".into()),
             },
         };
+
         debug!("got os_info={:?}", &os_info);
-        // </pca>
 
         let mut device_name = "no.device.name.set".to_string();
         if let Ok(resp) = StorageManager::get_string(state, StorageProperty::DeviceName).await {
@@ -139,11 +136,8 @@ impl MetricsState {
             }
 
             context.device_language = language;
-            // <pca>
-            //context.os_ver = os_ver;
             context.os_name = os_info.name;
             context.os_ver = os_info.version.readable;
-            // </pca>
             context.device_name = device_name;
             context.device_session_id = String::from(&state.device_session_id);
 
@@ -154,26 +148,6 @@ impl MetricsState {
         Self::update_account_session(state).await
     }
 
-    // <pca>
-    // async fn get_os_ver_from_firebolt(platform_state: &PlatformState) -> String {
-    //     let mut os = FireboltSemanticVersion::new(0, 0, 0, "".to_string());
-
-    //     if let Ok(val) = platform_state
-    //         .get_client()
-    //         .send_extn_request(DeviceInfoRequest::Version)
-    //         .await
-    //     {
-    //         if let Some(DeviceResponse::FirmwareInfo(value)) = val.payload.extract() {
-    //             os = value;
-    //         }
-    //     }
-    //     let os_ver: String = if !os.readable.is_empty() {
-    //         os.readable.to_string()
-    //     } else {
-    //         "no.os.ver.set".to_string()
-    //     };
-    //     os_ver
-    // }
     async fn get_os_info_from_firebolt(
         platform_state: &PlatformState,
     ) -> Result<FirmwareInfo, RippleError> {
@@ -192,7 +166,6 @@ impl MetricsState {
             Err(e) => Err(e),
         }
     }
-    // </pca>
 
     pub async fn update_account_session(state: &PlatformState) {
         let mut context = state.metrics.context.write().unwrap();

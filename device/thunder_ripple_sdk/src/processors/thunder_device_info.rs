@@ -952,48 +952,6 @@ impl ThunderDeviceInfoRequestProcessor {
         }
     }
 
-    // <pca>
-    // async fn get_version(state: &CachedState) -> FireboltSemanticVersion {
-    //     let response: FireboltSemanticVersion;
-    //     // TODO: refactor this to use return syntax and not use response variable across branches
-    //     match state.get_version() {
-    //         Some(v) => response = v,
-    //         None => {
-    //             let resp = state
-    //                 .get_thunder_client()
-    //                 .call(DeviceCallRequest {
-    //                     method: ThunderPlugin::System.method("getSystemVersions"),
-    //                     params: None,
-    //                 })
-    //                 .await;
-    //             info!("{}", resp.message);
-    //             let tsv: SystemVersion = serde_json::from_value(resp.message).unwrap();
-    //             let tsv_split = tsv.receiver_version.split('.');
-    //             let tsv_vec: Vec<&str> = tsv_split.collect();
-
-    //             if tsv_vec.len() >= 3 {
-    //                 let major: String = tsv_vec[0].chars().filter(|c| c.is_ascii_digit()).collect();
-    //                 let minor: String = tsv_vec[1].chars().filter(|c| c.is_ascii_digit()).collect();
-    //                 let patch: String = tsv_vec[2].chars().filter(|c| c.is_ascii_digit()).collect();
-
-    //                 response = FireboltSemanticVersion {
-    //                     major: major.parse::<u32>().unwrap(),
-    //                     minor: minor.parse::<u32>().unwrap(),
-    //                     patch: patch.parse::<u32>().unwrap(),
-    //                     readable: tsv.stb_version,
-    //                 };
-    //                 state.update_version(response.clone());
-    //             } else {
-    //                 response = FireboltSemanticVersion {
-    //                     readable: tsv.stb_version,
-    //                     ..FireboltSemanticVersion::default()
-    //                 };
-    //                 state.update_version(response.clone())
-    //             }
-    //         }
-    //     }
-    //     response
-    // }
     async fn get_os_info(state: &CachedState) -> FirmwareInfo {
         let version: FireboltSemanticVersion;
         // TODO: refactor this to use return syntax and not use response variable across branches
@@ -1038,25 +996,7 @@ impl ThunderDeviceInfoRequestProcessor {
             version,
         }
     }
-    // </pca>
 
-    // <pca>
-    // async fn version(state: CachedState, req: ExtnMessage) -> bool {
-    //     let response = Self::get_version(&state).await;
-    //     Self::respond(
-    //         state.get_client(),
-    //         req,
-    //         if let ExtnPayload::Response(r) =
-    //             DeviceResponse::FirmwareInfo(response).get_extn_payload()
-    //         {
-    //             r
-    //         } else {
-    //             ExtnResponse::Error(RippleError::ProcessorError)
-    //         },
-    //     )
-    //     .await
-    //     .is_ok()
-    // }
     async fn os_info(state: CachedState, req: ExtnMessage) -> bool {
         let response = Self::get_os_info(&state).await;
         Self::respond(
@@ -1073,7 +1013,6 @@ impl ThunderDeviceInfoRequestProcessor {
         .await
         .is_ok()
     }
-    // </pca>
 
     async fn available_memory(state: CachedState, req: ExtnMessage) -> bool {
         let response = state
@@ -1416,10 +1355,7 @@ impl ThunderDeviceInfoRequestProcessor {
             },
             async {
                 if device_info_authorized {
-                    // <pca>
-                    //Some(Self::get_version(&state).await)
                     Some(Self::get_os_info(&state).await.version)
-                    // </pca>
                 } else {
                     None
                 }
@@ -1633,10 +1569,7 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             DeviceInfoRequest::VideoResolution => Self::video_resolution(state.clone(), msg).await,
             DeviceInfoRequest::Network => Self::network(state.clone(), msg).await,
             DeviceInfoRequest::Make => Self::make(state.clone(), msg).await,
-            // <pca>
-            //DeviceInfoRequest::Version => Self::version(state.clone(), msg).await,
             DeviceInfoRequest::FirmwareInfo => Self::os_info(state.clone(), msg).await,
-            // </pca>
             DeviceInfoRequest::AvailableMemory => Self::available_memory(state.clone(), msg).await,
             DeviceInfoRequest::OnInternetConnected(time_out) => {
                 Self::on_internet_connected(state.clone(), msg, time_out.timeout).await
