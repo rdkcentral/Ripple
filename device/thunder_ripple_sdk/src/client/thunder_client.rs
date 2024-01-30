@@ -308,7 +308,6 @@ impl ThunderClient {
                 // ResetThunderClient. Resubscribe would happen automatically when the client resets.
                 let pool_msg = ThunderPoolCommand::ResetThunderClient(client_id);
                 mpsc_send_and_log(&ptx, pool_msg, "ResetThunderClient").await;
-                return;
             }
         });
 
@@ -464,7 +463,7 @@ impl ThunderClientBuilder {
                 warn!("Attempt to connect to thunder, retrying");
                 sleep(delay_duration).await;
                 if delay_duration < tokio::time::Duration::from_secs(1) {
-                    delay_duration = delay_duration * 2;
+                    delay_duration *= 2;
                 }
                 continue;
             }
