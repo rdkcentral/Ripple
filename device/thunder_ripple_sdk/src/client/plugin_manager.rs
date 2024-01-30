@@ -42,6 +42,7 @@ pub struct PluginManager {
     thunder_client: Box<ThunderClient>,
     plugin_states: HashMap<String, PluginState>,
     state_subscribers: Vec<ActivationSubscriber>,
+    //caching the plugin activation param so that we can reactivate the plugins on demand
     plugin_request: ThunderPluginBootParam,
 }
 
@@ -334,7 +335,6 @@ impl PluginManager {
 
     pub async fn reactivate_plugin_state(&mut self) -> PluginActivatedResult {
         let mut plugins = Vec::new();
-        self.plugin_states.clear();
         match self.plugin_request.activate_on_boot.clone() {
             ThunderPluginParam::Default => {
                 for p in ThunderPlugin::activate_on_boot_plugins() {
@@ -344,9 +344,13 @@ impl PluginManager {
             ThunderPluginParam::Custom(p) => plugins.extend(p),
             ThunderPluginParam::None => {}
         }
+        // remove all cached plugin states
+        self.plugin_states.clear();
+        // activate all activate_on_boot_plugins here.
         for p in plugins {
             self.wait_for_activation(p.clone(), true).await;
         }
+
         PluginActivatedResult::Ready
     }
 }

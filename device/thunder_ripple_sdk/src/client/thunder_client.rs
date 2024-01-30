@@ -515,6 +515,15 @@ impl ThunderClientBuilder {
         if let Some(old_client) = existing_client {
             // Re-subscribe for each subscription that was active on the old client
             if let Some(subscriptions) = old_client.subscriptions {
+                // Reactivate the plugin state
+                let (plugin_rdy_tx, plugin_rdy_rx) = oneshot::channel::<PluginActivatedResult>();
+                if let Some(tx) = pmtx_c.clone() {
+                    let msg = PluginManagerCommand::ReactivatePluginState { tx: plugin_rdy_tx };
+                    mpsc_send_and_log(&tx, msg, "ResetPluginState").await;
+                    if let Ok(res) = plugin_rdy_rx.await {
+                        res.ready().await;
+                    }
+                }
                 let mut subs = subscriptions.lock().await;
                 for (subscribe_method, tsub) in subs.iter_mut() {
                     let mut listeners =
@@ -533,17 +542,6 @@ impl ThunderClientBuilder {
                                 })
                                 .unwrap()
                         };
-                        let (plugin_rdy_tx, plugin_rdy_rx) =
-                            oneshot::channel::<PluginActivatedResult>();
-
-                        if let Some(tx) = pmtx_c.clone() {
-                            let msg =
-                                PluginManagerCommand::ReactivatePluginState { tx: plugin_rdy_tx };
-                            mpsc_send_and_log(&tx, msg, "ResetPluginState").await;
-                            if let Ok(res) = plugin_rdy_rx.await {
-                                res.ready().await;
-                            }
-                        }
                         let _ = s
                             .send(ThunderMessage::ThunderSubscribeMessage(thunder_message))
                             .await;
