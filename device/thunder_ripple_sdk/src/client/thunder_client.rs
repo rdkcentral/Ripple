@@ -334,6 +334,7 @@ impl ThunderClient {
             "client.{}.events.{}",
             thunder_message.module, thunder_message.event_name
         );
+        let mut unregister = false;
         match thunder_message.subscription_id {
             Some(sub_id) => {
                 // Remove the listener for the given sub_id, if there are no more listeners then
@@ -342,6 +343,7 @@ impl ThunderClient {
                 if let Some(sub) = subscriptions.get_mut(&subscribe_method) {
                     sub.listeners.remove(&sub_id);
                     if sub.listeners.is_empty() {
+                        unregister = true;
                         if let Some(s) = subscriptions.remove(&subscribe_method) {
                             s.handle.abort();
                         }
@@ -350,24 +352,27 @@ impl ThunderClient {
             }
             None => {
                 // removing all subscriptions for a method
+                unregister = true;
                 let mut subscriptions = subscriptions_map.lock().await;
                 if let Some(sub) = subscriptions.remove(&subscribe_method) {
                     sub.handle.abort();
                 }
             }
         }
-        let params = ThunderRegisterParams {
-            event: thunder_message.event_name,
-            id: format!("client.{}.events", thunder_message.module),
-        };
-        let json = serde_json::to_string(&params).unwrap();
-        Box::new(ThunderParamRequest {
-            method: format!("{}.unregister", thunder_message.module).as_str(),
-            params: &json,
-            json_based: true,
-        })
-        .send_request(client)
-        .await;
+        if unregister {
+            let params = ThunderRegisterParams {
+                event: thunder_message.event_name,
+                id: format!("client.{}.events", thunder_message.module),
+            };
+            let json = serde_json::to_string(&params).unwrap();
+            Box::new(ThunderParamRequest {
+                method: format!("{}.unregister", thunder_message.module).as_str(),
+                params: &json,
+                json_based: true,
+            })
+            .send_request(client)
+            .await;
+        }
     }
 
     async fn call(
