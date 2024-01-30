@@ -22,7 +22,6 @@ use std::{
 
 use ripple_sdk::{
     api::{
-        app_catalog::AppCatalogRequest,
         context::{ActivationStatus, RippleContext, RippleContextUpdateType},
         device::{
             device_request::{PowerState, SystemPowerState},
@@ -199,16 +198,8 @@ impl MainContextProcessor {
 
             if state.supports_app_catalog() {
                 let ignore_list = vec![state.get_device_manifest().applications.defaults.main];
-
-                let client = state.get_client().clone();
+                let client = state.get_client();
                 client.add_event_processor(AppsUpdater::new(client.get_extn_client(), ignore_list));
-
-                let on_apps_update_resp = state
-                    .ripple_client
-                    .send_extn_request(AppCatalogRequest::OnAppsUpdate)
-                    .await;
-
-                debug!("Received OnAppsUpdate response: {:?}", on_apps_update_resp);
             }
         }
     }
