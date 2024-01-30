@@ -70,6 +70,7 @@ impl ExtnPayloadProvider for PermissionResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::firebolt::fb_capabilities::{CapabilityRole, FireboltCap};
     use crate::utils::test_utils::test_extn_payload_provider;
 
     #[test]
@@ -89,5 +90,23 @@ mod tests {
         let contract_type: RippleContract = RippleContract::Permissions;
 
         test_extn_payload_provider(permission_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_response_permission() {
+        let permission1 = FireboltPermission {
+            cap: FireboltCap::Short("test_cap1".to_string()),
+            role: CapabilityRole::Use,
+        };
+
+        let permission2 = FireboltPermission {
+            cap: FireboltCap::Full("test_cap2".to_string()),
+            role: CapabilityRole::Manage,
+        };
+
+        let permission_response: PermissionResponse = vec![permission1, permission2];
+        let contract_type: RippleContract = RippleContract::Permissions;
+
+        test_extn_payload_provider(permission_response, contract_type);
     }
 }

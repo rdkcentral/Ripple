@@ -45,7 +45,7 @@ pub struct AdInitObjectRequestParams {
     pub scope: HashMap<String, String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AdInitObjectResponse {
     pub ad_server_url: String,
     pub ad_server_url_template: String,
@@ -73,7 +73,7 @@ pub struct AdIdRequestParams {
     pub scope: HashMap<String, String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AdIdResponse {
     pub ifa: String,
     pub ifa_type: String,
@@ -98,7 +98,7 @@ impl ExtnPayloadProvider for AdvertisingRequest {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum AdvertisingResponse {
     None,
     AdInitObject(AdInitObjectResponse),
@@ -217,5 +217,32 @@ mod tests {
         let contract_type: RippleContract = RippleContract::Advertising;
 
         test_extn_payload_provider(advertising_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_response_advertising() {
+        let ad_init_object_response = AdInitObjectResponse {
+            ad_server_url: "https://example.com/ad_server".to_string(),
+            ad_server_url_template: "https://example.com/ad_template".to_string(),
+            ad_network_id: "network_id".to_string(),
+            ad_profile_id: "profile_id".to_string(),
+            ad_site_section_id: "section_id".to_string(),
+            ad_opt_out: false,
+            privacy_data: "privacy_data".to_string(),
+            ifa_value: "ifa_value".to_string(),
+            ifa: "ifa".to_string(),
+            app_name: "MyApp".to_string(),
+            app_bundle_id: "com.example.myapp".to_string(),
+            app_version: "1.0.0".to_string(),
+            distributor_app_id: "distributor_id".to_string(),
+            device_ad_attributes: "device_attributes".to_string(),
+            coppa: "coppa_value".to_string(),
+            authentication_entity: "auth_entity".to_string(),
+        };
+
+        let advertising_response = AdvertisingResponse::AdInitObject(ad_init_object_response);
+        let contract_type: RippleContract = RippleContract::Advertising;
+
+        test_extn_payload_provider(advertising_response, contract_type);
     }
 }

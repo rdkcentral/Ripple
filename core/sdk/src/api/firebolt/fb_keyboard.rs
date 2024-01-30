@@ -117,7 +117,7 @@ impl ExtnPayloadProvider for KeyboardSessionRequest {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct KeyboardSessionResponse {
     pub text: String,
     pub canceled: bool,
@@ -178,5 +178,16 @@ mod tests {
         };
         let contract_type: RippleContract = RippleContract::Keyboard;
         test_extn_payload_provider(keyboard_session_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_response_keyboard_session() {
+        let keyboard_session_response = KeyboardSessionResponse {
+            text: "Test response text".to_string(),
+            canceled: false,
+        };
+
+        let contract_type: RippleContract = RippleContract::Keyboard;
+        test_extn_payload_provider(keyboard_session_response, contract_type);
     }
 }

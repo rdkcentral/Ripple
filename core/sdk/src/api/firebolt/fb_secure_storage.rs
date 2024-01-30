@@ -65,11 +65,11 @@ pub struct SecureStorageClearRequest {
     pub scope: StorageScope,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SecureStorageGetResponse {
     pub value: Option<String>,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SecureStorageDefaultResponse {}
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -117,7 +117,7 @@ impl ExtnPayloadProvider for SecureStorageRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum SecureStorageResponse {
     Get(SecureStorageGetResponse),
     Set(SecureStorageDefaultResponse),
@@ -149,7 +149,7 @@ mod tests {
     use crate::utils::test_utils::test_extn_payload_provider;
 
     #[test]
-    fn test_extn_request_secure_storage_get() {
+    fn test_extn_request_secure_storage() {
         let account_session = AccountSession {
             id: "test_session_id".to_string(),
             token: "test_token".to_string(),
@@ -173,23 +173,13 @@ mod tests {
     }
 
     #[test]
-    fn test_extn_request_secure_storage_remove() {
-        let account_session = AccountSession {
-            id: "test_session_id".to_string(),
-            token: "test_token".to_string(),
-            account_id: "test_account_id".to_string(),
-            device_id: "test_device_id".to_string(),
+    fn test_extn_response_secure_storage() {
+        let secure_storage_get_response = SecureStorageGetResponse {
+            value: Some("secret_value".to_string()),
         };
-
-        let remove_request = SecureStorageRemoveRequest {
-            scope: StorageScope::Account,
-            key: "test_key".to_string(),
-            app_id: Some("app_id".to_string()),
-        };
-
-        let secure_storage_request = SecureStorageRequest::Remove(remove_request, account_session);
-
+        let secure_storage_response = SecureStorageResponse::Get(secure_storage_get_response);
         let contract_type: RippleContract = RippleContract::Storage(StorageAdjective::Secure);
-        test_extn_payload_provider(secure_storage_request, contract_type);
+
+        test_extn_payload_provider(secure_storage_response, contract_type);
     }
 }

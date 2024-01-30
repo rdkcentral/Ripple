@@ -33,7 +33,7 @@ pub enum PubSubRequest {
     GetSubscribedMessage(PubSubSubscribedParam),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum PubSubResponse {
     Connect(PubSubConnectResponse),
     Publish(PubSubPublishResponse),
@@ -51,7 +51,7 @@ pub struct PubSubSubscribedParam {
     pub context: String,
     pub topic: String,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PubSubSubscribedResponse {
     pub payload: Option<String>,
     pub payload_type: Option<String>,
@@ -66,7 +66,7 @@ pub struct PubSubPublishParams {
     pub message: String,
     pub message_type: String,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PubSubPublishResponse {
     pub result: bool,
     pub status_code: String,
@@ -81,7 +81,7 @@ pub struct PubSubConnectParam {
     pub operation_timeout_in_msec: u32,
     // pub max_retry_interval: u32,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PubSubConnectResponse {
     pub connection_status: String,
     // status_code: String,
@@ -95,7 +95,7 @@ pub struct PubSubSubscribeParam {
     pub topic: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PubSubSubscribeResponse {
     // pub connection_status: String,
     // pub status_code: String,
@@ -180,5 +180,18 @@ mod tests {
 
         let contract_type: RippleContract = RippleContract::PubSub;
         test_extn_payload_provider(pub_sub_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_response_pub_sub() {
+        let connect_response = PubSubConnectResponse {
+            connection_status: "connected".to_string(),
+            context: "test_context".to_string(),
+        };
+
+        let pubsub_response = PubSubResponse::Connect(connect_response);
+        let contract_type: RippleContract = RippleContract::PubSub;
+
+        test_extn_payload_provider(pubsub_response, contract_type);
     }
 }

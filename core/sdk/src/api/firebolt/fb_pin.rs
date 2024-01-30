@@ -82,7 +82,7 @@ pub enum PinChallengeResultReason {
     Cancelled,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct PinChallengeResponse {
     pub granted: Option<bool>,
     pub reason: PinChallengeResultReason,
@@ -158,5 +158,16 @@ mod tests {
         };
         let contract_type: RippleContract = RippleContract::PinChallenge;
         test_extn_payload_provider(pin_challenge_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_response_pin_challenge() {
+        let pin_challenge_response = PinChallengeResponse {
+            granted: Some(true),
+            reason: PinChallengeResultReason::NoPinRequired,
+        };
+
+        let contract_type: RippleContract = RippleContract::PinChallenge;
+        test_extn_payload_provider(pin_challenge_response, contract_type);
     }
 }
