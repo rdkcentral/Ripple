@@ -41,7 +41,7 @@ pub enum AccountLinkRequest {
 pub struct WatchedRequest {
     pub context: CallContext,
     pub info: WatchedInfo,
-    pub unit: ProgressUnit,
+    pub unit: Option<ProgressUnit>,
 }
 
 impl ExtnPayloadProvider for AccountLinkRequest {
