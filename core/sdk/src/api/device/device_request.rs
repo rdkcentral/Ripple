@@ -292,7 +292,7 @@ impl ExtnPayloadProvider for TimeZone {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct VoiceGuidanceState {
     pub state: bool,
@@ -319,6 +319,7 @@ impl ExtnPayloadProvider for VoiceGuidanceState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
 
     #[test]
     fn test_language_serializer() {
@@ -342,4 +343,23 @@ mod tests {
     //     let tz = "{\"value\":\"America/New_York\"}";
     //     assert!(serde_json::from_str::<TimezoneProperty>(tz).is_ok());
     // }
+
+    #[test]
+    fn test_extn_payload_provider_for_time_zone() {
+        let time_zone = TimeZone {
+            time_zone: String::from("America/Los_Angeles"),
+            offset: -28800,
+        };
+
+        let contract_type: RippleContract = RippleContract::DeviceEvents(EventAdjective::TimeZone);
+        test_extn_payload_provider(time_zone, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_voice_guidance_state() {
+        let voice_guidance_state = VoiceGuidanceState { state: true };
+
+        let contract_type: RippleContract = RippleContract::VoiceGuidance;
+        test_extn_payload_provider(voice_guidance_state, contract_type);
+    }
 }

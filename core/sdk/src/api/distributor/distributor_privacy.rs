@@ -47,7 +47,7 @@ pub enum PrivacySetting {
     CameraAnalytics,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PrivacySettings {
     #[serde(rename = "allowACRCollection")]
@@ -238,14 +238,14 @@ impl ExtnPayloadProvider for PrivacyCloudRequest {
     }
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Default, Serialize, Deserialize, Clone)]
 pub struct ExclusionPolicyData {
     pub data_events: Vec<DataEventType>,
     pub entity_reference: Vec<String>,
     pub derivative_propagation: bool,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Default, Serialize, Deserialize, Clone)]
 pub struct ExclusionPolicy {
     pub acr: Option<ExclusionPolicyData>,
     pub app_content_ad_targeting: Option<ExclusionPolicyData>,
@@ -330,5 +330,129 @@ mod tests {
             PrivacySettingsStoreRequest::GetPrivacySettings(storage_property);
         let contract_type: RippleContract = RippleContract::Storage(StorageAdjective::PrivacyLocal);
         test_extn_payload_provider(privacy_settings_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_exclusion_policy() {
+        let exclusion_policy = ExclusionPolicy {
+            acr: Some(ExclusionPolicyData {
+                data_events: vec![DataEventType::Watched, DataEventType::BusinessIntelligence],
+                entity_reference: vec![String::from("entity_reference_acr")],
+                derivative_propagation: true,
+            }),
+            app_content_ad_targeting: Some(ExclusionPolicyData {
+                data_events: vec![DataEventType::Watched],
+                entity_reference: vec![String::from("entity_reference_app_content_ad_targeting")],
+                derivative_propagation: false,
+            }),
+            business_analytics: Some(ExclusionPolicyData {
+                data_events: vec![DataEventType::Watched, DataEventType::BusinessIntelligence],
+                entity_reference: vec![String::from("entity_reference_business_analytics")],
+                derivative_propagation: false,
+            }),
+            camera_analytics: Some(ExclusionPolicyData {
+                data_events: vec![DataEventType::Watched],
+                entity_reference: vec![String::from("entity_reference_camera_analytics")],
+                derivative_propagation: true,
+            }),
+            continue_watching: Some(ExclusionPolicyData {
+                data_events: vec![DataEventType::Watched],
+                entity_reference: vec![String::from("entity_reference_continue_watching")],
+                derivative_propagation: true,
+            }),
+            personalization: Some(ExclusionPolicyData {
+                data_events: vec![DataEventType::Watched],
+                entity_reference: vec![String::from("entity_reference_personalization")],
+                derivative_propagation: true,
+            }),
+            primary_browse_ad_targeting: Some(ExclusionPolicyData {
+                data_events: vec![DataEventType::Watched],
+                entity_reference: vec![String::from(
+                    "entity_reference_primary_browse_ad_targeting",
+                )],
+                derivative_propagation: true,
+            }),
+            primary_content_ad_targeting: Some(ExclusionPolicyData {
+                data_events: vec![DataEventType::Watched],
+                entity_reference: vec![String::from(
+                    "entity_reference_primary_content_ad_targeting",
+                )],
+                derivative_propagation: true,
+            }),
+            product_analytics: Some(ExclusionPolicyData {
+                data_events: vec![DataEventType::Watched],
+                entity_reference: vec![String::from("entity_reference_product_analytics")],
+                derivative_propagation: true,
+            }),
+            remote_diagnostics: Some(ExclusionPolicyData {
+                data_events: vec![DataEventType::Watched],
+                entity_reference: vec![String::from("entity_reference_remote_diagnostics")],
+                derivative_propagation: true,
+            }),
+            unentitled_continue_watching: Some(ExclusionPolicyData {
+                data_events: vec![DataEventType::Watched],
+                entity_reference: vec![String::from(
+                    "entity_reference_unentitled_continue_watching",
+                )],
+                derivative_propagation: true,
+            }),
+            unentitled_personalization: Some(ExclusionPolicyData {
+                data_events: vec![DataEventType::Watched],
+                entity_reference: vec![String::from("entity_reference_unentitled_personalization")],
+                derivative_propagation: true,
+            }),
+            watch_history: Some(ExclusionPolicyData {
+                data_events: vec![DataEventType::Watched],
+                entity_reference: vec![String::from("entity_reference_watch_history")],
+                derivative_propagation: true,
+            }),
+        };
+
+        let contract_type: RippleContract = RippleContract::Storage(StorageAdjective::PrivacyCloud);
+        test_extn_payload_provider(exclusion_policy, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_privacy_settings() {
+        let privacy_settings = PrivacySettings {
+            allow_acr_collection: true,
+            allow_resume_points: true,
+            allow_app_content_ad_targeting: true,
+            allow_business_analytics: true,
+            allow_camera_analytics: true,
+            allow_personalization: true,
+            allow_primary_browse_ad_targeting: true,
+            allow_primary_content_ad_targeting: true,
+            allow_product_analytics: true,
+            allow_remote_diagnostics: true,
+            allow_unentitled_personalization: true,
+            allow_unentitled_resume_points: true,
+            allow_watch_history: true,
+        };
+
+        let contract_type: RippleContract = RippleContract::PrivacySettings;
+        test_extn_payload_provider(privacy_settings, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_privacy_settings_data() {
+        let privacy_settings_data = PrivacySettingsData {
+            allow_acr_collection: Some(true),
+            allow_resume_points: Some(true),
+            allow_app_content_ad_targeting: Some(true),
+            allow_business_analytics: Some(true),
+            allow_camera_analytics: Some(true),
+            allow_personalization: Some(true),
+            allow_primary_browse_ad_targeting: Some(true),
+            allow_primary_content_ad_targeting: Some(true),
+            allow_product_analytics: Some(true),
+            allow_remote_diagnostics: Some(true),
+            allow_unentitled_personalization: Some(true),
+            allow_unentitled_resume_points: Some(true),
+            allow_watch_history: Some(true),
+        };
+
+        let contract_type: RippleContract = RippleContract::Storage(StorageAdjective::PrivacyLocal);
+        test_extn_payload_provider(privacy_settings_data, contract_type);
     }
 }

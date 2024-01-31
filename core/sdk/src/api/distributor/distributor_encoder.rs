@@ -24,7 +24,7 @@ use crate::{
 
 use super::distributor_request::DistributorRequest;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct EncoderRequest {
     pub reference: String,
     pub scope: String,
@@ -48,5 +48,22 @@ impl ExtnPayloadProvider for EncoderRequest {
 
     fn contract() -> RippleContract {
         RippleContract::Encoder
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_payload_provider_for_encoder_request() {
+        let encoder_request = EncoderRequest {
+            reference: String::from("example_reference"),
+            scope: String::from("example_scope"),
+        };
+
+        let contract_type: RippleContract = RippleContract::Encoder;
+        test_extn_payload_provider(encoder_request, contract_type);
     }
 }
