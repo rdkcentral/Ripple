@@ -43,8 +43,8 @@ use ripple_sdk::{
 };
 
 use crate::{
-    firebolt::firebolt_gateway::FireboltGatewayCommand, state::bootstrap_state::ChannelsState,
-    utils::rpc_utils::rpc_await_oneshot,
+    broker::endpoint_broker::BrokerOutput, firebolt::firebolt_gateway::FireboltGatewayCommand,
+    state::bootstrap_state::ChannelsState, utils::rpc_utils::rpc_await_oneshot,
 };
 
 /// RippleClient is an internal delegate component which helps in operating
@@ -67,6 +67,7 @@ pub struct RippleClient {
     client: Arc<RwLock<ExtnClient>>,
     gateway_sender: Sender<FireboltGatewayCommand>,
     app_mgr_sender: Sender<AppRequest>, // will be used by LCM RPC
+    broker_sender: Sender<BrokerOutput>,
 }
 
 impl RippleClient {
@@ -84,6 +85,7 @@ impl RippleClient {
             gateway_sender: state.get_gateway_sender(),
             app_mgr_sender: state.get_app_mgr_sender(),
             client: Arc::new(RwLock::new(extn_client)),
+            broker_sender: state.get_broker_sender(),
         }
     }
 
@@ -160,5 +162,9 @@ impl RippleClient {
 
     pub fn send_event(&self, event: impl ExtnPayloadProvider) -> RippleResponse {
         self.get_extn_client().event(event)
+    }
+
+    pub fn get_broker_sender(&self) -> Sender<BrokerOutput> {
+        self.broker_sender.clone()
     }
 }

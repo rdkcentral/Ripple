@@ -684,8 +684,23 @@
 		"xrn:firebolt:capability:discovery:entity-info": {
 			"level": "must",
 			"use": {
+				"public": true,
+				"negotiable": true
+			},
+			"manage": {
 				"public": false,
 				"negotiable": false
+			},
+			"provide": {
+				"public": true,
+				"negotiable": true
+			}
+		},
+		"xrn:firebolt:capability:discovery:interest": {
+			"level": "must",
+			"use": {
+				"public": true,
+				"negotiable": true
 			},
 			"manage": {
 				"public": false,
@@ -726,11 +741,26 @@
 				"negotiable": false
 			}
 		},
+		"xrn:firebolt:capability:discovery:providers": {
+			"level": "must",
+			"use": {
+				"public": true,
+				"negotiable": true
+			},
+			"manage": {
+				"public": false,
+				"negotiable": false
+			},
+			"provide": {
+				"public": false,
+				"negotiable": false
+			}
+		},
 		"xrn:firebolt:capability:discovery:purchased-content": {
 			"level": "must",
 			"use": {
-				"public": false,
-				"negotiable": false
+				"public": true,
+				"negotiable": true
 			},
 			"manage": {
 				"public": false,
@@ -739,6 +769,21 @@
 			"provide": {
 				"public": true,
 				"negotiable": true
+			}
+		},
+		"xrn:firebolt:capability:inputs:hdmi": {
+			"level": "must",
+			"use": {
+				"public": true,
+				"negotiable": true
+			},
+			"manage": {
+				"public": true,
+				"negotiable": true
+			},
+			"provide": {
+				"public": false,
+				"negotiable": false
 			}
 		},
 		"xrn:firebolt:capability:lifecycle:launch": {
@@ -897,7 +942,7 @@
 			"openrpc": "1.2.4",
 			"info": {
 				"title": "Firebolt JSON-RPC API",
-				"version": "1.0.0",
+				"version": "1.1.0-next.1",
 				"x-module-descriptions": {
 					"Internal": "Internal methods for SDK / FEE integration",
 					"Accessibility": "The `Accessibility` module provides access to the user/device settings for closed captioning and voice guidance.\n\nApps **SHOULD** attempt o respect these settings, rather than manage and persist seprate settings, which would be different per-app.",
@@ -910,6 +955,7 @@
 					"ClosedCaptions": "A module for managing closed-captions Settings.",
 					"Device": "A module for querying about the device and it's capabilities.",
 					"Discovery": "Your App likely wants to integrate with the Platform's discovery capabilities. For example to add a \"Watch Next\" tile that links to your app from the platform's home screen.\n\nGetting access to this information requires to connect to lower level APIs made available by the platform. Since implementations differ between operators and platforms, the Firebolt SDK offers a Discovery module, that exposes a generic, agnostic interface to the developer.\n\nUnder the hood, an underlaying transport layer will then take care of calling the right APIs for the actual platform implementation that your App is running on.\n\nThe Discovery plugin is used to _send_ information to the Platform.\n\n### Localization\nApps should provide all user-facing strings in the device's language, as specified by the Firebolt `Localization.language` property.\n\nApps should provide prices in the same currency presented in the app. If multiple currencies are supported in the app, the app should provide prices in the user's current default currency.",
+					"HDMIInput": "Methods for managing HDMI inputs on an HDMI sink device.",
 					"Keyboard": "Methods for prompting users to enter text with task-oriented UX",
 					"Lifecycle": "Methods and events for responding to lifecycle changes in your app",
 					"Localization": "Methods for accessessing location and language preferences",
@@ -1688,23 +1734,18 @@
 					"summary": "Internal API for Challenge Provider to send back response.",
 					"params": [
 						{
-							"name": "response",
-							"required": true,
+							"name": "correlationId",
 							"schema": {
-								"allOf": [
-									{
-										"$ref": "#/x-schemas/Types/ProviderResponse"
-									},
-									{
-										"type": "object",
-										"properties": {
-											"result": {
-												"$ref": "#/components/schemas/GrantResult"
-											}
-										}
-									}
-								]
-							}
+								"type": "string"
+							},
+							"required": true
+						},
+						{
+							"name": "result",
+							"schema": {
+								"$ref": "#/components/schemas/GrantResult"
+							},
+							"required": true
 						}
 					],
 					"tags": [
@@ -1729,12 +1770,13 @@
 							"name": "Example #1",
 							"params": [
 								{
-									"name": "response",
+									"name": "correlationId",
+									"value": "123"
+								},
+								{
+									"name": "result",
 									"value": {
-										"correlationId": "123",
-										"result": {
-											"granted": true
-										}
+										"granted": true
 									}
 								}
 							],
@@ -1747,12 +1789,13 @@
 							"name": "Example #2",
 							"params": [
 								{
-									"name": "response",
+									"name": "correlationId",
+									"value": "123"
+								},
+								{
+									"name": "result",
 									"value": {
-										"correlationId": "123",
-										"result": {
-											"granted": false
-										}
+										"granted": false
 									}
 								}
 							],
@@ -1765,12 +1808,13 @@
 							"name": "Example #3",
 							"params": [
 								{
-									"name": "response",
+									"name": "correlationId",
+									"value": "123"
+								},
+								{
+									"name": "result",
 									"value": {
-										"correlationId": "123",
-										"result": {
-											"granted": null
-										}
+										"granted": null
 									}
 								}
 							],
@@ -1786,44 +1830,39 @@
 					"summary": "Internal API for Challenge Provider to send back error.",
 					"params": [
 						{
-							"name": "error",
-							"required": true,
+							"name": "correlationId",
 							"schema": {
-								"allOf": [
-									{
-										"$ref": "#/x-schemas/Types/ProviderResponse"
+								"type": "string"
+							},
+							"required": true
+						},
+						{
+							"name": "error",
+							"schema": {
+								"type": "object",
+								"additionalProperties": false,
+								"required": [
+									"code",
+									"message"
+								],
+								"properties": {
+									"code": {
+										"title": "errorObjectCode",
+										"description": "A Number that indicates the error type that occurred. This MUST be an integer. The error codes from and including -32768 to -32000 are reserved for pre-defined errors. These pre-defined errors SHOULD be assumed to be returned from any JSON-RPC api.",
+										"type": "integer"
 									},
-									{
-										"type": "object",
-										"properties": {
-											"result": {
-												"type": "object",
-												"additionalProperties": false,
-												"required": [
-													"code",
-													"message"
-												],
-												"properties": {
-													"code": {
-														"title": "errorObjectCode",
-														"description": "A Number that indicates the error type that occurred. This MUST be an integer. The error codes from and including -32768 to -32000 are reserved for pre-defined errors. These pre-defined errors SHOULD be assumed to be returned from any JSON-RPC api.",
-														"type": "integer"
-													},
-													"message": {
-														"title": "errorObjectMessage",
-														"description": "A String providing a short description of the error. The message SHOULD be limited to a concise single sentence.",
-														"type": "string"
-													},
-													"data": {
-														"title": "errorObjectData",
-														"description": "A Primitive or Structured value that contains additional information about the error. This may be omitted. The value of this member is defined by the Server (e.g. detailed error information, nested errors etc.)."
-													}
-												}
-											}
-										}
+									"message": {
+										"title": "errorObjectMessage",
+										"description": "A String providing a short description of the error. The message SHOULD be limited to a concise single sentence.",
+										"type": "string"
+									},
+									"data": {
+										"title": "errorObjectData",
+										"description": "A Primitive or Structured value that contains additional information about the error. This may be omitted. The value of this member is defined by the Server (e.g. detailed error information, nested errors etc.)."
 									}
-								]
-							}
+								}
+							},
+							"required": true
 						}
 					],
 					"tags": [
@@ -1848,13 +1887,14 @@
 							"name": "Example 1",
 							"params": [
 								{
+									"name": "correlationId",
+									"value": "123"
+								},
+								{
 									"name": "error",
 									"value": {
-										"correlationId": "123",
-										"result": {
-											"code": 1,
-											"message": "Error"
-										}
+										"code": 1,
+										"message": "Error"
 									}
 								}
 							],
@@ -6528,6 +6568,395 @@
 					]
 				},
 				{
+					"name": "Content.providers",
+					"tags": [
+						{
+							"name": "capabilities",
+							"x-uses": [
+								"xrn:firebolt:capability:discovery:providers"
+							]
+						}
+					],
+					"summary": "Returns a list of providers and the discovery apis they support",
+					"params": [],
+					"result": {
+						"name": "providers",
+						"summary": "List of providers and the discovery apis they support",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/components/schemas/ContentProvider"
+							}
+						}
+					},
+					"examples": [
+						{
+							"name": "Getting the list of providers and the discovery apis they support",
+							"params": [],
+							"result": {
+								"name": "Default Result",
+								"value": [
+									{
+										"id": "Vudu",
+										"apis": [
+											"purchases",
+											"entity"
+										]
+									},
+									{
+										"id": "NetflixApp",
+										"apis": [
+											"search"
+										]
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Content.purchases",
+					"tags": [
+						{
+							"name": "capabilities",
+							"x-uses": [
+								"xrn:firebolt:capability:discovery:purchased-content"
+							]
+						}
+					],
+					"summary": "Gets a list of entities that the user has purchased",
+					"params": [
+						{
+							"name": "provider",
+							"summary": "The id of the provider to request purchased content from",
+							"schema": {
+								"type": "string"
+							},
+							"required": true
+						},
+						{
+							"name": "parameters",
+							"summary": "Any parameters to control what purchases are returned",
+							"schema": {
+								"$ref": "#/components/schemas/PurchasedContentParameters"
+							},
+							"required": true
+						},
+						{
+							"name": "options",
+							"summary": "Any options with making the request to provider",
+							"schema": {
+								"$ref": "#/components/schemas/FederationOptions"
+							},
+							"required": false
+						}
+					],
+					"result": {
+						"name": "ProvidedPurchasedContentResult",
+						"summary": "List of entities that the user has purchased",
+						"schema": {
+							"$ref": "#/components/schemas/ProvidedPurchasedContentResult"
+						}
+					},
+					"examples": [
+						{
+							"name": "Gets a list of entities that the user has purchased",
+							"params": [
+								{
+									"name": "provider",
+									"value": "Vudu"
+								},
+								{
+									"name": "parameters",
+									"value": {
+										"limit": 10
+									}
+								},
+								{
+									"name": "options",
+									"value": {
+										"timeout": 10000
+									}
+								}
+							],
+							"result": {
+								"name": "Default Result",
+								"value": {
+									"provider": "Vudu",
+									"data": {
+										"totalCount": 1,
+										"expires": "2025-01-01T00:00:00.000Z",
+										"entries": [
+											{
+												"identifiers": {
+													"entityId": "345"
+												},
+												"entityType": "program",
+												"programType": "movie",
+												"title": "Cool Runnings",
+												"synopsis": "When a Jamaican sprinter is disqualified from the Olympic Games, he enlists the help of a dishonored coach to start the first Jamaican Bobsled Team.",
+												"releaseDate": "1993-01-01T00:00:00.000Z",
+												"contentRatings": [
+													{
+														"scheme": "US-Movie",
+														"rating": "PG"
+													},
+													{
+														"scheme": "CA-Movie",
+														"rating": "G"
+													}
+												]
+											}
+										]
+									}
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Content.entity",
+					"tags": [
+						{
+							"name": "capabilities",
+							"x-uses": [
+								"xrn:firebolt:capability:discovery:entity-info"
+							]
+						}
+					],
+					"summary": "Gets information about a program entity from a provider and its available watchable assets, such as entitlement status and price. Includes information about the program entity and its relevant associated entities, such as extras, previews, and, in the case of TV series, seasons and episodes.",
+					"params": [
+						{
+							"name": "provider",
+							"summary": "The id of the provider that has the entity info",
+							"schema": {
+								"type": "string"
+							},
+							"required": true
+						},
+						{
+							"name": "parameters",
+							"summary": "The content parameters",
+							"schema": {
+								"$ref": "#/components/schemas/EntityInfoParameters"
+							},
+							"required": true
+						},
+						{
+							"name": "options",
+							"summary": "Any options with making the request to provider",
+							"schema": {
+								"$ref": "#/components/schemas/FederationOptions"
+							},
+							"required": false
+						}
+					],
+					"result": {
+						"name": "content",
+						"summary": "Information about program entity",
+						"schema": {
+							"$ref": "#/components/schemas/ProvidedEntityInfoResult"
+						}
+					},
+					"examples": [
+						{
+							"name": "Get info about specific content from a provider",
+							"params": [
+								{
+									"name": "provider",
+									"value": "Vudu"
+								},
+								{
+									"name": "parameters",
+									"value": {
+										"entityId": "111"
+									}
+								},
+								{
+									"name": "options",
+									"value": {
+										"timeout": 10000
+									}
+								}
+							],
+							"result": {
+								"name": "Default Result",
+								"value": {
+									"provider": "Vudu",
+									"data": {
+										"expires": "2025-01-01T00:00:00.000Z",
+										"entity": {
+											"identifiers": {
+												"entityId": "345"
+											},
+											"entityType": "program",
+											"programType": "movie",
+											"title": "Cool Runnings",
+											"synopsis": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Pulvinar sapien et ligula ullamcorper malesuada proin libero nunc.",
+											"releaseDate": "1993-01-01T00:00:00.000Z",
+											"contentRatings": [
+												{
+													"scheme": "US-Movie",
+													"rating": "PG"
+												},
+												{
+													"scheme": "CA-Movie",
+													"rating": "G"
+												}
+											],
+											"waysToWatch": [
+												{
+													"identifiers": {
+														"assetId": "123"
+													},
+													"expires": "2025-01-01T00:00:00.000Z",
+													"entitled": true,
+													"entitledExpires": "2025-01-01T00:00:00.000Z",
+													"offeringType": "buy",
+													"price": 2.99,
+													"videoQuality": [
+														"UHD"
+													],
+													"audioProfile": [
+														"dolbyAtmos"
+													],
+													"audioLanguages": [
+														"en"
+													],
+													"closedCaptions": [
+														"en"
+													],
+													"subtitles": [
+														"es"
+													],
+													"audioDescriptions": [
+														"en"
+													]
+												}
+											]
+										}
+									}
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Content.requestUserInterest",
+					"tags": [
+						{
+							"name": "capabilities",
+							"x-uses": [
+								"xrn:firebolt:capability:discovery:interest"
+							]
+						}
+					],
+					"params": [
+						{
+							"name": "type",
+							"schema": {
+								"$ref": "#/x-schemas/Discovery/UserInterestType"
+							}
+						}
+					],
+					"result": {
+						"name": "entity",
+						"schema": {
+							"$ref": "#/x-schemas/Entertainment/EntityInfo"
+						}
+					},
+					"examples": [
+						{
+							"name": "Default Example",
+							"params": [
+								{
+									"name": "type",
+									"value": "interest"
+								}
+							],
+							"result": {
+								"name": "entity",
+								"value": {
+									"identifiers": {
+										"entityId": "xyz"
+									},
+									"entityType": "program",
+									"programType": "movie",
+									"title": "Interesting Movie Title"
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Content.onUserInterestedIn",
+					"tags": [
+						{
+							"name": "event"
+						},
+						{
+							"name": "capabilities",
+							"x-uses": [
+								"xrn:firebolt:capability:discovery:interest"
+							]
+						}
+					],
+					"params": [
+						{
+							"name": "listen",
+							"required": true,
+							"schema": {
+								"type": "boolean"
+							}
+						}
+					],
+					"result": {
+						"name": "intent",
+						"schema": {
+							"anyOf": [
+								{
+									"$ref": "#/x-schemas/Types/ListenResponse"
+								},
+								{
+									"$ref": "#/x-schemas/Intents/InterestedInIntent"
+								}
+							]
+						}
+					},
+					"examples": [
+						{
+							"name": "Default Example",
+							"params": [
+								{
+									"name": "listen",
+									"value": true
+								}
+							],
+							"result": {
+								"name": "interest",
+								"value": {
+									"action": "interestedIn",
+									"data": {
+										"appId": "cool-app",
+										"type": "interest",
+										"entity": {
+											"identifiers": {
+												"entityId": "xyz"
+											},
+											"entityType": "program",
+											"programType": "movie",
+											"title": "Interesting Movie Title"
+										}
+									},
+									"context": {
+										"source": "api"
+									}
+								}
+							}
+						}
+					]
+				},
+				{
 					"name": "Device.id",
 					"summary": "Get the platform back-office device identifier",
 					"params": [],
@@ -9333,6 +9762,183 @@
 					]
 				},
 				{
+					"name": "Discovery.userInterest",
+					"summary": "Notify the platform that content was marked as interesting to the user.",
+					"tags": [
+						{
+							"name": "capabilities",
+							"x-provides": "xrn:firebolt:capability:discovery:interest"
+						}
+					],
+					"params": [
+						{
+							"name": "type",
+							"required": true,
+							"schema": {
+								"$ref": "#/x-schemas/Discovery/UserInterestType"
+							},
+							"summary": "The entity Id of the watched content."
+						},
+						{
+							"name": "entity",
+							"schema": {
+								"$ref": "#/x-schemas/Entertainment/EntityInfo"
+							}
+						}
+					],
+					"result": {
+						"name": "default",
+						"schema": {
+							"type": "null"
+						}
+					},
+					"examples": [
+						{
+							"name": "Notify the platform of interest.",
+							"params": [
+								{
+									"name": "type",
+									"value": "interest"
+								},
+								{
+									"name": "entity",
+									"value": {
+										"identifiers": {
+											"entityId": "xyz"
+										},
+										"entityType": "program",
+										"programType": "movie",
+										"title": "Interesting Movie Title"
+									}
+								}
+							],
+							"result": {
+								"name": "default",
+								"value": null
+							}
+						},
+						{
+							"name": "Notify the platform of disinterest.",
+							"params": [
+								{
+									"name": "type",
+									"value": "disinterest"
+								},
+								{
+									"name": "entity",
+									"value": {
+										"identifiers": {
+											"entityId": "xyz"
+										},
+										"entityType": "program",
+										"programType": "movie",
+										"title": "Uninteresting Movie Title"
+									}
+								}
+							],
+							"result": {
+								"name": "default",
+								"value": null
+							}
+						}
+					]
+				},
+				{
+					"name": "Discovery.onRequestUserInterest",
+					"summary": "Invoked when the platform is requesting metadata for content that the user finds interesting.",
+					"tags": [
+						{
+							"name": "rpc-only"
+						},
+						{
+							"name": "event",
+							"x-response": {
+								"$ref": "#/x-schemas/Entertainment/EntityInfo",
+								"examples": [
+									{
+										"identifiers": {
+											"entityId": "xyz"
+										},
+										"entityType": "program",
+										"programType": "movie",
+										"title": "Interesting Movie Title"
+									}
+								]
+							},
+							"x-error": {
+								"type": "object",
+								"additionalProperties": false,
+								"required": [
+									"code",
+									"message"
+								],
+								"properties": {
+									"code": {
+										"title": "errorObjectCode",
+										"description": "A Number that indicates the error type that occurred. This MUST be an integer. The error codes from and including -32768 to -32000 are reserved for pre-defined errors. These pre-defined errors SHOULD be assumed to be returned from any JSON-RPC api.",
+										"type": "integer"
+									},
+									"message": {
+										"title": "errorObjectMessage",
+										"description": "A String providing a short description of the error. The message SHOULD be limited to a concise single sentence.",
+										"type": "string"
+									},
+									"data": {
+										"title": "errorObjectData",
+										"description": "A Primitive or Structured value that contains additional information about the error. This may be omitted. The value of this member is defined by the Server (e.g. detailed error information, nested errors etc.)."
+									}
+								}
+							}
+						},
+						{
+							"name": "capabilities",
+							"x-provides": "xrn:firebolt:capability:discovery:interest"
+						}
+					],
+					"params": [
+						{
+							"name": "listen",
+							"required": true,
+							"schema": {
+								"type": "boolean"
+							}
+						}
+					],
+					"result": {
+						"name": "request",
+						"schema": {
+							"anyOf": [
+								{
+									"$ref": "#/x-schemas/Types/ListenResponse"
+								},
+								{
+									"$ref": "#/components/schemas/UserInterestProviderRequest"
+								}
+							]
+						}
+					},
+					"examples": [
+						{
+							"name": "Platform requests the currently displayed content.",
+							"params": [
+								{
+									"name": "listen",
+									"value": true
+								}
+							],
+							"result": {
+								"name": "request",
+								"value": {
+									"correlationId": "1",
+									"parameters": {
+										"type": "interest"
+									}
+								}
+							}
+						}
+					]
+				},
+				{
 					"name": "Discovery.onPolicyChanged",
 					"summary": "get the discovery policy",
 					"params": [
@@ -9551,6 +10157,1082 @@
 						}
 					],
 					"description": "Return content purchased by the user, such as rentals and electronic sell through purchases.\n\nThe app should return the user's 100 most recent purchases in `entries`. The total count of purchases must be provided in `count`. If `count` is greater than the total number of `entries`, the UI may provide a link into the app to see the complete purchase list.\n\nThe `EntityInfo` object returned is not required to have `waysToWatch` populated, but it is recommended that it do so in case the UI wants to surface additional information on the purchases screen.\n\nThe app should implement both Push and Pull methods for `purchasedContent`.\n\nThe app should actively push `purchasedContent` when:\n\n*  The app becomes Active.\n*  When the state of the purchasedContent set has changed.\n*  The app goes into Inactive or Background state, if there is a chance a change event has been missed."
+				},
+				{
+					"name": "Discovery.userInterestResponse",
+					"summary": "Internal API for UserInterest Provider to send back response.",
+					"tags": [
+						{
+							"name": "rpc-only"
+						},
+						{
+							"name": "capabilities",
+							"x-provides": "xrn:firebolt:capability:discovery:interest",
+							"x-response-for": "onRequestUserInterest"
+						}
+					],
+					"params": [
+						{
+							"name": "correlationId",
+							"schema": {
+								"type": "string"
+							},
+							"required": true
+						},
+						{
+							"name": "result",
+							"schema": {
+								"$ref": "#/x-schemas/Entertainment/EntityInfo",
+								"examples": [
+									{
+										"identifiers": {
+											"entityId": "xyz"
+										},
+										"entityType": "program",
+										"programType": "movie",
+										"title": "Interesting Movie Title"
+									}
+								]
+							},
+							"required": true
+						}
+					],
+					"result": {
+						"name": "result",
+						"schema": {
+							"type": "null"
+						}
+					},
+					"examples": [
+						{
+							"name": "Example",
+							"params": [
+								{
+									"name": "correlationId",
+									"value": "123"
+								},
+								{
+									"name": "result",
+									"value": {
+										"identifiers": {
+											"entityId": "xyz"
+										},
+										"entityType": "program",
+										"programType": "movie",
+										"title": "Interesting Movie Title"
+									}
+								}
+							],
+							"result": {
+								"name": "result",
+								"value": null
+							}
+						}
+					]
+				},
+				{
+					"name": "Discovery.userInterestError",
+					"summary": "Internal API for UserInterest Provider to send back error.",
+					"tags": [
+						{
+							"name": "rpc-only"
+						},
+						{
+							"name": "capabilities",
+							"x-provides": "xrn:firebolt:capability:discovery:interest",
+							"x-error-for": "onRequestUserInterest"
+						}
+					],
+					"params": [
+						{
+							"name": "correlationId",
+							"schema": {
+								"type": "string"
+							},
+							"required": true
+						},
+						{
+							"name": "error",
+							"schema": {
+								"type": "object",
+								"additionalProperties": false,
+								"required": [
+									"code",
+									"message"
+								],
+								"properties": {
+									"code": {
+										"title": "errorObjectCode",
+										"description": "A Number that indicates the error type that occurred. This MUST be an integer. The error codes from and including -32768 to -32000 are reserved for pre-defined errors. These pre-defined errors SHOULD be assumed to be returned from any JSON-RPC api.",
+										"type": "integer"
+									},
+									"message": {
+										"title": "errorObjectMessage",
+										"description": "A String providing a short description of the error. The message SHOULD be limited to a concise single sentence.",
+										"type": "string"
+									},
+									"data": {
+										"title": "errorObjectData",
+										"description": "A Primitive or Structured value that contains additional information about the error. This may be omitted. The value of this member is defined by the Server (e.g. detailed error information, nested errors etc.)."
+									}
+								}
+							},
+							"required": true
+						}
+					],
+					"result": {
+						"name": "result",
+						"schema": {
+							"type": "null"
+						}
+					},
+					"examples": [
+						{
+							"name": "Example 1",
+							"params": [
+								{
+									"name": "correlationId",
+									"value": "123"
+								},
+								{
+									"name": "error",
+									"value": {
+										"code": 1,
+										"message": "Error"
+									}
+								}
+							],
+							"result": {
+								"name": "result",
+								"value": null
+							}
+						}
+					]
+				},
+				{
+					"name": "HDMIInput.ports",
+					"tags": [
+						{
+							"name": "capabilities",
+							"x-uses": [
+								"xrn:firebolt:capability:inputs:hdmi"
+							]
+						}
+					],
+					"summary": "Retrieve a list of HDMI input ports.",
+					"params": [],
+					"result": {
+						"name": "ports",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/components/schemas/HDMIInputPort"
+							}
+						}
+					},
+					"examples": [
+						{
+							"name": "Default Example",
+							"params": [],
+							"result": {
+								"name": "ports",
+								"value": [
+									{
+										"port": "HDMI1",
+										"connected": true,
+										"signal": "stable",
+										"arcCapable": true,
+										"arcConnected": true,
+										"edidVersion": "2.0",
+										"autoLowLatencyModeCapable": true,
+										"autoLowLatencyModeSignalled": true
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "HDMIInput.port",
+					"tags": [
+						{
+							"name": "capabilities",
+							"x-uses": [
+								"xrn:firebolt:capability:inputs:hdmi"
+							]
+						}
+					],
+					"summary": "Retrieve a specific HDMI input port.",
+					"params": [
+						{
+							"name": "portId",
+							"schema": {
+								"$ref": "#/components/schemas/HDMIPortId"
+							},
+							"required": true
+						}
+					],
+					"result": {
+						"name": "port",
+						"schema": {
+							"$ref": "#/components/schemas/HDMIInputPort"
+						}
+					},
+					"examples": [
+						{
+							"name": "Default Example",
+							"params": [
+								{
+									"name": "portId",
+									"value": "HDMI1"
+								}
+							],
+							"result": {
+								"name": "ports",
+								"value": {
+									"port": "HDMI1",
+									"connected": true,
+									"signal": "stable",
+									"arcCapable": true,
+									"arcConnected": true,
+									"edidVersion": "2.0",
+									"autoLowLatencyModeCapable": true,
+									"autoLowLatencyModeSignalled": true
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "HDMIInput.open",
+					"tags": [
+						{
+							"name": "capabilities",
+							"x-manages": [
+								"xrn:firebolt:capability:inputs:hdmi"
+							]
+						}
+					],
+					"summary": "Opens the HDMI Port allowing it to be the active source device. Incase there is a different HDMI portId already set as the active source, this call would stop the older portId before opening the given portId.",
+					"params": [
+						{
+							"name": "portId",
+							"schema": {
+								"$ref": "#/components/schemas/HDMIPortId"
+							},
+							"required": true
+						}
+					],
+					"result": {
+						"name": "port",
+						"schema": {
+							"const": null
+						}
+					},
+					"examples": [
+						{
+							"name": "Default Example for open",
+							"params": [
+								{
+									"name": "portId",
+									"value": "HDMI1"
+								}
+							],
+							"result": {
+								"name": "port",
+								"value": null
+							}
+						}
+					]
+				},
+				{
+					"name": "HDMIInput.close",
+					"tags": [
+						{
+							"name": "capabilities",
+							"x-manages": [
+								"xrn:firebolt:capability:inputs:hdmi"
+							]
+						}
+					],
+					"summary": "Closes the given HDMI Port if it is the current active source for HDMI Input. If there was no active source, then there would no action taken on the device.",
+					"params": [],
+					"result": {
+						"name": "port",
+						"schema": {
+							"const": null
+						}
+					},
+					"examples": [
+						{
+							"name": "Default Example for stop",
+							"params": [],
+							"result": {
+								"name": "port",
+								"value": null
+							}
+						}
+					]
+				},
+				{
+					"name": "HDMIInput.onConnectionChanged",
+					"tags": [
+						{
+							"name": "event"
+						},
+						{
+							"name": "capabilities",
+							"x-uses": [
+								"xrn:firebolt:capability:inputs:hdmi"
+							]
+						}
+					],
+					"summary": "Notification for when any HDMI port has a connection physically engaged or disengaged.",
+					"params": [
+						{
+							"name": "listen",
+							"required": true,
+							"schema": {
+								"type": "boolean"
+							}
+						}
+					],
+					"result": {
+						"name": "info",
+						"schema": {
+							"anyOf": [
+								{
+									"$ref": "#/x-schemas/Types/ListenResponse"
+								},
+								{
+									"$ref": "#/components/schemas/ConnectionChangedInfo"
+								}
+							]
+						}
+					},
+					"examples": [
+						{
+							"name": "Default Example",
+							"params": [
+								{
+									"name": "listen",
+									"value": true
+								}
+							],
+							"result": {
+								"name": "info",
+								"value": {
+									"port": "HDMI1",
+									"connected": true
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "HDMIInput.onSignalChanged",
+					"tags": [
+						{
+							"name": "event"
+						},
+						{
+							"name": "capabilities",
+							"x-uses": [
+								"xrn:firebolt:capability:inputs:hdmi"
+							]
+						}
+					],
+					"summary": "Notification for when any HDMI port has it's signal status changed.",
+					"params": [
+						{
+							"name": "listen",
+							"required": true,
+							"schema": {
+								"type": "boolean"
+							}
+						}
+					],
+					"result": {
+						"name": "info",
+						"schema": {
+							"anyOf": [
+								{
+									"$ref": "#/x-schemas/Types/ListenResponse"
+								},
+								{
+									"$ref": "#/components/schemas/SignalChangedInfo"
+								}
+							]
+						}
+					},
+					"examples": [
+						{
+							"name": "Default Example",
+							"params": [
+								{
+									"name": "listen",
+									"value": true
+								}
+							],
+							"result": {
+								"name": "info",
+								"value": {
+									"port": "HDMI1",
+									"signal": "stable"
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "HDMIInput.lowLatencyMode",
+					"summary": "Property for the low latency mode setting.",
+					"tags": [
+						{
+							"name": "capabilities",
+							"x-uses": [
+								"xrn:firebolt:capability:inputs:hdmi"
+							]
+						},
+						{
+							"name": "property"
+						}
+					],
+					"params": [],
+					"result": {
+						"name": "enabled",
+						"schema": {
+							"type": "boolean"
+						}
+					},
+					"examples": [
+						{
+							"name": "Default Example",
+							"params": [],
+							"result": {
+								"name": "enabled",
+								"value": true
+							}
+						},
+						{
+							"name": "Default Example #2",
+							"params": [],
+							"result": {
+								"name": "enabled",
+								"value": false
+							}
+						}
+					]
+				},
+				{
+					"name": "HDMIInput.onAutoLowLatencyModeSignalChanged",
+					"summary": "Notification for changes to ALLM status of any input device.",
+					"tags": [
+						{
+							"name": "capabilities",
+							"x-uses": [
+								"xrn:firebolt:capability:inputs:hdmi"
+							]
+						},
+						{
+							"name": "event"
+						}
+					],
+					"params": [
+						{
+							"name": "listen",
+							"required": true,
+							"schema": {
+								"type": "boolean"
+							}
+						}
+					],
+					"result": {
+						"name": "info",
+						"schema": {
+							"anyOf": [
+								{
+									"$ref": "#/x-schemas/Types/ListenResponse"
+								},
+								{
+									"$ref": "#/components/schemas/AutoLowLatencyModeSignalChangedInfo"
+								}
+							]
+						}
+					},
+					"examples": [
+						{
+							"name": "Default Example",
+							"params": [
+								{
+									"name": "listen",
+									"value": true
+								}
+							],
+							"result": {
+								"name": "info",
+								"value": {
+									"port": "HDMI1",
+									"autoLowLatencyModeSignalled": true
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "HDMIInput.autoLowLatencyModeCapable",
+					"summary": "Property for each port auto low latency mode setting.",
+					"tags": [
+						{
+							"name": "capabilities",
+							"x-uses": [
+								"xrn:firebolt:capability:inputs:hdmi"
+							]
+						},
+						{
+							"name": "property",
+							"x-subscriber-type": "global"
+						}
+					],
+					"params": [
+						{
+							"name": "port",
+							"required": true,
+							"schema": {
+								"$ref": "#/components/schemas/HDMIPortId"
+							}
+						}
+					],
+					"result": {
+						"name": "enabled",
+						"schema": {
+							"type": "boolean"
+						}
+					},
+					"examples": [
+						{
+							"name": "Default Example",
+							"params": [
+								{
+									"name": "port",
+									"value": "HDMI1"
+								}
+							],
+							"result": {
+								"name": "enabled",
+								"value": true
+							}
+						},
+						{
+							"name": "Default Example #2",
+							"params": [
+								{
+									"name": "port",
+									"value": "HDMI1"
+								}
+							],
+							"result": {
+								"name": "enabled",
+								"value": false
+							}
+						}
+					]
+				},
+				{
+					"name": "HDMIInput.edidVersion",
+					"summary": "Property for each port's active EDID version.",
+					"tags": [
+						{
+							"name": "capabilities",
+							"x-uses": [
+								"xrn:firebolt:capability:inputs:hdmi"
+							]
+						},
+						{
+							"name": "property"
+						}
+					],
+					"params": [
+						{
+							"name": "port",
+							"required": true,
+							"schema": {
+								"$ref": "#/components/schemas/HDMIPortId"
+							}
+						}
+					],
+					"result": {
+						"name": "edidVersion",
+						"schema": {
+							"$ref": "#/components/schemas/EDIDVersion"
+						}
+					},
+					"examples": [
+						{
+							"name": "Default Example",
+							"params": [
+								{
+									"name": "port",
+									"value": "HDMI1"
+								}
+							],
+							"result": {
+								"name": "edidVersion",
+								"value": "2.0"
+							}
+						},
+						{
+							"name": "Default Example #2",
+							"params": [
+								{
+									"name": "port",
+									"value": "HDMI1"
+								}
+							],
+							"result": {
+								"name": "edidVersion",
+								"value": "1.4"
+							}
+						}
+					]
+				},
+				{
+					"name": "HDMIInput.onLowLatencyModeChanged",
+					"summary": "Property for the low latency mode setting.",
+					"tags": [
+						{
+							"name": "subscriber",
+							"x-subscriber-for": "lowLatencyMode"
+						},
+						{
+							"name": "event",
+							"x-alternative": "lowLatencyMode"
+						},
+						{
+							"name": "capabilities",
+							"x-uses": [
+								"xrn:firebolt:capability:inputs:hdmi"
+							]
+						}
+					],
+					"params": [
+						{
+							"name": "listen",
+							"required": true,
+							"schema": {
+								"type": "boolean"
+							}
+						}
+					],
+					"result": {
+						"name": "enabled",
+						"schema": {
+							"anyOf": [
+								{
+									"$ref": "#/x-schemas/Types/ListenResponse"
+								},
+								{
+									"type": "boolean"
+								}
+							]
+						}
+					},
+					"examples": [
+						{
+							"name": "Default Example",
+							"params": [
+								{
+									"name": "listen",
+									"value": true
+								}
+							],
+							"result": {
+								"name": "enabled",
+								"value": true
+							}
+						},
+						{
+							"name": "Default Example #2",
+							"params": [
+								{
+									"name": "listen",
+									"value": true
+								}
+							],
+							"result": {
+								"name": "enabled",
+								"value": false
+							}
+						}
+					]
+				},
+				{
+					"name": "HDMIInput.onAutoLowLatencyModeCapableChanged",
+					"summary": "Property for each port auto low latency mode setting.",
+					"tags": [
+						{
+							"name": "subscriber",
+							"x-subscriber-for": "autoLowLatencyModeCapable"
+						},
+						{
+							"name": "event",
+							"x-alternative": "autoLowLatencyModeCapable"
+						},
+						{
+							"name": "capabilities",
+							"x-uses": [
+								"xrn:firebolt:capability:inputs:hdmi"
+							]
+						}
+					],
+					"params": [
+						{
+							"name": "listen",
+							"required": true,
+							"schema": {
+								"type": "boolean"
+							}
+						}
+					],
+					"result": {
+						"name": "data",
+						"schema": {
+							"anyOf": [
+								{
+									"$ref": "#/x-schemas/Types/ListenResponse"
+								},
+								{
+									"$ref": "#/components/schemas/AutoLowLatencyModeCapableChangedInfo"
+								}
+							]
+						}
+					},
+					"examples": [
+						{
+							"name": "Default Example",
+							"params": [
+								{
+									"name": "listen",
+									"value": true
+								}
+							],
+							"result": {
+								"name": "data",
+								"value": {
+									"port": "HDMI1",
+									"enabled": true
+								}
+							}
+						},
+						{
+							"name": "Default Example #2",
+							"params": [
+								{
+									"name": "listen",
+									"value": true
+								}
+							],
+							"result": {
+								"name": "data",
+								"value": {
+									"port": "HDMI1",
+									"enabled": false
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "HDMIInput.onEdidVersionChanged",
+					"summary": "Property for each port's active EDID version.",
+					"tags": [
+						{
+							"name": "subscriber",
+							"x-subscriber-for": "edidVersion"
+						},
+						{
+							"name": "event",
+							"x-alternative": "edidVersion"
+						},
+						{
+							"name": "capabilities",
+							"x-uses": [
+								"xrn:firebolt:capability:inputs:hdmi"
+							]
+						}
+					],
+					"params": [
+						{
+							"name": "port",
+							"required": true,
+							"schema": {
+								"$ref": "#/components/schemas/HDMIPortId"
+							}
+						},
+						{
+							"name": "listen",
+							"required": true,
+							"schema": {
+								"type": "boolean"
+							}
+						}
+					],
+					"result": {
+						"name": "edidVersion",
+						"schema": {
+							"anyOf": [
+								{
+									"$ref": "#/x-schemas/Types/ListenResponse"
+								},
+								{
+									"$ref": "#/components/schemas/EDIDVersion"
+								}
+							]
+						}
+					},
+					"examples": [
+						{
+							"name": "Default Example",
+							"params": [
+								{
+									"name": "port",
+									"value": "HDMI1"
+								},
+								{
+									"name": "listen",
+									"value": true
+								}
+							],
+							"result": {
+								"name": "edidVersion",
+								"value": "2.0"
+							}
+						},
+						{
+							"name": "Default Example #2",
+							"params": [
+								{
+									"name": "port",
+									"value": "HDMI1"
+								},
+								{
+									"name": "listen",
+									"value": true
+								}
+							],
+							"result": {
+								"name": "edidVersion",
+								"value": "1.4"
+							}
+						}
+					]
+				},
+				{
+					"name": "HDMIInput.setLowLatencyMode",
+					"summary": "Property for the low latency mode setting.",
+					"tags": [
+						{
+							"name": "setter",
+							"x-setter-for": "lowLatencyMode"
+						},
+						{
+							"name": "capabilities",
+							"x-manages": [
+								"xrn:firebolt:capability:inputs:hdmi"
+							]
+						}
+					],
+					"params": [
+						{
+							"name": "value",
+							"schema": {
+								"type": "boolean"
+							},
+							"required": true
+						}
+					],
+					"result": {
+						"name": "result",
+						"schema": {
+							"type": "null"
+						}
+					},
+					"examples": [
+						{
+							"name": "Default Example",
+							"params": [
+								{
+									"name": "value",
+									"value": true
+								}
+							],
+							"result": {
+								"name": "enabled",
+								"value": null
+							}
+						},
+						{
+							"name": "Default Example #2",
+							"params": [
+								{
+									"name": "value",
+									"value": false
+								}
+							],
+							"result": {
+								"name": "enabled",
+								"value": null
+							}
+						}
+					]
+				},
+				{
+					"name": "HDMIInput.setAutoLowLatencyModeCapable",
+					"summary": "Property for each port auto low latency mode setting.",
+					"tags": [
+						{
+							"name": "setter",
+							"x-setter-for": "autoLowLatencyModeCapable"
+						},
+						{
+							"name": "capabilities",
+							"x-manages": [
+								"xrn:firebolt:capability:inputs:hdmi"
+							]
+						}
+					],
+					"params": [
+						{
+							"name": "port",
+							"required": true,
+							"schema": {
+								"$ref": "#/components/schemas/HDMIPortId"
+							}
+						},
+						{
+							"name": "value",
+							"schema": {
+								"type": "boolean"
+							},
+							"required": true
+						}
+					],
+					"result": {
+						"name": "result",
+						"schema": {
+							"type": "null"
+						}
+					},
+					"examples": [
+						{
+							"name": "Default Example",
+							"params": [
+								{
+									"name": "port",
+									"value": "HDMI1"
+								},
+								{
+									"name": "value",
+									"value": true
+								}
+							],
+							"result": {
+								"name": "enabled",
+								"value": null
+							}
+						},
+						{
+							"name": "Default Example #2",
+							"params": [
+								{
+									"name": "port",
+									"value": "HDMI1"
+								},
+								{
+									"name": "value",
+									"value": false
+								}
+							],
+							"result": {
+								"name": "enabled",
+								"value": null
+							}
+						}
+					]
+				},
+				{
+					"name": "HDMIInput.setEdidVersion",
+					"summary": "Property for each port's active EDID version.",
+					"tags": [
+						{
+							"name": "setter",
+							"x-setter-for": "edidVersion"
+						},
+						{
+							"name": "capabilities",
+							"x-manages": [
+								"xrn:firebolt:capability:inputs:hdmi"
+							]
+						}
+					],
+					"params": [
+						{
+							"name": "port",
+							"required": true,
+							"schema": {
+								"$ref": "#/components/schemas/HDMIPortId"
+							}
+						},
+						{
+							"name": "value",
+							"schema": {
+								"$ref": "#/components/schemas/EDIDVersion"
+							},
+							"required": true
+						}
+					],
+					"result": {
+						"name": "result",
+						"schema": {
+							"type": "null"
+						}
+					},
+					"examples": [
+						{
+							"name": "Default Example",
+							"params": [
+								{
+									"name": "port",
+									"value": "HDMI1"
+								},
+								{
+									"name": "value",
+									"value": "2.0"
+								}
+							],
+							"result": {
+								"name": "edidVersion",
+								"value": null
+							}
+						},
+						{
+							"name": "Default Example #2",
+							"params": [
+								{
+									"name": "port",
+									"value": "HDMI1"
+								},
+								{
+									"name": "value",
+									"value": "1.4"
+								}
+							],
+							"result": {
+								"name": "edidVersion",
+								"value": null
+							}
+						}
+					]
 				},
 				{
 					"name": "Keyboard.email",
@@ -10090,28 +11772,23 @@
 					"summary": "Internal API for Standard Provider to send back response.",
 					"params": [
 						{
-							"name": "response",
-							"required": true,
+							"name": "correlationId",
 							"schema": {
-								"allOf": [
+								"type": "string"
+							},
+							"required": true
+						},
+						{
+							"name": "result",
+							"schema": {
+								"$ref": "#/components/schemas/KeyboardResult",
+								"examples": [
 									{
-										"$ref": "#/x-schemas/Types/ProviderResponse"
-									},
-									{
-										"type": "object",
-										"properties": {
-											"result": {
-												"$ref": "#/components/schemas/KeyboardResult",
-												"examples": [
-													{
-														"text": "username"
-													}
-												]
-											}
-										}
+										"text": "username"
 									}
 								]
-							}
+							},
+							"required": true
 						}
 					],
 					"tags": [
@@ -10136,12 +11813,13 @@
 							"name": "Example",
 							"params": [
 								{
-									"name": "response",
+									"name": "correlationId",
+									"value": "123"
+								},
+								{
+									"name": "result",
 									"value": {
-										"correlationId": "123",
-										"result": {
-											"text": "username"
-										}
+										"text": "username"
 									}
 								}
 							],
@@ -10157,44 +11835,39 @@
 					"summary": "Internal API for Standard Provider to send back error.",
 					"params": [
 						{
-							"name": "error",
-							"required": true,
+							"name": "correlationId",
 							"schema": {
-								"allOf": [
-									{
-										"$ref": "#/x-schemas/Types/ProviderResponse"
+								"type": "string"
+							},
+							"required": true
+						},
+						{
+							"name": "error",
+							"schema": {
+								"type": "object",
+								"additionalProperties": false,
+								"required": [
+									"code",
+									"message"
+								],
+								"properties": {
+									"code": {
+										"title": "errorObjectCode",
+										"description": "A Number that indicates the error type that occurred. This MUST be an integer. The error codes from and including -32768 to -32000 are reserved for pre-defined errors. These pre-defined errors SHOULD be assumed to be returned from any JSON-RPC api.",
+										"type": "integer"
 									},
-									{
-										"type": "object",
-										"properties": {
-											"result": {
-												"type": "object",
-												"additionalProperties": false,
-												"required": [
-													"code",
-													"message"
-												],
-												"properties": {
-													"code": {
-														"title": "errorObjectCode",
-														"description": "A Number that indicates the error type that occurred. This MUST be an integer. The error codes from and including -32768 to -32000 are reserved for pre-defined errors. These pre-defined errors SHOULD be assumed to be returned from any JSON-RPC api.",
-														"type": "integer"
-													},
-													"message": {
-														"title": "errorObjectMessage",
-														"description": "A String providing a short description of the error. The message SHOULD be limited to a concise single sentence.",
-														"type": "string"
-													},
-													"data": {
-														"title": "errorObjectData",
-														"description": "A Primitive or Structured value that contains additional information about the error. This may be omitted. The value of this member is defined by the Server (e.g. detailed error information, nested errors etc.)."
-													}
-												}
-											}
-										}
+									"message": {
+										"title": "errorObjectMessage",
+										"description": "A String providing a short description of the error. The message SHOULD be limited to a concise single sentence.",
+										"type": "string"
+									},
+									"data": {
+										"title": "errorObjectData",
+										"description": "A Primitive or Structured value that contains additional information about the error. This may be omitted. The value of this member is defined by the Server (e.g. detailed error information, nested errors etc.)."
 									}
-								]
-							}
+								}
+							},
+							"required": true
 						}
 					],
 					"tags": [
@@ -10219,13 +11892,14 @@
 							"name": "Example 1",
 							"params": [
 								{
+									"name": "correlationId",
+									"value": "123"
+								},
+								{
 									"name": "error",
 									"value": {
-										"correlationId": "123",
-										"result": {
-											"code": 1,
-											"message": "Error"
-										}
+										"code": 1,
+										"message": "Error"
 									}
 								}
 							],
@@ -10241,28 +11915,23 @@
 					"summary": "Internal API for Password Provider to send back response.",
 					"params": [
 						{
-							"name": "response",
-							"required": true,
+							"name": "correlationId",
 							"schema": {
-								"allOf": [
+								"type": "string"
+							},
+							"required": true
+						},
+						{
+							"name": "result",
+							"schema": {
+								"$ref": "#/components/schemas/KeyboardResult",
+								"examples": [
 									{
-										"$ref": "#/x-schemas/Types/ProviderResponse"
-									},
-									{
-										"type": "object",
-										"properties": {
-											"result": {
-												"$ref": "#/components/schemas/KeyboardResult",
-												"examples": [
-													{
-														"text": "password"
-													}
-												]
-											}
-										}
+										"text": "password"
 									}
 								]
-							}
+							},
+							"required": true
 						}
 					],
 					"tags": [
@@ -10287,12 +11956,13 @@
 							"name": "Example",
 							"params": [
 								{
-									"name": "response",
+									"name": "correlationId",
+									"value": "123"
+								},
+								{
+									"name": "result",
 									"value": {
-										"correlationId": "123",
-										"result": {
-											"text": "password"
-										}
+										"text": "password"
 									}
 								}
 							],
@@ -10308,44 +11978,39 @@
 					"summary": "Internal API for Password Provider to send back error.",
 					"params": [
 						{
-							"name": "error",
-							"required": true,
+							"name": "correlationId",
 							"schema": {
-								"allOf": [
-									{
-										"$ref": "#/x-schemas/Types/ProviderResponse"
+								"type": "string"
+							},
+							"required": true
+						},
+						{
+							"name": "error",
+							"schema": {
+								"type": "object",
+								"additionalProperties": false,
+								"required": [
+									"code",
+									"message"
+								],
+								"properties": {
+									"code": {
+										"title": "errorObjectCode",
+										"description": "A Number that indicates the error type that occurred. This MUST be an integer. The error codes from and including -32768 to -32000 are reserved for pre-defined errors. These pre-defined errors SHOULD be assumed to be returned from any JSON-RPC api.",
+										"type": "integer"
 									},
-									{
-										"type": "object",
-										"properties": {
-											"result": {
-												"type": "object",
-												"additionalProperties": false,
-												"required": [
-													"code",
-													"message"
-												],
-												"properties": {
-													"code": {
-														"title": "errorObjectCode",
-														"description": "A Number that indicates the error type that occurred. This MUST be an integer. The error codes from and including -32768 to -32000 are reserved for pre-defined errors. These pre-defined errors SHOULD be assumed to be returned from any JSON-RPC api.",
-														"type": "integer"
-													},
-													"message": {
-														"title": "errorObjectMessage",
-														"description": "A String providing a short description of the error. The message SHOULD be limited to a concise single sentence.",
-														"type": "string"
-													},
-													"data": {
-														"title": "errorObjectData",
-														"description": "A Primitive or Structured value that contains additional information about the error. This may be omitted. The value of this member is defined by the Server (e.g. detailed error information, nested errors etc.)."
-													}
-												}
-											}
-										}
+									"message": {
+										"title": "errorObjectMessage",
+										"description": "A String providing a short description of the error. The message SHOULD be limited to a concise single sentence.",
+										"type": "string"
+									},
+									"data": {
+										"title": "errorObjectData",
+										"description": "A Primitive or Structured value that contains additional information about the error. This may be omitted. The value of this member is defined by the Server (e.g. detailed error information, nested errors etc.)."
 									}
-								]
-							}
+								}
+							},
+							"required": true
 						}
 					],
 					"tags": [
@@ -10370,13 +12035,14 @@
 							"name": "Example 1",
 							"params": [
 								{
+									"name": "correlationId",
+									"value": "123"
+								},
+								{
 									"name": "error",
 									"value": {
-										"correlationId": "123",
-										"result": {
-											"code": 1,
-											"message": "Error"
-										}
+										"code": 1,
+										"message": "Error"
 									}
 								}
 							],
@@ -10392,28 +12058,23 @@
 					"summary": "Internal API for Email Provider to send back response.",
 					"params": [
 						{
-							"name": "response",
-							"required": true,
+							"name": "correlationId",
 							"schema": {
-								"allOf": [
+								"type": "string"
+							},
+							"required": true
+						},
+						{
+							"name": "result",
+							"schema": {
+								"$ref": "#/components/schemas/KeyboardResult",
+								"examples": [
 									{
-										"$ref": "#/x-schemas/Types/ProviderResponse"
-									},
-									{
-										"type": "object",
-										"properties": {
-											"result": {
-												"$ref": "#/components/schemas/KeyboardResult",
-												"examples": [
-													{
-														"text": "email@address.com"
-													}
-												]
-											}
-										}
+										"text": "email@address.com"
 									}
 								]
-							}
+							},
+							"required": true
 						}
 					],
 					"tags": [
@@ -10438,12 +12099,13 @@
 							"name": "Example",
 							"params": [
 								{
-									"name": "response",
+									"name": "correlationId",
+									"value": "123"
+								},
+								{
+									"name": "result",
 									"value": {
-										"correlationId": "123",
-										"result": {
-											"text": "email@address.com"
-										}
+										"text": "email@address.com"
 									}
 								}
 							],
@@ -10459,44 +12121,39 @@
 					"summary": "Internal API for Email Provider to send back error.",
 					"params": [
 						{
-							"name": "error",
-							"required": true,
+							"name": "correlationId",
 							"schema": {
-								"allOf": [
-									{
-										"$ref": "#/x-schemas/Types/ProviderResponse"
+								"type": "string"
+							},
+							"required": true
+						},
+						{
+							"name": "error",
+							"schema": {
+								"type": "object",
+								"additionalProperties": false,
+								"required": [
+									"code",
+									"message"
+								],
+								"properties": {
+									"code": {
+										"title": "errorObjectCode",
+										"description": "A Number that indicates the error type that occurred. This MUST be an integer. The error codes from and including -32768 to -32000 are reserved for pre-defined errors. These pre-defined errors SHOULD be assumed to be returned from any JSON-RPC api.",
+										"type": "integer"
 									},
-									{
-										"type": "object",
-										"properties": {
-											"result": {
-												"type": "object",
-												"additionalProperties": false,
-												"required": [
-													"code",
-													"message"
-												],
-												"properties": {
-													"code": {
-														"title": "errorObjectCode",
-														"description": "A Number that indicates the error type that occurred. This MUST be an integer. The error codes from and including -32768 to -32000 are reserved for pre-defined errors. These pre-defined errors SHOULD be assumed to be returned from any JSON-RPC api.",
-														"type": "integer"
-													},
-													"message": {
-														"title": "errorObjectMessage",
-														"description": "A String providing a short description of the error. The message SHOULD be limited to a concise single sentence.",
-														"type": "string"
-													},
-													"data": {
-														"title": "errorObjectData",
-														"description": "A Primitive or Structured value that contains additional information about the error. This may be omitted. The value of this member is defined by the Server (e.g. detailed error information, nested errors etc.)."
-													}
-												}
-											}
-										}
+									"message": {
+										"title": "errorObjectMessage",
+										"description": "A String providing a short description of the error. The message SHOULD be limited to a concise single sentence.",
+										"type": "string"
+									},
+									"data": {
+										"title": "errorObjectData",
+										"description": "A Primitive or Structured value that contains additional information about the error. This may be omitted. The value of this member is defined by the Server (e.g. detailed error information, nested errors etc.)."
 									}
-								]
-							}
+								}
+							},
+							"required": true
 						}
 					],
 					"tags": [
@@ -10521,13 +12178,14 @@
 							"name": "Example 1",
 							"params": [
 								{
+									"name": "correlationId",
+									"value": "123"
+								},
+								{
 									"name": "error",
 									"value": {
-										"correlationId": "123",
-										"result": {
-											"code": 1,
-											"message": "Error"
-										}
+										"code": 1,
+										"message": "Error"
 									}
 								}
 							],
@@ -13641,37 +15299,32 @@
 					"summary": "Internal API for Challenge Provider to send back response.",
 					"params": [
 						{
-							"name": "response",
-							"required": true,
+							"name": "correlationId",
 							"schema": {
-								"allOf": [
+								"type": "string"
+							},
+							"required": true
+						},
+						{
+							"name": "result",
+							"schema": {
+								"$ref": "#/components/schemas/PinChallengeResult",
+								"examples": [
 									{
-										"$ref": "#/x-schemas/Types/ProviderResponse"
+										"granted": true,
+										"reason": "correctPin"
 									},
 									{
-										"type": "object",
-										"properties": {
-											"result": {
-												"$ref": "#/components/schemas/PinChallengeResult",
-												"examples": [
-													{
-														"granted": true,
-														"reason": "correctPin"
-													},
-													{
-														"granted": false,
-														"reason": "exceededPinFailures"
-													},
-													{
-														"granted": null,
-														"reason": "cancelled"
-													}
-												]
-											}
-										}
+										"granted": false,
+										"reason": "exceededPinFailures"
+									},
+									{
+										"granted": null,
+										"reason": "cancelled"
 									}
 								]
-							}
+							},
+							"required": true
 						}
 					],
 					"tags": [
@@ -13696,13 +15349,14 @@
 							"name": "Example #1",
 							"params": [
 								{
-									"name": "response",
+									"name": "correlationId",
+									"value": "123"
+								},
+								{
+									"name": "result",
 									"value": {
-										"correlationId": "123",
-										"result": {
-											"granted": true,
-											"reason": "correctPin"
-										}
+										"granted": true,
+										"reason": "correctPin"
 									}
 								}
 							],
@@ -13715,13 +15369,14 @@
 							"name": "Example #2",
 							"params": [
 								{
-									"name": "response",
+									"name": "correlationId",
+									"value": "123"
+								},
+								{
+									"name": "result",
 									"value": {
-										"correlationId": "123",
-										"result": {
-											"granted": false,
-											"reason": "exceededPinFailures"
-										}
+										"granted": false,
+										"reason": "exceededPinFailures"
 									}
 								}
 							],
@@ -13734,13 +15389,14 @@
 							"name": "Example #3",
 							"params": [
 								{
-									"name": "response",
+									"name": "correlationId",
+									"value": "123"
+								},
+								{
+									"name": "result",
 									"value": {
-										"correlationId": "123",
-										"result": {
-											"granted": null,
-											"reason": "cancelled"
-										}
+										"granted": null,
+										"reason": "cancelled"
 									}
 								}
 							],
@@ -13756,44 +15412,39 @@
 					"summary": "Internal API for Challenge Provider to send back error.",
 					"params": [
 						{
-							"name": "error",
-							"required": true,
+							"name": "correlationId",
 							"schema": {
-								"allOf": [
-									{
-										"$ref": "#/x-schemas/Types/ProviderResponse"
+								"type": "string"
+							},
+							"required": true
+						},
+						{
+							"name": "error",
+							"schema": {
+								"type": "object",
+								"additionalProperties": false,
+								"required": [
+									"code",
+									"message"
+								],
+								"properties": {
+									"code": {
+										"title": "errorObjectCode",
+										"description": "A Number that indicates the error type that occurred. This MUST be an integer. The error codes from and including -32768 to -32000 are reserved for pre-defined errors. These pre-defined errors SHOULD be assumed to be returned from any JSON-RPC api.",
+										"type": "integer"
 									},
-									{
-										"type": "object",
-										"properties": {
-											"result": {
-												"type": "object",
-												"additionalProperties": false,
-												"required": [
-													"code",
-													"message"
-												],
-												"properties": {
-													"code": {
-														"title": "errorObjectCode",
-														"description": "A Number that indicates the error type that occurred. This MUST be an integer. The error codes from and including -32768 to -32000 are reserved for pre-defined errors. These pre-defined errors SHOULD be assumed to be returned from any JSON-RPC api.",
-														"type": "integer"
-													},
-													"message": {
-														"title": "errorObjectMessage",
-														"description": "A String providing a short description of the error. The message SHOULD be limited to a concise single sentence.",
-														"type": "string"
-													},
-													"data": {
-														"title": "errorObjectData",
-														"description": "A Primitive or Structured value that contains additional information about the error. This may be omitted. The value of this member is defined by the Server (e.g. detailed error information, nested errors etc.)."
-													}
-												}
-											}
-										}
+									"message": {
+										"title": "errorObjectMessage",
+										"description": "A String providing a short description of the error. The message SHOULD be limited to a concise single sentence.",
+										"type": "string"
+									},
+									"data": {
+										"title": "errorObjectData",
+										"description": "A Primitive or Structured value that contains additional information about the error. This may be omitted. The value of this member is defined by the Server (e.g. detailed error information, nested errors etc.)."
 									}
-								]
-							}
+								}
+							},
+							"required": true
 						}
 					],
 					"tags": [
@@ -13818,13 +15469,14 @@
 							"name": "Example 1",
 							"params": [
 								{
+									"name": "correlationId",
+									"value": "123"
+								},
+								{
 									"name": "error",
 									"value": {
-										"correlationId": "123",
-										"result": {
-											"code": 1,
-											"message": "Error"
-										}
+										"code": 1,
+										"message": "Error"
 									}
 								}
 							],
@@ -18094,6 +19746,184 @@
 							}
 						]
 					},
+					"ContentProvider": {
+						"title": "ContentProvider",
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string"
+							},
+							"apis": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							}
+						},
+						"required": [
+							"id",
+							"apis"
+						],
+						"additionalProperties": false
+					},
+					"ProvidedPurchasedContentResult": {
+						"title": "ProvidedPurchasedContentResult",
+						"type": "object",
+						"properties": {
+							"provider": {
+								"type": "string"
+							},
+							"data": {
+								"$ref": "#/x-schemas/Discovery/PurchasedContentResult"
+							}
+						},
+						"required": [
+							"provider",
+							"data"
+						],
+						"additionalProperties": false
+					},
+					"FederationOptions": {
+						"title": "FederationOptions",
+						"type": "object",
+						"properties": {
+							"timeout": {
+								"type": "number"
+							}
+						},
+						"required": [],
+						"additionalProperties": true
+					},
+					"SearchParameters": {
+						"title": "SearchParameters",
+						"type": "object",
+						"properties": {
+							"query": {
+								"type": "string"
+							},
+							"limit": {
+								"type": "number"
+							},
+							"context": {
+								"$ref": "#/components/schemas/SearchContext"
+							}
+						},
+						"required": [
+							"query"
+						],
+						"additionalProperties": true
+					},
+					"SearchContext": {
+						"title": "SearchContext",
+						"type": "object",
+						"properties": {
+							"source": {
+								"type": "string"
+							}
+						},
+						"required": [],
+						"additionalProperties": true
+					},
+					"SearchResult": {
+						"title": "SearchResult",
+						"type": "object",
+						"properties": {
+							"totalCount": {
+								"type": "number"
+							},
+							"entries": {
+								"type": "array",
+								"items": {
+									"$ref": "#/x-schemas/Entertainment/EntityInfo"
+								}
+							}
+						},
+						"required": [
+							"totalCount",
+							"entries"
+						],
+						"additionalProperties": false
+					},
+					"ProvidedSearchResult": {
+						"title": "ProvidedSearchResult",
+						"type": "object",
+						"properties": {
+							"provider": {
+								"type": "string"
+							},
+							"data": {
+								"$ref": "#/components/schemas/SearchResult"
+							}
+						},
+						"required": [
+							"provider",
+							"data"
+						],
+						"additionalProperties": false
+					},
+					"ProvidedEntityInfoResult": {
+						"title": "ProvidedEntityInfoResult",
+						"type": "object",
+						"properties": {
+							"provider": {
+								"type": "string"
+							},
+							"data": {
+								"$ref": "#/x-schemas/Discovery/EntityInfoResult"
+							}
+						},
+						"required": [
+							"provider",
+							"data"
+						],
+						"additionalProperties": false
+					},
+					"EntityInfoParameters": {
+						"title": "EntityInfoParameters",
+						"type": "object",
+						"properties": {
+							"entityId": {
+								"type": "string"
+							},
+							"assetId": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"entityId"
+						],
+						"additionalProperties": false,
+						"examples": [
+							{
+								"entityId": "345"
+							}
+						]
+					},
+					"PurchasedContentParameters": {
+						"title": "PurchasedContentParameters",
+						"type": "object",
+						"properties": {
+							"limit": {
+								"type": "integer",
+								"minimum": -1
+							},
+							"offeringType": {
+								"$ref": "#/x-schemas/Entertainment/OfferingType"
+							},
+							"programType": {
+								"$ref": "#/x-schemas/Entertainment/ProgramType"
+							}
+						},
+						"required": [
+							"limit"
+						],
+						"additionalProperties": false,
+						"examples": [
+							{
+								"limit": 100
+							}
+						]
+					},
 					"Resolution": {
 						"type": "array",
 						"items": [
@@ -18239,27 +20069,6 @@
 							}
 						]
 					},
-					"EntityInfoParameters": {
-						"title": "EntityInfoParameters",
-						"type": "object",
-						"properties": {
-							"entityId": {
-								"type": "string"
-							},
-							"assetId": {
-								"type": "string"
-							}
-						},
-						"required": [
-							"entityId"
-						],
-						"additionalProperties": false,
-						"examples": [
-							{
-								"entityId": "345"
-							}
-						]
-					},
 					"EntityInfoFederatedResponse": {
 						"title": "EntityInfoFederatedResponse",
 						"allOf": [
@@ -18326,31 +20135,6 @@
 								"parameters": {
 									"limit": 100
 								}
-							}
-						]
-					},
-					"PurchasedContentParameters": {
-						"title": "PurchasedContentParameters",
-						"type": "object",
-						"properties": {
-							"limit": {
-								"type": "integer",
-								"minimum": -1
-							},
-							"offeringType": {
-								"$ref": "#/x-schemas/Entertainment/OfferingType"
-							},
-							"programType": {
-								"$ref": "#/x-schemas/Entertainment/ProgramType"
-							}
-						},
-						"required": [
-							"limit"
-						],
-						"additionalProperties": false,
-						"examples": [
-							{
-								"limit": 100
 							}
 						]
 					},
@@ -18454,6 +20238,177 @@
 						"type": "string",
 						"enum": [
 							"xrn:firebolt:channel:any"
+						]
+					},
+					"UserInterestProviderRequest": {
+						"title": "UserInterestProviderRequest",
+						"type": "object",
+						"required": [
+							"correlationId",
+							"parameters"
+						],
+						"properties": {
+							"correlationId": {
+								"type": "string",
+								"description": "An id to correlate the provider response with this request"
+							},
+							"parameters": {
+								"description": "The request to initiate a user interest session",
+								"$ref": "#/components/schemas/UserInterestParameters"
+							}
+						}
+					},
+					"UserInterestParameters": {
+						"title": "UserInterestParameters",
+						"type": "object",
+						"required": [
+							"type"
+						],
+						"properties": {
+							"type": {
+								"$ref": "#/x-schemas/Discovery/UserInterestType"
+							}
+						}
+					},
+					"HDMIPortId": {
+						"type": "string",
+						"pattern": "^HDMI[0-9]+$"
+					},
+					"EDIDVersion": {
+						"title": "EDIDVersion",
+						"type": "string",
+						"enum": [
+							"1.4",
+							"2.0",
+							"unknown"
+						]
+					},
+					"HDMIInputPort": {
+						"title": "HDMIInputPort",
+						"type": "object",
+						"additionalProperties": false,
+						"properties": {
+							"port": {
+								"$ref": "#/components/schemas/HDMIPortId"
+							},
+							"connected": {
+								"type": "boolean"
+							},
+							"signal": {
+								"$ref": "#/components/schemas/HDMISignalStatus"
+							},
+							"arcCapable": {
+								"type": "boolean"
+							},
+							"arcConnected": {
+								"type": "boolean"
+							},
+							"edidVersion": {
+								"$ref": "#/components/schemas/EDIDVersion"
+							},
+							"autoLowLatencyModeCapable": {
+								"type": "boolean"
+							},
+							"autoLowLatencyModeSignalled": {
+								"type": "boolean"
+							}
+						},
+						"if": {
+							"properties": {
+								"edidVersion": {
+									"type": "string",
+									"enum": [
+										"1.4",
+										"unknown"
+									]
+								}
+							}
+						},
+						"then": {
+							"properties": {
+								"autoLowLatencyModeCapable": {
+									"const": false
+								},
+								"autoLowLatencyModeSignalled": {
+									"const": false
+								}
+							}
+						},
+						"required": [
+							"port",
+							"connected",
+							"signal",
+							"arcCapable",
+							"arcConnected",
+							"edidVersion",
+							"autoLowLatencyModeCapable",
+							"autoLowLatencyModeSignalled"
+						]
+					},
+					"HDMISignalStatus": {
+						"type": "string",
+						"enum": [
+							"none",
+							"stable",
+							"unstable",
+							"unsupported",
+							"unknown"
+						]
+					},
+					"SignalChangedInfo": {
+						"title": "SignalChangedInfo",
+						"type": "object",
+						"properties": {
+							"port": {
+								"$ref": "#/components/schemas/HDMIPortId"
+							},
+							"signal": {
+								"$ref": "#/components/schemas/HDMISignalStatus"
+							}
+						},
+						"required": [
+							"port",
+							"signal"
+						]
+					},
+					"ConnectionChangedInfo": {
+						"title": "ConnectionChangedInfo",
+						"type": "object",
+						"properties": {
+							"port": {
+								"$ref": "#/components/schemas/HDMIPortId"
+							},
+							"connected": {
+								"type": "boolean"
+							}
+						}
+					},
+					"AutoLowLatencyModeSignalChangedInfo": {
+						"title": "AutoLowLatencyModeSignalChangedInfo",
+						"type": "object",
+						"properties": {
+							"port": {
+								"$ref": "#/components/schemas/HDMIPortId"
+							},
+							"autoLowLatencyModeSignalled": {
+								"type": "boolean"
+							}
+						}
+					},
+					"AutoLowLatencyModeCapableChangedInfo": {
+						"title": "AutoLowLatencyModeCapableChangedInfo",
+						"type": "object",
+						"properties": {
+							"port": {
+								"$ref": "#/components/schemas/HDMIPortId"
+							},
+							"enabled": {
+								"type": "boolean"
+							}
+						},
+						"required": [
+							"port",
+							"enabled"
 						]
 					},
 					"EmailUsage": {
@@ -19123,23 +21078,6 @@
 						},
 						"additionalProperties": false
 					},
-					"ProviderResponse": {
-						"title": "ProviderResponse",
-						"type": "object",
-						"required": [
-							"correlationId"
-						],
-						"additionalProperties": false,
-						"properties": {
-							"correlationId": {
-								"type": "string",
-								"description": "The id that was passed in to the event that triggered a provider method to be called"
-							},
-							"result": {
-								"description": "The result of the provider response."
-							}
-						}
-					},
 					"ProviderRequest": {
 						"title": "ProviderRequest",
 						"type": "object",
@@ -19161,13 +21099,6 @@
 							}
 						}
 					},
-					"BooleanMap": {
-						"title": "BooleanMap",
-						"type": "object",
-						"additionalProperties": {
-							"type": "boolean"
-						}
-					},
 					"AudioProfile": {
 						"title": "AudioProfile",
 						"type": "string",
@@ -19179,6 +21110,13 @@
 							"dolbyDigital7.1+",
 							"dolbyAtmos"
 						]
+					},
+					"BooleanMap": {
+						"title": "BooleanMap",
+						"type": "object",
+						"additionalProperties": {
+							"type": "boolean"
+						}
 					},
 					"LocalizedString": {
 						"title": "LocalizedString",
@@ -19587,30 +21525,13 @@
 				},
 				"Discovery": {
 					"uri": "https://meta.comcast.com/firebolt/discovery",
-					"EntityInfoResult": {
-						"title": "EntityInfoResult",
-						"description": "The result for an `entityInfo()` push or pull.",
-						"type": "object",
-						"properties": {
-							"expires": {
-								"type": "string",
-								"format": "date-time"
-							},
-							"entity": {
-								"$ref": "#/x-schemas/Entertainment/EntityInfo"
-							},
-							"related": {
-								"type": "array",
-								"items": {
-									"$ref": "#/x-schemas/Entertainment/EntityInfo"
-								}
-							}
-						},
-						"required": [
-							"expires",
-							"entity"
-						],
-						"additionalProperties": false
+					"UserInterestType": {
+						"title": "InterestType",
+						"type": "string",
+						"enum": [
+							"interest",
+							"disinterest"
+						]
 					},
 					"PurchasedContentResult": {
 						"title": "PurchasedContentResult",
@@ -19637,58 +21558,35 @@
 							"entries"
 						],
 						"additionalProperties": false
+					},
+					"EntityInfoResult": {
+						"title": "EntityInfoResult",
+						"description": "The result for an `entityInfo()` push or pull.",
+						"type": "object",
+						"properties": {
+							"expires": {
+								"type": "string",
+								"format": "date-time"
+							},
+							"entity": {
+								"$ref": "#/x-schemas/Entertainment/EntityInfo"
+							},
+							"related": {
+								"type": "array",
+								"items": {
+									"$ref": "#/x-schemas/Entertainment/EntityInfo"
+								}
+							}
+						},
+						"required": [
+							"expires",
+							"entity"
+						],
+						"additionalProperties": false
 					}
 				},
 				"Entertainment": {
 					"uri": "https://meta.comcast.com/firebolt/entertainment",
-					"ContentIdentifiers": {
-						"title": "ContentIdentifiers",
-						"type": "object",
-						"properties": {
-							"assetId": {
-								"type": "string",
-								"description": "Identifies a particular playable asset. For example, the HD version of a particular movie separate from the UHD version."
-							},
-							"entityId": {
-								"type": "string",
-								"description": "Identifies an entity, such as a Movie, TV Series or TV Episode."
-							},
-							"seasonId": {
-								"type": "string",
-								"description": "The TV Season for a TV Episode."
-							},
-							"seriesId": {
-								"type": "string",
-								"description": "The TV Series for a TV Episode or TV Season."
-							},
-							"appContentData": {
-								"type": "string",
-								"description": "App-specific content identifiers.",
-								"maxLength": 1024
-							}
-						},
-						"description": "The ContentIdentifiers object is how the app identifies an entity or asset to\nthe Firebolt platform. These ids are used to look up metadata and deep link into\nthe app.\n\nApps do not need to provide all ids. They only need to provide the minimum\nrequired to target a playable stream or an entity detail screen via a deep link.\nIf an id isn't needed to get to those pages, it doesn't need to be included."
-					},
-					"Entitlement": {
-						"title": "Entitlement",
-						"type": "object",
-						"properties": {
-							"entitlementId": {
-								"type": "string"
-							},
-							"startTime": {
-								"type": "string",
-								"format": "date-time"
-							},
-							"endTime": {
-								"type": "string",
-								"format": "date-time"
-							}
-						},
-						"required": [
-							"entitlementId"
-						]
-					},
 					"EntityInfo": {
 						"title": "EntityInfo",
 						"description": "An EntityInfo object represents an \"entity\" on the platform. Currently, only entities of type `program` are supported. `programType` must be supplied to identify the program type.\n\nAdditionally, EntityInfo objects must specify a properly formed\nContentIdentifiers object, `entityType`, and `title`.  The app should provide\nthe `synopsis` property for a good user experience if the content\nmetadata is not available another way.\n\nThe ContentIdentifiers must be sufficient for navigating the user to the\nappropriate entity or detail screen via a `detail` intent or deep link.\n\nEntityInfo objects must provide at least one WayToWatch object when returned as\npart of an `entityInfo` method and a streamable asset is available to the user.\nIt is optional for the `purchasedContent` method, but recommended because the UI\nmay use those data.",
@@ -19696,7 +21594,6 @@
 						"required": [
 							"identifiers",
 							"entityType",
-							"programType",
 							"title"
 						],
 						"properties": {
@@ -19828,6 +21725,34 @@
 							"album"
 						]
 					},
+					"ContentIdentifiers": {
+						"title": "ContentIdentifiers",
+						"type": "object",
+						"properties": {
+							"assetId": {
+								"type": "string",
+								"description": "Identifies a particular playable asset. For example, the HD version of a particular movie separate from the UHD version."
+							},
+							"entityId": {
+								"type": "string",
+								"description": "Identifies an entity, such as a Movie, TV Series or TV Episode."
+							},
+							"seasonId": {
+								"type": "string",
+								"description": "The TV Season for a TV Episode."
+							},
+							"seriesId": {
+								"type": "string",
+								"description": "The TV Series for a TV Episode or TV Season."
+							},
+							"appContentData": {
+								"type": "string",
+								"description": "App-specific content identifiers.",
+								"maxLength": 1024
+							}
+						},
+						"description": "The ContentIdentifiers object is how the app identifies an entity or asset to\nthe Firebolt platform. These ids are used to look up metadata and deep link into\nthe app.\n\nApps do not need to provide all ids. They only need to provide the minimum\nrequired to target a playable stream or an entity detail screen via a deep link.\nIf an id isn't needed to get to those pages, it doesn't need to be included."
+					},
 					"ContentRating": {
 						"title": "ContentRating",
 						"type": "object",
@@ -19947,10 +21872,121 @@
 							}
 						},
 						"description": "A WayToWatch describes a way to watch a video program. It may describe a single\nstreamable asset or a set of streamable assets. For example, an app provider may\ndescribe HD, SD, and UHD assets as individual WayToWatch objects or rolled into\na single WayToWatch.\n\nIf the WayToWatch represents a single streamable asset, the provided\nContentIdentifiers must be sufficient to play back the specific asset when sent\nvia a playback intent or deep link. If the WayToWatch represents multiple\nstreamable assets, the provided ContentIdentifiers must be sufficient to\nplayback one of the assets represented with no user action. In this scenario,\nthe app SHOULD choose the best asset for the user based on their device and\nsettings. The ContentIdentifiers MUST also be sufficient for navigating the user\nto the appropriate entity or detail screen via an entity intent.\n\nThe app should set the `entitled` property to indicate if the user can watch, or\nnot watch, the asset without making a purchase. If the entitlement is known to\nexpire at a certain time (e.g., a rental), the app should also provide the\n`entitledExpires` property. If the entitlement is not expired, the UI will use\nthe `entitled` property to display watchable assets to the user, adjust how\nassets are presented to the user, and how intents into the app are generated.\nFor example, the the Aggregated Experience could render a \"Watch\" button for an\nentitled asset versus a \"Subscribe\" button for an non-entitled asset.\n\nThe app should set the `offeringType` to define how the content may be\nauthorized. The UI will use this to adjust how content is presented to the user.\n\nA single WayToWatch cannot represent streamable assets available via multiple\npurchase paths. If, for example, an asset has both Buy, Rent and Subscription\navailability, the three different entitlement paths MUST be represented as\nmultiple WayToWatch objects.\n\n`price` should be populated for WayToWatch objects with `buy` or `rent`\n`offeringType`. If the WayToWatch represents a set of assets with various price\npoints, the `price` provided must be the lowest available price."
+					},
+					"Entitlement": {
+						"title": "Entitlement",
+						"type": "object",
+						"properties": {
+							"entitlementId": {
+								"type": "string"
+							},
+							"startTime": {
+								"type": "string",
+								"format": "date-time"
+							},
+							"endTime": {
+								"type": "string",
+								"format": "date-time"
+							}
+						},
+						"required": [
+							"entitlementId"
+						]
 					}
 				},
 				"Intents": {
 					"uri": "https://meta.comcast.com/firebolt/intents",
+					"InterestedInIntent": {
+						"description": "A Firebolt compliant representation of a user's interest in a piece of content.",
+						"title": "InterestedInIntent",
+						"allOf": [
+							{
+								"title": "InterestedInIntent",
+								"$ref": "#/x-schemas/Intents/Intent"
+							},
+							{
+								"title": "InterestedInIntent",
+								"$ref": "#/x-schemas/Intents/IntentProperties"
+							},
+							{
+								"title": "InterestedInIntent",
+								"type": "object",
+								"properties": {
+									"action": {
+										"const": "interestedIn"
+									},
+									"data": {
+										"type": "object",
+										"properties": {
+											"appId": {
+												"type": "string"
+											},
+											"type": {
+												"$ref": "#/x-schemas/Discovery/UserInterestType"
+											},
+											"entity": {
+												"$ref": "#/x-schemas/Entertainment/EntityInfo"
+											}
+										}
+									}
+								}
+							}
+						],
+						"examples": [
+							{
+								"action": "interestedIn",
+								"data": {
+									"appId": "coolapp",
+									"type": "interest",
+									"entity": {
+										"identifiers": {
+											"entityId": "xyz"
+										},
+										"entityType": "program",
+										"programType": "movie",
+										"title": "Interesting Movie Title"
+									}
+								},
+								"context": {
+									"source": "voice"
+								}
+							}
+						]
+					},
+					"Intent": {
+						"description": "A Firebolt compliant representation of a user intention.",
+						"type": "object",
+						"required": [
+							"action",
+							"context"
+						],
+						"properties": {
+							"action": {
+								"type": "string"
+							},
+							"context": {
+								"type": "object",
+								"required": [
+									"source"
+								],
+								"properties": {
+									"source": {
+										"type": "string"
+									}
+								}
+							}
+						}
+					},
+					"IntentProperties": {
+						"type": "object",
+						"propertyNames": {
+							"enum": [
+								"action",
+								"data",
+								"context"
+							]
+						}
+					},
 					"NavigationIntent": {
 						"title": "NavigationIntent",
 						"description": "A Firebolt compliant representation of a user intention to navigate to a specific place in an app.",
@@ -20519,40 +22555,6 @@
 								}
 							}
 						]
-					},
-					"Intent": {
-						"description": "A Firebolt compliant representation of a user intention.",
-						"type": "object",
-						"required": [
-							"action",
-							"context"
-						],
-						"properties": {
-							"action": {
-								"type": "string"
-							},
-							"context": {
-								"type": "object",
-								"required": [
-									"source"
-								],
-								"properties": {
-									"source": {
-										"type": "string"
-									}
-								}
-							}
-						}
-					},
-					"IntentProperties": {
-						"type": "object",
-						"propertyNames": {
-							"enum": [
-								"action",
-								"data",
-								"context"
-							]
-						}
 					},
 					"MovieEntity": {
 						"title": "MovieEntity",

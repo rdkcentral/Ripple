@@ -148,12 +148,17 @@ pub struct JsonRpcApiRequest {
     pub params: Option<Value>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcApiResponse {
     pub jsonrpc: String,
     pub id: u64,
     pub result: Option<Value>,
     pub error: Option<Value>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct JsonRpcId {
+    pub id: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -257,6 +262,10 @@ impl RpcRequest {
         );
         let ps = RpcRequest::prepend_ctx(jsonrpc_req.params, &ctx);
         Ok(RpcRequest::new(method, ps, ctx))
+    }
+
+    pub fn is_subscription(&self) -> bool {
+        self.method.contains(".on") && self.params_json.contains("listening")
     }
 }
 
