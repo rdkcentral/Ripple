@@ -18,7 +18,7 @@
 use hyper::{Body, Client, HeaderMap, Method, Request, Uri};
 use ripple_sdk::{
     api::{manifest::extn_manifest::PassthroughEndpoint, session::AccountSession},
-    log::error,
+    log::{debug, error},
     tokio::{self, sync::mpsc},
 };
 
@@ -39,18 +39,21 @@ impl EndpointBroker for HttpBroker {
 
         let uri: Uri = endpoint.url.parse().unwrap();
         let mut headers = HeaderMap::new();
-
+        headers.insert("Content-Type", "application/json".parse().unwrap());
+        let mut token = "Sometoken".to_owned();
         if let Some(auth) = &endpoint.authenticaton {
-            if auth.contains("bearer") {
-                if let Some(token) = session {
-                    headers.insert(
-                        "Authorization",
-                        format!("Bearer {}", token).parse().unwrap(),
-                    );
+            if auth.contains("Bearer") {
+                if let Some(session) = session {
+                    token = session.token;
                 }
             }
         }
 
+        headers.insert(
+            "Authorization",
+            format!("Bearer {}", token).parse().unwrap(),
+        );
+        debug!("Setting up http broker");
         let client = Client::new();
         tokio::spawn(async move {
             while let Some(request) = tr.recv().await {
@@ -60,9 +63,8 @@ impl EndpointBroker for HttpBroker {
                     let (mut parts, body) = http_request.into_parts();
                     parts.method = Method::POST;
                     parts.uri = uri.clone();
-                    if headers.is_empty() {
-                        parts.headers = headers.clone();
-                    }
+                    parts.headers = headers.clone();
+
                     let http_request = Request::from_parts(parts, body);
                     if let Ok(v) = client.request(http_request).await {
                         let (parts, body) = v.into_parts();
