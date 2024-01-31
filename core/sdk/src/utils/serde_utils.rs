@@ -257,6 +257,19 @@ where
     }
 }
 
+pub fn timeout_value_deserialize<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let timeout: u64 = Deserialize::deserialize(deserializer)?;
+    if timeout <= 9999 {
+        Ok(timeout)
+    } else {
+        Err(serde::de::Error::custom(
+            "Value of timeout is out of the valid range (0 - 9999)",
+        ))
+    }
+}
 pub struct SerdeClearString;
 
 impl SerdeClearString {

@@ -28,7 +28,7 @@ use crate::{
             },
             device_request::DeviceRequest,
         },
-        crossbeam::channel::unbounded,
+        async_channel::unbounded,
         extn::{
             client::extn_processor::ExtnRequestProcessor,
             extn_client_message::{ExtnPayload, ExtnRequest},

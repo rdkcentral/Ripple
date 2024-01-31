@@ -15,19 +15,23 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-
 use crate::{
     api::firebolt::fb_openrpc::FireboltSemanticVersion,
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use super::device_request::{
     AudioProfile, DeviceRequest, HDCPStatus, HdcpProfile, HdrProfile, InternetConnectionStatus,
-    OnInternetConnectedRequest, PowerState,
+    OnInternetConnectedRequest, PowerState, TimeZone,
 };
+
+pub const DEVICE_INFO_AUTHORIZED: &str = "device_info_authorized";
+pub const DEVICE_SKU_AUTHORIZED: &str = "device_sku_authorized";
+pub const DEVICE_MAKE_MODEL_AUTHORIZED: &str = "device_make_model_authorized";
+pub const DEVICE_NETWORK_STATUS_AUTHORIZED: &str = "network_status_authorized";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DeviceInfoRequest {
@@ -55,9 +59,10 @@ pub enum DeviceInfoRequest {
     VoiceGuidanceSpeed,
     SetVoiceGuidanceSpeed(f32),
     GetTimezoneWithOffset,
-    FullCapabilities,
+    FullCapabilities(Vec<String>),
     PowerState,
     SerialNumber,
+    PlatformBuildInfo,
 }
 
 impl ExtnPayloadProvider for DeviceInfoRequest {
@@ -81,15 +86,23 @@ impl ExtnPayloadProvider for DeviceInfoRequest {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceCapabilities {
-    pub video_resolution: Vec<i32>,
-    pub screen_resolution: Vec<i32>,
-    pub firmware_info: FireboltSemanticVersion,
-    pub hdr: HashMap<HdrProfile, bool>,
-    pub hdcp: HDCPStatus,
-    pub is_wifi: bool,
-    pub make: String,
-    pub model: String,
-    pub audio: HashMap<AudioProfile, bool>,
+    pub video_resolution: Option<Vec<i32>>,
+    pub screen_resolution: Option<Vec<i32>>,
+    pub firmware_info: Option<FireboltSemanticVersion>,
+    pub hdr: Option<HashMap<HdrProfile, bool>>,
+    pub hdcp: Option<HDCPStatus>,
+    pub model: Option<String>,
+    pub make: Option<String>,
+    pub audio: Option<HashMap<AudioProfile, bool>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PlatformBuildInfo {
+    pub name: String,
+    pub device_model: String,
+    pub branch: Option<String>,
+    pub release_version: Option<String>,
+    pub debug: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,10 +115,11 @@ pub enum DeviceResponse {
     FirmwareInfo(FireboltSemanticVersion),
     ScreenResolutionResponse(Vec<i32>),
     VideoResolutionResponse(Vec<i32>),
-    // TODO: assess if boxing this is a productive move: https://rust-lang.github.io/rust-clippy/master/index.html#/large_enum_variant
-    FullCapabilities(Box<DeviceCapabilities>),
+    FullCapabilities(DeviceCapabilities),
     InternetConnectionStatus(InternetConnectionStatus),
     PowerState(PowerState),
+    TimeZone(TimeZone),
+    PlatformBuildInfo(PlatformBuildInfo),
 }
 
 impl ExtnPayloadProvider for DeviceResponse {

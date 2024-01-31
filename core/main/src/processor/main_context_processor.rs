@@ -15,7 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::sync::{Arc, RwLock};
+use std::{
+    sync::{Arc, Once, RwLock},
+    time::Duration,
+};
 
 use ripple_sdk::{
     api::{
@@ -37,11 +40,16 @@ use ripple_sdk::{
         extn_client_message::ExtnMessage,
     },
     log::{debug, error, info},
-    tokio::sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
+    tokio::{
+        self,
+        sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
+    },
 };
+static START_PARTNER_EXCLUSION_SYNC_THREAD: Once = Once::new();
 
-use crate::state::{
-    cap::cap_state::CapState, metrics_state::MetricsState, platform_state::PlatformState,
+use crate::{
+    service::{apps::apps_updater::AppsUpdater, data_governance::DataGovernance},
+    state::{cap::cap_state::CapState, metrics_state::MetricsState, platform_state::PlatformState},
 };
 
 #[derive(Debug, Clone)]
@@ -69,6 +77,9 @@ impl MainContextProcessor {
         }
     }
 
+    ///
+    /// Method which gets called on bootstrap for a presence of account session
+    ///
     async fn check_account_session_token(state: &PlatformState) -> bool {
         let mut token_available = false;
         let mut event = CapEvent::OnUnavailable;
@@ -95,43 +106,77 @@ impl MainContextProcessor {
         token_available
     }
 
-    pub async fn initialize_token(state: &PlatformState) {
+    async fn sync_partner_exclusions(state: &PlatformState) {
+        let state_for_exclusion = state.clone();
+        START_PARTNER_EXCLUSION_SYNC_THREAD.call_once(|| {
+            debug!("Starting partner exclusion sync thread");
+            tokio::spawn(async move {
+                let duration = state_for_exclusion
+                    .get_device_manifest()
+                    .configuration
+                    .partner_exclusion_refresh_timeout
+                    .into();
+                let mut interval = tokio::time::interval(Duration::from_secs(duration));
+                loop {
+                    let resp: bool =
+                        DataGovernance::refresh_partner_exclusions(&state_for_exclusion).await;
+                    debug!(
+                        "refresh_partner_exclusions: {:?} interval : {:?}",
+                        resp, interval
+                    );
+                    interval.tick().await;
+                }
+            });
+        });
+    }
+    pub async fn initialize_session(state: &PlatformState) {
         if !Self::check_account_session_token(state).await {
             error!("Account session still not available");
-        } else if state.supports_cloud_sync() {
-            debug!("Cloud Sync  configured as a required contract so starting.");
-            if state
-                .get_device_manifest()
-                .configuration
-                .features
-                .privacy_settings_storage_type
-                == PrivacySettingsStorageType::Sync
-            {
-                debug!(
-                "Privacy settings storage type is not set as sync so not starting cloud monitor"
-            );
-                if let Some(account_session) = state.session_state.get_account_session() {
-                    debug!("Successfully got account session");
-                    let sync_response = state
-                        .get_client()
-                        .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
-                            SyncAndMonitorModule::Privacy,
-                            account_session.clone(),
-                        ))
-                        .await;
-                    debug!("Received Sync response for privacy: {:?}", sync_response);
-                    let sync_response = state
-                        .get_client()
-                        .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
-                            SyncAndMonitorModule::UserGrants,
-                            account_session.clone(),
-                        ))
-                        .await;
+        } else {
+            if state.supports_cloud_sync() {
+                debug!("Cloud Sync  configured as a required contract so starting.");
+                if state
+                    .get_device_manifest()
+                    .configuration
+                    .features
+                    .privacy_settings_storage_type
+                    == PrivacySettingsStorageType::Sync
+                {
                     debug!(
-                        "Received Sync response for user grants: {:?}",
-                        sync_response
-                    );
+                    "Privacy settings storage type is not set as sync so not starting cloud monitor"
+                );
+                    if let Some(account_session) = state.session_state.get_account_session() {
+                        debug!("Successfully got account session");
+                        //sync up partner exclusion data and setup polling thread for refreshing it.
+                        Self::sync_partner_exclusions(state).await;
+
+                        let sync_response = state
+                            .get_client()
+                            .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
+                                SyncAndMonitorModule::Privacy,
+                                account_session.clone(),
+                            ))
+                            .await;
+                        debug!("Received Sync response for privacy: {:?}", sync_response);
+                        let sync_response = state
+                            .get_client()
+                            .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
+                                SyncAndMonitorModule::UserGrants,
+                                account_session.clone(),
+                            ))
+                            .await;
+                        debug!(
+                            "Received Sync response for user grants: {:?}",
+                            sync_response
+                        );
+                    }
                 }
+            }
+
+            if state.supports_app_catalog() {
+                let ignore_list = vec![state.get_device_manifest().applications.defaults.main];
+                let client = state.get_client();
+                client.add_event_processor(AppsUpdater::new(client.get_extn_client(), ignore_list));
             }
         }
     }
@@ -177,9 +222,18 @@ impl ExtnEventProcessor for MainContextProcessor {
         if let Some(update) = &extracted_message.update_type {
             match update {
                 RippleContextUpdateType::TokenChanged => {
-                    if let ActivationStatus::AccountToken(_t) = &extracted_message.activation_status
+                    if let ActivationStatus::AccountToken(t) = &extracted_message.activation_status
                     {
-                        Self::initialize_token(&state.state).await
+                        //Call initialize token only when account session was not initialized the first time
+                        if state.state.session_state.get_account_session().is_none() {
+                            Self::initialize_session(&state.state).await
+                        } else {
+                            // update the token
+                            state
+                                .state
+                                .session_state
+                                .insert_session_token(t.token.clone())
+                        }
                     }
                 }
                 RippleContextUpdateType::PowerStateChanged => {

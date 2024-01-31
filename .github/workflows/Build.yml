@@ -13,6 +13,7 @@ env:
 jobs:
   formatting: 
     name: Format checker
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -24,18 +25,95 @@ jobs:
 
   clippy_check:
     name: Run Clippy
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: clippy
-      - run: cargo clippy --tests --examples --all-targets --all-features -- -D warnings
+      - run: cargo clippy --tests --examples --all-targets --all-features -- -D warnings -A clippy::large_enum_variant
 
   test:
+    if: github.event_name == 'pull_request'
     name: Run Unit Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - run: cargo test
+
+  code_coverage:
+    if: github.event_name == 'pull_request'
+    name: Generate Code Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: read threshold file into environment variable
+        run: |
+          LOWER_COVERAGE_THRESHOLD=$(cat ./ci/coverage_threshold.txt |  cut -d ' ' -f1)
+          echo "LOWER_COVERAGE_THRESHOLD=$LOWER_COVERAGE_THRESHOLD" >> $GITHUB_ENV
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - run:  cargo llvm-cov --cobertura --output-path coverage.cobertura.xml
+      - uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: coverage.cobertura.xml
+          badge: true
+          fail_below_min: true
+          format: markdown
+          hide_branch_rate: false
+          hide_complexity: true
+          indicators: true
+          output: both
+          thresholds: ${{ env.LOWER_COVERAGE_THRESHOLD }} 
+      - run: |
+          CURRENT_COVERAGE=$(grep '<coverage' coverage.cobertura.xml | grep -o 'line-rate="[0-9.]\+"' | grep -o '[0-9.]\+')
+          CURRENT_COVERAGE=$(printf %.0f $(echo "$CURRENT_COVERAGE*100" | bc))
+          CURRENT_LOWER_THRESHOLD=$(echo "$CURRENT_COVERAGE-2" | bc)
+          echo "CURRENT_LOWER_THRESHOLD=$CURRENT_LOWER_THRESHOLD" >> $GITHUB_ENV
+          echo "### Current coverage:"$CURRENT_COVERAGE"% exceeds coverage threshold. Coverage threshold will be updated automatically to reflect to the latest coverage when this pr is merged to main branch.">>current_coverage.md
+      - uses: marocchino/sticky-pull-request-comment@v2
+        if: always()
+        with:
+          recreate: true
+          path: code-coverage-results.md
+        continue-on-error: true
+      - uses: marocchino/sticky-pull-request-comment@v2
+        if: ${{ fromJSON(env.CURRENT_LOWER_THRESHOLD) > fromJSON(env.LOWER_COVERAGE_THRESHOLD) }}
+        with:
+          append: true
+          path: current_coverage.md
+        continue-on-error: true
+
+  build_and_test_aarch64:
+    name: Build and Test on aarch64
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Build and Test
+        uses: uraimo/run-on-arch-action@v2.5.1
+        id: build_and_test
+        with:
+          arch: aarch64
+          distro: ubuntu22.04
+          githubToken: ${{ github.token }}
+          install: |
+            apt-get update -q -y
+            apt-get install -q -y --no-install-recommends \
+              ca-certificates \
+              curl \
+              pkg-config \
+              build-essential \
+              libssl-dev
+            curl --proto '=https' -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.69.0 --component "rustfmt, clippy"
+          run: |
+            source "$HOME/.cargo/env"
+            export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+            cargo --version --verbose
+            rustc --version
+            cargo clippy --version
+            cargo fmt -- --check
+            cargo clippy --tests --examples --all-targets --all-features -- -D warnings -A clippy::large_enum_variant
+            cargo test

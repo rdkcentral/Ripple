@@ -113,7 +113,7 @@ pub struct OpenRPCParser {
     pub methods: Vec<FireboltOpenRpcMethod>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FireboltOpenRpc {
     pub openrpc: String,
     pub info: FireboltSemanticVersion,
@@ -236,34 +236,32 @@ impl FireboltOpenRpc {
         &self,
         getter_method: &str,
     ) -> Option<FireboltOpenRpcMethod> {
-        let mut result = None;
         let tokens: Vec<&str> = getter_method.split_terminator('.').collect();
-        if tokens.len() == 2 {
-            let setter = self.get_setter_method_for_property(tokens[1]);
-            if let Some(method) = setter {
-                let setter_tokens: Vec<&str> = method.name.split_terminator('.').collect();
-                if !setter_tokens[0].eq(tokens[0]) {
-                    result = None;
-                } else {
-                    result = Some(method);
-                }
-            }
-        } else {
-            result = None;
+
+        if tokens.len() != 2 {
+            return None;
         }
-        result
+
+        let setter = self.get_setter_method_for_property(tokens[1]);
+        setter.filter(|method| {
+            if let Some(suffix) = method.name.to_lowercase().strip_prefix(tokens[0]) {
+                !suffix.is_empty() && suffix.starts_with('.')
+            } else {
+                false
+            }
+        })
     }
 
     pub fn get_setter_method_for_property(&self, property: &str) -> Option<FireboltOpenRpcMethod> {
         self.methods
             .iter()
             .find(|method| {
-                method.tags.is_some()
-                    && method.tags.as_ref().unwrap().iter().any(|tag| {
+                method.tags.as_ref().map_or(false, |tags| {
+                    tags.iter().any(|tag| {
                         (tag.name == "rpc-only" || tag.name == "setter")
-                            && tag.setter_for.is_some()
-                            && tag.setter_for.as_ref().unwrap().as_str() == property
+                            && tag.setter_for.as_deref() == Some(property)
                     })
+                })
             })
             .cloned()
     }
@@ -293,7 +291,7 @@ pub struct FireboltOpenRpcCapabilities {
     pub name: String,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FireboltOpenRpcTag {
     pub name: String,
     #[serde(rename = "x-uses")]
@@ -335,7 +333,7 @@ impl FireboltOpenRpcTag {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FireboltOpenRpcMethod {
     pub name: String,
     pub tags: Option<Vec<FireboltOpenRpcTag>>,
@@ -355,13 +353,17 @@ impl FireboltOpenRpcMethod {
     }
 
     pub fn name_with_lowercase_module(method: &str) -> String {
-        let mut parts: Vec<&str> = method.split('.').collect();
-        if parts.len() < 2 {
-            return String::from(method);
+        // Check if delimter ('.') is present in method name.
+        // If found, idx will be the index of the delimiter
+        if let Some((idx, _)) = method.chars().enumerate().find(|&(_, c)| c == '.') {
+            // Split method to module and method name at the delimiter
+            let (module, method_name) = method.split_at(idx);
+            // convert module to lowercase and concatenate with method name
+            format!("{}.{}", module.to_lowercase(), &method_name[1..])
+        } else {
+            // No delimiter found, return method as is
+            method.to_string()
         }
-        let module = parts.remove(0);
-        let method_name = parts.join(".");
-        format!("{}.{}", module.to_lowercase(), method_name)
     }
 
     pub fn is_named(&self, method_name: &str) -> bool {
@@ -662,5 +664,84 @@ impl CapabilitySet {
                 manage_caps: None,
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::api::firebolt::fb_openrpc::FireboltOpenRpcMethod;
+
+    #[test]
+    pub fn test_firebolt_method_casing() {
+        let m1 = FireboltOpenRpcMethod {
+            name: String::from("SecureStorage.get"),
+            tags: None,
+        };
+        let m2 = FireboltOpenRpcMethod {
+            name: String::from("SecureStorage.getItem"),
+            tags: None,
+        };
+        let m3 = FireboltOpenRpcMethod {
+            name: String::from("SecureStorage.get.item"),
+            tags: None,
+        };
+        let m4 = FireboltOpenRpcMethod {
+            name: String::from("get"),
+            tags: None,
+        };
+
+        let m5 = FireboltOpenRpcMethod {
+            name: String::from("*"),
+            tags: None,
+        };
+
+        let m6 = FireboltOpenRpcMethod {
+            name: String::from("secureStorage.get"),
+            tags: None,
+        };
+        let m7 = FireboltOpenRpcMethod {
+            name: String::from("secureStorage.getItem"),
+            tags: None,
+        };
+        let m8 = FireboltOpenRpcMethod {
+            name: String::from("secureStorage.get.item"),
+            tags: None,
+        };
+
+        assert!(m1.is_named("securestorage.get"));
+        assert!(m2.is_named("secureStorage.getItem"));
+        assert!(!m2.is_named("secureStorage.getitem"));
+        assert!(m3.is_named("Securestorage.get.item"));
+        assert!(m4.is_named("get"));
+        assert!(!m4.is_named("Get"));
+        assert!(!m4.is_named("SecureStorage.get"));
+        assert!(m5.is_named("*"));
+        assert!(m6.is_named("securestorage.get"));
+        assert!(!m6.is_named("securestorage.Get"));
+        assert!(!m7.is_named("securestorage.getitem"));
+        assert!(m7.is_named("securestorage.getItem"));
+        assert!(m8.is_named("securestorage.get.item"));
+        assert!(!m8.is_named("securestorage.get.Item"));
+
+        assert_eq!(
+            FireboltOpenRpcMethod::name_with_lowercase_module(&m1.name),
+            "securestorage.get"
+        );
+        assert_eq!(
+            FireboltOpenRpcMethod::name_with_lowercase_module(&m2.name),
+            "securestorage.getItem"
+        );
+        assert_eq!(
+            FireboltOpenRpcMethod::name_with_lowercase_module(&m3.name),
+            "securestorage.get.item"
+        );
+        assert_eq!(
+            FireboltOpenRpcMethod::name_with_lowercase_module(&m4.name),
+            "get"
+        );
+        assert_eq!(
+            FireboltOpenRpcMethod::name_with_lowercase_module(&m5.name),
+            "*"
+        );
     }
 }

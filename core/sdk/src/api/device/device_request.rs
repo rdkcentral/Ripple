@@ -16,7 +16,7 @@
 //
 
 use crate::{
-    api::firebolt::fb_openrpc::FireboltSemanticVersion,
+    api::{firebolt::fb_openrpc::FireboltSemanticVersion, session::EventAdjective},
     extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
     framework::ripple_contract::RippleContract,
     utils::serde_utils::language_code_serde,
@@ -25,9 +25,10 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 use super::{
-    device_accessory::RemoteAccessoryRequest, device_browser::BrowserRequest,
-    device_info_request::DeviceInfoRequest, device_peristence::DevicePersistenceRequest,
-    device_wifi::WifiRequest, device_window_manager::WindowManagerRequest,
+    device_accessory::RemoteAccessoryRequest, device_apps::AppsRequest,
+    device_browser::BrowserRequest, device_info_request::DeviceInfoRequest,
+    device_peristence::DevicePersistenceRequest, device_wifi::WifiRequest,
+    device_window_manager::WindowManagerRequest,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,6 +39,7 @@ pub enum DeviceRequest {
     Storage(DevicePersistenceRequest),
     Wifi(WifiRequest),
     Accessory(RemoteAccessoryRequest),
+    Apps(AppsRequest),
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]
@@ -48,7 +50,7 @@ pub enum HdcpProfile {
     Hdcp2_2,
 }
 
-#[derive(Hash, Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]
+#[derive(Hash, Eq, PartialEq, Debug, Serialize, Deserialize, Clone, Copy)]
 pub enum HdrProfile {
     #[serde(rename = "HDR10")]
     Hdr10,
@@ -261,6 +263,32 @@ impl Default for SystemPowerState {
             power_state: PowerState::Standby,
             current_power_state: PowerState::Standby,
         }
+    }
+}
+
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TimeZone {
+    #[serde(rename = "timeZone")]
+    pub time_zone: String,
+    pub offset: i64,
+}
+
+impl ExtnPayloadProvider for TimeZone {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Event(ExtnEvent::TimeZone(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<TimeZone> {
+        if let ExtnPayload::Event(ExtnEvent::TimeZone(r)) = payload {
+            return Some(r);
+        }
+
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::DeviceEvents(EventAdjective::TimeZone)
     }
 }
 

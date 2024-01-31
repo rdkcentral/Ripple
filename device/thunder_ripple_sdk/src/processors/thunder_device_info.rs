@@ -58,10 +58,26 @@ use crate::{
     },
     utils::get_audio_profile_from_value,
 };
+use regex::{Match, Regex};
 use ripple_sdk::{
-    api::device::device_request::{InternetConnectionStatus, PowerState},
+    api::{
+        config::Config,
+        context::RippleContextUpdateRequest,
+        device::{
+            device_info_request::PlatformBuildInfo,
+            device_request::{InternetConnectionStatus, PowerState},
+        },
+        device::{
+            device_info_request::{
+                DEVICE_INFO_AUTHORIZED, DEVICE_MAKE_MODEL_AUTHORIZED, DEVICE_SKU_AUTHORIZED,
+            },
+            device_request::TimeZone,
+        },
+        manifest::device_manifest::DefaultValues,
+    },
     log::trace,
     serde_json::{Map, Value},
+    tokio::join,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
@@ -133,7 +149,6 @@ pub struct CachedDeviceInfo {
     hdcp_status: Option<HDCPStatus>,
     hdr_profile: Option<HashMap<HdrProfile, bool>>,
     version: Option<FireboltSemanticVersion>,
-    all_timezones: Option<ThunderAllTimezonesResponse>,
 }
 
 #[derive(Debug, Clone)]
@@ -228,15 +243,6 @@ impl CachedState {
     fn update_version(&self, version: FireboltSemanticVersion) {
         let mut cached = self.cached.write().unwrap();
         let _ = cached.version.insert(version);
-    }
-
-    fn update_timezone(&self, timezones: ThunderAllTimezonesResponse) {
-        let mut cached = self.cached.write().unwrap();
-        let _ = cached.all_timezones.insert(timezones);
-    }
-
-    fn get_timezone(&self) -> Option<ThunderAllTimezonesResponse> {
-        self.cached.read().unwrap().all_timezones.clone()
     }
 }
 
@@ -349,12 +355,12 @@ impl ThunderAllTimezonesResponse {
                     if let Ok(nutz) =
                         NaiveDateTime::parse_from_str(&utc_tz, "%a %b %d %H:%M:%S %Y %Z")
                     {
-                        return (ntz - nutz).num_seconds();
+                        let delta = (ntz - nutz).num_seconds();
+                        return round_to_nearest_quarter_hour(delta);
                     }
                 }
             }
         }
-
         0
     }
 }
@@ -370,7 +376,15 @@ impl<'de> Deserialize<'de> for ThunderAllTimezonesResponse {
                 &mut timezones,
                 String::from(""),
                 zones,
-                vec!["Etc", "Utc", "America", "Australia", "Africa", "Europe"],
+                vec![
+                    "Etc",
+                    "Utc",
+                    "America",
+                    "Australia",
+                    "Africa",
+                    "Europe",
+                    "Pacific",
+                ],
             );
         }
         Ok(ThunderAllTimezonesResponse { timezones })
@@ -433,7 +447,6 @@ impl ThunderDeviceInfoRequestProcessor {
 
     async fn mac_address(state: CachedState, req: ExtnMessage) -> bool {
         let response: String = Self::get_mac_address(&state).await;
-
         Self::respond(state.get_client(), req, ExtnResponse::String(response))
             .await
             .is_ok()
@@ -791,7 +804,7 @@ impl ThunderDeviceInfoRequestProcessor {
             return Vec::new();
         }
         info!("{}", response.message);
-        let resol = response.message["resolution"].as_str().unwrap();
+        let resol = response.message["resolution"].as_str().unwrap_or_default();
         get_dimension_from_resolution(resol)
     }
 
@@ -813,7 +826,26 @@ impl ThunderDeviceInfoRequestProcessor {
         .is_ok()
     }
 
-    async fn get_video_resolution(state: &CachedState) -> Vec<i32> {
+    async fn get_current_resolution(state: &CachedState) -> Result<Vec<i32>, ()> {
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::DisplaySettings.method("getCurrentResolution"),
+                params: None,
+            })
+            .await;
+        if response.message.get("success").is_none()
+            || !response.message["success"].as_bool().unwrap_or_default()
+        {
+            error!("{}", response.message);
+            return Err(());
+        }
+        info!("{}", response.message);
+        let resol = response.message["resolution"].as_str().unwrap_or_default();
+        Ok(get_dimension_from_resolution(resol))
+    }
+
+    async fn get_default_resolution(state: &CachedState) -> Result<Vec<i32>, ()> {
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -825,11 +857,28 @@ impl ThunderDeviceInfoRequestProcessor {
             || !response.message["success"].as_bool().unwrap_or_default()
         {
             error!("{}", response.message);
-            return Vec::new();
+            return Err(());
         }
         info!("{}", response.message);
         let resol = response.message["defaultResolution"].as_str().unwrap();
-        get_dimension_from_resolution(resol)
+        Ok(get_dimension_from_resolution(resol))
+    }
+
+    async fn get_video_resolution(state: &CachedState) -> Vec<i32> {
+        if let Ok(resolution) = Self::get_current_resolution(state).await {
+            return resolution;
+        }
+        if let Ok(resolution) = Self::get_default_resolution(state).await {
+            return resolution;
+        }
+        if let Ok(response) = state.get_client().request(Config::DefaultValues).await {
+            if let Some(ExtnResponse::Value(value)) = response.payload.extract() {
+                if let Ok(default_values) = serde_json::from_value::<DefaultValues>(value) {
+                    return default_values.video_dimensions;
+                }
+            }
+        }
+        vec![]
     }
 
     async fn video_resolution(state: CachedState, req: ExtnMessage) -> bool {
@@ -1009,7 +1058,7 @@ impl ThunderDeviceInfoRequestProcessor {
             })
             .await;
 
-        info!("{}", response.message);
+        info!("getTimeZoneDST: {}", response.message);
         if response.message.get("success").is_none()
             || response.message["success"].as_bool().unwrap_or_default()
         {
@@ -1030,14 +1079,29 @@ impl ThunderDeviceInfoRequestProcessor {
         }
     }
 
-    async fn get_timezone_with_offset(state: CachedState, req: ExtnMessage) -> bool {
-        if let Ok(timezone) = Self::get_timezone_value(&state).await {
-            if let Ok(timezones) = Self::get_all_timezones(&state).await {
-                let offset = timezones.get_offset(&timezone);
+    pub async fn get_timezone_with_offset(state: CachedState, req: ExtnMessage) -> bool {
+        if let Some(TimeZone { time_zone, offset }) = state.get_client().get_timezone() {
+            if !time_zone.is_empty() {
                 return Self::respond(
                     state.get_client(),
                     req,
-                    ExtnResponse::TimezoneWithOffset(timezone, offset),
+                    ExtnResponse::TimezoneWithOffset(time_zone, offset),
+                )
+                .await
+                .is_ok();
+            } else if let Some(tz) = Self::get_timezone_and_offset(&state).await {
+                let cloned_state = state.clone();
+                let cloned_tz = tz.clone();
+                cloned_state
+                    .get_client()
+                    .context_update(RippleContextUpdateRequest::TimeZone(TimeZone {
+                        time_zone: cloned_tz.time_zone,
+                        offset: cloned_tz.offset,
+                    }));
+                return Self::respond(
+                    state.get_client(),
+                    req,
+                    ExtnResponse::TimezoneWithOffset(tz.time_zone, tz.offset),
                 )
                 .await
                 .is_ok();
@@ -1047,12 +1111,23 @@ impl ThunderDeviceInfoRequestProcessor {
         Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
     }
 
+    pub async fn get_timezone_and_offset(state: &CachedState) -> Option<TimeZone> {
+        let timezone_result = ThunderDeviceInfoRequestProcessor::get_timezone_value(state).await;
+        let timezones_result = ThunderDeviceInfoRequestProcessor::get_all_timezones(state).await;
+
+        if let (Ok(timezone), Ok(timezones)) = (timezone_result, timezones_result) {
+            Some(TimeZone {
+                time_zone: timezone.clone(),
+                offset: timezones.get_offset(&timezone),
+            })
+        } else {
+            None
+        }
+    }
+
     async fn get_all_timezones(
         state: &CachedState,
     ) -> Result<ThunderAllTimezonesResponse, RippleError> {
-        if let Some(t) = state.get_timezone() {
-            return Ok(t);
-        }
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -1064,10 +1139,7 @@ impl ThunderDeviceInfoRequestProcessor {
             && response.message["success"].as_bool().unwrap_or_default()
         {
             match serde_json::from_value::<ThunderAllTimezonesResponse>(response.message) {
-                Ok(timezones) => {
-                    state.update_timezone(timezones.clone());
-                    Ok(timezones)
-                }
+                Ok(timezones) => Ok(timezones),
                 Err(e) => {
                     error!("{}", e.to_string());
                     Err(RippleError::ProcessorError)
@@ -1252,6 +1324,163 @@ impl ThunderDeviceInfoRequestProcessor {
         error!("Unable to get power state from thunder");
         Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
     }
+
+    async fn get_device_capabilities(state: CachedState, keys: &[&str], msg: ExtnMessage) -> bool {
+        let device_info_authorized = keys.contains(&DEVICE_INFO_AUTHORIZED);
+        let (
+            video_dimensions,
+            native_dimensions,
+            firmware_info_result,
+            hdr_info,
+            hdcp_result,
+            audio_result,
+            model_result,
+            make_result,
+        ) = join!(
+            async {
+                if device_info_authorized {
+                    Some(Self::get_video_resolution(&state).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if device_info_authorized {
+                    Some(Self::get_screen_resolution(&state).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if device_info_authorized {
+                    Some(Self::get_version(&state).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if device_info_authorized {
+                    Some(Self::get_cached_hdr(&state).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if device_info_authorized {
+                    Some(Self::get_hdcp_status(&state).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if device_info_authorized {
+                    Some(Self::get_audio(&state).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if keys.contains(&DEVICE_SKU_AUTHORIZED) {
+                    Some(Self::get_model(&state).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if keys.contains(&DEVICE_MAKE_MODEL_AUTHORIZED) {
+                    Some(Self::get_make(&state).await)
+                } else {
+                    None
+                }
+            }
+        );
+
+        let device_capabilities = DeviceCapabilities {
+            audio: audio_result,
+            firmware_info: firmware_info_result,
+            hdcp: hdcp_result,
+            hdr: hdr_info,
+            make: make_result,
+            model: model_result,
+            video_resolution: video_dimensions,
+            screen_resolution: native_dimensions,
+        };
+        if let ExtnPayload::Response(r) =
+            DeviceResponse::FullCapabilities(device_capabilities).get_extn_payload()
+        {
+            Self::respond(state.get_client(), msg, r).await.is_ok()
+        } else {
+            Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await
+        }
+    }
+
+    async fn platform_build_info(state: CachedState, msg: ExtnMessage) -> bool {
+        let resp = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::System.method("getSystemVersions"),
+                params: None,
+            })
+            .await;
+
+        let stb_version = resp.message["stbVersion"].as_str();
+        if stb_version.is_none() {
+            return Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await;
+        }
+        let full_firmware_version = String::from(stb_version.unwrap());
+        let name = full_firmware_version.clone();
+        let release_regex = Regex::new(r"([^_]*)_(.*)_(VBN|PROD[^_]*)_(.*)").unwrap();
+        let non_release_regex =
+            Regex::new(r"([^_]*)_(VBN|PROD[^_]*)_(.*)_(\d{14}(sdy|sey))(.*)").unwrap();
+        let fallback_regex = Regex::new(r"([^_]*)_(.*)").unwrap();
+        fn match_or_empty(m_opt: Option<Match>) -> String {
+            if let Some(m) = m_opt {
+                String::from(m.as_str())
+            } else {
+                String::from("")
+            }
+        }
+        let info_opt = if let Some(caps) = release_regex.captures(&full_firmware_version) {
+            Some(PlatformBuildInfo {
+                name,
+                device_model: match_or_empty(caps.get(1)),
+                branch: None,
+                release_version: caps.get(2).map(|s| String::from(s.as_str())),
+                debug: match_or_empty(caps.get(3)) == "VBN",
+            })
+        } else if let Some(caps) = non_release_regex.captures(&full_firmware_version) {
+            Some(PlatformBuildInfo {
+                name,
+                device_model: match_or_empty(caps.get(1)),
+                branch: caps.get(3).map(|s| String::from(s.as_str())),
+                release_version: None,
+                debug: match_or_empty(caps.get(2)) == "VBN",
+            })
+        } else if let Some(caps) = fallback_regex.captures(&full_firmware_version) {
+            Some(PlatformBuildInfo {
+                name,
+                device_model: match_or_empty(caps.get(1)),
+                branch: None,
+                release_version: None,
+                debug: match_or_empty(caps.get(2)).contains("VBN"),
+            })
+        } else {
+            error!("Could not parse build name {}", full_firmware_version);
+            None
+        };
+
+        if let Some(info) = info_opt {
+            if let ExtnPayload::Response(r) =
+                DeviceResponse::PlatformBuildInfo(info).get_extn_payload()
+            {
+                Self::respond(state.get_client(), msg, r).await.is_ok()
+            } else {
+                Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await
+            }
+        } else {
+            Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await
+        }
+    }
 }
 
 pub fn get_dimension_from_resolution(resolution: &str) -> Vec<i32> {
@@ -1369,29 +1598,133 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             DeviceInfoRequest::InternetConnectionStatus => {
                 Self::internet_connection_status(state.clone(), msg).await
             }
-            DeviceInfoRequest::FullCapabilities => {
-                let device_capabilities = DeviceCapabilities {
-                    audio: Self::get_audio(&state).await,
-                    firmware_info: Self::get_version(&state).await,
-                    hdcp: Self::get_hdcp_status(&state).await,
-                    hdr: Self::get_cached_hdr(&state).await,
-                    is_wifi: matches!(Self::get_network(&state).await._type, NetworkType::Wifi),
-                    make: Self::get_make(&state).await,
-                    model: Self::get_model(&state).await,
-                    video_resolution: Self::get_video_resolution(&state).await,
-                    screen_resolution: Self::get_screen_resolution(&state).await,
-                };
-                if let ExtnPayload::Response(r) =
-                    DeviceResponse::FullCapabilities(Box::new(device_capabilities))
-                        .get_extn_payload()
-                {
-                    Self::respond(state.get_client(), msg, r).await.is_ok()
-                } else {
-                    Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await
-                }
+            DeviceInfoRequest::FullCapabilities(keys) => {
+                let keys_as_str: Vec<&str> = keys.iter().map(String::as_str).collect();
+                Self::get_device_capabilities(state.clone(), &keys_as_str, msg).await
             }
             DeviceInfoRequest::PowerState => Self::power_state(state.clone(), msg).await,
+            DeviceInfoRequest::PlatformBuildInfo => {
+                Self::platform_build_info(state.clone(), msg).await
+            }
             _ => false,
+        }
+    }
+}
+
+fn round_to_nearest_quarter_hour(offset_seconds: i64) -> i64 {
+    // Convert minutes to quarter hours
+    let quarter_hours = (offset_seconds as f64 / 900.0).round() as i64;
+
+    // Convert back to minutes
+    let rounded_minutes = quarter_hours * 15;
+
+    // Convert minutes back to seconds
+    rounded_minutes * 60
+}
+
+#[cfg(test)]
+pub mod tests {
+    use std::{fs::File, sync::Arc};
+
+    use ripple_sdk::{
+        api::device::{
+            device_info_request::{DeviceInfoRequest, DeviceResponse, PlatformBuildInfo},
+            device_operator::DeviceResponseMessage,
+            device_request::DeviceRequest,
+        },
+        extn::{
+            client::extn_processor::ExtnRequestProcessor,
+            extn_client_message::{ExtnMessage, ExtnRequest},
+        },
+        framework::ripple_contract::RippleContract,
+        serde_json::{self, json},
+        tokio,
+        utils::channel_utils::oneshot_send_and_log,
+    };
+    use ripple_tdk::utils::mock_extension_client::MockExtnClient;
+    use serde::{Deserialize, Serialize};
+
+    use crate::{
+        client::{thunder_client::ThunderCallMessage, thunder_plugin::ThunderPlugin},
+        processors::thunder_device_info::ThunderDeviceInfoRequestProcessor,
+        tests::mock_thunder_controller::{CustomHandler, MockThunderController, ThunderHandlerFn},
+    };
+
+    macro_rules! run_platform_info_test {
+        ($build_name:expr) => {
+            test_platform_build_info_with_build_name($build_name, Arc::new(|msg: ThunderCallMessage| {
+                oneshot_send_and_log(
+                    msg.callback,
+                    DeviceResponseMessage::call(json!({"success" : true, "stbVersion": $build_name })),
+                    "",
+                );
+            })).await;
+        };
+    }
+
+    #[derive(Debug, Serialize, Deserialize, Clone)]
+    struct BuildInfoTest {
+        build_name: String,
+        info: PlatformBuildInfo,
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_platform_build_info() {
+        run_platform_info_test!("SCXI11BEI_023.005.03.6.8p12s3_VBN_sdy");
+        run_platform_info_test!("SCXI11BEI_23_VBN_sdy");
+        run_platform_info_test!("SCXI11BEI_VBN_23_20231130001020sdy");
+        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_PRODLOG_sdy");
+        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_PROD_sdy");
+        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_VBN_sdy");
+        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_VBN_sey");
+        run_platform_info_test!("SCXI11BEI_023.003.00.6.8p7s1_PRODLOG_sdy_XOE");
+        run_platform_info_test!("SCXI11BEI_VBN_stable2_20231129231433sdy_XOE_NG");
+        run_platform_info_test!("SCXI11AIC_PROD_6.6_p1v_20231130001020sdy_NG");
+        run_platform_info_test!("SCXI11AIC_VBN_23Q4_sprint_20231129232625sdy_FG_NG");
+        run_platform_info_test!("SCXI11AIC_VBN_23Q4_sprint_20231129232625sey_FG_NG");
+        run_platform_info_test!("SCXI11BEI_PROD_some_branch_20231129233157sdy_FG_NG-signed");
+        run_platform_info_test!("SCXI11BEI_PROD_QS024_20231129231350sdy_XOE_NG");
+        run_platform_info_test!("COESST11AEI_VBN_23Q4_sprint_20231130233011sdy_DFL_FG_GRT");
+        run_platform_info_test!("COESST11AEI_23.40p11d24_EXP_PROD_sdy-signed");
+        run_platform_info_test!(
+            "SCXI11BEI_VBN_23Q4_sprint_20231113173051sdy_FG_EDGE_DISTPDEMO-signed"
+        );
+        run_platform_info_test!("SCXI11BEI_somebuild");
+        run_platform_info_test!("SCXI11BEI_someVBNbuild");
+    }
+
+    async fn test_platform_build_info_with_build_name(
+        build_name: &'static str,
+        handler: Arc<ThunderHandlerFn>,
+    ) {
+        let tests_file = File::open("src/tests/buildinfo-parse-tests.json").unwrap();
+        let tests: Vec<BuildInfoTest> = serde_json::from_reader(tests_file).unwrap();
+        let mut ch = CustomHandler::default();
+        ch.custom_request_handler.insert(
+            ThunderPlugin::System.unversioned_method("getSystemVersions"),
+            handler,
+        );
+        let (state, r) = MockThunderController::state_with_mock(Some(ch));
+        let msg = MockExtnClient::req(
+            RippleContract::DeviceInfo,
+            ExtnRequest::Device(DeviceRequest::DeviceInfo(
+                DeviceInfoRequest::PlatformBuildInfo,
+            )),
+        );
+
+        ThunderDeviceInfoRequestProcessor::process_request(
+            state,
+            msg,
+            DeviceInfoRequest::PlatformBuildInfo,
+        )
+        .await;
+        let msg: ExtnMessage = r.recv().await.unwrap().try_into().unwrap();
+        let resp_opt = msg.payload.extract::<DeviceResponse>();
+        if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp_opt {
+            let exp = tests.iter().find(|x| x.build_name == build_name).unwrap();
+            assert_eq!(info, exp.info);
+        } else {
+            panic!("Did not get the expected PlatformBuildInfo from extension call");
         }
     }
 }

@@ -86,7 +86,7 @@ impl From<ExtnMetadata> for CExtnMetadata {
         let mut metadata: Vec<CExtnSymbolMetadata> = Vec::new();
         for data in value.symbols {
             metadata.push(CExtnSymbolMetadata {
-                id: data.clone().id.to_string(),
+                id: data.id.to_string(),
                 fulfills: data.clone().fulfills.into(),
                 required_version: data.get_version().to_string(),
             });

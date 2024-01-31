@@ -20,9 +20,11 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use jsonrpsee::tracing::debug;
 use ripple_sdk::{
     api::{
         device::device_info_request::{DeviceInfoRequest, DeviceResponse},
+        distributor::distributor_privacy::PrivacySettingsData,
         firebolt::{fb_metrics::MetricsContext, fb_openrpc::FireboltSemanticVersion},
         storage_property::StorageProperty,
     },
@@ -38,6 +40,7 @@ use super::platform_state::PlatformState;
 pub struct MetricsState {
     pub start_time: DateTime<Utc>,
     pub context: Arc<RwLock<MetricsContext>>,
+    pub privacy_settings_cache: Arc<RwLock<PrivacySettingsData>>,
     operational_telemetry_listeners: Arc<RwLock<HashSet<String>>>,
 }
 
@@ -45,7 +48,13 @@ impl MetricsState {
     pub fn get_context(&self) -> MetricsContext {
         self.context.read().unwrap().clone()
     }
-
+    pub fn get_privacy_settings_cache(&self) -> PrivacySettingsData {
+        self.privacy_settings_cache.read().unwrap().clone()
+    }
+    pub fn update_privacy_settings_cache(&self, value: &PrivacySettingsData) {
+        let mut cache = self.privacy_settings_cache.write().unwrap();
+        *cache = value.clone();
+    }
     pub async fn initialize(state: &PlatformState) {
         let mut mac_address: Option<String> = None;
         if let Ok(resp) = state
@@ -85,22 +94,8 @@ impl MetricsState {
             Err(_) => "no.language.set".to_string(),
         };
 
-        let mut os = FireboltSemanticVersion::new(0, 0, 0, "".to_string());
-        os.minor += 7;
-        let a_str: String = format!("Firebolt OS v{}.{}.{}", os.major, os.minor, os.patch);
-        os.readable = a_str;
-
-        if let Ok(val) = state
-            .get_client()
-            .send_extn_request(DeviceInfoRequest::Version)
-            .await
-        {
-            if let Some(DeviceResponse::FirmwareInfo(value)) = val.payload.extract() {
-                os = value;
-            }
-        };
-
-        let os_ver = serde_json::to_string(&os).unwrap_or_else(|_| "no.os.ver.set".to_string());
+        let os_ver = Self::get_os_ver_from_firebolt(state).await;
+        debug!("got os_ver={}", &os_ver);
 
         let mut device_name = "no.device.name.set".to_string();
         if let Ok(resp) = StorageManager::get_string(state, StorageProperty::DeviceName).await {
@@ -135,12 +130,33 @@ impl MetricsState {
             context.device_language = language;
             context.os_ver = os_ver;
             context.device_name = device_name;
+            context.device_session_id = String::from(&state.device_session_id);
 
             if let Some(t) = timezone {
                 context.device_timezone = t;
             }
         }
         Self::update_account_session(state).await
+    }
+
+    async fn get_os_ver_from_firebolt(platform_state: &PlatformState) -> String {
+        let mut os = FireboltSemanticVersion::new(0, 0, 0, "".to_string());
+
+        if let Ok(val) = platform_state
+            .get_client()
+            .send_extn_request(DeviceInfoRequest::Version)
+            .await
+        {
+            if let Some(DeviceResponse::FirmwareInfo(value)) = val.payload.extract() {
+                os = value;
+            }
+        }
+        let os_ver: String = if !os.readable.is_empty() {
+            os.readable.to_string()
+        } else {
+            "no.os.ver.set".to_string()
+        };
+        os_ver
     }
 
     pub async fn update_account_session(state: &PlatformState) {
@@ -170,7 +186,6 @@ impl MetricsState {
         self.operational_telemetry_listeners
             .read()
             .unwrap()
-            .clone()
             .iter()
             .map(|x| x.to_owned())
             .collect()

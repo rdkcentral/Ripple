@@ -36,6 +36,7 @@ pub use ripple_sdk::utils::rpc_utils::rpc_err;
 
 pub const FIRE_BOLT_DEEPLINK_ERROR_CODE: i32 = -40400;
 pub const DOWNSTREAM_SERVICE_UNAVAILABLE_ERROR_CODE: i32 = -50200;
+pub const SESSION_NO_INTENT_ERROR_CODE: i32 = -40000;
 
 /// Awaits a oneshot to respond. If the oneshot fails to repond, creates a generic
 /// RPC internal error
@@ -89,7 +90,13 @@ pub fn rpc_downstream_service_err(msg: &str) -> jsonrpsee::core::error::Error {
         data: None,
     })
 }
-
+pub fn rpc_session_no_intent_err(msg: &str) -> jsonrpsee::core::error::Error {
+    Error::Call(CallError::Custom {
+        code: SESSION_NO_INTENT_ERROR_CODE,
+        message: msg.to_owned(),
+        data: None,
+    })
+}
 pub fn rpc_navigate_reserved_app_err(msg: &str) -> jsonrpsee::core::error::Error {
     Error::Call(CallError::Custom {
         code: FIRE_BOLT_DEEPLINK_ERROR_CODE,

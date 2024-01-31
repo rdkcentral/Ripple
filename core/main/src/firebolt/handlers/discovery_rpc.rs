@@ -36,6 +36,7 @@ use jsonrpsee::{
 };
 
 use ripple_sdk::api::{
+    account_link::WatchedRequest,
     device::entertainment_data::*,
     firebolt::{
         fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
@@ -464,13 +465,17 @@ impl DiscoveryServer for DiscoveryImpl {
         })
     }
 
-    async fn watched(&self, ctx: CallContext, watched_info: WatchedInfo) -> RpcResult<bool> {
+    async fn watched(&self, context: CallContext, info: WatchedInfo) -> RpcResult<bool> {
         info!("Discovery.watched");
-
+        let request = WatchedRequest {
+            context,
+            info,
+            unit: None,
+        };
         if let Ok(response) = self
             .state
             .get_client()
-            .send_extn_request(AccountLinkRequest::Watched(ctx, watched_info))
+            .send_extn_request(AccountLinkRequest::Watched(request))
             .await
         {
             if let Some(ExtnResponse::Boolean(v)) = response.payload.extract() {
@@ -495,7 +500,25 @@ impl DiscoveryServer for DiscoveryImpl {
             completed: Some(false),
             watched_on: None,
         };
-        return self.watched(ctx, watched_info.clone()).await;
+        let request = WatchedRequest {
+            context: ctx.clone(),
+            info: watched_info,
+            unit: None,
+        };
+        if let Ok(response) = self
+            .state
+            .get_client()
+            .send_extn_request(AccountLinkRequest::Watched(request))
+            .await
+        {
+            if let Some(ExtnResponse::Boolean(v)) = response.payload.extract() {
+                return Ok(v);
+            }
+        }
+
+        Err(rpc_err(
+            "Did not receive a valid resposne from platform when notifying watched info",
+        ))
     }
 
     async fn get_content_policy_rpc(&self, ctx: CallContext) -> RpcResult<ContentPolicy> {
@@ -658,7 +681,7 @@ impl DiscoveryServer for DiscoveryImpl {
     ) -> RpcResult<bool> {
         let response = ProviderResponse {
             correlation_id: entity_info.correlation_id,
-            result: ProviderResponsePayload::EntityInfoResponse(Box::new(entity_info.result)),
+            result: ProviderResponsePayload::EntityInfoResponse(entity_info.result),
         };
         ProviderBroker::provider_response(&self.state, response).await;
         Ok(true)

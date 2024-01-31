@@ -17,7 +17,7 @@
 
 use std::collections::HashMap;
 
-use crossbeam::channel::Sender as CSender;
+use async_channel::Sender as CSender;
 use log::error;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -25,14 +25,16 @@ use serde_json::Value;
 use crate::{
     api::{
         account_link::AccountLinkRequest,
+        app_catalog::{AppCatalogRequest, AppMetadata, AppsUpdate},
         apps::AppEventRequest,
         caps::CapsRequest,
         config::{Config, ConfigResponse},
         context::{RippleContext, RippleContextUpdateRequest},
         device::{
+            device_apps::InstalledApp,
             device_events::DeviceEventRequest,
             device_peristence::StorageData,
-            device_request::{DeviceRequest, NetworkResponse, VoiceGuidanceState},
+            device_request::{DeviceRequest, NetworkResponse, TimeZone, VoiceGuidanceState},
         },
         distributor::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
@@ -40,6 +42,7 @@ use crate::{
             distributor_privacy::{PrivacyCloudRequest, PrivacySettingsStoreRequest},
             distributor_request::DistributorRequest,
             distributor_sync::SyncAndMonitorRequest,
+            distributor_token::DistributorTokenRequest,
             distributor_usergrants::UserGrantsCloudStoreRequest,
         },
         firebolt::{
@@ -81,7 +84,7 @@ use super::{extn_id::ExtnId, ffi::ffi_message::CExtnMessage};
 ///
 /// `payload` | [ExtnPayload]| Type of payload could be [ExtnRequest], [ExtnResponse] or [ExtnEvent]
 ///
-/// `callback` |Crossbeam [crossbeam::channel::Sender<CExtnMessage>] | Usually added by `Main` to the `target` to respond back to the `requestor`|
+/// `callback` |Async Channel [async_channel::Sender<CExtnMessage>] | Usually added by `Main` to the `target` to respond back to the `requestor`|
 
 #[derive(Debug, Clone)]
 pub struct ExtnMessage {
@@ -99,7 +102,7 @@ impl ExtnMessage {
     ///
     /// Note: If used in a processor this method can be safely unwrapped
     pub fn get_response(&self, response: ExtnResponse) -> Result<ExtnMessage, RippleError> {
-        match self.clone().payload {
+        match self.payload {
             ExtnPayload::Request(_) => Ok(ExtnMessage {
                 callback: self.callback.clone(),
                 id: self.id.clone(),
@@ -268,7 +271,9 @@ pub enum ExtnRequest {
     Metrics(MetricsRequest),
     OperationalMetricsRequest(OperationalMetricRequest),
     PlatformToken(PlatformTokenRequest),
+    DistributorToken(DistributorTokenRequest),
     Context(RippleContextUpdateRequest),
+    AppCatalog(AppCatalogRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -298,6 +303,8 @@ pub enum ExtnResponse {
     BoolMap(HashMap<String, bool>),
     Advertising(AdvertisingResponse),
     SecureStorage(SecureStorageResponse),
+    AppCatalog(Vec<AppMetadata>),
+    InstalledApps(Vec<InstalledApp>),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {
@@ -327,6 +334,8 @@ pub enum ExtnEvent {
     OperationalMetrics(TelemetryPayload),
     Context(RippleContext),
     VoiceGuidanceState(VoiceGuidanceState),
+    TimeZone(TimeZone),
+    AppsUpdate(AppsUpdate),
 }
 
 impl ExtnPayloadProvider for ExtnEvent {

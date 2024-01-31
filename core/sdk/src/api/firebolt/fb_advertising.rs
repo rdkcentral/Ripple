@@ -26,42 +26,9 @@ use crate::{
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AdvertisingRequest {
-    GetAdInitObject(AdInitObjectRequestParams),
     GetAdIdObject(AdIdRequestParams),
     ResetAdIdentifier(AccountSession),
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AdInitObjectRequestParams {
-    pub privacy_data: HashMap<String, String>,
-    pub environment: String,
-    pub durable_app_id: String,
-    pub app_version: String,
-    pub distributor_app_id: String,
-    pub device_ad_attributes: HashMap<String, String>,
-    pub coppa: bool,
-    pub authentication_entity: String,
-    pub dist_session: AccountSession,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AdInitObjectResponse {
-    pub ad_server_url: String,
-    pub ad_server_url_template: String,
-    pub ad_network_id: String,
-    pub ad_profile_id: String,
-    pub ad_site_section_id: String,
-    pub ad_opt_out: bool,
-    pub privacy_data: String,
-    pub ifa_value: String,
-    pub ifa: String,
-    pub app_name: String,
-    pub app_bundle_id: String,
-    pub app_version: String,
-    pub distributor_app_id: String,
-    pub device_ad_attributes: String,
-    pub coppa: String,
-    pub authentication_entity: String,
+    GetAdConfig(AdConfigRequestParams),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -69,6 +36,7 @@ pub struct AdIdRequestParams {
     pub privacy_data: HashMap<String, String>,
     pub app_id: String,
     pub dist_session: AccountSession,
+    pub scope: HashMap<String, String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -76,6 +44,27 @@ pub struct AdIdResponse {
     pub ifa: String,
     pub ifa_type: String,
     pub lmt: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AdConfigRequestParams {
+    pub privacy_data: HashMap<String, String>,
+    pub durable_app_id: String,
+    pub dist_session: AccountSession,
+    pub environment: String,
+    pub scope: HashMap<String, String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct AdConfigResponse {
+    pub ad_server_url: String,
+    pub ad_server_url_template: String,
+    pub ad_network_id: String,
+    pub ad_profile_id: String,
+    pub ad_site_section_id: String,
+    pub app_bundle_id: String,
+    pub ifa: String,
+    pub ifa_value: String,
 }
 
 impl ExtnPayloadProvider for AdvertisingRequest {
@@ -99,12 +88,11 @@ impl ExtnPayloadProvider for AdvertisingRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum AdvertisingResponse {
     None,
-    // TODO: assess if boxing this is a productive move: https://rust-lang.github.io/rust-clippy/master/index.html#/large_enum_variant
-    AdInitObject(Box<AdInitObjectResponse>),
     AdIdObject(AdIdResponse),
+    AdConfig(AdConfigResponse),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct AdvertisingFrameworkConfig {
     pub ad_server_url: String,

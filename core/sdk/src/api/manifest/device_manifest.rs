@@ -26,7 +26,10 @@ use std::{
 
 use crate::{
     api::{
-        device::{device_user_grants_data::GrantPolicies, DevicePlatformType},
+        device::{
+            device_user_grants_data::{GrantExclusionFilter, GrantPolicies},
+            DevicePlatformType,
+        },
         distributor::distributor_privacy::DataEventType,
         firebolt::fb_capabilities::{FireboltCap, FireboltPermission},
         storage_property::StorageProperty,
@@ -80,6 +83,8 @@ pub struct CapabilityConfiguration {
     pub supported: Vec<String>,
     pub grant_policies: Option<HashMap<String, GrantPolicies>>,
     #[serde(default)]
+    pub grant_exclusion_filters: Vec<GrantExclusionFilter>,
+    #[serde(default)]
     pub dependencies: HashMap<FireboltPermission, Vec<FireboltPermission>>,
 }
 
@@ -91,8 +96,15 @@ pub struct LifecycleConfiguration {
     pub max_loaded_apps: u64,
     pub min_available_memory_kb: u64,
     pub prioritized: Vec<String>,
+    #[serde(default)]
+    pub emit_app_init_events_enabled: bool,
 }
 
+impl LifecycleConfiguration {
+    pub fn is_emit_event_on_app_init_enabled(&self) -> bool {
+        self.emit_app_init_events_enabled
+    }
+}
 /// Device manifest contains all the specifications required for coniguration of a Ripple application.
 /// Device manifest file should be compliant to the Openrpc schema specified in <https://github.com/rdkcentral/firebolt-configuration>
 #[derive(Deserialize, Debug, Clone)]
@@ -208,11 +220,10 @@ pub struct AppLibraryEntry {
 pub enum AppManifestLoad {
     Remote(String),
     Local(String),
-    // TODO: assess if boxing this is a productive move: https://rust-lang.github.io/rust-clippy/master/index.html#/large_enum_variant
-    Embedded(Box<AppManifest>),
+    Embedded(AppManifest),
 }
 
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct DefaultValues {
     pub country_code: String,
     pub language: String,
@@ -277,7 +288,7 @@ pub struct SettingsDefaults {
     pub postal_code: String,
 }
 
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct CaptionStyle {
     pub enabled: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -306,7 +317,7 @@ pub struct CaptionStyle {
     pub text_align_vertical: Option<String>,
 }
 
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct VoiceGuidance {
     pub enabled: bool,
@@ -409,17 +420,12 @@ pub enum PrivacySettingsStorageType {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RippleFeatures {
-    pub app_scoped_device_tokens: bool,
+    #[serde(default = "default_privacy_settings_storage_type")]
     pub privacy_settings_storage_type: PrivacySettingsStorageType,
+    #[serde(default = "default_intent_validation")]
     pub intent_validation: IntentValidation,
-}
-
-fn default_ripple_features() -> RippleFeatures {
-    RippleFeatures {
-        app_scoped_device_tokens: false,
-        privacy_settings_storage_type: PrivacySettingsStorageType::Local,
-        intent_validation: IntentValidation::FailOpen,
-    }
+    #[serde(default = "default_cloud_permissions")]
+    pub cloud_permissions: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -445,6 +451,26 @@ impl DataGovernanceConfig {
             .find(|p| p.data_type == data_type)
             .cloned()
     }
+}
+
+fn default_ripple_features() -> RippleFeatures {
+    RippleFeatures {
+        privacy_settings_storage_type: default_privacy_settings_storage_type(),
+        intent_validation: default_intent_validation(),
+        cloud_permissions: default_cloud_permissions(),
+    }
+}
+
+fn default_intent_validation() -> IntentValidation {
+    IntentValidation::FailOpen
+}
+
+fn default_privacy_settings_storage_type() -> PrivacySettingsStorageType {
+    PrivacySettingsStorageType::Local
+}
+
+fn default_cloud_permissions() -> bool {
+    true
 }
 
 pub fn default_enforcement_value() -> bool {
@@ -559,6 +585,11 @@ impl DeviceManifest {
     pub fn get_grant_policies(&self) -> Option<HashMap<String, GrantPolicies>> {
         self.clone().capabilities.grant_policies
     }
+
+    pub fn get_grant_exclusion_filters(&self) -> Vec<GrantExclusionFilter> {
+        self.clone().capabilities.grant_exclusion_filters
+    }
+
     pub fn get_distributor_experience_id(&self) -> String {
         self.configuration.distributor_experience_id.clone()
     }
@@ -573,5 +604,46 @@ impl DeviceManifest {
 
     pub fn get_model_friendly_names(&self) -> HashMap<String, String> {
         self.configuration.model_friendly_names.clone()
+    }
+
+    pub fn get_lifecycle_configuration(&self) -> LifecycleConfiguration {
+        self.lifecycle.clone()
+    }
+
+    pub fn get_applications_configuration(&self) -> ApplicationsConfiguration {
+        self.applications.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn check_default_features() {
+        if let Ok(v) = serde_json::from_str::<RippleFeatures>("{}") {
+            assert!(matches!(v.intent_validation, IntentValidation::FailOpen));
+            assert!(matches!(
+                v.privacy_settings_storage_type,
+                PrivacySettingsStorageType::Local
+            ));
+        }
+
+        if let Ok(v) =
+            serde_json::from_str::<RippleFeatures>("{\"privacy_settings_storage_type\": \"sync\"}")
+        {
+            assert!(matches!(v.intent_validation, IntentValidation::FailOpen));
+            assert!(matches!(
+                v.privacy_settings_storage_type,
+                PrivacySettingsStorageType::Sync
+            ));
+        }
+
+        if let Ok(v) = serde_json::from_str::<RippleFeatures>("{\"intent_validation\": \"fail\"}") {
+            assert!(matches!(v.intent_validation, IntentValidation::Fail));
+            assert!(matches!(
+                v.privacy_settings_storage_type,
+                PrivacySettingsStorageType::Local
+            ));
+        }
     }
 }

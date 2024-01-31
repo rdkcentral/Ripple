@@ -17,6 +17,7 @@
 
 pub mod channel_utils;
 pub mod error;
+pub mod extn_utils;
 pub mod logger;
 pub mod rpc_utils;
 pub mod serde_utils;

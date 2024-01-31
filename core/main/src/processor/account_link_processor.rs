@@ -17,7 +17,7 @@
 
 use ripple_sdk::{
     api::{
-        account_link::AccountLinkRequest,
+        account_link::{AccountLinkRequest, WatchedRequest},
         apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
         distributor::{
             distributor_discovery::{DiscoveryRequest, MediaEventRequest},
@@ -26,8 +26,7 @@ use ripple_sdk::{
         firebolt::fb_discovery::{
             ClearContentSetParams, ContentAccessAvailability, ContentAccessEntitlement,
             ContentAccessInfo, ContentAccessListSetParams, ContentAccessRequest, MediaEvent,
-            MediaEventsAccountLinkRequestParams, ProgressUnit, SessionParams, SignInRequestParams,
-            WatchNextInfo, WatchedInfo,
+            MediaEventsAccountLinkRequestParams, SessionParams, SignInRequestParams,
         },
         gateway::rpc_gateway_api::CallContext,
     },
@@ -73,6 +72,12 @@ impl AccountLinkProcessor {
         ctx: CallContext,
         is_signed_in: bool,
     ) -> bool {
+        if state.session_state.get_account_session().is_none() {
+            error!("No account session found");
+            return false;
+        }
+
+        // safe to unwrap as we have checked for None above
         let session = state.session_state.get_account_session().unwrap();
 
         let payload = DiscoveryRequest::SignIn(SignInRequestParams {
@@ -111,6 +116,11 @@ impl AccountLinkProcessor {
         ctx: CallContext,
         request: ContentAccessRequest,
     ) -> bool {
+        if state.session_state.get_account_session().is_none() {
+            error!("No account session found");
+            return false;
+        }
+        // safe to unwrap as we have checked for None above
         let session = state.session_state.get_account_session().unwrap();
 
         // If both entitlement & availability are None return EmptyResult
@@ -181,6 +191,11 @@ impl AccountLinkProcessor {
         msg: ExtnMessage,
         ctx: CallContext,
     ) -> bool {
+        if state.session_state.get_account_session().is_none() {
+            error!("No account session found");
+            return false;
+        }
+        // safe to unwrap as we have checked for None above
         let session = state.session_state.get_account_session().unwrap();
 
         let payload = DiscoveryRequest::ClearContent(ClearContentSetParams {
@@ -234,27 +249,9 @@ impl AccountLinkProcessor {
         Ok(content_partner_id)
     }
 
-    async fn watch_next(
-        state: &PlatformState,
-        msg: ExtnMessage,
-        ctx: CallContext,
-        watch_next: WatchNextInfo,
-    ) -> bool {
-        let watched_info = WatchedInfo {
-            entity_id: watch_next.identifiers.entity_id.unwrap(),
-            progress: 1.0,
-            completed: Some(false),
-            watched_on: None,
-        };
-        Self::watched(state, msg, ctx, watched_info).await
-    }
-
-    async fn watched(
-        state: &PlatformState,
-        msg: ExtnMessage,
-        ctx: CallContext,
-        watched_info: WatchedInfo,
-    ) -> bool {
+    async fn watched(state: &PlatformState, msg: ExtnMessage, request: WatchedRequest) -> bool {
+        let watched_info = request.info;
+        let ctx = request.context;
         let (data_tags, drop_data) =
             DataGovernance::resolve_tags(state, ctx.app_id.clone(), DataEventType::Watched).await;
         debug!("drop_all={:?} data_tags={:?}", drop_data, data_tags);
@@ -267,23 +264,15 @@ impl AccountLinkProcessor {
             .await
             .is_ok();
         }
-        let progress = watched_info.progress;
+
         if let Some(dist_session) = state.session_state.get_account_session() {
             let request =
                 MediaEventRequest::MediaEventAccountLink(MediaEventsAccountLinkRequestParams {
                     media_event: MediaEvent {
                         content_id: watched_info.entity_id.to_owned(),
                         completed: watched_info.completed.unwrap_or(true),
-                        progress: if progress > 1.0 {
-                            progress
-                        } else {
-                            progress * 100.0
-                        },
-                        progress_unit: if progress > 1.0 {
-                            ProgressUnit::Seconds
-                        } else {
-                            ProgressUnit::Percent
-                        },
+                        progress: watched_info.progress,
+                        progress_unit: request.unit.clone(),
                         watched_on: watched_info.watched_on.clone(),
                         app_id: ctx.app_id.to_owned(),
                     },
@@ -354,12 +343,7 @@ impl ExtnRequestProcessor for AccountLinkProcessor {
             AccountLinkRequest::ClearContentAccess(ctx) => {
                 Self::clear_content_access(&state, msg, ctx).await
             }
-            AccountLinkRequest::Watched(ctx, request) => {
-                Self::watched(&state, msg, ctx, request).await
-            }
-            AccountLinkRequest::WatchedNext(ctx, watch_next) => {
-                Self::watch_next(&state, msg, ctx, *watch_next).await
-            }
+            AccountLinkRequest::Watched(request) => Self::watched(&state, msg, request).await,
         }
     }
 }

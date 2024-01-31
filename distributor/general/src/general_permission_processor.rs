@@ -100,7 +100,7 @@ impl ExtnRequestProcessor for DistributorPermissionProcessor {
         self.state.client.clone()
     }
     async fn process_request(
-        state: Self::STATE,
+        mut state: Self::STATE,
         msg: ripple_sdk::extn::extn_client_message::ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
@@ -111,7 +111,6 @@ impl ExtnRequestProcessor for DistributorPermissionProcessor {
             );
             if let Err(e) = state
                 .client
-                .clone()
                 .respond(msg, ExtnResponse::Permission(v.clone()))
                 .await
             {
@@ -142,7 +141,7 @@ mod tests {
         let v = get_permissions_map();
         assert!(!v.is_empty());
         assert!(!v.get("refui").unwrap().is_empty());
-        let permission = v.get("refui").unwrap().get(0).unwrap().clone();
+        let permission = v.get("refui").unwrap().get(1).unwrap().clone();
         println!("permission {}", permission.cap.as_str());
         assert!(FireboltCap::short("input:keyboard").eq(&permission.cap))
     }

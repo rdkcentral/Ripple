@@ -22,7 +22,7 @@ use crate::{
 };
 
 use super::{
-    firebolt::fb_discovery::{ContentAccessRequest, WatchNextInfo, WatchedInfo},
+    firebolt::fb_discovery::{ContentAccessRequest, ProgressUnit, WatchedInfo},
     gateway::rpc_gateway_api::CallContext,
 };
 
@@ -33,9 +33,15 @@ pub enum AccountLinkRequest {
     SignOut(CallContext),
     ContentAccess(CallContext, ContentAccessRequest),
     ClearContentAccess(CallContext),
-    Watched(CallContext, WatchedInfo),
-    // TODO: assess if boxing this is a productive move: https://rust-lang.github.io/rust-clippy/master/index.html#/large_enum_variant
-    WatchedNext(CallContext, Box<WatchNextInfo>),
+    Watched(WatchedRequest),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchedRequest {
+    pub context: CallContext,
+    pub info: WatchedInfo,
+    pub unit: Option<ProgressUnit>,
 }
 
 impl ExtnPayloadProvider for AccountLinkRequest {

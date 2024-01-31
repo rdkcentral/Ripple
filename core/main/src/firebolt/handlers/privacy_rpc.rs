@@ -16,6 +16,7 @@
 //
 
 use crate::processor::storage::storage_manager::StorageManager;
+use crate::service::apps::app_events::AppEventDecorator;
 use crate::{
     firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManagerError,
     service::apps::app_events::AppEvents, state::platform_state::PlatformState,
@@ -58,6 +59,7 @@ use ripple_sdk::{
 
 use std::collections::HashMap;
 
+use super::advertising_rpc::ScopeOption;
 use super::capabilities_rpc::is_granted;
 
 pub const US_PRIVACY_KEY: &str = "us_privacy";
@@ -70,10 +72,10 @@ struct AllowAppContentAdTargetingSettings {
 }
 
 impl AllowAppContentAdTargetingSettings {
-    pub fn new(limit_ad_targeting: bool) -> Self {
-        let (lmt, us_privacy) = match limit_ad_targeting {
-            true => ("1", "1-Y-"),
-            false => ("0", "1-N-"),
+    pub fn new(allow_app_content_ad_targeting: bool) -> Self {
+        let (lmt, us_privacy) = match allow_app_content_ad_targeting {
+            true => ("0", "1-N-"),
+            false => ("1", "1-Y-"),
         };
         AllowAppContentAdTargetingSettings {
             lmt: lmt.to_owned(),
@@ -273,9 +275,26 @@ pub trait Privacy {
 
 pub async fn get_allow_app_content_ad_targeting_settings(
     platform_state: &PlatformState,
+    scope_option: Option<&ScopeOption>,
+    caller_app: &String,
 ) -> HashMap<String, String> {
-    let data = StorageProperty::AllowAppContentAdTargeting.as_data();
-
+    let mut data = StorageProperty::AllowAppContentAdTargeting.as_data();
+    if let Some(scope_opt) = scope_option {
+        if let Some(scope) = &scope_opt.scope {
+            let primary_app = platform_state
+                .get_device_manifest()
+                .applications
+                .defaults
+                .main;
+            if primary_app == *caller_app.to_string() {
+                if scope._type.as_string() == "browse" {
+                    data = StorageProperty::AllowPrimaryBrowseAdTargeting.as_data();
+                } else if scope._type.as_string() == "content" {
+                    data = StorageProperty::AllowPrimaryContentAdTargeting.as_data();
+                }
+            }
+        }
+    }
     match StorageManager::get_bool_from_namespace(
         platform_state,
         data.namespace.to_string(),
@@ -298,33 +317,56 @@ pub struct PrivacyImpl {
 }
 
 impl PrivacyImpl {
+    pub fn listen_content_policy_changed(
+        state: &PlatformState,
+        listen: bool,
+        ctx: &CallContext,
+        event_name: &'static str,
+        request: Option<ContentListenRequest>,
+        dec: Option<Box<dyn AppEventDecorator + Send + Sync>>,
+    ) -> RpcResult<ListenerResponse> {
+        let event_context = if let Some(content_request) = request {
+            //TODO: Check config for storage type? Are we supporting listeners for cloud settings?
+            content_request.app_id.map(|x| {
+                json!({
+                    "appId": x,
+                })
+            })
+        } else {
+            Some(json!({
+                "appId": ctx.app_id.to_owned(),
+            }))
+        };
+
+        AppEvents::add_listener_with_context_and_decorator(
+            state,
+            event_name.to_owned(),
+            ctx.clone(),
+            ListenRequest { listen },
+            event_context,
+            dec,
+        );
+
+        Ok(ListenerResponse {
+            listening: listen,
+            event: event_name.into(),
+        })
+    }
+
     async fn on_content_policy_changed(
         &self,
         ctx: CallContext,
         event_name: &'static str,
         request: ContentListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        //TODO: Check config for storage type? Are we supporting listeners for cloud settings?
-        let event_context = request.app_id.map(|x| {
-            json!({
-                "appId": x,
-            })
-        });
-
-        AppEvents::add_listener_with_context(
+        Self::listen_content_policy_changed(
             &self.state,
-            event_name.to_owned(),
-            ctx,
-            ListenRequest {
-                listen: request.listen,
-            },
-            event_context,
-        );
-
-        Ok(ListenerResponse {
-            listening: request.listen,
-            event: event_name.into(),
-        })
+            request.listen,
+            &ctx,
+            event_name,
+            Some(request),
+            None,
+        )
     }
 
     pub async fn get_allow_app_content_ad_targeting(state: &PlatformState) -> bool {
@@ -489,19 +531,24 @@ impl PrivacyImpl {
                 }
             }
             PrivacySettingsStorageType::Cloud => {
-                let dist_session = platform_state.session_state.get_account_session().unwrap();
-                let request = PrivacyCloudRequest::GetProperty(GetPropertyParams {
-                    setting: property.as_privacy_setting().unwrap(),
-                    dist_session,
-                });
-                if let Ok(resp) = platform_state.get_client().send_extn_request(request).await {
-                    if let Some(ExtnResponse::Boolean(b)) = resp.payload.extract() {
-                        return Ok(b);
+                if let Some(dist_session) = platform_state.session_state.get_account_session() {
+                    let request = PrivacyCloudRequest::GetProperty(GetPropertyParams {
+                        setting: property.as_privacy_setting().unwrap(),
+                        dist_session,
+                    });
+                    if let Ok(resp) = platform_state.get_client().send_extn_request(request).await {
+                        if let Some(ExtnResponse::Boolean(b)) = resp.payload.extract() {
+                            return Ok(b);
+                        }
                     }
+                    Err(jsonrpsee::core::Error::Custom(String::from(
+                        "PrivacySettingsStorageType::Cloud: Not Available",
+                    )))
+                } else {
+                    Err(jsonrpsee::core::Error::Custom(String::from(
+                        "Account session is not available",
+                    )))
                 }
-                Err(jsonrpsee::core::Error::Custom(String::from(
-                    "PrivacySettingsStorageType::Cloud: Not Available",
-                )))
             }
         }
     }
@@ -982,16 +1029,21 @@ impl PrivacyServer for PrivacyImpl {
                 self.get_settings_local().await
             }
             PrivacySettingsStorageType::Cloud => {
-                let dist_session = self.state.session_state.get_account_session().unwrap();
-                let request = PrivacyCloudRequest::GetProperties(dist_session);
-                if let Ok(resp) = self.state.get_client().send_extn_request(request).await {
-                    if let Some(b) = resp.payload.extract() {
-                        return Ok(b);
+                if let Some(dist_session) = self.state.session_state.get_account_session() {
+                    let request = PrivacyCloudRequest::GetProperties(dist_session);
+                    if let Ok(resp) = self.state.get_client().send_extn_request(request).await {
+                        if let Some(b) = resp.payload.extract() {
+                            return Ok(b);
+                        }
                     }
+                    Err(jsonrpsee::core::Error::Custom(String::from(
+                        "PrivacySettingsStorageType::Cloud: Not Available",
+                    )))
+                } else {
+                    Err(jsonrpsee::core::Error::Custom(String::from(
+                        "Account session is not available",
+                    )))
                 }
-                Err(jsonrpsee::core::Error::Custom(String::from(
-                    "PrivacySettingsStorageType::Cloud: Not Available",
-                )))
             }
         }
     }

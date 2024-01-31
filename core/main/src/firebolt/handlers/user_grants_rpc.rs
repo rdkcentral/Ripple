@@ -214,60 +214,54 @@ impl UserGrantsServer for UserGrantsImpl {
     }
 
     async fn usergrants_grant(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
-        let result = GrantState::grant_modify(
+        let result = GrantState::update_grant_as_per_policy(
             &self.platform_state,
             GrantStateModify::Grant,
-            request.options.and_then(|x| x.app_id),
+            &request.options.and_then(|x| x.app_id),
             request.role,
             request.capability,
         )
         .await;
 
-        if result {
-            Ok(())
-        } else {
-            Err(rpc_err("Unable to grant the capability"))
-        }
+        result.map_err(rpc_err)
     }
 
     async fn usergrants_deny(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
-        let result = GrantState::grant_modify(
+        let result = GrantState::update_grant_as_per_policy(
             &self.platform_state,
             GrantStateModify::Deny,
-            request.options.and_then(|x| x.app_id),
+            &request.options.and_then(|x| x.app_id),
             request.role,
             request.capability,
         )
         .await;
 
-        if result {
-            Ok(())
-        } else {
-            Err(rpc_err("Unable to deny the capability"))
-        }
+        result.map_err(rpc_err)
     }
 
     async fn usergrants_clear(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
-        let result = GrantState::grant_modify(
+        let result = GrantState::update_grant_as_per_policy(
             &self.platform_state,
             GrantStateModify::Clear,
-            request.options.and_then(|x| x.app_id),
+            &request.options.and_then(|x| x.app_id),
             request.role,
             request.capability,
         )
         .await;
 
-        if result {
-            Ok(())
-        } else {
-            Err(rpc_err("Unable to clear the capability"))
-        }
+        result.map_err(rpc_err)
     }
     async fn usergrants_request(
         &self,
         ctx: CallContext,
         request: UserGrantRequestParam,
     ) -> RpcResult<Vec<GrantInfo>> {
+        let force = request
+            .options
+            .as_ref()
+            .map(|x| x.force)
+            .unwrap_or_default();
+
         let fb_perms: Vec<FireboltPermission> = request.clone().into();
         self.platform_state
             .cap_state
@@ -282,6 +276,8 @@ impl UserGrantsServer for UserGrantsImpl {
             },
             &fb_perms,
             false,
+            true,
+            force,
         )
         .await;
         debug!("Check with roles result: {:?}", grant_entries);

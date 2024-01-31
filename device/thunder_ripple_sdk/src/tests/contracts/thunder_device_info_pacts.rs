@@ -22,7 +22,7 @@ use crate::{
     client::thunder_client_pool::ThunderClientPool,
     get_pact_with_params,
     ripple_sdk::{
-        crossbeam::channel::unbounded,
+        async_channel::unbounded,
         extn::extn_client_message::{ExtnPayload, ExtnRequest},
     },
     thunder_state::ThunderState,
@@ -595,7 +595,7 @@ async fn test_device_get_video_resolution() {
 
     let mut result = HashMap::new();
     result.insert(
-        "defaultResolution".into(),
+        "currentResolution".into(),
         ContractMatcher::MatchType("1080p".into()),
     );
     result.insert("success".into(), ContractMatcher::MatchBool(true));
@@ -604,7 +604,7 @@ async fn test_device_get_video_resolution() {
             "A request to get the device video resolution",
             |mut i| async move {
                 i.contents_from(get_pact!(
-                    "org.rdk.DisplaySettings.1.getDefaultResolution",
+                    "org.rdk.DisplaySettings.1.getCurrentResolution",
                     ContractResult { result }
                 ))
                 .await;

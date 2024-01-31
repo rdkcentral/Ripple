@@ -23,7 +23,7 @@ use crate::{
 };
 
 use super::{
-    distributor::distributor_privacy::PrivacySetting,
+    distributor::distributor_privacy::{PrivacySetting, PrivacySettingsData},
     firebolt::fb_discovery::EVENT_DISCOVERY_POLICY_CHANGED,
 };
 
@@ -48,7 +48,6 @@ pub const KEY_WINDOW_COLOR: &str = "windowColor";
 pub const KEY_WINDOW_OPACITY: &str = "windowOpacity";
 pub const KEY_TEXT_ALIGN: &str = "textAlign";
 pub const KEY_TEXT_ALIGN_VERTICAL: &str = "textAlignVertical";
-pub const KEY_LIMIT_AD_TRACKING: &str = "limitAdTracking";
 pub const KEY_NAME: &str = "name";
 pub const KEY_POSTAL_CODE: &str = "postalCode";
 pub const KEY_LOCALITY: &str = "locality";
@@ -57,9 +56,6 @@ pub const KEY_LANGUAGE: &str = "language";
 pub const KEY_LOCALE: &str = "locale";
 pub const KEY_LATLON: &str = "latlon";
 pub const KEY_ADDITIONAL_INFO: &str = "additionalInfo";
-pub const KEY_ENABLE_RECOMMENDATIONS: &str = "enableRecommendations";
-pub const KEY_REMEMBER_WATCHED_PROGRAMS: &str = "rememberWatchedPrograms";
-pub const KEY_SHARE_WATCH_HISTORY: &str = "shareWatchHistory";
 pub const KEY_USER_GRANT: &str = "userGrantKey";
 pub const KEY_ALLOW_ACR_COLLECTION: &str = "allowACRCollection";
 pub const KEY_ALLOW_APP_CONTENT_AD_TARGETING: &str = "allowAppContentAdTargetting";
@@ -104,9 +100,6 @@ pub const EVENT_POSTAL_CODE: &str = "localization.onPostalCodeChanged";
 pub const EVENT_LOCALE: &str = "localization.onLocaleChanged";
 pub const EVENT_LATLON: &str = "localization.onLatlonChanged";
 pub const EVENT_ADDITIONAL_INFO: &str = "localization.onAdditionalInfoChanged";
-pub const EVENT_ENABLE_RECOMMENDATIONS: &str = "privacy.onEnableRecommendationsChanged";
-pub const EVENT_LIMIT_AD_TRACKING: &str = "privacy.onLimitAdTrackingChanged";
-pub const EVENT_REMEMBER_WATCHED_PROGRAMS: &str = "privacy.onRememberWatchedProgramsChanged";
 pub const EVENT_SHARE_WATCH_HISTORY: &str = "privacy.onShareWatchHistoryChanged";
 pub const EVENT_ALLOW_ACR_COLLECTION_CHANGED: &str = "privacy.onAllowACRCollectionChanged";
 pub const EVENT_ALLOW_APP_CONTENT_AD_TARGETING_CHANGED: &str =
@@ -297,33 +290,6 @@ const PROPERTY_DATA_ADDITIONAL_INFO: PropertyData = PropertyData {
     event_names: Some(&[EVENT_ADDITIONAL_INFO]),
 };
 
-const PROPERTY_DATA_ENABLE_RECOMMENDATIONS: PropertyData = PropertyData {
-    key: KEY_ENABLE_RECOMMENDATIONS,
-    namespace: NAMESPACE_PRIVACY,
-    event_names: Some(&[EVENT_ENABLE_RECOMMENDATIONS]),
-};
-
-const PROPERTY_DATA_LIMIT_AD_TRACKING: PropertyData = PropertyData {
-    key: KEY_LIMIT_AD_TRACKING,
-    namespace: NAMESPACE_PRIVACY,
-    event_names: Some(&[EVENT_LIMIT_AD_TRACKING, EVENT_ADVERTISING_POLICY_CHANGED]),
-};
-
-const PROPERTY_DATA_REMEMBER_WATCHED_PROGRAMS: PropertyData = PropertyData {
-    key: KEY_REMEMBER_WATCHED_PROGRAMS,
-    namespace: NAMESPACE_PRIVACY,
-    event_names: Some(&[
-        EVENT_DISCOVERY_POLICY_CHANGED,
-        EVENT_REMEMBER_WATCHED_PROGRAMS,
-    ]),
-};
-
-const PROPERTY_DATA_SHARE_WATCH_HISTORY: PropertyData = PropertyData {
-    key: KEY_SHARE_WATCH_HISTORY,
-    namespace: NAMESPACE_PRIVACY,
-    event_names: Some(&[EVENT_DISCOVERY_POLICY_CHANGED, EVENT_SHARE_WATCH_HISTORY]),
-};
-
 const PROPERTY_DATA_DEVICE_NAME: PropertyData = PropertyData {
     key: KEY_NAME,
     namespace: NAMESPACE_DEVICE_NAME,
@@ -348,7 +314,10 @@ const PROPERTY_DATA_ALLOW_ACR_COLLECTION: PropertyData = PropertyData {
 const PROPERTY_DATA_ALLOW_APP_CONTENT_AD_TARGETING: PropertyData = PropertyData {
     key: KEY_ALLOW_APP_CONTENT_AD_TARGETING,
     namespace: NAMESPACE_PRIVACY,
-    event_names: Some(&[EVENT_ALLOW_APP_CONTENT_AD_TARGETING_CHANGED]),
+    event_names: Some(&[
+        EVENT_ADVERTISING_POLICY_CHANGED,
+        EVENT_ALLOW_APP_CONTENT_AD_TARGETING_CHANGED,
+    ]),
 };
 
 const PROPERTY_DATA_ALLOW_BUSINESS_ANALYTICS: PropertyData = PropertyData {
@@ -486,10 +455,6 @@ pub enum StorageProperty {
     Locale,
     LatLon,
     AdditionalInfo,
-    EnableRecommendations,
-    LimitAdTracking,
-    RemeberWatchedPrograms,
-    ShareWatchHistory,
     DeviceName,
     UserGrants,
     AllowAcrCollection,
@@ -549,10 +514,6 @@ impl StorageProperty {
             StorageProperty::Locale => PROPERTY_DATA_LOCALE,
             StorageProperty::LatLon => PROPERTY_DATA_LATLON,
             StorageProperty::AdditionalInfo => PROPERTY_DATA_ADDITIONAL_INFO,
-            StorageProperty::EnableRecommendations => PROPERTY_DATA_ENABLE_RECOMMENDATIONS,
-            StorageProperty::LimitAdTracking => PROPERTY_DATA_LIMIT_AD_TRACKING,
-            StorageProperty::RemeberWatchedPrograms => PROPERTY_DATA_REMEMBER_WATCHED_PROGRAMS,
-            StorageProperty::ShareWatchHistory => PROPERTY_DATA_SHARE_WATCH_HISTORY,
             StorageProperty::DeviceName => PROPERTY_DATA_DEVICE_NAME,
             StorageProperty::UserGrants => PROPERTY_DATA_USER_GRANT,
             StorageProperty::AllowAcrCollection => PROPERTY_DATA_ALLOW_ACR_COLLECTION,
@@ -612,6 +573,83 @@ impl StorageProperty {
             StorageProperty::AllowWatchHistory => Some(PrivacySetting::WatchHistory),
             _ => None,
         }
+    }
+
+    pub fn get_privacy_setting_value(&self, settings: &PrivacySettingsData) -> Option<bool> {
+        match self {
+            StorageProperty::AllowAcrCollection => settings.allow_acr_collection,
+            StorageProperty::AllowResumePoints => settings.allow_resume_points,
+            StorageProperty::AllowAppContentAdTargeting => settings.allow_app_content_ad_targeting,
+            StorageProperty::AllowBusinessAnalytics => settings.allow_business_analytics,
+            StorageProperty::AllowCameraAnalytics => settings.allow_camera_analytics,
+            StorageProperty::AllowPersonalization => settings.allow_personalization,
+            StorageProperty::AllowPrimaryBrowseAdTargeting => {
+                settings.allow_primary_browse_ad_targeting
+            }
+            StorageProperty::AllowPrimaryContentAdTargeting => {
+                settings.allow_primary_content_ad_targeting
+            }
+            StorageProperty::AllowProductAnalytics => settings.allow_product_analytics,
+            StorageProperty::AllowRemoteDiagnostics => settings.allow_remote_diagnostics,
+            StorageProperty::AllowUnentitledPersonalization => {
+                settings.allow_unentitled_personalization
+            }
+            StorageProperty::AllowUnentitledResumePoints => settings.allow_unentitled_resume_points,
+            StorageProperty::AllowWatchHistory => settings.allow_watch_history,
+            _ => None,
+        }
+    }
+    pub fn set_privacy_setting_value(&self, settings: &mut PrivacySettingsData, value: bool) {
+        match self {
+            StorageProperty::AllowAcrCollection => settings.allow_acr_collection = Some(value),
+            StorageProperty::AllowResumePoints => settings.allow_resume_points = Some(value),
+            StorageProperty::AllowAppContentAdTargeting => {
+                settings.allow_app_content_ad_targeting = Some(value)
+            }
+            StorageProperty::AllowBusinessAnalytics => {
+                settings.allow_business_analytics = Some(value)
+            }
+            StorageProperty::AllowCameraAnalytics => settings.allow_camera_analytics = Some(value),
+            StorageProperty::AllowPersonalization => settings.allow_personalization = Some(value),
+            StorageProperty::AllowPrimaryBrowseAdTargeting => {
+                settings.allow_primary_browse_ad_targeting = Some(value)
+            }
+            StorageProperty::AllowPrimaryContentAdTargeting => {
+                settings.allow_primary_content_ad_targeting = Some(value)
+            }
+            StorageProperty::AllowProductAnalytics => {
+                settings.allow_product_analytics = Some(value)
+            }
+            StorageProperty::AllowRemoteDiagnostics => {
+                settings.allow_remote_diagnostics = Some(value)
+            }
+            StorageProperty::AllowUnentitledPersonalization => {
+                settings.allow_unentitled_personalization = Some(value)
+            }
+            StorageProperty::AllowUnentitledResumePoints => {
+                settings.allow_unentitled_resume_points = Some(value)
+            }
+            StorageProperty::AllowWatchHistory => settings.allow_watch_history = Some(value),
+            _ => {}
+        }
+    }
+    pub fn is_a_privacy_setting_property(&self) -> bool {
+        matches!(
+            self,
+            StorageProperty::AllowAcrCollection
+                | StorageProperty::AllowResumePoints
+                | StorageProperty::AllowAppContentAdTargeting
+                | StorageProperty::AllowBusinessAnalytics
+                | StorageProperty::AllowCameraAnalytics
+                | StorageProperty::AllowPersonalization
+                | StorageProperty::AllowPrimaryBrowseAdTargeting
+                | StorageProperty::AllowPrimaryContentAdTargeting
+                | StorageProperty::AllowProductAnalytics
+                | StorageProperty::AllowRemoteDiagnostics
+                | StorageProperty::AllowUnentitledPersonalization
+                | StorageProperty::AllowUnentitledResumePoints
+                | StorageProperty::AllowWatchHistory
+        )
     }
 }
 

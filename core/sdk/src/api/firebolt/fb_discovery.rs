@@ -118,6 +118,7 @@ pub struct WatchedInfo {
     )]
     pub watched_on: Option<String>,
 }
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct WatchNextInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -322,7 +323,7 @@ pub struct MediaEvent {
     pub content_id: String,
     pub completed: bool,
     pub progress: f32,
-    pub progress_unit: ProgressUnit,
+    pub progress_unit: Option<ProgressUnit>,
     pub watched_on: Option<String>,
     pub app_id: String,
 }

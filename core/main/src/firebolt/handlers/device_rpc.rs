@@ -28,7 +28,6 @@ use crate::{
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
-    types::error::CallError,
     RpcModule,
 };
 use ripple_sdk::{
@@ -48,7 +47,6 @@ use ripple_sdk::{
         },
         distributor::distributor_encoder::EncoderRequest,
         firebolt::{
-            fb_capabilities::{FireboltCap, CAPABILITY_NOT_AVAILABLE},
             fb_general::{ListenRequest, ListenerResponse},
             fb_openrpc::FireboltSemanticVersion,
         },
@@ -306,7 +304,7 @@ impl DeviceServer for DeviceImpl {
     }
 
     async fn uid(&self, ctx: CallContext) -> RpcResult<String> {
-        get_uid(&self.state, ctx.app_id.clone()).await
+        get_uid(&self.state, ctx.app_id).await
     }
 
     async fn platform(&self, _ctx: CallContext) -> RpcResult<String> {
@@ -322,7 +320,7 @@ impl DeviceServer for DeviceImpl {
         );
         os.readable = format!("Firebolt OS v{}", env!("CARGO_PKG_VERSION"));
 
-        let firmware = self.firmware_info(ctx.clone()).await?;
+        let firmware = self.firmware_info(ctx).await?;
 
         let open_rpc_state = self.state.clone().open_rpc_state;
         let api = open_rpc_state.get_open_rpc().info;
@@ -736,18 +734,12 @@ impl DeviceServer for DeviceImpl {
     }
 
     async fn distributor(&self, _ctx: CallContext) -> RpcResult<String> {
-        let sess = self.state.session_state.get_account_session().unwrap();
-
-        match Some(sess.id) {
-            Some(resp) => Ok(resp),
-            None => Err(jsonrpsee::core::Error::Call(CallError::Custom {
-                code: CAPABILITY_NOT_AVAILABLE,
-                message: format!(
-                    "{} is not available",
-                    FireboltCap::Short(String::from("device:distributor")).as_str()
-                ),
-                data: None,
-            })),
+        if let Some(session) = self.state.session_state.get_account_session() {
+            Ok(session.id)
+        } else {
+            Err(jsonrpsee::core::Error::Custom(String::from(
+                "Account session is not available",
+            )))
         }
     }
 }

@@ -19,12 +19,13 @@ use crate::{
     firebolt::rpc::RippleRPCProvider,
     service::apps::app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
     state::platform_state::PlatformState,
-    utils::rpc_utils::{rpc_add_event_listener, rpc_err},
+    utils::rpc_utils::rpc_add_event_listener,
 };
 
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
+    types::error::CallError,
     RpcModule,
 };
 
@@ -40,7 +41,10 @@ use ripple_sdk::{
             device_info_request::DeviceInfoRequest,
             device_peristence::{SetBoolProperty, SetF32Property},
         },
-        firebolt::fb_general::{ListenRequest, ListenerResponse},
+        firebolt::{
+            fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+            fb_general::{ListenRequest, ListenerResponse},
+        },
         gateway::rpc_gateway_api::CallContext,
     },
     extn::extn_client_message::ExtnResponse,
@@ -162,6 +166,7 @@ pub async fn voice_guidance_settings_enabled_changed(
     platform_state: &PlatformState,
     ctx: &CallContext,
     request: &ListenRequest,
+    dec: Option<Box<dyn AppEventDecorator + Send + Sync>>,
 ) -> RpcResult<ListenerResponse> {
     let listen = request.listen;
     // Register for individual change events (no-op if already registered), handlers emit VOICE_GUIDANCE_SETTINGS_CHANGED_EVENT.
@@ -185,7 +190,7 @@ pub async fn voice_guidance_settings_enabled_changed(
         VOICE_GUIDANCE_ENABLED_CHANGED.to_string(),
         ctx.clone(),
         request.clone(),
-        Some(Box::new(VGEnabledEventDecorator {})),
+        dec,
     );
 
     Ok(ListenerResponse {
@@ -255,8 +260,13 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        voice_guidance_settings_enabled_changed(&self.state.clone(), &ctx.clone(), &request.clone())
-            .await
+        voice_guidance_settings_enabled_changed(
+            &self.state,
+            &ctx,
+            &request,
+            Some(Box::new(VGEnabledEventDecorator {})),
+        )
+        .await
     }
 
     async fn voice_guidance_settings_speed_rpc(&self, _ctx: CallContext) -> RpcResult<f32> {
@@ -301,7 +311,11 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
                 )))
             }
         } else {
-            Err(rpc_err("Invalid Value for set speed".to_owned()))
+            Err(jsonrpsee::core::Error::Call(CallError::Custom {
+                code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+                message: "Invalid Value for set speed".to_owned(),
+                data: None,
+            }))
         }
     }
 

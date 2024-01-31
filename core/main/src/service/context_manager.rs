@@ -21,9 +21,12 @@ use ripple_sdk::api::device::device_events::{
     DeviceEvent, DeviceEventCallback, DeviceEventRequest,
 };
 use ripple_sdk::api::device::device_info_request::{DeviceInfoRequest, DeviceResponse};
-use ripple_sdk::api::device::device_request::{OnInternetConnectedRequest, SystemPowerState};
-use ripple_sdk::api::session::AccountSessionRequest;
-use ripple_sdk::log::warn;
+use ripple_sdk::api::device::device_request::{
+    OnInternetConnectedRequest, SystemPowerState, TimeZone,
+};
+use ripple_sdk::api::session::{AccountSessionRequest, AccountSessionResponse};
+use ripple_sdk::extn::extn_client_message::ExtnResponse;
+use ripple_sdk::log::{error, warn};
 use ripple_sdk::tokio;
 
 pub struct ContextManager;
@@ -71,6 +74,20 @@ impl ContextManager {
             warn!("No processor to set System power status listener")
         }
 
+        // Setup the TimeZoneChanged status listener
+        if ps
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::TimeZoneChanged,
+                subscribe: true,
+                callback_type: DeviceEventCallback::ExtnEvent,
+            })
+            .await
+            .is_err()
+        {
+            warn!("No processor to set TimeZoneChanged status listener")
+        }
+
         let ps_c = ps.clone();
 
         // Asynchronously get context and update the state
@@ -107,6 +124,63 @@ impl ContextManager {
                     ps_c.get_client()
                         .get_extn_client()
                         .context_update(RippleContextUpdateRequest::InternetStatus(s));
+                }
+            }
+
+            // Get Initial TimeZone
+            if let Ok(resp) = ps_c
+                .get_client()
+                .send_extn_request(DeviceInfoRequest::GetTimezoneWithOffset)
+                .await
+            {
+                if let Some(ExtnResponse::TimezoneWithOffset(tz, offset)) =
+                    resp.payload.extract::<ExtnResponse>()
+                {
+                    ps_c.get_client().get_extn_client().context_update(
+                        RippleContextUpdateRequest::TimeZone(TimeZone {
+                            time_zone: tz,
+                            offset,
+                        }),
+                    );
+                }
+            }
+
+            // Get Account session
+            if let Ok(resp) = ps_c
+                .get_client()
+                .send_extn_request(AccountSessionRequest::GetAccessToken)
+                .await
+            {
+                if let Some(ExtnResponse::AccountSession(
+                    AccountSessionResponse::AccountSessionToken(account_token),
+                )) = resp.payload.extract::<ExtnResponse>()
+                {
+                    ps_c.get_client()
+                        .get_extn_client()
+                        .context_update(RippleContextUpdateRequest::Token(account_token));
+                }
+            }
+        });
+    }
+
+    // Update the Context with session information during startup
+    pub fn update_context_for_session(state_c: PlatformState) {
+        // update ripple context for token asynchronously
+        tokio::spawn(async move {
+            if let Ok(response) = state_c
+                .get_client()
+                .send_extn_request(AccountSessionRequest::GetAccessToken)
+                .await
+            {
+                if let Some(ExtnResponse::AccountSession(
+                    AccountSessionResponse::AccountSessionToken(token),
+                )) = response.payload.extract::<ExtnResponse>()
+                {
+                    state_c.get_client().get_extn_client().context_update(
+                        ripple_sdk::api::context::RippleContextUpdateRequest::Token(token),
+                    )
+                } else {
+                    error!("couldnt update the session response")
                 }
             }
         });

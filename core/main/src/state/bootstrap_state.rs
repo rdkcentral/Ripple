@@ -17,7 +17,7 @@
 
 use ripple_sdk::{
     api::apps::AppRequest,
-    crossbeam::channel::{unbounded, Receiver as CReceiver, Sender as CSender},
+    async_channel::{unbounded, Receiver as CReceiver, Sender as CSender},
     extn::ffi::ffi_message::CExtnMessage,
     framework::bootstrap::TransientChannel,
     tokio::sync::mpsc::{self, Receiver, Sender},
@@ -79,7 +79,7 @@ impl ChannelsState {
         self.extn_receiver.clone()
     }
 
-    pub fn get_crossbeam_channel() -> (CSender<CExtnMessage>, CReceiver<CExtnMessage>) {
+    pub fn get_iec_channel() -> (CSender<CExtnMessage>, CReceiver<CExtnMessage>) {
         unbounded()
     }
 }

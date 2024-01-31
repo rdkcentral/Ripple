@@ -59,9 +59,9 @@ impl LauncherState {
         self.extn_client.clone().request(payload).await
     }
 
-    pub async fn new(extn_client: ExtnClient) -> Result<LauncherState, RippleError> {
+    pub async fn new(mut extn_client: ExtnClient) -> Result<LauncherState, RippleError> {
         let extn_message_response: Result<ExtnMessage, RippleError> =
-            extn_client.clone().request(Config::LauncherConfig).await;
+            extn_client.request(Config::LauncherConfig).await;
         if let Ok(message) = extn_message_response {
             if let Some(config) = message.payload.extract() {
                 return Ok(LauncherState {

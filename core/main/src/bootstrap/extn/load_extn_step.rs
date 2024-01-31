@@ -51,10 +51,10 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
         let mut device_channels: Vec<PreLoadedExtnChannel> = Vec::new();
         let mut jsonrpsee_extns: Methods = Methods::new();
         let mut open_rpcs: Vec<OpenRPCParser> = Vec::new();
-        let main_sender = state.clone().extn_state.get_sender();
+        let main_sender = state.extn_state.clone().get_sender();
         for extn in loaded_extensions.iter() {
             unsafe {
-                let path = extn.entry.clone().path;
+                let path = extn.entry.path.clone();
                 let library = &extn.library;
                 info!(
                     "path {} with # of symbols {}",
@@ -97,13 +97,13 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                     if let Ok(extn_id) = ExtnId::try_from(extension.id.clone()) {
                         let builder = load_jsonrpsee_methods(library);
                         if let Some(builder) = builder {
-                            let (_tx, tr) = ChannelsState::get_crossbeam_channel();
+                            let (_tx, tr) = ChannelsState::get_iec_channel();
                             let extn_sender = ExtnSender::new(
                                 main_sender.clone(),
                                 extn_id,
-                                extension.clone().uses,
-                                extension.clone().fulfills,
-                                extension.clone().config,
+                                extension.uses,
+                                extension.fulfills,
+                                extension.config,
                             );
                             if let Some(open_rpc) = (builder.get_extended_capabilities)() {
                                 match serde_json::from_str(&open_rpc) {

@@ -18,7 +18,7 @@
 use std::collections::HashMap;
 
 use ripple_sdk::{
-    crossbeam::channel::{unbounded, Receiver},
+    async_channel::{unbounded, Receiver},
     extn::{
         client::extn_sender::ExtnSender,
         extn_id::{ExtnClassId, ExtnId},
