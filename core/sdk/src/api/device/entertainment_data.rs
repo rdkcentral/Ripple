@@ -393,7 +393,7 @@ pub enum NavigationIntent {
 
 // Original Navigation Intent is untagged meaning it cant be used  to serialize again when passed between extensions which also uses serde
 // To avoid the data loss during IEC InternalNavigationIntent is created so the Firebolt specification is not affected
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum InternalNavigationIntent {
     NavigationIntentStrict(InternalNavigationIntentStrict),
     NavigationIntentLoose(NavigationIntentLoose),
@@ -444,7 +444,7 @@ pub enum NavigationIntentStrict {
     PlayQuery(PlayQueryIntent),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(tag = "action", rename_all = "kebab-case", deny_unknown_fields)]
 
 pub enum InternalNavigationIntentStrict {

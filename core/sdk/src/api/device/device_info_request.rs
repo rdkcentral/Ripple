@@ -150,7 +150,7 @@ mod tests {
     use crate::utils::test_utils::test_extn_payload_provider;
 
     #[test]
-    fn test_extn_request_device_request() {
+    fn test_extn_request_device_info_request() {
         let contract_type: RippleContract = RippleContract::DeviceInfo;
         test_extn_payload_provider(DeviceInfoRequest::MacAddress, contract_type);
     }

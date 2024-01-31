@@ -230,4 +230,19 @@ mod tests {
         let contract_type: RippleContract = RippleContract::OperationalMetricListener;
         test_extn_payload_provider(operational_metric_request, contract_type);
     }
+
+    #[test]
+    fn test_extn_payload_provider_for_telemetry_payload() {
+        let app_load_start_payload = AppLoadStart {
+            app_id: "example_app".to_string(),
+            app_version: Some("1.0.0".to_string()),
+            start_time: 1634816400,
+            ripple_session_id: "session_id".to_string(),
+            ripple_version: "1.2.3".to_string(),
+            ripple_context: Some("context_data".to_string()),
+        };
+        let telemetry_payload = TelemetryPayload::AppLoadStart(app_load_start_payload);
+        let contract_type: RippleContract = RippleContract::OperationalMetricListener;
+        test_extn_payload_provider(telemetry_payload, contract_type);
+    }
 }

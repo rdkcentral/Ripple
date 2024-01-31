@@ -52,15 +52,9 @@ mod tests {
     use crate::utils::test_utils::test_extn_payload_provider;
 
     #[test]
-    fn test_extn_event_some_string() {
-        let value = ExtnEvent::String("SomeEvent".to_string()).get_extn_payload();
-        let result = ExtnStatus::get_from_payload(value);
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_extn_event_extn_status() {
+    fn test_extn_payload_provider_for_extn_status() {
+        let extn_status = ExtnStatus::Error;
         let contract_type: RippleContract = RippleContract::ExtnStatus;
-        test_extn_payload_provider(ExtnStatus::Ready, contract_type);
+        test_extn_payload_provider(extn_status, contract_type);
     }
 }

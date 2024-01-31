@@ -506,7 +506,7 @@ impl ExtnPayloadProvider for BehavioralMetricRequest {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum MetricsResponse {
     None,
     Boolean,
@@ -690,5 +690,12 @@ mod tests {
 
         let contract_type: RippleContract = RippleContract::Metrics;
         test_extn_payload_provider(metrics_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_response_metrics() {
+        let metrics_response = MetricsResponse::None;
+        let contract_type: RippleContract = RippleContract::BehaviorMetrics;
+        test_extn_payload_provider(metrics_response, contract_type);
     }
 }

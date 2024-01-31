@@ -24,7 +24,7 @@ use crate::{
     utils::error::RippleError,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum AccessibilityResponse {
     None(()),
     String(String),
@@ -52,5 +52,18 @@ impl ExtnPayloadProvider for AccessibilityResponse {
 
     fn contract() -> RippleContract {
         RippleContract::Storage(StorageAdjective::Local)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_payload_provider_for_accessibility_response() {
+        let accessibility_response = AccessibilityResponse::None(());
+        let contract_type: RippleContract = RippleContract::Storage(StorageAdjective::Local);
+        test_extn_payload_provider(accessibility_response, contract_type);
     }
 }
