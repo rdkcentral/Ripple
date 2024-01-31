@@ -24,20 +24,20 @@ const Y_DEFAULT: u32 = 0;
 const W_DEFAULT: u32 = 1920;
 const H_DEFAULT: u32 = 1080;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct Capability {
     pub required: Vec<String>,
     pub optional: Vec<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct AppCapabilities {
     pub used: Capability,
     pub managed: Capability,
     pub provided: Capability,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AppProperties {
     pub user_agent: Option<String>,
@@ -59,7 +59,7 @@ impl AppProperties {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppManifest {
     pub app_key: String,
     pub name: String,

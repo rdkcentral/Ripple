@@ -42,7 +42,7 @@ impl DiscoveryContext {
     }
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug)]
+#[derive(Deserialize, PartialEq, Serialize, Clone, Debug)]
 pub struct LaunchRequest {
     #[serde(rename = "appId")]
     pub app_id: String,
@@ -318,7 +318,7 @@ pub enum ProgressUnit {
     Percent,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MediaEvent {
     pub content_id: String,
     pub completed: bool,
@@ -360,7 +360,7 @@ pub struct DataTagInfo {
     pub propagation_state: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MediaEventsAccountLinkRequestParams {
     pub media_event: MediaEvent,
     pub content_partner_id: String,

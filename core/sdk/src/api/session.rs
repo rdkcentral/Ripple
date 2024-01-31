@@ -328,4 +328,28 @@ mod tests {
         let result = SessionTokenRequest::get_from_payload(other_payload);
         assert_eq!(result, None);
     }
+
+    #[test]
+    fn test_extn_payload_provider_for_account_session() {
+        let account_session = AccountSession {
+            id: String::from("your_id"),
+            token: String::from("your_token"),
+            account_id: String::from("your_account_id"),
+            device_id: String::from("your_device_id"),
+        };
+
+        let contract_type: RippleContract = RippleContract::Session(SessionAdjective::Account);
+        test_extn_payload_provider(account_session, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_account_token() {
+        let account_token = AccountToken {
+            token: String::from("your_token"),
+            expires: 123456789,
+        };
+
+        let contract_type: RippleContract = RippleContract::Session(SessionAdjective::Account);
+        test_extn_payload_provider(account_token, contract_type);
+    }
 }

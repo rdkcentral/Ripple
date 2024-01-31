@@ -30,7 +30,7 @@ use super::device::device_request::{
     AccountToken, InternetConnectionStatus, SystemPowerState, TimeZone,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum ActivationStatus {
     NotActivated,
     AccountToken(AccountToken),
@@ -53,7 +53,7 @@ impl From<AccountToken> for ActivationStatus {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct RippleContext {
     pub activation_status: ActivationStatus,
     pub internet_connectivity: InternetConnectionStatus,
@@ -62,7 +62,7 @@ pub struct RippleContext {
     pub update_type: Option<RippleContextUpdateType>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum RippleContextUpdateType {
     ActivationStatusChanged,
     TokenChanged,
@@ -195,6 +195,7 @@ impl ExtnPayloadProvider for RippleContextUpdateRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::device::device_request::PowerState;
     use crate::utils::test_utils::test_extn_payload_provider;
 
     #[test]
@@ -202,5 +203,25 @@ mod tests {
         let activation_request = RippleContextUpdateRequest::Activation(true);
         let contract_type: RippleContract = RippleContract::RippleContext;
         test_extn_payload_provider(activation_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_ripple_context() {
+        let ripple_context = RippleContext {
+            activation_status: ActivationStatus::NotActivated,
+            internet_connectivity: InternetConnectionStatus::FullyConnected,
+            system_power_state: SystemPowerState {
+                power_state: PowerState::On,
+                current_power_state: PowerState::On,
+            },
+            time_zone: TimeZone {
+                time_zone: String::from("America/Los_Angeles"),
+                offset: -28800,
+            },
+            update_type: None,
+        };
+
+        let contract_type: RippleContract = RippleContract::RippleContext;
+        test_extn_payload_provider(ripple_context, contract_type);
     }
 }

@@ -41,7 +41,7 @@ pub enum PubSubResponse {
     GetSubscribedMessage(PubSubSubscribedResponse),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PubSubNotifyTopic {
     pub topic: String,
 }
@@ -193,5 +193,15 @@ mod tests {
         let contract_type: RippleContract = RippleContract::PubSub;
 
         test_extn_payload_provider(pubsub_response, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_pub_sub_notify_topic() {
+        let pub_sub_notify_topic = PubSubNotifyTopic {
+            topic: String::from("your_topic"),
+        };
+
+        let contract_type: RippleContract = RippleContract::PubSub;
+        test_extn_payload_provider(pub_sub_notify_topic, contract_type);
     }
 }

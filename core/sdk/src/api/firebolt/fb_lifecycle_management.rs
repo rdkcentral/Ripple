@@ -172,13 +172,13 @@ pub struct SetStateRequest {
     pub state: LifecycleState,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, PartialEq, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum SessionResponse {
     Pending(PendingSessionResponse),
     Completed(CompletedSessionResponse),
 }
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CompletedSessionResponse {
     pub app_id: String,
@@ -188,7 +188,7 @@ pub struct CompletedSessionResponse {
     pub active_session_id: Option<String>,
     pub transition_pending: bool,
 }
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PendingSessionResponse {
     pub app_id: String,

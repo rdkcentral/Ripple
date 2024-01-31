@@ -27,7 +27,7 @@ impl ExtnPayloadProvider for AppCatalogRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppMetadata {
     pub id: String,
     pub title: String,
@@ -54,7 +54,7 @@ impl AppMetadata {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct AppsUpdate {
     pub apps: Vec<AppMetadata>,
 }
@@ -91,8 +91,22 @@ mod tests {
     #[test]
     fn test_extn_request_app_catalog() {
         let check_for_updates_request = AppCatalogRequest::CheckForUpdates;
-
         let contract_type: RippleContract = RippleContract::AppCatalog;
         test_extn_payload_provider(check_for_updates_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_apps_update() {
+        let apps_update = AppsUpdate {
+            apps: vec![AppMetadata {
+                id: String::from("app1"),
+                title: String::from("App 1"),
+                version: String::from("1.0"),
+                uri: String::from("https://example.com/app1"),
+                data: Some(String::from("app1_data")),
+            }],
+        };
+        let contract_type: RippleContract = RippleContract::AppCatalog;
+        test_extn_payload_provider(apps_update, contract_type);
     }
 }

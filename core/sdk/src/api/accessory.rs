@@ -25,7 +25,7 @@ use crate::{
 
 use super::device::device_accessory::{AccessoryDeviceListResponse, AccessoryDeviceResponse};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RemoteAccessoryResponse {
     None(()),
@@ -56,5 +56,17 @@ impl ExtnPayloadProvider for RemoteAccessoryResponse {
 
     fn contract() -> RippleContract {
         RippleContract::RemoteAccessory
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+    #[test]
+    fn test_extn_payload_provider_for_remote_accessory_response() {
+        let remote_accessory_response = RemoteAccessoryResponse::Boolean(true);
+        let contract_type = RippleContract::RemoteAccessory;
+        test_extn_payload_provider(remote_accessory_response, contract_type);
     }
 }

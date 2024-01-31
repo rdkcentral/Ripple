@@ -57,7 +57,7 @@ impl ExtnPayloadProvider for DiscoveryRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum MediaEventRequest {
     MediaEventAccountLink(MediaEventsAccountLinkRequestParams),
 }
@@ -90,8 +90,10 @@ mod tests {
     use crate::api::firebolt::fb_discovery::{
         ContentAccessEntitlement, ContentAccessInfo, ContentAccessListSetParams, SessionParams,
     };
+    use crate::api::firebolt::fb_discovery::{MediaEvent, ProgressUnit};
     use crate::api::session::AccountSession;
     use crate::utils::test_utils::test_extn_payload_provider;
+    use std::collections::HashSet;
 
     #[test]
     fn test_extn_request_discovery() {
@@ -125,5 +127,32 @@ mod tests {
         let contract_type: RippleContract = RippleContract::Discovery;
 
         test_extn_payload_provider(discovery_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_media_event_request() {
+        let media_event_request =
+            MediaEventRequest::MediaEventAccountLink(MediaEventsAccountLinkRequestParams {
+                media_event: MediaEvent {
+                    content_id: String::from("your_content_id"),
+                    completed: true,
+                    progress: 0.75,
+                    progress_unit: Some(ProgressUnit::Percent),
+                    watched_on: Some(String::from("2024-01-26")),
+                    app_id: String::from("your_app_id"),
+                },
+                content_partner_id: String::from("your_content_partner_id"),
+                client_supports_opt_out: true,
+                dist_session: AccountSession {
+                    id: String::from("your_session_id"),
+                    token: String::from("your_token"),
+                    account_id: String::from("your_account_id"),
+                    device_id: String::from("your_device_id"),
+                },
+                data_tags: HashSet::new(),
+            });
+
+        let contract_type: RippleContract = RippleContract::MediaEvents;
+        test_extn_payload_provider(media_event_request, contract_type);
     }
 }

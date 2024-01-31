@@ -206,7 +206,7 @@ impl AccessoryProtocol {
 /// let response = AccessoryDeviceResponse{_type: AccessoryType::Remote, protocol: AccessoryProtocol::BluetoothLE , make: "Some Company".into(), model: "Some model".into()};
 /// ```
 ///
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AccessoryDeviceResponse {
     #[serde(rename = "type")]
     pub _type: AccessoryType,
@@ -215,7 +215,7 @@ pub struct AccessoryDeviceResponse {
     pub protocol: AccessoryProtocol,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AccessoryDeviceListResponse {
     pub list: Vec<AccessoryDeviceResponse>,
 }
