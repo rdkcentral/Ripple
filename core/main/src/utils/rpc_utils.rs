@@ -115,5 +115,5 @@ pub fn is_wildcard_method(method: &str) -> Option<String> {
 
 pub fn get_base_method(method: &str) -> String {
     let method_vec: Vec<&str> = method.split('.').collect();
-    method_vec.first().unwrap().to_string()
+    method_vec.first().unwrap().to_string().to_lowercase()
 }

@@ -23,7 +23,7 @@ use ripple_sdk::{
         session::AccountSession,
     },
     framework::RippleResponse,
-    log::error,
+    log::{debug, error},
     tokio::{
         self,
         sync::mpsc::{Receiver, Sender},
@@ -32,7 +32,7 @@ use ripple_sdk::{
     uuid::Uuid,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 use std::{
     collections::HashMap,
     sync::{
@@ -47,7 +47,7 @@ use crate::{
     utils::rpc_utils::{get_base_method, is_wildcard_method},
 };
 
-use super::websocket_broker::WebsocketBroker;
+use super::{http_broker::HttpBroker, websocket_broker::WebsocketBroker};
 
 #[derive(Clone, Debug)]
 pub struct BrokerSender {
@@ -87,8 +87,6 @@ impl BrokerCallback {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BrokerContext {
-    pub id: Option<u64>,
-    pub cid: String,
     pub app_id: String,
 }
 
@@ -100,8 +98,6 @@ pub struct BrokerOutput {
 impl From<CallContext> for BrokerContext {
     fn from(value: CallContext) -> Self {
         Self {
-            id: Some(value.call_id),
-            cid: value.get_id(),
             app_id: value.app_id,
         }
     }
@@ -121,8 +117,8 @@ impl BrokerSender {
 
 #[derive(Debug, Clone)]
 pub struct EndpointBrokerState {
-    endpoint_map: HashMap<String, BrokerSender>,
-    rpc_hash: HashMap<String, String>,
+    endpoint_map: Arc<RwLock<HashMap<String, BrokerSender>>>,
+    rpc_hash: Arc<RwLock<HashMap<String, String>>>,
     callback: BrokerCallback,
     request_map: Arc<RwLock<HashMap<u64, RpcRequest>>>,
 }
@@ -130,8 +126,8 @@ pub struct EndpointBrokerState {
 impl EndpointBrokerState {
     pub fn get(tx: Sender<BrokerOutput>) -> Self {
         Self {
-            endpoint_map: HashMap::new(),
-            rpc_hash: HashMap::new(),
+            endpoint_map: Arc::new(RwLock::new(HashMap::new())),
+            rpc_hash: Arc::new(RwLock::new(HashMap::new())),
             callback: BrokerCallback { sender: tx },
             request_map: Arc::new(RwLock::new(HashMap::new())),
         }
@@ -165,34 +161,61 @@ impl EndpointBrokerState {
         endpoint: &PassthroughEndpoint,
         session: Option<AccountSession>,
     ) {
-        if let PassthroughProtocol::Websocket = &endpoint.protocol {
-            let uuid = Uuid::new_v4().to_string();
-            for rpc in &endpoint.rpcs {
-                if let Some(base_method) = is_wildcard_method(rpc) {
-                    self.rpc_hash.insert(base_method, uuid.clone());
-                } else {
-                    self.rpc_hash.insert(rpc.clone(), uuid.clone());
+        let uuid = Uuid::new_v4().to_string();
+        for rpc in &endpoint.rpcs {
+            if let Some(base_method) = is_wildcard_method(rpc) {
+                {
+                    let mut rpc_hash = self.rpc_hash.write().unwrap();
+                    rpc_hash.insert(base_method, uuid.clone());
+                }
+            } else {
+                {
+                    let mut rpc_hash = self.rpc_hash.write().unwrap();
+                    rpc_hash.insert(rpc.clone().to_lowercase(), uuid.clone());
                 }
             }
-            self.endpoint_map.insert(
-                uuid,
-                WebsocketBroker::get_broker(session, endpoint.clone(), self.callback.clone())
-                    .get_sender(),
-            );
+        }
+        match &endpoint.protocol {
+            PassthroughProtocol::Websocket => {
+                let mut endpoint_map = self.endpoint_map.write().unwrap();
+                endpoint_map.insert(
+                    uuid,
+                    WebsocketBroker::get_broker(session, endpoint.clone(), self.callback.clone())
+                        .get_sender(),
+                );
+            }
+            PassthroughProtocol::Http => {
+                let mut endpoint_map = self.endpoint_map.write().unwrap();
+                endpoint_map.insert(
+                    uuid,
+                    HttpBroker::get_broker(session, endpoint.clone(), self.callback.clone())
+                        .get_sender(),
+                );
+            }
         }
     }
 
     fn get_sender(&self, hash: &str) -> Option<BrokerSender> {
-        self.endpoint_map.get(hash).cloned()
+        {
+            self.endpoint_map.read().unwrap().get(hash).cloned()
+        }
+    }
+
+    fn get_hash(&self, hash: &str) -> Option<String> {
+        {
+            self.rpc_hash.read().unwrap().get(hash).cloned()
+        }
     }
 
     /// Critical method which checks if the given method is brokered or
     /// provided by Ripple Implementation
     fn brokered_method(&self, method: &str) -> Option<BrokerSender> {
-        if let Some(hash) = self.rpc_hash.get(&get_base_method(method)) {
-            self.get_sender(hash)
-        } else if let Some(hash) = self.rpc_hash.get(method) {
-            self.get_sender(hash)
+        let method_lower_case = method.to_lowercase();
+        debug!("{:?}", self.rpc_hash);
+        if let Some(hash) = self.get_hash(&get_base_method(&method_lower_case)) {
+            self.get_sender(&hash)
+        } else if let Some(hash) = self.get_hash(&method_lower_case) {
+            self.get_sender(&hash)
         } else {
             None
         }
@@ -231,10 +254,10 @@ pub trait EndpointBroker {
     /// just before sending the data through the protocol
     fn update_request(rpc_request: &RpcRequest) -> Result<String, RippleError> {
         if let Ok(v) = Self::add_context(rpc_request) {
-            let id = rpc_request.ctx.request_id.parse::<u64>().unwrap();
+            let id = rpc_request.ctx.call_id;
             let method = rpc_request.ctx.method.clone();
             return Ok(json!({
-                "jsonrpc": 2.0,
+                "jsonrpc": "2.0",
                 "id": id,
                 "method": method,
                 "params": v
@@ -246,11 +269,15 @@ pub trait EndpointBroker {
 
     /// Generic method which takes the given parameters from RPC request and adds context
     fn add_context(rpc_request: &RpcRequest) -> Result<Value, RippleError> {
-        if let Ok(mut params) = serde_json::from_str::<Map<String, Value>>(&rpc_request.params_json)
+        if let Ok(params) =
+            serde_json::from_str::<Vec<HashMap<String, Value>>>(&rpc_request.params_json)
         {
-            let context: BrokerContext = rpc_request.clone().ctx.into();
-            params.insert("_ctx".into(), serde_json::to_value(context).unwrap());
-            return Ok(serde_json::to_value(&params).unwrap());
+            if let Some(mut last) = params.last().cloned() {
+                debug!("Last value {:?}", last);
+                let context: BrokerContext = rpc_request.clone().ctx.into();
+                let _ = last.insert("_ctx".into(), serde_json::to_value(context).unwrap());
+                return Ok(serde_json::to_value(&last).unwrap());
+            }
         }
         Err(RippleError::ParseError)
     }

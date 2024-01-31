@@ -215,6 +215,7 @@ impl PlatformState {
 
     pub fn get_endpoints(&self) -> Vec<PassthroughEndpoint> {
         if let Some(rpcs) = self.extn_manifest.clone().passthrough_rpcs {
+            println!("Has Endpoints");
             rpcs.endpoints
         } else {
             Vec::new()

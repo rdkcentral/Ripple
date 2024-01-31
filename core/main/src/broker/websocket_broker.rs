@@ -19,7 +19,7 @@ use super::endpoint_broker::{BrokerCallback, BrokerSender, EndpointBroker};
 use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::{
     api::{manifest::extn_manifest::PassthroughEndpoint, session::AccountSession},
-    log::error,
+    log::{debug, error, info},
     tokio::{self, net::TcpStream, sync::mpsc},
 };
 use std::time::Duration;
@@ -37,16 +37,21 @@ impl EndpointBroker for WebsocketBroker {
     ) -> Self {
         let (tx, mut tr) = mpsc::channel(10);
         let broker = BrokerSender { sender: tx };
+
         tokio::spawn(async move {
+            info!("Broker Endpoint url {}", endpoint.url);
+            let url = url::Url::parse(&endpoint.url).unwrap();
+            info!("Url host str {}", url.host_str().unwrap());
+            //let tcp_url = url.host_str()
             let tcp = loop {
-                if let Ok(v) = TcpStream::connect(&endpoint.url).await {
+                if let Ok(v) = TcpStream::connect("127.0.0.1:43474").await {
                     break v;
                 } else {
                     error!("Broker Wait for a sec and retry");
                     tokio::time::sleep(Duration::from_secs(1)).await;
                 }
             };
-            let url = url::Url::parse(&endpoint.url).unwrap();
+
             let (stream, _) = client_async(url, tcp).await.unwrap();
             let (mut ws_tx, mut ws_rx) = stream.split();
 
@@ -71,8 +76,10 @@ impl EndpointBroker for WebsocketBroker {
 
                     },
                     Some(request) = tr.recv() => {
-                        if let Ok(request) = Self::update_request(&request) {
-                             let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(request)).await;
+                        debug!("Got request from receiver for broker {:?}", request);
+                        if let Ok(updated_request) = Self::update_request(&request) {
+                            debug!("Sending request to broker {}", updated_request);
+                             let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(updated_request)).await;
                             let _flush = ws_tx.flush().await;
                         }
 

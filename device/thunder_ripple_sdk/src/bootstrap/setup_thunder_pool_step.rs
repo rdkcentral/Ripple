@@ -51,10 +51,12 @@ impl ThunderPoolStep {
                 return Err(e);
             }
         }
+        info!("Received Controller pool");
         let controller_pool = controller_pool.unwrap();
         let expected_plugins = state.plugin_param.clone();
         let plugin_manager_tx =
             PluginManager::start(Box::new(controller_pool), expected_plugins).await;
+        info!("Starting thunder client pool");
         let client = ThunderClientPool::start(url, Some(plugin_manager_tx), pool_size - 1).await;
 
         if client.is_err() {

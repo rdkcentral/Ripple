@@ -314,7 +314,7 @@ impl MockWebSocketServer {
 
     async fn responses_for_key(&self, key: MockDataKey) -> Option<Vec<MockDataMessage>> {
         let mock_data = self.mock_data.read().await;
-        debug!("Request received. Mock data ={mock_data:?}");
+        debug!("Request received");
         let entry = mock_data.get(&key).cloned();
 
         entry.map(|(_req, resps)| resps)
