@@ -15,23 +15,26 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use super::endpoint_broker::{BrokerCallback, BrokerSender, EndpointBroker};
 use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::{
-    api::manifest::extn_manifest::PassthroughEndpoint,
+    api::{manifest::extn_manifest::PassthroughEndpoint, session::AccountSession},
     log::error,
     tokio::{self, net::TcpStream, sync::mpsc},
 };
 use std::time::Duration;
 use tokio_tungstenite::client_async;
 
-use super::endpoint_broker::{BrokerCallback, BrokerSender, EndpointBroker};
-
 pub struct WebsocketBroker {
     sender: BrokerSender,
 }
 
 impl EndpointBroker for WebsocketBroker {
-    fn get_broker(endpoint: PassthroughEndpoint, callback: BrokerCallback) -> Self {
+    fn get_broker(
+        _: Option<AccountSession>,
+        endpoint: PassthroughEndpoint,
+        callback: BrokerCallback,
+    ) -> Self {
         let (tx, mut tr) = mpsc::channel(10);
         let broker = BrokerSender { sender: tx };
         tokio::spawn(async move {
@@ -57,7 +60,7 @@ impl EndpointBroker for WebsocketBroker {
                             Ok(v) => {
                                 if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
                                     // send the incoming text without context back to the sender
-                                    Self::handle_response(&t,callback.clone())
+                                    Self::handle_response(t.as_bytes(),callback.clone())
                                 }
                             },
                             Err(e) => {

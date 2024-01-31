@@ -20,6 +20,7 @@ use ripple_sdk::{
         firebolt::fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
         gateway::rpc_gateway_api::{ApiMessage, CallContext, JsonRpcApiResponse, RpcRequest},
         manifest::extn_manifest::{PassthroughEndpoint, PassthroughProtocol},
+        session::AccountSession,
     },
     framework::RippleResponse,
     log::error,
@@ -159,7 +160,11 @@ impl EndpointBrokerState {
     }
 
     /// Method which sets up the broker from the manifests
-    pub fn add_endpoint_broker(&mut self, endpoint: &PassthroughEndpoint) {
+    pub fn add_endpoint_broker(
+        &mut self,
+        endpoint: &PassthroughEndpoint,
+        session: Option<AccountSession>,
+    ) {
         if let PassthroughProtocol::Websocket = &endpoint.protocol {
             let uuid = Uuid::new_v4().to_string();
             for rpc in &endpoint.rpcs {
@@ -171,7 +176,8 @@ impl EndpointBrokerState {
             }
             self.endpoint_map.insert(
                 uuid,
-                WebsocketBroker::get_broker(endpoint.clone(), self.callback.clone()).get_sender(),
+                WebsocketBroker::get_broker(session, endpoint.clone(), self.callback.clone())
+                    .get_sender(),
             );
         }
     }
@@ -214,7 +220,11 @@ impl EndpointBrokerState {
 /// Trait which contains all the abstract methods for a Endpoint Broker
 /// There could be Websocket or HTTP protocol implementations of the given trait
 pub trait EndpointBroker {
-    fn get_broker(endpoint: PassthroughEndpoint, callback: BrokerCallback) -> Self;
+    fn get_broker(
+        session: Option<AccountSession>,
+        endpoint: PassthroughEndpoint,
+        callback: BrokerCallback,
+    ) -> Self;
     fn get_sender(&self) -> BrokerSender;
 
     /// Adds BrokerContext to a given request used by the Broker Implementations
@@ -247,15 +257,15 @@ pub trait EndpointBroker {
 
     /// Default handler method for the broker to remove the context and send it back to the
     /// client for consumption
-    fn handle_response(result: &str, callback: BrokerCallback) {
+    fn handle_response(result: &[u8], callback: BrokerCallback) {
         let mut final_result = Err(RippleError::ParseError);
-        if let Ok(data) = serde_json::from_str::<JsonRpcApiResponse>(result) {
+        if let Ok(data) = serde_json::from_slice::<JsonRpcApiResponse>(result) {
             final_result = Ok(BrokerOutput { data });
         }
         if let Ok(output) = final_result {
             tokio::spawn(async move { callback.sender.send(output).await });
         } else {
-            error!("Bad broker response {}", result)
+            error!("Bad broker response {}", String::from_utf8_lossy(result));
         }
     }
 }

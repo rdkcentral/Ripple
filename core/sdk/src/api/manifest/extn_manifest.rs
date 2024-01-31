@@ -45,6 +45,8 @@ pub struct PassthroughEndpoint {
     pub url: String,
     pub protocol: PassthroughProtocol,
     pub rpcs: Vec<String>,
+    pub authenticaton: Option<String>,
+    pub token: Option<String>,
 }
 
 #[derive(Deserialize, Debug, Clone)]

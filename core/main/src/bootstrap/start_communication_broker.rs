@@ -36,13 +36,15 @@ impl Bootstep<BootstrapState> for StartCommunicationBroker {
         if let Ok(rx) = state.channels_state.get_broker_receiver() {
             BrokerOutputForwarder::start_forwarder(ps.clone(), rx)
         }
+        let session = ps.session_state.get_account_session();
         // Setup the endpoints from the manifests
         let mut endpoint_state = ps.endpoint_state;
+
         state
             .platform_state
             .get_endpoints()
             .iter()
-            .for_each(|x| endpoint_state.add_endpoint_broker(x));
+            .for_each(|x| endpoint_state.add_endpoint_broker(x, session.clone()));
         Ok(())
     }
 }
