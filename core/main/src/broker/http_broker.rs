@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use hyper::{Body, Client, HeaderMap, Method, Request, Uri};
+use hyper::{Body, HeaderMap, Method, Request, Uri, Client};
 use ripple_sdk::{
     api::{manifest::extn_manifest::PassthroughEndpoint, session::AccountSession},
     log::error,
@@ -50,6 +50,7 @@ impl EndpointBroker for HttpBroker {
                 }
             }
         }
+    
         let client = Client::new();
         tokio::spawn(async move {
             while let Some(request) = tr.recv().await {
