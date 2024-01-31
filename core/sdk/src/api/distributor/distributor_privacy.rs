@@ -430,7 +430,7 @@ mod tests {
             allow_watch_history: true,
         };
 
-        let contract_type: RippleContract = RippleContract::PrivacySettings;
+        let contract_type: RippleContract = RippleContract::Storage(StorageAdjective::PrivacyCloud);
         test_extn_payload_provider(privacy_settings, contract_type);
     }
 
