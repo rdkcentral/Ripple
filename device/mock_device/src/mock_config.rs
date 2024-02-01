@@ -15,14 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-pub mod errors;
-pub mod mock_config;
-pub mod mock_data;
-pub mod mock_device_controller;
-pub mod mock_device_ffi;
-pub mod mock_device_processor;
-pub mod mock_server;
-pub mod mock_web_socket_server;
-#[cfg(test)]
-pub(crate) mod test_utils;
-pub mod utils;
+use serde::Deserialize;
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct MockConfig {
+    #[serde(default = "bool::default")]
+    pub activate_all_plugins: bool,
+}

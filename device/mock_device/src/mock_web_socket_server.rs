@@ -35,6 +35,7 @@ use tokio_tungstenite::{
 
 use crate::{
     errors::MockServerWebSocketError,
+    mock_config::MockConfig,
     mock_data::{json_key, jsonrpc_key, MockData, MockDataError, MockDataKey, MockDataMessage},
     utils::is_value_jsonrpc,
 };
@@ -102,12 +103,15 @@ pub struct MockWebSocketServer {
     port: u16,
 
     connected_peer_sinks: Mutex<HashMap<String, SplitSink<WebSocketStream<TcpStream>, Message>>>,
+
+    config: MockConfig,
 }
 
 impl MockWebSocketServer {
     pub async fn new(
         mock_data: Arc<RwLock<MockData>>,
         server_config: WsServerParameters,
+        config: MockConfig,
     ) -> Result<Self, MockServerWebSocketError> {
         let listener = Self::create_listener(server_config.port.unwrap_or(0)).await?;
         let port = listener
@@ -123,6 +127,7 @@ impl MockWebSocketServer {
             conn_headers: server_config.headers.unwrap_or_else(HeaderMap::new),
             conn_query_params: server_config.query_params.unwrap_or_default(),
             connected_peer_sinks: Mutex::new(HashMap::new()),
+            config,
         })
     }
 
@@ -274,6 +279,19 @@ impl MockWebSocketServer {
                 .and_then(|s| s.as_u64())
                 .unwrap_or(0);
 
+            if self.config.activate_all_plugins {
+                if let Some(method) = request_message
+                    .get("method")
+                    .map(|s| serde_json::to_string(s).unwrap_or("".to_owned()))
+                {
+                    if method.contains("Controller.1.status") {
+                        return Some(vec![
+                            json!({"jsonrpc": "2.0", "id": id, "result": [{"state": "activated"}]}),
+                        ]);
+                    }
+                }
+            }
+
             let key = match jsonrpc_key(&request_message) {
                 Ok(key) => key,
                 Err(err) => {
@@ -384,10 +402,14 @@ mod tests {
 
     async fn start_server(mock_data: MockData) -> Arc<MockWebSocketServer> {
         let mock_data = Arc::new(RwLock::new(mock_data));
-        let server = MockWebSocketServer::new(mock_data, WsServerParameters::default())
-            .await
-            .expect("Unable to start server")
-            .into_arc();
+        let server = MockWebSocketServer::new(
+            mock_data,
+            WsServerParameters::default(),
+            MockConfig::default(),
+        )
+        .await
+        .expect("Unable to start server")
+        .into_arc();
 
         tokio::spawn(server.clone().start_server());
 

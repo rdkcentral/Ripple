@@ -29,6 +29,7 @@ use url::{Host, Url};
 
 use crate::{
     errors::{BootFailedError, LoadMockDataError, MockDeviceError},
+    mock_config::MockConfig,
     mock_data::{MockData, MockDataError, MockDataMessage},
     mock_web_socket_server::{MockWebSocketServer, WsServerParameters},
 };
@@ -48,11 +49,13 @@ pub async fn boot_ws_server(
         return Err(BootFailedError::BadHostname)?;
     }
 
+    let config = load_config(&client);
+
     let mut server_config = WsServerParameters::new();
     server_config
         .port(gateway.port().unwrap_or(0))
         .path(gateway.path());
-    let ws_server = MockWebSocketServer::new(mock_data, server_config)
+    let ws_server = MockWebSocketServer::new(mock_data, server_config, config)
         .await
         .map_err(BootFailedError::ServerStartFailed)?;
 
@@ -132,6 +135,15 @@ async fn find_mock_device_data_file(mut client: ExtnClient) -> Result<PathBuf, M
     let path = saved_dir.join(path);
 
     Ok(path)
+}
+
+pub fn load_config(client: &ExtnClient) -> MockConfig {
+    let mut config = MockConfig::default();
+
+    if let Some(c) = client.get_config("activate_all_plugins") {
+        config.activate_all_plugins = c.parse::<bool>().unwrap_or(false);
+    }
+    config
 }
 
 pub async fn load_mock_data(client: ExtnClient) -> Result<MockData, MockDeviceError> {
