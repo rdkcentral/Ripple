@@ -203,8 +203,7 @@ pub mod tests {
     use rstest::rstest;
     use std::collections::HashMap;
 
-    // Mockable trait with generic mock method
-    #[automock]
+    #[cfg(test)]
     pub trait Mockable {
         fn mock() -> (Self, CReceiver<CExtnMessage>)
         where
@@ -219,6 +218,7 @@ pub mod tests {
             Self: Sized;
     }
 
+    #[cfg(test)]
     // Implement ExtnSenderMockable for ExtnSender
     impl Mockable for ExtnSender {
         fn mock() -> (Self, CReceiver<CExtnMessage>) {
@@ -239,14 +239,15 @@ pub mod tests {
                 .build()
         }
     }
-
-    struct ExtnSenderBuilder {
+    #[cfg(test)]
+    pub struct ExtnSenderBuilder {
         id: ExtnId,
         context: Vec<String>,
         fulfills: Vec<String>,
         config: Option<HashMap<String, String>>,
     }
 
+    #[cfg(test)]
     impl ExtnSenderBuilder {
         fn new() -> Self {
             ExtnSenderBuilder {
