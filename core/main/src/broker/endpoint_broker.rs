@@ -43,6 +43,7 @@ use std::{
 
 use crate::{
     firebolt::firebolt_gateway::JsonRpcError,
+    service::apps::app_events::AppEvents,
     state::platform_state::PlatformState,
     utils::rpc_utils::{get_base_method, is_wildcard_method},
 };
@@ -306,20 +307,30 @@ impl BrokerOutputForwarder {
             while let Some(mut v) = rx.recv().await {
                 let id = v.data.id;
                 if let Ok(rpc_request) = platform_state.endpoint_state.get_request(id) {
-                    let session_id = rpc_request.ctx.get_id();
-                    if let Some(session) = platform_state
-                        .session_state
-                        .get_session_for_connection_id(&session_id)
-                    {
-                        let request_id = rpc_request.ctx.call_id;
-                        v.data.id = request_id;
-                        let message = ApiMessage {
-                            request_id: request_id.to_string(),
-                            protocol: rpc_request.ctx.protocol,
-                            jsonrpc_msg: serde_json::to_string(&v.data).unwrap(),
-                        };
-                        if let Err(e) = session.send_json_rpc(message).await {
-                            error!("Error while responding back message {:?}", e)
+                    if rpc_request.is_subscription() {
+                        AppEvents::emit_to_app(
+                            &platform_state,
+                            rpc_request.ctx.app_id,
+                            rpc_request.method.as_str(),
+                            &v.data.result.unwrap(),
+                        )
+                        .await;
+                    } else {
+                        let session_id = rpc_request.ctx.get_id();
+                        if let Some(session) = platform_state
+                            .session_state
+                            .get_session_for_connection_id(&session_id)
+                        {
+                            let request_id = rpc_request.ctx.call_id;
+                            v.data.id = request_id;
+                            let message = ApiMessage {
+                                request_id: request_id.to_string(),
+                                protocol: rpc_request.ctx.protocol,
+                                jsonrpc_msg: serde_json::to_string(&v.data).unwrap(),
+                            };
+                            if let Err(e) = session.send_json_rpc(message).await {
+                                error!("Error while responding back message {:?}", e)
+                            }
                         }
                     }
                 } else {

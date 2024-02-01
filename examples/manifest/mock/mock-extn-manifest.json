@@ -18,7 +18,20 @@
                         "wifi",
                         "device_events",
                         "device_persistence",
-                        "remote_accessory"
+                        "remote_accessory",
+                        "local.storage",
+                        "input.device_events",
+                        "hdr.device_events",
+                        "screen_resolution.device_events",
+                        "video_resolution.device_events",
+                        "voice_guidance.device_events",
+                        "network.device_events",
+                        "internet.device_events",
+                        "audio.device_events",
+                        "system_power_state.device_events",
+                        "time_zone.device_events",
+                        "remote_feature_control",
+                        "apps"
                     ]
                 }
             ]
@@ -33,14 +46,17 @@
                     ],
                     "fulfills": [
                         "permissions",
-                        "account_session",
-                        "secure_storage",
+                        "account.session",
+                        "secure.storage",
                         "advertising",
-                        "privacy_settings",
+                        "privacy_cloud.storage",
                         "metrics",
-                        "session_token",
+                        "session.token",
                         "discovery",
-                        "media_events"
+                        "media_events",
+                        "behavior_metrics",
+                        "root.session",
+                        "device.session"
                     ]
                 }
             ]
@@ -51,7 +67,10 @@
                 {
                     "id": "ripple:channel:device:mock_device",
                     "config": {
-                        "mock_data_file": "mock-device.json"
+                        "mock_data_file": "mock-device.json",
+                        "mock_config": {
+                            "activate_all_plugins": true
+                        }
                     },
                     "uses": [
                         "config"
@@ -90,7 +109,8 @@
         "session_token",
         "metrics",
         "discovery",
-        "media_events"
+        "media_events",
+        "account.session"
     ],
     "rpc_aliases": {
         "device.model": [
