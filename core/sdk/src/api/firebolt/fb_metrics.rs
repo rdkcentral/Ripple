@@ -27,7 +27,7 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
-use super::fb_telemetry::TelemetryPayload;
+use super::fb_telemetry::{OperationalMetricRequest, TelemetryPayload};
 
 //https://developer.comcast.com/firebolt/core/sdk/latest/api/metrics
 
@@ -391,6 +391,190 @@ impl BehavioralMetricPayload {
     }
 }
 
+// <pca>
+/*
+Operational Metrics. These are metrics that are not directly related to the user's behavior. They are
+more related to the operation of the platform itself. These metrics are not sent to the BI system, and
+are only used for operational/performance measurement - timers, counters, etc -all of low cardinality.
+*/
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Counter {
+    pub name: String,
+    pub value: u64,
+    /*
+    TODO... this needs to be a map
+    */
+    pub tags: Option<HashMap<String, String>>,
+}
+impl Counter {
+    pub fn new(name: String, value: u64, tags: Option<HashMap<String, String>>) -> Counter {
+        Counter {
+            name: format!("{}_counter", name),
+            value: value,
+            tags: tags,
+        }
+    }
+    pub fn increment(&mut self) {
+        self.value += 1;
+    }
+    pub fn decrement(&mut self) {
+        self.value -= 1;
+    }
+    pub fn set_value(&mut self, value: u64) {
+        self.value = value;
+    }
+    pub fn add(&mut self, value: u64) {
+        self.value += value;
+    }
+    pub fn subtract(&mut self, value: u64) {
+        self.value -= value;
+    }
+    pub fn reset(&mut self) {
+        self.value = 0;
+    }
+    pub fn get(&self) -> u64 {
+        self.value
+    }
+    pub fn tag(&mut self, tag_name: String, tag_value: String) -> () {
+        if let Some(my_tags) = self.tags.as_mut() {
+            my_tags.insert(tag_name, tag_value);
+        } else {
+            let mut the_map = HashMap::new();
+            the_map.insert(tag_name, tag_value);
+            self.tags = Some(the_map);
+        }
+    }
+    pub fn error(&mut self) {
+        if let Some(my_tags) = self.tags.as_mut() {
+            my_tags.insert("error".to_string(), true.to_string());
+        }
+    }
+    pub fn is_error(&self) -> bool {
+        if let Some(my_tags) = &self.tags {
+            if let Some(error) = my_tags.get("error") {
+                error.parse::<bool>().unwrap_or(false)
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+    pub fn to_extn_request(&self) -> OperationalMetricRequest {
+        OperationalMetricRequest::Counter(self.clone())
+    }
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Timer {
+    pub name: String,
+    #[serde(with = "serde_millis")]
+    pub start: std::time::Instant,
+    #[serde(with = "serde_millis")]
+    pub stop: Option<std::time::Instant>,
+    /*
+    TODO... this needs to be a map
+    */
+    pub tags: Option<HashMap<String, String>>,
+}
+impl Timer {
+    pub fn start(name: String, tags: Option<HashMap<String, String>>) -> Timer {
+        Timer {
+            name: format!("{}_timer_ms", name),
+            start: std::time::Instant::now(),
+            stop: None,
+            tags: tags,
+        }
+    }
+    pub fn new(
+        name: String,
+        start: std::time::Instant,
+        tags: Option<HashMap<String, String>>,
+    ) -> Timer {
+        Timer {
+            name: name,
+            start: start,
+            stop: None,
+            tags: tags,
+        }
+    }
+    pub fn stop(&mut self) -> Timer {
+        self.stop = Some(std::time::Instant::now());
+        Timer::from(self.clone())
+    }
+    pub fn restart(&mut self) {
+        self.start = std::time::Instant::now();
+        self.stop = None;
+    }
+    pub fn elapsed(&self) -> std::time::Duration {
+        match self.stop {
+            Some(stop) => stop.duration_since(self.start),
+            None => self.start.elapsed(),
+        }
+    }
+    pub fn tag(&mut self, tag_name: String, tag_value: String) -> () {
+        if let Some(my_tags) = self.tags.as_mut() {
+            my_tags.insert(tag_name, tag_value);
+        }
+    }
+    pub fn error(&mut self) {
+        if let Some(my_tags) = self.tags.as_mut() {
+            my_tags.insert("error".to_string(), true.to_string());
+        }
+    }
+
+    pub fn to_extn_request(&self) -> OperationalMetricRequest {
+        OperationalMetricRequest::Timer(self.clone())
+    }
+}
+
+static FIREBOLT_RPC_NAME: &str = "firebolt_rpc_call";
+impl From<Timer> for OperationalMetricRequest {
+    fn from(timer: Timer) -> Self {
+        OperationalMetricRequest::Timer(timer)
+    }
+}
+
+pub fn fb_api_timer(method_name: String, tags: Option<HashMap<String, String>>) -> Timer {
+    let timer_tags = match tags {
+        Some(mut tags) => {
+            tags.insert("method_name".to_string(), method_name);
+            tags
+        }
+        None => {
+            let mut the_map = HashMap::new();
+            the_map.insert("method_name".to_string(), method_name);
+            the_map
+        }
+    };
+
+    Timer::start(FIREBOLT_RPC_NAME.to_string(), Some(timer_tags))
+}
+pub fn fb_api_counter(method_name: String, tags: Option<HashMap<String, String>>) -> Counter {
+    let counter_tags = match tags {
+        Some(mut tags) => {
+            tags.insert("method_name".to_string(), method_name);
+            tags
+        }
+        None => {
+            let mut the_map = HashMap::new();
+            the_map.insert("method_name".to_string(), method_name);
+            the_map
+        }
+    };
+    Counter {
+        name: FIREBOLT_RPC_NAME.to_string(),
+        value: 1,
+        tags: Some(counter_tags),
+    }
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum OperationalMetricPayload {
+    Timer(Timer),
+    Counter(Counter),
+}
+// </pca>
+
 /// all the things that are provided by platform that need to
 /// be updated, and eventually in/outjected into/out of a payload
 /// These items may (or may not) be available when the ripple
@@ -537,7 +721,11 @@ impl ExtnPayloadProvider for MetricsResponse {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum MetricsPayload {
     BehaviorMetric(BehavioralMetricPayload, CallContext),
-    OperationalMetric(TelemetryPayload),
+    // <pca>
+    //OperationalMetric(TelemetryPayload),
+    TelemetryPayload(TelemetryPayload),
+    OperationalMetric(OperationalMetricPayload),
+    //</pca>
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -606,4 +794,47 @@ mod tests {
         let value = json!({ "version":{"major": 0,"minor": 13,"patch": 0,"readable": 1}} );
         assert!(InternalInitializeParams::deserialize(value).is_err());
     }
+
+    // <pca>
+    #[test]
+    pub fn test_counter() {
+        let mut counter = super::Counter::new("test".to_string(), 0, None);
+        counter.increment();
+        assert_eq!(counter.get(), 1);
+        counter.decrement();
+        assert_eq!(counter.get(), 0);
+        counter.set_value(10);
+        assert_eq!(counter.get(), 10);
+        counter.add(5);
+        assert_eq!(counter.get(), 15);
+        counter.subtract(5);
+        assert_eq!(counter.get(), 10);
+        counter.reset();
+        assert_eq!(counter.get(), 0);
+    }
+    #[test]
+    pub fn test_counter_with_tags() {
+        let mut counter = super::Counter::new("test".to_string(), 0, None);
+        assert_eq!(counter.tags, None);
+        counter.tag("tag1".to_string(), "tag1_value".to_string());
+        counter.tag("tag2".to_string(), "tag2_value".to_string());
+        let mut expected = HashMap::new();
+        expected.insert("tag1".to_string(), "tag1_value".to_string());
+        expected.insert("tag2".to_string(), "tag2_value".to_string());
+        assert_eq!(counter.tags, Some(expected));
+    }
+    #[test]
+    pub fn test_timer() {
+        let mut timer = super::Timer::start("test".to_string(), None);
+        std::thread::sleep(std::time::Duration::from_millis(101));
+        timer.stop();
+        assert_eq!(timer.elapsed().as_millis() > 100, true);
+        assert_eq!(timer.elapsed().as_millis() < 200, true);
+        timer.restart();
+        std::thread::sleep(std::time::Duration::from_millis(101));
+        timer.stop();
+        assert_eq!(timer.elapsed().as_millis() > 100, true);
+        assert_eq!(timer.elapsed().as_millis() < 200, true);
+    }
+    //</pca>
 }

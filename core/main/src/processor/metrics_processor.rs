@@ -199,9 +199,15 @@ impl ExtnRequestProcessor for MetricsProcessor {
                     Err(e) => Self::handle_error(client, msg, e).await,
                 }
             }
-            MetricsPayload::OperationalMetric(t) => {
+            // <pca>
+            //MetricsPayload::OperationalMetric(t) => {
+            MetricsPayload::TelemetryPayload(t) => {
+                // </pca>
                 TelemetryBuilder::update_session_id_and_send_telemetry(&state, t).is_ok()
             }
+            // <pca>
+            MetricsPayload::OperationalMetric(_) => true,
+            // </pca>
         }
     }
 }
@@ -257,6 +263,9 @@ impl ExtnRequestProcessor for OpMetricsProcessor {
             OperationalMetricRequest::UnSubscribe => state
                 .metrics
                 .operational_telemetry_listener(&requestor, true),
+            // <pca>
+            _ => (),
+            // </pca>
         }
         Self::ack(state.get_client().get_extn_client(), msg)
             .await

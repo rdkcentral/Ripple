@@ -162,15 +162,29 @@ impl FireboltGateway {
             match FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await {
                 Ok(_) => {
                     // Route
+                    // <pca>
+                    let mut timer = ripple_sdk::api::firebolt::fb_metrics::Timer::start(
+                        request_c.method.clone(),
+                        None,
+                    );
+                    // </pca>
                     match request.clone().ctx.protocol {
                         ApiProtocol::Extn => {
                             if let Some(extn_msg) = extn_msg {
-                                RpcRouter::route_extn_protocol(
+                                // <pca>
+                                //RpcRouter::route_extn_protocol(
+                                let result = RpcRouter::route_extn_protocol(
+                                    // </pca>
                                     &platform_state,
                                     request.clone(),
                                     extn_msg,
                                 )
-                                .await
+                                .await;
+                                // <pca>
+                                timer.stop();
+                                platform_state.get_client().send_extn_request( ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest::Timer(timer.clone())).await.ok();
+                                result
+                                // </pca>
                             } else {
                                 error!("missing invalid message not forwarding");
                             }

@@ -19,11 +19,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::{
-    extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider, ExtnRequest},
+    extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
     framework::ripple_contract::RippleContract,
 };
 
-use super::fb_metrics::{ErrorParams, ErrorType, Param, SystemErrorParams};
+use super::fb_metrics::{Counter, ErrorParams, ErrorType, Param, SystemErrorParams, Timer};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppLoadStart {
@@ -148,6 +148,9 @@ pub struct FireboltInteraction {
     pub success: bool,
     pub ripple_session_id: String,
     pub app_session_id: Option<String>,
+    // <pca>
+    timer: Timer,
+    // </pca>
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -192,7 +195,10 @@ impl ExtnPayloadProvider for TelemetryPayload {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::OperationalMetricListener
+        // <pca>
+        //RippleContract::OperationalMetricListener
+        RippleContract::TelemetryEventsListener
+        // </pca>
     }
 }
 
@@ -200,21 +206,26 @@ impl ExtnPayloadProvider for TelemetryPayload {
 pub enum OperationalMetricRequest {
     Subscribe,
     UnSubscribe,
+    // <pca>
+    Counter(Counter),
+    Timer(Timer),
+    // </pca>
 }
+// <pca>
+// impl ExtnPayloadProvider for OperationalMetricRequest {
+//     fn get_extn_payload(&self) -> ExtnPayload {
+//         ExtnPayload::Request(ExtnRequest::OperationalMetricsRequest(self.clone()))
+//     }
 
-impl ExtnPayloadProvider for OperationalMetricRequest {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::OperationalMetricsRequest(self.clone()))
-    }
+//     fn get_from_payload(payload: ExtnPayload) -> Option<OperationalMetricRequest> {
+//         if let ExtnPayload::Request(ExtnRequest::OperationalMetricsRequest(r)) = payload {
+//             return Some(r);
+//         }
+//         None
+//     }
 
-    fn get_from_payload(payload: ExtnPayload) -> Option<OperationalMetricRequest> {
-        if let ExtnPayload::Request(ExtnRequest::OperationalMetricsRequest(r)) = payload {
-            return Some(r);
-        }
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::OperationalMetricListener
-    }
-}
+//     fn contract() -> RippleContract {
+//         RippleContract::OperationalMetricListener
+//     }
+// }
+// </pca>
