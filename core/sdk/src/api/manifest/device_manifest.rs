@@ -424,6 +424,8 @@ pub struct RippleFeatures {
     pub privacy_settings_storage_type: PrivacySettingsStorageType,
     #[serde(default = "default_intent_validation")]
     pub intent_validation: IntentValidation,
+    #[serde(default = "default_cloud_permissions")]
+    pub cloud_permissions: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -455,6 +457,7 @@ fn default_ripple_features() -> RippleFeatures {
     RippleFeatures {
         privacy_settings_storage_type: default_privacy_settings_storage_type(),
         intent_validation: default_intent_validation(),
+        cloud_permissions: default_cloud_permissions(),
     }
 }
 
@@ -464,6 +467,10 @@ fn default_intent_validation() -> IntentValidation {
 
 fn default_privacy_settings_storage_type() -> PrivacySettingsStorageType {
     PrivacySettingsStorageType::Local
+}
+
+fn default_cloud_permissions() -> bool {
+    true
 }
 
 pub fn default_enforcement_value() -> bool {
@@ -601,6 +608,10 @@ impl DeviceManifest {
 
     pub fn get_lifecycle_configuration(&self) -> LifecycleConfiguration {
         self.lifecycle.clone()
+    }
+
+    pub fn get_applications_configuration(&self) -> ApplicationsConfiguration {
+        self.applications.clone()
     }
 }
 
