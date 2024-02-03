@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    branches: [ $GITHUB_REF_NAME ]
+    branches: [ "1.2.0.rc" ]
 
 env:
   CARGO_TERM_COLOR: always
