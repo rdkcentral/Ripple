@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    branches: [ ${GITHUB_BASE_REF##*/} ]
+    branches: [ ${{ github.event.pull_request.base.ref }} ]
 
 env:
   CARGO_TERM_COLOR: always
