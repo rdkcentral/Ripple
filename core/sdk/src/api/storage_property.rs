@@ -423,7 +423,10 @@ const PROPERTY_PREFERRED_AUDIO_LANGUAGES: PropertyData = PropertyData {
 const PROPERTY_CC_PREFERRED_LANGUAGES: PropertyData = PropertyData {
     key: KEY_PREFERRED_AUDIO_LANGUAGES,
     namespace: NAMESPACE_CLOSED_CAPTIONS,
-    event_names: Some(&[EVENT_CC_PREFERRED_LANGUAGES]),
+    event_names: Some(&[
+        EVENT_CC_PREFERRED_LANGUAGES,
+        EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED,
+    ]),
 };
 
 #[derive(Debug)]

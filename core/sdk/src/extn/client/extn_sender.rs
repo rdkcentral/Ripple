@@ -19,7 +19,7 @@ use std::collections::HashMap;
 
 use async_channel::Sender as CSender;
 use chrono::Utc;
-use log::{error, trace};
+use log::{debug, error, trace};
 
 use crate::{
     extn::{
@@ -103,6 +103,11 @@ impl ExtnSender {
     ) -> Result<(), RippleError> {
         // Extns can only send request to which it has permissions through Extn manifest
         if !self.check_contract_permission(payload.get_contract()) {
+            debug!(
+                "id {:?} not having permission to send contract: {:?}",
+                self.id.to_string(),
+                payload.get_contract().as_clear_string(),
+            );
             return Err(RippleError::InvalidAccess);
         }
         let p = payload.get_extn_payload();
@@ -113,6 +118,7 @@ impl ExtnSender {
             payload: c_request,
             id,
             target: payload.get_contract().into(),
+            target_id: "".to_owned(),
             ts: Utc::now().timestamp_millis(),
         };
         self.send(msg, other_sender)
@@ -132,9 +138,36 @@ impl ExtnSender {
             payload: c_event,
             id,
             target: payload.get_contract().into(),
+            target_id: "".to_owned(),
             ts: Utc::now().timestamp_millis(),
         };
         self.respond(msg, other_sender)
+    }
+
+    pub fn forward_event(
+        &self,
+        target_id: &str,
+        payload: impl ExtnPayloadProvider,
+    ) -> Result<(), RippleError> {
+        // Check if sender has permission to forward the payload
+        let permitted = self.check_contract_permission(payload.get_contract());
+        if permitted || self.get_cap().is_main() {
+            let id = uuid::Uuid::new_v4().to_string();
+            let p = payload.get_extn_payload();
+            let c_event = p.into();
+            let msg = CExtnMessage {
+                requestor: self.id.to_string(),
+                callback: None,
+                payload: c_event,
+                id,
+                target: payload.get_contract().into(),
+                target_id: target_id.to_owned(),
+                ts: Utc::now().timestamp_millis(),
+            };
+            self.respond(msg, None)
+        } else {
+            Err(RippleError::InvalidAccess)
+        }
     }
 
     pub fn send(
