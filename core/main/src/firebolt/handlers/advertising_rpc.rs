@@ -19,6 +19,7 @@ use crate::{
     service::apps::app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
     utils::rpc_utils::rpc_add_event_listener_with_decorator,
 };
+use base64::encode;
 use jsonrpsee::{
     core::{async_trait, Error, RpcResult},
     proc_macros::rpc,
@@ -28,8 +29,8 @@ use ripple_sdk::{
     api::{
         firebolt::{
             fb_advertising::{
-                AdIdRequestParams, AdInitObjectRequestParams, AdvertisingFrameworkConfig,
-                AdvertisingRequest, AdvertisingResponse, GetAdConfig,
+                AdConfigRequestParams, AdConfigResponse, AdIdRequestParams,
+                AdvertisingFrameworkConfig, AdvertisingRequest, AdvertisingResponse, GetAdConfig,
             },
             fb_capabilities::{CapabilityRole, FireboltCap, RoleInfo},
             fb_general::{ListenRequest, ListenerResponse},
@@ -40,7 +41,7 @@ use ripple_sdk::{
             EVENT_ADVERTISING_SKIP_RESTRICTION_CHANGED,
         },
     },
-    log::error,
+    log::{debug, error},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -51,7 +52,10 @@ use crate::{
     state::platform_state::PlatformState, utils::rpc_utils::rpc_err,
 };
 
-use super::{capabilities_rpc::is_permitted, privacy_rpc};
+use super::{
+    capabilities_rpc::is_permitted,
+    privacy_rpc::{self, PrivacyImpl},
+};
 
 const ADVERTISING_APP_BUNDLE_ID_SUFFIX: &str = "Comcast";
 //{"xifa":"00000000-0000-0000-0000-000000000000","xifaType":"sessionId","lmt":"0"}
@@ -108,7 +112,7 @@ pub struct SetSkipRestrictionRequest {
     pub value: SkipRestriction,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Default)]
 pub struct AdvertisingIdRPCRequest {
     pub options: Option<ScopeOption>,
 }
@@ -244,6 +248,17 @@ pub struct AdvertisingImpl {
     pub state: PlatformState,
 }
 
+fn get_scope_option_map(options: &Option<ScopeOption>) -> HashMap<String, String> {
+    let mut scope_option_map = HashMap::new();
+    if let Some(scope_opt) = options {
+        if let Some(scope) = &scope_opt.scope {
+            scope_option_map.insert("type".to_string(), scope._type.as_string().to_string());
+            scope_option_map.insert("id".to_string(), scope.id.to_string());
+        }
+    }
+    scope_option_map
+}
+
 #[async_trait]
 impl AdvertisingServer for AdvertisingImpl {
     async fn reset_identifier(&self, _ctx: CallContext) -> RpcResult<()> {
@@ -266,14 +281,6 @@ impl AdvertisingServer for AdvertisingImpl {
         request: AdvertisingIdRPCRequest,
     ) -> RpcResult<AdvertisingId> {
         if let Some(session) = self.state.session_state.get_account_session() {
-            let mut scope_option_map = HashMap::new();
-            if let Some(scope_opt) = &request.options {
-                if let Some(scope) = &scope_opt.scope {
-                    scope_option_map
-                        .insert("type".to_string(), scope._type.as_string().to_string());
-                    scope_option_map.insert("id".to_string(), scope.id.to_string());
-                }
-            }
             let payload = AdvertisingRequest::GetAdIdObject(AdIdRequestParams {
                 privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(
                     &self.state,
@@ -283,7 +290,7 @@ impl AdvertisingServer for AdvertisingImpl {
                 .await,
                 app_id: ctx.app_id.to_owned(),
                 dist_session: session,
-                scope: scope_option_map,
+                scope: get_scope_option_map(&request.options),
             });
             let resp = self.state.get_client().send_extn_request(payload).await;
 
@@ -296,12 +303,12 @@ impl AdvertisingServer for AdvertisingImpl {
                 if let Some(AdvertisingResponse::AdIdObject(obj)) =
                     payload.payload.extract::<AdvertisingResponse>()
                 {
-                    let ad_init_object = AdvertisingId {
+                    let ad_id = AdvertisingId {
                         ifa: obj.ifa,
                         ifa_type: obj.ifa_type,
                         lmt: obj.lmt,
                     };
-                    return Ok(ad_init_object);
+                    return Ok(ad_id);
                 }
             }
 
@@ -328,8 +335,9 @@ impl AdvertisingServer for AdvertisingImpl {
         config: GetAdConfig,
     ) -> RpcResult<AdvertisingFrameworkConfig> {
         let session = self.state.session_state.get_account_session();
-        let app_id = ctx.app_id.to_string();
-        let distributor_experience_id = self
+        let durable_app_id = ctx.app_id.to_string();
+        let environment = config.options.environment;
+        let distributor_app_id = self
             .state
             .get_device_manifest()
             .get_distributor_experience_id();
@@ -341,76 +349,100 @@ impl AdvertisingServer for AdvertisingImpl {
             .await
             .unwrap_or(false);
 
-        let payload = AdvertisingRequest::GetAdInitObject(AdInitObjectRequestParams {
-            privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(
-                &self.state,
-                None,
-                &app_id,
-            )
-            .await,
-            environment: config.options.environment.to_string(),
-            durable_app_id: app_id,
-            app_version: "".to_string(),
-            distributor_app_id: distributor_experience_id,
-            device_ad_attributes: HashMap::new(),
-            coppa: config.options.coppa.unwrap_or(false),
-            authentication_entity: config.options.authentication_entity.unwrap_or_default(),
+        let ad_opt_out = PrivacyImpl::get_allow_app_content_ad_targeting(&self.state).await;
+
+        let mut privacy_data = privacy_rpc::get_allow_app_content_ad_targeting_settings(
+            &self.state,
+            None,
+            &durable_app_id,
+        )
+        .await;
+
+        privacy_data.insert("pdt".into(), "gdp:v1".into());
+
+        let coppa = match config.options.coppa {
+            Some(c) => c as u32,
+            None => 0,
+        };
+
+        let advertising_request = AdvertisingRequest::GetAdConfig(AdConfigRequestParams {
+            privacy_data: privacy_data.clone(),
+            durable_app_id: durable_app_id.clone(),
             dist_session: session
+                .clone()
                 .ok_or_else(|| Error::Custom(String::from("no session available")))?,
-            scope: HashMap::new(),
+            environment: environment.to_string(),
+            scope: get_scope_option_map(&None),
         });
 
-        match self.state.get_client().send_extn_request(payload).await {
-            Ok(payload) => match payload.payload.extract().unwrap() {
-                AdvertisingResponse::AdInitObject(obj) => {
-                    let ad_init_object = AdvertisingFrameworkConfig {
-                        ad_server_url: obj.ad_server_url,
-                        ad_server_url_template: obj.ad_server_url_template,
-                        ad_network_id: obj.ad_network_id,
-                        ad_profile_id: obj.ad_profile_id,
-                        ad_site_section_id: "".to_string(),
-                        ad_opt_out: obj.ad_opt_out,
-                        privacy_data: obj.privacy_data,
-                        ifa: if ad_id_authorised {
-                            obj.ifa
-                        } else {
-                            IFA_ZERO_BASE64.to_string()
-                        },
-                        ifa_value: if ad_id_authorised {
-                            obj.ifa_value
-                        } else {
-                            let ifa_val_zero = obj
-                                .ifa_value
-                                .chars()
-                                .map(|x| match x {
-                                    '-' => x,
-                                    _ => '0',
-                                })
-                                .collect();
-                            ifa_val_zero
-                        },
-                        app_name: obj.app_name,
-                        app_bundle_id: obj.app_bundle_id,
-                        distributor_app_id: obj.distributor_app_id,
-                        device_ad_attributes: obj.device_ad_attributes,
-                        coppa: obj.coppa.to_string().parse::<u32>().unwrap_or(0),
-                        authentication_entity: obj.authentication_entity,
-                    };
-                    Ok(ad_init_object)
+        debug!("config: advertising_request: {:?}", advertising_request);
+
+        let ad_config = match self
+            .state
+            .get_client()
+            .send_extn_request(advertising_request)
+            .await
+        {
+            Ok(message) => match message.payload.extract() {
+                Some(advertising_resp) => match advertising_resp {
+                    AdvertisingResponse::AdConfig(resp) => resp,
+                    _ => {
+                        error!("config: Unexpected response payload, ad config not available");
+                        AdConfigResponse::default()
+                    }
+                },
+                None => {
+                    error!("config: Ad config payload missing");
+                    AdConfigResponse::default()
                 }
-                _ => Err(rpc_err(
-                    "Device returned an invalid type for ad init object",
-                )),
             },
-            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-                "Failed to extract ad init object from response",
-            ))),
-        }
+            Err(e) => {
+                error!("config: Could not get ad config: e={}", e);
+                AdConfigResponse::default()
+            }
+        };
+
+        let privacy_data_enc = encode(serde_json::to_string(&privacy_data).unwrap_or_default());
+
+        let ad_framework_config = AdvertisingFrameworkConfig {
+            ad_server_url: ad_config.ad_server_url,
+            ad_server_url_template: ad_config.ad_server_url_template,
+            ad_network_id: ad_config.ad_network_id,
+            ad_profile_id: ad_config.ad_profile_id,
+            ad_site_section_id: ad_config.ad_site_section_id,
+            ad_opt_out,
+            privacy_data: privacy_data_enc,
+            ifa: if ad_id_authorised {
+                ad_config.ifa
+            } else {
+                IFA_ZERO_BASE64.to_string()
+            },
+            ifa_value: if ad_id_authorised {
+                ad_config.ifa_value
+            } else {
+                let ifa_val_zero = ad_config
+                    .ifa_value
+                    .chars()
+                    .map(|x| match x {
+                        '-' => x,
+                        _ => '0',
+                    })
+                    .collect();
+                ifa_val_zero
+            },
+            app_name: durable_app_id.clone(),
+            app_bundle_id: ad_config.app_bundle_id,
+            distributor_app_id,
+            device_ad_attributes: String::default(),
+            coppa,
+            authentication_entity: config.options.authentication_entity.unwrap_or_default(),
+        };
+
+        Ok(ad_framework_config)
     }
 
     async fn device_attributes(&self, ctx: CallContext) -> RpcResult<Value> {
         let afc = self.config(ctx.clone(), Default::default()).await?;
-
         let buff = base64::decode(afc.device_ad_attributes).unwrap_or_default();
         match String::from_utf8(buff) {
             Ok(mut b_string) => {

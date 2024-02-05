@@ -38,18 +38,14 @@ impl LoadExtensionMetadataStep {
         filename: P,
         entry: ExtnManifestEntry,
     ) -> Option<LoadedLibrary> {
-        let r = Library::new(filename.as_ref());
-        if r.is_err() {
-            debug!("Extn not found");
-            return None;
+        match Library::new(&filename) {
+            Ok(library) => load_extn_library_metadata(&library)
+                .map(|metadata| LoadedLibrary::new(library, metadata, entry)),
+            Err(err) => {
+                debug!("Extn not found: {:?}", err);
+                None
+            }
         }
-
-        let library = r.unwrap();
-        let metadata = load_extn_library_metadata(&library);
-        if let Some(metadata) = metadata {
-            return Some(LoadedLibrary::new(library, metadata, entry));
-        }
-        None
     }
 }
 

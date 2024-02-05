@@ -22,14 +22,13 @@ use std::{
 
 use ripple_sdk::{
     api::{
-        app_catalog::AppCatalogRequest,
         context::{ActivationStatus, RippleContext, RippleContextUpdateType},
         device::{
             device_request::{PowerState, SystemPowerState},
             device_user_grants_data::GrantLifespan,
         },
         distributor::distributor_sync::{SyncAndMonitorModule, SyncAndMonitorRequest},
-        firebolt::fb_capabilities::{CapEvent, FireboltCap},
+        firebolt::fb_capabilities::{CapEvent, CapabilityRole, FireboltCap, FireboltPermission},
         manifest::device_manifest::PrivacySettingsStorageType,
         session::AccountSessionRequest,
     },
@@ -100,11 +99,23 @@ impl MainContextProcessor {
         CapState::emit(
             state,
             event,
-            FireboltCap::Short("token:platform".to_owned()),
+            FireboltCap::Short("token:account".to_owned()),
             None,
         )
         .await;
         token_available
+    }
+
+    fn is_update_token(state: &PlatformState) -> bool {
+        let available_result = state
+            .cap_state
+            .generic
+            .check_available(&vec![FireboltPermission {
+                cap: FireboltCap::Short("token:account".to_owned()),
+                role: CapabilityRole::Use,
+            }]);
+        debug!("token::platform available status: {:?}", available_result);
+        available_result.is_ok()
     }
 
     async fn sync_partner_exclusions(state: &PlatformState) {
@@ -131,6 +142,7 @@ impl MainContextProcessor {
         });
     }
     pub async fn initialize_session(state: &PlatformState) {
+        let update_token = Self::is_update_token(state);
         if !Self::check_account_session_token(state).await {
             error!("Account session still not available");
         } else {
@@ -144,48 +156,50 @@ impl MainContextProcessor {
                     == PrivacySettingsStorageType::Sync
                 {
                     debug!(
-                    "Privacy settings storage type is not set as sync so not starting cloud monitor"
-                );
+                        "Privacy settings storage type is set as sync so starting cloud monitor"
+                    );
                     if let Some(account_session) = state.session_state.get_account_session() {
                         debug!("Successfully got account session");
+                        if !update_token {
+                            let sync_response = state
+                                .get_client()
+                                .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
+                                    SyncAndMonitorModule::Privacy,
+                                    account_session.clone(),
+                                ))
+                                .await;
+                            debug!("Received Sync response for privacy: {:?}", sync_response);
+                            let sync_response = state
+                                .get_client()
+                                .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
+                                    SyncAndMonitorModule::UserGrants,
+                                    account_session.clone(),
+                                ))
+                                .await;
+                            debug!(
+                                "Received Sync response for user grants: {:?}",
+                                sync_response
+                            );
+                        } else {
+                            debug!("cap already available so just updating the token alone");
+                            let update_token_response = state
+                                .get_client()
+                                .send_extn_request(SyncAndMonitorRequest::UpdateDistributorToken(
+                                    account_session.token.clone(),
+                                ))
+                                .await;
+                            debug!("Cap token:account is already in available state. just updating Token res: {:?}", update_token_response);
+                        }
                         //sync up partner exclusion data and setup polling thread for refreshing it.
                         Self::sync_partner_exclusions(state).await;
-
-                        let sync_response = state
-                            .get_client()
-                            .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
-                                SyncAndMonitorModule::Privacy,
-                                account_session.clone(),
-                            ))
-                            .await;
-                        debug!("Received Sync response for privacy: {:?}", sync_response);
-                        let sync_response = state
-                            .get_client()
-                            .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
-                                SyncAndMonitorModule::UserGrants,
-                                account_session.clone(),
-                            ))
-                            .await;
-                        debug!(
-                            "Received Sync response for user grants: {:?}",
-                            sync_response
-                        );
                     }
                 }
             }
 
             if state.supports_app_catalog() {
                 let ignore_list = vec![state.get_device_manifest().applications.defaults.main];
-
-                let client = state.get_client().clone();
+                let client = state.get_client();
                 client.add_event_processor(AppsUpdater::new(client.get_extn_client(), ignore_list));
-
-                let on_apps_update_resp = state
-                    .ripple_client
-                    .send_extn_request(AppCatalogRequest::OnAppsUpdate)
-                    .await;
-
-                debug!("Received OnAppsUpdate response: {:?}", on_apps_update_resp);
             }
         }
     }
