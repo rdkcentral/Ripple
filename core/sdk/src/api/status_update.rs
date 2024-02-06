@@ -45,3 +45,16 @@ impl ExtnPayloadProvider for ExtnStatus {
         RippleContract::ExtnStatus
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_payload_provider_for_extn_status() {
+        let extn_status = ExtnStatus::Error;
+        let contract_type: RippleContract = RippleContract::ExtnStatus;
+        test_extn_payload_provider(extn_status, contract_type);
+    }
+}

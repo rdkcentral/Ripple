@@ -23,13 +23,13 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PlatformTokenRequest {
     pub options: Vec<String>,
     pub context: PlatformTokenContext,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PlatformTokenContext {
     pub app_id: String,
     pub content_provider: String,
@@ -53,5 +53,36 @@ impl ExtnPayloadProvider for PlatformTokenRequest {
 
     fn contract() -> RippleContract {
         RippleContract::Session(crate::api::session::SessionAdjective::Platform)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_platform_token() {
+        let options_vec = vec!["option1".to_string(), "option2".to_string()];
+
+        let platform_token_request = PlatformTokenRequest {
+            options: options_vec,
+            context: PlatformTokenContext {
+                app_id: "test_app_id".to_string(),
+                content_provider: "test_content_provider".to_string(),
+                device_session_id: "test_device_session_id".to_string(),
+                app_session_id: "test_app_session_id".to_string(),
+                dist_session: AccountSession {
+                    id: "test_session_id".to_string(),
+                    token: "test_token".to_string(),
+                    account_id: "test_account_id".to_string(),
+                    device_id: "test_device_id".to_string(),
+                },
+            },
+        };
+
+        let contract_type: RippleContract =
+            RippleContract::Session(crate::api::session::SessionAdjective::Platform);
+        test_extn_payload_provider(platform_token_request, contract_type);
     }
 }

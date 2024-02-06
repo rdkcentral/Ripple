@@ -42,7 +42,7 @@ pub const POWER_STATE_CHANGED: &str = "device.onPowerStateChanged";
 pub const TIME_ZONE_CHANGED: &str = "localization.onTimeZoneChanged";
 
 // Is this from the device to thunder event handler???
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum DeviceEvent {
     InputChanged,
     HdrChanged,
@@ -76,7 +76,7 @@ impl FromStr for DeviceEvent {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum DeviceEventCallback {
     FireboltAppEvent(String),
     ExtnEvent,
@@ -91,7 +91,7 @@ impl DeviceEventCallback {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct DeviceEventRequest {
     pub event: DeviceEvent,
     pub subscribe: bool,
@@ -137,5 +137,22 @@ impl ExtnPayloadProvider for DeviceEventRequest {
 
     fn contract() -> RippleContract {
         RippleContract::DeviceEvents(EventAdjective::Input)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_device_event() {
+        let device_event_request = DeviceEventRequest {
+            event: DeviceEvent::InputChanged,
+            subscribe: true,
+            callback_type: DeviceEventCallback::FireboltAppEvent("id".to_string()),
+        };
+        let contract_type: RippleContract = RippleContract::DeviceEvents(EventAdjective::Input);
+        test_extn_payload_provider(device_event_request, contract_type);
     }
 }

@@ -24,14 +24,14 @@ use crate::{
 
 use super::gateway::rpc_gateway_api::ApiMessage;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum BridgeProtocolRequest {
     StartSession(BridgeSessionParams),
     EndSession(String),
     Send(String, ApiMessage),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct BridgeSessionParams {
     pub container_id: String,
     pub session_id: String,
@@ -53,5 +53,34 @@ impl ExtnPayloadProvider for BridgeProtocolRequest {
 
     fn contract() -> RippleContract {
         RippleContract::BridgeProtocol
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::session::AccountSessionRequest;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_bridge_protocol() {
+        let bridge_session_params = BridgeSessionParams {
+            container_id: "test_container_id".to_string(),
+            session_id: "test_session_id".to_string(),
+            app_id: "test_app_id".to_string(),
+        };
+
+        let bridge_protocol_request = BridgeProtocolRequest::StartSession(bridge_session_params);
+        let contract_type: RippleContract = RippleContract::BridgeProtocol;
+
+        test_extn_payload_provider(bridge_protocol_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_request_bridge_protocol_none() {
+        let other_payload =
+            ExtnPayload::Request(ExtnRequest::AccountSession(AccountSessionRequest::Get));
+        let result = BridgeProtocolRequest::get_from_payload(other_payload);
+        assert_eq!(result, None);
     }
 }

@@ -37,7 +37,7 @@ use super::{
     gateway::rpc_gateway_api::CallContext,
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppSession {
     pub app: AppBasicInfo,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -68,7 +68,7 @@ impl AppSession {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppBasicInfo {
     pub id: String,
     pub catalog: Option<String>,
@@ -76,7 +76,7 @@ pub struct AppBasicInfo {
     pub title: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum AppRuntimeTransport {
     Bridge,
@@ -87,14 +87,14 @@ fn runtime_transport_default() -> AppRuntimeTransport {
     AppRuntimeTransport::Websocket
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppRuntime {
     pub id: Option<String>,
     #[serde(default = "runtime_transport_default")]
     pub transport: AppRuntimeTransport,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Default, Serialize, Deserialize, Clone)]
 pub struct AppLaunchInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub intent: Option<NavigationIntent>,
@@ -177,7 +177,7 @@ impl AppRequest {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum AppManagerResponse {
     None,
     State(LifecycleState),
@@ -227,7 +227,7 @@ pub enum AppMethod {
     NewLoadedSession(AppSession),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum CloseReason {
     RemoteButton,
@@ -274,7 +274,7 @@ pub struct AppEvent {
     pub app_id: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AppEventRequest {
     Emit(AppEvent),
     Register(CallContext, String, ListenRequest),
@@ -299,5 +299,31 @@ impl ExtnPayloadProvider for AppEventRequest {
 
     fn contract() -> RippleContract {
         RippleContract::AppEvents
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_payload_provider_for_app_response() {
+        let app_response: AppResponse = Ok(AppManagerResponse::State(LifecycleState::Initializing));
+        let contract_type: RippleContract = RippleContract::LifecycleManagement;
+        test_extn_payload_provider(app_response, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_app_event_request() {
+        let app_event_request = AppEventRequest::Emit(AppEvent {
+            event_name: String::from("your_event_name"),
+            result: serde_json::to_value("your_event_result").unwrap(),
+            context: Some(serde_json::to_value("your_event_context").unwrap()),
+            app_id: Some(String::from("your_app_id")),
+        });
+
+        let contract_type: RippleContract = RippleContract::AppEvents;
+        test_extn_payload_provider(app_event_request, contract_type);
     }
 }
