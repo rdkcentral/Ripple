@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use ripple_sdk::tokio;
 use ripple_sdk::{
@@ -332,7 +332,6 @@ impl PluginManager {
             }
         }
     }
-
     pub async fn reactivate_plugin_state(&mut self) -> PluginActivatedResult {
         let mut plugins = Vec::new();
         match self.plugin_request.activate_on_boot.clone() {
@@ -344,10 +343,21 @@ impl PluginManager {
             ThunderPluginParam::Custom(p) => plugins.extend(p),
             ThunderPluginParam::None => {}
         }
+        // filter and merge the plugin activation list
+        let mut plugin_activate_set: HashSet<String> = HashSet::new();
+        for (key, value) in self.plugin_states.iter() {
+            if value.is_activated() {
+                plugin_activate_set.insert(key.clone());
+            }
+        }
+        // insert all activate_on_boot_plugins here.
+        for p in plugins.iter() {
+            plugin_activate_set.insert(p.clone());
+        }
         // remove all cached plugin states
         self.plugin_states.clear();
-        // activate all activate_on_boot_plugins here.
-        for p in plugins {
+        // activate all plugins from the merged list
+        for p in plugin_activate_set {
             self.wait_for_activation(p.clone(), true).await;
         }
 

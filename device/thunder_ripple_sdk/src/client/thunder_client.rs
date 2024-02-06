@@ -459,7 +459,7 @@ impl ThunderClientBuilder {
             url.clone()
         };
         let mut client: Result<Client, JsonRpcError>;
-        let mut delay_duration = tokio::time::Duration::from_millis(50);
+        let mut delay_duration = tokio::time::Duration::from_millis(100);
         loop {
             client = WsClientBuilder::default()
                 .build(url_with_token.to_string())
@@ -467,7 +467,7 @@ impl ThunderClientBuilder {
             if client.is_err() {
                 warn!("Attempt to connect to thunder, retrying");
                 sleep(delay_duration).await;
-                if delay_duration < tokio::time::Duration::from_secs(1) {
+                if delay_duration < tokio::time::Duration::from_secs(3) {
                     delay_duration *= 2;
                 }
                 continue;
