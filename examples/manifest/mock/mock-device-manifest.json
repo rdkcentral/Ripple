@@ -117,7 +117,7 @@
       "xrn:firebolt:capability:token:root",
       "xrn:firebolt:capability:accessibility:audiodescriptions",
       "xrn:firebolt:capability:inputs:hdmi",
-      "xrn:firebolt:capability:discovery:interest"
+      "xrn:firebolt:capability:mock-device:request-response"
     ]
   },
   "lifecycle": {

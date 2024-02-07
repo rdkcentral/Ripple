@@ -139,7 +139,9 @@ fn get_rpc_extns(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) -> Metho
 }
 
 fn get_extended_capabilities() -> Option<String> {
-    None
+    Some(String::from(std::include_str!(
+        "./mock-device-openrpc.json"
+    )))
 }
 
 fn init_jsonrpsee_builder() -> JsonRpseeExtnBuilder {

@@ -112,7 +112,7 @@ impl MockDeviceController {
         let mut client = self.client.clone();
         let request = ExtnProviderRequest {
             value: serde_json::to_value(request).unwrap(),
-            id: self.id.to_string(),
+            id: self.id.clone(),
         };
         self.rt
             .spawn(async move {

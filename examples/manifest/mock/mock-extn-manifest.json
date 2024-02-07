@@ -80,7 +80,8 @@
                 {
                     "id": "ripple:extn:jsonrpsee:mock_device",
                     "uses": [
-                        "extn_provider.mock_device"
+                        "extn_provider.mock_device",
+                        "ripple:channel:device:mock_device"
                     ],
                     "fulfills": [
                         "json_rpsee"

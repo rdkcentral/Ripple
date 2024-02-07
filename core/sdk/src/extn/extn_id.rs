@@ -147,6 +147,29 @@ pub struct ExtnId {
     service: String,
 }
 
+impl Serialize for ExtnId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for ExtnId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        if let Ok(str) = String::deserialize(deserializer) {
+            if let Ok(id) = ExtnId::try_from(str) {
+                return Ok(id);
+            }
+        }
+        Err(serde::de::Error::unknown_variant("unknown", &["unknown"]))
+    }
+}
+
 impl PartialEq for ExtnId {
     fn eq(&self, other: &Self) -> bool {
         self._type.eq(&other._type)
@@ -458,7 +481,7 @@ impl ContractAdjective for ExtnProviderAdjective {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ExtnProviderRequest {
     pub value: Value,
-    pub id: String,
+    pub id: ExtnId,
 }
 
 impl ExtnPayloadProvider for ExtnProviderRequest {
@@ -482,6 +505,12 @@ impl ExtnPayloadProvider for ExtnProviderRequest {
         // Will be replaced by the IEC before CExtnMessage conversion
         RippleContract::ExtnProvider(ExtnProviderAdjective {
             id: ExtnId::get_main_target("default".into()),
+        })
+    }
+
+    fn get_contract(&self) -> RippleContract {
+        RippleContract::ExtnProvider(ExtnProviderAdjective {
+            id: self.id.clone(),
         })
     }
 }
