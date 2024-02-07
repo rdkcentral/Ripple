@@ -38,6 +38,7 @@ pub struct CExtnMessage {
     pub id: String,
     pub requestor: String,
     pub target: String,
+    pub target_id: String,
     pub payload: String,
     pub callback: Option<CSender<CExtnMessage>>,
     pub ts: i64,
@@ -52,6 +53,10 @@ impl From<ExtnMessage> for CExtnMessage {
             payload,
             requestor: value.requestor.to_string(),
             target: value.target.into(),
+            target_id: match value.target_id {
+                Some(id) => id.to_string(),
+                None => "".to_owned(),
+            },
             ts: if let Some(v) = value.ts {
                 v
             } else {
@@ -76,6 +81,8 @@ impl TryInto<ExtnMessage> for CExtnMessage {
             return Err(RippleError::ParseError);
         }
         let target = target_contract.unwrap();
+        let target_id: Result<ExtnId, RippleError> = self.target_id.try_into();
+        let target_id = target_id.ok();
 
         let payload: Result<ExtnPayload, RippleError> = self.payload.try_into();
         if payload.is_err() {
@@ -88,6 +95,7 @@ impl TryInto<ExtnMessage> for CExtnMessage {
             id: self.id,
             requestor,
             target,
+            target_id,
             payload,
             ts,
         })

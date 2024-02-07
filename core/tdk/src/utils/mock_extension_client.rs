@@ -34,6 +34,7 @@ impl MockExtnClient {
             payload: ExtnPayload::Request(req),
             requestor: ExtnId::new_channel(ExtnClassId::Internal, "test".into()),
             target: contract,
+            target_id: None,
             ts: Some(30),
         }
     }

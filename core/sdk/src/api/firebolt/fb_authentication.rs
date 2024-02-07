@@ -23,7 +23,7 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TokenResult {
     pub value: String,
@@ -72,5 +72,26 @@ impl ExtnPayloadProvider for TokenResult {
 
     fn contract() -> RippleContract {
         RippleContract::Session(SessionAdjective::Device)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_token_result() {
+        let token_result = TokenResult {
+            value: "test_value".to_string(),
+            expires: Some("2024-12-31T23:59:59Z".to_string()),
+            _type: TokenType::Platform,
+            scope: Some("test_scope".to_string()),
+            expires_in: Some(3600),
+            token_type: Some("Bearer".to_string()),
+        };
+
+        let contract_type: RippleContract = RippleContract::Session(SessionAdjective::Device);
+        test_extn_payload_provider(token_result, contract_type);
     }
 }

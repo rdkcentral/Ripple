@@ -23,12 +23,12 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct DistributorTokenRequest {
     pub context: DistributorTokenContext,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct DistributorTokenContext {
     pub app_id: String,
     pub dist_session: AccountSession,
@@ -49,5 +49,30 @@ impl ExtnPayloadProvider for DistributorTokenRequest {
 
     fn contract() -> RippleContract {
         RippleContract::Session(crate::api::session::SessionAdjective::Distributor)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_distributor_token() {
+        let distributor_token_request = DistributorTokenRequest {
+            context: DistributorTokenContext {
+                app_id: "test_app_id".to_string(),
+                dist_session: AccountSession {
+                    id: "test_session_id".to_string(),
+                    token: "test_token".to_string(),
+                    account_id: "test_account_id".to_string(),
+                    device_id: "test_device_id".to_string(),
+                },
+            },
+        };
+
+        let contract_type: RippleContract =
+            RippleContract::Session(crate::api::session::SessionAdjective::Distributor);
+        test_extn_payload_provider(distributor_token_request, contract_type);
     }
 }

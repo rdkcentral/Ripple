@@ -18,7 +18,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::api::device::entertainment_data::NavigationIntent;
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, PartialEq, Serialize, Debug, Clone)]
 pub struct SecondScreenEvent {
     #[serde(rename = "type")]
     pub _type: String,
