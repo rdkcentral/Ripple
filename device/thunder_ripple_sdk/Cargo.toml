@@ -51,3 +51,4 @@ csv = "=1.1.5"
 base64 = "0.13.0"
 home = { version = "=0.5.5", optional = true}
 regex = "1.7.3"
+tokio-tungstenite = { version = "0.17.1", features = ["native-tls"] }

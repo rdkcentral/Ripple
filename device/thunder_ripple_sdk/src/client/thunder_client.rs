@@ -547,9 +547,17 @@ impl ThunderClientBuilder {
                                 })
                                 .unwrap()
                         };
-                        let _ = s
+                        let resp = s
                             .send(ThunderMessage::ThunderSubscribeMessage(thunder_message))
                             .await;
+                        if resp.is_err() {
+                            if let Some((module, _)) =
+                                Self::parse_subscribe_method(subscribe_method)
+                            {
+                                error!("Failed to send re-subscribe message for {}", module);
+                                // TBD: activate the plugin and retry
+                            }
+                        }
                     }
                 }
             }

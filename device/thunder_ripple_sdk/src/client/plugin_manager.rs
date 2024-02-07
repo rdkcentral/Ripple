@@ -364,3 +364,49 @@ impl PluginManager {
         PluginActivatedResult::Ready
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::client::thunder_client_pool::ThunderClientPool;
+    use crate::tests::thunder_client_pool_test_utility::{
+        CustomMethodHandler, MockWebSocketServer,
+    };
+    use ripple_sdk::tokio::time::{sleep, Duration};
+    use std::sync::Arc;
+    use url::Url;
+
+    #[tokio::test]
+    async fn test_plugin_manager_start() {
+        // Using the default method handler from tests::thunder_client_pool_test_utility
+        // This can be replaced with a custom method handler, if needed
+        let custom_method_handler = Arc::new(CustomMethodHandler);
+        let custom_method_handler_c = custom_method_handler.clone();
+
+        let _server_task = tokio::spawn(async {
+            let mock_server = MockWebSocketServer::new("127.0.0.1:8080", custom_method_handler_c);
+            mock_server.start().await;
+        });
+
+        // Wait for the server to start
+        sleep(Duration::from_secs(1)).await;
+
+        let url = Url::parse("ws://127.0.0.1:8080/jsonrpc").unwrap();
+
+        let controller_pool = ThunderClientPool::start(url.clone(), None, 1).await;
+        assert!(controller_pool.is_ok());
+
+        let controller_pool = controller_pool.unwrap();
+
+        let expected_plugins = ThunderPluginBootParam {
+            expected: ThunderPluginParam::None,
+            activate_on_boot: ThunderPluginParam::None,
+        };
+
+        let plugin_manager_tx =
+            PluginManager::start(Box::new(controller_pool), expected_plugins).await;
+
+        let client = ThunderClientPool::start(url, Some(plugin_manager_tx), 4).await;
+        assert!(client.is_ok());
+    }
+}

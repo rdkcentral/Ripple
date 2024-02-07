@@ -173,3 +173,120 @@ impl ThunderClientPool {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        client::plugin_manager::{PluginActivatedResult, PluginManagerCommand},
+        tests::thunder_client_pool_test_utility::{
+            CustomMethodHandler, MethodHandler, MockWebSocketServer,
+        },
+    };
+    use ripple_sdk::api::device::device_operator::DeviceUnsubscribeRequest;
+    use ripple_sdk::{
+        api::device::device_operator::DeviceSubscribeRequest,
+        utils::channel_utils::oneshot_send_and_log,
+    };
+    use ripple_sdk::{
+        api::device::device_operator::{DeviceCallRequest, DeviceOperator},
+        tokio::time::{sleep, Duration},
+    };
+    use url::Url;
+
+    #[tokio::test]
+    async fn test_thunder_client_pool_start() {
+        // Using the default method handler from tests::thunder_client_pool_test_utility
+        // This can be replaced with a custom method handler, if needed
+        let custom_method_handler = Arc::new(CustomMethodHandler);
+        let callsign = custom_method_handler.get_callsign();
+
+        // clone to pass to the server
+        let custom_method_handler_c = custom_method_handler.clone();
+
+        let server_task = tokio::spawn(async {
+            let mock_server = MockWebSocketServer::new("127.0.0.1:8080", custom_method_handler_c);
+            mock_server.start().await;
+        });
+
+        // Wait for a moment to let the server start
+        sleep(Duration::from_secs(1)).await;
+
+        let url = Url::parse("ws://127.0.0.1:8080/jsonrpc").unwrap();
+        let (tx, mut rx) = mpsc::channel(32);
+
+        // Spawn command thread
+        tokio::spawn(async move {
+            while let Some(command) = rx.recv().await {
+                match command {
+                    PluginManagerCommand::StateChangeEvent(_ev) => {}
+                    PluginManagerCommand::ActivatePluginIfNeeded { callsign: _, tx } => {
+                        oneshot_send_and_log(
+                            tx,
+                            PluginActivatedResult::Ready,
+                            "ActivatePluginIfNeededResponse",
+                        );
+                    }
+                    PluginManagerCommand::WaitForActivation { callsign: _, tx } => {
+                        oneshot_send_and_log(tx, PluginActivatedResult::Ready, "WaitForActivation");
+                    }
+                    PluginManagerCommand::ReactivatePluginState { tx } => {
+                        oneshot_send_and_log(
+                            tx,
+                            PluginActivatedResult::Ready,
+                            "ReactivatePluginState",
+                        );
+                    }
+                }
+            }
+        });
+
+        let client = ThunderClientPool::start(url, Some(tx), 4).await;
+        assert!(client.is_ok());
+        let client = client.unwrap();
+
+        // call this 20 times from different threads
+        for _ in 0..20 {
+            let client = client.clone();
+            let callsign = callsign.clone();
+            tokio::spawn(async move {
+                let resp = client
+                    .call(DeviceCallRequest {
+                        method: format!("{}.1.testMethod", callsign.to_string()),
+                        params: None,
+                    })
+                    .await;
+                assert_eq!(resp.message, "Generic Request Response".to_string());
+            });
+        }
+
+        // test subscribe
+        // call this 3 times from a loop
+        for _ in 0..3 {
+            let (sub_tx, _sub_rx) = mpsc::channel::<DeviceResponseMessage>(32);
+            let resp = client
+                .subscribe(
+                    DeviceSubscribeRequest {
+                        module: format!("{}.1", callsign.to_string()),
+                        event_name: "testEvent".into(),
+                        params: None,
+                        sub_id: None,
+                    },
+                    sub_tx,
+                )
+                .await;
+            assert_eq!(resp.message, "Subscribed".to_string());
+        }
+
+        // call unsubscribe 5 times from a loop
+        client
+            .unsubscribe(DeviceUnsubscribeRequest {
+                module: format!("{}.1", callsign.to_string()),
+                event_name: "testEvent".into(),
+            })
+            .await;
+
+        sleep(Duration::from_secs(3)).await;
+        server_task.abort();
+    }
+}

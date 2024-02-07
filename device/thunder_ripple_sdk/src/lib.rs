@@ -68,4 +68,5 @@ pub mod tests {
         pub mod thunder_window_manager_pacts;
     }
     pub mod mock_thunder_controller;
+    pub mod thunder_client_pool_test_utility;
 }
