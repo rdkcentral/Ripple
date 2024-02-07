@@ -148,9 +148,6 @@ pub struct FireboltInteraction {
     pub success: bool,
     pub ripple_session_id: String,
     pub app_session_id: Option<String>,
-    // <pca>
-    timer: Timer,
-    // </pca>
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -164,6 +161,9 @@ pub enum TelemetryPayload {
     SignOut(TelemetrySignOut),
     InternalInitialize(InternalInitialize),
     FireboltInteraction(FireboltInteraction), // External Service failures (service, error)
+    // <pca>
+    Timer(Timer),
+    // </pca>
 }
 
 impl TelemetryPayload {

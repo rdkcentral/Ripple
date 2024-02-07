@@ -182,7 +182,7 @@ impl FireboltGateway {
                                 .await;
                                 // <pca>
                                 timer.stop();
-                                platform_state.get_client().send_extn_request( ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest::Timer(timer.clone())).await.ok();
+                                platform_state.get_client().send_extn_request( ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest::Timer(timer)).await.ok();
                                 result
                                 // </pca>
                             } else {
