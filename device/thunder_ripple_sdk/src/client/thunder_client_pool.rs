@@ -252,11 +252,11 @@ mod tests {
             tokio::spawn(async move {
                 let resp = client
                     .call(DeviceCallRequest {
-                        method: format!("{}.1.testMethod", callsign.to_string()),
+                        method: format!("{}.1.testMethod", callsign),
                         params: None,
                     })
                     .await;
-                assert_eq!(resp.message, "Generic Request Response".to_string());
+                assert_eq!(resp.message, "testMethod Request Response".to_string());
             });
         }
 
@@ -267,7 +267,7 @@ mod tests {
             let resp = client
                 .subscribe(
                     DeviceSubscribeRequest {
-                        module: format!("{}.1", callsign.to_string()),
+                        module: format!("{}.1", callsign),
                         event_name: "testEvent".into(),
                         params: None,
                         sub_id: None,
@@ -278,10 +278,10 @@ mod tests {
             assert_eq!(resp.message, "Subscribed".to_string());
         }
 
-        // call unsubscribe 5 times from a loop
+        // call unsubscribe
         client
             .unsubscribe(DeviceUnsubscribeRequest {
-                module: format!("{}.1", callsign.to_string()),
+                module: format!("{}.1", callsign),
                 event_name: "testEvent".into(),
             })
             .await;

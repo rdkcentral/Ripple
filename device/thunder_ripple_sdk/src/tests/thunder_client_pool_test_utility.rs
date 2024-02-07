@@ -133,20 +133,15 @@ async fn handle_connection(
     while let Some(message) = rx.next().await {
         match message {
             Ok(msg) => {
-                match msg {
-                    Message::Text(text) => {
-                        if let Ok(request) = serde_json::from_str::<Value>(&text) {
-                            if let Some(response) = method_handler.handle_method(&request) {
-                                // Send the response if the method was handled
-                                let response_text = serde_json::to_string(&response).unwrap();
-                                if let Err(e) = tx.send(Message::Text(response_text)).await {
-                                    eprintln!("Failed to send response: {}", e);
-                                }
+                if let Message::Text(text) = msg {
+                    if let Ok(request) = serde_json::from_str::<Value>(&text) {
+                        if let Some(response) = method_handler.handle_method(&request) {
+                            // Send the response if the method was handled
+                            let response_text = serde_json::to_string(&response).unwrap();
+                            if let Err(e) = tx.send(Message::Text(response_text)).await {
+                                eprintln!("Failed to send response: {}", e);
                             }
                         }
-                    }
-                    _ => {
-                        // Handle other message types here
                     }
                 }
             }
