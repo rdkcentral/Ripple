@@ -18,7 +18,7 @@
 use ripple_sdk::{
     api::{
         firebolt::{
-            fb_metrics::{ErrorParams, InternalInitializeParams, SystemErrorParams},
+            fb_metrics::{ErrorParams, InternalInitializeParams, SystemErrorParams, Timer},
             fb_telemetry::{
                 AppLoadStart, AppLoadStop, FireboltInteraction, InternalInitialize,
                 TelemetryAppError, TelemetryPayload, TelemetrySignIn, TelemetrySignOut,
@@ -199,4 +199,25 @@ impl TelemetryBuilder {
             error!("send_telemetry={:?}", e)
         }
     }
+
+    // <pca>
+    pub fn send_fb_timer(ps: &PlatformState, req: RpcRequest, timer: Timer, success: bool) {
+        let ctx = req.ctx;
+        let method = req.method;
+        let params = if let Ok(mut p) = serde_json::from_str::<Vec<Value>>(&req.params_json) {
+            if p.len() > 1 {
+                // remove call context
+                let _ = p.remove(0);
+                Some(serde_json::to_string(&p).unwrap())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        if let Err(e) = Self::send_telemetry(ps, TelemetryPayload::Timer(timer)) {
+            error!("send_fb_timer: send_telemetry={:?}", e)
+        }
+    }
+    // </pca>
 }
