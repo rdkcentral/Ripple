@@ -23,10 +23,10 @@ use log::{error, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct AppLibraryState {
-    default_apps: Vec<AppLibraryEntry>,
-    providers: HashMap<String, String>,
+    pub default_apps: Vec<AppLibraryEntry>,
+    pub providers: HashMap<String, String>,
 }
 
 impl std::fmt::Debug for AppLibraryState {

@@ -23,7 +23,7 @@ use crate::{
 
 use super::firebolt::fb_capabilities::RoleInfo;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum CapsRequest {
     Permitted(String, Vec<RoleInfo>),
@@ -45,5 +45,32 @@ impl ExtnPayloadProvider for CapsRequest {
 
     fn contract() -> RippleContract {
         RippleContract::Caps
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::firebolt::fb_capabilities::{CapabilityRole, FireboltCap};
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_caps() {
+        let app_id = "test_app_id".to_string();
+        let role_infos = vec![
+            RoleInfo {
+                role: Some(CapabilityRole::Use),
+                capability: FireboltCap::Short("test_short_cap".to_string()),
+            },
+            RoleInfo {
+                role: Some(CapabilityRole::Manage),
+                capability: FireboltCap::Full("test_full_cap".to_string()),
+            },
+        ];
+
+        let caps_request = CapsRequest::Permitted(app_id, role_infos);
+
+        let contract_type: RippleContract = RippleContract::Caps;
+        test_extn_payload_provider(caps_request, contract_type);
     }
 }

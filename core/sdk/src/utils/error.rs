@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::firebolt::fb_capabilities::DenyReason;
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 pub enum RippleError {
     MissingInput,
     InvalidInput,

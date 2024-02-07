@@ -425,7 +425,7 @@ pub struct CapRequestRpcRequest {
     pub grants: Vec<RoleInfo>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct RoleInfo {
     pub role: Option<CapabilityRole>,
     pub capability: FireboltCap,

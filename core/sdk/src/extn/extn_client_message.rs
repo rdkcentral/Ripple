@@ -21,6 +21,7 @@ use async_channel::Sender as CSender;
 use log::error;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::{collections::HashMap, fmt::Debug};
 
 use crate::{
     api::{
@@ -58,7 +59,7 @@ use crate::{
         gateway::rpc_gateway_api::RpcRequest,
         manifest::device_manifest::AppLibraryEntry,
         protocol::BridgeProtocolRequest,
-        pubsub::{PubSubRequest, PubSubResponse},
+        pubsub::{PubSubEvents, PubSubRequest, PubSubResponse},
         session::{AccountSessionRequest, AccountSessionResponse, SessionTokenRequest},
         settings::{SettingValue, SettingsRequest},
         status_update::ExtnStatus,
@@ -91,6 +92,7 @@ pub struct ExtnMessage {
     pub id: String,
     pub requestor: ExtnId,
     pub target: RippleContract,
+    pub target_id: Option<ExtnId>,
     pub payload: ExtnPayload,
     pub callback: Option<CSender<CExtnMessage>>,
     pub ts: Option<i64>,
@@ -109,6 +111,7 @@ impl ExtnMessage {
                 payload: ExtnPayload::Response(response),
                 requestor: self.requestor.clone(),
                 target: self.target.clone(),
+                target_id: self.target_id.clone(),
                 ts: None,
             }),
             _ => {
@@ -123,6 +126,7 @@ impl ExtnMessage {
             id: self.id.clone(),
             requestor: self.requestor.clone(),
             target: self.target.clone(),
+            target_id: self.target_id.clone(),
             payload: ExtnPayload::Response(ExtnResponse::None(())),
             callback: self.callback.clone(),
             ts: None,
@@ -228,7 +232,7 @@ impl ExtnPayload {
 /// }
 /// }
 /// ```
-pub trait ExtnPayloadProvider: Clone + Send + Sync
+pub trait ExtnPayloadProvider: Clone + Send + Sync + Debug
 where
     Self: Sized,
 {
@@ -334,6 +338,7 @@ pub enum ExtnEvent {
     OperationalMetrics(TelemetryPayload),
     Context(RippleContext),
     VoiceGuidanceState(VoiceGuidanceState),
+    PubSubEvent(PubSubEvents),
     TimeZone(TimeZone),
     AppsUpdate(AppsUpdate),
 }
