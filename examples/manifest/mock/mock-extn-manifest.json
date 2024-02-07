@@ -130,7 +130,7 @@
                 "authentication": "bearer",
                 "token": "account.session",
                 "rpcs": [
-                    "Content.requestUserInterest"
+                    "Advertising.advertisingId"
                 ]
             }
         ]
