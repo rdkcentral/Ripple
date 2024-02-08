@@ -350,8 +350,8 @@ impl AdvertisingServer for AdvertisingImpl {
         });
 
         match self.state.get_client().send_extn_request(payload).await {
-            Ok(payload) => match payload.payload.extract().unwrap() {
-                AdvertisingResponse::AdInitObject(obj) => {
+            Ok(payload) => match payload.payload.extract() {
+                Some(AdvertisingResponse::AdInitObject(obj)) => {
                     let ad_init_object = AdvertisingFrameworkConfig {
                         ad_server_url: obj.ad_server_url,
                         ad_server_url_template: obj.ad_server_url_template,

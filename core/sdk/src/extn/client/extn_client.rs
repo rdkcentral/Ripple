@@ -45,7 +45,10 @@ use crate::{
         extn_id::ExtnId,
         ffi::ffi_message::CExtnMessage,
     },
-    framework::{ripple_contract::RippleContract, RippleResponse},
+    framework::{
+        ripple_contract::{self, RippleContract},
+        RippleResponse,
+    },
     utils::{error::RippleError, extn_utils::ExtnStackSize},
 };
 
@@ -216,6 +219,7 @@ impl ExtnClient {
             .read()
             .unwrap()
             .iter()
+            .inspect(|item| debug!("other sender: {:?}", item.0))
             .map(|(_, v)| v)
             .cloned()
             .collect()
@@ -258,7 +262,7 @@ impl ExtnClient {
                 } else {
                     if !is_main {
                         if let Some(context) = RippleContext::is_ripple_context(&message.payload) {
-                            trace!(
+                            debug!(
                                 "Received ripple context in {} message: {:?}",
                                 self.sender.get_cap().to_string(),
                                 message
@@ -323,27 +327,38 @@ impl ExtnClient {
         }
         if let RippleContextUpdateRequest::RefreshContext(refresh_context) = &request {
             if let Some(RippleContextUpdateType::InternetConnectionChanged) = refresh_context {
-                let resp =
-                    self.request_transient(DeviceInfoRequest::StartMonitoringInternetChanges);
+                let resp = self.request_transient(DeviceInfoRequest::InternetConnectionStatus);
                 if let Err(_err) = resp {
                     error!("Error in starting internet monitoring");
                 }
             }
             return;
         }
-        {
+        // Main's Extn client will receive Context events and if it results in changing any of its
+        // context members then it propagates the event to other extension's extn client.
+        // Propagating known information to other clients increases processing but no meaningful task is done.
+        let propagate = {
             let mut ripple_context = self.ripple_context.write().unwrap();
+            debug!(
+                "Received context request: {:?} current ripple_context: {:?}",
+                request, ripple_context
+            );
             ripple_context.update(request)
-        }
+        };
         let new_context = { self.ripple_context.read().unwrap().clone() };
         let message = new_context.get_event_message();
-        let c_message: CExtnMessage = message.clone().into();
-        {
-            let senders = self.get_other_senders();
-            for sender in senders {
-                let send_res = sender.try_send(c_message.clone());
-                trace!("Send to other client result: {:?}", send_res);
+        if propagate {
+            debug!("Formed Context update event: {:?}", message);
+            let c_message: CExtnMessage = message.clone().into();
+            {
+                let senders = self.get_other_senders();
+                for sender in senders {
+                    let send_res = sender.try_send(c_message.clone());
+                    trace!("Send to other client result: {:?}", send_res);
+                }
             }
+        } else {
+            debug!("Context information is already updated. Hence not propagating");
         }
         Self::handle_vec_stream(message, self.event_processors.clone());
     }
@@ -638,13 +653,18 @@ impl ExtnClient {
 
     pub fn has_token(&self) -> bool {
         let ripple_context = self.ripple_context.read().unwrap();
+        // matches!(
+        //     ripple_context.activation_status.clone(),
+        //     ActivationStatus::AccountToken(_)
+        // )
         matches!(
-            ripple_context.activation_status.clone(),
-            ActivationStatus::AccountToken(_)
+            ripple_context.activation_status.as_ref(),
+            Some(activation_status) if matches!(activation_status, ActivationStatus::AccountToken(_))
         )
     }
 
-    pub fn get_activation_status(&self) -> ActivationStatus {
+    pub fn get_activation_status(&self) -> Option<ActivationStatus> {
+        // pub fn get_activation_status(&self) -> ActivationStatus {
         let ripple_context = self.ripple_context.read().unwrap();
         ripple_context.activation_status.clone()
     }
@@ -652,13 +672,18 @@ impl ExtnClient {
     pub fn has_internet(&self) -> bool {
         let ripple_context = self.ripple_context.read().unwrap();
         matches!(
-            ripple_context.internet_connectivity,
-            InternetConnectionStatus::FullyConnected | InternetConnectionStatus::LimitedInternet
+            ripple_context.internet_connectivity.as_ref(), Some(internet_connectivity) if matches!(internet_connectivity, InternetConnectionStatus::FullyConnected | InternetConnectionStatus::LimitedInternet)
         )
+    }
+
+    pub fn internet_status(&self) -> Option<InternetConnectionStatus> {
+        let ripple_contract = self.ripple_context.read().unwrap();
+        ripple_contract.internet_connectivity.clone()
     }
 
     pub fn get_timezone(&self) -> Option<TimeZone> {
         let ripple_context = self.ripple_context.read().unwrap();
-        Some(ripple_context.time_zone.clone())
+        // Some(ripple_context.time_zone.clone())
+        ripple_context.time_zone.clone()
     }
 }

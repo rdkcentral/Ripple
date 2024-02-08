@@ -15,8 +15,13 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
+
 use ripple_sdk::{
-    api::apps::AppRequest,
+    api::{apps::AppRequest, device::device_events::DeviceEvent},
     async_channel::{unbounded, Receiver as CReceiver, Sender as CSender},
     extn::ffi::ffi_message::CExtnMessage,
     framework::bootstrap::TransientChannel,

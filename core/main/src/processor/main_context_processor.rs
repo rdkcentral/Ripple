@@ -23,9 +23,7 @@ use std::{
 use ripple_sdk::{
     api::{
         app_catalog::AppCatalogRequest,
-        context::{
-            ActivationStatus, RippleContext, RippleContextUpdateRequest, RippleContextUpdateType,
-        },
+        context::{ActivationStatus, RippleContext, RippleContextUpdateType},
         device::{
             device_info_request::DeviceInfoRequest,
             device_request::{InternetConnectionStatus, PowerState, SystemPowerState},
@@ -34,14 +32,14 @@ use ripple_sdk::{
         distributor::distributor_sync::{SyncAndMonitorModule, SyncAndMonitorRequest},
         firebolt::fb_capabilities::{CapEvent, CapabilityRole, FireboltCap, FireboltPermission},
         manifest::device_manifest::PrivacySettingsStorageType,
-        session::AccountSessionRequest,
+        session::{AccountSessionRequest, AccountSessionResponse},
     },
     async_trait::async_trait,
     extn::{
         client::extn_processor::{
             DefaultExtnStreamer, ExtnEventProcessor, ExtnStreamProcessor, ExtnStreamer,
         },
-        extn_client_message::ExtnMessage,
+        extn_client_message::{ExtnMessage, ExtnResponse},
     },
     log::{debug, error, info},
     tokio::{
@@ -97,6 +95,26 @@ impl MainContextProcessor {
                 state.session_state.insert_account_session(session);
                 MetricsState::update_account_session(state).await;
                 event = CapEvent::OnAvailable;
+                let state_c = state.clone();
+                // update ripple context for token asynchronously
+                tokio::spawn(async move {
+                    if let Ok(response) = state_c
+                        .get_client()
+                        .send_extn_request(AccountSessionRequest::GetAccessToken)
+                        .await
+                    {
+                        if let Some(ExtnResponse::AccountSession(
+                            AccountSessionResponse::AccountSessionToken(token),
+                        )) = response.payload.extract::<ExtnResponse>()
+                        {
+                            state_c.get_client().get_extn_client().context_update(
+                                ripple_sdk::api::context::RippleContextUpdateRequest::Token(token),
+                            )
+                        } else {
+                            error!("couldnt update the session response")
+                        }
+                    }
+                });
                 token_available = true;
             }
         }
@@ -147,7 +165,7 @@ impl MainContextProcessor {
     }
     pub async fn initialize_session(state: &PlatformState) {
         let update_token = Self::is_update_token(state);
-        if !Self::check_account_session_token(state).await {
+        if !update_token && !Self::check_account_session_token(state).await {
             error!("Account session still not available");
         } else {
             if state.supports_cloud_sync() {
@@ -218,18 +236,34 @@ impl MainContextProcessor {
 
     fn handle_internet_connection_change(
         state: &PlatformState,
-        internet_state: &InternetConnectionStatus,
+        internet_state: &Option<InternetConnectionStatus>,
+        // internet_state: &InternetConnectionStatus,
     ) {
-        if !matches!(internet_state, InternetConnectionStatus::FullyConnected) {
+        debug!("handling internet connection change: {:?}", internet_state);
+        if internet_state.is_some()
+            && !matches!(
+                internet_state.as_ref().unwrap(),
+                InternetConnectionStatus::FullyConnected
+            )
+        {
             //Send request to start internet monitoring.
-            let _result = state
+            if let Err(err) = state
                 .get_client()
                 .get_extn_client()
-                .request_transient(DeviceInfoRequest::StartMonitoringInternetChanges);
+                .request_transient(DeviceInfoRequest::StartMonitoringInternetChanges)
+            {
+                error!("Error in sending start monitoring: {:?}", err);
+            }
         }
+
     }
-    fn handle_power_state(state: &PlatformState, power_state: &SystemPowerState) {
-        if power_state.power_state != PowerState::On && Self::handle_power_active_cleanup(state) {
+    fn handle_power_state(state: &PlatformState, power_state: &Option<SystemPowerState>) {
+        // fn handle_power_state(state: &PlatformState, power_state: &SystemPowerState) {
+        if (power_state.is_some()
+            && !matches!(power_state.as_ref().unwrap().power_state, PowerState::On))
+            && Self::handle_power_active_cleanup(state)
+        {
+            // if power_state.power_state != PowerState::On && Self::handle_power_active_cleanup(state) {
             info!("Usergrants updated for Powerstate");
         }
     }
@@ -266,21 +300,28 @@ impl ExtnEventProcessor for MainContextProcessor {
         _msg: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> Option<bool> {
+        debug!(
+            "[REFRESH TOKEN] received context event: {:?}",
+            extracted_message
+        );
         if let Some(update) = &extracted_message.update_type {
             match update {
                 RippleContextUpdateType::TokenChanged => {
-                    if let ActivationStatus::AccountToken(t) = &extracted_message.activation_status
+                    if let Some(ActivationStatus::AccountToken(t)) =
+                        &extracted_message.activation_status
+                    // if let ActivationStatus::AccountToken(t) = &extracted_message.activation_status
                     {
+                        Self::initialize_session(&state.state).await
                         //Call initialize token only when account session was not initialized the first time
-                        if state.state.session_state.get_account_session().is_none() {
-                            Self::initialize_session(&state.state).await
-                        } else {
-                            // update the token
-                            state
-                                .state
-                                .session_state
-                                .insert_session_token(t.token.clone())
-                        }
+                        // if state.state.session_state.get_account_session().is_none() {
+                        //     Self::initialize_session(&state.state).await
+                        // } else {
+                        //     // update the token
+                        //     state
+                        //         .state
+                        //         .session_state
+                        //         .insert_session_token(t.token.clone())
+                        // }
                     }
                 }
                 RippleContextUpdateType::PowerStateChanged => {

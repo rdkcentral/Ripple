@@ -53,12 +53,14 @@ impl From<AccountToken> for ActivationStatus {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+// Instead of we chosing the default value, we make them as optional
+// This enables us to differentiate from the default value to actual value
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct RippleContext {
-    pub activation_status: ActivationStatus,
-    pub internet_connectivity: InternetConnectionStatus,
-    pub system_power_state: SystemPowerState,
-    pub time_zone: TimeZone,
+    pub activation_status: Option<ActivationStatus>,
+    pub internet_connectivity: Option<InternetConnectionStatus>,
+    pub system_power_state: Option<SystemPowerState>,
+    pub time_zone: Option<TimeZone>,
     pub update_type: Option<RippleContextUpdateType>,
 }
 
@@ -76,41 +78,71 @@ impl RippleContext {
         RippleContext::get_from_payload(msg.clone())
     }
 
-    pub fn update(&mut self, request: RippleContextUpdateRequest) {
+    pub fn update(&mut self, request: RippleContextUpdateRequest) -> bool {
         match request {
             RippleContextUpdateRequest::Activation(a) => {
                 let activation_status: ActivationStatus = a.into();
-                if self.activation_status != activation_status {
-                    self.activation_status = a.into();
+                if (self.activation_status.is_some()
+                    && self.activation_status.as_ref().unwrap() != &activation_status)
+                    || self.activation_status.is_none()
+                {
+                    self.activation_status = Some(a.into());
                     self.update_type = Some(RippleContextUpdateType::ActivationStatusChanged);
+                    true
+                } else {
+                    false
                 }
             }
             RippleContextUpdateRequest::InternetStatus(s) => {
-                if self.internet_connectivity != s {
-                    self.internet_connectivity = s;
+                if (self.internet_connectivity.is_some()
+                    && self.internet_connectivity.as_ref().unwrap() != &s)
+                    || self.internet_connectivity.is_none()
+                {
+                    self.internet_connectivity = Some(s);
                     self.update_type = Some(RippleContextUpdateType::InternetConnectionChanged);
+                    true
+                } else {
+                    false
                 }
             }
             RippleContextUpdateRequest::Token(t) => {
                 let account_token: ActivationStatus = t.into();
-                if account_token == self.activation_status {
-                    self.activation_status = account_token;
+                if (self.activation_status.is_some()
+                    && self.activation_status.as_ref().unwrap() != &account_token)
+                    || self.activation_status.is_none()
+                {
+                    self.activation_status = Some(account_token);
                     self.update_type = Some(RippleContextUpdateType::TokenChanged);
+                    true
+                } else {
+                    false
                 }
             }
             RippleContextUpdateRequest::PowerState(p) => {
-                if self.system_power_state != p {
-                    self.system_power_state = p;
+                if (self.system_power_state.is_some()
+                    && self.system_power_state.as_ref().unwrap() != &p)
+                    || self.system_power_state.is_none()
+                {
+                    self.system_power_state = Some(p);
                     self.update_type = Some(RippleContextUpdateType::PowerStateChanged);
+                    true
+                } else {
+                    false
                 }
             }
             RippleContextUpdateRequest::TimeZone(tz) => {
-                if tz != self.time_zone {
-                    self.time_zone = tz;
+                if (self.time_zone.is_some() && self.time_zone.as_ref().unwrap() != &tz)
+                    || self.time_zone.is_none()
+                {
+                    self.time_zone = Some(tz);
                     self.update_type = Some(RippleContextUpdateType::TimeZoneChanged);
+                    true
+                } else {
+                    false
                 }
             }
             RippleContextUpdateRequest::RefreshContext(_context) => {
+                false
                 // This is not an update request so need not to honour it
             }
         }
@@ -141,18 +173,6 @@ impl RippleContext {
             RippleContextUpdateType::TimeZoneChanged
         } else {
             RippleContextUpdateType::ActivationStatusChanged
-        }
-    }
-}
-
-impl Default for RippleContext {
-    fn default() -> Self {
-        RippleContext {
-            activation_status: ActivationStatus::NotActivated,
-            internet_connectivity: InternetConnectionStatus::NoInternet,
-            update_type: None,
-            system_power_state: SystemPowerState::default(),
-            time_zone: TimeZone::default(),
         }
     }
 }
