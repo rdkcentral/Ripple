@@ -596,10 +596,7 @@ pub mod tests {
         assert!(result.is_ok());
         if let Ok(r) = receiver.recv().await {
             assert_eq!(r.requestor, sender.id.to_string());
-            assert_eq!(
-                r.target.clone(),
-                RippleContract::DeviceInfo.as_clear_string()
-            );
+            assert_eq!(r.target, RippleContract::DeviceInfo.as_clear_string());
 
             // Generate the ExtnPayload using get_extn_payload
             let extn_payload = device_info_request.get_extn_payload();

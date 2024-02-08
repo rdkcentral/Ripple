@@ -979,7 +979,7 @@ pub mod tests {
         drop(receiver);
         drop(mock_sender);
         ExtnClient::cleanup_vec_stream(id.to_string(), None, extn_client.clone().event_processors);
-        assert!(extn_client.clone().event_processors.read().unwrap().len() == 1);
+        assert!(extn_client.event_processors.read().unwrap().len() == 1);
     }
 
     // #[tokio::test(flavor = "multi_thread")]
@@ -1434,7 +1434,7 @@ pub mod tests {
         tokio::time::sleep(Duration::from_millis(10)).await;
 
         // TODO - update based on tc
-        assert_eq!(result, true);
+        assert!(result);
 
         validate(|captured_logs| {
             for log in captured_logs {
@@ -1692,7 +1692,7 @@ pub mod tests {
             Some(config),
         );
 
-        let extn_client = ExtnClient::new(receiver.clone(), mock_sender.clone());
+        let extn_client = ExtnClient::new(receiver, mock_sender);
         let result = extn_client.get_stack_size();
 
         match result {
@@ -1742,7 +1742,7 @@ pub mod tests {
             vec!["fulfills".to_string()],
             config,
         );
-        let extn_client = ExtnClient::new(receiver.clone(), mock_sender.clone());
+        let extn_client = ExtnClient::new(receiver, mock_sender);
         assert_eq!(extn_client.get_bool_config("key"), expected_value);
     }
 
@@ -1792,7 +1792,7 @@ pub mod tests {
     ) {
         let (mock_sender, receiver) =
             ExtnSender::mock_with_params(id, permitted, fulfills, Some(HashMap::new()));
-        let extn_client = ExtnClient::new(receiver.clone(), mock_sender.clone());
+        let extn_client = ExtnClient::new(receiver, mock_sender);
         let cp = extn_client.check_contract_permitted(RippleContract::DeviceInfo);
         assert_eq!(cp, exp_resp, "{}", error_msg);
     }
@@ -1833,7 +1833,7 @@ pub mod tests {
             fulfills,
             Some(HashMap::new()),
         );
-        let extn_client = ExtnClient::new(receiver.clone(), mock_sender.clone());
+        let extn_client = ExtnClient::new(receiver, mock_sender);
         let cp = extn_client.check_contract_fulfillment(RippleContract::DeviceInfo);
         assert_eq!(cp, exp_resp, "{}", error_msg);
     }
@@ -1846,7 +1846,7 @@ pub mod tests {
             vec!["fulfills".to_string()],
             Some(HashMap::new()),
         );
-        let extn_client = ExtnClient::new(receiver.clone(), mock_sender.clone());
+        let extn_client = ExtnClient::new(receiver, mock_sender);
 
         // Set activation status to AccountToken
         {
