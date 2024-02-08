@@ -141,8 +141,8 @@ mod tests {
             "Controller.1"
         );
         assert_eq!(ThunderPlugin::Controller.callsign_string(), "Controller");
-        assert_eq!(ThunderPlugin::Controller.activate_at_boot(), false);
-        assert_eq!(ThunderPlugin::Controller.expect_activated(), true);
+        assert!(!ThunderPlugin::Controller.activate_at_boot());
+        assert!(ThunderPlugin::Controller.expect_activated());
         assert_eq!(
             ThunderPlugin::Controller.method("register"),
             "Controller.1.register"
@@ -165,7 +165,7 @@ mod tests {
     fn test_thunder_plugin_config_new() {
         let cfg = ThunderPluginConfig::new("org.test.plugin", true, false);
         assert_eq!(cfg.callsign, "org.test.plugin");
-        assert_eq!(cfg.activate_at_boot, true);
-        assert_eq!(cfg.expect_activated, false);
+        assert!(cfg.activate_at_boot);
+        assert!(!cfg.expect_activated);
     }
 }

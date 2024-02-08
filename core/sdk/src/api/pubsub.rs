@@ -27,7 +27,7 @@ use crate::{
 
 use super::session::PubSubAdjective;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum PubSubRequest {
     Connect(PubSubConnectRequest),
     UpdateConnection(PubSubUpdateConnectionCredentialsRequest),
@@ -37,7 +37,7 @@ pub enum PubSubRequest {
     Disconnect(String),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum PubSubResponse {
     Connect(PubSubConnectResponse),
     Publish(PubSubPublishResponse),
@@ -47,20 +47,20 @@ pub enum PubSubResponse {
     Disconnect(bool),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PubSubNotifyTopic {
     pub connection_id: String,
     pub topic: String,
     pub value: Value,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum PubSubConnectionStatus {
     Connected(String),
     Disconnected(String),
     Reconnecting(String),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum PubSubEvents {
     PubSubConnectionEvent(PubSubConnectionStatus),
     PubSubValueChangeEvent(PubSubNotifyTopic),
@@ -97,30 +97,30 @@ pub struct PubSubSubscribedParam {
 //     pub result: bool,
 // }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PubSubPublishRequest {
     pub connection_id: String,
     pub topic: String,
     pub message: String,
     pub message_type: String,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PubSubPublishResponse {
     pub result: bool,
     // pub status_code: String,
     // pub connection_status: String,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Credentials {
     pub id: String,
     pub secret: String,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PubSubUpdateConnectionCredentialsRequest {
     pub connection_id: String,
     pub updated_secret: String,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PubSubConnectRequest {
     pub endpoint_url: String,
     pub client_name: Option<String>,
@@ -129,7 +129,7 @@ pub struct PubSubConnectRequest {
     pub operation_timeout_in_msec: u32,
     // pub max_retry_interval: u32,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PubSubConnectResponse {
     pub connection_status: String,
     // status_code: String,
@@ -137,26 +137,26 @@ pub struct PubSubConnectResponse {
     // result: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PubSubSubscribeRequest {
     pub connection_id: String,
     pub topic: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PubSubUnSubscribeRequest {
     pub context: String,
     pub topic: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PubSubSubscribeResponse {
     // pub connection_status: String,
     // pub status_code: String,
     pub result: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PubSubUnSubscribeResponse {
     // pub connection_status: String,
     // pub status_code: String,
@@ -461,5 +461,153 @@ impl ExtnPayloadProvider for PubSubUpdateConnectionCredentialsRequest {
 
     fn contract() -> RippleContract {
         RippleContract::PubSub(PubSubAdjective::Provider)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_payload_provider_for_pub_sub_notify_topic() {
+        let pub_sub_notify_topic = PubSubNotifyTopic {
+            topic: String::from("your_topic"),
+            connection_id: "test_connection_id".to_string(),
+            value: Value::String(String::from("your_value")),
+        };
+        let contract_type: RippleContract = RippleContract::PubSub(PubSubAdjective::Listener);
+        test_extn_payload_provider(pub_sub_notify_topic, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_pub_sub_connection_status() {
+        let pub_sub_connection_status =
+            PubSubConnectionStatus::Connected("test_connected".to_string());
+        let contract_type: RippleContract = RippleContract::PubSub(PubSubAdjective::Listener);
+        test_extn_payload_provider(pub_sub_connection_status, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_pub_sub_events() {
+        let pub_sub_events = PubSubEvents::PubSubConnectionEvent(
+            PubSubConnectionStatus::Connected("test_connected".to_string()),
+        );
+
+        let contract_type: RippleContract = RippleContract::PubSub(PubSubAdjective::Listener);
+        test_extn_payload_provider(pub_sub_events, contract_type);
+    }
+
+    #[test]
+    fn test_pub_sub_connect_request() {
+        let pub_sub_connect_request = PubSubConnectRequest {
+            endpoint_url: "https://example.com/pubsub".to_string(),
+            client_name: Some("test_client".to_string()),
+            credentials: Credentials {
+                id: "test_id".to_string(),
+                secret: "test_secret".to_string(),
+            },
+            operation_timeout_in_msec: 5000,
+        };
+        let contract_type: RippleContract = RippleContract::PubSub(PubSubAdjective::Provider);
+        test_extn_payload_provider(pub_sub_connect_request, contract_type);
+    }
+
+    #[test]
+    fn test_pub_sub_subscribe_request() {
+        let pub_sub_subscribe_request = PubSubSubscribeRequest {
+            connection_id: "test_connection_id".to_string(),
+            topic: "test_topic".to_string(),
+        };
+        let contract_type: RippleContract = RippleContract::PubSub(PubSubAdjective::Provider);
+        test_extn_payload_provider(pub_sub_subscribe_request, contract_type);
+    }
+
+    #[test]
+    fn test_pub_sub_unsubscribe_request() {
+        let pub_sub_unsubscribe_request = PubSubUnSubscribeRequest {
+            context: "test_context".to_string(),
+            topic: "test_topic".to_string(),
+        };
+        let contract_type: RippleContract = RippleContract::PubSub(PubSubAdjective::Provider);
+        test_extn_payload_provider(pub_sub_unsubscribe_request, contract_type);
+    }
+
+    #[test]
+    fn test_pub_sub_publish_request() {
+        let pub_sub_publish_request = PubSubPublishRequest {
+            connection_id: "test_connection_id".to_string(),
+            topic: "test_topic".to_string(),
+            message: "test_message".to_string(),
+            message_type: "test_message_type".to_string(),
+        };
+        let contract_type: RippleContract = RippleContract::PubSub(PubSubAdjective::Publish);
+        test_extn_payload_provider(pub_sub_publish_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_response_pub_sub_connect_response() {
+        let connect_response = PubSubConnectResponse {
+            connection_status: "connected".to_string(),
+            connection_id: "test_connection_id".to_string(),
+        };
+        let contract_type: RippleContract = RippleContract::PubSub(PubSubAdjective::Listener);
+        test_extn_payload_provider(connect_response, contract_type);
+    }
+
+    #[test]
+    fn test_pub_sub_subscribe_response() {
+        let pub_sub_subscribe_response = PubSubSubscribeResponse { result: true };
+        let contract_type: RippleContract = RippleContract::PubSub(PubSubAdjective::Listener);
+        test_extn_payload_provider(pub_sub_subscribe_response, contract_type);
+    }
+
+    #[test]
+    fn test_pub_sub_publish_response() {
+        let pub_sub_publish_response = PubSubPublishResponse { result: true };
+        let contract_type: RippleContract = RippleContract::PubSub(PubSubAdjective::Listener);
+        test_extn_payload_provider(pub_sub_publish_response, contract_type);
+    }
+
+    #[test]
+    fn test_pub_sub_unsubscribe_response() {
+        let pub_sub_unsubscribe_response = PubSubUnSubscribeResponse { result: true };
+        let contract_type: RippleContract = RippleContract::PubSub(PubSubAdjective::Listener);
+        test_extn_payload_provider(pub_sub_unsubscribe_response, contract_type);
+    }
+
+    #[test]
+    fn test_pub_sub_request() {
+        let pub_sub_request = PubSubRequest::Connect(PubSubConnectRequest {
+            endpoint_url: "test_endpoint".to_string(),
+            client_name: Some("test_client".to_string()),
+            credentials: Credentials {
+                id: "test_id".to_string(),
+                secret: "test_secret".to_string(),
+            },
+            operation_timeout_in_msec: 1000,
+        });
+        let contract_type: RippleContract = RippleContract::PubSub(PubSubAdjective::Provider);
+        test_extn_payload_provider(pub_sub_request, contract_type);
+    }
+
+    #[test]
+    fn test_pub_sub_response() {
+        let pub_sub_response = PubSubResponse::Connect(PubSubConnectResponse {
+            connection_status: "Connected".to_string(),
+            connection_id: "test_connection_id".to_string(),
+        });
+        let contract_type: RippleContract = RippleContract::PubSub(PubSubAdjective::Listener);
+        test_extn_payload_provider(pub_sub_response, contract_type);
+    }
+
+    #[test]
+    fn test_pub_sub_update_connection_credentials_request() {
+        let pub_sub_update_request = PubSubUpdateConnectionCredentialsRequest {
+            connection_id: "test_connection_id".to_string(),
+            updated_secret: "new_secret".to_string(),
+        };
+        let contract_type: RippleContract = RippleContract::PubSub(PubSubAdjective::Provider);
+        test_extn_payload_provider(pub_sub_update_request, contract_type);
     }
 }
