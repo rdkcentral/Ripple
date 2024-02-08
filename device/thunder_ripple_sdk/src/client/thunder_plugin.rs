@@ -127,3 +127,45 @@ impl ThunderPluginConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_thunder_plugin_controller() {
+        // Test ThunderPlugin APIs for Controller
+        assert_eq!(ThunderPlugin::Controller.callsign(), "Controller");
+        assert_eq!(
+            ThunderPlugin::Controller.callsign_and_version(),
+            "Controller.1"
+        );
+        assert_eq!(ThunderPlugin::Controller.callsign_string(), "Controller");
+        assert_eq!(ThunderPlugin::Controller.activate_at_boot(), false);
+        assert_eq!(ThunderPlugin::Controller.expect_activated(), true);
+        assert_eq!(
+            ThunderPlugin::Controller.method("register"),
+            "Controller.1.register"
+        );
+        assert_eq!(
+            ThunderPlugin::Controller.method_version("register", 1),
+            "Controller.1.register"
+        );
+        assert_eq!(
+            ThunderPlugin::Controller.unversioned_method("register"),
+            "Controller.register"
+        );
+    }
+    #[test]
+    fn test_thunder_plugin_activate_counts() {
+        assert_eq!(ThunderPlugin::activate_on_boot_plugins().len(), 6);
+        assert_eq!(ThunderPlugin::expect_activated_plugins().len(), 2);
+    }
+    #[test]
+    fn test_thunder_plugin_config_new() {
+        let cfg = ThunderPluginConfig::new("org.test.plugin", true, false);
+        assert_eq!(cfg.callsign, "org.test.plugin");
+        assert_eq!(cfg.activate_at_boot, true);
+        assert_eq!(cfg.expect_activated, false);
+    }
+}
