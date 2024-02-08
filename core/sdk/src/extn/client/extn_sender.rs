@@ -61,7 +61,6 @@ impl ExtnSender {
         fulfills: Vec<String>,
         config: Option<HashMap<String, String>>,
     ) -> Self {
-        println!("**** ExtnSender: new() called");
         ExtnSender {
             tx,
             id,
@@ -132,14 +131,6 @@ impl ExtnSender {
     ) -> Result<(), RippleError> {
         let id = uuid::Uuid::new_v4().to_string();
         let p = payload.get_extn_payload();
-        println!(
-            "**** send_event(): get_extn_payload() msg:  {:?}",
-            serde_json::to_value(payload.get_extn_payload().clone()).unwrap()
-        );
-        println!(
-            "**** send_event(): other_sender:  {:?}",
-            other_sender.clone()
-        );
         let c_event = p.into();
         let msg = CExtnMessage {
             requestor: self.id.to_string(),
@@ -227,12 +218,8 @@ impl ExtnSender {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    pub use crate::{
-        api::device::device_info_request::{self, DeviceInfoRequest},
-        extn::extn_id::ExtnClassId,
-    };
+    use crate::{api::device::device_info_request::DeviceInfoRequest, extn::extn_id::ExtnClassId};
     use async_channel::Receiver as CReceiver;
-    use mockall::automock;
     use rstest::rstest;
     use std::collections::HashMap;
 
@@ -328,61 +315,40 @@ pub mod tests {
 
     #[test]
     fn test_get_cap() {
-        // Mock ExtnSender
         let (sender, _receiver) = ExtnSender::mock();
-
-        // Get the capability
         let cap = sender.get_cap();
-
-        // Check if it's expected to be main
         let is_main = cap.is_main();
-
-        // case 1
         assert!(is_main, "Expected cap to be main");
-
-        // case 2  custom mock
-        // ExtnSender::mock_with_params(id, custom_context, custom_fulfills, custom_config)
-        // assert!(!is_main, "Expected cap not to be main");
     }
 
-    #[test]
-    fn test_contract_permission() {
-        let (sender, _receiver) = ExtnSender::mock();
+    #[rstest(id, permitted,fulfills, exp_resp, error_msg,
+        case(ExtnId::get_main_target("main".into()), vec!["context".to_string()], vec!["fulfills".to_string()], true, "Expected true for the given main target"),    
+        case(ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
+        vec!["config".to_string(), "device_info".to_string()],
+        vec!["device_info".to_string()], true, "Expected true for the given permitted contract"),
+        case(ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
+        vec!["config".to_string()],
+        vec!["device_info".to_string()], false, "Expected false for the given non permitted contract")
+    )]
+    fn test_contract_permission(
+        id: ExtnId,
+        permitted: Vec<String>,
+        fulfills: Vec<String>,
+        exp_resp: bool,
+        error_msg: &str,
+    ) {
+        let (sender, _receiver) =
+            ExtnSender::mock_with_params(id, permitted, fulfills, Some(HashMap::new()));
+
         let cp = sender.check_contract_permission(RippleContract::DeviceInfo);
-        //case 1 - main
-        assert!(cp, "Expected cap to be main");
-
-        // case 2 - custom mock - permitted contract
-        // assert!(!cp, "Expected cap to be permitted contract");
-
-        // case 3 - custom mock - non permitted contract
-        // assert!(!cp, "Expected cap to be non permitted contract");
+        assert_eq!(cp, exp_resp, "{}", error_msg);
     }
-
-    #[test]
-    fn test_contract_fulfillment() {
-        let (sender, _receiver) = ExtnSender::mock();
-        let cp = sender.check_contract_fulfillment(RippleContract::DeviceInfo);
-        //case 1 - main
-        assert!(cp, "Expected cap to be main");
-
-        // case 2 - custom mock - permitted contract
-        // assert!(!cp, "Expected cap to be permitted contract");
-
-        // case 3 - custom mock - non permitted contract
-        // assert!(!cp, "Expected cap to be non permitted contract");
-    }
-
-    // // { id: "22e045eb-d99d-4fec-8763-022d40e90dd9", requestor: ExtnId { _type: Main, class: Internal, service: "main" }, target: Storage(Local), payload: Request(Device(Storage(Get(GetStorageProperty { namespace: "DeviceName", key: "name" })))), callback: None, ts: Some(1702486068197) }
-    // // { id: "22e045eb-d99d-4fec-8763-022d40e90dd9", requestor: ExtnId { _type: Main, class: Internal, service: "main" }, target: Storage(Local), payload: Response(StorageData(StorageData { value: String("work"), update_time: "2023-12-13T16:46:16.473509+00:00" })), callback: None, ts: Some(1702486068214) }
-    // // { id: "36483c85-bab0-4939-966c-43185a4e9f1d", requestor: ExtnId { _type: Main, class: Internal, service: "main" }, target: OperationalMetricListener, payload: Event(OperationalMetrics(FireboltInteraction(FireboltInteraction { app_id: "com.bskyb.epgui", method: "device.name", params: Some("[{}]"), tt: 23, success: true, ripple_session_id: "40ca4ca5-00a8-4b73-905f-40c2d39f9579", app_session_id: Some("bb2e1eb6-f14f-40b2-bf19-a9c1760d366a") }))), callback: None, ts: Some(1702486068220) }
 
     #[rstest]
     #[case("key1", Some("value1".to_string()))] // key exists in config
     #[case("key2", None)] // key does not exist in config
     #[case("key3", None)] // no config
     fn test_get_config(#[case] key: &str, #[case] expected: Option<String>) {
-        // Create a mock ExtnSender with the specified config
         let (sender, _receiver) = match key {
             "key1" => ExtnSender::mock_with_params(
                 ExtnId::get_main_target("main".into()),
@@ -397,15 +363,79 @@ pub mod tests {
             "key2" | "key3" => ExtnSender::mock_with_params(
                 ExtnId::get_main_target("main".into()),
                 Vec::new(),
-                Vec::new(), // Provide an empty Vec<String> for fulfills
+                Vec::new(),
                 None,
             ),
             _ => ExtnSender::mock(),
         };
 
-        // Call the get_config method and assert the result
         let result = sender.get_config(key);
         assert_eq!(result, expected);
+    }
+
+    #[rstest(
+        id,
+        fulfills,
+        contract,
+        exp_resp,
+        error_msg,
+        case(
+            ExtnId::get_main_target("main".into()),
+            vec!["context".to_string()],
+            RippleContract::DeviceInfo,
+            true,
+            "Expected true for the given main target"
+        ),
+        case(
+            ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
+            vec!["config".to_string(), "device_info".to_string()],
+            RippleContract::DeviceInfo,
+            true,
+            "Expected true for the given fulfilled contract"
+        ),
+        case(
+            ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
+            vec!["config".to_string()],
+            RippleContract::DeviceInfo,
+            false,
+            "Expected false for the given non-fulfilled contract"
+        )
+    )]
+    fn test_contract_fulfillment(
+        id: ExtnId,
+        fulfills: Vec<String>,
+        contract: RippleContract,
+        exp_resp: bool,
+        error_msg: &str,
+    ) {
+        let (sender, _receiver) =
+            ExtnSender::mock_with_params(id, vec![], fulfills, Some(HashMap::new()));
+
+        let cf = sender.check_contract_fulfillment(contract);
+        assert_eq!(cf, exp_resp, "{}", error_msg);
+    }
+
+    #[rstest(id, permitted,fulfills, exp_resp, error_msg,
+        case(ExtnId::get_main_target("main".into()), vec!["context".to_string()], vec!["fulfills".to_string()], true, "Expected true for the given main target"),    
+        case(ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
+        vec!["config".to_string(), "device_info".to_string()],
+        vec!["device_info".to_string()], true, "Expected true for the given permitted contract"),
+        case(ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
+        vec!["config".to_string()],
+        vec!["device_info".to_string()], false, "Expected false for the given non permitted contract")
+    )]
+    fn test_check_contract_permission(
+        id: ExtnId,
+        permitted: Vec<String>,
+        fulfills: Vec<String>,
+        exp_resp: bool,
+        error_msg: &str,
+    ) {
+        let (sender, _receiver) =
+            ExtnSender::mock_with_params(id, permitted, fulfills, Some(HashMap::new()));
+
+        let cf = sender.check_contract_permission(RippleContract::DeviceInfo);
+        assert_eq!(cf, exp_resp, "{}", error_msg);
     }
 
     #[rstest]
@@ -440,25 +470,15 @@ pub mod tests {
             config,
         );
 
-        // Perform the send_request operation with DeviceInfoRequest
         let result = sender.send_request(
             "some_id".to_string(),
             device_info_request.clone(),
             Some(sender.tx.clone()),
             None,
         );
-        println!(
-            "**** test_send_request_with_device_info_request() result: {:?}",
-            result
-        );
-
-        // Assertions
         assert!(result.is_ok());
-        if let Ok(r) = receiver.recv().await {
-            // Print received message for debugging
-            println!("Received message: {:?}", r);
 
-            // Assertions based on the received message
+        if let Ok(r) = receiver.recv().await {
             assert_eq!(r.requestor, sender.id.to_string());
             assert_eq!(
                 r.target,
@@ -510,20 +530,13 @@ pub mod tests {
             config,
         );
 
-        // Perform the send_request operation with DeviceInfoRequest
         let result = sender.send_event(device_info_event.clone(), Some(sender.tx.clone()));
-        println!(
-            "**** test_send_event_with_device_info_request() result: {:?}",
-            result
-        );
 
-        // Assertions
         assert!(result.is_ok());
         if let Ok(r) = receiver.recv().await {
-            println!("**** test_send_event_with_device_info_request() r: {:?}", r);
             assert_eq!(r.requestor, sender.id.to_string());
             assert_eq!(
-                r.target.clone(),
+                r.target,
                 format!("\"{}\"", RippleContract::DeviceInfo.as_clear_string())
             );
 
@@ -574,20 +587,14 @@ pub mod tests {
             payload: device_info_request.get_extn_payload().into(),
             id: "some_id".to_string(),
             target: RippleContract::DeviceInfo.as_clear_string(),
+            target_id: RippleContract::DeviceInfo.as_clear_string(),
             ts: Utc::now().timestamp_millis(),
         };
 
-        // Perform the send_request operation with DeviceInfoRequest
         let result = sender.send(msg, Some(sender.tx.clone()));
-        println!(
-            "**** test_send_with_device_info_request() result: {:?}",
-            result
-        );
 
-        // Assertions
         assert!(result.is_ok());
         if let Ok(r) = receiver.recv().await {
-            println!("**** test_send_with_device_info_request() r: {:?}", r);
             assert_eq!(r.requestor, sender.id.to_string());
             assert_eq!(
                 r.target.clone(),
@@ -632,7 +639,6 @@ pub mod tests {
                 "root.session".to_string(),
                 "device.session".to_string(),
                 "bridge_protocol".to_string(),
-                // Add more fulfills as needed
             ],
             config,
         );
@@ -643,30 +649,18 @@ pub mod tests {
             payload: device_info_request.get_extn_payload().into(),
             id: "some_id".to_string(),
             target: RippleContract::DeviceInfo.as_clear_string(),
+            target_id: RippleContract::DeviceInfo.as_clear_string(),
             ts: Utc::now().timestamp_millis(),
         };
 
-        // Perform the send_request operation with DeviceInfoRequest
         let result = sender.respond(msg, Some(sender.tx.clone()));
-        println!(
-            "**** test_respond_with_device_info_request() result: {:?}",
-            result
-        );
-
-        // Assertions
         assert!(result.is_ok());
+
         if let Ok(r) = receiver.recv().await {
-            println!("**** test_respond_with_device_info_request() r: {:?}", r);
             assert_eq!(r.requestor, sender.id.to_string());
-            assert_eq!(
-                r.target.clone(),
-                RippleContract::DeviceInfo.as_clear_string()
-            );
+            assert_eq!(r.target, RippleContract::DeviceInfo.as_clear_string());
 
-            // Generate the ExtnPayload using get_extn_payload
             let extn_payload = device_info_request.get_extn_payload();
-
-            // Convert the ExtnPayload to a JSON string
             let exp_payload_str = serde_json::to_string(&extn_payload).unwrap();
 
             assert_eq!(r.payload, exp_payload_str);

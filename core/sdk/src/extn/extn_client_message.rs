@@ -21,7 +21,7 @@ use async_channel::Sender as CSender;
 use log::error;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{collections::HashMap, fmt::Debug};
+use std::fmt::Debug;
 
 use crate::{
     api::{

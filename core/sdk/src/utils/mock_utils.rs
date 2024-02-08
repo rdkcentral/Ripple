@@ -1,25 +1,32 @@
-use crate::api::session::AccountSession;
+// Copyright 2023 Comcast Cable Communications Management, LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+
 use crate::extn::client::extn_client::ExtnClient;
-use crate::extn::client::extn_processor::{
-    DefaultExtnStreamer, ExtnEventProcessor, ExtnRequestProcessor, ExtnStreamProcessor,
-    ExtnStreamer,
-};
 use crate::extn::client::extn_sender::ExtnSender;
 use crate::extn::extn_client_message::{
     ExtnEvent, ExtnMessage, ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse,
 };
-use crate::extn::extn_id::{ExtnClassId, ExtnId};
-use crate::extn::ffi::ffi_message::CExtnMessage;
+use crate::extn::extn_id::ExtnId;
 use crate::framework::ripple_contract::RippleContract;
-
-use async_channel::{unbounded, Receiver as CReceiver, Sender as CSender};
-use async_trait::async_trait;
+use async_channel::unbounded;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use tokio::sync::mpsc;
-use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MockEvent {
@@ -27,6 +34,7 @@ pub struct MockEvent {
     pub result: Value,
     pub context: Option<Value>,
     pub app_id: Option<String>,
+    pub expected_response: Option<ExtnResponse>,
 }
 
 impl ExtnPayloadProvider for MockEvent {
@@ -53,15 +61,12 @@ impl ExtnPayloadProvider for MockEvent {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MockRequest {
-    pub context: MockContext,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MockContext {
     pub app_id: String,
-    pub dist_session: AccountSession,
+    pub contract: RippleContract,
+    pub expected_response: Option<ExtnResponse>,
 }
 
+// TODO - check if we can use macro to generate ExtnPayloadProvider
 impl ExtnPayloadProvider for MockRequest {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         if let ExtnPayload::Request(ExtnRequest::Extn(mock_request)) = payload {
@@ -77,38 +82,14 @@ impl ExtnPayloadProvider for MockRequest {
         ))
     }
 
-    // TODO - customize contract from test ?
+    fn get_contract(&self) -> RippleContract {
+        RippleContract::Internal
+    }
+
     fn contract() -> RippleContract {
         RippleContract::Internal
     }
 }
-
-// #[derive(Debug, Clone, Serialize, Deserialize)]
-// pub struct MockCustomRequest {
-//     pub context: MockContext,
-//     pub contract: RippleContract, // Add a contract field to MockRequest
-// }
-
-// impl ExtnPayloadProvider for MockCustomRequest {
-//     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-//         if let ExtnPayload::Request(ExtnRequest::Extn(mock_request)) = payload {
-//             return Some(serde_json::from_value(mock_request).unwrap());
-//         }
-
-//         None
-//     }
-
-//     fn get_extn_payload(&self) -> ExtnPayload {
-//         ExtnPayload::Request(ExtnRequest::Extn(
-//             serde_json::to_value(self.clone()).unwrap(),
-//         ))
-//     }
-
-//     // Customize contract from the test
-//     fn contract(&self) -> RippleContract {
-//         self.contract
-//     }
-// }
 
 pub fn get_mock_extn_client(id: ExtnId) -> ExtnClient {
     let (s, receiver) = unbounded();
@@ -128,6 +109,7 @@ pub fn get_mock_message(payload_type: PayloadType) -> ExtnMessage {
         id: "test_id".to_string(),
         requestor: ExtnId::get_main_target("main".into()),
         target: RippleContract::Internal,
+        target_id: Some(ExtnId::get_main_target("main".into())),
         payload: match payload_type {
             PayloadType::Event => get_mock_event_payload(),
             PayloadType::Request => get_mock_request_payload(),
@@ -144,15 +126,9 @@ pub fn get_mock_event_payload() -> ExtnPayload {
 pub fn get_mock_request_payload() -> ExtnPayload {
     ExtnPayload::Request(ExtnRequest::Extn(
         serde_json::to_value(MockRequest {
-            context: MockContext {
-                app_id: "app_id".to_string(),
-                dist_session: AccountSession {
-                    id: "id".to_string(),
-                    token: "token".to_string(),
-                    account_id: "account_id".to_string(),
-                    device_id: "device_id".to_string(),
-                },
-            },
+            app_id: "test_app_id".to_string(),
+            contract: RippleContract::Internal,
+            expected_response: Some(ExtnResponse::Boolean(true)),
         })
         .unwrap(),
     ))
@@ -166,22 +142,17 @@ pub enum PayloadType {
 pub fn get_mock_event() -> MockEvent {
     MockEvent {
         event_name: "test_event".to_string(),
-        result: serde_json::json!({"result": "result"}),
+        result: serde_json::json!({"result": "success"}),
         context: None,
-        app_id: Some("some_id".to_string()),
+        app_id: Some("test_app_id".to_string()),
+        expected_response: Some(ExtnResponse::Boolean(true)),
     }
 }
 
 pub fn get_mock_request() -> MockRequest {
     MockRequest {
-        context: MockContext {
-            app_id: "app_id".to_string(),
-            dist_session: AccountSession {
-                id: "id".to_string(),
-                token: "token".to_string(),
-                account_id: "account_id".to_string(),
-                device_id: "device_id".to_string(),
-            },
-        },
+        app_id: "test_app_id".to_string(),
+        contract: RippleContract::Internal,
+        expected_response: Some(ExtnResponse::Boolean(true)),
     }
 }
