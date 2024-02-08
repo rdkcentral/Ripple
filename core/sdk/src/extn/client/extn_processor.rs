@@ -304,7 +304,6 @@ pub mod tests {
     use log::info;
     use rstest::rstest;
     use std::collections::HashMap;
-    use testing_logger::{self, validate};
     use uuid::Uuid;
 
     #[derive(Debug, Clone)]
@@ -315,12 +314,6 @@ pub mod tests {
     impl MockState {
         pub fn get_client(&self) -> ExtnClient {
             self.client.clone()
-        }
-    }
-
-    fn get_mock_state() -> MockState {
-        MockState {
-            client: ExtnClient::mock(),
         }
     }
 
