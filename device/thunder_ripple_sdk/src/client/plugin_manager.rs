@@ -377,7 +377,7 @@ mod tests {
     use url::Url;
 
     #[tokio::test]
-    async fn test_plugin_manager_start() {
+    async fn test_plugin_manager_start_and_message_handling() {
         // Using the default method handler from tests::thunder_client_pool_test_utility
         // This can be replaced with a custom method handler, if needed
         let custom_method_handler = Arc::new(CustomMethodHandler);

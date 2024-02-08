@@ -157,7 +157,7 @@ mod tests {
         );
     }
     #[test]
-    fn test_thunder_plugin_activate_counts() {
+    fn test_thunder_plugin_activates() {
         assert_eq!(ThunderPlugin::activate_on_boot_plugins().len(), 6);
         assert_eq!(ThunderPlugin::expect_activated_plugins().len(), 2);
     }

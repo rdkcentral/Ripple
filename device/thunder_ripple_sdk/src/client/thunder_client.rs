@@ -675,3 +675,19 @@ fn return_message(callback: OneShotSender<DeviceResponseMessage>, response: Valu
     let msg = DeviceResponseMessage::call(response);
     oneshot_send_and_log(callback, msg, "returning message");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_thunder_call_message() {
+        let thunder_call_message = ThunderCallMessage {
+            method: "org.rdk.RDKShell.1.createDisplay".to_string(),
+            params: Some(DeviceChannelParams::Json("test".to_string())),
+            callback: oneshot::channel::<DeviceResponseMessage>().0,
+        };
+        assert_eq!(thunder_call_message.callsign(), "org.rdk.RDKShell");
+        assert_eq!(thunder_call_message.method_name(), "createDisplay");
+    }
+}
