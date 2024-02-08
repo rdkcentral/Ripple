@@ -140,7 +140,7 @@ pub struct ChallengeError {
     pub data: Option<DataObject>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ChallengeRequestor {
     pub id: String,
     pub name: String,

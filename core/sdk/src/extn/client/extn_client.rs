@@ -262,7 +262,7 @@ impl ExtnClient {
                 } else {
                     if !is_main {
                         if let Some(context) = RippleContext::is_ripple_context(&message.payload) {
-                            debug!(
+                            trace!(
                                 "Received ripple context in {} message: {:?}",
                                 self.sender.get_cap().to_string(),
                                 message

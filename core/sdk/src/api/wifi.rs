@@ -58,7 +58,7 @@ impl Default for WifiScanRequestTimeout {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum WifiResponse {
     CustomError(String),
     WifiScanListResponse(AccessPointList),
@@ -85,4 +85,30 @@ impl ExtnPayloadProvider for WifiResponse {
     fn contract() -> RippleContract {
         RippleContract::Wifi
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::device::device_wifi::WifiSecurityMode;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_payload_provider_for_wifi_response() {
+        let access_point_list = AccessPointList {
+            list: vec![AccessPoint {
+                ssid: String::from("TestNetwork"),
+                security_mode: WifiSecurityMode::Wpa2PskAes,
+                signal_strength: -60,
+                frequency: 2.4,
+            }],
+        };
+
+        let wifi_response = WifiResponse::WifiScanListResponse(access_point_list);
+
+        let contract_type: RippleContract = RippleContract::Wifi;
+        test_extn_payload_provider(wifi_response, contract_type);
+    }
+
+    // Add more test cases as needed
 }
