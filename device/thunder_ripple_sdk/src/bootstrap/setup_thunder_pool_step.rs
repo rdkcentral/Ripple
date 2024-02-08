@@ -36,7 +36,7 @@ impl ThunderPoolStep {
     }
 
     pub async fn setup(
-        mut state: ThunderBootstrapStateWithConfig,
+        state: ThunderBootstrapStateWithConfig,
     ) -> Result<ThunderBootstrapStateWithClient, RippleError> {
         let pool_size = state.pool_size;
         let url = state.url.clone();

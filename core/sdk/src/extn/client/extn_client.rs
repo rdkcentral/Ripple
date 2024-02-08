@@ -45,10 +45,7 @@ use crate::{
         extn_id::ExtnId,
         ffi::ffi_message::CExtnMessage,
     },
-    framework::{
-        ripple_contract::{self, RippleContract},
-        RippleResponse,
-    },
+    framework::{ripple_contract::RippleContract, RippleResponse},
     utils::{error::RippleError, extn_utils::ExtnStackSize},
 };
 

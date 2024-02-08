@@ -303,7 +303,10 @@ impl ExtnEventProcessor for MainContextProcessor {
                     if let Some(ActivationStatus::AccountToken(t)) =
                         &extracted_message.activation_status
                     {
-                        state.state.session_state.insert_session_token(t.token.clone());
+                        state
+                            .state
+                            .session_state
+                            .insert_session_token(t.token.clone());
                         Self::initialize_session(&state.state).await
                     }
                 }
