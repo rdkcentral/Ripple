@@ -89,13 +89,6 @@ pub struct PubSubSubscribedParam {
     pub connection_id: String,
     pub topic: String,
 }
-// #[derive(Debug, Serialize, Deserialize, Clone)]
-// pub struct PubSubSubscribedResponse {
-//     pub payload: Option<String>,
-//     pub payload_type: Option<String>,
-//     pub headers: Option<String>,
-//     pub result: bool,
-// }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PubSubPublishRequest {
@@ -157,13 +150,6 @@ pub struct PubSubSubscribeResponse {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct PubSubUnSubscribeResponse {
-    // pub connection_status: String,
-    // pub status_code: String,
-    pub result: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PubSubUnSubscribeResponse {
     // pub connection_status: String,
     // pub status_code: String,

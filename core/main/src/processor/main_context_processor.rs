@@ -163,6 +163,9 @@ impl MainContextProcessor {
         });
     }
     pub async fn initialize_session(state: &PlatformState) {
+        // If the platform:token capability is available then the current call is
+        // to update token. If not it is the first time we are receiving token
+        // information
         let update_token = Self::is_update_token(state);
         if !update_token && !Self::check_account_session_token(state).await {
             error!("Account session still not available");
@@ -246,7 +249,6 @@ impl MainContextProcessor {
                 error!("Error in sending start monitoring: {:?}", err);
             }
         }
-
     }
     fn handle_power_state(state: &PlatformState, power_state: &Option<SystemPowerState>) {
         // fn handle_power_state(state: &PlatformState, power_state: &SystemPowerState) {
@@ -300,19 +302,9 @@ impl ExtnEventProcessor for MainContextProcessor {
                 RippleContextUpdateType::TokenChanged => {
                     if let Some(ActivationStatus::AccountToken(t)) =
                         &extracted_message.activation_status
-                    // if let ActivationStatus::AccountToken(t) = &extracted_message.activation_status
                     {
+                        state.state.session_state.insert_session_token(t.token.clone());
                         Self::initialize_session(&state.state).await
-                        //Call initialize token only when account session was not initialized the first time
-                        // if state.state.session_state.get_account_session().is_none() {
-                        //     Self::initialize_session(&state.state).await
-                        // } else {
-                        //     // update the token
-                        //     state
-                        //         .state
-                        //         .session_state
-                        //         .insert_session_token(t.token.clone())
-                        // }
                     }
                 }
                 RippleContextUpdateType::PowerStateChanged => {

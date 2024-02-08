@@ -336,7 +336,7 @@ impl ExtnClient {
         }
         // Main's Extn client will receive Context events and if it results in changing any of its
         // context members then it propagates the event to other extension's extn client.
-        // Propagating known information to other clients increases processing but no meaningful task is done.
+        // Propagating 'known information' to other clients increases processing but no meaningful task is performed.
         let propagate = {
             let mut ripple_context = self.ripple_context.write().unwrap();
             debug!(

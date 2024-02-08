@@ -105,13 +105,12 @@ impl RippleContext {
                     false
                 }
             }
-            RippleContextUpdateRequest::Token(t) => {
-                let account_token: ActivationStatus = t.into();
+            RippleContextUpdateRequest::Token(account_token) => {
                 if (self.activation_status.is_some()
-                    && self.activation_status.as_ref().unwrap() != &account_token)
+                    && matches!(self.activation_status.as_ref(), Some(activation_status) if matches!(activation_status, ActivationStatus::AccountToken(acc_tok) if acc_tok.token != account_token.token)))
                     || self.activation_status.is_none()
                 {
-                    self.activation_status = Some(account_token);
+                    self.activation_status = Some(account_token.into());
                     self.update_type = Some(RippleContextUpdateType::TokenChanged);
                     true
                 } else {
@@ -245,16 +244,16 @@ mod tests {
     #[test]
     fn test_extn_payload_provider_for_ripple_context() {
         let ripple_context = RippleContext {
-            activation_status: ActivationStatus::NotActivated,
-            internet_connectivity: InternetConnectionStatus::FullyConnected,
-            system_power_state: SystemPowerState {
+            activation_status: Some(ActivationStatus::NotActivated),
+            internet_connectivity: Some(InternetConnectionStatus::FullyConnected),
+            system_power_state: Some(SystemPowerState {
                 power_state: PowerState::On,
                 current_power_state: PowerState::On,
-            },
-            time_zone: TimeZone {
+            }),
+            time_zone: Some(TimeZone {
                 time_zone: String::from("America/Los_Angeles"),
                 offset: -28800,
-            },
+            }),
             update_type: None,
         };
 
