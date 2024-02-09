@@ -15,8 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::sync::Arc;
-
 use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::{
     api::status_update::ExtnStatus,
@@ -33,16 +31,16 @@ use ripple_sdk::{
         },
     },
     framework::ripple_contract::{ContractFulfiller, RippleContract},
-    log::{debug, error, info},
+    log::{debug, info},
     semver::Version,
-    tokio::{self, runtime::Runtime, sync::RwLock},
+    tokio::{self, runtime::Runtime},
     utils::{error::RippleError, logger::init_logger},
 };
 
 use crate::{
     mock_device_controller::{MockDeviceController, MockDeviceControllerServer},
     mock_device_processor::MockDeviceProcessor,
-    utils::{boot_ws_server, load_mock_data},
+    utils::boot_ws_server,
 };
 
 pub const EXTN_NAME: &str = "mock_device";
@@ -82,16 +80,7 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     runtime.block_on(async move {
         let client_c = client.clone();
         tokio::spawn(async move {
-            let mock_data = load_mock_data(client.clone())
-                .await
-                .map_err(|e| {
-                    error!("{:?}", e);
-                    e
-                })
-                .unwrap_or_default();
-            debug!("mock_data={:?}", mock_data);
-
-            match boot_ws_server(client.clone(), Arc::new(RwLock::new(mock_data))).await {
+            match boot_ws_server(client.clone()).await {
                 Ok(server) => {
                     client.add_request_processor(MockDeviceProcessor::new(client.clone(), server))
                 }

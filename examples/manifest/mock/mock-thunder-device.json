@@ -1,195 +1,77 @@
-[
+
     {
-        "request": {
-            "type": "jsonrpc",
-            "body": {
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "Controller.1.register",
+        "Controller.1.register": [
+            {
                 "params": {
                     "event": "statechange",
                     "id": "client.Controller.1.events"
+                },
+                "result": 0
+            }
+        ],
+        "org.rdk.System.1.getSystemVersions": [
+            {
+                "result": {
+                    "receiverVersion": "6.9.0.0",
+                    "stbTimestamp": "Tue 07 Nov 2023 00:03:20 AP UTC",
+                    "stbVersion": "SCXI11BEI_VBN_23Q4_sprint_20231107000320sdy_FG_EDGE_R2PB_NG",
+                    "success": true
                 }
             }
-        },
-        "responses": [
+        ],
+        "org.rdk.System.register": [
             {
-                "type": "jsonrpc",
-                "body": {
-                    "jsonrpc": "2.0",
-                    "id": 0,
-                    "result": 0
-                }
-            }
-        ]
-    },
-    {
-        "request": {
-            "type": "jsonrpc",
-            "body": {
-                "id": 1,
-                "jsonrpc": "2.0",
-                "method": "Controller.1.status@DeviceInfo"
-            }
-        },
-        "responses": [
-            {
-                "type": "jsonrpc",
-                "body": {
-                    "id": 1,
-                    "jsonrpc": "2.0",
-                    "result": [
-                        {
-                            "state": "activated"
+                "params": {
+                    "event":"onTimeZoneDSTChanged",
+                    "id":"client.org.rdk.System.events"
+                },
+                "result": 0,
+                "events": [
+                    {
+                        "delay": 0,
+                        "data": {
+                            "oldTimeZone": "America/New_York",
+                            "newTimeZone": "Europe/London",
+                            "oldAccuracy": "INITIAL",
+                            "newAccuracy": "FINAL"
                         }
-                    ]
-                }
-            }
-        ]
-    },
-    {
-        "request": {
-            "type": "jsonrpc",
-            "body": {
-                "jsonrpc": "2.0",
-                "id": 2,
-                "method": "Controller.1.status@org.rdk.DisplaySettings"
-            }
-        },
-        "responses": [
-            {
-                "type": "jsonrpc",
-                "body": {
-                    "jsonrpc": "2.0",
-                    "id": 2,
-                    "result": [
-                        {
-                            "state": "activated"
-                        }
-                    ]
-                }
-            }
-        ]
-    },
-    {
-        "request": {
-            "type": "jsonrpc",
-            "body": {
-                "jsonrpc": "2.0",
-                "id": 3,
-                "method": "Controller.1.status@org.rdk.Network"
-            }
-        },
-        "responses": [
-            {
-                "type": "jsonrpc",
-                "body": {
-                    "jsonrpc": "2.0",
-                    "id": 3,
-                    "result": [
-                        {
-                            "state": "activated"
-                        }
-                    ]
-                }
-            }
-        ]
-    },
-    {
-        "request": {
-            "type": "jsonrpc",
-            "body": {
-                "jsonrpc": "2.0",
-                "id": 4,
-                "method": "Controller.1.status@org.rdk.System"
-            }
-        },
-        "responses": [
-            {
-                "type": "jsonrpc",
-                "body": {
-                    "jsonrpc": "2.0",
-                    "id": 4,
-                    "result": [
-                        {
-                            "state": "activated"
-                        }
-                    ]
-                }
-            }
-        ]
-    },
-    {
-        "request": {
-            "type": "jsonrpc",
-            "body": {
-                "jsonrpc": "2.0",
-                "id": 5,
-                "method": "Controller.1.status@org.rdk.HdcpProfile"
-            }
-        },
-        "responses": [
-            {
-                "type": "jsonrpc",
-                "body": {
-                    "jsonrpc": "2.0",
-                    "id": 5,
-                    "result": [
-                        {
-                            "state": "activated"
-                        }
-                    ]
-                }
-            }
-        ]
-    },
-    {
-        "request": {
-            "type": "jsonrpc",
-            "body": {
-                "jsonrpc": "2.0",
-                "id": 6,
-                "method": "Controller.1.status@org.rdk.Telemetry"
-            }
-        },
-        "responses": [
-            {
-                "type": "jsonrpc",
-                "body": {
-                    "jsonrpc": "2.0",
-                    "id": 6,
-                    "result": [
-                        {
-                            "state": "activated"
-                        }
-                    ]
-                }
-            }
-        ]
-    },
-    {
-        "request": {
-            "type": "jsonrpc",
-            "body": {
-                "jsonrpc": "2.0",
-                "id": 7,
-                "method": "org.rdk.System.1.getSystemVersions"
-            }
-        },
-        "responses": [
-            {
-                "type": "jsonrpc",
-                "body": {
-                    "jsonrpc": "2.0",
-                    "id": 7,
-                    "result": {
-                        "receiverVersion": "6.9.0.0",
-                        "stbTimestamp": "Tue 07 Nov 2023 00:03:20 AP UTC",
-                        "stbVersion": "SCXI11BEI_VBN_23Q4_sprint_20231107000320sdy_FG_EDGE_R2PB_NG",
-                        "success": true
+
                     }
-                }
+                ]
+            },
+            {
+                "params": {
+                    "event":"onSystemPowerStateChanged",
+                    "id":"client.org.rdk.System.events"
+                },
+                "result": 0,
+                "events": [
+                    {
+                        "delay": 0,
+                        "data": {
+                            "powerState": "ON",
+                            "currentPowerState": "ON"
+                        }
+                    }
+                ]
+            }
+        ],
+        "org.rdk.Network.register": [
+            {
+                "params": {
+                    "event":"onInternetStatusChange",
+                    "id":"client.org.rdk.Network.events"
+                },
+                "result": 0,
+                "events": [
+                    {
+                        "delay": 0,
+                        "data": {
+                            "state": 0,
+                            "status": "FULLY_CONNECTED"
+                        }
+                    }
+                ]
             }
         ]
     }
-]

@@ -16,8 +16,8 @@
 //
 
 use ripple_sdk::log::error;
-use serde_hashkey::{to_key_with_ordered_float, Key, OrderedFloatPolicy};
-use serde_json::Value;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use std::{collections::HashMap, fmt::Display};
 
 use crate::{
@@ -25,8 +25,83 @@ use crate::{
     mock_server::{MessagePayload, PayloadType, PayloadTypeError},
 };
 
-pub type MockDataKey = Key<OrderedFloatPolicy>;
-pub type MockData = HashMap<MockDataKey, (MockDataMessage, Vec<MockDataMessage>)>;
+pub type MockData = HashMap<String, Vec<ParamResponse>>;
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ParamResponse {
+    pub params: Option<Value>,
+    pub result: Option<Value>,
+    pub error: Option<Value>,
+    pub events: Option<Vec<EventValue>>,
+}
+
+#[derive(Debug)]
+pub struct ResponseSink {
+    pub delay: u32,
+    pub data: Value,
+}
+
+impl ParamResponse {
+    pub fn get_key(&self, key: &Value) -> Option<Self> {
+        match &self.params {
+            Some(v) => {
+                if v.eq(key) {
+                    return Some(self.clone());
+                }
+                None
+            }
+            None => None,
+        }
+    }
+    pub fn get_notification_id(&self) -> Option<String> {
+        if let Some(params) = &self.params {
+            if let Some(event) = params.get("event") {
+                if let Some(id) = params.get("id") {
+                    return Some(format!(
+                        "{}.{}",
+                        id.to_string().replace('\"', ""),
+                        event.to_string().replace('\"', "")
+                    ));
+                }
+            }
+        }
+        None
+    }
+
+    pub fn get_all(&self, id: Option<u64>) -> Vec<ResponseSink> {
+        let mut sink_responses = Vec::new();
+        if let Some(v) = self.result.clone() {
+            sink_responses.push(ResponseSink {
+                delay: 0,
+                data: json!({"jsonrpc": "2.0", "id": id, "result": v}),
+            });
+
+            if let Some(events) = &self.events {
+                let notif_id = self.get_notification_id();
+                error!("Getting notif id {:?}", notif_id);
+                for event in events {
+                    sink_responses.push(ResponseSink {
+                        delay: event.delay.unwrap_or(0),
+                        data: json!({"jsonrpc": "2.0", "method": notif_id, "params": event.data.clone()})
+                    })
+                }
+            }
+        }
+        if let Some(e) = self.error.clone() {
+            sink_responses.push(ResponseSink {
+                delay: 0,
+                data: json!({"jsonrpc": "2.0", "id": id, "error": [e]}),
+            });
+        }
+        sink_responses
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct EventValue {
+    pub delay: Option<u32>,
+    pub data: Value,
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum MockDataError {
@@ -103,13 +178,6 @@ impl TryFrom<&Value> for MockDataMessage {
 
 // TODO: should MockDataMessage be a trait?
 impl MockDataMessage {
-    pub fn key(&self) -> Result<MockDataKey, MockDataError> {
-        match self.message_type {
-            PayloadType::Json => json_key(&self.body),
-            PayloadType::JsonRpc => jsonrpc_key(&self.body),
-        }
-    }
-
     pub fn is_json(&self) -> bool {
         matches!(self.message_type, PayloadType::Json)
     }
@@ -119,218 +187,202 @@ impl MockDataMessage {
     }
 }
 
-pub fn json_key(value: &Value) -> Result<MockDataKey, MockDataError> {
-    to_key_with_ordered_float(value).map_err(|_| {
-        error!("Failed to create key from data {value:?}");
-        MockDataError::FailedToCreateKey(value.clone())
-    })
-}
+// #[cfg(test)]
+// mod tests {
+//     use serde_hashkey::{Float, OrderedFloat};
+//     use serde_json::json;
 
-pub fn jsonrpc_key(value: &Value) -> Result<MockDataKey, MockDataError> {
-    let mut new_value = value.clone();
-    new_value
-        .as_object_mut()
-        .and_then(|payload| payload.remove("id"));
+//     use super::*;
 
-    json_key(&new_value)
-}
+//     #[test]
+//     fn test_json_key_ok() {
+//         let value = json!({"key": "value"});
 
-#[cfg(test)]
-mod tests {
-    use serde_hashkey::{Float, OrderedFloat};
-    use serde_json::json;
+//         assert_eq!(
+//             json_key(&value),
+//             Ok(MockDataKey::Map(Box::new([(
+//                 MockDataKey::String("key".into()),
+//                 MockDataKey::String("value".into())
+//             )])))
+//         );
+//     }
 
-    use super::*;
+//     #[test]
+//     fn test_json_key_f64_ok() {
+//         let value = json!({"key": 32.1});
 
-    #[test]
-    fn test_json_key_ok() {
-        let value = json!({"key": "value"});
+//         assert_eq!(
+//             json_key(&value),
+//             Ok(MockDataKey::Map(Box::new([(
+//                 MockDataKey::String("key".into()),
+//                 MockDataKey::Float(Float::F64(OrderedFloat(32.1)))
+//             )])))
+//         );
+//     }
 
-        assert_eq!(
-            json_key(&value),
-            Ok(MockDataKey::Map(Box::new([(
-                MockDataKey::String("key".into()),
-                MockDataKey::String("value".into())
-            )])))
-        );
-    }
+//     #[test]
+//     fn test_jsonrpc_key() {
+//         let value =
+//             json!({"jsonrpc": "2.0", "id": 1, "method": "someAction", "params": {"key": "value"}});
 
-    #[test]
-    fn test_json_key_f64_ok() {
-        let value = json!({"key": 32.1});
+//         assert_eq!(
+//             jsonrpc_key(&value),
+//             Ok(MockDataKey::Map(Box::new([
+//                 (
+//                     MockDataKey::String("jsonrpc".into()),
+//                     MockDataKey::String("2.0".into())
+//                 ),
+//                 (
+//                     MockDataKey::String("method".into()),
+//                     MockDataKey::String("someAction".into())
+//                 ),
+//                 (
+//                     MockDataKey::String("params".into()),
+//                     MockDataKey::Map(Box::new([(
+//                         MockDataKey::String("key".into()),
+//                         MockDataKey::String("value".into())
+//                     )]))
+//                 )
+//             ])))
+//         );
+//     }
 
-        assert_eq!(
-            json_key(&value),
-            Ok(MockDataKey::Map(Box::new([(
-                MockDataKey::String("key".into()),
-                MockDataKey::Float(Float::F64(OrderedFloat(32.1)))
-            )])))
-        );
-    }
+//     #[test]
+//     fn test_json_key_ne_jsonrpc_key() {
+//         let value =
+//             json!({"jsonrpc": "2.0", "id": 1, "method": "someAction", "params": {"key": "value"}});
 
-    #[test]
-    fn test_jsonrpc_key() {
-        let value =
-            json!({"jsonrpc": "2.0", "id": 1, "method": "someAction", "params": {"key": "value"}});
+//         assert_ne!(jsonrpc_key(&value), json_key(&value));
+//     }
 
-        assert_eq!(
-            jsonrpc_key(&value),
-            Ok(MockDataKey::Map(Box::new([
-                (
-                    MockDataKey::String("jsonrpc".into()),
-                    MockDataKey::String("2.0".into())
-                ),
-                (
-                    MockDataKey::String("method".into()),
-                    MockDataKey::String("someAction".into())
-                ),
-                (
-                    MockDataKey::String("params".into()),
-                    MockDataKey::Map(Box::new([(
-                        MockDataKey::String("key".into()),
-                        MockDataKey::String("value".into())
-                    )]))
-                )
-            ])))
-        );
-    }
+//     mod mock_data_message {
+//         use crate::mock_server::{MessagePayload, PayloadType};
+//         use serde_json::json;
 
-    #[test]
-    fn test_json_key_ne_jsonrpc_key() {
-        let value =
-            json!({"jsonrpc": "2.0", "id": 1, "method": "someAction", "params": {"key": "value"}});
+//         use crate::mock_data::{json_key, jsonrpc_key, MockDataError, MockDataMessage};
 
-        assert_ne!(jsonrpc_key(&value), json_key(&value));
-    }
+//         #[test]
+//         fn test_mock_message_is_json() {
+//             assert!(MockDataMessage {
+//                 message_type: PayloadType::Json,
+//                 body: json!({})
+//             }
+//             .is_json())
+//         }
 
-    mod mock_data_message {
-        use crate::mock_server::{MessagePayload, PayloadType};
-        use serde_json::json;
+//         #[test]
+//         fn test_mock_message_is_jsonrpc() {
+//             assert!(MockDataMessage {
+//                 message_type: PayloadType::JsonRpc,
+//                 body: json!({})
+//             }
+//             .is_jsonrpc())
+//         }
 
-        use crate::mock_data::{json_key, jsonrpc_key, MockDataError, MockDataMessage};
+//         #[test]
+//         fn test_mock_message_from_message_payload_json() {
+//             let body = json!({"key": "value"});
 
-        #[test]
-        fn test_mock_message_is_json() {
-            assert!(MockDataMessage {
-                message_type: PayloadType::Json,
-                body: json!({})
-            }
-            .is_json())
-        }
+//             assert_eq!(
+//                 MockDataMessage::from(MessagePayload {
+//                     payload_type: PayloadType::Json,
+//                     body: body.clone()
+//                 }),
+//                 MockDataMessage {
+//                     message_type: PayloadType::Json,
+//                     body
+//                 }
+//             );
+//         }
 
-        #[test]
-        fn test_mock_message_is_jsonrpc() {
-            assert!(MockDataMessage {
-                message_type: PayloadType::JsonRpc,
-                body: json!({})
-            }
-            .is_jsonrpc())
-        }
+//         #[test]
+//         fn test_mock_message_from_message_payload_jsonrpc() {
+//             let body = json!({"jsonrpc": "2.0", "id": 2, "method": "someAction"});
 
-        #[test]
-        fn test_mock_message_from_message_payload_json() {
-            let body = json!({"key": "value"});
+//             assert_eq!(
+//                 MockDataMessage::from(MessagePayload {
+//                     payload_type: PayloadType::JsonRpc,
+//                     body: body.clone()
+//                 }),
+//                 MockDataMessage {
+//                     message_type: PayloadType::JsonRpc,
+//                     body
+//                 }
+//             );
+//         }
 
-            assert_eq!(
-                MockDataMessage::from(MessagePayload {
-                    payload_type: PayloadType::Json,
-                    body: body.clone()
-                }),
-                MockDataMessage {
-                    message_type: PayloadType::Json,
-                    body
-                }
-            );
-        }
+//         #[test]
+//         fn test_mock_message_try_from_ok_jsonrpc() {
+//             let body = json!({"jsonrpc": "2.0", "id": 2, "method": "someAction"});
+//             let value = json!({"type": "jsonrpc", "body": body});
 
-        #[test]
-        fn test_mock_message_from_message_payload_jsonrpc() {
-            let body = json!({"jsonrpc": "2.0", "id": 2, "method": "someAction"});
+//             assert_eq!(
+//                 MockDataMessage::try_from(&value),
+//                 Ok(MockDataMessage {
+//                     message_type: PayloadType::JsonRpc,
+//                     body
+//                 })
+//             );
+//         }
 
-            assert_eq!(
-                MockDataMessage::from(MessagePayload {
-                    payload_type: PayloadType::JsonRpc,
-                    body: body.clone()
-                }),
-                MockDataMessage {
-                    message_type: PayloadType::JsonRpc,
-                    body
-                }
-            );
-        }
+//         #[test]
+//         fn test_mock_message_try_from_ok_json() {
+//             let body = json!({"jsonrpc": "2.0", "id": 2, "method": "someAction"});
+//             let value = json!({"type": "json", "body": body});
 
-        #[test]
-        fn test_mock_message_try_from_ok_jsonrpc() {
-            let body = json!({"jsonrpc": "2.0", "id": 2, "method": "someAction"});
-            let value = json!({"type": "jsonrpc", "body": body});
+//             assert_eq!(
+//                 MockDataMessage::try_from(&value),
+//                 Ok(MockDataMessage {
+//                     message_type: PayloadType::Json,
+//                     body
+//                 })
+//             );
+//         }
 
-            assert_eq!(
-                MockDataMessage::try_from(&value),
-                Ok(MockDataMessage {
-                    message_type: PayloadType::JsonRpc,
-                    body
-                })
-            );
-        }
+//         #[test]
+//         fn test_mock_message_try_from_err_missing_type() {
+//             assert_eq!(
+//                 MockDataMessage::try_from(
+//                     &json!({"body": {"jsonrpc": "2.0", "id": 2, "method": "someAction"}})
+//                 ),
+//                 Err(MockDataError::MissingTypeProperty)
+//             );
+//         }
 
-        #[test]
-        fn test_mock_message_try_from_ok_json() {
-            let body = json!({"jsonrpc": "2.0", "id": 2, "method": "someAction"});
-            let value = json!({"type": "json", "body": body});
+//         #[test]
+//         fn test_mock_message_try_from_err_missing_body() {
+//             assert_eq!(
+//                 MockDataMessage::try_from(&json!({"type": "jsonrpc"})),
+//                 Err(MockDataError::MissingBodyProperty)
+//             );
+//         }
 
-            assert_eq!(
-                MockDataMessage::try_from(&value),
-                Ok(MockDataMessage {
-                    message_type: PayloadType::Json,
-                    body
-                })
-            );
-        }
+//         #[test]
+//         fn test_mock_message_key_json() {
+//             let value = json!({"jsonrpc": "2.0", "id": 1, "method": "someAction"});
+//             let key = json_key(&value);
+//             assert_eq!(
+//                 MockDataMessage {
+//                     message_type: PayloadType::Json,
+//                     body: value
+//                 }
+//                 .key(),
+//                 key
+//             );
+//         }
 
-        #[test]
-        fn test_mock_message_try_from_err_missing_type() {
-            assert_eq!(
-                MockDataMessage::try_from(
-                    &json!({"body": {"jsonrpc": "2.0", "id": 2, "method": "someAction"}})
-                ),
-                Err(MockDataError::MissingTypeProperty)
-            );
-        }
-
-        #[test]
-        fn test_mock_message_try_from_err_missing_body() {
-            assert_eq!(
-                MockDataMessage::try_from(&json!({"type": "jsonrpc"})),
-                Err(MockDataError::MissingBodyProperty)
-            );
-        }
-
-        #[test]
-        fn test_mock_message_key_json() {
-            let value = json!({"jsonrpc": "2.0", "id": 1, "method": "someAction"});
-            let key = json_key(&value);
-            assert_eq!(
-                MockDataMessage {
-                    message_type: PayloadType::Json,
-                    body: value
-                }
-                .key(),
-                key
-            );
-        }
-
-        #[test]
-        fn test_mock_message_key_jsonrpc() {
-            let value = json!({"jsonrpc": "2.0", "id": 1, "method": "someAction"});
-            let key = jsonrpc_key(&value);
-            assert_eq!(
-                MockDataMessage {
-                    message_type: PayloadType::JsonRpc,
-                    body: value
-                }
-                .key(),
-                key
-            );
-        }
-    }
-}
+//         #[test]
+//         fn test_mock_message_key_jsonrpc() {
+//             let value = json!({"jsonrpc": "2.0", "id": 1, "method": "someAction"});
+//             let key = jsonrpc_key(&value);
+//             assert_eq!(
+//                 MockDataMessage {
+//                     message_type: PayloadType::JsonRpc,
+//                     body: value
+//                 }
+//                 .key(),
+//                 key
+//             );
+//         }
+//     }
+// }

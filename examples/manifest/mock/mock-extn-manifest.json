@@ -119,21 +119,12 @@
     "passthrough_rpcs": {
         "endpoints": [
            {
-	            "url": "ws://127.0.0.1:43474",
+	            "url": "ws://127.0.0.1:9998/jsonrpc",
 	            "protocol": "websocket",
                 "rpcs": [
                     "HDMIInput.*"
                 ]
-	        },
-            {
-                "url": "http://127.0.0.1:43474",
-                "protocol": "http",
-                "authentication": "bearer",
-                "token": "account.session",
-                "rpcs": [
-                    "Advertising.advertisingId"
-                ]
-            }
+	        }
         ]
     }
 }

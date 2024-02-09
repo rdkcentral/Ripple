@@ -34,7 +34,6 @@ use ripple_sdk::{
 use std::sync::Arc;
 
 use crate::{
-    mock_data::MockDataMessage,
     mock_device_ffi::EXTN_NAME,
     mock_server::{
         AddRequestResponseResponse, EmitEventResponse, MockServerRequest, MockServerResponse,
@@ -124,20 +123,8 @@ impl ExtnRequestProcessor for MockDeviceProcessor {
         debug!("extn_request={extn_request:?}, extracted_message={extracted_message:?}");
         if let Ok(message) = serde_json::from_value::<MockServerRequest>(extracted_message.value) {
             match message {
-                MockServerRequest::AddRequestResponse(params) => {
-                    let result = state
-                        .server
-                        .add_request_response(
-                            MockDataMessage::from(params.request),
-                            params
-                                .responses
-                                .into_iter()
-                                .map(MockDataMessage::from)
-                                .collect(),
-                        )
-                        .await;
-
-                    let resp = match result {
+                MockServerRequest::AddRequestResponseV2(params) => {
+                    let resp = match state.server.add_request_response_v2(params).await {
                         Ok(_) => AddRequestResponseResponse {
                             success: true,
                             error: None,
@@ -147,7 +134,6 @@ impl ExtnRequestProcessor for MockDeviceProcessor {
                             error: Some(err.to_string()),
                         },
                     };
-
                     Self::respond(
                         state.client.clone(),
                         extn_request,
@@ -155,13 +141,8 @@ impl ExtnRequestProcessor for MockDeviceProcessor {
                     )
                     .await
                 }
-                MockServerRequest::RemoveRequest(params) => {
-                    let result = state
-                        .server
-                        .remove_request(&MockDataMessage::from(params.request))
-                        .await;
-
-                    let resp = match result {
+                MockServerRequest::RemoveRequestResponseV2(params) => {
+                    let resp = match state.server.remove_request_response_v2(params).await {
                         Ok(_) => RemoveRequestResponse {
                             success: true,
                             error: None,
@@ -171,7 +152,6 @@ impl ExtnRequestProcessor for MockDeviceProcessor {
                             error: Some(err.to_string()),
                         },
                     };
-
                     Self::respond(
                         state.client.clone(),
                         extn_request,

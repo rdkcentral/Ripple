@@ -20,6 +20,8 @@ use std::fmt::Display;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::mock_data::MockData;
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum PayloadTypeError {
     InvalidMessageType,
@@ -90,9 +92,9 @@ pub struct EventPayload {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum MockServerRequest {
-    AddRequestResponse(AddRequestResponseParams),
     EmitEvent(EmitEventParams),
-    RemoveRequest(RemoveRequestParams),
+    AddRequestResponseV2(MockData),
+    RemoveRequestResponseV2(MockData),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]

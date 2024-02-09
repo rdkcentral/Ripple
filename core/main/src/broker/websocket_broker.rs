@@ -29,6 +29,16 @@ pub struct WebsocketBroker {
     sender: BrokerSender,
 }
 
+fn extract_tcp_port(url: &str) -> String {
+    let url_split: Vec<&str> = url.split("://").collect();
+    if let Some(domain) = url_split.get(1) {
+        let domain_split: Vec<&str> = domain.split('/').collect();
+        domain_split.first().unwrap().to_string()
+    } else {
+        url.to_owned()
+    }
+}
+
 impl EndpointBroker for WebsocketBroker {
     fn get_broker(
         _: Option<AccountSession>,
@@ -41,13 +51,14 @@ impl EndpointBroker for WebsocketBroker {
         tokio::spawn(async move {
             info!("Broker Endpoint url {}", endpoint.url);
             let url = url::Url::parse(&endpoint.url).unwrap();
+            let port = extract_tcp_port(&endpoint.url);
             info!("Url host str {}", url.host_str().unwrap());
             //let tcp_url = url.host_str()
             let tcp = loop {
-                if let Ok(v) = TcpStream::connect("127.0.0.1:43474").await {
+                if let Ok(v) = TcpStream::connect(&port).await {
                     break v;
                 } else {
-                    error!("Broker Wait for a sec and retry");
+                    error!("Broker Wait for a sec and retry {}", port);
                     tokio::time::sleep(Duration::from_secs(1)).await;
                 }
             };

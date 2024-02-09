@@ -18,10 +18,9 @@
 use std::fmt::Display;
 
 use crate::{
+    mock_data::MockData,
     mock_device_ffi::EXTN_NAME,
-    mock_server::{
-        AddRequestResponseParams, EmitEventParams, MockServerRequest, RemoveRequestParams,
-    },
+    mock_server::{EmitEventParams, MockServerRequest},
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use ripple_sdk::{
@@ -67,25 +66,25 @@ impl From<MockDeviceControllerError> for String {
 
 #[rpc(server)]
 pub trait MockDeviceController {
-    #[method(name = "mockdevice.addRequestResponse")]
-    async fn add_request_response(
-        &self,
-        ctx: CallContext,
-        req: AddRequestResponseParams,
-    ) -> RpcResult<ExtnProviderResponse>;
-
-    #[method(name = "mockdevice.removeRequest")]
-    async fn remove_request(
-        &self,
-        ctx: CallContext,
-        req: RemoveRequestParams,
-    ) -> RpcResult<ExtnProviderResponse>;
-
     #[method(name = "mockdevice.emitEvent")]
     async fn emit_event(
         &self,
         ctx: CallContext,
         req: EmitEventParams,
+    ) -> RpcResult<ExtnProviderResponse>;
+
+    #[method(name = "mockdevice.addRequests")]
+    async fn add_request_responses(
+        &self,
+        ctx: CallContext,
+        req: MockData,
+    ) -> RpcResult<ExtnProviderResponse>;
+
+    #[method(name = "mockdevice.removeRequests")]
+    async fn remove_requests(
+        &self,
+        ctx: CallContext,
+        req: MockData,
     ) -> RpcResult<ExtnProviderResponse>;
 }
 
@@ -128,26 +127,26 @@ impl MockDeviceController {
 
 #[async_trait]
 impl MockDeviceControllerServer for MockDeviceController {
-    async fn add_request_response(
+    async fn add_request_responses(
         &self,
         _ctx: CallContext,
-        req: AddRequestResponseParams,
+        req: MockData,
     ) -> RpcResult<ExtnProviderResponse> {
         let res = self
-            .request(MockServerRequest::AddRequestResponse(req))
+            .request(MockServerRequest::AddRequestResponseV2(req))
             .await
             .map_err(rpc_err)?;
 
         Ok(res)
     }
 
-    async fn remove_request(
+    async fn remove_requests(
         &self,
         _ctx: CallContext,
-        req: RemoveRequestParams,
+        req: MockData,
     ) -> RpcResult<ExtnProviderResponse> {
         let res = self
-            .request(MockServerRequest::RemoveRequest(req))
+            .request(MockServerRequest::RemoveRequestResponseV2(req))
             .await
             .map_err(rpc_err)?;
 

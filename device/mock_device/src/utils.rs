@@ -21,7 +21,7 @@ use ripple_sdk::{
     api::config::Config,
     extn::{client::extn_client::ExtnClient, extn_client_message::ExtnResponse},
     log::{debug, error},
-    tokio::{self, sync::RwLock},
+    tokio,
     utils::error::RippleError,
 };
 use serde_json::Value;
@@ -30,13 +30,12 @@ use url::{Host, Url};
 use crate::{
     errors::{BootFailedError, LoadMockDataError, MockDeviceError},
     mock_config::MockConfig,
-    mock_data::{MockData, MockDataError, MockDataMessage},
+    mock_data::MockData,
     mock_web_socket_server::{MockWebSocketServer, WsServerParameters},
 };
 
 pub async fn boot_ws_server(
     mut client: ExtnClient,
-    mock_data: Arc<RwLock<MockData>>,
 ) -> Result<Arc<MockWebSocketServer>, MockDeviceError> {
     debug!("Booting WS Server for mock device");
     let gateway = platform_gateway_url(&mut client).await?;
@@ -52,10 +51,11 @@ pub async fn boot_ws_server(
     let config = load_config(&client);
 
     let mut server_config = WsServerParameters::new();
+    let mock_data_v2 = load_mock_data_v2(client.clone()).await?;
     server_config
         .port(gateway.port().unwrap_or(0))
         .path(gateway.path());
-    let ws_server = MockWebSocketServer::new(mock_data, server_config, config)
+    let ws_server = MockWebSocketServer::new(mock_data_v2, server_config, config)
         .await
         .map_err(BootFailedError::ServerStartFailed)?;
 
@@ -146,7 +146,7 @@ pub fn load_config(client: &ExtnClient) -> MockConfig {
     config
 }
 
-pub async fn load_mock_data(client: ExtnClient) -> Result<MockData, MockDeviceError> {
+pub async fn load_mock_data_v2(client: ExtnClient) -> Result<MockData, MockDeviceError> {
     let path = find_mock_device_data_file(client).await?;
     debug!("path={:?}", path);
     if !path.is_file() {
@@ -158,51 +158,13 @@ pub async fn load_mock_data(client: ExtnClient) -> Result<MockData, MockDeviceEr
         LoadMockDataError::FileOpenFailed(path)
     })?;
     let reader = BufReader::new(file);
-    let json: serde_json::Value =
-        serde_json::from_reader(reader).map_err(|_| LoadMockDataError::MockDataNotValidJson)?;
 
-    if let Some(list) = json.as_array() {
-        let mock_data = list
-            .iter()
-            .map(|req_resp| {
-                let (req, resps) = parse_request_responses(req_resp)?;
-                let key = req.key()?;
-
-                Ok((key, (req, resps)))
-            })
-            .collect::<Result<MockData, MockDeviceError>>()?
-            .into_iter()
-            .collect::<MockData>();
-
-        Ok(mock_data)
-    } else {
-        Err(LoadMockDataError::MockDataNotArray)?
+    if let Ok(v) = serde_json::from_reader(reader) {
+        return Ok(v);
     }
-}
-
-fn parse_request_responses(
-    request_responses: &Value,
-) -> Result<(MockDataMessage, Vec<MockDataMessage>), MockDataError> {
-    let req_resp = request_responses
-        .as_object()
-        .ok_or(MockDataError::NotAnObject)?;
-    let req = req_resp
-        .get("request")
-        .ok_or(MockDataError::MissingRequestField)?;
-    let res = req_resp
-        .get("responses")
-        .and_then(|res| {
-            res.as_array()
-                .and_then(|arr| if arr.is_empty() { None } else { Some(arr) })
-        })
-        .ok_or(MockDataError::MissingResponseField)?
-        .iter()
-        .map(MockDataMessage::try_from)
-        .collect::<Result<Vec<MockDataMessage>, MockDataError>>()?;
-
-    let req = MockDataMessage::try_from(req)?;
-
-    Ok((req, res))
+    Err(MockDeviceError::LoadMockDataFailed(
+        LoadMockDataError::MockDataNotValidJson,
+    ))
 }
 
 pub fn is_value_jsonrpc(value: &Value) -> bool {
