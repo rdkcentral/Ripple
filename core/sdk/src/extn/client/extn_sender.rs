@@ -552,6 +552,26 @@ pub mod tests {
         };
     }
 
+    #[rstest(id, extn_id, permitted,fulfills, exp_resp,
+        case("ext_id", ExtnId::get_main_target("main".into()), vec!["context".to_string()], vec!["fulfills".to_string()],  Ok(())),
+        case("non_ext_id", ExtnId::get_main_target("main".into()), vec!["context".to_string()], vec!["fulfills".to_string()], Ok(())),    
+        case("non_ext_id", ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
+        vec!["config".to_string()],
+        vec!["device_info".to_string()], Err(RippleError::InvalidAccess))
+    )]
+    async fn test_forward_event(
+        id: &str,
+        extn_id: ExtnId,
+        permitted: Vec<String>,
+        fulfills: Vec<String>,
+        exp_resp: RippleResponse,
+    ) {
+        let (sender, _receiver) =
+            ExtnSender::mock_with_params(extn_id, permitted, fulfills, Some(HashMap::new()));
+        let actual_response = sender.forward_event(id, DeviceInfoRequest::Make);
+        assert_eq!(actual_response, exp_resp);
+    }
+
     #[rstest]
     #[case(&DeviceInfoRequest::Make)]
     async fn test_send_with_device_info_request(#[case] device_info_request: &DeviceInfoRequest) {

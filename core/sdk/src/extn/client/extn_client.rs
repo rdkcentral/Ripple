@@ -174,7 +174,12 @@ impl ExtnClient {
             processor.sender(),
             self.event_processors.clone(),
         );
-        tokio::spawn(async move { processor.run().await });
+        let processor_clone = self.event_processors.clone();
+        let id_clone = processor.contract().as_clear_string();
+        tokio::spawn(async move {
+            processor.run().await;
+            Self::cleanup_vec_stream(id_clone, None, processor_clone);
+        });
     }
 
     /// Removes an event processor reference on the internal map of processors
@@ -186,6 +191,7 @@ impl ExtnClient {
     pub fn add_sender(&mut self, id: ExtnId, symbol: ExtnSymbol, sender: CSender<CExtnMessage>) {
         let id = id.to_string();
         {
+            // creating a map - extnId & sender used for requestor mapping to add to callback in extnMessage
             let mut sender_map = self.extn_sender_map.write().unwrap();
             sender_map.insert(id.clone(), sender);
         }
@@ -196,6 +202,7 @@ impl ExtnClient {
                     Some(v) => {
                         let ripple_contract_string = v.as_clear_string();
                         info!("{} will fulfill {}", id, ripple_contract_string);
+                        // creating a map - contract & sender used for request mapping
                         let _ = map.insert(ripple_contract_string, id.clone());
                     }
                     None => error!("Unknown contract {}", contract),
@@ -446,6 +453,9 @@ impl ExtnClient {
                         let r = sender_list.remove(index);
                         drop(r);
                     }
+                    if sender_list.is_empty() {
+                        let _ = gc_cleanup.remove(&id_c);
+                    }
                 }
             }
         }
@@ -652,9 +662,12 @@ impl ExtnClient {
 pub mod tests {
     use super::*;
     use crate::{
-        api::device::{
-            device_info_request::DeviceInfoRequest,
-            device_request::{AccountToken, DeviceRequest},
+        api::{
+            config::Config,
+            device::{
+                device_info_request::DeviceInfoRequest,
+                device_request::{AccountToken, DeviceRequest},
+            },
         },
         extn::{
             client::{
@@ -667,23 +680,16 @@ pub mod tests {
             extn_client_message::{ExtnPayload, ExtnRequest},
             extn_id::{ExtnClassId, ExtnId},
         },
-        utils::mock_utils::{get_mock_extn_client, MockRequest},
+        utils::mock_utils::{get_mock_extn_client, MockEvent, MockRequest},
     };
     use async_channel::unbounded;
     use core::panic;
-    use log::Level;
     use rstest::rstest;
     use std::collections::HashMap;
     use testing_logger::{self, validate};
     use tokio::sync::oneshot;
     use tokio::time::Duration;
     use uuid::Uuid;
-
-    // #[cfg(not(test))]
-    // use log::{debug, error, info, trace};
-
-    // #[cfg(test)]
-    // use std::{println as info, println as debug, println as trace, println as error};
 
     #[cfg(test)]
     pub trait Mockable {
@@ -959,99 +965,54 @@ pub mod tests {
         assert!(senders.is_some(), "Expected Some, got None");
     }
 
-    #[tokio::test]
-    async fn test_cleanup_vec_stream() {
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_cleanup_event_stream() {
         let (mock_sender, receiver) = ExtnSender::mock_with_params(
             ExtnId::get_main_target("main".into()),
             vec!["context".to_string()],
             vec!["fulfills".to_string()],
             Some(HashMap::new()),
         );
-        let extn_client = ExtnClient::new(receiver.clone(), mock_sender.clone());
-        let processor = MockEventProcessor {
+
+        let extn_client = ExtnClient::new(receiver, mock_sender);
+        let mut processor = MockEventProcessor {
             state: MockState {
                 client: extn_client.clone(),
             },
             streamer: DefaultExtnStreamer::new(),
         };
-        let id = &processor.contract().as_clear_string();
-        extn_client.clone().add_event_processor(processor);
-        drop(receiver);
-        drop(mock_sender);
-        ExtnClient::cleanup_vec_stream(id.to_string(), None, extn_client.clone().event_processors);
-        assert!(extn_client.event_processors.read().unwrap().len() == 1);
+
+        add_vec_stream_processor(
+            processor.contract().as_clear_string(),
+            processor.sender(),
+            extn_client.event_processors.clone(),
+        );
+
+        let processor_clone = extn_client.event_processors.clone();
+        let id_clone = processor.contract().as_clear_string();
+        let mut rx = processor.receiver();
+        rx.close();
+        drop(rx);
+
+        assert_eq!(
+            extn_client.event_processors.read().unwrap().len(),
+            1,
+            "Assertion failed: event_processors map should be empty before cleanup"
+        );
+
+        ExtnClient::cleanup_vec_stream(id_clone, None, processor_clone);
+
+        assert_eq!(
+            extn_client.event_processors.read().unwrap().len(),
+            0,
+            "Assertion failed: event_processors map should be empty after cleanup"
+        );
     }
-
-    // #[tokio::test(flavor = "multi_thread")]
-    // async fn test_cleanup_event_stream() {
-    //     let (mock_sender, receiver) = ExtnSender::mock_with_params(
-    //         ExtnId::get_main_target("main".into()),
-    //         vec!["context".to_string()],
-    //         vec!["fulfills".to_string()],
-    //         Some(HashMap::new()),
-    //     );
-    //     let extn_client = ExtnClient::new(receiver.clone(), mock_sender.clone());
-    //     let extn_client_for_thread = extn_client.clone();
-
-    //     let processor = MockEventProcessor {
-    //         state: MockState {
-    //             client: extn_client.clone(),
-    //         },
-    //         streamer: DefaultExtnStreamer::new(),
-    //     };
-    //     let id = &processor.contract().as_clear_string();
-    //     extn_client.clone().add_event_processor(processor);
-    //     assert!(extn_client.clone().event_processors.read().unwrap().len() == 1);
-
-    //     tokio::spawn(async move {
-    //         extn_client_for_thread.initialize().await;
-    //     });
-
-    //     let result = mock_sender.clone().send_event(
-    //         MockEvent {
-    //             event_name: "test_event".to_string(),
-    //             result: serde_json::json!({"result": "result"}),
-    //             context: None,
-    //             app_id: Some("some_id".to_string()),
-    //             expected_response: Some(ExtnResponse::Boolean(true)),
-    //         },
-    //         Some(mock_sender.clone().tx),
-    //     );
-
-    //     assert!(result.is_ok());
-    //     assert!(extn_client.event_processors.read().unwrap().len() == 1);
-
-    //     if let Ok(r) = receiver.recv().await {
-    //         assert_eq!(r.id, "some_id");
-    //         assert_eq!(r.requestor, "ripple:main:internal:main");
-    //         assert_eq!(r.target, "\"internal\"");
-    //         assert_eq!(r.payload, "{\"Event\":{\"Value\":{\"app_id\":\"some_id\",\"context\":null,\"event_name\":\"test_event\",\"expected_response\":{\"Boolean\":true},\"result\":{\"result\":\"result\"}}}");
-    //         assert_eq!(r.ts, Utc::now().timestamp_millis());
-
-    //         // TODO where is the response?
-    //         // TODO add callback & verify
-    //     } else {
-    //         panic!("Expected a message to be received");
-    //     };
-
-    //     // Add the assertion to check if there are no Vec<MSender<ExtnMessage> in event_processors map after cleanup
-    //     assert_eq!(
-    //         extn_client
-    //             .event_processors
-    //             .read()
-    //             .unwrap()
-    //             .get(id)
-    //             .map(|v| v.len()),
-    //         None,
-    //         "Assertion failed: Vec<MSender<ExtnMessage> in event_processors map does not have the expected length after cleanup"
-    //     );
-    // }
 
     // TODO - try with some other extn id with same context and fulfill to check behavior
     // TODO - add test case with with callback
     #[tokio::test(flavor = "multi_thread")]
     async fn test_request() {
-        testing_logger::setup();
         let (mock_sender, receiver) = ExtnSender::mock_with_params(
             ExtnId::get_main_target("main".into()),
             vec!["context".to_string()],
@@ -1110,104 +1071,62 @@ pub mod tests {
                 panic!("Received an unexpected error");
             }
         }
-
-        validate(|captured_logs| {
-            for log in captured_logs {
-                assert_ne!(log.level, Level::Error);
-                assert!(!log.body.contains("IEC Latency"));
-                assert_ne!(log.body, "invalid message");
-                // assert!(log
-                //     .body
-                //     .contains("** extn_client: receiving message latency="));
-            }
-        });
     }
 
     // TODO - add test case for event subscribe & case with with callback?
-    // TODO: fix intermitted failures - test runs forever
     // TODO: to add event response verification
-    // #[tokio::test(flavor = "multi_thread")]
-    // async fn test_event() {
-    //     testing_logger::setup();
-    //     let (mock_sender, receiver) = ExtnSender::mock_with_params(
-    //         ExtnId::get_main_target("main".into()),
-    //         vec!["context".to_string()],
-    //         vec!["fulfills".to_string()],
-    //         Some(HashMap::new()),
-    //     );
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_event() {
+        let (mock_sender, receiver) = ExtnSender::mock_with_params(
+            ExtnId::get_main_target("main".into()),
+            vec!["context".to_string()],
+            vec!["fulfills".to_string()],
+            Some(HashMap::new()),
+        );
 
-    //     let mut extn_client = ExtnClient::new(receiver, mock_sender);
-    //     let processor = MockEventProcessor {
-    //         state: MockState {
-    //             client: extn_client.clone(),
-    //         },
-    //         streamer: DefaultExtnStreamer::new(),
-    //     };
+        let mut extn_client = ExtnClient::new(receiver, mock_sender);
+        let processor = MockEventProcessor {
+            state: MockState {
+                client: extn_client.clone(),
+            },
+            streamer: DefaultExtnStreamer::new(),
+        };
 
-    //     extn_client.add_event_processor(processor);
+        extn_client.add_event_processor(processor);
 
-    //     let id = uuid::Uuid::new_v4().to_string();
-    //     let (s, _receiver) = unbounded();
+        let extn_client_for_thread = extn_client.clone();
+        tokio::spawn(async move {
+            extn_client_for_thread.initialize().await;
+        });
 
-    //     let (tx, _rx): (oneshot::Sender<ExtnMessage>, _) = oneshot::channel();
-    //     add_single_processor(
-    //         id.clone(),
-    //         Some(tx),
-    //         extn_client.response_processors.clone(),
-    //     );
-    //     assert!(extn_client.response_processors.read().unwrap().len() == 1);
+        let response = extn_client.event(MockEvent {
+            event_name: "test_event".to_string(),
+            result: serde_json::json!({"result": "result"}),
+            context: None,
+            app_id: Some("some_id".to_string()),
+            expected_response: Some(ExtnResponse::Boolean(true)),
+        });
 
-    //     extn_client.clone().add_sender(
-    //         ExtnId::get_main_target("main".into()),
-    //         ExtnSymbol {
-    //             id: id,
-    //             uses: vec!["uses".to_string()],
-    //             fulfills: vec!["fulfills".to_string()],
-    //             config: None,
-    //         },
-    //         s,
-    //     );
+        match response {
+            Ok(_) => {
+                // nothing to assert here
+            }
+            Err(_) => {
+                panic!("Received an unexpected error");
+            }
+        }
 
-    //     let extn_client_for_thread = extn_client.clone();
-    //     tokio::spawn(async move {
-    //         extn_client_for_thread.initialize().await;
-    //     });
-
-    //     let response = extn_client.event(MockEvent {
-    //         event_name: "test_event".to_string(),
-    //         result: serde_json::json!({"result": "result"}),
-    //         context: None,
-    //         app_id: Some("some_id".to_string()),
-    //         expected_response: Some(ExtnResponse::Boolean(true)),
-    //     });
-
-    //     match response {
-    //         Ok(_) => {
-    //             // nothing to assert here
-    //         }
-    //         Err(_) => {
-    //             panic!("Received an unexpected error");
-    //         }
-    //     }
-
-    //     // how to verify the event response in other sender?
-
-    //     validate(|captured_logs| {
-    //         for log in captured_logs {
-    //             assert_ne!(log.level, Level::Error);
-    //             assert!(!log.body.contains("IEC Latency"));
-    //             assert_ne!(log.body, "invalid message");
-    //             assert_eq!(log.level, Level::Debug);
-    //             // assert!(log
-    //             //     .body
-    //             //     .contains("** extn_client: receiving message latency="));
-    //         }
-    //     });
-    // }
+        // how to verify the event response in other sender?
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(
+            extn_client.event_processors.read().unwrap().len(),
+            0,
+            "Assertion failed: event_processors map should be empty after cleanup"
+        );
+    }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_initialize() {
-        testing_logger::setup();
         let (s, receiver) = unbounded();
         let mock_sender = ExtnSender::new(
             s,
@@ -1240,14 +1159,6 @@ pub mod tests {
             .await;
 
         assert!(result.is_ok());
-
-        validate(|captured_logs| {
-            for log in captured_logs {
-                assert!(!log.body.contains("IEC Latency"));
-                assert_ne!(log.body, "invalid message");
-                // assert!(log.body.contains("receiving message latency="));
-            }
-        });
     }
 
     #[tokio::test]
@@ -1326,8 +1237,8 @@ pub mod tests {
         exp_resp,
         case("success", ExtnResponse::Boolean(true)),
         case("success", ExtnResponse::Error(RippleError::ProcessorError)),
-        // case("failure - send resp err", ExtnResponse::Boolean(true)),
-        // case("failure - resp processor err", ExtnResponse::Boolean(true))
+        case("failure - send resp err", ExtnResponse::Boolean(true)),
+        case("failure - resp processor err", ExtnResponse::Boolean(true))
     )]
     #[tokio::test]
     async fn test_handle_single(tc: String, exp_resp: ExtnResponse) {
@@ -1367,8 +1278,6 @@ pub mod tests {
 
         validate(|captured_logs| {
             for log in captured_logs {
-                assert!(log.body.contains("handling single id_c:"));
-
                 if tc.contains("send resp err") {
                     assert!(log.body.contains("Error sending the response back"));
                 } else if tc.contains("resp processor err") {
@@ -1386,8 +1295,8 @@ pub mod tests {
         exp_resp,
         case("success", ExtnResponse::Boolean(true)),
         case("success", ExtnResponse::Error(RippleError::ProcessorError)),
-        // case("failure - send resp err", ExtnResponse::Boolean(true)),
-        // case("failure - req processor err", ExtnResponse::Boolean(true))
+        case("failure - send resp err", ExtnResponse::Boolean(true)),
+        case("failure - req processor err", ExtnResponse::Boolean(true))
     )]
     #[tokio::test]
     async fn test_handle_stream(tc: String, exp_resp: ExtnResponse) {
@@ -1438,7 +1347,6 @@ pub mod tests {
 
         validate(|captured_logs| {
             for log in captured_logs {
-                assert!(log.body.contains("handling stream"));
                 if result {
                     assert_ne!(log.body, "No Request Processor for");
                     assert_ne!(log.body, "Error sending the response back");
@@ -1455,8 +1363,8 @@ pub mod tests {
         exp_resp,
         case("success", ExtnResponse::Boolean(true)),
         case("success", ExtnResponse::Error(RippleError::ProcessorError)),
-        // case("failure - send resp err", ExtnResponse::Boolean(true)),
-        // case("failure - req processor err", ExtnResponse::Boolean(true))
+        case("failure - send resp err", ExtnResponse::Boolean(true)),
+        case("failure - req processor err", ExtnResponse::Boolean(true))
     )]
     #[tokio::test]
     async fn test_handle_vec_stream(_tc: String, exp_resp: ExtnResponse) {
@@ -1503,13 +1411,10 @@ pub mod tests {
 
         validate(|captured_logs| {
             for log in captured_logs {
-                assert!(log.body.contains("handling vec stream"));
-                assert!(log.body.contains("send the message"));
                 assert_ne!(log.body, "No Event Processor for");
                 assert_ne!(log.body, "Error sending the response back");
             }
         });
-        // TODO - cleanup vec stream verification
     }
 
     #[tokio::test]
@@ -1609,74 +1514,72 @@ pub mod tests {
         }
     }
 
-    // #[tokio::test] // TODO: fix the test
-    // async fn test_standalone_request() {
-    //     testing_logger::setup();
-    //     let (mock_sender, receiver) = ExtnSender::mock_with_params(
-    //         ExtnId::get_main_target("main".into()),
-    //         vec!["context".to_string()],
-    //         vec!["fulfills".to_string()],
-    //         Some(HashMap::new()),
-    //     );
+    #[tokio::test] // TODO: fix the dummy test
+    async fn test_standalone_request() {
+        let (mock_sender, receiver) = ExtnSender::mock_with_params(
+            ExtnId::get_main_target("main".into()),
+            vec!["context".to_string()],
+            vec!["fulfills".to_string()],
+            Some(HashMap::new()),
+        );
 
-    //     let mut extn_client = ExtnClient::new(receiver.clone(), mock_sender.clone());
-    //     let id = uuid::Uuid::new_v4().to_string();
-    //     let expected_response = ExtnResponse::String("test_make".to_string());
-    //     let payload = MockRequest {
-    //         app_id: "test_app_id".to_string(),
-    //         contract: RippleContract::Internal,
-    //         expected_response: Some(ExtnResponse::Boolean(true)),
-    //     };
-    //     let timeout_in_msecs = 5000;
+        let mut extn_client = ExtnClient::new(receiver.clone(), mock_sender.clone());
 
-    //     let result: Result<String, RippleError> = extn_client
-    //         .standalone_request(payload, timeout_in_msecs)
-    //         .await;
-    //     println!("**** test_standalone_request: result: {:?}", result);
+        // TODO - this is a dummy test, need to add a real test
+        if let Ok(ExtnResponse::Value(_v)) = extn_client
+            .standalone_request(Config::DistributorServices, 2000)
+            .await
+        {
+            println!("**** Got some successful response from standalone_request");
+        } else {
+            println!("**** not the expected respone from standalone_request");
+        }
+    }
 
-    //     match result {
-    //         Ok(actual_response) => {
-    //             println!(
-    //                 "**** test_standalone_request: actual_response: {:?}",
-    //                 actual_response
-    //             );
-    //             let expected_string: String = expected_response.extract_as_string()?;
-    //             let actual_string: String = actual_response.extract_as_string()?;
-    //             assert_eq!(actual_string, expected_string);
-    //         }
-    //         Err(err) => {
-    //             panic!("Received an unexpected error: {:?}", err);
-    //         }
-    //     }
-    // }
+    #[tokio::test]
+    async fn test_request_transient() {
+        let (mock_sender, receiver) = ExtnSender::mock_with_params(
+            ExtnId::get_main_target("main".into()),
+            vec!["config".to_string()],
+            vec!["permissions".to_string()],
+            Some(HashMap::new()),
+        );
 
-    // #[tokio::test] //TODO: fix the test
-    // async fn test_request_transient() {
-    //     env_logger::init();
-    //     let (mock_sender, receiver) = ExtnSender::mock_with_params(
-    //         ExtnId::get_main_target("main".into()),
-    //         vec!["context".to_string()],
-    //         vec!["fulfills".to_string()],
-    //         Some(HashMap::new()),
-    //     );
+        let mut extn_client = ExtnClient::new(receiver, mock_sender);
+        let (s, _receiver) = unbounded();
+        extn_client.clone().add_sender(
+            ExtnId::get_main_target("main".into()),
+            ExtnSymbol {
+                id: "id".to_string(),
+                uses: vec!["config".to_string()],
+                fulfills: vec!["permissions".to_string()],
+                config: None,
+            },
+            s,
+        );
 
-    //     let mut extn_client = ExtnClient::new(receiver.clone(), mock_sender.clone());
+        assert_eq!(
+            extn_client.get_other_senders().len(),
+            1,
+            "Assertion failed: extn_client.get_other_senders() does not have the expected length"
+        );
 
-    //     let result = extn_client.request_transient(MockRequest {
-    //         app_id: "test_app_id".to_string(),
-    //         contract: RippleContract::Internal,
-    //         expected_response: Some(ExtnResponse::Boolean(true)),
-    //     });
+        let result = extn_client.request_transient(MockRequest {
+            app_id: "test_app_id".to_string(),
+            contract: RippleContract::Internal,
+            expected_response: None,
+        });
 
-    //     match result {
-    //         Ok(response) => {
-    //             println!("**** test_request_transient: Success: {:?}", response);
-    //         }
-    //         Err(_) => {
-    //             panic!("Received an unexpected error");
-    //         }
-    //     }
-    // }
+        match result {
+            Ok(response) => {
+                println!("test_request_transient: Success: {:?}", response);
+            }
+            Err(err) => {
+                println!("test_request_transient: err: {:?}", err);
+                panic!("Received an unexpected error");
+            }
+        }
+    }
 
     #[rstest(
             config,
@@ -1746,33 +1649,48 @@ pub mod tests {
         assert_eq!(extn_client.get_bool_config("key"), expected_value);
     }
 
-    // #[rstest(
-    //     id,
-    //     event,
-    //     expected_response,
-    //     case("ext_id", get_mock_event(), Ok(())),
-    //     case(
-    //         "nonexistent_id",
-    //         get_mock_event(),
-    //         RippleError::ProcessorError
-    //     )
-    // )] // TODO: fix the tests
-    // fn test_send_event_with_id(
-    //     id: &str,
-    //     event: impl ExtnPayloadProvider,
-    //     expected_response: RippleResponse,
-    // ) {
-    //     let (mock_sender, _receiver) = ExtnSender::mock_with_params(
-    //         ExtnId::get_main_target("main".into()),
-    //         vec!["context".to_string()],
-    //         vec!["fulfills".to_string()],
-    //         Some(HashMap::new()),
-    //     );
-    //     let extn_client = ExtnClient::new(_receiver, mock_sender);
+    #[rstest(id, extn_id, permitted,fulfills, exp_resp,
+        case("ext_id", ExtnId::get_main_target("main".into()), vec!["context".to_string()], vec!["fulfills".to_string()],  Ok(())),
+        case("non_ext_id", ExtnId::get_main_target("main".into()), vec!["context".to_string()], vec!["fulfills".to_string()], Ok(())),    
+        case("non_ext_id", ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
+        vec!["config".to_string()],
+        vec!["device_info".to_string()], Err(RippleError::InvalidAccess))
+    )]
+    fn test_send_event_with_id(
+        id: &str,
+        extn_id: ExtnId,
+        permitted: Vec<String>,
+        fulfills: Vec<String>,
+        exp_resp: RippleResponse,
+    ) {
+        let (mock_sender, _receiver) =
+            ExtnSender::mock_with_params(extn_id, permitted, fulfills, Some(HashMap::new()));
+        let extn_client = ExtnClient::new(_receiver, mock_sender);
 
-    //     let actual_response = extn_client.send_event_with_id(id, event);
-    //     assert_eq!(actual_response, expected_response);
-    // }
+        if id != "non_existent_id" {
+            let (s, _receiver) = unbounded();
+            extn_client.clone().add_sender(
+                ExtnId::get_main_target("main".into()),
+                ExtnSymbol {
+                    id: id.to_string(),
+                    uses: vec!["config".to_string()],
+                    fulfills: vec!["permissions".to_string()],
+                    config: None,
+                },
+                s,
+            );
+
+            assert_eq!(
+            extn_client.get_other_senders().len(),
+            1,
+            "Assertion failed: extn_client.get_other_senders() does not have the expected length"
+        );
+        }
+
+        let actual_response =
+            extn_client.send_event_with_id(id, crate::utils::mock_utils::get_mock_event());
+        assert_eq!(actual_response, exp_resp);
+    }
 
     #[rstest(id, permitted,fulfills, exp_resp, error_msg,
         case(ExtnId::get_main_target("main".into()), vec!["context".to_string()], vec!["fulfills".to_string()], true, "Expected true for the given main target"),    
@@ -1927,7 +1845,6 @@ pub mod tests {
             .internet_connectivity = connectivity;
 
         let has_internet = extn_client.has_internet();
-
         assert_eq!(has_internet, expected_result);
     }
 

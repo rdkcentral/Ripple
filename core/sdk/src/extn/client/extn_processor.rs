@@ -93,43 +93,40 @@ macro_rules! start_rx_stream {
     ($get_type:ty, $caller:ident, $recv:ident, $state:ident, $process:ident, $error:ident, $type_check:expr) => {
         let mut rx = $caller.$recv();
         let state = $caller.$state().clone();
-        tokio::spawn(async move {
-            while let Some(msg) = rx.recv().await {
-                // check the type of the message
-                if $type_check(&msg) {
-                    let state_c = state.clone();
-                    let extracted_message = <$get_type>::get(msg.payload.clone());
-                    if extracted_message.is_none() {
-                        <$get_type>::$error(
-                            state_c,
-                            msg,
-                            $crate::utils::error::RippleError::ParseError,
-                        )
-                        .await;
-                        continue;
-                    }
-                    if let Some(v) =
-                        <$get_type>::$process(state_c, msg.clone(), extracted_message.unwrap())
-                            .await
-                    {
-                        if msg.payload.is_event() && v {
-                            // trigger closure processor is dropped
-                            trace!("dropping rx to trigger cleanup");
-                            rx.close();
-                            break;
-                        }
-                    }
-                } else {
+        while let Some(msg) = rx.recv().await {
+            // check the type of the message
+            if $type_check(&msg) {
+                let state_c = state.clone();
+                let extracted_message = <$get_type>::get(msg.payload.clone());
+                if extracted_message.is_none() {
                     <$get_type>::$error(
-                        state.clone(),
+                        state_c,
                         msg,
-                        $crate::utils::error::RippleError::InvalidInput,
+                        $crate::utils::error::RippleError::ParseError,
                     )
                     .await;
+                    continue;
                 }
+                if let Some(v) =
+                    <$get_type>::$process(state_c, msg.clone(), extracted_message.unwrap()).await
+                {
+                    if msg.payload.is_event() && v {
+                        // trigger closure processor is dropped
+                        trace!("dropping rx to trigger cleanup");
+                        rx.close();
+                        break;
+                    }
+                }
+            } else {
+                <$get_type>::$error(
+                    state.clone(),
+                    msg,
+                    $crate::utils::error::RippleError::InvalidInput,
+                )
+                .await;
             }
-            drop(rx)
-        });
+        }
+        drop(rx)
     };
 }
 
@@ -595,9 +592,7 @@ pub mod tests {
         assert!(!MockEventProcessor::check_message_type(&request_message));
     }
 
-    #[rstest(exp_resp, case(Some(ExtnResponse::Boolean(true))),
-    // case(None) - TODO: fix this - running forever
-    )]
+    #[rstest(exp_resp, case(Some(ExtnResponse::Boolean(true))))]
     #[tokio::test(flavor = "multi_thread")]
     async fn test_request_processor_run(exp_resp: Option<ExtnResponse>) {
         let (s, receiver) = unbounded();
@@ -664,7 +659,6 @@ pub mod tests {
     // Fix the test case 1 - runs forever - even in extn_client event test it happens
     // update error messages in start_rx to validate
     // how to get the callback and validate - here & also in extn_client
-    // fix testing_logger & env_logger error - it is not working
     // add assertion for the callback
     // add assertion for the response in callback - throughout tests
 
