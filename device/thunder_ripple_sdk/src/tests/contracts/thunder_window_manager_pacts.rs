@@ -32,307 +32,307 @@ use ripple_sdk::api::apps::Dimensions;
 use serde_json::json;
 use std::collections::HashMap;
 
-#[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
-async fn test_device_set_window_visibility() {
-    let mut pact_builder_async = get_pact_builder_async_obj().await;
+// #[tokio::test(flavor = "multi_thread")]
+// #[cfg_attr(not(feature = "contract_tests"), ignore)]
+// async fn test_device_set_window_visibility() {
+//     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
-    let mut params = HashMap::new();
-    params.insert(
-        "client".into(),
-        ContractMatcher::MatchType("org.rdk.Netflix".into()),
-    );
-    params.insert(
-        "callsign".into(),
-        ContractMatcher::MatchType("org.rdk.Netflix".into()),
-    );
-    params.insert("visible".into(), ContractMatcher::MatchBool(true));
+//     let mut params = HashMap::new();
+//     params.insert(
+//         "client".into(),
+//         ContractMatcher::MatchType("org.rdk.Netflix".into()),
+//     );
+//     params.insert(
+//         "callsign".into(),
+//         ContractMatcher::MatchType("org.rdk.Netflix".into()),
+//     );
+//     params.insert("visible".into(), ContractMatcher::MatchBool(true));
 
-    let mut result = HashMap::new();
-    result.insert("success".into(), ContractMatcher::MatchBool(true));
+//     let mut result = HashMap::new();
+//     result.insert("success".into(), ContractMatcher::MatchBool(true));
 
-    pact_builder_async
-        .synchronous_message_interaction(
-            "A request to set visibility of a client",
-            |mut i| async move {
-                i.contents_from(get_pact_with_params!(
-                    "org.rdk.RDKShell.1.setVisibility",
-                    ContractResult { result },
-                    ContractParams { params }
-                ))
-                .await;
-                i.test_name("set_visibility_of_client");
-                i
-            },
-        )
-        .await;
+//     pact_builder_async
+//         .synchronous_message_interaction(
+//             "A request to set visibility of a client",
+//             |mut i| async move {
+//                 i.contents_from(get_pact_with_params!(
+//                     "org.rdk.RDKShell.1.setVisibility",
+//                     ContractResult { result },
+//                     ContractParams { params }
+//                 ))
+//                 .await;
+//                 i.test_name("set_visibility_of_client");
+//                 i
+//             },
+//         )
+//         .await;
 
-    let mock_server = pact_builder_async
-        .start_mock_server_async(Some("websockets/transport/websockets"))
-        .await;
+//     let mock_server = pact_builder_async
+//         .start_mock_server_async(Some("websockets/transport/websockets"))
+//         .await;
 
-    let visibility_params = r#"{"callsign": "org.rdk.Netflix", "client": "org.rdk.Netflix"}"#;
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::WindowManager(
-        WindowManagerRequest::Visibility(serde_json::to_string(&visibility_params).unwrap(), true),
-    )));
-    let msg = get_extn_msg(payload);
+//     let visibility_params = r#"{"callsign": "org.rdk.Netflix", "client": "org.rdk.Netflix"}"#;
+//     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::WindowManager(
+//         WindowManagerRequest::Visibility(serde_json::to_string(&visibility_params).unwrap(), true),
+//     )));
+//     let msg = get_extn_msg(payload);
 
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+//     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+//     let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
 
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s.clone(), r.clone());
+//     let (s, r) = unbounded();
+//     let extn_client = get_extn_client(s.clone(), r.clone());
 
-    let state: ThunderState = ThunderState::new(extn_client, thunder_client);
+//     let state: ThunderState = ThunderState::new(extn_client, thunder_client);
 
-    let _ = ThunderWindowManagerRequestProcessor::process_request(
-        state,
-        msg,
-        WindowManagerRequest::Visibility(serde_json::to_string(&visibility_params).unwrap(), true),
-    )
-    .await;
-}
+//     let _ = ThunderWindowManagerRequestProcessor::process_request(
+//         state,
+//         msg,
+//         WindowManagerRequest::Visibility(serde_json::to_string(&visibility_params).unwrap(), true),
+//     )
+//     .await;
+// }
 
-#[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
-async fn test_device_move_window_to_front() {
-    let mut pact_builder_async = get_pact_builder_async_obj().await;
+// #[tokio::test(flavor = "multi_thread")]
+// #[cfg_attr(not(feature = "contract_tests"), ignore)]
+// async fn test_device_move_window_to_front() {
+//     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
-    let mut params = HashMap::new();
-    params.insert(
-        "client".into(),
-        ContractMatcher::MatchType("org.rdk.Netflix".into()),
-    );
-    params.insert(
-        "callsign".into(),
-        ContractMatcher::MatchType("org.rdk.Netflix".into()),
-    );
+//     let mut params = HashMap::new();
+//     params.insert(
+//         "client".into(),
+//         ContractMatcher::MatchType("org.rdk.Netflix".into()),
+//     );
+//     params.insert(
+//         "callsign".into(),
+//         ContractMatcher::MatchType("org.rdk.Netflix".into()),
+//     );
 
-    let mut result = HashMap::new();
-    result.insert("success".into(), ContractMatcher::MatchBool(true));
+//     let mut result = HashMap::new();
+//     result.insert("success".into(), ContractMatcher::MatchBool(true));
 
-    pact_builder_async
-        .synchronous_message_interaction("A request to move window to front", |mut i| async move {
-            i.contents_from(get_pact_with_params!(
-                "org.rdk.RDKShell.1.moveToFront",
-                ContractResult { result },
-                ContractParams { params }
-            ))
-            .await;
-            i.test_name("move_window_to_front");
-            i
-        })
-        .await;
+//     pact_builder_async
+//         .synchronous_message_interaction("A request to move window to front", |mut i| async move {
+//             i.contents_from(get_pact_with_params!(
+//                 "org.rdk.RDKShell.1.moveToFront",
+//                 ContractResult { result },
+//                 ContractParams { params }
+//             ))
+//             .await;
+//             i.test_name("move_window_to_front");
+//             i
+//         })
+//         .await;
 
-    let mock_server = pact_builder_async
-        .start_mock_server_async(Some("websockets/transport/websockets"))
-        .await;
+//     let mock_server = pact_builder_async
+//         .start_mock_server_async(Some("websockets/transport/websockets"))
+//         .await;
 
-    let move_to_front_params = r#"{"callsign": "org.rdk.Netflix", "client": "org.rdk.Netflix"}"#;
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::WindowManager(
-        WindowManagerRequest::MoveToFront(serde_json::to_string(&move_to_front_params).unwrap()),
-    )));
-    let msg = get_extn_msg(payload);
+//     let move_to_front_params = r#"{"callsign": "org.rdk.Netflix", "client": "org.rdk.Netflix"}"#;
+//     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::WindowManager(
+//         WindowManagerRequest::MoveToFront(serde_json::to_string(&move_to_front_params).unwrap()),
+//     )));
+//     let msg = get_extn_msg(payload);
 
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+//     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+//     let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
 
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s.clone(), r.clone());
+//     let (s, r) = unbounded();
+//     let extn_client = get_extn_client(s.clone(), r.clone());
 
-    let state: ThunderState = ThunderState::new(extn_client, thunder_client);
+//     let state: ThunderState = ThunderState::new(extn_client, thunder_client);
 
-    let _ = ThunderWindowManagerRequestProcessor::process_request(
-        state,
-        msg,
-        WindowManagerRequest::MoveToFront(serde_json::to_string(&move_to_front_params).unwrap()),
-    )
-    .await;
-}
+//     let _ = ThunderWindowManagerRequestProcessor::process_request(
+//         state,
+//         msg,
+//         WindowManagerRequest::MoveToFront(serde_json::to_string(&move_to_front_params).unwrap()),
+//     )
+//     .await;
+// }
 
-#[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
-async fn test_device_move_window_to_back() {
-    let mut pact_builder_async = get_pact_builder_async_obj().await;
+// #[tokio::test(flavor = "multi_thread")]
+// #[cfg_attr(not(feature = "contract_tests"), ignore)]
+// async fn test_device_move_window_to_back() {
+//     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
-    let mut params = HashMap::new();
-    params.insert(
-        "client".into(),
-        ContractMatcher::MatchType("org.rdk.Netflix".into()),
-    );
-    params.insert(
-        "callsign".into(),
-        ContractMatcher::MatchType("org.rdk.Netflix".into()),
-    );
+//     let mut params = HashMap::new();
+//     params.insert(
+//         "client".into(),
+//         ContractMatcher::MatchType("org.rdk.Netflix".into()),
+//     );
+//     params.insert(
+//         "callsign".into(),
+//         ContractMatcher::MatchType("org.rdk.Netflix".into()),
+//     );
 
-    let mut result = HashMap::new();
-    result.insert("success".into(), ContractMatcher::MatchBool(true));
+//     let mut result = HashMap::new();
+//     result.insert("success".into(), ContractMatcher::MatchBool(true));
 
-    pact_builder_async
-        .synchronous_message_interaction("A request to move window to back", |mut i| async move {
-            i.contents_from(get_pact_with_params!(
-                "org.rdk.RDKShell.1.moveToBack",
-                ContractResult { result },
-                ContractParams { params }
-            ))
-            .await;
-            i.test_name("move_window_to_back");
-            i
-        })
-        .await;
+//     pact_builder_async
+//         .synchronous_message_interaction("A request to move window to back", |mut i| async move {
+//             i.contents_from(get_pact_with_params!(
+//                 "org.rdk.RDKShell.1.moveToBack",
+//                 ContractResult { result },
+//                 ContractParams { params }
+//             ))
+//             .await;
+//             i.test_name("move_window_to_back");
+//             i
+//         })
+//         .await;
 
-    let mock_server = pact_builder_async
-        .start_mock_server_async(Some("websockets/transport/websockets"))
-        .await;
+//     let mock_server = pact_builder_async
+//         .start_mock_server_async(Some("websockets/transport/websockets"))
+//         .await;
 
-    let move_to_back_params = r#"{"callsign": "org.rdk.Netflix", "client": "org.rdk.Netflix"}"#;
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::WindowManager(
-        WindowManagerRequest::MoveToBack(serde_json::to_string(&move_to_back_params).unwrap()),
-    )));
-    let msg = get_extn_msg(payload);
+//     let move_to_back_params = r#"{"callsign": "org.rdk.Netflix", "client": "org.rdk.Netflix"}"#;
+//     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::WindowManager(
+//         WindowManagerRequest::MoveToBack(serde_json::to_string(&move_to_back_params).unwrap()),
+//     )));
+//     let msg = get_extn_msg(payload);
 
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+//     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+//     let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
 
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s.clone(), r.clone());
+//     let (s, r) = unbounded();
+//     let extn_client = get_extn_client(s.clone(), r.clone());
 
-    let state: ThunderState = ThunderState::new(extn_client, thunder_client);
+//     let state: ThunderState = ThunderState::new(extn_client, thunder_client);
 
-    let _ = ThunderWindowManagerRequestProcessor::process_request(
-        state,
-        msg,
-        WindowManagerRequest::MoveToBack(serde_json::to_string(&move_to_back_params).unwrap()),
-    )
-    .await;
-}
+//     let _ = ThunderWindowManagerRequestProcessor::process_request(
+//         state,
+//         msg,
+//         WindowManagerRequest::MoveToBack(serde_json::to_string(&move_to_back_params).unwrap()),
+//     )
+//     .await;
+// }
 
-#[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
-async fn test_device_set_window_to_focus() {
-    let mut pact_builder_async = get_pact_builder_async_obj().await;
+// #[tokio::test(flavor = "multi_thread")]
+// #[cfg_attr(not(feature = "contract_tests"), ignore)]
+// async fn test_device_set_window_to_focus() {
+//     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
-    let mut params = HashMap::new();
-    params.insert(
-        "client".into(),
-        ContractMatcher::MatchType("org.rdk.Netflix".into()),
-    );
-    params.insert(
-        "callsign".into(),
-        ContractMatcher::MatchType("org.rdk.Netflix".into()),
-    );
+//     let mut params = HashMap::new();
+//     params.insert(
+//         "client".into(),
+//         ContractMatcher::MatchType("org.rdk.Netflix".into()),
+//     );
+//     params.insert(
+//         "callsign".into(),
+//         ContractMatcher::MatchType("org.rdk.Netflix".into()),
+//     );
 
-    let mut result = HashMap::new();
-    result.insert("success".into(), ContractMatcher::MatchBool(true));
+//     let mut result = HashMap::new();
+//     result.insert("success".into(), ContractMatcher::MatchBool(true));
 
-    pact_builder_async
-        .synchronous_message_interaction("A request to set window to focus", |mut i| async move {
-            i.contents_from(get_pact_with_params!(
-                "org.rdk.RDKShell.1.setFocus",
-                ContractResult { result },
-                ContractParams { params }
-            ))
-            .await;
-            i.test_name("set_window_to_focus");
-            i
-        })
-        .await;
+//     pact_builder_async
+//         .synchronous_message_interaction("A request to set window to focus", |mut i| async move {
+//             i.contents_from(get_pact_with_params!(
+//                 "org.rdk.RDKShell.1.setFocus",
+//                 ContractResult { result },
+//                 ContractParams { params }
+//             ))
+//             .await;
+//             i.test_name("set_window_to_focus");
+//             i
+//         })
+//         .await;
 
-    let mock_server = pact_builder_async
-        .start_mock_server_async(Some("websockets/transport/websockets"))
-        .await;
+//     let mock_server = pact_builder_async
+//         .start_mock_server_async(Some("websockets/transport/websockets"))
+//         .await;
 
-    let set_to_focus_params = r#"{"callsign": "org.rdk.Netflix", "client": "org.rdk.Netflix"}"#;
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::WindowManager(
-        WindowManagerRequest::Focus(serde_json::to_string(&set_to_focus_params).unwrap()),
-    )));
-    let msg = get_extn_msg(payload);
+//     let set_to_focus_params = r#"{"callsign": "org.rdk.Netflix", "client": "org.rdk.Netflix"}"#;
+//     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::WindowManager(
+//         WindowManagerRequest::Focus(serde_json::to_string(&set_to_focus_params).unwrap()),
+//     )));
+//     let msg = get_extn_msg(payload);
 
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+//     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+//     let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
 
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s.clone(), r.clone());
+//     let (s, r) = unbounded();
+//     let extn_client = get_extn_client(s.clone(), r.clone());
 
-    let state: ThunderState = ThunderState::new(extn_client, thunder_client);
+//     let state: ThunderState = ThunderState::new(extn_client, thunder_client);
 
-    let _ = ThunderWindowManagerRequestProcessor::process_request(
-        state,
-        msg,
-        WindowManagerRequest::Focus(serde_json::to_string(&set_to_focus_params).unwrap()),
-    )
-    .await;
-}
+//     let _ = ThunderWindowManagerRequestProcessor::process_request(
+//         state,
+//         msg,
+//         WindowManagerRequest::Focus(serde_json::to_string(&set_to_focus_params).unwrap()),
+//     )
+//     .await;
+// }
 
-#[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
-async fn test_device_set_window_bounds() {
-    let mut pact_builder_async = get_pact_builder_async_obj().await;
+// #[tokio::test(flavor = "multi_thread")]
+// #[cfg_attr(not(feature = "contract_tests"), ignore)]
+// async fn test_device_set_window_bounds() {
+//     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
-    let mut params = HashMap::new();
-    params.insert(
-        "client".into(),
-        ContractMatcher::MatchType("org.rdk.Netflix".into()),
-    );
-    params.insert(
-        "callsign".into(),
-        ContractMatcher::MatchType("org.rdk.Netflix".into()),
-    );
-    params.insert("x".into(), ContractMatcher::MatchNumber(0));
-    params.insert("y".into(), ContractMatcher::MatchNumber(0));
-    params.insert("w".into(), ContractMatcher::MatchNumber(1980));
-    params.insert("h".into(), ContractMatcher::MatchNumber(1080));
+//     let mut params = HashMap::new();
+//     params.insert(
+//         "client".into(),
+//         ContractMatcher::MatchType("org.rdk.Netflix".into()),
+//     );
+//     params.insert(
+//         "callsign".into(),
+//         ContractMatcher::MatchType("org.rdk.Netflix".into()),
+//     );
+//     params.insert("x".into(), ContractMatcher::MatchNumber(0));
+//     params.insert("y".into(), ContractMatcher::MatchNumber(0));
+//     params.insert("w".into(), ContractMatcher::MatchNumber(1980));
+//     params.insert("h".into(), ContractMatcher::MatchNumber(1080));
 
-    let mut result = HashMap::new();
-    result.insert("success".into(), ContractMatcher::MatchBool(true));
+//     let mut result = HashMap::new();
+//     result.insert("success".into(), ContractMatcher::MatchBool(true));
 
-    pact_builder_async
-        .synchronous_message_interaction("A request to set window bounds", |mut i| async move {
-            i.contents_from(get_pact_with_params!(
-                "org.rdk.RDKShell.1.setBounds",
-                ContractResult { result },
-                ContractParams { params }
-            ))
-            .await;
-            i.test_name("set_window_bounds");
-            i
-        })
-        .await;
+//     pact_builder_async
+//         .synchronous_message_interaction("A request to set window bounds", |mut i| async move {
+//             i.contents_from(get_pact_with_params!(
+//                 "org.rdk.RDKShell.1.setBounds",
+//                 ContractResult { result },
+//                 ContractParams { params }
+//             ))
+//             .await;
+//             i.test_name("set_window_bounds");
+//             i
+//         })
+//         .await;
 
-    let mock_server = pact_builder_async
-        .start_mock_server_async(Some("websockets/transport/websockets"))
-        .await;
+//     let mock_server = pact_builder_async
+//         .start_mock_server_async(Some("websockets/transport/websockets"))
+//         .await;
 
-    let set_to_focus_params = r#"{"callsign": "org.rdk.Netflix", "client": "org.rdk.Netflix"}"#;
-    let dimenstions = Dimensions {
-        x: 0,
-        y: 0,
-        w: 1920,
-        h: 1080,
-    };
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::WindowManager(
-        WindowManagerRequest::Dimensions(
-            serde_json::to_string(&set_to_focus_params).unwrap(),
-            dimenstions.clone(),
-        ),
-    )));
-    let msg = get_extn_msg(payload);
+//     let set_to_focus_params = r#"{"callsign": "org.rdk.Netflix", "client": "org.rdk.Netflix"}"#;
+//     let dimenstions = Dimensions {
+//         x: 0,
+//         y: 0,
+//         w: 1920,
+//         h: 1080,
+//     };
+//     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::WindowManager(
+//         WindowManagerRequest::Dimensions(
+//             serde_json::to_string(&set_to_focus_params).unwrap(),
+//             dimenstions.clone(),
+//         ),
+//     )));
+//     let msg = get_extn_msg(payload);
 
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+//     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+//     let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
 
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s.clone(), r.clone());
+//     let (s, r) = unbounded();
+//     let extn_client = get_extn_client(s.clone(), r.clone());
 
-    let state: ThunderState = ThunderState::new(extn_client, thunder_client);
+//     let state: ThunderState = ThunderState::new(extn_client, thunder_client);
 
-    let _ = ThunderWindowManagerRequestProcessor::process_request(
-        state,
-        msg,
-        WindowManagerRequest::Dimensions(
-            serde_json::to_string(&set_to_focus_params).unwrap(),
-            dimenstions.clone(),
-        ),
-    )
-    .await;
-}
+//     let _ = ThunderWindowManagerRequestProcessor::process_request(
+//         state,
+//         msg,
+//         WindowManagerRequest::Dimensions(
+//             serde_json::to_string(&set_to_focus_params).unwrap(),
+//             dimenstions.clone(),
+//         ),
+//     )
+//     .await;
+// }

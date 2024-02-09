@@ -136,10 +136,13 @@ async fn test_device_get_persistent_value() {
     );
     params.insert("key".into(), ContractMatcher::MatchType("testKey".into()));
 
+    let given_statement = format!("\"key:{}\", \"namespace: {}\" to \"{}\" is set in persistentStore", "testKey", "testNamesapce", "testValue1");
+
     pact_builder_async
         .synchronous_message_interaction(
             "A request to get the persistent stored value",
             |mut i| async move {
+                i.given(given_statement);
                 i.contents_from(get_pact_with_params!(
                     "org.rdk.PersistentStore.1.getValue",
                     ContractResult { result },

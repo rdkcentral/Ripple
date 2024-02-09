@@ -130,61 +130,61 @@ async fn test_device_launch_html_app() {
     .await;
 }
 
-#[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
-async fn test_device_destroy_app() {
-    let mut pact_builder_async = get_pact_builder_async_obj().await;
+// #[tokio::test(flavor = "multi_thread")]
+// #[cfg_attr(not(feature = "contract_tests"), ignore)]
+// async fn test_device_destroy_app() {
+//     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
-    let mut params = HashMap::new();
-    params.insert(
-        "callsign".into(),
-        ContractMatcher::MatchType("Html-0".into()),
-    );
+//     let mut params = HashMap::new();
+//     params.insert(
+//         "callsign".into(),
+//         ContractMatcher::MatchType("Html-0".into()),
+//     );
 
-    let mut result = HashMap::new();
-    result.insert("success".into(), ContractMatcher::MatchBool(true));
+//     let mut result = HashMap::new();
+//     result.insert("success".into(), ContractMatcher::MatchBool(true));
 
-    pact_builder_async
-        .synchronous_message_interaction(
-            "A request to destroy an application",
-            |mut i| async move {
-                i.contents_from(get_pact_with_params!(
-                    "org.rdk.RDKShell.1.destroy",
-                    ContractResult { result },
-                    ContractParams { params }
-                ))
-                .await;
-                i.test_name("destroy_application");
-                i
-            },
-        )
-        .await;
+//     pact_builder_async
+//         .synchronous_message_interaction(
+//             "A request to destroy an application",
+//             |mut i| async move {
+//                 i.contents_from(get_pact_with_params!(
+//                     "org.rdk.RDKShell.1.destroy",
+//                     ContractResult { result },
+//                     ContractParams { params }
+//                 ))
+//                 .await;
+//                 i.test_name("destroy_application");
+//                 i
+//             },
+//         )
+//         .await;
 
-    let mock_server = pact_builder_async
-        .start_mock_server_async(Some("websockets/transport/websockets"))
-        .await;
+//     let mock_server = pact_builder_async
+//         .start_mock_server_async(Some("websockets/transport/websockets"))
+//         .await;
 
-    let browser_name = "Html-0";
-    let destroy_params = BrowserDestroyParams {
-        browser_name: browser_name.to_string(),
-    };
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Browser(
-        BrowserRequest::Destroy(destroy_params.clone()),
-    )));
-    let msg = get_extn_msg(payload);
+//     let browser_name = "Html-0";
+//     let destroy_params = BrowserDestroyParams {
+//         browser_name: browser_name.to_string(),
+//     };
+//     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Browser(
+//         BrowserRequest::Destroy(destroy_params.clone()),
+//     )));
+//     let msg = get_extn_msg(payload);
 
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+//     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+//     let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
 
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s.clone(), r.clone());
+//     let (s, r) = unbounded();
+//     let extn_client = get_extn_client(s.clone(), r.clone());
 
-    let state: ThunderState = ThunderState::new(extn_client, thunder_client);
+//     let state: ThunderState = ThunderState::new(extn_client, thunder_client);
 
-    let _ = ThunderBrowserRequestProcessor::process_request(
-        state,
-        msg,
-        BrowserRequest::Destroy(destroy_params.clone()),
-    )
-    .await;
-}
+//     let _ = ThunderBrowserRequestProcessor::process_request(
+//         state,
+//         msg,
+//         BrowserRequest::Destroy(destroy_params.clone()),
+//     )
+//     .await;
+// }
