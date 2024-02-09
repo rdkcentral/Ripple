@@ -555,7 +555,6 @@ impl ThunderClientBuilder {
                                 Self::parse_subscribe_method(subscribe_method)
                             {
                                 error!("Failed to send re-subscribe message for {}", module);
-                                // TBD: activate the plugin and retry
                             }
                         }
                     }

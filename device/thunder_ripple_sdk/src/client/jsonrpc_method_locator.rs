@@ -100,7 +100,6 @@ mod tests {
     pub fn test_json_rpc_method_locator() {
         let locator =
             JsonRpcMethodLocator::from_str("org.rdk.Controller.1.status@org.rdk.Network").unwrap();
-        println!("locator : {:?}", &locator);
         assert_eq!(locator.module.unwrap(), String::from("org.rdk.Controller"));
         assert_eq!(locator.version.unwrap(), String::from("1"));
         assert_eq!(locator.method_name, String::from("status"));
@@ -142,7 +141,32 @@ mod tests {
         assert!(locator.method_name.is_empty());
         assert_eq!(locator.qualifier, None);
     }
+    #[test]
+    pub fn test_json_rpc_method_locator_parse_module_and_methods() {
+        let locator = JsonRpcMethodLocator::from_str("org.test.threadpool.1.register").unwrap();
+        assert_eq!(locator.module.unwrap(), String::from("org.test.threadpool"));
+        assert_eq!(locator.version.unwrap(), String::from("1"));
+        assert_eq!(locator.method_name, String::from("register"));
+        assert_eq!(locator.qualifier, None);
 
+        let locator = JsonRpcMethodLocator::from_str("org.test.threadpool.1.unregister").unwrap();
+        assert_eq!(locator.module.unwrap(), String::from("org.test.threadpool"));
+        assert_eq!(locator.version.unwrap(), String::from("1"));
+        assert_eq!(locator.method_name, String::from("unregister"));
+        assert_eq!(locator.qualifier, None);
+
+        let locator = JsonRpcMethodLocator::from_str("org.test.threadpool.1.testMethod").unwrap();
+        assert_eq!(locator.module.unwrap(), String::from("org.test.threadpool"));
+        assert_eq!(locator.version.unwrap(), String::from("1"));
+        assert_eq!(locator.method_name, String::from("testMethod"));
+        assert_eq!(locator.qualifier, None);
+
+        let locator = JsonRpcMethodLocator::from_str("testMethod").unwrap();
+        assert_eq!(locator.module, None);
+        assert_eq!(locator.version, None);
+        assert_eq!(locator.method_name, String::from("testMethod"));
+        assert_eq!(locator.qualifier, None);
+    }
     #[test]
     pub fn neg_test_json_rpc_method_locator() {
         let locator_err =

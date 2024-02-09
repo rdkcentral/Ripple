@@ -14,12 +14,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
+use crate::client::jsonrpc_method_locator::JsonRpcMethodLocator;
 use futures::SinkExt;
 use futures::StreamExt;
 use jsonrpsee::tracing::info;
 use ripple_sdk::{futures, serde_json, tokio};
 use serde_json::{json, Value};
 use std::net::SocketAddr;
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
@@ -35,9 +37,14 @@ pub struct CustomMethodHandler;
 
 impl MethodHandler for CustomMethodHandler {
     fn handle_method(&self, request: &Value) -> Option<Value> {
-        match request.get("method").and_then(|method| method.as_str()) {
-            // TBD: Extract the method name and handle the request
-            Some("org.test.threadpool.1.register") => {
+        let method = request.get("method");
+        let locator = method
+            .and_then(|method| {
+                Some(JsonRpcMethodLocator::from_str(method.as_str().unwrap()).unwrap())
+            })
+            .unwrap();
+        match locator.method_name.as_str() {
+            "register" => {
                 // Handle subscription request
                 let response = json!({
                     "jsonrpc": "2.0",
@@ -46,7 +53,7 @@ impl MethodHandler for CustomMethodHandler {
                 });
                 Some(response)
             }
-            Some("org.test.threadpool.1.unregister") => {
+            "unregister" => {
                 // Handle unsubscription request
                 let response = json!({
                     "jsonrpc": "2.0",
@@ -55,7 +62,7 @@ impl MethodHandler for CustomMethodHandler {
                 });
                 Some(response)
             }
-            Some("org.test.threadpool.1.testMethod") => {
+            "testMethod" => {
                 // Handle test method request
                 let response = json!({
                     "jsonrpc": "2.0",

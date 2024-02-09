@@ -195,7 +195,7 @@ mod tests {
     use url::Url;
 
     #[tokio::test]
-    async fn test_thunder_client_pool_start() {
+    async fn test_thunder_client_pool_start_and_reset() {
         // Using the default method handler from tests::thunder_client_pool_test_utility
         // This can be replaced with a custom method handler, if needed
         let custom_method_handler = Arc::new(CustomMethodHandler);
@@ -209,7 +209,7 @@ mod tests {
             mock_server.start().await;
         });
 
-        // Wait for a moment to let the server start
+        // Wait for server to start
         sleep(Duration::from_secs(1)).await;
 
         let url = Url::parse("ws://127.0.0.1:8080/jsonrpc").unwrap();
@@ -241,11 +241,13 @@ mod tests {
             }
         });
 
+        // Test cases
+        // 1. create a client pool of size 4
         let client = ThunderClientPool::start(url, Some(tx), 4).await;
         assert!(client.is_ok());
         let client = client.unwrap();
 
-        // call this 20 times from different threads
+        // 2. invoke client.call functions 20 times from multple spawned threads
         for _ in 0..20 {
             let client = client.clone();
             let callsign = callsign.clone();
@@ -260,8 +262,7 @@ mod tests {
             });
         }
 
-        // test subscribe
-        // call this 3 times from a loop
+        // 3. test subscribe. Call this 3 times from a loop
         for _ in 0..3 {
             let (sub_tx, _sub_rx) = mpsc::channel::<DeviceResponseMessage>(32);
             let resp = client
@@ -278,7 +279,26 @@ mod tests {
             assert_eq!(resp.message, "Subscribed".to_string());
         }
 
-        // call unsubscribe
+        // 4. Re-start server to test Thunder client reset
+        server_task.abort();
+        sleep(Duration::from_secs(1)).await;
+        let custom_method_handler_c = custom_method_handler.clone();
+        let server_task = tokio::spawn(async {
+            let mock_server = MockWebSocketServer::new("127.0.0.1:8080", custom_method_handler_c);
+            mock_server.start().await;
+        });
+        // Wait for server to start
+        sleep(Duration::from_secs(1)).await;
+        // issue client call again
+        let resp = client
+            .call(DeviceCallRequest {
+                method: format!("{}.1.testMethod", callsign),
+                params: None,
+            })
+            .await;
+        assert_eq!(resp.message, "testMethod Request Response".to_string());
+
+        // 5. test unsubscribe
         client
             .unsubscribe(DeviceUnsubscribeRequest {
                 module: format!("{}.1", callsign),
@@ -286,7 +306,6 @@ mod tests {
             })
             .await;
 
-        sleep(Duration::from_secs(3)).await;
         server_task.abort();
     }
 }
