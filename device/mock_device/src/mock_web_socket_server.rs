@@ -18,6 +18,7 @@ use std::{
     collections::HashMap,
     net::SocketAddr,
     sync::{Arc, RwLock},
+    time::Duration,
 };
 
 use http::{HeaderMap, StatusCode};
@@ -93,6 +94,8 @@ impl Default for WsServerParameters {
     }
 }
 
+type WSConnection = Arc<Mutex<HashMap<String, SplitSink<WebSocketStream<TcpStream>, Message>>>>;
+
 #[derive(Debug)]
 pub struct MockWebSocketServer {
     mock_data_v2: Arc<RwLock<MockData>>,
@@ -107,7 +110,7 @@ pub struct MockWebSocketServer {
 
     port: u16,
 
-    connected_peer_sinks: Mutex<HashMap<String, SplitSink<WebSocketStream<TcpStream>, Message>>>,
+    connected_peer_sinks: WSConnection,
 
     config: MockConfig,
 }
@@ -130,7 +133,7 @@ impl MockWebSocketServer {
             conn_path: server_config.path.unwrap_or_else(|| "/".to_string()),
             conn_headers: server_config.headers.unwrap_or_else(HeaderMap::new),
             conn_query_params: server_config.query_params.unwrap_or_default(),
-            connected_peer_sinks: Mutex::new(HashMap::new()),
+            connected_peer_sinks: Arc::new(Mutex::new(HashMap::new())),
             config,
             mock_data_v2: Arc::new(RwLock::new(mock_data_v2)),
         })
@@ -252,9 +255,14 @@ impl MockWebSocketServer {
                     Some(value) => value,
                     None => continue,
                 };
-                if let Err(e) = self.send_to_sink(&peer.to_string(), responses).await {
-                    error!("Error sending data back to sink {}", e.to_string());
-                }
+                let connected_peer = self.connected_peer_sinks.clone();
+                tokio::spawn(async move {
+                    if let Err(e) =
+                        Self::send_to_sink(connected_peer, &peer.to_string(), responses).await
+                    {
+                        error!("Error sending data back to sink {}", e.to_string());
+                    }
+                });
             }
         }
 
@@ -264,12 +272,19 @@ impl MockWebSocketServer {
         Ok(())
     }
 
-    async fn send_to_sink(&self, peer: &str, responses: Vec<ResponseSink>) -> Result<()> {
-        let mut clients = self.connected_peer_sinks.lock().await;
+    async fn send_to_sink(
+        connection: WSConnection,
+        peer: &str,
+        responses: Vec<ResponseSink>,
+    ) -> Result<()> {
+        let mut clients = connection.lock().await;
         let sink = clients.get_mut(peer);
         if let Some(sink) = sink {
             for resp in responses {
                 let response = resp.data.to_string();
+                if resp.delay > 0 {
+                    tokio::time::sleep(Duration::from_secs(resp.delay)).await
+                }
                 if let Err(e) = sink.send(Message::Text(response.clone())).await {
                     error!("Error sending response. resp={e:?}");
                 } else {

@@ -37,7 +37,7 @@ pub struct ParamResponse {
 
 #[derive(Debug)]
 pub struct ResponseSink {
-    pub delay: u32,
+    pub delay: u64,
     pub data: Value,
 }
 
@@ -99,7 +99,7 @@ impl ParamResponse {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct EventValue {
-    pub delay: Option<u32>,
+    pub delay: Option<u64>,
     pub data: Value,
 }
 
