@@ -37,7 +37,7 @@ pub const LCM_EVENT_ON_SESSION_TRANSITION_COMPLETED: &str =
 pub const LCM_EVENT_ON_SESSION_TRANSITION_CANCELED: &str =
     "lifecyclemanagement.onSessionTransitionCanceled";
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum LifecycleManagementEventRequest {
     Launch(LifecycleManagementLaunchEvent),
     Ready(LifecycleManagementReadyEvent),
@@ -67,7 +67,7 @@ impl ExtnPayloadProvider for LifecycleManagementEventRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum LifecycleManagementRequest {
     Session(AppSessionRequest),
     SetState(SetStateRequest),
@@ -95,12 +95,12 @@ impl ExtnPayloadProvider for LifecycleManagementRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct LifecycleManagementLaunchEvent {
     pub parameters: LifecycleManagementLaunchParameters,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LifecycleManagementLaunchParameters {
     pub app_id: String,
@@ -124,61 +124,61 @@ impl LifecycleManagementLaunchParameters {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct LifecycleManagementReadyEvent {
     pub parameters: LifecycleManagementReadyParameters,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LifecycleManagementReadyParameters {
     pub app_id: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct LifecycleManagementCloseEvent {
     pub parameters: LifecycleManagementCloseParameters,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LifecycleManagementCloseParameters {
     pub app_id: String,
     pub reason: CloseReason,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LifecycleManagementFinishedEvent {
     pub parameters: LifecycleManagementFinishedParameters,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum LifecycleManagementProviderEvent {
     Add(String),
     Remove(String),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LifecycleManagementFinishedParameters {
     pub app_id: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SetStateRequest {
     pub app_id: String,
     pub state: LifecycleState,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, PartialEq, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum SessionResponse {
     Pending(PendingSessionResponse),
     Completed(CompletedSessionResponse),
 }
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CompletedSessionResponse {
     pub app_id: String,
@@ -188,7 +188,7 @@ pub struct CompletedSessionResponse {
     pub active_session_id: Option<String>,
     pub transition_pending: bool,
 }
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PendingSessionResponse {
     pub app_id: String,
@@ -199,7 +199,61 @@ pub struct PendingSessionResponse {
     pub transition_pending: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppSessionRequest {
     pub session: AppSession,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::apps::{
+        AppBasicInfo, AppLaunchInfo, AppRuntime, AppRuntimeTransport, AppSession,
+    };
+    use crate::api::device::entertainment_data::{
+        HomeIntent, InternalNavigationIntent, InternalNavigationIntentStrict,
+    };
+    use crate::api::firebolt::fb_discovery::DiscoveryContext;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_lifecycle_management() {
+        let app_session_request = AppSessionRequest {
+            session: AppSession {
+                app: AppBasicInfo {
+                    id: "sample_id".to_string(),
+                    catalog: None,
+                    url: None,
+                    title: None,
+                },
+                runtime: Some(AppRuntime {
+                    id: Some("sample_runtime_id".to_string()),
+                    transport: AppRuntimeTransport::Bridge,
+                }),
+                launch: AppLaunchInfo::default(),
+            },
+        };
+        let lifecycle_management_request = LifecycleManagementRequest::Session(app_session_request);
+        let contract_type: RippleContract = RippleContract::LifecycleManagement;
+        test_extn_payload_provider(lifecycle_management_request, contract_type);
+    }
+
+    #[test]
+    fn test_lifecycle_management_launch_event_serialization() {
+        let launch_event =
+            LifecycleManagementEventRequest::Launch(LifecycleManagementLaunchEvent {
+                parameters: LifecycleManagementLaunchParameters {
+                    app_id: "example_app".to_string(),
+                    intent: Some(InternalNavigationIntent::NavigationIntentStrict(
+                        InternalNavigationIntentStrict::Home(HomeIntent {
+                            context: DiscoveryContext {
+                                source: "test_source".to_string(),
+                            },
+                        }),
+                    )),
+                },
+            });
+        let contract_type: RippleContract = RippleContract::Launcher;
+        test_extn_payload_provider(launch_event, contract_type);
+    }
 }
