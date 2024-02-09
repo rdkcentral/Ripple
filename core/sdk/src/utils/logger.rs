@@ -19,7 +19,6 @@ use std::{str::FromStr, sync::atomic::AtomicU32};
 
 pub static LOG_COUNTER: AtomicU32 = AtomicU32::new(0);
 
-#[deprecated]
 pub fn init_logger(name: String) -> Result<(), fern::InitError> {
     let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".into());
     println!("log level {}", log_string);
@@ -57,14 +56,13 @@ pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern
     let version_string = version.to_string();
     fern::Dispatch::new()
         .format(move |out, message, record| {
-
             let mut v = LOG_COUNTER.load(std::sync::atomic::Ordering::Relaxed);
-            let v1 = v % 100; 
+            let v1 = v % 100;
             if v1 == 0 {
                 println!("Ripple Version : {} ", version_string);
                 v = v1;
             }
-            LOG_COUNTER.fetch_add(v+1,std::sync::atomic::Ordering::Relaxed);
+            LOG_COUNTER.fetch_add(v + 1, std::sync::atomic::Ordering::Relaxed);
 
             #[cfg(not(feature = "sysd"))]
             return out.finish(format_args!(
