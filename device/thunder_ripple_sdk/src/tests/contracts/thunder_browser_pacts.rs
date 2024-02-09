@@ -23,12 +23,12 @@ use crate::{client::thunder_client_pool::ThunderClientPool, thunder_state::Thund
 use pact_consumer::mock_server::StartMockServerAsync;
 use ripple_sdk::{
     api::device::{
-        device_browser::{BrowserDestroyParams, BrowserLaunchParams, BrowserRequest},
+        device_browser::{BrowserLaunchParams, BrowserRequest},
         device_request::DeviceRequest,
     },
     async_channel::unbounded,
     extn::extn_client_message::{ExtnPayload, ExtnRequest},
-    serde_json, tokio,
+    serde_json,
 };
 use serde_json::json;
 use std::collections::HashMap;
