@@ -384,14 +384,14 @@ mod tests {
         let custom_method_handler_c = custom_method_handler.clone();
 
         let server_task = tokio::spawn(async {
-            let mock_server = MockWebSocketServer::new("127.0.0.1:8080", custom_method_handler_c);
+            let mock_server = MockWebSocketServer::new("127.0.0.1:8081", custom_method_handler_c);
             mock_server.start().await;
         });
 
         // Wait for the server to start
         sleep(Duration::from_secs(1)).await;
 
-        let url = Url::parse("ws://127.0.0.1:8080/jsonrpc").unwrap();
+        let url = Url::parse("ws://127.0.0.1:8081/jsonrpc").unwrap();
 
         let controller_pool = ThunderClientPool::start(url.clone(), None, 1).await;
         assert!(controller_pool.is_ok());

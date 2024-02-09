@@ -39,10 +39,8 @@ impl MethodHandler for CustomMethodHandler {
     fn handle_method(&self, request: &Value) -> Option<Value> {
         let method = request.get("method");
         let locator = method
-            .and_then(|method| {
-                Some(JsonRpcMethodLocator::from_str(method.as_str().unwrap()).unwrap())
-            })
-            .unwrap();
+            .map(|method| JsonRpcMethodLocator::from_str(method.as_str().unwrap()).unwrap())
+            .unwrap_or_default();
         match locator.method_name.as_str() {
             "register" => {
                 // Handle subscription request

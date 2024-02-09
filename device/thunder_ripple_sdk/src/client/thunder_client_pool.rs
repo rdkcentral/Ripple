@@ -305,7 +305,7 @@ mod tests {
                 event_name: "testEvent".into(),
             })
             .await;
-
+        sleep(Duration::from_secs(1)).await;
         server_task.abort();
     }
 }

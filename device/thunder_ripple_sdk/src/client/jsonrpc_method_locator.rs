@@ -17,7 +17,7 @@
 
 use std::str::FromStr;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct JsonRpcMethodLocator {
     pub module: Option<String>,
     pub version: Option<String>,
