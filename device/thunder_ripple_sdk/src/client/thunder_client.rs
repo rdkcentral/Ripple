@@ -24,10 +24,15 @@ use jsonrpsee::ws_client::WsClientBuilder;
 
 use jsonrpsee::core::{async_trait, error::Error as JsonRpcError};
 use jsonrpsee::types::ParamsSer;
+use once_cell::sync::Lazy;
 use ripple_sdk::{
     api::device::device_operator::DeviceResponseMessage,
     tokio::sync::mpsc::{self, Sender as MpscSender},
-    tokio::{sync::Mutex, task::JoinHandle, time::sleep},
+    tokio::{
+        sync::{Mutex, Notify},
+        task::JoinHandle,
+        time::sleep,
+    },
 };
 use ripple_sdk::{
     api::device::device_operator::{
@@ -426,6 +431,60 @@ impl ThunderClient {
         }
     }
 }
+pub struct ThunderConnectionManager {
+    conn_status_mutex: Mutex<bool>,
+    conn_status_notify: Notify,
+}
+impl ThunderConnectionManager {
+    // using once_cell to make sure that the connection manager is a singleton
+    pub fn get_instance() -> &'static Arc<ThunderConnectionManager> {
+        static CONN_MGR_INSTANCE: Lazy<Arc<ThunderConnectionManager>> =
+            Lazy::new(|| Arc::new(ThunderConnectionManager::new()));
+        &CONN_MGR_INSTANCE
+    }
+
+    fn new() -> Self {
+        ThunderConnectionManager {
+            conn_status_mutex: Mutex::new(false),
+            conn_status_notify: Notify::new(),
+        }
+    }
+    pub async fn get_client(&self, url: Url) -> Result<Client, JsonRpcError> {
+        // only one connection attempt at a time
+        {
+            let mut is_connecting = self.conn_status_mutex.lock().await;
+            // check if we are already reconnecting
+            if *is_connecting {
+                drop(is_connecting);
+                // wait for the connection to be ready
+                self.conn_status_notify.notified().await;
+            } else {
+                //Mark the connection as reconnecting
+                *is_connecting = true;
+            }
+        } // Lock is released here
+
+        let mut client: Result<Client, JsonRpcError>;
+        let mut delay_duration = tokio::time::Duration::from_millis(50);
+        loop {
+            client = WsClientBuilder::default().build(url.to_string()).await;
+            if client.is_err() {
+                warn!("Attempt to connect to thunder, retrying");
+                sleep(delay_duration).await;
+                if delay_duration < tokio::time::Duration::from_secs(3) {
+                    delay_duration *= 2;
+                }
+                continue;
+            }
+            //break from the loop after signalling that we are no longer reconnecting
+            let mut is_connecting = self.conn_status_mutex.lock().await;
+            *is_connecting = false;
+            self.conn_status_notify.notify_waiters();
+            break;
+        }
+        client
+    }
+}
 
 impl ThunderClientBuilder {
     fn parse_subscribe_method(subscribe_method: &str) -> Option<(String, String)> {
@@ -458,21 +517,12 @@ impl ThunderClientBuilder {
         } else {
             url.clone()
         };
-        let mut client: Result<Client, JsonRpcError>;
-        let mut delay_duration = tokio::time::Duration::from_millis(100);
-        loop {
-            client = WsClientBuilder::default()
-                .build(url_with_token.to_string())
-                .await;
-            if client.is_err() {
-                warn!("Attempt to connect to thunder, retrying");
-                sleep(delay_duration).await;
-                if delay_duration < tokio::time::Duration::from_secs(3) {
-                    delay_duration *= 2;
-                }
-                continue;
-            }
-            break;
+        // ws_connection_mgr would take care of thunder re-connection logic
+        let thunder_connection_mgr = ThunderConnectionManager::get_instance();
+        let client = thunder_connection_mgr.get_client(url_with_token).await;
+        // add error handling here
+        if client.is_err() {
+            return Err(RippleError::BootstrapError);
         }
 
         let client = client.unwrap();
