@@ -105,7 +105,7 @@ pub struct PlatformBuildInfo {
     pub debug: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct FirmwareInfo {
     pub name: String,
     pub version: FireboltSemanticVersion,
