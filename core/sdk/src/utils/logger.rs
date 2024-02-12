@@ -56,13 +56,10 @@ pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern
     let version_string = version.to_string();
     fern::Dispatch::new()
         .format(move |out, message, record| {
-            let mut v = LOG_COUNTER.load(std::sync::atomic::Ordering::Relaxed);
-            let v1 = v % 100;
-            if v1 == 0 {
+            let v = LOG_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if v % 100 == 0 {
                 println!("Ripple Version : {} ", version_string);
-                v = v1;
             }
-            LOG_COUNTER.fetch_add(v + 1, std::sync::atomic::Ordering::Relaxed);
 
             #[cfg(not(feature = "sysd"))]
             return out.finish(format_args!(
