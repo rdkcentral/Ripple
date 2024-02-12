@@ -575,7 +575,7 @@ impl ThunderDeviceInfoRequestProcessor {
                     /* This interval is in seconds. Arrived at this magical number 180 secs
                      * after discussing with NetworkPlugin developer.
                      */
-                    json!({"interval": 10}).to_string(),
+                    json!({"interval": 180}).to_string(),
                 )),
             })
             .await;
