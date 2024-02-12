@@ -36,6 +36,8 @@ use crate::processor::storage::storage_manager::StorageManager;
 
 use super::platform_state::PlatformState;
 
+include!(concat!(env!("OUT_DIR"), "/version.rs"));
+
 #[derive(Debug, Clone, Default)]
 pub struct MetricsState {
     pub start_time: DateTime<Utc>,
@@ -112,6 +114,24 @@ impl MetricsState {
                 timezone = Some(format!("{} {}", tz, offset));
             }
         }
+
+        // <pca>
+        let firmware = match state
+            .get_client()
+            .send_extn_request(DeviceInfoRequest::PlatformBuildInfo)
+            .await
+        {
+            Ok(resp) => {
+                if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp.payload.extract() {
+                    info.name
+                } else {
+                    String::default()
+                }
+            }
+            Err(_) => String::default(),
+        };
+        // </pca>
+
         {
             // Time to set them
             let mut context = state.metrics.context.write().unwrap();
@@ -131,6 +151,10 @@ impl MetricsState {
             context.os_ver = os_ver;
             context.device_name = device_name;
             context.device_session_id = String::from(&state.device_session_id);
+            // <pca>
+            context.firmware = firmware;
+            context.ripple_version = SEMVER.into();
+            // </pca>
 
             if let Some(t) = timezone {
                 context.device_timezone = t;

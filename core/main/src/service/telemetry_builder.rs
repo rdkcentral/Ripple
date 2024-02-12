@@ -15,10 +15,13 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::collections::HashMap;
+
 use ripple_sdk::{
     api::{
         firebolt::{
             fb_metrics::{ErrorParams, InternalInitializeParams, SystemErrorParams, Timer},
+            fb_openrpc::FireboltSemanticVersion,
             fb_telemetry::{
                 AppLoadStart, AppLoadStop, FireboltInteraction, InternalInitialize,
                 TelemetryAppError, TelemetryPayload, TelemetrySignIn, TelemetrySignOut,
@@ -34,6 +37,44 @@ use ripple_sdk::{
 use serde_json::Value;
 
 use crate::state::platform_state::PlatformState;
+
+// <pca>
+pub enum InteractionType {
+    Firebolt,
+    Service,
+}
+
+impl ToString for InteractionType {
+    fn to_string(&self) -> String {
+        match self {
+            InteractionType::Firebolt => "fi".into(),
+            InteractionType::Service => "si".into(),
+        }
+    }
+}
+
+pub enum Tag {
+    Type,
+    App,
+    Firmware,
+    Status,
+    RippleVersion,
+    Features,
+}
+
+impl Tag {
+    pub fn key(&self) -> String {
+        match self {
+            Tag::Type => "type".into(),
+            Tag::App => "app".into(),
+            Tag::Firmware => "firmware".into(),
+            Tag::Status => "status".into(),
+            Tag::RippleVersion => "ripple".into(),
+            Tag::Features => "features".into(),
+        }
+    }
+}
+// </pca>
 
 pub struct TelemetryBuilder;
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
@@ -201,20 +242,40 @@ impl TelemetryBuilder {
     }
 
     // <pca>
-    pub fn send_fb_timer(ps: &PlatformState, req: RpcRequest, timer: Timer, success: bool) {
-        let ctx = req.ctx;
-        let method = req.method;
-        let params = if let Ok(mut p) = serde_json::from_str::<Vec<Value>>(&req.params_json) {
-            if p.len() > 1 {
-                // remove call context
-                let _ = p.remove(0);
-                Some(serde_json::to_string(&p).unwrap())
-            } else {
-                None
+
+    pub fn get_tags(state: &PlatformState, request: &RpcRequest) -> HashMap<String, String> {
+        let mut tags: HashMap<String, String> = HashMap::new();
+        tags.insert(Tag::Type.key(), InteractionType::Firebolt.to_string());
+        tags.insert(Tag::App.key(), request.ctx.app_id.clone());
+        tags.insert(
+            Tag::Firmware.key(),
+            state.metrics.context.read().unwrap().firmware.clone(),
+        );
+        tags.insert(
+            Tag::RippleVersion.key(),
+            state.metrics.context.read().unwrap().ripple_version.clone(),
+        );
+
+        let features = state.ripple_client.get_extn_client().get_features();
+        let feature_count = features.len();
+        let mut features_str = String::new();
+
+        if feature_count > 0 {
+            for i in 0..feature_count {
+                features_str.push_str(&features[i]);
+                if i < feature_count - 1 {
+                    features_str.push_str(",".into());
+                }
             }
-        } else {
-            None
-        };
+        }
+
+        tags.insert(Tag::Features.key(), features_str);
+
+        tags
+    }
+
+    pub fn send_fb_timer(ps: &PlatformState, timer: Timer) {
+        println!("*** _DEBUG: send_fb_timer: {:?}", timer);
         if let Err(e) = Self::send_telemetry(ps, TelemetryPayload::Timer(timer)) {
             error!("send_fb_timer: send_telemetry={:?}", e)
         }

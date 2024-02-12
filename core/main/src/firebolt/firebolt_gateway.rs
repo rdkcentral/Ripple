@@ -34,7 +34,10 @@ use serde::Serialize;
 
 use crate::{
     firebolt::firebolt_gatekeeper::FireboltGatekeeper,
-    service::apps::app_events::AppEvents,
+    service::{
+        apps::app_events::AppEvents,
+        telemetry_builder::{Tag, TelemetryBuilder},
+    },
     state::{bootstrap_state::BootstrapState, session_state::Session},
 };
 
@@ -158,19 +161,33 @@ impl FireboltGateway {
          */
         let mut request_c = request.clone();
         request_c.method = FireboltOpenRpcMethod::name_with_lowercase_module(&request.method);
+
+        // <pca>
+        let tags = TelemetryBuilder::get_tags(&platform_state, &request_c);
+        let mut timer = ripple_sdk::api::firebolt::fb_metrics::Timer::start(
+            request_c.method.clone(),
+            platform_state
+                .clone()
+                .metrics
+                .get_context()
+                .device_session_id,
+            Some(tags),
+        );
+        // </pca>
+
         tokio::spawn(async move {
-            match FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await {
+            // <pca>
+            //match FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await {
+            let result = FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await;
+
+            match result {
+                // </pca>
                 Ok(_) => {
                     // Route
-                    // <pca>
-                    let mut timer = ripple_sdk::api::firebolt::fb_metrics::Timer::start(
-                        request_c.method.clone(),
-                        None,
-                    );
-                    // </pca>
                     match request.clone().ctx.protocol {
                         ApiProtocol::Extn => {
                             if let Some(extn_msg) = extn_msg {
+                                println!("*** _DEBUG: extn_msg={:?}", extn_msg);
                                 // <pca>
                                 //RpcRouter::route_extn_protocol(
                                 let result = RpcRouter::route_extn_protocol(
@@ -181,7 +198,6 @@ impl FireboltGateway {
                                 )
                                 .await;
                                 // <pca>
-                                timer.stop();
                                 platform_state.get_client().send_extn_request( ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest::Timer(timer)).await.ok();
                                 result
                                 // </pca>
@@ -196,7 +212,10 @@ impl FireboltGateway {
                                 .get_session(&request_c.ctx)
                             {
                                 // if the websocket disconnects before the session is recieved this leads to an error
-                                RpcRouter::route(platform_state, request_c, session).await;
+                                // <pca>
+                                //RpcRouter::route(platform_state, request_c, session).await;
+                                RpcRouter::route(platform_state, request_c, session, timer).await;
+                                // </pca>
                             } else {
                                 error!("session is missing request is not forwarded");
                             }
@@ -204,6 +223,9 @@ impl FireboltGateway {
                     }
                 }
                 Err(e) => {
+                    // <pca>
+                    timer.stop();
+                    // </pca>
                     let deny_reason = e.reason;
                     // return error for Api message
                     error!(
@@ -220,7 +242,19 @@ impl FireboltGateway {
                             data: None,
                         }),
                     };
+
                     let msg = serde_json::to_string(&err).unwrap();
+
+                    // <pca>
+                    let code = match err.error {
+                        Some(c) => format!("{}", c.code),
+                        None => "Unknown".into(),
+                    };
+
+                    timer.insert_tag(Tag::Status.key(), code);
+                    TelemetryBuilder::send_fb_timer(&platform_state, timer);
+                    // </pca>
+
                     let api_msg = ApiMessage::new(
                         request.clone().ctx.protocol,
                         msg,

@@ -398,7 +398,7 @@ more related to the operation of the platform itself. These metrics are not sent
 are only used for operational/performance measurement - timers, counters, etc -all of low cardinality.
 */
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct Counter {
     pub name: String,
     pub value: u64,
@@ -465,7 +465,7 @@ impl Counter {
         OperationalMetricRequest::Counter(self.clone())
     }
 }
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct Timer {
     pub name: String,
     #[serde(with = "serde_millis")]
@@ -476,47 +476,70 @@ pub struct Timer {
     TODO... this needs to be a map
     */
     pub tags: Option<HashMap<String, String>>,
+    pub ripple_session_id: String,
 }
+
 impl Timer {
-    pub fn start(name: String, tags: Option<HashMap<String, String>>) -> Timer {
+    pub fn start(
+        name: String,
+        ripple_session_id: String,
+        tags: Option<HashMap<String, String>>,
+    ) -> Timer {
         Timer {
-            name: format!("{}_timer_ms", name),
+            name,
             start: std::time::Instant::now(),
             stop: None,
-            tags: tags,
+            ripple_session_id,
+            tags,
         }
     }
+
     pub fn new(
         name: String,
         start: std::time::Instant,
+        ripple_session_id: String,
         tags: Option<HashMap<String, String>>,
     ) -> Timer {
         Timer {
             name: name,
             start: start,
             stop: None,
-            tags: tags,
+            ripple_session_id,
+            tags,
         }
     }
+
     pub fn stop(&mut self) -> Timer {
         self.stop = Some(std::time::Instant::now());
         Timer::from(self.clone())
     }
+
     pub fn restart(&mut self) {
         self.start = std::time::Instant::now();
         self.stop = None;
     }
+
     pub fn elapsed(&self) -> std::time::Duration {
         match self.stop {
             Some(stop) => stop.duration_since(self.start),
             None => self.start.elapsed(),
         }
     }
-    pub fn tag(&mut self, tag_name: String, tag_value: String) -> () {
+
+    pub fn insert_tag(&mut self, tag_name: String, tag_value: String) -> () {
         if let Some(my_tags) = self.tags.as_mut() {
             my_tags.insert(tag_name, tag_value);
         }
     }
+
+    pub fn insert_tags(&mut self, new_tags: HashMap<String, String>) -> () {
+        let tags = self.tags.clone();
+        match tags {
+            Some(mut t) => t.extend(new_tags),
+            None => self.tags = Some(new_tags),
+        }
+    }
+
     pub fn error(&mut self) {
         if let Some(my_tags) = self.tags.as_mut() {
             my_tags.insert("error".to_string(), true.to_string());
@@ -535,21 +558,21 @@ impl From<Timer> for OperationalMetricRequest {
     }
 }
 
-pub fn fb_api_timer(method_name: String, tags: Option<HashMap<String, String>>) -> Timer {
-    let timer_tags = match tags {
-        Some(mut tags) => {
-            tags.insert("method_name".to_string(), method_name);
-            tags
-        }
-        None => {
-            let mut the_map = HashMap::new();
-            the_map.insert("method_name".to_string(), method_name);
-            the_map
-        }
-    };
+// pub fn fb_api_timer(method_name: String, tags: Option<HashMap<String, String>>) -> Timer {
+//     let timer_tags = match tags {
+//         Some(mut tags) => {
+//             tags.insert("method_name".to_string(), method_name);
+//             tags
+//         }
+//         None => {
+//             let mut the_map = HashMap::new();
+//             the_map.insert("method_name".to_string(), method_name);
+//             the_map
+//         }
+//     };
 
-    Timer::start(FIREBOLT_RPC_NAME.to_string(), Some(timer_tags))
-}
+//     Timer::start(FIREBOLT_RPC_NAME.to_string(), Some(timer_tags))
+// }
 pub fn fb_api_counter(method_name: String, tags: Option<HashMap<String, String>>) -> Counter {
     let counter_tags = match tags {
         Some(mut tags) => {
@@ -568,7 +591,7 @@ pub fn fb_api_counter(method_name: String, tags: Option<HashMap<String, String>>
         tags: Some(counter_tags),
     }
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum OperationalMetricPayload {
     Timer(Timer),
     Counter(Counter),
@@ -596,6 +619,10 @@ pub struct MetricsContext {
     pub device_session_id: String,
     pub mac_address: String,
     pub serial_number: String,
+    // <pca>
+    pub firmware: String,
+    pub ripple_version: String,
+    // </pca>
 }
 
 #[allow(non_camel_case_types)]
@@ -613,6 +640,10 @@ pub enum MetricsContextField {
     session_id,
     mac_address,
     serial_number,
+    // <pca>
+    firmware,
+    ripple_version,
+    // </pca>
 }
 impl MetricsContext {
     pub fn new() -> MetricsContext {
@@ -630,6 +661,10 @@ impl MetricsContext {
             os_ver: String::from(""),
             device_session_id: String::from(""),
             distribution_tenant_id: String::from(""),
+            // <pca>
+            firmware: String::from(""),
+            ripple_version: String::from(""),
+            // </pca>
         }
     }
     pub fn set(&mut self, field: MetricsContextField, value: String) {
@@ -649,6 +684,10 @@ impl MetricsContext {
             MetricsContextField::mac_address => self.mac_address = value,
             MetricsContextField::serial_number => self.serial_number = value,
             MetricsContextField::device_name => self.device_name = value,
+            // <pca>
+            MetricsContextField::firmware => self.firmware = value,
+            MetricsContextField::ripple_version => self.ripple_version = value,
+            // </pca>
         };
     }
 }
@@ -872,6 +911,10 @@ mod tests {
                 device_session_id: "test_device_session_id".to_string(),
                 mac_address: "test_mac_address".to_string(),
                 serial_number: "test_serial_number".to_string(),
+                // <pca>
+                firmware: "test_firmware".to_string(),
+                ripple_version: "test_ripple_version".to_string(),
+                // </pca>
             }),
             payload: BehavioralMetricPayload::Ready(ready_payload),
             session: AccountSession {

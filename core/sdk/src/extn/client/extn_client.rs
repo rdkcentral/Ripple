@@ -646,4 +646,11 @@ impl ExtnClient {
         let ripple_context = self.ripple_context.read().unwrap();
         Some(ripple_context.time_zone.clone())
     }
+
+    // <pca>
+    pub fn get_features(&self) -> Vec<String> {
+        let ripple_context = self.ripple_context.read().unwrap();
+        ripple_context.features.clone()
+    }
+    // </pca>
 }

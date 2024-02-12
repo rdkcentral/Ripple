@@ -30,6 +30,7 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         apps::EffectiveTransport,
+        firebolt::fb_metrics::Timer,
         gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
     },
     chrono::Utc,
@@ -39,10 +40,13 @@ use ripple_sdk::{
     tokio::{self},
     utils::error::RippleError,
 };
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 
 use crate::{
-    service::telemetry_builder::TelemetryBuilder,
+    service::telemetry_builder::{InteractionType, Tag, TelemetryBuilder},
     state::{platform_state::PlatformState, session_state::Session},
 };
 
@@ -132,7 +136,10 @@ async fn resolve_route(
 }
 
 impl RpcRouter {
-    pub async fn route(state: PlatformState, req: RpcRequest, session: Session) {
+    // <pca>
+    //pub async fn route(state: PlatformState, req: RpcRequest, session: Session) {
+    pub async fn route(state: PlatformState, req: RpcRequest, session: Session, mut timer: Timer) {
+        // </pca>
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
         tokio::spawn(async move {
@@ -140,7 +147,11 @@ impl RpcRouter {
             let app_id = req.ctx.app_id.clone();
             let session_id = req.ctx.session_id.clone();
             let start = Utc::now().timestamp_millis();
-            if let Ok(msg) = resolve_route(methods, resources, req.clone()).await {
+            let resp = resolve_route(methods, resources, req.clone()).await;
+            // <pca>
+            timer.stop();
+            // </pca>
+            if let Ok(msg) = resp {
                 let now = Utc::now().timestamp_millis();
                 let success = !msg.is_error();
                 info!(
@@ -155,6 +166,12 @@ impl RpcRouter {
                     }
                 );
                 TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start, success);
+
+                // <pca>
+                timer.insert_tag(Tag::Status.key(), "0".into());
+                TelemetryBuilder::send_fb_timer(&state, timer);
+                // </pca>
+
                 match session.get_transport() {
                     EffectiveTransport::Websocket => {
                         if let Err(e) = session.send_json_rpc(msg).await {
