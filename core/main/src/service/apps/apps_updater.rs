@@ -251,7 +251,6 @@ pub mod tests {
                 new_uninstalled_apps: vec![],
             };
             spawn(async move {
-                // first message is to get installed apps
                 while let Ok(m) = pm_r.recv().await {
                     let msg: ExtnMessage = m.try_into().unwrap();
                     if let ExtnPayload::Request(ExtnRequest::Extn(_)) = &msg.payload {
