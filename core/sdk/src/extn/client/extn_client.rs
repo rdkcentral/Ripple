@@ -809,15 +809,9 @@ pub mod tests {
         };
 
         extn_client.add_request_processor(processor);
+        tokio::time::sleep(Duration::from_millis(10)).await;
 
-        validate(|captured_logs| {
-            for log in captured_logs {
-                assert!(log
-                    .body
-                    .contains("starting request processor green tokio thread for"));
-                assert!(log.body.contains("processing request"));
-            }
-        });
+        assert!(extn_client.request_processors.read().unwrap().len() == 3);
     }
 
     #[tokio::test(flavor = "multi_thread")]
