@@ -24,7 +24,7 @@ use crate::{
 
 use super::device_request::DeviceRequest;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AppsRequest {
     GetApps(Option<String>),
     InstallApp(AppMetadata),
@@ -80,5 +80,19 @@ impl ExtnPayloadProvider for AppsRequest {
 
     fn contract() -> RippleContract {
         RippleContract::Apps
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_payload_provider_for_apps_request_get_apps() {
+        let get_apps_request = AppsRequest::GetApps(Some(String::from("filter_criteria")));
+
+        let contract_type: RippleContract = RippleContract::Apps;
+        test_extn_payload_provider(get_apps_request, contract_type);
     }
 }

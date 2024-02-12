@@ -33,7 +33,7 @@ pub const DEVICE_SKU_AUTHORIZED: &str = "device_sku_authorized";
 pub const DEVICE_MAKE_MODEL_AUTHORIZED: &str = "device_make_model_authorized";
 pub const DEVICE_NETWORK_STATUS_AUTHORIZED: &str = "network_status_authorized";
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum DeviceInfoRequest {
     MacAddress,
     Model,
@@ -83,7 +83,7 @@ impl ExtnPayloadProvider for DeviceInfoRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceCapabilities {
     pub video_resolution: Option<Vec<i32>>,
@@ -111,7 +111,7 @@ pub struct FirmwareInfo {
     pub version: FireboltSemanticVersion,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum DeviceResponse {
     CustomError(String),
     AudioProfileResponse(HashMap<AudioProfile, bool>),
@@ -147,5 +147,25 @@ impl ExtnPayloadProvider for DeviceResponse {
 
     fn contract() -> RippleContract {
         RippleContract::DeviceInfo
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_device_info_request() {
+        let contract_type: RippleContract = RippleContract::DeviceInfo;
+        test_extn_payload_provider(DeviceInfoRequest::MacAddress, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_device_response() {
+        let device_response = DeviceResponse::PowerState(PowerState::Standby);
+
+        let contract_type: RippleContract = RippleContract::DeviceInfo;
+        test_extn_payload_provider(device_response, contract_type);
     }
 }

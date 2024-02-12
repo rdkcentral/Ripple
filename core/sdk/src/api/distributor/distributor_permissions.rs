@@ -23,7 +23,7 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PermissionRequest {
     pub app_id: String,
     pub session: AccountSession,
@@ -64,5 +64,49 @@ impl ExtnPayloadProvider for PermissionResponse {
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
         RippleContract::Permissions
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::firebolt::fb_capabilities::{CapabilityRole, FireboltCap};
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_permission() {
+        let account_session = AccountSession {
+            id: "test_session_id".to_string(),
+            token: "test_token".to_string(),
+            account_id: "test_account_id".to_string(),
+            device_id: "test_device_id".to_string(),
+        };
+
+        let permission_request = PermissionRequest {
+            app_id: "test_app_id".to_string(),
+            session: account_session,
+        };
+
+        let contract_type: RippleContract = RippleContract::Permissions;
+
+        test_extn_payload_provider(permission_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_response_permission() {
+        let permission1 = FireboltPermission {
+            cap: FireboltCap::Short("test_cap1".to_string()),
+            role: CapabilityRole::Use,
+        };
+
+        let permission2 = FireboltPermission {
+            cap: FireboltCap::Full("test_cap2".to_string()),
+            role: CapabilityRole::Manage,
+        };
+
+        let permission_response: PermissionResponse = vec![permission1, permission2];
+        let contract_type: RippleContract = RippleContract::Permissions;
+
+        test_extn_payload_provider(permission_response, contract_type);
     }
 }

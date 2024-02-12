@@ -163,7 +163,7 @@ pub struct WsConfiguration {
     pub gateway: String,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RetentionPolicy {
     pub max_retained: u64,
@@ -181,7 +181,7 @@ pub const DEFAULT_RETENTION_POLICY: RetentionPolicy = RetentionPolicy {
     always_retained: Vec::new(),
 };
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LifecyclePolicy {
     pub app_ready_timeout_ms: u64,
@@ -208,14 +208,14 @@ pub struct AppsDistributionConfiguration {
     pub default_id_salt: Option<IdSalt>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct AppLibraryEntry {
     pub app_id: String,
     pub manifest: AppManifestLoad,
     pub boot_state: BootState,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum AppManifestLoad {
     Remote(String),

@@ -42,7 +42,7 @@ impl DiscoveryContext {
     }
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug)]
+#[derive(Deserialize, PartialEq, Serialize, Clone, Debug)]
 pub struct LaunchRequest {
     #[serde(rename = "appId")]
     pub app_id: String,
@@ -58,7 +58,7 @@ impl LaunchRequest {
 
 //TODO: need to update 1.0 code
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct EntitlementData {
     pub entitlement_id: String,
@@ -103,7 +103,7 @@ pub enum LocalizedString {
     Locale(HashMap<String, String>),
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct WatchedInfo {
     pub entity_id: String,
@@ -117,16 +117,6 @@ pub struct WatchedInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub watched_on: Option<String>,
-}
-
-impl WatchedInfo {
-    pub fn get_progress(&self) -> ProgressUnit {
-        if self.progress.ge(&1.0) {
-            ProgressUnit::Percent
-        } else {
-            ProgressUnit::Seconds
-        }
-    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -152,7 +142,7 @@ pub struct NavigateCompanyPageRequest {
     pub company_id: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct ContentAccessRequest {
     pub ids: ContentAccessIdentifiers,
 }
@@ -165,7 +155,7 @@ pub const EVENT_ON_SIGN_OUT: &str = "discovery.onSignOut";
 pub const PURCHASED_CONTENT_CAPABILITY: &str = "discovery:purchased-content";
 pub const EVENT_DISCOVERY_POLICY_CHANGED: &str = "discovery.onPolicyChanged";
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub enum ContentType {
     ChannelLineup,
@@ -180,7 +170,7 @@ impl ContentType {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Availability {
     #[serde(rename = "type")]
@@ -202,7 +192,7 @@ pub struct Availability {
     pub end_time: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentAccessIdentifiers {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -237,7 +227,7 @@ impl From<SignInInfo> for ContentAccessRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentAccessEntitlement {
     pub entitlement_id: String,
@@ -247,7 +237,7 @@ pub struct ContentAccessEntitlement {
     pub end_time: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentAccessAvailability {
     #[serde(rename = "type")]
@@ -260,13 +250,13 @@ pub struct ContentAccessAvailability {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_time: Option<String>,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionParams {
     pub app_id: String, // eg: Netflix
     pub dist_session: AccountSession,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentAccessInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -275,11 +265,11 @@ pub struct ContentAccessInfo {
     pub entitlements: Option<Vec<ContentAccessEntitlement>>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct ClearContentSetParams {
     pub session_info: SessionParams,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct ContentAccessListSetParams {
     pub session_info: SessionParams,
     pub content_access_info: ContentAccessInfo,
@@ -287,7 +277,7 @@ pub struct ContentAccessListSetParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContentAccessResponse {}
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SignInRequestParams {
     pub session_info: SessionParams,
     pub is_signed_in: bool, /*true for signIn, false for signOut */
@@ -321,20 +311,19 @@ pub struct DiscoveryEntitlement {
     pub end_time: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum ProgressUnit {
     Seconds,
     Percent,
-    WatchNext,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MediaEvent {
     pub content_id: String,
     pub completed: bool,
     pub progress: f32,
-    pub progress_unit: ProgressUnit,
+    pub progress_unit: Option<ProgressUnit>,
     pub watched_on: Option<String>,
     pub app_id: String,
 }
@@ -371,7 +360,7 @@ pub struct DataTagInfo {
     pub propagation_state: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MediaEventsAccountLinkRequestParams {
     pub media_event: MediaEvent,
     pub content_partner_id: String,

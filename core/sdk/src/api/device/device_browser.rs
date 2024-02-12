@@ -24,7 +24,7 @@ use crate::{
 
 use super::device_request::DeviceRequest;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub struct BrowserProps {
     pub user_agent: Option<String>,
@@ -43,7 +43,7 @@ impl BrowserProps {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct BrowserLaunchParams {
     pub uri: String,
     pub browser_name: String,
@@ -69,19 +69,19 @@ impl BrowserLaunchParams {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct BrowserDestroyParams {
     pub browser_name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct BrowserNameRequestParams {
     pub runtime: String,
     pub name: String,
     pub instances: usize,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum BrowserRequest {
     Start(BrowserLaunchParams),
     Destroy(BrowserDestroyParams),
@@ -103,5 +103,40 @@ impl ExtnPayloadProvider for BrowserRequest {
 
     fn contract() -> RippleContract {
         RippleContract::Browser
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_payload_provider_for_browser_request_start() {
+        let start_params = BrowserLaunchParams {
+            uri: String::from("https://example.com"),
+            browser_name: String::from("chrome"),
+            _type: String::from("web"),
+            visible: true,
+            suspend: false,
+            focused: true,
+            name: String::from("browser_instance"),
+            x: 0,
+            y: 0,
+            w: 800,
+            h: 600,
+            properties: Some(BrowserProps {
+                user_agent: Some(String::from("Mozilla/5.0")),
+                http_cookie_accept_policy: Some(String::from("all")),
+                local_storage_enabled: Some(true),
+                languages: Some(String::from("en-US")),
+                headers: Some(String::from("custom-headers")),
+            }),
+        };
+
+        let browser_start_request = BrowserRequest::Start(start_params);
+
+        let contract_type: RippleContract = RippleContract::Browser;
+        test_extn_payload_provider(browser_start_request, contract_type);
     }
 }
