@@ -24,15 +24,10 @@ use jsonrpsee::ws_client::WsClientBuilder;
 
 use jsonrpsee::core::{async_trait, error::Error as JsonRpcError};
 use jsonrpsee::types::ParamsSer;
-use once_cell::sync::Lazy;
 use ripple_sdk::{
     api::device::device_operator::DeviceResponseMessage,
     tokio::sync::mpsc::{self, Sender as MpscSender},
-    tokio::{
-        sync::{Mutex, Notify},
-        task::JoinHandle,
-        time::sleep,
-    },
+    tokio::{sync::Mutex, task::JoinHandle, time::sleep},
 };
 use ripple_sdk::{
     api::device::device_operator::{
@@ -55,6 +50,8 @@ use ripple_sdk::{
 };
 use serde::{Deserialize, Serialize};
 use url::Url;
+
+use crate::thunder_state::ThunderConnectionState;
 
 use super::thunder_client_pool::ThunderPoolCommand;
 use super::{
@@ -431,33 +428,32 @@ impl ThunderClient {
         }
     }
 }
-pub struct ThunderConnectionManager {
-    conn_status_mutex: Mutex<bool>,
-    conn_status_notify: Notify,
-}
-impl ThunderConnectionManager {
-    // using once_cell to make sure that the connection manager is a singleton
-    pub fn get_instance() -> &'static Arc<ThunderConnectionManager> {
-        static CONN_MGR_INSTANCE: Lazy<Arc<ThunderConnectionManager>> =
-            Lazy::new(|| Arc::new(ThunderConnectionManager::new()));
-        &CONN_MGR_INSTANCE
-    }
-
-    fn new() -> Self {
-        ThunderConnectionManager {
-            conn_status_mutex: Mutex::new(false),
-            conn_status_notify: Notify::new(),
+impl ThunderClientBuilder {
+    fn parse_subscribe_method(subscribe_method: &str) -> Option<(String, String)> {
+        if let Some(client_start) = subscribe_method.find("client.") {
+            if let Some(events_start) = subscribe_method[client_start..].find(".events.") {
+                let module = subscribe_method
+                    [client_start + "client.".len()..client_start + events_start]
+                    .to_string();
+                let event_name =
+                    subscribe_method[client_start + events_start + ".events.".len()..].to_string();
+                return Some((module, event_name));
+            }
         }
+        None
     }
-    pub async fn get_client(&self, url: Url) -> Result<Client, JsonRpcError> {
+    async fn create_client(
+        url: Url,
+        thunder_connection_state: Arc<ThunderConnectionState>,
+    ) -> Result<Client, JsonRpcError> {
         // only one connection attempt at a time
         {
-            let mut is_connecting = self.conn_status_mutex.lock().await;
+            let mut is_connecting = thunder_connection_state.conn_status_mutex.lock().await;
             // check if we are already reconnecting
             if *is_connecting {
                 drop(is_connecting);
                 // wait for the connection to be ready
-                self.conn_status_notify.notified().await;
+                thunder_connection_state.conn_status_notify.notified().await;
             } else {
                 //Mark the connection as reconnecting
                 *is_connecting = true;
@@ -477,33 +473,19 @@ impl ThunderConnectionManager {
                 continue;
             }
             //break from the loop after signalling that we are no longer reconnecting
-            let mut is_connecting = self.conn_status_mutex.lock().await;
+            let mut is_connecting = thunder_connection_state.conn_status_mutex.lock().await;
             *is_connecting = false;
-            self.conn_status_notify.notify_waiters();
+            thunder_connection_state.conn_status_notify.notify_waiters();
             break;
         }
         client
     }
-}
 
-impl ThunderClientBuilder {
-    fn parse_subscribe_method(subscribe_method: &str) -> Option<(String, String)> {
-        if let Some(client_start) = subscribe_method.find("client.") {
-            if let Some(events_start) = subscribe_method[client_start..].find(".events.") {
-                let module = subscribe_method
-                    [client_start + "client.".len()..client_start + events_start]
-                    .to_string();
-                let event_name =
-                    subscribe_method[client_start + events_start + ".events.".len()..].to_string();
-                return Some((module, event_name));
-            }
-        }
-        None
-    }
     pub async fn get_client(
         url: Url,
         plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
         pool_tx: Option<mpsc::Sender<ThunderPoolCommand>>,
+        thunder_connection_state: Arc<ThunderConnectionState>,
         existing_client: Option<ThunderClient>,
     ) -> Result<ThunderClient, RippleError> {
         let id = Uuid::new_v4();
@@ -517,9 +499,8 @@ impl ThunderClientBuilder {
         } else {
             url.clone()
         };
-        // ws_connection_mgr would take care of thunder re-connection logic
-        let thunder_connection_mgr = ThunderConnectionManager::get_instance();
-        let client = thunder_connection_mgr.get_client(url_with_token).await;
+
+        let client = Self::create_client(url_with_token, thunder_connection_state.clone()).await;
         // add error handling here
         if client.is_err() {
             return Err(RippleError::BootstrapError);

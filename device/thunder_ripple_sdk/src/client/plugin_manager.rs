@@ -372,6 +372,7 @@ mod tests {
     use crate::tests::thunder_client_pool_test_utility::{
         CustomMethodHandler, MockWebSocketServer,
     };
+    use crate::thunder_state::ThunderConnectionState;
     use ripple_sdk::tokio::time::{sleep, Duration};
     use std::sync::Arc;
     use url::Url;
@@ -393,7 +394,13 @@ mod tests {
 
         let url = Url::parse("ws://127.0.0.1:8081/jsonrpc").unwrap();
 
-        let controller_pool = ThunderClientPool::start(url.clone(), None, 1).await;
+        let controller_pool = ThunderClientPool::start(
+            url.clone(),
+            None,
+            Arc::new(ThunderConnectionState::new()),
+            1,
+        )
+        .await;
         assert!(controller_pool.is_ok());
 
         let controller_pool = controller_pool.unwrap();
@@ -410,7 +417,13 @@ mod tests {
         let plugin_manager_tx_clone = plugin_manager_tx.clone();
 
         // Start the ThunderClientPool
-        let client = ThunderClientPool::start(url, Some(plugin_manager_tx_clone), 4).await;
+        let client = ThunderClientPool::start(
+            url,
+            Some(plugin_manager_tx_clone),
+            Arc::new(ThunderConnectionState::new()),
+            4,
+        )
+        .await;
         assert!(client.is_ok());
 
         // 1. test PluginManagerCommand::StateChangeEvent command
