@@ -159,7 +159,7 @@ pub async fn update(
                 .any(|ia| ia.id.eq(&a.id) && ia.version.eq(&a.version))
         })
         .collect();
-    app_list.sort_by_key(|app| app.priority);
+    app_list.sort_by_key(|app| app.install_priority);
     for app in app_list {
         debug!("update: Application is not currently installed, installing: title={}, id={}, version={}", app.title, app.id, app.version);
         let metadata = AppMetadata::new(app.id, app.title, app.version, app.uri, app.data);
@@ -206,7 +206,7 @@ pub mod tests {
                     version: String::from("1.0"),
                     uri: String::from("http://localhost/app.pkg"),
                     data: None,
-                    priority: 9999,
+                    install_priority: 9999,
                 },
             }
         }
@@ -217,7 +217,7 @@ pub mod tests {
         }
 
         pub fn priority(mut self, p: i32) -> AppBuilder {
-            self.meta.priority = p;
+            self.meta.install_priority = p;
             self
         }
 

@@ -34,7 +34,7 @@ pub struct AppMetadata {
     pub version: String,
     pub uri: String,
     pub data: Option<String>,
-    pub priority: i32,
+    pub install_priority: i32,
 }
 
 impl AppMetadata {
@@ -44,7 +44,7 @@ impl AppMetadata {
         version: String,
         uri: String,
         data: Option<String>,
-        priority: i32,
+        install_priority: i32,
     ) -> AppMetadata {
         AppMetadata {
             id,
@@ -52,7 +52,7 @@ impl AppMetadata {
             version,
             uri,
             data,
-            priority,
+            install_priority,
         }
     }
 }
@@ -107,7 +107,7 @@ mod tests {
                 version: String::from("1.0"),
                 uri: String::from("https://example.com/app1"),
                 data: Some(String::from("app1_data")),
-                priority: 9999,
+                install_priority: 9999,
             }],
         };
         let contract_type: RippleContract = RippleContract::AppCatalog;
