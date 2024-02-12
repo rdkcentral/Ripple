@@ -82,63 +82,55 @@ impl RippleContext {
         match request {
             RippleContextUpdateRequest::Activation(a) => {
                 let activation_status: ActivationStatus = a.into();
-                if (self.activation_status.is_some()
-                    && self.activation_status.as_ref().unwrap() != &activation_status)
-                    || self.activation_status.is_none()
-                {
-                    self.activation_status = Some(a.into());
-                    self.update_type = Some(RippleContextUpdateType::ActivationStatusChanged);
-                    true
-                } else {
-                    false
+                if let Some(status) = self.activation_status.as_ref() {
+                    if status == &activation_status {
+                        return false;
+                    }
                 }
+                self.activation_status = Some(activation_status);
+                self.update_type = Some(RippleContextUpdateType::ActivationStatusChanged);
+                true
             }
             RippleContextUpdateRequest::InternetStatus(s) => {
-                if (self.internet_connectivity.is_some()
-                    && self.internet_connectivity.as_ref().unwrap() != &s)
-                    || self.internet_connectivity.is_none()
-                {
-                    self.internet_connectivity = Some(s);
-                    self.update_type = Some(RippleContextUpdateType::InternetConnectionChanged);
-                    true
-                } else {
-                    false
+                if let Some(internet_connectivity) = self.internet_connectivity.as_ref() {
+                    if internet_connectivity == &s {
+                        return false;
+                    }
                 }
+                self.internet_connectivity = Some(s);
+                self.update_type = Some(RippleContextUpdateType::InternetConnectionChanged);
+                true
             }
             RippleContextUpdateRequest::Token(account_token) => {
-                if (self.activation_status.is_some()
-                    && matches!(self.activation_status.as_ref(), Some(activation_status) if matches!(activation_status, ActivationStatus::AccountToken(acc_tok) if acc_tok.token != account_token.token)))
-                    || self.activation_status.is_none()
-                {
-                    self.activation_status = Some(account_token.into());
-                    self.update_type = Some(RippleContextUpdateType::TokenChanged);
-                    true
-                } else {
-                    false
+                if let Some(activation_status) = self.activation_status.as_ref() {
+                    if matches!(activation_status, ActivationStatus::AccountToken(acc_tok) if acc_tok.token == account_token.token)
+                    {
+                        return false;
+                    }
                 }
+                self.activation_status = Some(account_token.into());
+                self.update_type = Some(RippleContextUpdateType::TokenChanged);
+                true
             }
             RippleContextUpdateRequest::PowerState(p) => {
-                if (self.system_power_state.is_some()
-                    && self.system_power_state.as_ref().unwrap() != &p)
-                    || self.system_power_state.is_none()
-                {
-                    self.system_power_state = Some(p);
-                    self.update_type = Some(RippleContextUpdateType::PowerStateChanged);
-                    true
-                } else {
-                    false
+                if let Some(power_state) = self.system_power_state.as_ref() {
+                    if power_state == &p {
+                        return false;
+                    }
                 }
+                self.system_power_state = Some(p);
+                self.update_type = Some(RippleContextUpdateType::PowerStateChanged);
+                true
             }
             RippleContextUpdateRequest::TimeZone(tz) => {
-                if (self.time_zone.is_some() && self.time_zone.as_ref().unwrap() != &tz)
-                    || self.time_zone.is_none()
-                {
-                    self.time_zone = Some(tz);
-                    self.update_type = Some(RippleContextUpdateType::TimeZoneChanged);
-                    true
-                } else {
-                    false
+                if let Some(time_zone) = self.time_zone.as_ref() {
+                    if time_zone == &tz {
+                        return false;
+                    }
                 }
+                self.time_zone = Some(tz);
+                self.update_type = Some(RippleContextUpdateType::TimeZoneChanged);
+                true
             }
             RippleContextUpdateRequest::RefreshContext(_context) => {
                 false
