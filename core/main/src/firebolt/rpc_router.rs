@@ -30,7 +30,7 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         apps::EffectiveTransport,
-        firebolt::fb_metrics::Timer,
+        firebolt::fb_metrics::{Tag, Timer},
         gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
     },
     chrono::Utc,
@@ -40,13 +40,10 @@ use ripple_sdk::{
     tokio::{self},
     utils::error::RippleError,
 };
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 use crate::{
-    service::telemetry_builder::{InteractionType, Tag, TelemetryBuilder},
+    service::telemetry_builder::TelemetryBuilder,
     state::{platform_state::PlatformState, session_state::Session},
 };
 
@@ -169,7 +166,7 @@ impl RpcRouter {
 
                 // <pca>
                 timer.insert_tag(Tag::Status.key(), "0".into());
-                TelemetryBuilder::send_fb_timer(&state, timer);
+                TelemetryBuilder::send_timer(&state, timer);
                 // </pca>
 
                 match session.get_transport() {

@@ -19,7 +19,10 @@ use jsonrpsee::{core::server::rpc_module::Methods, types::TwoPointZero};
 use ripple_sdk::{
     api::{
         apps::EffectiveTransport,
-        firebolt::fb_openrpc::FireboltOpenRpcMethod,
+        firebolt::{
+            fb_metrics::{get_metrics_tags, InteractionType, Tag},
+            fb_openrpc::FireboltOpenRpcMethod,
+        },
         gateway::{
             rpc_error::RpcError,
             rpc_gateway_api::{ApiMessage, ApiProtocol, RpcRequest},
@@ -34,10 +37,7 @@ use serde::Serialize;
 
 use crate::{
     firebolt::firebolt_gatekeeper::FireboltGatekeeper,
-    service::{
-        apps::app_events::AppEvents,
-        telemetry_builder::{Tag, TelemetryBuilder},
-    },
+    service::{apps::app_events::AppEvents, telemetry_builder::TelemetryBuilder},
     state::{bootstrap_state::BootstrapState, session_state::Session},
 };
 
@@ -163,7 +163,22 @@ impl FireboltGateway {
         request_c.method = FireboltOpenRpcMethod::name_with_lowercase_module(&request.method);
 
         // <pca>
-        let tags = TelemetryBuilder::get_tags(&platform_state, &request_c);
+        // let tags = TelemetryBuilder::get_tags(&platform_state, &request_c);
+        // let mut timer = ripple_sdk::api::firebolt::fb_metrics::Timer::start(
+        //     request_c.method.clone(),
+        //     platform_state
+        //         .clone()
+        //         .metrics
+        //         .get_context()
+        //         .device_session_id,
+        //     Some(tags),
+        // );
+        let tags = get_metrics_tags(
+            &platform_state.get_client().get_extn_client(),
+            &platform_state.metrics.get_context(),
+            InteractionType::Firebolt,
+            Some(request_c.ctx.app_id.clone()),
+        );
         let mut timer = ripple_sdk::api::firebolt::fb_metrics::Timer::start(
             request_c.method.clone(),
             platform_state
@@ -252,7 +267,7 @@ impl FireboltGateway {
                     };
 
                     timer.insert_tag(Tag::Status.key(), code);
-                    TelemetryBuilder::send_fb_timer(&platform_state, timer);
+                    TelemetryBuilder::send_timer(&platform_state, timer);
                     // </pca>
 
                     let api_msg = ApiMessage::new(

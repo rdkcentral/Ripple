@@ -67,6 +67,9 @@ pub enum Config {
     SupportsDistributorSession,
     Firebolt,
     RFC(String),
+    // <pca>
+    MetricsContext,
+    // </pca>
 }
 
 impl ExtnPayloadProvider for Config {

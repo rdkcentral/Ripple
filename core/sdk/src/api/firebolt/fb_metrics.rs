@@ -23,7 +23,10 @@ use serde_json::Value;
 
 use crate::{
     api::{gateway::rpc_gateway_api::CallContext, session::AccountSession},
-    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
+    extn::{
+        client::extn_client::ExtnClient,
+        extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
+    },
     framework::ripple_contract::RippleContract,
 };
 
@@ -813,6 +816,84 @@ pub struct SystemErrorParams {
     pub component: String,
     pub context: Option<String>,
 }
+
+// <pca>
+pub const SERVICE_METRICS_TIMER_NAME_PREFIX: &str = "distp";
+pub const SERVICE_METRICS_SEND_REQUEST_TIMEOUT_MS: u64 = 2000;
+
+pub enum InteractionType {
+    Firebolt,
+    Service,
+}
+
+impl ToString for InteractionType {
+    fn to_string(&self) -> String {
+        match self {
+            InteractionType::Firebolt => "fi".into(),
+            InteractionType::Service => "si".into(),
+        }
+    }
+}
+
+pub enum Tag {
+    Type,
+    App,
+    Firmware,
+    Status,
+    RippleVersion,
+    Features,
+}
+
+impl Tag {
+    pub fn key(&self) -> String {
+        match self {
+            Tag::Type => "type".into(),
+            Tag::App => "app".into(),
+            Tag::Firmware => "firmware".into(),
+            Tag::Status => "status".into(),
+            Tag::RippleVersion => "ripple".into(),
+            Tag::Features => "features".into(),
+        }
+    }
+}
+
+pub fn get_metrics_tags(
+    extn_client: &ExtnClient,
+    metrics_context: &MetricsContext,
+    interaction_type: InteractionType,
+    app_id: Option<String>,
+) -> HashMap<String, String> {
+    let mut tags: HashMap<String, String> = HashMap::new();
+    tags.insert(Tag::Type.key(), interaction_type.to_string());
+
+    if let Some(app) = app_id {
+        tags.insert(Tag::App.key(), app);
+    }
+
+    tags.insert(Tag::Firmware.key(), metrics_context.firmware.clone());
+    tags.insert(
+        Tag::RippleVersion.key(),
+        metrics_context.ripple_version.clone(),
+    );
+
+    let features = extn_client.get_features();
+    let feature_count = features.len();
+    let mut features_str = String::new();
+
+    if feature_count > 0 {
+        for i in 0..feature_count {
+            features_str.push_str(&features[i]);
+            if i < feature_count - 1 {
+                features_str.push_str(",".into());
+            }
+        }
+    }
+
+    tags.insert(Tag::Features.key(), features_str);
+
+    tags
+}
+// </pca>
 
 #[cfg(test)]
 mod tests {

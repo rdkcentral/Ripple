@@ -15,8 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::HashMap;
-
 use crate::{
     extn::{
         extn_client_message::{
