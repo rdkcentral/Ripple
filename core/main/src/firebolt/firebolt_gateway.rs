@@ -267,7 +267,7 @@ impl FireboltGateway {
                     };
 
                     timer.insert_tag(Tag::Status.key(), code);
-                    TelemetryBuilder::send_timer(&platform_state, timer);
+                    TelemetryBuilder::send_firebolt_metrics_timer(&platform_state, timer);
                     // </pca>
 
                     let api_msg = ApiMessage::new(

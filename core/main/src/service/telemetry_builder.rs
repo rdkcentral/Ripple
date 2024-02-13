@@ -201,10 +201,10 @@ impl TelemetryBuilder {
     }
 
     // <pca>
-    pub fn send_timer(ps: &PlatformState, timer: Timer) {
-        println!("*** _DEBUG: send_timer: {:?}", timer);
+    pub fn send_firebolt_metrics_timer(ps: &PlatformState, timer: Timer) {
+        println!("*** _DEBUG: send_firebolt_metrics_timer: {:?}", timer);
         if let Err(e) = Self::send_telemetry(ps, TelemetryPayload::Timer(timer)) {
-            error!("send_timer: send_telemetry={:?}", e)
+            error!("send_firebolt_metrics_timer: send_telemetry={:?}", e)
         }
     }
     // </pca>

@@ -560,7 +560,10 @@ impl ExtnClient {
                     }
                 }
             }
-            Ok(Err(_)) => error!("Invalid message"),
+            // <pca>
+            //Ok(Err(_)) => error!("Invalid message"),
+            Ok(Err(e)) => error!("Invalid message: e={:?}", e),
+            // </pca>
             Err(_) => {
                 error!("Channel disconnected");
             }

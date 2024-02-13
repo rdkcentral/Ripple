@@ -166,7 +166,7 @@ impl RpcRouter {
 
                 // <pca>
                 timer.insert_tag(Tag::Status.key(), "0".into());
-                TelemetryBuilder::send_timer(&state, timer);
+                TelemetryBuilder::send_firebolt_metrics_timer(&state, timer);
                 // </pca>
 
                 match session.get_transport() {
