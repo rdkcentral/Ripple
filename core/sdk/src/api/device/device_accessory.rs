@@ -24,7 +24,7 @@ use crate::{
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum RemoteAccessoryRequest {
     Pair(AccessoryPairRequest),
     List(AccessoryListRequest),
@@ -63,7 +63,7 @@ pub trait AccessoryService {
 /// AccessoryPairRequest{_type: AccessoryType::Remote, protocol: AccessoryProtocol::BluetoothLE , timeout: 180};
 ///
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AccessoryPairRequest {
     #[serde(rename = "type")]
     pub _type: AccessoryType,
@@ -109,7 +109,7 @@ pub enum AccessoryType {
 /// AccessoryListType::Speaker; // List of Speakers connected to the Device.
 /// AccessoryListType::All; // All Paired accesories connected to the Device.
 /// ```
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AccessoryListType {
     Remote,
     Speaker,
@@ -127,7 +127,7 @@ pub enum AccessoryListType {
 /// AccessoryProtocolListType::All; // All Paired accesories connected to the Device.
 /// ```
 ///
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AccessoryProtocolListType {
     BluetoothLE,
     RF4CE,
@@ -154,7 +154,7 @@ pub enum AccessoryProtocolListType {
 /// use ripple_sdk::api::device::device_accessory::{AccessoryListType,AccessoryProtocolListType,AccessoryListRequest};
 /// AccessoryListRequest{_type: Some(AccessoryListType::All), protocol: Some(AccessoryProtocolListType::All)};
 /// ```
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AccessoryListRequest {
     #[serde(rename = "type")]
     pub _type: Option<AccessoryListType>,
@@ -206,7 +206,7 @@ impl AccessoryProtocol {
 /// let response = AccessoryDeviceResponse{_type: AccessoryType::Remote, protocol: AccessoryProtocol::BluetoothLE , make: "Some Company".into(), model: "Some model".into()};
 /// ```
 ///
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AccessoryDeviceResponse {
     #[serde(rename = "type")]
     pub _type: AccessoryType,
@@ -215,7 +215,27 @@ pub struct AccessoryDeviceResponse {
     pub protocol: AccessoryProtocol,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AccessoryDeviceListResponse {
     pub list: Vec<AccessoryDeviceResponse>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_payload_provider_for_remote_accessory_request() {
+        let accessory_pair_request = AccessoryPairRequest {
+            _type: AccessoryType::Remote,
+            protocol: AccessoryProtocol::BluetoothLE,
+            timeout: 5000,
+        };
+
+        let remote_accessory_request = RemoteAccessoryRequest::Pair(accessory_pair_request);
+
+        let contract_type: RippleContract = RippleContract::RemoteAccessory;
+        test_extn_payload_provider(remote_accessory_request, contract_type);
+    }
 }

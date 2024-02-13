@@ -25,7 +25,7 @@ use super::fb_capabilities::{
     FireboltPermission,
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct FireboltSemanticVersion {
     pub major: u32,
     pub minor: u32,
