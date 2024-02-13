@@ -40,6 +40,10 @@ use crate::{
 use ripple_sdk::api::device::device_apps::AppMetadata;
 use ripple_sdk::api::device::device_operator::{DeviceResponseMessage, DeviceSubscribeRequest};
 use ripple_sdk::api::firebolt::fb_capabilities::FireboltPermissions;
+use ripple_sdk::api::firebolt::fb_metrics::MetricsContext;
+use ripple_sdk::api::observability::metrics_util::{
+    start_service_metrics_timer, stop_and_send_metrics_timer,
+};
 use ripple_sdk::log::{debug, error, info};
 use ripple_sdk::tokio;
 use ripple_sdk::{
@@ -50,12 +54,17 @@ use ripple_sdk::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use super::thunder_telemetry::{ThunderMetricsTimerName, ThunderResponseStatus};
+
 // TODO: If/when ripple supports selectable download speeds we'll probably want multiple configurable values or compute this based on throughput.
 const OPERATION_TIMEOUT_SECS: u64 = 6 * 60; // 6 minutes
 
 #[derive(Debug, Clone)]
 pub struct ThunderPackageManagerState {
     thunder_state: ThunderState,
+    // <pca>
+    metrics_context: MetricsContext,
+    // </pca>
     active_operations: Arc<Mutex<HashMap<String, Operation>>>,
 }
 
@@ -326,15 +335,30 @@ fn get_string_field(
 }
 
 impl ThunderPackageManagerRequestProcessor {
-    pub fn new(thunder_state: ThunderState) -> ThunderPackageManagerRequestProcessor {
+    // <pca>
+    // pub fn new(thunder_state: ThunderState) -> ThunderPackageManagerRequestProcessor {
+    //     ThunderPackageManagerRequestProcessor {
+    //         state: ThunderPackageManagerState {
+    //             thunder_state,
+    //             active_operations: Arc::new(Mutex::new(HashMap::default())),
+    //         },
+    //         streamer: DefaultExtnStreamer::new(),
+    //     }
+    // }
+    pub fn new(
+        thunder_state: ThunderState,
+        metrics_context: MetricsContext,
+    ) -> ThunderPackageManagerRequestProcessor {
         ThunderPackageManagerRequestProcessor {
             state: ThunderPackageManagerState {
                 thunder_state,
+                metrics_context,
                 active_operations: Arc::new(Mutex::new(HashMap::default())),
             },
             streamer: DefaultExtnStreamer::new(),
         }
     }
+    // </pca>
 
     pub async fn init(&self, thunder_state: ThunderState) {
         let (sub_tx, mut sub_rx) = mpsc::channel::<DeviceResponseMessage>(32);
@@ -471,14 +495,46 @@ impl ThunderPackageManagerRequestProcessor {
                     handle.clone()
                 );
 
-                Self::cancel_operation(state.thunder_state, handle).await;
+                // <pca>
+                //Self::cancel_operation(state.thunder_state, handle).await;
+                Self::cancel_operation(state, handle).await;
+                // </pca>
             }
         });
     }
 
-    async fn get_apps_list(thunder_state: ThunderState, id: Option<String>) -> ExtnResponse {
+    // <pca>
+    // async fn get_apps_list(thunder_state: ThunderState, id: Option<String>) -> ExtnResponse {
+    //     let method: String = ThunderPlugin::PackageManager.method("getlist");
+    //     let request = GetListRequest::new(id.unwrap_or_default());
+    //     let device_response = thunder_state
+    //         .get_thunder_client()
+    //         .call(DeviceCallRequest {
+    //             method,
+    //             params: Some(DeviceChannelParams::Json(
+    //                 serde_json::to_string(&request).unwrap(),
+    //             )),
+    //         })
+    //         .await;
+    //     match serde_json::from_value::<Vec<InstalledApp>>(device_response.message) {
+    //         Ok(apps) => ExtnResponse::InstalledApps(apps),
+    //         Err(_) => ExtnResponse::Error(RippleError::ProcessorError),
+    //     }
+    // }
+    async fn get_apps_list(
+        thunder_state: ThunderState,
+        metrics_context: MetricsContext,
+        id: Option<String>,
+    ) -> ExtnResponse {
         let method: String = ThunderPlugin::PackageManager.method("getlist");
         let request = GetListRequest::new(id.unwrap_or_default());
+
+        let metrics_timer = start_service_metrics_timer(
+            &thunder_state.get_client(),
+            &metrics_context,
+            ThunderMetricsTimerName::PackageManagerGetList.to_string(),
+        );
+
         let device_response = thunder_state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -488,18 +544,49 @@ impl ThunderPackageManagerRequestProcessor {
                 )),
             })
             .await;
-        match serde_json::from_value::<Vec<InstalledApp>>(device_response.message) {
-            Ok(apps) => ExtnResponse::InstalledApps(apps),
-            Err(_) => ExtnResponse::Error(RippleError::ProcessorError),
-        }
-    }
 
-    async fn get_apps(thunder_state: ThunderState, req: ExtnMessage, id: Option<String>) -> bool {
-        let res = Self::get_apps_list(thunder_state.clone(), id).await;
+        let (status, extn_resp) =
+            match serde_json::from_value::<Vec<InstalledApp>>(device_response.message) {
+                Ok(apps) => (
+                    ThunderResponseStatus::Success,
+                    ExtnResponse::InstalledApps(apps),
+                ),
+                Err(_) => (
+                    ThunderResponseStatus::Failure,
+                    ExtnResponse::Error(RippleError::ProcessorError),
+                ),
+            };
+
+        stop_and_send_metrics_timer(
+            thunder_state.get_client().clone(),
+            metrics_timer,
+            status.to_string(),
+        )
+        .await;
+
+        extn_resp
+    }
+    // </pca>
+
+    // <pca>
+    // async fn get_apps(thunder_state: ThunderState, req: ExtnMessage, id: Option<String>) -> bool {
+    //     let res = Self::get_apps_list(thunder_state.clone(), id).await;
+    //     Self::respond(thunder_state.get_client(), req, res)
+    //         .await
+    //         .is_ok()
+    // }
+    async fn get_apps(
+        thunder_state: ThunderState,
+        metrics_context: MetricsContext,
+        req: ExtnMessage,
+        id: Option<String>,
+    ) -> bool {
+        let res = Self::get_apps_list(thunder_state.clone(), metrics_context.clone(), id).await;
         Self::respond(thunder_state.get_client(), req, res)
             .await
             .is_ok()
     }
+    // </pca>
 
     async fn install_app(
         state: ThunderPackageManagerState,
@@ -528,6 +615,15 @@ impl ThunderPackageManagerRequestProcessor {
 
         let method: String = ThunderPlugin::PackageManager.method("install");
         let request = InstallAppRequest::new(app.clone());
+
+        // <pca>
+        let metrics_timer = start_service_metrics_timer(
+            &state.thunder_state.get_client(),
+            &state.metrics_context,
+            ThunderMetricsTimerName::PackageManagerInstall.to_string(),
+        );
+        // </pca>
+
         let device_response = state
             .thunder_state
             .get_thunder_client()
@@ -538,7 +634,36 @@ impl ThunderPackageManagerRequestProcessor {
                 )),
             })
             .await;
-        let res = match serde_json::from_value::<String>(device_response.message) {
+
+        // <pca>
+        // let res = match serde_json::from_value::<String>(device_response.message) {
+        //     Ok(handle) => {
+        //         let operation = Operation::new(
+        //             AppsOperationType::Install,
+        //             app.id,
+        //             AppData::new(app.version),
+        //         );
+        //         Self::add_or_remove_operation(state.clone(), handle.clone(), operation);
+        //         ExtnResponse::String(handle)
+        //     }
+        //     Err(_) => ExtnResponse::Error(RippleError::ProcessorError),
+        // };
+        let thunder_resp = serde_json::from_value::<String>(device_response.message);
+
+        let status = if thunder_resp.is_ok() {
+            ThunderResponseStatus::Success
+        } else {
+            ThunderResponseStatus::Failure
+        };
+
+        stop_and_send_metrics_timer(
+            state.thunder_state.get_client().clone(),
+            metrics_timer,
+            status.to_string(),
+        )
+        .await;
+
+        let extn_resp = match thunder_resp {
             Ok(handle) => {
                 let operation = Operation::new(
                     AppsOperationType::Install,
@@ -550,8 +675,9 @@ impl ThunderPackageManagerRequestProcessor {
             }
             Err(_) => ExtnResponse::Error(RippleError::ProcessorError),
         };
+        // </pca>
 
-        Self::respond(state.thunder_state.get_client(), req, res)
+        Self::respond(state.thunder_state.get_client(), req, extn_resp)
             .await
             .is_ok()
     }
@@ -583,6 +709,15 @@ impl ThunderPackageManagerRequestProcessor {
 
         let method: String = ThunderPlugin::PackageManager.method("uninstall");
         let request = UninstallAppRequest::new(app.clone());
+
+        // <pca>
+        let metrics_timer = start_service_metrics_timer(
+            &state.thunder_state.get_client(),
+            &state.metrics_context,
+            ThunderMetricsTimerName::PackageManagerUninstall.to_string(),
+        );
+        // </pca>
+
         let device_response = state
             .thunder_state
             .get_thunder_client()
@@ -593,7 +728,39 @@ impl ThunderPackageManagerRequestProcessor {
                 )),
             })
             .await;
-        let res = match serde_json::from_value::<String>(device_response.message) {
+
+        // let res = match serde_json::from_value::<String>(device_response.message) {
+        //     Ok(handle) => {
+        //         let operation = Operation::new(
+        //             AppsOperationType::Uninstall,
+        //             app.id,
+        //             AppData::new(app.version),
+        //         );
+        //         Self::add_or_remove_operation(state.clone(), handle.clone(), operation);
+        //         ExtnResponse::String(handle)
+        //     }
+        //     Err(_) => ExtnResponse::Error(RippleError::ProcessorError),
+        // };
+
+        // Self::respond(state.thunder_state.get_client(), req, res)
+        //     .await
+        //     .is_ok()
+        let thunder_resp = serde_json::from_value::<String>(device_response.message);
+
+        let status = if thunder_resp.is_ok() {
+            ThunderResponseStatus::Success
+        } else {
+            ThunderResponseStatus::Failure
+        };
+
+        stop_and_send_metrics_timer(
+            state.thunder_state.get_client().clone(),
+            metrics_timer,
+            status.to_string(),
+        )
+        .await;
+
+        let extn_resp = match thunder_resp {
             Ok(handle) => {
                 let operation = Operation::new(
                     AppsOperationType::Uninstall,
@@ -606,7 +773,7 @@ impl ThunderPackageManagerRequestProcessor {
             Err(_) => ExtnResponse::Error(RippleError::ProcessorError),
         };
 
-        Self::respond(state.thunder_state.get_client(), req, res)
+        Self::respond(state.thunder_state.get_client(), req, extn_resp)
             .await
             .is_ok()
     }
@@ -645,7 +812,10 @@ impl ThunderPackageManagerRequestProcessor {
         app_id: String,
     ) -> bool {
         let installed_apps =
-            match Self::get_apps_list(state.thunder_state.clone(), Some(app_id.clone())).await {
+            // <pca>
+            //match Self::get_apps_list(state.thunder_state.clone(), Some(app_id.clone())).await {
+            match Self::get_apps_list(state.thunder_state.clone(), state.metrics_context.clone(), Some(app_id.clone())).await {
+            // </pca>
                 ExtnResponse::InstalledApps(apps) => apps,
                 _ => {
                     error!("get_firebolt_permissions: Unexpected extension response");
@@ -674,6 +844,15 @@ impl ThunderPackageManagerRequestProcessor {
         let app = installed_app.unwrap();
         let method: String = ThunderPlugin::PackageManager.method("getmetadata");
         let request = GetMetadataRequest::new(app.id.clone(), app.version.clone());
+
+        // <pca>
+        let metrics_timer = start_service_metrics_timer(
+            &state.thunder_state.get_client(),
+            &state.metrics_context,
+            ThunderMetricsTimerName::PackageManagerUninstall.to_string(),
+        );
+        // </pca>
+
         let device_response = state
             .thunder_state
             .get_thunder_client()
@@ -690,7 +869,52 @@ impl ThunderPackageManagerRequestProcessor {
             device_response
         );
 
-        let res = match serde_json::from_value::<ThunderAppMetadata>(device_response.message) {
+        // <pca>
+        // let res = match serde_json::from_value::<ThunderAppMetadata>(device_response.message) {
+        //     Ok(metadata) => {
+        //         match metadata
+        //             .resources
+        //             .iter()
+        //             .find(|resource| resource.key.eq(&String::from("firebolt")))
+        //         {
+        //             Some(r) => match Self::decode_permissions(r.value.clone()) {
+        //                 Ok(permissions) => ExtnResponse::Permission(permissions.capabilities),
+        //                 Err(()) => ExtnResponse::Error(RippleError::ProcessorError),
+        //             },
+        //             None => {
+        //                 error!("get_firebolt_permissions: No permissions for app");
+        //                 ExtnResponse::Error(RippleError::ProcessorError)
+        //             }
+        //         }
+        //     }
+        //     Err(e) => {
+        //         error!(
+        //             "get_firebolt_permissions: Failed to deserialize response: e={:?}",
+        //             e
+        //         );
+        //         ExtnResponse::Error(RippleError::ProcessorError)
+        //     }
+        // };
+
+        // Self::respond(state.thunder_state.get_client(), req, res)
+        //     .await
+        //     .is_ok()
+        let thunder_resp = serde_json::from_value::<ThunderAppMetadata>(device_response.message);
+
+        let status = if thunder_resp.is_ok() {
+            ThunderResponseStatus::Success
+        } else {
+            ThunderResponseStatus::Failure
+        };
+
+        stop_and_send_metrics_timer(
+            state.thunder_state.get_client().clone(),
+            metrics_timer,
+            status.to_string(),
+        )
+        .await;
+
+        let extn_resp = match thunder_resp {
             Ok(metadata) => {
                 match metadata
                     .resources
@@ -716,15 +940,28 @@ impl ThunderPackageManagerRequestProcessor {
             }
         };
 
-        Self::respond(state.thunder_state.get_client(), req, res)
+        Self::respond(state.thunder_state.get_client(), req, extn_resp)
             .await
             .is_ok()
     }
 
-    async fn cancel_operation(thunder_state: ThunderState, handle: String) {
+    // <pca>
+    //async fn cancel_operation(thunder_state: ThunderState, handle: String) {
+    async fn cancel_operation(state: ThunderPackageManagerState, handle: String) {
+        // </pca>
         let method: String = ThunderPlugin::PackageManager.method("cancel");
         let request = CancelRequest::new(handle);
-        let device_response = thunder_state
+
+        // <pca>
+        let metrics_timer = start_service_metrics_timer(
+            &state.thunder_state.get_client(),
+            &state.metrics_context,
+            ThunderMetricsTimerName::PackageManagerUninstall.to_string(),
+        );
+        // </pca>
+
+        let device_response = state
+            .thunder_state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method,
@@ -734,12 +971,31 @@ impl ThunderPackageManagerRequestProcessor {
             })
             .await;
 
-        if !device_response.message.is_null() {
+        // <pca>
+        // if !device_response.message.is_null() {
+        //     error!(
+        //         "cancel_operation: Unexpected response: message={:?}",
+        //         device_response.message
+        //     );
+        // }
+        let status = if device_response.message.is_null() {
+            ThunderResponseStatus::Success
+        } else {
             error!(
                 "cancel_operation: Unexpected response: message={:?}",
                 device_response.message
             );
-        }
+
+            ThunderResponseStatus::Failure
+        };
+
+        stop_and_send_metrics_timer(
+            state.thunder_state.get_client().clone(),
+            metrics_timer,
+            status.to_string(),
+        )
+        .await;
+        // </pca>
     }
 }
 
@@ -775,7 +1031,18 @@ impl ExtnRequestProcessor for ThunderPackageManagerRequestProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         match extracted_message {
-            AppsRequest::GetApps(id) => Self::get_apps(state.thunder_state.clone(), msg, id).await,
+            // <pca>
+            // AppsRequest::GetApps(id) => Self::get_apps(state.thunder_state.clone(), msg, id).await,
+            AppsRequest::GetApps(id) => {
+                Self::get_apps(
+                    state.thunder_state.clone(),
+                    state.metrics_context.clone(),
+                    msg,
+                    id,
+                )
+                .await
+            }
+            // </pca>
             AppsRequest::InstallApp(app) => Self::install_app(state.clone(), msg, app).await,
             AppsRequest::UninstallApp(app) => Self::uninstall_app(state.clone(), msg, app).await,
             AppsRequest::GetFireboltPermissions(app_id) => {

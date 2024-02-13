@@ -513,7 +513,9 @@ impl Timer {
     }
 
     pub fn stop(&mut self) -> Timer {
-        self.stop = Some(std::time::Instant::now());
+        if let None = self.stop {
+            self.stop = Some(std::time::Instant::now());
+        }
         Timer::from(self.clone())
     }
 
@@ -818,7 +820,6 @@ pub struct SystemErrorParams {
 }
 
 // <pca>
-pub const SERVICE_METRICS_TIMER_NAME_PREFIX: &str = "distp";
 pub const SERVICE_METRICS_SEND_REQUEST_TIMEOUT_MS: u64 = 2000;
 
 pub enum InteractionType {
@@ -946,7 +947,8 @@ mod tests {
     }
     #[test]
     pub fn test_timer() {
-        let mut timer = super::Timer::start("test".to_string(), None);
+        let mut timer =
+            super::Timer::start("test".to_string(), "test_session_id".to_string(), None);
         std::thread::sleep(std::time::Duration::from_millis(101));
         timer.stop();
         assert_eq!(timer.elapsed().as_millis() > 100, true);
