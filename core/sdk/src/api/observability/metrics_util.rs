@@ -17,6 +17,11 @@ pub fn start_service_metrics_timer(
     let metrics_tags =
         get_metrics_tags(extn_client, metrics_context, InteractionType::Service, None);
 
+    println!(
+        "*** _DEBUG: start_service_metrics_timer: {}: {:?}",
+        name, metrics_tags
+    );
+
     Timer::start(
         name,
         metrics_context.device_session_id.clone(),

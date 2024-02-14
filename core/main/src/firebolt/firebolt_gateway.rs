@@ -19,15 +19,11 @@ use jsonrpsee::{core::server::rpc_module::Methods, types::TwoPointZero};
 use ripple_sdk::{
     api::{
         apps::EffectiveTransport,
-        firebolt::{
-            fb_metrics::{get_metrics_tags, InteractionType, Tag},
-            fb_openrpc::FireboltOpenRpcMethod,
-        },
+        firebolt::fb_openrpc::FireboltOpenRpcMethod,
         gateway::{
             rpc_error::RpcError,
             rpc_gateway_api::{ApiMessage, ApiProtocol, RpcRequest},
         },
-        observability::metrics_util::start_firebolt_metrics_timer,
     },
     extn::extn_client_message::ExtnMessage,
     log::{error, info},
@@ -190,7 +186,7 @@ impl FireboltGateway {
         //         .device_session_id,
         //     Some(tags),
         // );
-        let metrics_timer = start_firebolt_metrics_timer(
+        let metrics_timer = TelemetryBuilder::start_firebolt_metrics_timer(
             &platform_state.get_client().get_extn_client(),
             &platform_state.metrics.get_context(),
             request_c.method.clone(),
@@ -247,15 +243,21 @@ impl FireboltGateway {
                     }
                 }
                 Err(e) => {
-                    // <pca>
-                    metrics_timer.stop();
-                    // </pca>
                     let deny_reason = e.reason;
-                    // return error for Api message
+
+                    // <pca>
+                    TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
+                        &platform_state,
+                        metrics_timer,
+                        format!("{}", deny_reason.get_rpc_error_code()),
+                    );
+                    // </pca>
+
                     error!(
                         "Failed gateway present error {:?} {:?}",
                         request, deny_reason
                     );
+
                     let caps = e.caps.iter().map(|x| x.as_str()).collect();
                     let err = JsonRpcMessage {
                         jsonrpc: TwoPointZero {},
@@ -268,16 +270,6 @@ impl FireboltGateway {
                     };
 
                     let msg = serde_json::to_string(&err).unwrap();
-
-                    // <pca>
-                    let code = match err.error {
-                        Some(c) => format!("{}", c.code),
-                        None => "Unknown".into(),
-                    };
-
-                    metrics_timer.insert_tag(Tag::Status.key(), code);
-                    TelemetryBuilder::send_firebolt_metrics_timer(&platform_state, metrics_timer);
-                    // </pca>
 
                     let api_msg = ApiMessage::new(
                         request.clone().ctx.protocol,

@@ -224,6 +224,11 @@ impl TelemetryBuilder {
             Some(app_id),
         );
 
+        println!(
+            "*** _DEBUG: start_firebolt_metrics_timer: {}: {:?}",
+            name, metrics_tags
+        );
+
         Timer::start(
             name,
             metrics_context.device_session_id.clone(),
@@ -231,7 +236,11 @@ impl TelemetryBuilder {
         )
     }
 
-    pub fn stop_and_send_firebolt_metrics_timer(ps: &PlatformState, timer: Timer, status: String) {
+    pub fn stop_and_send_firebolt_metrics_timer(
+        ps: &PlatformState,
+        mut timer: Timer,
+        status: String,
+    ) {
         timer.stop();
         timer.insert_tag(Tag::Status.key(), status);
         println!(

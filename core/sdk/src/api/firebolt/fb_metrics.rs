@@ -475,9 +475,6 @@ pub struct Timer {
     pub start: std::time::Instant,
     #[serde(with = "serde_millis")]
     pub stop: Option<std::time::Instant>,
-    /*
-    TODO... this needs to be a map
-    */
     pub tags: Option<HashMap<String, String>>,
     pub ripple_session_id: String,
 }
