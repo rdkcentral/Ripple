@@ -21,6 +21,7 @@ use async_channel::Sender as CSender;
 use log::error;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::fmt::Debug;
 
 use crate::{
     api::{
@@ -231,7 +232,7 @@ impl ExtnPayload {
 /// }
 /// }
 /// ```
-pub trait ExtnPayloadProvider: Clone + Send + Sync
+pub trait ExtnPayloadProvider: Clone + Send + Sync + Debug
 where
     Self: Sized,
 {
