@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use ripple_sdk::log::error;
+use ripple_sdk::log::{debug, error};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{collections::HashMap, fmt::Display};
@@ -23,6 +23,7 @@ use std::{collections::HashMap, fmt::Display};
 use crate::{
     errors::{LoadMockDataError, MockDeviceError},
     mock_server::{MessagePayload, PayloadType, PayloadTypeError},
+    mock_web_socket_server::ThunderRegisterParams,
 };
 
 pub type MockData = HashMap<String, Vec<ParamResponse>>;
@@ -68,16 +69,30 @@ impl ParamResponse {
         None
     }
 
-    pub fn get_all(&self, id: Option<u64>) -> Vec<ResponseSink> {
+    pub fn get_all(
+        &self,
+        id: Option<u64>,
+        thunder_response: Option<ThunderRegisterParams>,
+    ) -> Vec<ResponseSink> {
         let mut sink_responses = Vec::new();
-        if let Some(v) = self.result.clone() {
+        if let Some(e) = self.error.clone() {
+            sink_responses.push(ResponseSink {
+                delay: 0,
+                data: json!({"jsonrpc": "2.0", "id": id, "error": [e]}),
+            });
+        } else if let Some(v) = self.result.clone() {
             sink_responses.push(ResponseSink {
                 delay: 0,
                 data: json!({"jsonrpc": "2.0", "id": id, "result": v}),
             });
 
             if let Some(events) = &self.events {
-                let notif_id = self.get_notification_id();
+                let notif_id = if let Some(t) = thunder_response {
+                    Some(format!("{}.{}", t.id, t.event))
+                } else {
+                    self.get_notification_id()
+                };
+
                 error!("Getting notif id {:?}", notif_id);
                 for event in events {
                     sink_responses.push(ResponseSink {
@@ -86,13 +101,13 @@ impl ParamResponse {
                     })
                 }
             }
-        }
-        if let Some(e) = self.error.clone() {
+        } else {
             sink_responses.push(ResponseSink {
                 delay: 0,
-                data: json!({"jsonrpc": "2.0", "id": id, "error": [e]}),
+                data: json!({"jsonrpc": "2.0", "id": id, "result": null}),
             });
         }
+        debug!("Total sink responses {:?}", sink_responses);
         sink_responses
     }
 }

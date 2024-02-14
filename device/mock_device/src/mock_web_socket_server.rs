@@ -32,6 +32,7 @@ use ripple_sdk::{
         sync::Mutex,
     },
 };
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio_tungstenite::{
     accept_hdr_async,
@@ -45,6 +46,12 @@ use crate::{
     mock_data::{MockData, MockDataError, ParamResponse, ResponseSink},
     utils::is_value_jsonrpc,
 };
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ThunderRegisterParams {
+    pub event: String,
+    pub id: String,
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct WsServerParameters {
@@ -135,7 +142,12 @@ impl MockWebSocketServer {
             conn_query_params: server_config.query_params.unwrap_or_default(),
             connected_peer_sinks: Arc::new(Mutex::new(HashMap::new())),
             config,
-            mock_data_v2: Arc::new(RwLock::new(mock_data_v2)),
+            mock_data_v2: Arc::new(RwLock::new(
+                mock_data_v2
+                    .into_iter()
+                    .map(|(k, v)| (k.to_lowercase(), v))
+                    .collect(),
+            )),
         })
     }
 
@@ -303,31 +315,48 @@ impl MockWebSocketServer {
             request_message,
             is_value_jsonrpc(&request_message)
         );
-        if let Ok(v) = serde_json::from_value::<JsonRpcApiRequest>(request_message.clone()) {
-            if let Some(id) = v.id {
-                if self.config.activate_all_plugins && v.method.contains("Controller.1.status") {
+        if let Ok(request) = serde_json::from_value::<JsonRpcApiRequest>(request_message.clone()) {
+            if let Some(id) = request.id {
+                if self.config.activate_all_plugins
+                    && request.method.contains("Controller.1.status")
+                {
                     return Some(vec![ResponseSink {
                         delay: 0,
                         data: json!({"jsonrpc": "2.0", "id": id, "result": [{"state": "activated"}]}),
                     }]);
-                } else if let Some(v) = self.responses_for_key_v2(&v).await {
-                    return Some(v.get_all(Some(id)));
+                } else if let Some(v) = self.responses_for_key_v2(&request) {
+                    if v.params.is_some() {
+                        if let Ok(t) =
+                            serde_json::from_value::<ThunderRegisterParams>(request.params.unwrap())
+                        {
+                            return Some(v.get_all(Some(id), Some(t)));
+                        }
+                    }
+
+                    return Some(v.get_all(Some(id), None));
                 }
                 return Some(vec![ResponseSink {
                     delay: 0,
                     data: json!({"jsonrpc": "2.0", "id": id, "error": {"code": -32001, "message":"not found"}}),
                 }]);
+            } else {
+                error!("Failed to get id from request {:?}", request_message);
             }
+        } else {
+            error!(
+                "Failed to parse into a json rpc request {:?}",
+                request_message
+            );
         }
 
         None
     }
 
-    async fn responses_for_key_v2(&self, req: &JsonRpcApiRequest) -> Option<ParamResponse> {
+    fn responses_for_key_v2(&self, req: &JsonRpcApiRequest) -> Option<ParamResponse> {
         let mock_data = self.mock_data_v2.read().unwrap();
-        if let Some(mut v) = mock_data.get(&req.method).cloned() {
+        if let Some(v) = mock_data.get(&req.method.to_lowercase()).cloned() {
             if v.len() == 1 {
-                return Some(v.remove(0));
+                return v.get(0).cloned();
             } else if let Some(params) = &req.params {
                 for response in v {
                     if response.get_key(params).is_some() {
@@ -355,7 +384,11 @@ impl MockWebSocketServer {
 
     pub async fn add_request_response_v2(&self, request: MockData) -> Result<(), MockDataError> {
         let mut mock_data = self.mock_data_v2.write().unwrap();
-        mock_data.extend(request);
+        let lower_key_mock_data: MockData = request
+            .into_iter()
+            .map(|(k, v)| (k.to_lowercase(), v))
+            .collect();
+        mock_data.extend(lower_key_mock_data);
         Ok(())
     }
 

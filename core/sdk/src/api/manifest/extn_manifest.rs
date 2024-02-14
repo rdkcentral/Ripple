@@ -44,9 +44,24 @@ pub struct PassthroughRpcs {
 pub struct PassthroughEndpoint {
     pub url: String,
     pub protocol: PassthroughProtocol,
-    pub rpcs: Vec<String>,
+    pub rpcs: Vec<PassthroughRpc>,
     pub authentication: Option<String>,
     pub token: Option<String>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PassthroughRpc {
+    pub matcher: String,
+    pub transformer: Option<HashMap<String, PassthroughTransformer>>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PassthroughTransformer {
+    pub module: String,
+    pub method: String,
+    pub version: Option<u32>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -54,6 +69,7 @@ pub struct PassthroughEndpoint {
 pub enum PassthroughProtocol {
     Websocket,
     Http,
+    Thunder,
 }
 
 #[derive(Deserialize, Debug, Clone)]

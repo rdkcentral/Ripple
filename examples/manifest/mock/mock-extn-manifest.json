@@ -120,9 +120,17 @@
         "endpoints": [
            {
 	            "url": "ws://127.0.0.1:9998/jsonrpc",
-	            "protocol": "websocket",
+	            "protocol": "thunder",
                 "rpcs": [
-                    "HDMIInput.*"
+                    { 
+                        "matcher":"HDMIInput.*",
+                        "transformer": {
+                            "HDMIInput.onAutoLowLatencyModeSignalChanged": {
+                                "module":"org.rdk.HdmiInput",
+                                "method": "gameFeatureStatusUpdate"
+                            }
+                        }
+                    }
                 ]
 	        }
         ]

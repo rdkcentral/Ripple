@@ -15,12 +15,13 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
-    api::firebolt::fb_openrpc::FireboltOpenRpcMethod,
+    api::firebolt::{fb_general::ListenRequest, fb_openrpc::FireboltOpenRpcMethod},
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
 };
@@ -140,7 +141,7 @@ impl ApiBaseRequest {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct JsonRpcApiRequest {
     pub jsonrpc: String,
     pub id: Option<u64>,
@@ -151,9 +152,15 @@ pub struct JsonRpcApiRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcApiResponse {
     pub jsonrpc: String,
-    pub id: u64,
+    pub id: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<Value>,
+    #[serde(skip_serializing)]
+    pub method: Option<String>,
+    #[serde(skip_serializing)]
+    pub params: Option<Value>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -265,7 +272,27 @@ impl RpcRequest {
     }
 
     pub fn is_subscription(&self) -> bool {
-        self.method.contains(".on") && self.params_json.contains("listening")
+        self.method.contains(".on") && self.params_json.contains("listen")
+    }
+
+    pub fn is_listening(&self) -> bool {
+        if let Some(params) = self.get_params() {
+            debug!("Successfully got params {:?}", params);
+            if let Ok(v) = serde_json::from_value::<ListenRequest>(params) {
+                debug!("Successfully got listen request {:?}", v);
+                return v.listen;
+            }
+        }
+        false
+    }
+
+    pub fn get_params(&self) -> Option<Value> {
+        if let Ok(mut v) = serde_json::from_str::<Vec<Value>>(&self.params_json) {
+            if v.len() > 1 {
+                return v.pop();
+            }
+        }
+        None
     }
 }
 

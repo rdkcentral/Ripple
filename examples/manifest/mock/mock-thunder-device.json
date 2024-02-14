@@ -73,5 +73,50 @@
                     }
                 ]
             }
+        ],
+        "org.rdk.HdmiInput.register": [
+            {
+                "params": {
+                    "event": "gameFeatureStatusUpdate"
+                },
+                "result": {
+                    "event": "onAutoLowLatencyModeSignalChanged",
+                    "listening": true
+                },
+                "events": [
+                    {
+                        "delay": 1,
+                        "data": {
+                            "port": "HDMI1",
+							"autoLowLatencyModeSignalled": true
+                        }
+                    },
+                    {
+                        "delay": 2,
+                        "data": {
+                            "port": "HDMI1",
+							"autoLowLatencyModeSignalled": false
+                        }
+                    }
+                ]
+            }
+        ],
+        "HDMIInput.open": [
+            {
+                "params": {
+                    "portId": "HDMI1"
+                },
+                "result": null
+            }
+            
+        ],
+        "HDMIInput.close": [
+            {
+                "params": {
+                    "portId": "HDMI1"
+                },
+                "result": null
+            }
+            
         ]
     }

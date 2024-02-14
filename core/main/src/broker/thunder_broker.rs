@@ -14,20 +14,20 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-
-use super::endpoint_broker::{BrokerCallback, BrokerSender, EndpointBroker};
+use super::endpoint_broker::{BrokerCallback, BrokerOutput, BrokerSender, EndpointBroker};
 use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::{
-    api::{manifest::extn_manifest::PassthroughEndpoint, session::AccountSession},
+    api::{
+        gateway::rpc_gateway_api::JsonRpcApiResponse, manifest::extn_manifest::PassthroughEndpoint,
+        session::AccountSession,
+    },
     log::{debug, error, info},
     tokio::{self, net::TcpStream, sync::mpsc},
+    utils::error::RippleError,
 };
+use serde_json::json;
 use std::time::Duration;
 use tokio_tungstenite::client_async;
-
-pub struct WebsocketBroker {
-    sender: BrokerSender,
-}
 
 fn extract_tcp_port(url: &str) -> String {
     let url_split: Vec<&str> = url.split("://").collect();
@@ -39,7 +39,11 @@ fn extract_tcp_port(url: &str) -> String {
     }
 }
 
-impl WebsocketBroker {
+pub struct ThunderBroker {
+    sender: BrokerSender,
+}
+
+impl ThunderBroker {
     fn start(endpoint: PassthroughEndpoint, callback: BrokerCallback) -> Self {
         let (tx, mut tr) = mpsc::channel(10);
         let broker = BrokerSender { sender: tx };
@@ -95,9 +99,17 @@ impl WebsocketBroker {
         });
         Self { sender: broker }
     }
+
+    fn update_response(response: &JsonRpcApiResponse) -> JsonRpcApiResponse {
+        let mut new_response = response.clone();
+        if response.params.is_some() {
+            new_response.result = response.params.clone();
+        }
+        new_response
+    }
 }
 
-impl EndpointBroker for WebsocketBroker {
+impl EndpointBroker for ThunderBroker {
     fn get_broker(
         _: Option<AccountSession>,
         endpoint: PassthroughEndpoint,
@@ -108,5 +120,69 @@ impl EndpointBroker for WebsocketBroker {
 
     fn get_sender(&self) -> BrokerSender {
         self.sender.clone()
+    }
+
+    fn update_request(
+        rpc_request: &super::endpoint_broker::BrokerRequest,
+    ) -> Result<String, ripple_sdk::utils::error::RippleError> {
+        if let Some(transformer) = &rpc_request.transformer {
+            let id = rpc_request.rpc.ctx.call_id;
+
+            if rpc_request.rpc.is_subscription() {
+                Ok(json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "method": format!("{}.{}", transformer.module, match rpc_request.rpc.is_listening() {
+                        true => "register",
+                        false => "unregister"
+                    }),
+                    "params": json!({
+                        "event": transformer.method.clone(),
+                        "id": format!("{}", id)
+                    })
+                }).to_string())
+            } else {
+                Ok(json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "method": format!("{}.{}", transformer.module, transformer.method),
+                    "params": rpc_request.rpc.params_json
+                })
+                .to_string())
+            }
+        } else {
+            let rpc = rpc_request.rpc.clone();
+            if let Some(params) = rpc_request.rpc.get_params() {
+                Ok(json!({
+                    "jsonrpc": "2.0",
+                    "id": rpc.ctx.call_id,
+                    "method": rpc.method,
+                    "params": params
+                })
+                .to_string())
+            } else {
+                Ok(json!({
+                    "jsonrpc": "2.0",
+                    "id": rpc.ctx.call_id,
+                    "method": rpc.method,
+                })
+                .to_string())
+            }
+        }
+    }
+
+    /// Default handler method for the broker to remove the context and send it back to the
+    /// client for consumption
+    fn handle_response(result: &[u8], callback: BrokerCallback) {
+        let mut final_result = Err(RippleError::ParseError);
+        if let Ok(data) = serde_json::from_slice::<JsonRpcApiResponse>(result) {
+            let updated_data = Self::update_response(&data);
+            final_result = Ok(BrokerOutput { data: updated_data });
+        }
+        if let Ok(output) = final_result {
+            tokio::spawn(async move { callback.sender.send(output).await });
+        } else {
+            error!("Bad broker response {}", String::from_utf8_lossy(result));
+        }
     }
 }
