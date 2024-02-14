@@ -206,7 +206,6 @@ impl FireboltGateway {
                     match request.clone().ctx.protocol {
                         ApiProtocol::Extn => {
                             if let Some(extn_msg) = extn_msg {
-                                println!("*** _DEBUG: extn_msg={:?}", extn_msg);
                                 // <pca>
                                 //RpcRouter::route_extn_protocol(
                                 let result = RpcRouter::route_extn_protocol(
@@ -217,7 +216,9 @@ impl FireboltGateway {
                                 )
                                 .await;
                                 // <pca>
-                                platform_state.get_client().send_extn_request( ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest::Timer(metrics_timer)).await.ok();
+                                if let Some(timer) = metrics_timer {
+                                    platform_state.get_client().send_extn_request( ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest::Timer(timer)).await.ok();
+                                }
                                 result
                                 // </pca>
                             } else {

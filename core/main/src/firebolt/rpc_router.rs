@@ -174,7 +174,12 @@ impl RpcRouter {
     //         }
     //     });
     // }
-    pub async fn route(state: PlatformState, req: RpcRequest, session: Session, mut timer: Timer) {
+    pub async fn route(
+        state: PlatformState,
+        req: RpcRequest,
+        session: Session,
+        timer: Option<Timer>,
+    ) {
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
 

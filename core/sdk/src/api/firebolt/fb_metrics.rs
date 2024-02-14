@@ -608,6 +608,9 @@ pub enum OperationalMetricPayload {
 /// This design assumes that all of the items will be available at the same times
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct MetricsContext {
+    // <pca> 2
+    pub enabled: bool,
+    // </pca>
     pub device_language: String,
     pub device_model: String,
     pub device_id: String,
@@ -629,6 +632,9 @@ pub struct MetricsContext {
 
 #[allow(non_camel_case_types)]
 pub enum MetricsContextField {
+    // <pca> 2
+    enabled,
+    // </pca>
     device_language,
     device_model,
     device_id,
@@ -650,6 +656,9 @@ pub enum MetricsContextField {
 impl MetricsContext {
     pub fn new() -> MetricsContext {
         MetricsContext {
+            // <pca> 2
+            enabled: false,
+            // </pca>
             device_language: String::from(""),
             device_model: String::from(""),
             device_id: String::from(""),
@@ -671,6 +680,9 @@ impl MetricsContext {
     }
     pub fn set(&mut self, field: MetricsContextField, value: String) {
         match field {
+            // <pca> 2
+            MetricsContextField::enabled => self.enabled = value.parse().unwrap_or(false),
+            // </pca>
             MetricsContextField::device_language => self.device_language = value,
             MetricsContextField::device_model => self.device_model = value,
             MetricsContextField::device_id => self.device_id = value,
@@ -978,6 +990,9 @@ mod tests {
 
         let behavioral_metric_request = BehavioralMetricRequest {
             context: Some(MetricsContext {
+                // <pca> 2
+                enabled: true,
+                // </pca>
                 device_language: "en".to_string(),
                 device_model: "iPhone".to_string(),
                 device_id: "test_device_id".to_string(),

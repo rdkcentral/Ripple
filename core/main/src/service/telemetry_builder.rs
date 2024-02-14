@@ -204,19 +204,17 @@ impl TelemetryBuilder {
         }
     }
 
-    // <pca> added
-    // pub fn send_firebolt_metrics_timer(ps: &PlatformState, timer: Timer) {
-    //     println!("*** _DEBUG: send_firebolt_metrics_timer: {:?}", timer);
-    //     if let Err(e) = Self::send_telemetry(ps, TelemetryPayload::Timer(timer)) {
-    //         error!("send_firebolt_metrics_timer: send_telemetry={:?}", e)
-    //     }
-    // }
+    // <pca>
     pub fn start_firebolt_metrics_timer(
         extn_client: &ExtnClient,
         metrics_context: &MetricsContext,
         name: String,
         app_id: String,
-    ) -> Timer {
+    ) -> Option<Timer> {
+        if !metrics_context.enabled {
+            return None;
+        }
+
         let metrics_tags = get_metrics_tags(
             extn_client,
             metrics_context,
@@ -229,29 +227,31 @@ impl TelemetryBuilder {
             name, metrics_tags
         );
 
-        Timer::start(
+        Some(Timer::start(
             name,
             metrics_context.device_session_id.clone(),
             Some(metrics_tags),
-        )
+        ))
     }
 
     pub fn stop_and_send_firebolt_metrics_timer(
         ps: &PlatformState,
-        mut timer: Timer,
+        mut timer: Option<Timer>,
         status: String,
     ) {
-        timer.stop();
-        timer.insert_tag(Tag::Status.key(), status);
-        println!(
-            "*** _DEBUG: stop_and_send_firebolt_metrics_timer: {:?}",
-            timer
-        );
-        if let Err(e) = Self::send_telemetry(ps, TelemetryPayload::Timer(timer)) {
-            error!(
-                "stop_and_send_firebolt_metrics_timer: send_telemetry={:?}",
-                e
-            )
+        if let Some(mut timer) = timer {
+            timer.stop();
+            timer.insert_tag(Tag::Status.key(), status);
+            println!(
+                "*** _DEBUG: stop_and_send_firebolt_metrics_timer: {:?}",
+                timer
+            );
+            if let Err(e) = Self::send_telemetry(ps, TelemetryPayload::Timer(timer)) {
+                error!(
+                    "stop_and_send_firebolt_metrics_timer: send_telemetry={:?}",
+                    e
+                )
+            }
         }
     }
     // </pca>

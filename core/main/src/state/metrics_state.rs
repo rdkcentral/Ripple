@@ -34,6 +34,8 @@ use ripple_sdk::{
     log::error,
 };
 
+use rand::Rng;
+
 use crate::processor::storage::storage_manager::StorageManager;
 
 use super::platform_state::PlatformState;
@@ -76,6 +78,21 @@ impl MetricsState {
         *cache = value.clone();
     }
     pub async fn initialize(state: &PlatformState) {
+        // <pca> 2
+        let metrics_percentage = state
+            .get_device_manifest()
+            .configuration
+            .metrics_logging_percentage;
+
+        let random_number = rand::thread_rng().gen_range(1..101);
+        let metrics_enabled = random_number <= metrics_percentage;
+
+        println!(
+            "*** _DEBUG: initialize: metrics_percentage={}, gen={}, enabled={}",
+            metrics_percentage, random_number, metrics_enabled
+        );
+        // </pca>
+
         let mut mac_address: Option<String> = None;
         if let Ok(resp) = state
             .get_client()
@@ -153,6 +170,11 @@ impl MetricsState {
         {
             // Time to set them
             let mut context = state.metrics.context.write().unwrap();
+
+            // <pca> 2
+            context.enabled = metrics_enabled;
+            // </pca>
+
             if let Some(mac) = mac_address {
                 context.mac_address = mac;
             }

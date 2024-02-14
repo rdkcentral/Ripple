@@ -38,7 +38,11 @@ use crate::{
 };
 
 use super::{apps::AppManifest, exclusory::ExclusoryImpl};
+
 pub const PARTNER_EXCLUSION_REFRESH_TIMEOUT: u32 = 12 * 60 * 60; // 12 hours
+                                                                 // <pca> 2
+pub const METRICS_LOGGING_PERCENTAGE_DEFAULT: u32 = 0;
+// </pca>
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct RippleConfiguration {
@@ -67,6 +71,10 @@ pub struct RippleConfiguration {
     pub data_governance: DataGovernanceConfig,
     #[serde(default = "partner_exclusion_refresh_timeout_default")]
     pub partner_exclusion_refresh_timeout: u32,
+    // <pca> 2
+    #[serde(default = "metrics_logging_percentage_default")]
+    pub metrics_logging_percentage: u32,
+    // </pca>
 }
 
 fn data_governance_default() -> DataGovernanceConfig {
@@ -76,6 +84,12 @@ fn data_governance_default() -> DataGovernanceConfig {
 fn partner_exclusion_refresh_timeout_default() -> u32 {
     PARTNER_EXCLUSION_REFRESH_TIMEOUT
 }
+
+// <pca> 2
+fn metrics_logging_percentage_default() -> u32 {
+    METRICS_LOGGING_PERCENTAGE_DEFAULT
+}
+// </pca>
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
