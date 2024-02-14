@@ -20,7 +20,7 @@ use ripple_sdk::{
         firebolt::{
             fb_metrics::{
                 get_metrics_tags, ErrorParams, InteractionType, InternalInitializeParams,
-                MetricsContext, SystemErrorParams, Tag, Timer,
+                SystemErrorParams, Tag, Timer,
             },
             fb_telemetry::{
                 AppLoadStart, AppLoadStop, FireboltInteraction, InternalInitialize,
@@ -33,7 +33,7 @@ use ripple_sdk::{
     chrono::{DateTime, Utc},
     extn::client::extn_client::ExtnClient,
     framework::RippleResponse,
-    log::error,
+    log::{debug, error},
 };
 use serde_json::Value;
 
@@ -207,25 +207,18 @@ impl TelemetryBuilder {
     // <pca>
     pub fn start_firebolt_metrics_timer(
         extn_client: &ExtnClient,
-        metrics_context: &MetricsContext,
         name: String,
         app_id: String,
     ) -> Option<Timer> {
+        let metrics_context = extn_client.get_metrics_context();
+
         if !metrics_context.enabled {
             return None;
         }
 
-        let metrics_tags = get_metrics_tags(
-            extn_client,
-            metrics_context,
-            InteractionType::Firebolt,
-            Some(app_id),
-        );
+        let metrics_tags = get_metrics_tags(extn_client, InteractionType::Firebolt, Some(app_id));
 
-        println!(
-            "*** _DEBUG: start_firebolt_metrics_timer: {}: {:?}",
-            name, metrics_tags
-        );
+        debug!("start_firebolt_metrics_timer: {}: {:?}", name, metrics_tags);
 
         Some(Timer::start(
             name,
@@ -236,16 +229,13 @@ impl TelemetryBuilder {
 
     pub fn stop_and_send_firebolt_metrics_timer(
         ps: &PlatformState,
-        mut timer: Option<Timer>,
+        timer: Option<Timer>,
         status: String,
     ) {
         if let Some(mut timer) = timer {
             timer.stop();
             timer.insert_tag(Tag::Status.key(), status);
-            println!(
-                "*** _DEBUG: stop_and_send_firebolt_metrics_timer: {:?}",
-                timer
-            );
+            debug!("stop_and_send_firebolt_metrics_timer: {:?}", timer);
             if let Err(e) = Self::send_telemetry(ps, TelemetryPayload::Timer(timer)) {
                 error!(
                     "stop_and_send_firebolt_metrics_timer: send_telemetry={:?}",

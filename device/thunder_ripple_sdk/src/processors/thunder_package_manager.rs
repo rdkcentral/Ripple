@@ -37,11 +37,9 @@ use crate::{
     },
     thunder_state::ThunderState,
 };
-use ripple_sdk::api::context::{RippleContext, RippleContextUpdateType};
 use ripple_sdk::api::device::device_apps::AppMetadata;
 use ripple_sdk::api::device::device_operator::{DeviceResponseMessage, DeviceSubscribeRequest};
 use ripple_sdk::api::firebolt::fb_capabilities::FireboltPermissions;
-use ripple_sdk::api::firebolt::fb_metrics::MetricsContext;
 use ripple_sdk::api::observability::metrics_util::{
     start_service_metrics_timer, stop_and_send_service_metrics_timer,
 };
@@ -63,22 +61,21 @@ const OPERATION_TIMEOUT_SECS: u64 = 6 * 60; // 6 minutes
 #[derive(Debug, Clone)]
 pub struct ThunderPackageManagerState {
     thunder_state: ThunderState,
-    // <pca>
-    //metrics_context: MetricsContext,
-    metrics_context: Option<MetricsContext>,
+    // <pca> added
+    //metrics_context: Option<MetricsContext>,
     // </pca>
     active_operations: Arc<Mutex<HashMap<String, Operation>>>,
 }
 
-// <pca>
-impl ThunderPackageManagerState {
-    pub fn get_metrics_context(&mut self) -> MetricsContext {
-        if let None = self.metrics_context {
-            self.metrics_context = Some(self.thunder_state.get_client().get_metrics_context());
-        }
-        self.metrics_context.clone().unwrap()
-    }
-}
+// <pca> added
+// impl ThunderPackageManagerState {
+//     pub fn get_metrics_context(&mut self) -> MetricsContext {
+//         if let None = self.metrics_context {
+//             self.metrics_context = Some(self.thunder_state.get_client().get_metrics_context());
+//         }
+//         self.metrics_context.clone().unwrap()
+//     }
+// }
 // </pca>
 
 #[derive(Debug)]
@@ -362,7 +359,6 @@ impl ThunderPackageManagerRequestProcessor {
         ThunderPackageManagerRequestProcessor {
             state: ThunderPackageManagerState {
                 thunder_state,
-                metrics_context: None,
                 active_operations: Arc::new(Mutex::new(HashMap::default())),
             },
             streamer: DefaultExtnStreamer::new(),
@@ -531,17 +527,12 @@ impl ThunderPackageManagerRequestProcessor {
     //         Err(_) => ExtnResponse::Error(RippleError::ProcessorError),
     //     }
     // }
-    async fn get_apps_list(
-        thunder_state: ThunderState,
-        metrics_context: MetricsContext,
-        id: Option<String>,
-    ) -> ExtnResponse {
+    async fn get_apps_list(thunder_state: ThunderState, id: Option<String>) -> ExtnResponse {
         let method: String = ThunderPlugin::PackageManager.method("getlist");
         let request = GetListRequest::new(id.unwrap_or_default());
 
         let metrics_timer = start_service_metrics_timer(
             &thunder_state.get_client(),
-            &metrics_context,
             ThunderMetricsTimerName::PackageManagerGetList.to_string(),
         );
 
@@ -585,13 +576,8 @@ impl ThunderPackageManagerRequestProcessor {
     //         .await
     //         .is_ok()
     // }
-    async fn get_apps(
-        thunder_state: ThunderState,
-        metrics_context: MetricsContext,
-        req: ExtnMessage,
-        id: Option<String>,
-    ) -> bool {
-        let res = Self::get_apps_list(thunder_state.clone(), metrics_context.clone(), id).await;
+    async fn get_apps(thunder_state: ThunderState, req: ExtnMessage, id: Option<String>) -> bool {
+        let res = Self::get_apps_list(thunder_state.clone(), id).await;
         Self::respond(thunder_state.get_client(), req, res)
             .await
             .is_ok()
@@ -599,7 +585,7 @@ impl ThunderPackageManagerRequestProcessor {
     // </pca>
 
     async fn install_app(
-        mut state: ThunderPackageManagerState,
+        state: ThunderPackageManagerState,
         req: ExtnMessage,
         app: AppMetadata,
     ) -> bool {
@@ -629,8 +615,6 @@ impl ThunderPackageManagerRequestProcessor {
         // <pca>
         let metrics_timer = start_service_metrics_timer(
             &state.thunder_state.get_client(),
-            //&state.metrics_context,
-            &state.get_metrics_context(),
             ThunderMetricsTimerName::PackageManagerInstall.to_string(),
         );
         // </pca>
@@ -694,7 +678,7 @@ impl ThunderPackageManagerRequestProcessor {
     }
 
     async fn uninstall_app(
-        mut state: ThunderPackageManagerState,
+        state: ThunderPackageManagerState,
         req: ExtnMessage,
         app: InstalledApp,
     ) -> bool {
@@ -724,8 +708,6 @@ impl ThunderPackageManagerRequestProcessor {
         // <pca>
         let metrics_timer = start_service_metrics_timer(
             &state.thunder_state.get_client(),
-            //&state.metrics_context,
-            &state.get_metrics_context(),
             ThunderMetricsTimerName::PackageManagerUninstall.to_string(),
         );
         // </pca>
@@ -819,7 +801,7 @@ impl ThunderPackageManagerRequestProcessor {
     }
 
     async fn get_firebolt_permissions(
-        mut state: ThunderPackageManagerState,
+        state: ThunderPackageManagerState,
         req: ExtnMessage,
         app_id: String,
     ) -> bool {
@@ -827,7 +809,7 @@ impl ThunderPackageManagerRequestProcessor {
             // <pca>
             //match Self::get_apps_list(state.thunder_state.clone(), Some(app_id.clone())).await {
             //match Self::get_apps_list(state.thunder_state.clone(), state.metrics_context.clone(), Some(app_id.clone())).await {
-            match Self::get_apps_list(state.thunder_state.clone(), state.get_metrics_context(), Some(app_id.clone())).await {
+            match Self::get_apps_list(state.thunder_state.clone(), Some(app_id.clone())).await {
             // </pca>
                 ExtnResponse::InstalledApps(apps) => apps,
                 _ => {
@@ -861,8 +843,6 @@ impl ThunderPackageManagerRequestProcessor {
         // <pca>
         let metrics_timer = start_service_metrics_timer(
             &state.thunder_state.get_client(),
-            //&state.metrics_context,
-            &state.get_metrics_context(),
             ThunderMetricsTimerName::PackageManagerUninstall.to_string(),
         );
         // </pca>
@@ -961,7 +941,7 @@ impl ThunderPackageManagerRequestProcessor {
 
     // <pca>
     //async fn cancel_operation(thunder_state: ThunderState, handle: String) {
-    async fn cancel_operation(mut state: ThunderPackageManagerState, handle: String) {
+    async fn cancel_operation(state: ThunderPackageManagerState, handle: String) {
         // </pca>
         let method: String = ThunderPlugin::PackageManager.method("cancel");
         let request = CancelRequest::new(handle);
@@ -969,8 +949,6 @@ impl ThunderPackageManagerRequestProcessor {
         // <pca>
         let metrics_timer = start_service_metrics_timer(
             &state.thunder_state.get_client(),
-            //&state.metrics_context,
-            &state.get_metrics_context(),
             ThunderMetricsTimerName::PackageManagerUninstall.to_string(),
         );
         // </pca>
@@ -1041,23 +1019,14 @@ impl ExtnRequestProcessor for ThunderPackageManagerRequestProcessor {
         self.state.thunder_state.get_client()
     }
     async fn process_request(
-        mut state: Self::STATE,
+        state: Self::STATE,
         msg: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
         match extracted_message {
             // <pca>
             // AppsRequest::GetApps(id) => Self::get_apps(state.thunder_state.clone(), msg, id).await,
-            AppsRequest::GetApps(id) => {
-                Self::get_apps(
-                    state.thunder_state.clone(),
-                    //state.metrics_context.clone(),
-                    state.get_metrics_context(),
-                    msg,
-                    id,
-                )
-                .await
-            }
+            AppsRequest::GetApps(id) => Self::get_apps(state.thunder_state.clone(), msg, id).await,
             // </pca>
             AppsRequest::InstallApp(app) => Self::install_app(state.clone(), msg, app).await,
             AppsRequest::UninstallApp(app) => Self::uninstall_app(state.clone(), msg, app).await,

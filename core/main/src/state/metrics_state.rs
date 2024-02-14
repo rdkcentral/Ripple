@@ -78,7 +78,7 @@ impl MetricsState {
         *cache = value.clone();
     }
     pub async fn initialize(state: &PlatformState) {
-        // <pca> 2
+        // <pca>
         let metrics_percentage = state
             .get_device_manifest()
             .configuration
@@ -87,8 +87,8 @@ impl MetricsState {
         let random_number = rand::thread_rng().gen_range(1..101);
         let metrics_enabled = random_number <= metrics_percentage;
 
-        println!(
-            "*** _DEBUG: initialize: metrics_percentage={}, gen={}, enabled={}",
+        debug!(
+            "initialize: metrics_percentage={}, random_number={}, enabled={}",
             metrics_percentage, random_number, metrics_enabled
         );
         // </pca>
@@ -171,7 +171,7 @@ impl MetricsState {
             // Time to set them
             let mut context = state.metrics.context.write().unwrap();
 
-            // <pca> 2
+            // <pca>
             context.enabled = metrics_enabled;
             // </pca>
 

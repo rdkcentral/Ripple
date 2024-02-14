@@ -188,7 +188,6 @@ impl FireboltGateway {
         // );
         let metrics_timer = TelemetryBuilder::start_firebolt_metrics_timer(
             &platform_state.get_client().get_extn_client(),
-            &platform_state.metrics.get_context(),
             request_c.method.clone(),
             request_c.ctx.app_id.clone(),
         );

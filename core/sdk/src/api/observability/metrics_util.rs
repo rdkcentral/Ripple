@@ -1,30 +1,24 @@
-use log::error;
+use log::{debug, error};
 
 use crate::{
     api::firebolt::fb_metrics::{
-        get_metrics_tags, InteractionType, MetricsContext, MetricsPayload, MetricsRequest,
+        get_metrics_tags, InteractionType, MetricsPayload, MetricsRequest,
         OperationalMetricPayload, Tag, Timer, SERVICE_METRICS_SEND_REQUEST_TIMEOUT_MS,
     },
     extn::{client::extn_client::ExtnClient, extn_client_message::ExtnResponse},
     utils::error::RippleError,
 };
 
-pub fn start_service_metrics_timer(
-    extn_client: &ExtnClient,
-    metrics_context: &MetricsContext,
-    name: String,
-) -> Option<Timer> {
+pub fn start_service_metrics_timer(extn_client: &ExtnClient, name: String) -> Option<Timer> {
+    let metrics_context = &extn_client.get_metrics_context();
+
     if !metrics_context.enabled {
         return None;
     }
 
-    let metrics_tags =
-        get_metrics_tags(extn_client, metrics_context, InteractionType::Service, None);
+    let metrics_tags = get_metrics_tags(extn_client, InteractionType::Service, None);
 
-    println!(
-        "*** _DEBUG: start_service_metrics_timer: {}: {:?}",
-        name, metrics_tags
-    );
+    debug!("start_service_metrics_timer: {}: {:?}", name, metrics_tags);
 
     Some(Timer::start(
         name,
@@ -42,10 +36,7 @@ pub async fn stop_and_send_service_metrics_timer(
         timer.stop();
         timer.insert_tag(Tag::Status.key(), status);
 
-        println!(
-            "*** _DEBUG: stop_and_send_service_metrics_timer: {:?}",
-            timer
-        );
+        debug!("stop_and_send_service_metrics_timer: {:?}", timer);
 
         let req = MetricsRequest {
             payload: MetricsPayload::OperationalMetric(OperationalMetricPayload::Timer(timer)),

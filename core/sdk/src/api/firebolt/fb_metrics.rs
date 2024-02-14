@@ -608,7 +608,7 @@ pub enum OperationalMetricPayload {
 /// This design assumes that all of the items will be available at the same times
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct MetricsContext {
-    // <pca> 2
+    // <pca>
     pub enabled: bool,
     // </pca>
     pub device_language: String,
@@ -632,7 +632,7 @@ pub struct MetricsContext {
 
 #[allow(non_camel_case_types)]
 pub enum MetricsContextField {
-    // <pca> 2
+    // <pca>
     enabled,
     // </pca>
     device_language,
@@ -656,7 +656,7 @@ pub enum MetricsContextField {
 impl MetricsContext {
     pub fn new() -> MetricsContext {
         MetricsContext {
-            // <pca> 2
+            // <pca>
             enabled: false,
             // </pca>
             device_language: String::from(""),
@@ -680,7 +680,7 @@ impl MetricsContext {
     }
     pub fn set(&mut self, field: MetricsContextField, value: String) {
         match field {
-            // <pca> 2
+            // <pca>
             MetricsContextField::enabled => self.enabled = value.parse().unwrap_or(false),
             // </pca>
             MetricsContextField::device_language => self.device_language = value,
@@ -869,11 +869,12 @@ impl Tag {
 
 pub fn get_metrics_tags(
     extn_client: &ExtnClient,
-    metrics_context: &MetricsContext,
     interaction_type: InteractionType,
     app_id: Option<String>,
 ) -> HashMap<String, String> {
+    let metrics_context = extn_client.get_metrics_context();
     let mut tags: HashMap<String, String> = HashMap::new();
+
     tags.insert(Tag::Type.key(), interaction_type.to_string());
 
     if let Some(app) = app_id {
@@ -990,7 +991,7 @@ mod tests {
 
         let behavioral_metric_request = BehavioralMetricRequest {
             context: Some(MetricsContext {
-                // <pca> 2
+                // <pca>
                 enabled: true,
                 // </pca>
                 device_language: "en".to_string(),
