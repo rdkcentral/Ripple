@@ -13,14 +13,19 @@
 // limitations under the License.
 //
 // SPDX-License-Identifier: Apache-2.0
-//
 
-pub mod channel_utils;
-pub mod error;
-pub mod extn_utils;
-pub mod logger;
-pub mod mock_utils;
-pub mod rpc_utils;
-pub mod serde_utils;
-pub mod test_utils;
-pub mod time_utils;
+use crate::extn::extn_client_message::ExtnPayloadProvider;
+use crate::framework::ripple_contract::RippleContract;
+
+pub fn test_extn_payload_provider<T>(request: T, contract_type: RippleContract)
+where
+    T: ExtnPayloadProvider + PartialEq + std::fmt::Debug,
+{
+    let value = request.get_extn_payload();
+    if let Some(v) = T::get_from_payload(value) {
+        assert_eq!(v, request);
+        assert_eq!(contract_type, T::contract());
+    } else {
+        panic!("Test failed for ExtnRequest variant: {:?}", request);
+    }
+}

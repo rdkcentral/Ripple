@@ -93,43 +93,40 @@ macro_rules! start_rx_stream {
     ($get_type:ty, $caller:ident, $recv:ident, $state:ident, $process:ident, $error:ident, $type_check:expr) => {
         let mut rx = $caller.$recv();
         let state = $caller.$state().clone();
-        tokio::spawn(async move {
-            while let Some(msg) = rx.recv().await {
-                // check the type of the message
-                if $type_check(&msg) {
-                    let state_c = state.clone();
-                    let extracted_message = <$get_type>::get(msg.payload.clone());
-                    if extracted_message.is_none() {
-                        <$get_type>::$error(
-                            state_c,
-                            msg,
-                            $crate::utils::error::RippleError::ParseError,
-                        )
-                        .await;
-                        continue;
-                    }
-                    if let Some(v) =
-                        <$get_type>::$process(state_c, msg.clone(), extracted_message.unwrap())
-                            .await
-                    {
-                        if msg.payload.is_event() && v {
-                            // trigger closure processor is dropped
-                            trace!("dropping rx to trigger cleanup");
-                            rx.close();
-                            break;
-                        }
-                    }
-                } else {
+        while let Some(msg) = rx.recv().await {
+            // check the type of the message
+            if $type_check(&msg) {
+                let state_c = state.clone();
+                let extracted_message = <$get_type>::get(msg.payload.clone());
+                if extracted_message.is_none() {
                     <$get_type>::$error(
-                        state.clone(),
+                        state_c,
                         msg,
-                        $crate::utils::error::RippleError::InvalidInput,
+                        $crate::utils::error::RippleError::ParseError,
                     )
                     .await;
+                    continue;
                 }
+                if let Some(v) =
+                    <$get_type>::$process(state_c, msg.clone(), extracted_message.unwrap()).await
+                {
+                    if msg.payload.is_event() && v {
+                        // trigger closure processor is dropped
+                        trace!("dropping rx to trigger cleanup");
+                        rx.close();
+                        break;
+                    }
+                }
+            } else {
+                <$get_type>::$error(
+                    state.clone(),
+                    msg,
+                    $crate::utils::error::RippleError::InvalidInput,
+                )
+                .await;
             }
-            drop(rx)
-        });
+        }
+        drop(rx)
     };
 }
 
@@ -283,5 +280,446 @@ pub trait ExtnEventProcessor: ExtnStreamProcessor + Send + Sync + 'static {
 
     fn check_message_type(message: &ExtnMessage) -> bool {
         message.payload.is_event()
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use crate::api::manifest::extn_manifest::ExtnSymbol;
+    use crate::api::session::{EventAdjective, SessionAdjective};
+    use crate::extn::client::extn_client::{tests::Mockable, ExtnClient};
+    use crate::extn::client::extn_sender::{tests::Mockable as extn_sender_mockable, ExtnSender};
+    use crate::extn::extn_client_message::ExtnEvent;
+    use crate::extn::extn_id::ExtnId;
+    use crate::utils::mock_utils::{
+        get_mock_message, get_mock_request, MockEvent, MockRequest, PayloadType,
+    };
+    use async_channel::unbounded;
+    use chrono::Utc;
+    use log::info;
+    use rstest::rstest;
+    use std::collections::HashMap;
+    use uuid::Uuid;
+
+    #[derive(Debug, Clone)]
+    pub struct MockState {
+        pub(crate) client: ExtnClient,
+    }
+
+    impl MockState {
+        pub fn get_client(&self) -> ExtnClient {
+            self.client.clone()
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct MockEventProcessor {
+        pub(crate) state: MockState,
+        pub(crate) streamer: DefaultExtnStreamer,
+    }
+
+    impl Default for MockEventProcessor {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    impl MockEventProcessor {
+        pub fn new() -> Self {
+            MockEventProcessor {
+                state: MockState {
+                    client: ExtnClient::mock(),
+                },
+                streamer: DefaultExtnStreamer::new(),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl ExtnStreamProcessor for MockEventProcessor {
+        type STATE = MockState;
+        type VALUE = MockEvent;
+
+        fn get_state(&self) -> Self::STATE {
+            self.state.clone()
+        }
+
+        fn receiver(&mut self) -> mpsc::Receiver<ExtnMessage> {
+            self.streamer.receiver()
+        }
+
+        fn sender(&self) -> mpsc::Sender<ExtnMessage> {
+            self.streamer.sender()
+        }
+    }
+
+    #[async_trait]
+    impl ExtnEventProcessor for MockEventProcessor {
+        async fn process_event(
+            _state: Self::STATE,
+            _msg: ExtnMessage,
+            extracted_message: Self::VALUE,
+        ) -> Option<bool> {
+            info!("processing event {:?}", extracted_message);
+            if let Some(ExtnResponse::Boolean(value)) = extracted_message.expected_response {
+                Some(value)
+            } else {
+                None
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct MockRequestProcessor {
+        pub(crate) state: MockState,
+        pub(crate) streamer: DefaultExtnStreamer,
+    }
+
+    impl Default for MockRequestProcessor {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    impl MockRequestProcessor {
+        pub fn new() -> Self {
+            MockRequestProcessor {
+                state: MockState {
+                    client: ExtnClient::mock(),
+                },
+                streamer: DefaultExtnStreamer::new(),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl ExtnStreamProcessor for MockRequestProcessor {
+        type STATE = MockState;
+        type VALUE = MockRequest;
+
+        fn get_state(&self) -> Self::STATE {
+            self.state.clone()
+        }
+
+        fn receiver(&mut self) -> mpsc::Receiver<ExtnMessage> {
+            self.streamer.receiver()
+        }
+
+        fn sender(&self) -> mpsc::Sender<ExtnMessage> {
+            self.streamer.sender()
+        }
+
+        fn fulfills_mutiple(&self) -> Option<Vec<RippleContract>> {
+            Some(vec![
+                RippleContract::Internal,
+                RippleContract::Session(SessionAdjective::Device),
+                RippleContract::DeviceEvents(EventAdjective::Input),
+            ])
+        }
+    }
+
+    #[async_trait]
+    impl ExtnRequestProcessor for MockRequestProcessor {
+        async fn process_request(state: MockState, msg: ExtnMessage, val: Self::VALUE) -> bool {
+            info!("processing request");
+            let expected_response = val.expected_response;
+
+            // TODO - test with Boolean, String, complex struct
+            if let Some(resp) = expected_response {
+                info!("**** process_request: msg: {:?}, resp: {:?}", msg, resp);
+                Self::respond(state.client.clone(), msg, resp).await.is_ok()
+            } else {
+                // Handle the case when expected_response is None
+                // For example, use a default response or return an error
+                false
+            }
+        }
+
+        fn get_client(&self) -> ExtnClient {
+            self.state.client.clone()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_process_request() {
+        let extn_client = ExtnClient::mock();
+        let state = MockState {
+            client: extn_client.clone(),
+        };
+        let msg = get_mock_message(PayloadType::Request);
+
+        let result =
+            MockRequestProcessor::process_request(state, msg.clone(), get_mock_request()).await;
+        assert!(result);
+    }
+
+    #[tokio::test]
+    async fn test_respond() {
+        let extn_client = ExtnClient::mock();
+        let request = get_mock_message(PayloadType::Request);
+        let response = ExtnResponse::Boolean(true);
+
+        let result = MockRequestProcessor::respond(extn_client, request.clone(), response).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_ack() {
+        let extn_client = ExtnClient::mock();
+        let request = get_mock_message(PayloadType::Request);
+        let result = MockRequestProcessor::ack(extn_client.clone(), request.clone()).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_handle_error() {
+        let extn_client = ExtnClient::mock();
+        let request = get_mock_message(PayloadType::Request);
+        let error = RippleError::ProcessorError;
+        let result =
+            MockRequestProcessor::handle_error(extn_client.clone(), request.clone(), error.clone())
+                .await;
+        assert!(!result);
+    }
+
+    #[tokio::test]
+    async fn test_process_event() {
+        let processor = MockEventProcessor::new();
+        let mock_message = get_mock_message(PayloadType::Event);
+        let mock_extracted_message = MockEvent {
+            event_name: "test_event".to_string(),
+            result: serde_json::json!(true),
+            context: None,
+            app_id: None,
+            expected_response: Some(ExtnResponse::Boolean(true)),
+        };
+
+        let result = MockEventProcessor::process_event(
+            processor.get_state(),
+            mock_message.clone(),
+            mock_extracted_message.clone(),
+        )
+        .await;
+
+        assert_eq!(result, Some(true));
+    }
+
+    #[tokio::test]
+    async fn test_get_from_payload() {
+        let mock_event = MockEvent {
+            event_name: "test_event".to_string(),
+            result: serde_json::json!({"key": "value"}),
+            context: None,
+            app_id: None,
+            expected_response: Some(ExtnResponse::Boolean(true)),
+        };
+
+        let extn_payload =
+            ExtnPayload::Event(ExtnEvent::Value(serde_json::to_value(mock_event).unwrap()));
+
+        let result = MockEventProcessor::get(extn_payload);
+
+        assert!(result.is_some());
+        let extracted_message = result.unwrap();
+        assert_eq!(extracted_message.event_name, "test_event");
+        assert_eq!(
+            extracted_message.result,
+            serde_json::json!({"key": "value"})
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_state() {
+        let mock_event_processor = MockEventProcessor::new();
+        let state = mock_event_processor.get_state();
+        assert!(!state.client.has_internet());
+    }
+
+    #[tokio::test]
+    async fn test_receiver() {
+        let mut mock_event_processor = MockEventProcessor::new();
+        let mut receiver = mock_event_processor.receiver();
+        let msg = get_mock_message(PayloadType::Event);
+        let actual_msg = msg.clone();
+        tokio::spawn(async move {
+            mock_event_processor
+                .sender()
+                .send(msg.clone())
+                .await
+                .unwrap();
+        });
+        let received_message = receiver.recv().await.expect("Expected a message");
+        assert_eq!(received_message.id, actual_msg.id);
+        assert_eq!(received_message.requestor, actual_msg.requestor);
+    }
+
+    #[tokio::test]
+    async fn test_fulfills_multiple() {
+        let processor = MockRequestProcessor::new();
+        let result = processor.fulfills_mutiple();
+
+        assert_eq!(
+            result,
+            Some(vec![
+                RippleContract::Internal,
+                RippleContract::Session(SessionAdjective::Device),
+                RippleContract::DeviceEvents(EventAdjective::Input),
+            ])
+        );
+    }
+
+    #[tokio::test]
+    async fn test_event_handle_error() {
+        let state = MockState {
+            client: ExtnClient::mock(),
+        };
+        let msg = get_mock_message(PayloadType::Event);
+        let error = RippleError::ProcessorError;
+
+        let result = MockEventProcessor::handle_error(state, msg, error).await;
+
+        assert_eq!(result, None);
+    }
+
+    #[tokio::test]
+    async fn test_check_message_type() {
+        let event_message = get_mock_message(PayloadType::Event);
+        assert!(MockEventProcessor::check_message_type(&event_message));
+
+        let request_message = get_mock_message(PayloadType::Request);
+        assert!(!MockEventProcessor::check_message_type(&request_message));
+    }
+
+    #[rstest(exp_resp, case(Some(ExtnResponse::Boolean(true))))]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_request_processor_run(exp_resp: Option<ExtnResponse>) {
+        let (s, receiver) = unbounded();
+        let mock_sender = ExtnSender::new(
+            s.clone(),
+            ExtnId::get_main_target("main".into()),
+            vec!["context".to_string()],
+            vec!["fulfills".to_string()],
+            Some(HashMap::new()),
+        );
+        let mut extn_client = ExtnClient::new(receiver, mock_sender.clone());
+        let processor = MockRequestProcessor {
+            state: MockState {
+                client: extn_client.clone(),
+            },
+            streamer: DefaultExtnStreamer::new(),
+        };
+
+        extn_client.add_request_processor(processor);
+        let extn_client_for_thread = extn_client.clone();
+
+        tokio::spawn(async move {
+            extn_client_for_thread.clone().initialize().await;
+        });
+
+        let response = extn_client
+            .request(MockRequest {
+                app_id: "test_app_id".to_string(),
+                contract: RippleContract::Internal,
+                expected_response: exp_resp.clone(),
+            })
+            .await;
+
+        match response {
+            Ok(actual_response) => {
+                let expected_message = ExtnMessage {
+                    id: "some-uuid".to_string(),
+                    requestor: ExtnId::get_main_target("main".into()),
+                    target: RippleContract::Internal,
+                    target_id: None,
+                    payload: ExtnPayload::Response(exp_resp.clone().unwrap()),
+                    callback: None,
+                    ts: Some(Utc::now().timestamp_millis()),
+                };
+
+                assert!(Uuid::parse_str(&actual_response.id).is_ok());
+                assert_eq!(actual_response.requestor, expected_message.requestor);
+                assert_eq!(actual_response.target, expected_message.target);
+                assert_eq!(actual_response.target_id, expected_message.target_id);
+
+                assert_eq!(
+                    actual_response.callback.is_some(),
+                    expected_message.callback.is_some()
+                );
+                assert!(actual_response.ts.is_some());
+            }
+            Err(_) => {
+                panic!("Received an unexpected error");
+            }
+        }
+    }
+
+    // TODO:
+    // Fix the test case 1 - runs forever - even in extn_client event test it happens
+    // update error messages in start_rx to validate
+    // how to get the callback and validate - here & also in extn_client
+    // add assertion for the callback
+    // add assertion for the response in callback - throughout tests
+
+    #[rstest(
+        exp_resp,
+        case(Some(ExtnResponse::Boolean(true))),
+        case(Some(ExtnResponse::Boolean(false))),
+        case(None)
+    )]
+    #[tokio::test]
+    async fn test_event_processor_run(exp_resp: Option<ExtnResponse>) {
+        let (mock_sender, receiver) = ExtnSender::mock_with_params(
+            ExtnId::get_main_target("main".into()),
+            vec!["config".to_string()],
+            vec!["permissions".to_string()],
+            Some(HashMap::new()),
+        );
+
+        let mut extn_client = ExtnClient::new(receiver, mock_sender);
+        let processor = MockEventProcessor {
+            state: MockState {
+                client: extn_client.clone(),
+            },
+            streamer: DefaultExtnStreamer::new(),
+        };
+
+        extn_client.add_event_processor(processor);
+        let extn_client_for_thread = extn_client.clone();
+
+        let (s, _receiver) = unbounded();
+        extn_client.clone().add_sender(
+            ExtnId::get_main_target("main".into()),
+            ExtnSymbol {
+                id: "id".to_string(),
+                uses: vec!["uses".to_string()],
+                fulfills: vec!["fulfills".to_string()],
+                config: None,
+            },
+            s,
+        );
+
+        tokio::spawn(async move {
+            extn_client_for_thread.initialize().await;
+        });
+
+        let response = extn_client.event(MockEvent {
+            event_name: "test_event".to_string(),
+            result: serde_json::json!({"result": "result"}),
+            context: None,
+            app_id: Some("some_id".to_string()),
+            expected_response: exp_resp,
+        });
+
+        match response {
+            Ok(_) => {
+                // nothing to assert here
+            }
+            Err(_) => {
+                panic!("Received an unexpected error");
+            }
+        }
+
+        // TODO - verify the event response in other sender?
     }
 }

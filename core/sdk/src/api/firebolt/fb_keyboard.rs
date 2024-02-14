@@ -31,7 +31,7 @@ pub const STANDARD_EVENT_PREFIX: &str = "keyboard.onRequestStandard";
 
 pub const KEYBOARD_PROVIDER_CAPABILITY: &str = "xrn:firebolt:capability:input:keyboard";
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum KeyboardType {
     Email,
@@ -91,7 +91,7 @@ impl KeyboardProviderResponse {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct KeyboardSessionRequest {
     #[serde(rename = "type")]
     pub _type: KeyboardType,
@@ -117,7 +117,7 @@ impl ExtnPayloadProvider for KeyboardSessionRequest {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct KeyboardSessionResponse {
     pub text: String,
     pub canceled: bool,
@@ -152,4 +152,42 @@ pub struct PromptEmailRequest {
 pub enum PrefillType {
     SignIn,
     SignUp,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::gateway::rpc_gateway_api::{ApiProtocol, CallContext};
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_keyboard_session() {
+        let keyboard_session_request = KeyboardSessionRequest {
+            _type: KeyboardType::Email,
+            ctx: CallContext {
+                session_id: "test_session_id".to_string(),
+                request_id: "test_request_id".to_string(),
+                app_id: "test_app_id".to_string(),
+                call_id: 123,
+                protocol: ApiProtocol::Extn,
+                method: "POST".to_string(),
+                cid: Some("test_cid".to_string()),
+                gateway_secure: true,
+            },
+            message: "test_message".to_string(),
+        };
+        let contract_type: RippleContract = RippleContract::Keyboard;
+        test_extn_payload_provider(keyboard_session_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_response_keyboard_session() {
+        let keyboard_session_response = KeyboardSessionResponse {
+            text: "Test response text".to_string(),
+            canceled: false,
+        };
+
+        let contract_type: RippleContract = RippleContract::Keyboard;
+        test_extn_payload_provider(keyboard_session_response, contract_type);
+    }
 }

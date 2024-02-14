@@ -26,7 +26,7 @@ use serde_json::Value;
 
 use super::device_request::DeviceRequest;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct StorageData {
     pub value: Value,
     pub update_time: String, // ISO 8601/RFC3339 format
@@ -71,13 +71,13 @@ pub struct SetF32Property {
     pub value: f32,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct GetStorageProperty {
     pub namespace: String,
     pub key: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SetStorageProperty {
     pub namespace: String,
     pub key: String,
@@ -86,7 +86,7 @@ pub struct SetStorageProperty {
 
 pub type DeleteStorageProperty = GetStorageProperty;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum DevicePersistenceRequest {
     Get(GetStorageProperty),
     Set(SetStorageProperty),
@@ -108,5 +108,24 @@ impl ExtnPayloadProvider for DevicePersistenceRequest {
 
     fn contract() -> RippleContract {
         RippleContract::Storage(StorageAdjective::Local)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_payload_provider_for_device_persistence_request_get() {
+        let get_request = GetStorageProperty {
+            namespace: String::from("example_namespace"),
+            key: String::from("example_key"),
+        };
+
+        let device_persistence_get_request = DevicePersistenceRequest::Get(get_request);
+
+        let contract_type: RippleContract = RippleContract::Storage(StorageAdjective::Local);
+        test_extn_payload_provider(device_persistence_get_request, contract_type);
     }
 }

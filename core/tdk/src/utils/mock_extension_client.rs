@@ -9,7 +9,7 @@ use ripple_sdk::{
     framework::ripple_contract::RippleContract,
     uuid::Uuid,
 };
-
+#[derive(Debug, Clone)]
 pub struct MockExtnClient {}
 
 impl MockExtnClient {
@@ -34,6 +34,7 @@ impl MockExtnClient {
             payload: ExtnPayload::Request(req),
             requestor: ExtnId::new_channel(ExtnClassId::Internal, "test".into()),
             target: contract,
+            target_id: None,
             ts: Some(30),
         }
     }
