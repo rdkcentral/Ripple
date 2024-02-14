@@ -59,6 +59,7 @@ pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern
             let v = LOG_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             if v % 100 == 0 {
                 println!("Ripple Version : {} ", version_string);
+                LOG_COUNTER.store(0, std::sync::atomic::Ordering::Relaxed);
             }
 
             #[cfg(not(feature = "sysd"))]
