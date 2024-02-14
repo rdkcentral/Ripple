@@ -1,5 +1,4 @@
 use log::error;
-use tonic::{Code, Response, Status};
 
 use crate::{
     api::firebolt::fb_metrics::{
@@ -25,11 +24,18 @@ pub fn start_service_metrics_timer(
     )
 }
 
-pub async fn stop_and_send_metrics_timer(mut client: ExtnClient, mut timer: Timer, status: String) {
+pub async fn stop_and_send_service_metrics_timer(
+    mut client: ExtnClient,
+    mut timer: Timer,
+    status: String,
+) {
     timer.stop();
     timer.insert_tag(Tag::Status.key(), status);
 
-    println!("*** _DEBUG: stop_and_send_metrics_timer: {:?}", timer);
+    println!(
+        "*** _DEBUG: stop_and_send_service_metrics_timer: {:?}",
+        timer
+    );
 
     let req = MetricsRequest {
         payload: MetricsPayload::OperationalMetric(OperationalMetricPayload::Timer(timer)),
@@ -42,7 +48,7 @@ pub async fn stop_and_send_metrics_timer(mut client: ExtnClient, mut timer: Time
 
     if let Err(e) = resp {
         error!(
-            "stop_and_send_metrics_timer: Failed to send metrics request: e={:?}",
+            "stop_and_send_service_metrics_timer: Failed to send metrics request: e={:?}",
             e
         );
     }

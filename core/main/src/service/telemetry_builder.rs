@@ -18,7 +18,10 @@
 use ripple_sdk::{
     api::{
         firebolt::{
-            fb_metrics::{ErrorParams, InternalInitializeParams, SystemErrorParams, Timer},
+            fb_metrics::{
+                get_metrics_tags, ErrorParams, InteractionType, InternalInitializeParams,
+                MetricsContext, SystemErrorParams, Tag, Timer,
+            },
             fb_telemetry::{
                 AppLoadStart, AppLoadStop, FireboltInteraction, InternalInitialize,
                 TelemetryAppError, TelemetryPayload, TelemetrySignIn, TelemetrySignOut,
@@ -28,6 +31,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::{CallContext, RpcRequest},
     },
     chrono::{DateTime, Utc},
+    extn::client::extn_client::ExtnClient,
     framework::RippleResponse,
     log::error,
 };
@@ -200,11 +204,45 @@ impl TelemetryBuilder {
         }
     }
 
-    // <pca>
-    pub fn send_firebolt_metrics_timer(ps: &PlatformState, timer: Timer) {
-        println!("*** _DEBUG: send_firebolt_metrics_timer: {:?}", timer);
+    // <pca> added
+    // pub fn send_firebolt_metrics_timer(ps: &PlatformState, timer: Timer) {
+    //     println!("*** _DEBUG: send_firebolt_metrics_timer: {:?}", timer);
+    //     if let Err(e) = Self::send_telemetry(ps, TelemetryPayload::Timer(timer)) {
+    //         error!("send_firebolt_metrics_timer: send_telemetry={:?}", e)
+    //     }
+    // }
+    pub fn start_firebolt_metrics_timer(
+        extn_client: &ExtnClient,
+        metrics_context: &MetricsContext,
+        name: String,
+        app_id: String,
+    ) -> Timer {
+        let metrics_tags = get_metrics_tags(
+            extn_client,
+            metrics_context,
+            InteractionType::Firebolt,
+            Some(app_id),
+        );
+
+        Timer::start(
+            name,
+            metrics_context.device_session_id.clone(),
+            Some(metrics_tags),
+        )
+    }
+
+    pub fn stop_and_send_firebolt_metrics_timer(ps: &PlatformState, timer: Timer, status: String) {
+        timer.stop();
+        timer.insert_tag(Tag::Status.key(), status);
+        println!(
+            "*** _DEBUG: stop_and_send_firebolt_metrics_timer: {:?}",
+            timer
+        );
         if let Err(e) = Self::send_telemetry(ps, TelemetryPayload::Timer(timer)) {
-            error!("send_firebolt_metrics_timer: send_telemetry={:?}", e)
+            error!(
+                "stop_and_send_firebolt_metrics_timer: send_telemetry={:?}",
+                e
+            )
         }
     }
     // </pca>

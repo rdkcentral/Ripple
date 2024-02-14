@@ -37,12 +37,13 @@ use crate::{
     },
     thunder_state::ThunderState,
 };
+use ripple_sdk::api::context::{RippleContext, RippleContextUpdateType};
 use ripple_sdk::api::device::device_apps::AppMetadata;
 use ripple_sdk::api::device::device_operator::{DeviceResponseMessage, DeviceSubscribeRequest};
 use ripple_sdk::api::firebolt::fb_capabilities::FireboltPermissions;
 use ripple_sdk::api::firebolt::fb_metrics::MetricsContext;
 use ripple_sdk::api::observability::metrics_util::{
-    start_service_metrics_timer, stop_and_send_metrics_timer,
+    start_service_metrics_timer, stop_and_send_service_metrics_timer,
 };
 use ripple_sdk::log::{debug, error, info};
 use ripple_sdk::tokio;
@@ -63,10 +64,22 @@ const OPERATION_TIMEOUT_SECS: u64 = 6 * 60; // 6 minutes
 pub struct ThunderPackageManagerState {
     thunder_state: ThunderState,
     // <pca>
-    metrics_context: MetricsContext,
+    //metrics_context: MetricsContext,
+    metrics_context: Option<MetricsContext>,
     // </pca>
     active_operations: Arc<Mutex<HashMap<String, Operation>>>,
 }
+
+// <pca>
+impl ThunderPackageManagerState {
+    pub fn get_metrics_context(&mut self) -> MetricsContext {
+        if let None = self.metrics_context {
+            self.metrics_context = Some(self.thunder_state.get_client().get_metrics_context());
+        }
+        self.metrics_context.clone().unwrap()
+    }
+}
+// </pca>
 
 #[derive(Debug)]
 pub struct ThunderPackageManagerRequestProcessor {
@@ -345,14 +358,11 @@ impl ThunderPackageManagerRequestProcessor {
     //         streamer: DefaultExtnStreamer::new(),
     //     }
     // }
-    pub fn new(
-        thunder_state: ThunderState,
-        metrics_context: MetricsContext,
-    ) -> ThunderPackageManagerRequestProcessor {
+    pub fn new(thunder_state: ThunderState) -> ThunderPackageManagerRequestProcessor {
         ThunderPackageManagerRequestProcessor {
             state: ThunderPackageManagerState {
                 thunder_state,
-                metrics_context,
+                metrics_context: None,
                 active_operations: Arc::new(Mutex::new(HashMap::default())),
             },
             streamer: DefaultExtnStreamer::new(),
@@ -557,7 +567,7 @@ impl ThunderPackageManagerRequestProcessor {
                 ),
             };
 
-        stop_and_send_metrics_timer(
+        stop_and_send_service_metrics_timer(
             thunder_state.get_client().clone(),
             metrics_timer,
             status.to_string(),
@@ -589,7 +599,7 @@ impl ThunderPackageManagerRequestProcessor {
     // </pca>
 
     async fn install_app(
-        state: ThunderPackageManagerState,
+        mut state: ThunderPackageManagerState,
         req: ExtnMessage,
         app: AppMetadata,
     ) -> bool {
@@ -619,7 +629,8 @@ impl ThunderPackageManagerRequestProcessor {
         // <pca>
         let metrics_timer = start_service_metrics_timer(
             &state.thunder_state.get_client(),
-            &state.metrics_context,
+            //&state.metrics_context,
+            &state.get_metrics_context(),
             ThunderMetricsTimerName::PackageManagerInstall.to_string(),
         );
         // </pca>
@@ -656,7 +667,7 @@ impl ThunderPackageManagerRequestProcessor {
             ThunderResponseStatus::Failure
         };
 
-        stop_and_send_metrics_timer(
+        stop_and_send_service_metrics_timer(
             state.thunder_state.get_client().clone(),
             metrics_timer,
             status.to_string(),
@@ -683,7 +694,7 @@ impl ThunderPackageManagerRequestProcessor {
     }
 
     async fn uninstall_app(
-        state: ThunderPackageManagerState,
+        mut state: ThunderPackageManagerState,
         req: ExtnMessage,
         app: InstalledApp,
     ) -> bool {
@@ -713,7 +724,8 @@ impl ThunderPackageManagerRequestProcessor {
         // <pca>
         let metrics_timer = start_service_metrics_timer(
             &state.thunder_state.get_client(),
-            &state.metrics_context,
+            //&state.metrics_context,
+            &state.get_metrics_context(),
             ThunderMetricsTimerName::PackageManagerUninstall.to_string(),
         );
         // </pca>
@@ -753,7 +765,7 @@ impl ThunderPackageManagerRequestProcessor {
             ThunderResponseStatus::Failure
         };
 
-        stop_and_send_metrics_timer(
+        stop_and_send_service_metrics_timer(
             state.thunder_state.get_client().clone(),
             metrics_timer,
             status.to_string(),
@@ -807,14 +819,15 @@ impl ThunderPackageManagerRequestProcessor {
     }
 
     async fn get_firebolt_permissions(
-        state: ThunderPackageManagerState,
+        mut state: ThunderPackageManagerState,
         req: ExtnMessage,
         app_id: String,
     ) -> bool {
         let installed_apps =
             // <pca>
             //match Self::get_apps_list(state.thunder_state.clone(), Some(app_id.clone())).await {
-            match Self::get_apps_list(state.thunder_state.clone(), state.metrics_context.clone(), Some(app_id.clone())).await {
+            //match Self::get_apps_list(state.thunder_state.clone(), state.metrics_context.clone(), Some(app_id.clone())).await {
+            match Self::get_apps_list(state.thunder_state.clone(), state.get_metrics_context(), Some(app_id.clone())).await {
             // </pca>
                 ExtnResponse::InstalledApps(apps) => apps,
                 _ => {
@@ -848,7 +861,8 @@ impl ThunderPackageManagerRequestProcessor {
         // <pca>
         let metrics_timer = start_service_metrics_timer(
             &state.thunder_state.get_client(),
-            &state.metrics_context,
+            //&state.metrics_context,
+            &state.get_metrics_context(),
             ThunderMetricsTimerName::PackageManagerUninstall.to_string(),
         );
         // </pca>
@@ -907,7 +921,7 @@ impl ThunderPackageManagerRequestProcessor {
             ThunderResponseStatus::Failure
         };
 
-        stop_and_send_metrics_timer(
+        stop_and_send_service_metrics_timer(
             state.thunder_state.get_client().clone(),
             metrics_timer,
             status.to_string(),
@@ -947,7 +961,7 @@ impl ThunderPackageManagerRequestProcessor {
 
     // <pca>
     //async fn cancel_operation(thunder_state: ThunderState, handle: String) {
-    async fn cancel_operation(state: ThunderPackageManagerState, handle: String) {
+    async fn cancel_operation(mut state: ThunderPackageManagerState, handle: String) {
         // </pca>
         let method: String = ThunderPlugin::PackageManager.method("cancel");
         let request = CancelRequest::new(handle);
@@ -955,7 +969,8 @@ impl ThunderPackageManagerRequestProcessor {
         // <pca>
         let metrics_timer = start_service_metrics_timer(
             &state.thunder_state.get_client(),
-            &state.metrics_context,
+            //&state.metrics_context,
+            &state.get_metrics_context(),
             ThunderMetricsTimerName::PackageManagerUninstall.to_string(),
         );
         // </pca>
@@ -989,7 +1004,7 @@ impl ThunderPackageManagerRequestProcessor {
             ThunderResponseStatus::Failure
         };
 
-        stop_and_send_metrics_timer(
+        stop_and_send_service_metrics_timer(
             state.thunder_state.get_client().clone(),
             metrics_timer,
             status.to_string(),
@@ -1026,7 +1041,7 @@ impl ExtnRequestProcessor for ThunderPackageManagerRequestProcessor {
         self.state.thunder_state.get_client()
     }
     async fn process_request(
-        state: Self::STATE,
+        mut state: Self::STATE,
         msg: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
@@ -1036,7 +1051,8 @@ impl ExtnRequestProcessor for ThunderPackageManagerRequestProcessor {
             AppsRequest::GetApps(id) => {
                 Self::get_apps(
                     state.thunder_state.clone(),
-                    state.metrics_context.clone(),
+                    //state.metrics_context.clone(),
+                    state.get_metrics_context(),
                     msg,
                     id,
                 )
@@ -1051,3 +1067,53 @@ impl ExtnRequestProcessor for ThunderPackageManagerRequestProcessor {
         }
     }
 }
+
+// <pca> added
+// #[derive(Debug, Clone)]
+// pub struct ThunderPackageManagerEventState {
+//     pub extn_client: ExtnClient,
+// }
+
+// pub struct ThunderPackageManagerEventProcessor {
+//     state: ThunderPackageManagerEventState,
+//     streamer: DefaultExtnStreamer,
+// }
+
+// impl ExtnStreamProcessor for ThunderPackageManagerEventProcessor {
+//     type STATE = ThunderPackageManagerEventState;
+//     type VALUE = RippleContext;
+
+//     fn get_state(&self) -> Self::STATE {
+//         self.state.clone()
+//     }
+
+//     fn receiver(&mut self) -> mpsc::Receiver<ExtnMessage> {
+//         self.streamer.receiver()
+//     }
+
+//     fn sender(&self) -> mpsc::Sender<ExtnMessage> {
+//         self.streamer.sender()
+//     }
+
+//     fn contract(&self) -> RippleContract {
+//         RippleContract::Apps
+//     }
+// }
+
+// #[async_trait]
+// impl ExtnEventProcessor for ThunderPackageManagerEventProcessor {
+//     async fn process_event(
+//         mut state: Self::STATE,
+//         _msg: ExtnMessage,
+//         extracted_message: Self::VALUE,
+//     ) -> Option<bool> {
+//         if let Some(update) = &extracted_message.update_type {
+//             match update {
+//                 RippleContextUpdateType::MetricsContextChanged => state.extn_client.request_transient()
+//                 _ => {}
+//             }
+//         }
+//         None
+//     }
+// }
+// </pca>

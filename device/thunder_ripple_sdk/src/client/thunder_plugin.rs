@@ -49,7 +49,10 @@ const WIFI_CFG: Cfg = Cfg::new("org.rdk.Wifi", false, false);
 const LOCATION_SYNC: Cfg = Cfg::new("LocationSync", false, false);
 const TTS_CFG: Cfg = Cfg::new("org.rdk.TextToSpeech", false, true);
 const TELEMETRY_CFG: Cfg = Cfg::new("org.rdk.Telemetry", true, false);
-const PACKAGE_MANAGER_CFG: Cfg = Cfg::new("org.rdk.PackageManager", false, false);
+// <pca> debug
+//const PACKAGE_MANAGER_CFG: Cfg = Cfg::new("org.rdk.PackageManager", false, false);
+const PACKAGE_MANAGER_CFG: Cfg = Cfg::new("PackageManager", false, false);
+// </pca>
 
 impl ThunderPlugin {
     pub fn cfg(&self) -> Cfg {

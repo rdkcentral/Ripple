@@ -92,7 +92,10 @@ impl MetricsManagementServer for MetricsManagementImpl {
         if let Some(device_session_id) = context_params.context.device_session_id {
             self.state
                 .metrics
-                .update_session_id(Some(device_session_id));
+                // <pca>
+                //.update_session_id(Some(device_session_id));
+                .update_session_id(self.state.clone(), Some(device_session_id));
+            // </pca>
         }
         Ok(())
     }
@@ -107,7 +110,13 @@ impl MetricsManagementServer for MetricsManagementImpl {
             if key.as_str() == "deviceSessionId" {
                 self.state
                     .metrics
-                    .update_session_id(Some(String::from(&self.state.device_session_id)));
+                    // <pca>
+                    //.update_session_id(Some(String::from(&self.state.device_session_id)));
+                    .update_session_id(
+                        self.state.clone(),
+                        Some(String::from(&self.state.device_session_id)),
+                    );
+                // </pca>
             }
         }
         Ok(())

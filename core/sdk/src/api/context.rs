@@ -26,8 +26,9 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::device::device_request::{
-    AccountToken, InternetConnectionStatus, SystemPowerState, TimeZone,
+use super::{
+    device::device_request::{AccountToken, InternetConnectionStatus, SystemPowerState, TimeZone},
+    firebolt::fb_metrics::MetricsContext,
 };
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -62,6 +63,7 @@ pub struct RippleContext {
     pub update_type: Option<RippleContextUpdateType>,
     // <pca>
     pub features: Vec<String>,
+    pub metrics_context: MetricsContext,
     // </pca>
 }
 
@@ -74,6 +76,7 @@ pub enum RippleContextUpdateType {
     TimeZoneChanged,
     // <pca>
     FeaturesChanged,
+    MetricsContextChanged,
     // </pca>
 }
 
@@ -112,6 +115,10 @@ impl RippleContext {
                     }
                 }
                 self.update_type = Some(RippleContextUpdateType::FeaturesChanged)
+            }
+            RippleContextUpdateRequest::MetricsContext(context) => {
+                self.metrics_context = context;
+                self.update_type = Some(RippleContextUpdateType::MetricsContextChanged)
             } // </pca>
         }
     }
@@ -122,6 +129,7 @@ impl RippleContext {
         self.time_zone = context.time_zone;
         // <pca>
         self.features = context.features;
+        self.metrics_context = context.metrics_context;
         // </pca>
     }
 
@@ -158,6 +166,7 @@ impl Default for RippleContext {
             time_zone: TimeZone::default(),
             // <pca>
             features: Vec::new(),
+            metrics_context: MetricsContext::default(),
             // </pca>
         }
     }
@@ -190,6 +199,7 @@ pub enum RippleContextUpdateRequest {
     TimeZone(TimeZone),
     // <pca>
     Features(Vec<String>),
+    MetricsContext(MetricsContext),
     // </pca>
 }
 
@@ -245,7 +255,8 @@ mod tests {
             },
             update_type: None,
             // <pca>
-            features: HashMap::default(),
+            features: Vec::default(),
+            metrics_context: MetricsContext::default(),
             // </pca>
         };
 

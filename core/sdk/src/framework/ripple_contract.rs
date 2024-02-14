@@ -114,6 +114,10 @@ pub enum RippleContract {
     Metrics,
     /// Contract for Extensions to recieve Telemetry events from Main
     OperationalMetricListener,
+    // <pca>
+    Observability,
+    TelemetryEventsListener,
+    // </pca>
     Storage(StorageAdjective),
     /// Provided by the distributor could be a device extension or a cloud extension.
     /// Distributor gets the ability to configure and customize the generation of
@@ -124,10 +128,6 @@ pub enum RippleContract {
     Apps,
     // Runtime ability for a given distributor to turn off a certian feature
     RemoteFeatureControl,
-    // <pca>
-    Observability,
-    TelemetryEventsListener,
-    // </pca>
 }
 
 pub trait ContractAdjective: serde::ser::Serialize {

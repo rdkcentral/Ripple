@@ -27,6 +27,7 @@ use ripple_sdk::{
             rpc_error::RpcError,
             rpc_gateway_api::{ApiMessage, ApiProtocol, RpcRequest},
         },
+        observability::metrics_util::start_firebolt_metrics_timer,
     },
     extn::extn_client_message::ExtnMessage,
     log::{error, info},
@@ -173,20 +174,27 @@ impl FireboltGateway {
         //         .device_session_id,
         //     Some(tags),
         // );
-        let tags = get_metrics_tags(
+
+        // let tags = get_metrics_tags(
+        //     &platform_state.get_client().get_extn_client(),
+        //     &platform_state.metrics.get_context(),
+        //     InteractionType::Firebolt,
+        //     Some(request_c.ctx.app_id.clone()),
+        // );
+        // let mut timer = ripple_sdk::api::firebolt::fb_metrics::Timer::start(
+        //     request_c.method.clone(),
+        //     platform_state
+        //         .clone()
+        //         .metrics
+        //         .get_context()
+        //         .device_session_id,
+        //     Some(tags),
+        // );
+        let metrics_timer = start_firebolt_metrics_timer(
             &platform_state.get_client().get_extn_client(),
             &platform_state.metrics.get_context(),
-            InteractionType::Firebolt,
-            Some(request_c.ctx.app_id.clone()),
-        );
-        let mut timer = ripple_sdk::api::firebolt::fb_metrics::Timer::start(
             request_c.method.clone(),
-            platform_state
-                .clone()
-                .metrics
-                .get_context()
-                .device_session_id,
-            Some(tags),
+            request_c.ctx.app_id.clone(),
         );
         // </pca>
 
@@ -213,7 +221,7 @@ impl FireboltGateway {
                                 )
                                 .await;
                                 // <pca>
-                                platform_state.get_client().send_extn_request( ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest::Timer(timer)).await.ok();
+                                platform_state.get_client().send_extn_request( ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest::Timer(metrics_timer)).await.ok();
                                 result
                                 // </pca>
                             } else {
@@ -229,7 +237,8 @@ impl FireboltGateway {
                                 // if the websocket disconnects before the session is recieved this leads to an error
                                 // <pca>
                                 //RpcRouter::route(platform_state, request_c, session).await;
-                                RpcRouter::route(platform_state, request_c, session, timer).await;
+                                RpcRouter::route(platform_state, request_c, session, metrics_timer)
+                                    .await;
                                 // </pca>
                             } else {
                                 error!("session is missing request is not forwarded");
@@ -239,7 +248,7 @@ impl FireboltGateway {
                 }
                 Err(e) => {
                     // <pca>
-                    timer.stop();
+                    metrics_timer.stop();
                     // </pca>
                     let deny_reason = e.reason;
                     // return error for Api message
@@ -266,8 +275,8 @@ impl FireboltGateway {
                         None => "Unknown".into(),
                     };
 
-                    timer.insert_tag(Tag::Status.key(), code);
-                    TelemetryBuilder::send_firebolt_metrics_timer(&platform_state, timer);
+                    metrics_timer.insert_tag(Tag::Status.key(), code);
+                    TelemetryBuilder::send_firebolt_metrics_timer(&platform_state, metrics_timer);
                     // </pca>
 
                     let api_msg = ApiMessage::new(

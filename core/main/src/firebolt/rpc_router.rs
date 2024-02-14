@@ -145,6 +145,7 @@ impl RpcRouter {
             let session_id = req.ctx.session_id.clone();
             let start = Utc::now().timestamp_millis();
             let resp = resolve_route(methods, resources, req.clone()).await;
+            // <pca> YAH: Convert this to use new stop_and_send... </pca>
             // <pca>
             timer.stop();
             // </pca>

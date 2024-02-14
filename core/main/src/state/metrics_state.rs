@@ -23,6 +23,7 @@ use std::{
 use jsonrpsee::tracing::debug;
 use ripple_sdk::{
     api::{
+        context::RippleContextUpdateRequest,
         device::device_info_request::{DeviceInfoRequest, DeviceResponse},
         distributor::distributor_privacy::PrivacySettingsData,
         firebolt::{fb_metrics::MetricsContext, fb_openrpc::FireboltSemanticVersion},
@@ -30,6 +31,7 @@ use ripple_sdk::{
     },
     chrono::{DateTime, Utc},
     extn::extn_client_message::ExtnResponse,
+    log::error,
 };
 
 use crate::processor::storage::storage_manager::StorageManager;
@@ -47,6 +49,22 @@ pub struct MetricsState {
 }
 
 impl MetricsState {
+    // <pca>
+    fn send_context_update_request(platform_state: &PlatformState) {
+        let mut extn_client = platform_state.get_client().get_extn_client().clone();
+        let metrics_context = platform_state.metrics.context.read().unwrap().clone();
+
+        if let Err(e) = extn_client
+            .request_transient(RippleContextUpdateRequest::MetricsContext(metrics_context))
+        {
+            error!(
+                "Error sending context update: RippleContextUpdateRequest::MetricsContext: {:?}",
+                e
+            );
+        }
+    }
+    // </pca>
+
     pub fn get_context(&self) -> MetricsContext {
         self.context.read().unwrap().clone()
     }
@@ -160,7 +178,13 @@ impl MetricsState {
                 context.device_timezone = t;
             }
         }
-        Self::update_account_session(state).await
+        {
+            Self::update_account_session(state).await;
+        }
+
+        // <pca>
+        Self::send_context_update_request(&state);
+        // </pca>
     }
 
     async fn get_os_ver_from_firebolt(platform_state: &PlatformState) -> String {
@@ -184,17 +208,22 @@ impl MetricsState {
     }
 
     pub async fn update_account_session(state: &PlatformState) {
-        let mut context = state.metrics.context.write().unwrap();
-        let account_session = state.session_state.get_account_session();
-        if let Some(session) = account_session {
-            context.account_id = session.account_id;
-            context.device_id = session.device_id;
-            context.distribution_tenant_id = session.id;
-        } else {
-            context.account_id = "no.account.set".to_string();
-            context.device_id = "no.device_id.set".to_string();
-            context.distribution_tenant_id = "no.distribution_tenant_id.set".to_string();
+        {
+            let mut context = state.metrics.context.write().unwrap();
+            let account_session = state.session_state.get_account_session();
+            if let Some(session) = account_session {
+                context.account_id = session.account_id;
+                context.device_id = session.device_id;
+                context.distribution_tenant_id = session.id;
+            } else {
+                context.account_id = "no.account.set".to_string();
+                context.device_id = "no.device_id.set".to_string();
+                context.distribution_tenant_id = "no.distribution_tenant_id.set".to_string();
+            }
         }
+        // <pca>
+        Self::send_context_update_request(&state);
+        // </pca>
     }
 
     pub fn operational_telemetry_listener(&self, target: &str, listen: bool) {
@@ -215,9 +244,19 @@ impl MetricsState {
             .collect()
     }
 
-    pub fn update_session_id(&self, value: Option<String>) {
+    // <pca>
+    // pub fn update_session_id(&self, value: Option<String>) {
+    //     let value = value.unwrap_or_default();
+    //     let mut context = self.context.write().unwrap();
+    //     context.device_session_id = value;
+    // }
+    pub fn update_session_id(&self, platform_state: PlatformState, value: Option<String>) {
         let value = value.unwrap_or_default();
-        let mut context = self.context.write().unwrap();
-        context.device_session_id = value;
+        {
+            let mut context = self.context.write().unwrap();
+            context.device_session_id = value;
+        }
+        Self::send_context_update_request(&platform_state);
     }
+    // </pca>
 }

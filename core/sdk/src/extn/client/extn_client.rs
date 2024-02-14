@@ -33,6 +33,7 @@ use crate::{
     api::{
         context::{ActivationStatus, RippleContext, RippleContextUpdateRequest},
         device::device_request::{InternetConnectionStatus, TimeZone},
+        firebolt::fb_metrics::MetricsContext,
         manifest::extn_manifest::ExtnSymbol,
     },
     extn::{
@@ -654,6 +655,11 @@ impl ExtnClient {
     pub fn get_features(&self) -> Vec<String> {
         let ripple_context = self.ripple_context.read().unwrap();
         ripple_context.features.clone()
+    }
+
+    pub fn get_metrics_context(&self) -> MetricsContext {
+        let ripple_context = self.ripple_context.read().unwrap();
+        ripple_context.metrics_context.clone()
     }
     // </pca>
 }

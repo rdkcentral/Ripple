@@ -59,30 +59,35 @@ impl SetupThunderProcessor {
         ));
         extn_client.add_request_processor(ThunderOpenEventsProcessor::new(state.clone().state));
 
-        // <pca>
-        let metrics_context = if let Ok(resp) = extn_client.request(Config::MetricsContext).await {
-            if let Some(ExtnResponse::Value(value)) = resp.payload.extract() {
-                if let Ok(context) = serde_json::from_value::<MetricsContext>(value) {
-                    context
-                } else {
-                    error!("setup: Unable to deserialize metrics context");
-                    MetricsContext::default()
-                }
-            } else {
-                error!("setup: Unable to extract metrics context");
-                MetricsContext::default()
-            }
-        } else {
-            error!("setup: Unable to retrieve metrics context");
-            MetricsContext::default()
-        };
+        // <pca> added
+        // let metrics_context = if let Ok(resp) = extn_client.request(Config::MetricsContext).await {
+        //     if let Some(ExtnResponse::Value(value)) = resp.payload.extract() {
+        //         if let Ok(context) = serde_json::from_value::<MetricsContext>(value) {
+        //             context
+        //         } else {
+        //             error!("setup: Unable to deserialize metrics context");
+        //             MetricsContext::default()
+        //         }
+        //     } else {
+        //         error!("setup: Unable to extract metrics context");
+        //         MetricsContext::default()
+        //     }
+        // } else {
+        //     error!("setup: Unable to retrieve metrics context");
+        //     MetricsContext::default()
+        // };
+
+        // println!(
+        //     "*** _DEBUG: SetupThunderProcessor::setup: metrics_context={:?}",
+        //     metrics_context
+        // );
         // </pca>
 
         // <pca>
-        // let package_manager_processor =
-        //     ThunderPackageManagerRequestProcessor::new(state.clone().state);
         let package_manager_processor =
-            ThunderPackageManagerRequestProcessor::new(state.clone().state, metrics_context);
+            ThunderPackageManagerRequestProcessor::new(state.clone().state);
+        // let package_manager_processor =
+        //     ThunderPackageManagerRequestProcessor::new(state.clone().state, metrics_context);
         // </pca>
         package_manager_processor.init(state.state.clone()).await;
         extn_client.add_request_processor(package_manager_processor);
