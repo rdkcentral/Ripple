@@ -561,10 +561,7 @@ impl ExtnClient {
                     }
                 }
             }
-            // <pca>
-            //Ok(Err(_)) => error!("Invalid message"),
             Ok(Err(e)) => error!("Invalid message: e={:?}", e),
-            // </pca>
             Err(_) => {
                 error!("Channel disconnected");
             }
@@ -651,7 +648,6 @@ impl ExtnClient {
         Some(ripple_context.time_zone.clone())
     }
 
-    // <pca>
     pub fn get_features(&self) -> Vec<String> {
         let ripple_context = self.ripple_context.read().unwrap();
         ripple_context.features.clone()
@@ -661,5 +657,4 @@ impl ExtnClient {
         let ripple_context = self.ripple_context.read().unwrap();
         ripple_context.metrics_context.clone()
     }
-    // </pca>
 }

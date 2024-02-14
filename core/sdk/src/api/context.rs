@@ -61,10 +61,8 @@ pub struct RippleContext {
     pub system_power_state: SystemPowerState,
     pub time_zone: TimeZone,
     pub update_type: Option<RippleContextUpdateType>,
-    // <pca>
     pub features: Vec<String>,
     pub metrics_context: MetricsContext,
-    // </pca>
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -74,10 +72,8 @@ pub enum RippleContextUpdateType {
     InternetConnectionChanged,
     PowerStateChanged,
     TimeZoneChanged,
-    // <pca>
     FeaturesChanged,
     MetricsContextChanged,
-    // </pca>
 }
 
 impl RippleContext {
@@ -107,7 +103,6 @@ impl RippleContext {
                 self.time_zone = tz;
                 self.update_type = Some(RippleContextUpdateType::TimeZoneChanged)
             }
-            // <pca>
             RippleContextUpdateRequest::Features(features) => {
                 for feature in features {
                     if !self.features.contains(&feature) {
@@ -119,7 +114,7 @@ impl RippleContext {
             RippleContextUpdateRequest::MetricsContext(context) => {
                 self.metrics_context = context;
                 self.update_type = Some(RippleContextUpdateType::MetricsContextChanged)
-            } // </pca>
+            }
         }
     }
 
@@ -127,10 +122,8 @@ impl RippleContext {
         self.activation_status = context.activation_status;
         self.internet_connectivity = context.internet_connectivity;
         self.time_zone = context.time_zone;
-        // <pca>
         self.features = context.features;
         self.metrics_context = context.metrics_context;
-        // </pca>
     }
 
     pub fn get_event_message(&self) -> ExtnMessage {
@@ -164,10 +157,8 @@ impl Default for RippleContext {
             update_type: None,
             system_power_state: SystemPowerState::default(),
             time_zone: TimeZone::default(),
-            // <pca>
             features: Vec::new(),
             metrics_context: MetricsContext::default(),
-            // </pca>
         }
     }
 }
@@ -197,10 +188,8 @@ pub enum RippleContextUpdateRequest {
     InternetStatus(InternetConnectionStatus),
     PowerState(SystemPowerState),
     TimeZone(TimeZone),
-    // <pca>
     Features(Vec<String>),
     MetricsContext(MetricsContext),
-    // </pca>
 }
 
 impl RippleContextUpdateRequest {
@@ -254,10 +243,8 @@ mod tests {
                 offset: -28800,
             },
             update_type: None,
-            // <pca>
             features: Vec::default(),
             metrics_context: MetricsContext::default(),
-            // </pca>
         };
 
         let contract_type: RippleContract = RippleContract::RippleContext;

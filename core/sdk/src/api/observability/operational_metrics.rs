@@ -37,7 +37,7 @@ mod tests {
     #[test]
     fn test_extn_request_operational_metric() {
         let operational_metric_request = OperationalMetricRequest::Subscribe;
-        let contract_type: RippleContract = RippleContract::OperationalMetricListener;
+        let contract_type: RippleContract = RippleContract::Observability;
         test_extn_payload_provider(operational_metric_request, contract_type);
     }
 
@@ -52,7 +52,7 @@ mod tests {
             ripple_context: Some("context_data".to_string()),
         };
         let telemetry_payload = TelemetryPayload::AppLoadStart(app_load_start_payload);
-        let contract_type: RippleContract = RippleContract::OperationalMetricListener;
+        let contract_type: RippleContract = RippleContract::TelemetryEventsListener;
         test_extn_payload_provider(telemetry_payload, contract_type);
     }
 }

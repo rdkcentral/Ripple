@@ -133,47 +133,6 @@ async fn resolve_route(
 }
 
 impl RpcRouter {
-    // <pca>
-    // pub async fn route(state: PlatformState, req: RpcRequest, session: Session) {
-    //     let methods = state.router_state.get_methods();
-    //     let resources = state.router_state.resources.clone();
-    //     tokio::spawn(async move {
-    //         let method = req.method.clone();
-    //         let app_id = req.ctx.app_id.clone();
-    //         let session_id = req.ctx.session_id.clone();
-    //         let start = Utc::now().timestamp_millis();
-    //         let resp = resolve_route(methods, resources, req.clone()).await;
-    //         if let Ok(msg) = resp {
-    //             let now = Utc::now().timestamp_millis();
-    //             let success = !msg.is_error();
-    //             info!(
-    //                 "Sending Firebolt response to app_id={} method={} fbtt={} {} {}",
-    //                 app_id,
-    //                 method,
-    //                 now - start,
-    //                 session_id,
-    //                 match method.contains("authentication") {
-    //                     true => "<auth response hidden>",
-    //                     false => &msg.jsonrpc_msg,
-    //                 }
-    //             );
-    //             TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start, success);
-    //
-    //             match session.get_transport() {
-    //                 EffectiveTransport::Websocket => {
-    //                     if let Err(e) = session.send_json_rpc(msg).await {
-    //                         error!("Error while responding back message {:?}", e)
-    //                     }
-    //                 }
-    //                 EffectiveTransport::Bridge(container_id) => {
-    //                     if let Err(e) = state.send_to_bridge(container_id, msg).await {
-    //                         error!("Error sending event to bridge {:?}", e);
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     });
-    // }
     pub async fn route(
         state: PlatformState,
         req: RpcRequest,
@@ -235,7 +194,6 @@ impl RpcRouter {
             }
         });
     }
-    // </pca>
 
     pub async fn route_extn_protocol(
         state: &PlatformState,

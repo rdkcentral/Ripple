@@ -394,7 +394,6 @@ impl BehavioralMetricPayload {
     }
 }
 
-// <pca>
 /*
 Operational Metrics. These are metrics that are not directly related to the user's behavior. They are
 more related to the operation of the platform itself. These metrics are not sent to the BI system, and
@@ -560,21 +559,6 @@ impl From<Timer> for OperationalMetricRequest {
     }
 }
 
-// pub fn fb_api_timer(method_name: String, tags: Option<HashMap<String, String>>) -> Timer {
-//     let timer_tags = match tags {
-//         Some(mut tags) => {
-//             tags.insert("method_name".to_string(), method_name);
-//             tags
-//         }
-//         None => {
-//             let mut the_map = HashMap::new();
-//             the_map.insert("method_name".to_string(), method_name);
-//             the_map
-//         }
-//     };
-
-//     Timer::start(FIREBOLT_RPC_NAME.to_string(), Some(timer_tags))
-// }
 pub fn fb_api_counter(method_name: String, tags: Option<HashMap<String, String>>) -> Counter {
     let counter_tags = match tags {
         Some(mut tags) => {
@@ -598,7 +582,6 @@ pub enum OperationalMetricPayload {
     Timer(Timer),
     Counter(Counter),
 }
-// </pca>
 
 /// all the things that are provided by platform that need to
 /// be updated, and eventually in/outjected into/out of a payload
@@ -608,9 +591,7 @@ pub enum OperationalMetricPayload {
 /// This design assumes that all of the items will be available at the same times
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct MetricsContext {
-    // <pca>
     pub enabled: bool,
-    // </pca>
     pub device_language: String,
     pub device_model: String,
     pub device_id: String,
@@ -624,17 +605,13 @@ pub struct MetricsContext {
     pub device_session_id: String,
     pub mac_address: String,
     pub serial_number: String,
-    // <pca>
     pub firmware: String,
     pub ripple_version: String,
-    // </pca>
 }
 
 #[allow(non_camel_case_types)]
 pub enum MetricsContextField {
-    // <pca>
     enabled,
-    // </pca>
     device_language,
     device_model,
     device_id,
@@ -648,17 +625,13 @@ pub enum MetricsContextField {
     session_id,
     mac_address,
     serial_number,
-    // <pca>
     firmware,
     ripple_version,
-    // </pca>
 }
 impl MetricsContext {
     pub fn new() -> MetricsContext {
         MetricsContext {
-            // <pca>
             enabled: false,
-            // </pca>
             device_language: String::from(""),
             device_model: String::from(""),
             device_id: String::from(""),
@@ -672,17 +645,13 @@ impl MetricsContext {
             os_ver: String::from(""),
             device_session_id: String::from(""),
             distribution_tenant_id: String::from(""),
-            // <pca>
             firmware: String::from(""),
             ripple_version: String::from(""),
-            // </pca>
         }
     }
     pub fn set(&mut self, field: MetricsContextField, value: String) {
         match field {
-            // <pca>
             MetricsContextField::enabled => self.enabled = value.parse().unwrap_or(false),
-            // </pca>
             MetricsContextField::device_language => self.device_language = value,
             MetricsContextField::device_model => self.device_model = value,
             MetricsContextField::device_id => self.device_id = value,
@@ -698,10 +667,8 @@ impl MetricsContext {
             MetricsContextField::mac_address => self.mac_address = value,
             MetricsContextField::serial_number => self.serial_number = value,
             MetricsContextField::device_name => self.device_name = value,
-            // <pca>
             MetricsContextField::firmware => self.firmware = value,
             MetricsContextField::ripple_version => self.ripple_version = value,
-            // </pca>
         };
     }
 }
@@ -774,11 +741,8 @@ impl ExtnPayloadProvider for MetricsResponse {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum MetricsPayload {
     BehaviorMetric(BehavioralMetricPayload, CallContext),
-    // <pca>
-    //OperationalMetric(TelemetryPayload),
     TelemetryPayload(TelemetryPayload),
     OperationalMetric(OperationalMetricPayload),
-    //</pca>
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -828,7 +792,6 @@ pub struct SystemErrorParams {
     pub context: Option<String>,
 }
 
-// <pca>
 pub const SERVICE_METRICS_SEND_REQUEST_TIMEOUT_MS: u64 = 2000;
 
 pub enum InteractionType {
@@ -904,7 +867,6 @@ pub fn get_metrics_tags(
 
     tags
 }
-// </pca>
 
 #[cfg(test)]
 mod tests {
@@ -927,7 +889,6 @@ mod tests {
         assert!(InternalInitializeParams::deserialize(value).is_err());
     }
 
-    // <pca>
     #[test]
     pub fn test_counter() {
         let mut counter = super::Counter::new("test".to_string(), 0, None);
@@ -991,9 +952,7 @@ mod tests {
 
         let behavioral_metric_request = BehavioralMetricRequest {
             context: Some(MetricsContext {
-                // <pca>
                 enabled: true,
-                // </pca>
                 device_language: "en".to_string(),
                 device_model: "iPhone".to_string(),
                 device_id: "test_device_id".to_string(),
@@ -1007,10 +966,8 @@ mod tests {
                 device_session_id: "test_device_session_id".to_string(),
                 mac_address: "test_mac_address".to_string(),
                 serial_number: "test_serial_number".to_string(),
-                // <pca>
                 firmware: "test_firmware".to_string(),
                 ripple_version: "test_ripple_version".to_string(),
-                // </pca>
             }),
             payload: BehavioralMetricPayload::Ready(ready_payload),
             session: AccountSession {

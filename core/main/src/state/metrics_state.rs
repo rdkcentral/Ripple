@@ -51,7 +51,6 @@ pub struct MetricsState {
 }
 
 impl MetricsState {
-    // <pca>
     fn send_context_update_request(platform_state: &PlatformState) {
         let mut extn_client = platform_state.get_client().get_extn_client().clone();
         let metrics_context = platform_state.metrics.context.read().unwrap().clone();
@@ -65,7 +64,6 @@ impl MetricsState {
             );
         }
     }
-    // </pca>
 
     pub fn get_context(&self) -> MetricsContext {
         self.context.read().unwrap().clone()
@@ -78,7 +76,6 @@ impl MetricsState {
         *cache = value.clone();
     }
     pub async fn initialize(state: &PlatformState) {
-        // <pca>
         let metrics_percentage = state
             .get_device_manifest()
             .configuration
@@ -91,7 +88,6 @@ impl MetricsState {
             "initialize: metrics_percentage={}, random_number={}, enabled={}",
             metrics_percentage, random_number, metrics_enabled
         );
-        // </pca>
 
         let mut mac_address: Option<String> = None;
         if let Ok(resp) = state
@@ -150,7 +146,6 @@ impl MetricsState {
             }
         }
 
-        // <pca>
         let firmware = match state
             .get_client()
             .send_extn_request(DeviceInfoRequest::PlatformBuildInfo)
@@ -165,15 +160,12 @@ impl MetricsState {
             }
             Err(_) => String::default(),
         };
-        // </pca>
 
         {
             // Time to set them
             let mut context = state.metrics.context.write().unwrap();
 
-            // <pca>
             context.enabled = metrics_enabled;
-            // </pca>
 
             if let Some(mac) = mac_address {
                 context.mac_address = mac;
@@ -191,10 +183,8 @@ impl MetricsState {
             context.os_ver = os_ver;
             context.device_name = device_name;
             context.device_session_id = String::from(&state.device_session_id);
-            // <pca>
             context.firmware = firmware;
             context.ripple_version = SEMVER.into();
-            // </pca>
 
             if let Some(t) = timezone {
                 context.device_timezone = t;
@@ -204,9 +194,7 @@ impl MetricsState {
             Self::update_account_session(state).await;
         }
 
-        // <pca>
         Self::send_context_update_request(&state);
-        // </pca>
     }
 
     async fn get_os_ver_from_firebolt(platform_state: &PlatformState) -> String {
@@ -243,9 +231,7 @@ impl MetricsState {
                 context.distribution_tenant_id = "no.distribution_tenant_id.set".to_string();
             }
         }
-        // <pca>
         Self::send_context_update_request(&state);
-        // </pca>
     }
 
     pub fn operational_telemetry_listener(&self, target: &str, listen: bool) {
@@ -266,12 +252,6 @@ impl MetricsState {
             .collect()
     }
 
-    // <pca>
-    // pub fn update_session_id(&self, value: Option<String>) {
-    //     let value = value.unwrap_or_default();
-    //     let mut context = self.context.write().unwrap();
-    //     context.device_session_id = value;
-    // }
     pub fn update_session_id(&self, platform_state: PlatformState, value: Option<String>) {
         let value = value.unwrap_or_default();
         {
@@ -280,5 +260,4 @@ impl MetricsState {
         }
         Self::send_context_update_request(&platform_state);
     }
-    // </pca>
 }

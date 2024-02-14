@@ -71,9 +71,7 @@ pub mod firebolt {
     pub mod provider;
 }
 
-// <pca>
 pub mod observability {
     pub mod metrics_util;
     pub mod operational_metrics;
 }
-// </pca>

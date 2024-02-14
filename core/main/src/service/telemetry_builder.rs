@@ -204,7 +204,6 @@ impl TelemetryBuilder {
         }
     }
 
-    // <pca>
     pub fn start_firebolt_metrics_timer(
         extn_client: &ExtnClient,
         name: String,
@@ -244,5 +243,4 @@ impl TelemetryBuilder {
             }
         }
     }
-    // </pca>
 }

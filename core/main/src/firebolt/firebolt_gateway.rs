@@ -159,67 +159,31 @@ impl FireboltGateway {
         let mut request_c = request.clone();
         request_c.method = FireboltOpenRpcMethod::name_with_lowercase_module(&request.method);
 
-        // <pca>
-        // let tags = TelemetryBuilder::get_tags(&platform_state, &request_c);
-        // let mut timer = ripple_sdk::api::firebolt::fb_metrics::Timer::start(
-        //     request_c.method.clone(),
-        //     platform_state
-        //         .clone()
-        //         .metrics
-        //         .get_context()
-        //         .device_session_id,
-        //     Some(tags),
-        // );
-
-        // let tags = get_metrics_tags(
-        //     &platform_state.get_client().get_extn_client(),
-        //     &platform_state.metrics.get_context(),
-        //     InteractionType::Firebolt,
-        //     Some(request_c.ctx.app_id.clone()),
-        // );
-        // let mut timer = ripple_sdk::api::firebolt::fb_metrics::Timer::start(
-        //     request_c.method.clone(),
-        //     platform_state
-        //         .clone()
-        //         .metrics
-        //         .get_context()
-        //         .device_session_id,
-        //     Some(tags),
-        // );
         let metrics_timer = TelemetryBuilder::start_firebolt_metrics_timer(
             &platform_state.get_client().get_extn_client(),
             request_c.method.clone(),
             request_c.ctx.app_id.clone(),
         );
-        // </pca>
 
         tokio::spawn(async move {
-            // <pca>
-            //match FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await {
             let result = FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await;
 
             match result {
-                // </pca>
                 Ok(_) => {
                     // Route
                     match request.clone().ctx.protocol {
                         ApiProtocol::Extn => {
                             if let Some(extn_msg) = extn_msg {
-                                // <pca>
-                                //RpcRouter::route_extn_protocol(
                                 let result = RpcRouter::route_extn_protocol(
-                                    // </pca>
                                     &platform_state,
                                     request.clone(),
                                     extn_msg,
                                 )
                                 .await;
-                                // <pca>
                                 if let Some(timer) = metrics_timer {
                                     platform_state.get_client().send_extn_request( ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest::Timer(timer)).await.ok();
                                 }
                                 result
-                                // </pca>
                             } else {
                                 error!("missing invalid message not forwarding");
                             }
@@ -231,11 +195,8 @@ impl FireboltGateway {
                                 .get_session(&request_c.ctx)
                             {
                                 // if the websocket disconnects before the session is recieved this leads to an error
-                                // <pca>
-                                //RpcRouter::route(platform_state, request_c, session).await;
                                 RpcRouter::route(platform_state, request_c, session, metrics_timer)
                                     .await;
-                                // </pca>
                             } else {
                                 error!("session is missing request is not forwarded");
                             }
@@ -245,13 +206,11 @@ impl FireboltGateway {
                 Err(e) => {
                     let deny_reason = e.reason;
 
-                    // <pca>
                     TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
                         &platform_state,
                         metrics_timer,
                         format!("{}", deny_reason.get_rpc_error_code()),
                     );
-                    // </pca>
 
                     error!(
                         "Failed gateway present error {:?} {:?}",
