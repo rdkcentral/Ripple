@@ -1204,8 +1204,9 @@ pub mod tests {
         extn_client.context_update(request);
         let ripple_context = extn_client.ripple_context.read().unwrap();
 
-        assert_eq!(ripple_context.time_zone.time_zone, test_string);
-        assert_eq!(ripple_context.time_zone.offset, 1);
+        assert!(
+            matches!(&ripple_context.time_zone, Some(time_zone) if time_zone.time_zone == test_string && time_zone.offset == 1)
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -1800,10 +1801,10 @@ pub mod tests {
         // Set activation status to AccountToken
         {
             let mut ripple_context = extn_client.ripple_context.write().unwrap();
-            ripple_context.activation_status = ActivationStatus::AccountToken(AccountToken {
+            ripple_context.activation_status = Some(ActivationStatus::AccountToken(AccountToken {
                 token: "some_token".to_string(),
                 expires: 123,
-            });
+            }));
         }
 
         // Check if has_token returns true
@@ -1813,7 +1814,7 @@ pub mod tests {
         // Reset activation status to None
         {
             let mut ripple_context = extn_client.ripple_context.write().unwrap();
-            ripple_context.activation_status = ActivationStatus::NotActivated;
+            ripple_context.activation_status = None;
         }
 
         // Check if has_token returns false after resetting activation status
@@ -1828,34 +1829,31 @@ pub mod tests {
         // Set activation status to AccountToken
         {
             let mut ripple_context = extn_client.ripple_context.write().unwrap();
-            ripple_context.activation_status = ActivationStatus::AccountToken(AccountToken {
+            ripple_context.activation_status = Some(ActivationStatus::AccountToken(AccountToken {
                 token: "some_token".to_string(),
                 expires: 123,
-            });
+            }));
         }
 
         // Check if get_activation_status returns AccountToken
         let activation_status = extn_client.get_activation_status();
         assert_eq!(
             activation_status,
-            ActivationStatus::AccountToken(AccountToken {
+            Some(ActivationStatus::AccountToken(AccountToken {
                 token: "some_token".to_string(),
                 expires: 123,
-            })
+            }))
         );
 
         // Reset activation status to None
         {
             let mut ripple_context = extn_client.ripple_context.write().unwrap();
-            ripple_context.activation_status = ActivationStatus::NotActivated;
+            ripple_context.activation_status = None;
         }
 
         // Check if get_activation_status returns None after resetting activation status
         let activation_status_after_reset = extn_client.get_activation_status();
-        assert_eq!(
-            activation_status_after_reset,
-            ActivationStatus::NotActivated
-        );
+        assert_eq!(activation_status_after_reset, None);
     }
 
     #[rstest(
@@ -1873,7 +1871,7 @@ pub mod tests {
             .ripple_context
             .write()
             .unwrap()
-            .internet_connectivity = connectivity;
+            .internet_connectivity = Some(connectivity);
 
         let has_internet = extn_client.has_internet();
         assert_eq!(has_internet, expected_result);
@@ -1887,7 +1885,7 @@ pub mod tests {
             offset: -5,
         };
 
-        extn_client.ripple_context.write().unwrap().time_zone = test_timezone.clone();
+        extn_client.ripple_context.write().unwrap().time_zone = Some(test_timezone.clone());
         let result = extn_client.get_timezone();
         assert_eq!(result, Some(test_timezone));
     }
