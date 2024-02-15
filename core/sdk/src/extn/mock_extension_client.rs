@@ -12,6 +12,7 @@ use crate::{
     uuid::Uuid,
 };
 
+#[derive(Debug, Clone)]
 pub struct MockExtnClient {}
 
 impl MockExtnClient {

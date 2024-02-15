@@ -14,7 +14,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-
 [package]
 name = "ripple_sdk"
 version = "1.1.0"
@@ -22,7 +21,6 @@ edition = "2021"
 repository = "https://github.com/rdkcentral/Ripple"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [features]
 default = []
 rpc = []
@@ -57,3 +55,6 @@ async-channel = "=2.1.0"
 [dev-dependencies]
 ripple_sdk = { path = ".", features=["tdk"]}
 
+rstest = "0.18.0"
+async-std = { version = "1.5", features = ["attributes"] }
+testing_logger = "0.1.1"
