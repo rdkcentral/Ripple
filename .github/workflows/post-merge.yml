@@ -35,9 +35,9 @@ jobs:
               CURRENT_UPPER_THRESHOLD=$(echo "$CURRENT_COVERAGE+2" | bc)
               echo "CURRENT_LOWER_THRESHOLD=$CURRENT_LOWER_THRESHOLD" >> $GITHUB_ENV
               echo "CURRENT_UPPER_THRESHOLD=$CURRENT_UPPER_THRESHOLD" >> $GITHUB_ENV
-          - uses: actions/checkout@v3
+          - uses: actions/checkout@v4
             with:
-              branch: locked_actions_branch
+              ref: locked_actions_branch
           - name: read threshold file into environment variable
             run: |
               LOWER_COVERAGE_THRESHOLD=$(cat ./ci/coverage_threshold.txt |  cut -d ' ' -f1)
