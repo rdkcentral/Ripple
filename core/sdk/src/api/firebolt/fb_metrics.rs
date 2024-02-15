@@ -919,8 +919,7 @@ mod tests {
     }
     #[test]
     pub fn test_timer() {
-        let mut timer =
-            super::Timer::start("test".to_string(), "test_session_id".to_string(), None);
+        let mut timer = super::Timer::start("test".to_string(), None);
         std::thread::sleep(std::time::Duration::from_millis(101));
         timer.stop();
         assert_eq!(timer.elapsed().as_millis() > 100, true);
