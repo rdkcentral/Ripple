@@ -13,12 +13,17 @@ jobs:
         name: Generate Code Coverage
         runs-on: ubuntu-latest
         steps:
-          - uses: actions/checkout@v3
-          - uses: actions-rust-lang/setup-rust-toolchain@v1
           - name: read threshold file into environment variable
             run: |
+              git init
+              git clone https://github.com/rdkcentral/Ripple.git
+              cd Ripple
+              git fetch
+              git checkout locked_actions_branch
               LOWER_COVERAGE_THRESHOLD=$(cat ./ci/coverage_threshold.txt |  cut -d ' ' -f1)
               echo "LOWER_COVERAGE_THRESHOLD=$LOWER_COVERAGE_THRESHOLD" >> $GITHUB_ENV
+          - uses: actions/checkout@v3
+          - uses: actions-rust-lang/setup-rust-toolchain@v1
           - uses: taiki-e/install-action@cargo-llvm-cov
           - run:  cargo llvm-cov --cobertura --output-path coverage.cobertura.xml
           - uses: irongut/CodeCoverageSummary@v1.3.0
@@ -48,5 +53,5 @@ jobs:
               git config user.email "github-actions[bot]@users.noreply.github.com"            
               git add ./ci/coverage_threshold.txt
               git commit -m "chore: git bot update threshold"
-              git push
+              git push origin head:locked_actions_branch
             continue-on-error: true
