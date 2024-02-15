@@ -59,11 +59,12 @@ pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern
             let _v = LOG_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             #[cfg(not(feature = "sysd"))]
             return out.finish(format_args!(
-                "{}[{}][{}][{}]-{}",
+                "{}[{}][{}][{}][{}]-{}",
                 chrono::Local::now().format("%Y-%m-%d-%H:%M:%S.%3f"),
                 record.level(),
                 record.target(),
                 name,
+                _version_string,
                 message
             ));
             #[cfg(feature = "sysd")]

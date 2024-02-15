@@ -33,7 +33,7 @@ include!(concat!(env!("OUT_DIR"), "/version.rs"));
 #[tokio::main(worker_threads = 2)]
 async fn main() {
     // Init logger
-    if let Err(e) = init_and_configure_logger(SEMVER, "gateway".into()) {
+    if let Err(e) = init_and_configure_logger(SEMVER_LIGHTWEIGHT, "gateway".into()) {
         println!("{:?} logger init error", e);
         return;
     }
