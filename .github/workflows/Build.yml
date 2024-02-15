@@ -2,7 +2,7 @@ name: Build
 
 on:
   push:
-    branches: [ "main-ci-est" ]
+    branches: [ "main-ci-test" ]
   pull_request:
     branches: [ "main-ci-test", "1.2.0.rc" ]
 
