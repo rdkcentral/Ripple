@@ -47,15 +47,15 @@ jobs:
           - name: update threshold and push changes
             if: ${{ fromJSON(env.CURRENT_LOWER_THRESHOLD) > fromJSON(env.LOWER_COVERAGE_THRESHOLD) }}
             run: |
-              rm ./ci/coverage_threshold.txt
-              cp ./ci/coverage_threshold_temp.txt ./ci/coverage_threshold.txt
               git clone https://github.com/rdkcentral/Ripple.git
               cd Ripple
               git fetch
               git checkout locked_actions_branch
               git config user.name "github-actions[bot]"
               git config user.email "github-actions[bot]@users.noreply.github.com"
-              git add ../ci/coverage_threshold.txt
+              rm ./ci/coverage_threshold.txt
+              cp ../ci/coverage_threshold_temp.txt ./ci/coverage_threshold.txt
+              git add ./ci/coverage_threshold.txt
               git commit -m "chore: git bot update threshold"
               ls
               git push origin head:locked_actions_branch
