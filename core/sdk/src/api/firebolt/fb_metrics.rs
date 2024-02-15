@@ -76,8 +76,7 @@ pub struct InternalInitializeParams {
 
 #[derive(Deserialize, Debug, Clone, Serialize)]
 pub struct InternalInitializeResponse {
-    pub name: String,
-    pub value: SemanticVersion,
+    pub version: Version,
 }
 
 #[async_trait]

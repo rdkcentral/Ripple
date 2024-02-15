@@ -49,8 +49,6 @@ use crate::{
     utils::rpc_utils::rpc_err,
 };
 
-use ripple_sdk::api::firebolt::fb_metrics::SemanticVersion;
-
 //const LAUNCH_COMPLETED_SEGMENT: &'static str = "LAUNCH_COMPLETED";
 
 #[derive(Deserialize, Debug)]
@@ -426,10 +424,7 @@ impl MetricsServer for MetricsImpl {
             readable: readable_result,
         };
         Ok(InternalInitializeResponse {
-            name: String::from("Default Result"),
-            value: SemanticVersion {
-                version: internal_initialize_resp,
-            },
+            version: internal_initialize_resp,
         })
     }
     async fn media_load_start(
