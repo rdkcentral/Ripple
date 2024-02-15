@@ -72,6 +72,17 @@ pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern
                 message
             ));
             #[cfg(feature = "sysd")]
+            if v % 100 == 0 {
+                LOG_COUNTER.store(0, std::sync::atomic::Ordering::Relaxed);
+                return out.finish(format_args!(
+                "[{}][{}][{}][{}]-{}",
+                record.level(),
+                record.target(),
+                name,
+                version_string,
+                message
+            ));
+            } else 
             return out.finish(format_args!(
                 "[{}][{}][{}]-{}",
                 record.level(),
