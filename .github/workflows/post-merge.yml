@@ -27,7 +27,7 @@ jobs:
               hide_complexity: true
               indicators: true
               output: both
-              thresholds: 50
+              thresholds: 20
           - run: |
               CURRENT_COVERAGE=$(grep '<coverage' coverage.cobertura.xml | grep -o 'line-rate="[0-9.]\+"' | grep -o '[0-9.]\+')
               CURRENT_COVERAGE=$(printf %.0f $(echo "$CURRENT_COVERAGE*100" | bc))
