@@ -50,6 +50,7 @@ jobs:
     steps:
       - name: read threshold file into environment variable
         run: |
+          git init
           git clone https://github.com/rdkcentral/Ripple.git
           git checkout locked_actions_branch
           LOWER_COVERAGE_THRESHOLD=$(cat ./ci/coverage_threshold.txt |  cut -d ' ' -f1)
