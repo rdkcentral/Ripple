@@ -55,8 +55,8 @@ jobs:
               git config user.email "github-actions[bot]@users.noreply.github.com"
               rm ./ci/coverage_threshold.txt
               cp ../ci/coverage_threshold_temp.txt ./ci/coverage_threshold.txt
+              git init
               git add ./ci/coverage_threshold.txt
               git commit -m "chore: git bot update threshold"
-              git branch
               git push origin head:locked_actions_branch
             continue-on-error: true
