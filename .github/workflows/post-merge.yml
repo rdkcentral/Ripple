@@ -34,7 +34,7 @@ jobs:
               CURRENT_LOWER_THRESHOLD=$(echo "$CURRENT_COVERAGE-2" | bc)
               CURRENT_UPPER_THRESHOLD=$(echo "$CURRENT_COVERAGE+2" | bc)
               echo "CURRENT_LOWER_THRESHOLD=$CURRENT_LOWER_THRESHOLD" >> $GITHUB_ENV
-              echo "$CURRENT_LOWER_THRESHOLD $CURRENT_UPPER_THRESHOLD" > ./ci/coverage_threshold_temp.txt
+              echo "CURRENT_UPPER_THRESHOLD=$CURRENT_UPPER_THRESHOLD" >> $GITHUB_ENV
           - uses: actions/checkout@v3
             with:
               branch: locked_actions_branch
@@ -48,7 +48,8 @@ jobs:
               git config user.name "github-actions[bot]"
               git config user.email "github-actions[bot]@users.noreply.github.com"
               rm ./ci/coverage_threshold.txt
-              cp ./ci/coverage_threshold_temp.txt ./ci/coverage_threshold.txt
+              echo "${{ env.CURRENT_LOWER_THRESHOLD }}  ${{ env.CURRENT_UPPER_THRESHOLD }} " > ./ci/coverage_threshold.txt
+              cat ./ci/coverage_threshold.txt
               git add ./ci/coverage_threshold.txt
               git commit -m "chore: git bot update threshold"
           - name: push changes
