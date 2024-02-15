@@ -49,19 +49,14 @@ pub fn init_logger(name: String) -> Result<(), fern::InitError> {
     Ok(())
 }
 
-pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern::InitError> {
+pub fn init_and_configure_logger(_version: &str, name: String) -> Result<(), fern::InitError> {
     let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".into());
     println!("log level {}", log_string);
+    let _version_string = _version.to_string();
     let filter = log::LevelFilter::from_str(&log_string).unwrap_or(log::LevelFilter::Info);
-    let version_string = version.to_string();
     fern::Dispatch::new()
         .format(move |out, message, record| {
-            let v = LOG_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            if v % 100 == 0 {
-                println!("Ripple Version : {} ", version_string);
-                LOG_COUNTER.store(0, std::sync::atomic::Ordering::Relaxed);
-            }
-
+            let _v = LOG_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             #[cfg(not(feature = "sysd"))]
             return out.finish(format_args!(
                 "{}[{}][{}][{}]-{}",
@@ -72,13 +67,25 @@ pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern
                 message
             ));
             #[cfg(feature = "sysd")]
-            return out.finish(format_args!(
-                "[{}][{}][{}]-{}",
-                record.level(),
-                record.target(),
-                name,
-                message
-            ));
+            if _v % 100 == 0 {
+                LOG_COUNTER.store(0, std::sync::atomic::Ordering::Relaxed);
+                return out.finish(format_args!(
+                    "[{}][{}][{}][{}]-{}",
+                    record.level(),
+                    record.target(),
+                    name,
+                    _version_string,
+                    message
+                ));
+            } else {
+                return out.finish(format_args!(
+                    "[{}][{}][{}]-{}",
+                    record.level(),
+                    record.target(),
+                    name,
+                    message
+                ));
+            }
         })
         .level(filter)
         .chain(std::io::stdout())
