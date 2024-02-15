@@ -1579,7 +1579,7 @@ pub mod tests {
 
         let mut extn_client = ExtnClient::new(receiver, mock_sender);
         let (s, _receiver) = unbounded();
-        extn_client.clone().add_sender(
+        extn_client.add_sender(
             ExtnId::get_main_target("main".into()),
             ExtnSymbol {
                 id: "id".to_string(),
