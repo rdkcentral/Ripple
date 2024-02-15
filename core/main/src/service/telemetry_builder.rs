@@ -219,11 +219,7 @@ impl TelemetryBuilder {
 
         debug!("start_firebolt_metrics_timer: {}: {:?}", name, metrics_tags);
 
-        Some(Timer::start(
-            name,
-            metrics_context.device_session_id.clone(),
-            Some(metrics_tags),
-        ))
+        Some(Timer::start(name, Some(metrics_tags)))
     }
 
     pub fn stop_and_send_firebolt_metrics_timer(
@@ -235,12 +231,15 @@ impl TelemetryBuilder {
             timer.stop();
             timer.insert_tag(Tag::Status.key(), status);
             debug!("stop_and_send_firebolt_metrics_timer: {:?}", timer);
-            if let Err(e) = Self::send_telemetry(ps, TelemetryPayload::Timer(timer)) {
-                error!(
-                    "stop_and_send_firebolt_metrics_timer: send_telemetry={:?}",
-                    e
-                )
-            }
+            /*
+            bobra: do we need this here if
+            */
+            // if let Err(e) = Self::send_telemetry(ps, TelemetryPayload::Timer(timer)) {
+            //     error!(
+            //         "stop_and_send_firebolt_metrics_timer: send_telemetry={:?}",
+            //         e
+            //     )
+            // }
         }
     }
 }

@@ -20,11 +20,7 @@ pub fn start_service_metrics_timer(extn_client: &ExtnClient, name: String) -> Op
 
     debug!("start_service_metrics_timer: {}: {:?}", name, metrics_tags);
 
-    Some(Timer::start(
-        name,
-        metrics_context.device_session_id.clone(),
-        Some(metrics_tags),
-    ))
+    Some(Timer::start(name, Some(metrics_tags)))
 }
 
 pub async fn stop_and_send_service_metrics_timer(

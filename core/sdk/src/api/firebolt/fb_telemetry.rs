@@ -161,7 +161,6 @@ pub enum TelemetryPayload {
     SignOut(TelemetrySignOut),
     InternalInitialize(InternalInitialize),
     FireboltInteraction(FireboltInteraction), // External Service failures (service, error)
-    Timer(Timer),
 }
 
 impl TelemetryPayload {
@@ -176,7 +175,6 @@ impl TelemetryPayload {
             Self::SignOut(s) => s.ripple_session_id = session_id,
             Self::InternalInitialize(i) => i.ripple_session_id = session_id,
             Self::FireboltInteraction(f) => f.ripple_session_id = session_id,
-            Self::Timer(f) => f.ripple_session_id = session_id,
         }
     }
 }

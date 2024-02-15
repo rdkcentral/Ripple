@@ -467,7 +467,13 @@ impl Counter {
         OperationalMetricRequest::Counter(self.clone())
     }
 }
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub enum TimeUnit {
+    Nanos,
+    Millis,
+    Seconds,
+}
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Timer {
     pub name: String,
     #[serde(with = "serde_millis")]
@@ -475,36 +481,32 @@ pub struct Timer {
     #[serde(with = "serde_millis")]
     pub stop: Option<std::time::Instant>,
     pub tags: Option<HashMap<String, String>>,
-    pub ripple_session_id: String,
+    pub time_unit: TimeUnit,
 }
-
 impl Timer {
-    pub fn start(
+    pub fn start(name: String, tags: Option<HashMap<String, String>>) -> Timer {
+        Timer::new(name, std::time::Instant::now(), tags, TimeUnit::Millis)
+    }
+    pub fn start_with_time_unit(
         name: String,
-        ripple_session_id: String,
         tags: Option<HashMap<String, String>>,
+        time_unit: TimeUnit,
     ) -> Timer {
-        Timer {
-            name,
-            start: std::time::Instant::now(),
-            stop: None,
-            ripple_session_id,
-            tags,
-        }
+        Timer::new(name, std::time::Instant::now(), tags, time_unit)
     }
 
     pub fn new(
         name: String,
         start: std::time::Instant,
-        ripple_session_id: String,
         tags: Option<HashMap<String, String>>,
+        time_unit: TimeUnit,
     ) -> Timer {
         Timer {
             name: name,
             start: start,
             stop: None,
-            ripple_session_id,
-            tags,
+            tags: tags,
+            time_unit: time_unit,
         }
     }
 

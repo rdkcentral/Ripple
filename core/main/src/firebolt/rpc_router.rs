@@ -40,7 +40,10 @@ use ripple_sdk::{
     tokio::{self},
     utils::error::RippleError,
 };
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 
 use crate::{
     service::telemetry_builder::TelemetryBuilder,
@@ -146,6 +149,14 @@ impl RpcRouter {
             let method = req.method.clone();
             let app_id = req.ctx.app_id.clone();
             let session_id = req.ctx.session_id.clone();
+            let mut tags = HashMap::new();
+            tags.insert("app_id".to_string(), app_id.clone());
+
+            let mut timer = Timer::start_with_time_unit(
+                method.clone(),
+                Some(tags),
+                ripple_sdk::api::firebolt::fb_metrics::TimeUnit::Millis,
+            );
             let start = Utc::now().timestamp_millis();
             let resp = resolve_route(methods, resources, req.clone()).await;
 
@@ -159,8 +170,10 @@ impl RpcRouter {
                 }
                 Err(e) => format!("{}", e),
             };
+            timer.insert_tag("status".to_string(), status.clone());
+            timer.insert_tag("transport".to_string(), session.get_transport().to_string());
 
-            TelemetryBuilder::stop_and_send_firebolt_metrics_timer(&state, timer, status);
+            //TelemetryBuilder::stop_and_send_firebolt_metrics_timer(&state, timer, status);
 
             if let Ok(msg) = resp {
                 let now = Utc::now().timestamp_millis();
@@ -191,6 +204,31 @@ impl RpcRouter {
                         }
                     }
                 }
+                timer.stop();
+                info!("timer={:?}", timer.elapsed());
+                let _ = &state
+                    .get_client()
+                    .send_extn_request(
+                        ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest::Timer(
+                            timer.clone(),
+                        ),
+                    )
+                    .await;
+            } else {
+                timer.stop();
+                /*
+                invented error code -1000
+                */
+                timer.insert_tag("status".to_string(), "-1000".to_string());
+                info!("fail: timer={:?}", timer.elapsed());
+                let _ = &state
+                    .get_client()
+                    .send_extn_request(
+                        ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest::Timer(
+                            timer.clone(),
+                        ),
+                    )
+                    .await;
             }
         });
     }
