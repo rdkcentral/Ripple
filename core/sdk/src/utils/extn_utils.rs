@@ -24,6 +24,7 @@ const MIN_STACK_SIZE: usize = 512 * 1024;
 const MEDIUM_STACK_SIZE: usize = 1024 * 1024;
 const MAX_STACK_SIZE: usize = 2 * 1024 * 1024;
 
+#[derive(Clone, Debug, PartialEq)]
 pub enum ExtnStackSize {
     Min,
     Medium,
