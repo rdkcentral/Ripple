@@ -153,9 +153,6 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
                 }
                 resp
             }
-            Config::MetricsContext => ExtnResponse::Value(
-                serde_json::to_value(state.metrics.get_context()).unwrap_or_default(),
-            ),
             _ => ExtnResponse::Error(ripple_sdk::utils::error::RippleError::InvalidInput),
         };
         Self::respond(state.get_client().get_extn_client(), msg, response)
