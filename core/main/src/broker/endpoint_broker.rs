@@ -319,6 +319,11 @@ pub trait EndpointBroker {
     ) -> Self;
     fn get_sender(&self) -> BrokerSender;
 
+    fn prepare_request(&self, rpc_request: &BrokerRequest) -> Result<Vec<String>, RippleError> {
+        let response = Self::update_request(rpc_request)?;
+        Ok(vec![response])
+    }
+
     /// Adds BrokerContext to a given request used by the Broker Implementations
     /// just before sending the data through the protocol
     fn update_request(rpc_request: &BrokerRequest) -> Result<String, RippleError> {
@@ -406,32 +411,84 @@ impl BrokerOutputForwarder {
 
 #[cfg(test)]
 mod tests {
+    use ripple_sdk::{tokio::sync::mpsc::channel, Mockable};
+
+    use super::*;
     mod endpoint_broker {
-        use ripple_sdk::api::gateway::rpc_gateway_api::{CallContext, RpcRequest};
+        use ripple_sdk::{api::gateway::rpc_gateway_api::RpcRequest, Mockable};
 
         use crate::broker::{endpoint_broker::EndpointBroker, websocket_broker::WebsocketBroker};
 
         #[test]
         fn test_update_context() {
-            let request = RpcRequest {
-                method: "module.method".to_owned(),
-                params_json: "{}".to_owned(),
-                ctx: CallContext {
-                    session_id: "session_id".to_owned(),
-                    request_id: "1".to_owned(),
-                    app_id: "some_app_id".to_owned(),
-                    call_id: 1,
-                    protocol: ripple_sdk::api::gateway::rpc_gateway_api::ApiProtocol::JsonRpc,
-                    method: "module.method".to_owned(),
-                    cid: Some("cid".to_owned()),
-                    gateway_secure: true,
-                },
-            };
+            let request = RpcRequest::mock();
 
             if let Ok(v) = WebsocketBroker::add_context(&request) {
                 println!("_ctx {}", v);
                 //assert!(v.get("_ctx").unwrap().as_u64().unwrap().eq(&1));
             }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_send_error() {
+        let (tx, mut tr) = channel(2);
+        let callback = BrokerCallback { sender: tx };
+
+        callback
+            .send_error(
+                BrokerRequest {
+                    rpc: RpcRequest::mock(),
+                    transformer: None,
+                },
+                RippleError::InvalidInput,
+            )
+            .await;
+        let value = tr.recv().await.unwrap();
+        assert!(value.data.error.is_some())
+    }
+
+    mod broker_output {
+        use ripple_sdk::{api::gateway::rpc_gateway_api::JsonRpcApiResponse, Mockable};
+
+        use crate::broker::endpoint_broker::BrokerOutput;
+
+        #[test]
+        fn test_result() {
+            let mut data = JsonRpcApiResponse::mock();
+            let output = BrokerOutput { data: data.clone() };
+            assert!(!output.is_result());
+            data.result = Some(serde_json::Value::Null);
+            let output = BrokerOutput { data };
+            assert!(output.is_result());
+        }
+
+        #[test]
+        fn test_get_event() {
+            let mut data = JsonRpcApiResponse::mock();
+            data.method = Some("20.events".to_owned());
+            let output = BrokerOutput { data };
+            assert_eq!(20, output.get_event().unwrap())
+        }
+    }
+
+    mod endpoint_broker_state {
+        use ripple_sdk::{
+            api::gateway::rpc_gateway_api::RpcRequest, tokio::sync::mpsc::channel, Mockable,
+        };
+
+        use super::EndpointBrokerState;
+
+        #[test]
+        fn get_request() {
+            let (tx, _) = channel(2);
+            let state = EndpointBrokerState::get(tx);
+            let mut request = RpcRequest::mock();
+            state.update_request(&request);
+            request.ctx.call_id = 2;
+            state.update_request(&request);
+            assert!(state.get_request(2).is_ok());
+            assert!(state.get_request(1).is_ok());
         }
     }
 }

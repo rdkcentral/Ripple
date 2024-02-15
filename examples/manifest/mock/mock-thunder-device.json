@@ -101,6 +101,17 @@
                 ]
             }
         ],
+        "org.rdk.HdmiInput.unregister": [
+            {
+                "params": {
+                    "event": "gameFeatureStatusUpdate"
+                },
+                "result": {
+                    "event": "onAutoLowLatencyModeSignalChanged",
+                    "listening": false
+                }
+            }
+        ],
         "HDMIInput.open": [
             {
                 "params": {

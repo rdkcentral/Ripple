@@ -24,6 +24,7 @@ use crate::{
     api::firebolt::{fb_general::ListenRequest, fb_openrpc::FireboltOpenRpcMethod},
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
+    Mockable,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -97,6 +98,21 @@ impl CallContext {
     }
 }
 
+impl Mockable for CallContext {
+    fn mock() -> Self {
+        CallContext {
+            session_id: "session_id".to_owned(),
+            request_id: "1".to_owned(),
+            app_id: "some_app_id".to_owned(),
+            call_id: 1,
+            protocol: ApiProtocol::JsonRpc,
+            method: "module.method".to_owned(),
+            cid: Some("cid".to_owned()),
+            gateway_secure: true,
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ApiProtocol {
     Bridge,
@@ -161,6 +177,19 @@ pub struct JsonRpcApiResponse {
     pub method: Option<String>,
     #[serde(skip_serializing)]
     pub params: Option<Value>,
+}
+
+impl Mockable for JsonRpcApiResponse {
+    fn mock() -> Self {
+        JsonRpcApiResponse {
+            jsonrpc: "2.0".to_owned(),
+            result: None,
+            id: None,
+            error: None,
+            method: None,
+            params: None,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -324,12 +353,21 @@ pub enum PermissionCommand {
     },
 }
 
+impl crate::Mockable for RpcRequest {
+    fn mock() -> Self {
+        RpcRequest {
+            method: "module.method".to_owned(),
+            params_json: "{}".to_owned(),
+            ctx: CallContext::mock(),
+        }
+    }
+}
+
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use crate::api::gateway::rpc_gateway_api::{ApiProtocol, CallContext};
     use crate::utils::test_utils::test_extn_payload_provider;
-
     #[test]
     fn test_extn_request_rpc() {
         let call_context = CallContext {

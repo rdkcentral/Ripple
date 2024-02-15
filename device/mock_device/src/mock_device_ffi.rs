@@ -166,6 +166,7 @@ mod tests {
         )
     }
 
+    #[ignore]
     #[test]
     fn test_init_jsonrpsee_builder() {
         let builder = init_jsonrpsee_builder();

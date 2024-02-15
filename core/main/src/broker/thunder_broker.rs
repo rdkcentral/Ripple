@@ -14,7 +14,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-use super::endpoint_broker::{BrokerCallback, BrokerOutput, BrokerSender, EndpointBroker};
+use super::endpoint_broker::{
+    BrokerCallback, BrokerOutput, BrokerRequest, BrokerSender, EndpointBroker,
+};
 use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::{
     api::{
@@ -26,7 +28,11 @@ use ripple_sdk::{
     utils::error::RippleError,
 };
 use serde_json::json;
-use std::time::Duration;
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+    time::Duration,
+};
 use tokio_tungstenite::client_async;
 
 fn extract_tcp_port(url: &str) -> String {
@@ -39,14 +45,22 @@ fn extract_tcp_port(url: &str) -> String {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ThunderBroker {
     sender: BrokerSender,
+    subscription_map: Arc<RwLock<HashMap<String, BrokerRequest>>>,
 }
 
 impl ThunderBroker {
     fn start(endpoint: PassthroughEndpoint, callback: BrokerCallback) -> Self {
         let (tx, mut tr) = mpsc::channel(10);
-        let broker = BrokerSender { sender: tx };
+        let sender = BrokerSender { sender: tx };
+        let subscription_map = Arc::new(RwLock::new(HashMap::new()));
+        let broker = Self {
+            sender,
+            subscription_map,
+        };
+        let broker_c = broker.clone();
         tokio::spawn(async move {
             info!("Broker Endpoint url {}", endpoint.url);
             let url = url::Url::parse(&endpoint.url).unwrap();
@@ -87,17 +101,20 @@ impl ThunderBroker {
                     },
                     Some(request) = tr.recv() => {
                         debug!("Got request from receiver for broker {:?}", request);
-                        if let Ok(updated_request) = Self::update_request(&request) {
-                            debug!("Sending request to broker {}", updated_request);
-                             let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(updated_request)).await;
+                        if let Ok(updated_request) = broker_c.prepare_request(&request) {
+                            debug!("Sending request to broker {:?}", updated_request);
+                            for r in updated_request {
+                                let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
                             let _flush = ws_tx.flush().await;
+                            }
+
                         }
 
                     }
                 }
             }
         });
-        Self { sender: broker }
+        broker
     }
 
     fn update_response(response: &JsonRpcApiResponse) -> JsonRpcApiResponse {
@@ -122,53 +139,89 @@ impl EndpointBroker for ThunderBroker {
         self.sender.clone()
     }
 
-    fn update_request(
+    fn prepare_request(
+        &self,
         rpc_request: &super::endpoint_broker::BrokerRequest,
-    ) -> Result<String, ripple_sdk::utils::error::RippleError> {
+    ) -> Result<Vec<String>, RippleError> {
+        let mut requests = Vec::new();
         if let Some(transformer) = &rpc_request.transformer {
-            let id = rpc_request.rpc.ctx.call_id;
-
+            let rpc = rpc_request.clone().rpc;
+            let id = rpc.ctx.call_id;
+            let app_id = rpc.ctx.app_id;
             if rpc_request.rpc.is_subscription() {
-                Ok(json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "method": format!("{}.{}", transformer.module, match rpc_request.rpc.is_listening() {
-                        true => "register",
-                        false => "unregister"
-                    }),
-                    "params": json!({
-                        "event": transformer.method.clone(),
-                        "id": format!("{}", id)
+                let listen = rpc_request.rpc.is_listening();
+                let notif_id = {
+                    let mut sub_map = self.subscription_map.write().unwrap();
+
+                    if listen {
+                        if let Some(cleanup) = sub_map.insert(app_id, rpc_request.clone()) {
+                            requests.push(json!({
+                                "jsonrpc": "2.0",
+                                "id": cleanup.rpc.ctx.call_id,
+                                "method": format!("{}.{}", transformer.module, "unregister".to_owned()),
+                                "params": {
+                                    "event": transformer.method.clone(),
+                                    "id": format!("{}", cleanup.rpc.ctx.call_id)
+                                }
+                            }).to_string())
+                        }
+                        id
+                    } else if let Some(v) = sub_map.remove(&app_id) {
+                        v.rpc.ctx.call_id
+                    } else {
+                        id
+                    }
+                };
+                requests.push(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "method": format!("{}.{}", transformer.module, match listen {
+                            true => "register",
+                            false => "unregister"
+                        }),
+                        "params": json!({
+                            "event": transformer.method.clone(),
+                            "id": format!("{}", notif_id)
+                        })
                     })
-                }).to_string())
+                    .to_string(),
+                )
             } else {
-                Ok(json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "method": format!("{}.{}", transformer.module, transformer.method),
-                    "params": rpc_request.rpc.params_json
-                })
-                .to_string())
+                requests.push(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "method": format!("{}.{}", transformer.module, transformer.method),
+                        "params": rpc_request.rpc.params_json
+                    })
+                    .to_string(),
+                )
             }
         } else {
             let rpc = rpc_request.rpc.clone();
             if let Some(params) = rpc_request.rpc.get_params() {
-                Ok(json!({
-                    "jsonrpc": "2.0",
-                    "id": rpc.ctx.call_id,
-                    "method": rpc.method,
-                    "params": params
-                })
-                .to_string())
+                requests.push(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": rpc.ctx.call_id,
+                        "method": rpc.method,
+                        "params": params
+                    })
+                    .to_string(),
+                )
             } else {
-                Ok(json!({
-                    "jsonrpc": "2.0",
-                    "id": rpc.ctx.call_id,
-                    "method": rpc.method,
-                })
-                .to_string())
+                requests.push(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": rpc.ctx.call_id,
+                        "method": rpc.method,
+                    })
+                    .to_string(),
+                )
             }
         }
+        Ok(requests)
     }
 
     /// Default handler method for the broker to remove the context and send it back to the
