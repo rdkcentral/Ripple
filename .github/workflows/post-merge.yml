@@ -58,5 +58,5 @@ jobs:
               git add ./ci/coverage_threshold.txt
               git commit -m "chore: git bot update threshold"
               git branch -b
-              git push origin locked_actions_branch
+              git push origin head:locked_actions_branch
             continue-on-error: true
