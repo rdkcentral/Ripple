@@ -2,7 +2,7 @@ name: Post Merge
 
 on:
   push:
-    branches: [ "main-test" ]
+    branches: [ "main-ci-test" ]
 
 env:
     CARGO_TERM_COLOR: always
