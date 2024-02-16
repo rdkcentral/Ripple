@@ -32,44 +32,6 @@ pub struct ExtnManifest {
     pub required_contracts: Vec<String>,
     pub rpc_aliases: HashMap<String, Vec<String>>,
     pub timeout: Option<u64>,
-    pub passthrough_rpcs: Option<PassthroughRpcs>,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub struct PassthroughRpcs {
-    pub endpoints: Vec<PassthroughEndpoint>,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub struct PassthroughEndpoint {
-    pub url: String,
-    pub protocol: PassthroughProtocol,
-    pub rpcs: Vec<PassthroughRpc>,
-    pub authentication: Option<String>,
-    pub token: Option<String>,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct PassthroughRpc {
-    pub matcher: String,
-    pub transformer: Option<HashMap<String, PassthroughTransformer>>,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct PassthroughTransformer {
-    pub module: String,
-    pub method: String,
-    pub version: Option<u32>,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "lowercase")]
-pub enum PassthroughProtocol {
-    Websocket,
-    Http,
-    Thunder,
 }
 
 #[derive(Deserialize, Debug, Clone)]

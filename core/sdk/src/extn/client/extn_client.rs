@@ -400,7 +400,6 @@ impl ExtnClient {
         if let Some(sender) = v {
             tokio::spawn(async move {
                 if let Err(e) = sender.send(msg.clone()).await {
-                    debug!("msg={msg:?}");
                     error!("Error sending the response back {:?}", e);
                 }
             });

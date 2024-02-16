@@ -15,16 +15,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::sync::{mpsc, oneshot};
 
 use crate::{
-    api::firebolt::{fb_general::ListenRequest, fb_openrpc::FireboltOpenRpcMethod},
+    api::firebolt::fb_openrpc::FireboltOpenRpcMethod,
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
-    Mockable,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -98,21 +96,6 @@ impl CallContext {
     }
 }
 
-impl Mockable for CallContext {
-    fn mock() -> Self {
-        CallContext {
-            session_id: "session_id".to_owned(),
-            request_id: "1".to_owned(),
-            app_id: "some_app_id".to_owned(),
-            call_id: 1,
-            protocol: ApiProtocol::JsonRpc,
-            method: "module.method".to_owned(),
-            cid: Some("cid".to_owned()),
-            gateway_secure: true,
-        }
-    }
-}
-
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ApiProtocol {
     Bridge,
@@ -157,7 +140,7 @@ impl ApiBaseRequest {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct JsonRpcApiRequest {
     pub jsonrpc: String,
     pub id: Option<u64>,
@@ -165,36 +148,12 @@ pub struct JsonRpcApiRequest {
     pub params: Option<Value>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct JsonRpcApiResponse {
     pub jsonrpc: String,
-    pub id: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub result: Option<Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<Value>,
-    #[serde(skip_serializing)]
-    pub method: Option<String>,
-    #[serde(skip_serializing)]
-    pub params: Option<Value>,
-}
-
-impl Mockable for JsonRpcApiResponse {
-    fn mock() -> Self {
-        JsonRpcApiResponse {
-            jsonrpc: "2.0".to_owned(),
-            result: None,
-            id: None,
-            error: None,
-            method: None,
-            params: None,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct JsonRpcId {
     pub id: u64,
+    pub result: Option<Value>,
+    pub error: Option<Value>,
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -299,30 +258,6 @@ impl RpcRequest {
         let ps = RpcRequest::prepend_ctx(jsonrpc_req.params, &ctx);
         Ok(RpcRequest::new(method, ps, ctx))
     }
-
-    pub fn is_subscription(&self) -> bool {
-        self.method.contains(".on") && self.params_json.contains("listen")
-    }
-
-    pub fn is_listening(&self) -> bool {
-        if let Some(params) = self.get_params() {
-            debug!("Successfully got params {:?}", params);
-            if let Ok(v) = serde_json::from_value::<ListenRequest>(params) {
-                debug!("Successfully got listen request {:?}", v);
-                return v.listen;
-            }
-        }
-        false
-    }
-
-    pub fn get_params(&self) -> Option<Value> {
-        if let Ok(mut v) = serde_json::from_str::<Vec<Value>>(&self.params_json) {
-            if v.len() > 1 {
-                return v.pop();
-            }
-        }
-        None
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -353,21 +288,12 @@ pub enum PermissionCommand {
     },
 }
 
-impl crate::Mockable for RpcRequest {
-    fn mock() -> Self {
-        RpcRequest {
-            method: "module.method".to_owned(),
-            params_json: "{}".to_owned(),
-            ctx: CallContext::mock(),
-        }
-    }
-}
-
 #[cfg(test)]
-pub mod tests {
+mod tests {
     use super::*;
     use crate::api::gateway::rpc_gateway_api::{ApiProtocol, CallContext};
     use crate::utils::test_utils::test_extn_payload_provider;
+
     #[test]
     fn test_extn_request_rpc() {
         let call_context = CallContext {

@@ -33,7 +33,6 @@ use super::{
     },
     setup_extn_client_step::SetupExtnClientStep,
     start_app_manager_step::StartAppManagerStep,
-    start_communication_broker::StartCommunicationBroker,
     start_fbgateway_step::FireboltGatewayStep,
     start_ws_step::StartWsStep,
 };
@@ -55,8 +54,7 @@ use super::{
 /// 6. [LoadDistributorValuesStep] - Loads the values from distributor like Session
 /// 7. [CheckLauncherStep] - Checks the presence of launcher extension and starts default app
 /// 8. [StartWsStep] - Starts the Websocket to accept external and internal connections
-/// 9. [StartCommunicationBroker] - Starts the broker which supports External Firebolt Implementations
-/// 10. [FireboltGatewayStep] - Starts the firebolt gateway and blocks the thread to keep it alive till interruption.
+/// 9. [FireboltGatewayStep] - Starts the firebolt gateway and blocks the thread to keep it alive till interruption.
 
 ///
 pub async fn boot(state: BootstrapState) -> RippleResponse {
@@ -69,7 +67,6 @@ pub async fn boot(state: BootstrapState) -> RippleResponse {
     execute_step(LoadDistributorValuesStep, &bootstrap).await?;
     execute_step(CheckLauncherStep, &bootstrap).await?;
     execute_step(StartWsStep, &bootstrap).await?;
-    execute_step(StartCommunicationBroker, &bootstrap).await?;
     execute_step(FireboltGatewayStep, &bootstrap).await?;
     Ok(())
 }
