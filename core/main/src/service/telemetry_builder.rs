@@ -222,7 +222,7 @@ impl TelemetryBuilder {
         Some(Timer::start(name, Some(metrics_tags)))
     }
 
-    pub fn stop_and_send_firebolt_metrics_timer(
+    pub async fn stop_and_send_firebolt_metrics_timer(
         ps: &PlatformState,
         timer: Option<Timer>,
         status: String,
@@ -231,6 +231,14 @@ impl TelemetryBuilder {
             timer.stop();
             timer.insert_tag(Tag::Status.key(), status);
             debug!("stop_and_send_firebolt_metrics_timer: {:?}", timer);
+            let _ = &ps
+                .get_client()
+                .send_extn_request(
+                    ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest::Timer(
+                        timer.clone(),
+                    ),
+                )
+                .await;
             /*
             bobra: do we need this here if
             */

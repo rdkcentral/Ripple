@@ -210,7 +210,8 @@ impl FireboltGateway {
                         &platform_state,
                         metrics_timer,
                         format!("{}", deny_reason.get_rpc_error_code()),
-                    );
+                    )
+                    .await;
 
                     error!(
                         "Failed gateway present error {:?} {:?}",
