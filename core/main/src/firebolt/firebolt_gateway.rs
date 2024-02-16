@@ -160,7 +160,7 @@ impl FireboltGateway {
         request_c.method = FireboltOpenRpcMethod::name_with_lowercase_module(&request.method);
 
         let metrics_timer = TelemetryBuilder::start_firebolt_metrics_timer(
-            &platform_state.get_client().get_extn_client(),
+            &platform_state.clone().get_client().get_extn_client(),
             request_c.method.clone(),
             request_c.ctx.app_id.clone(),
         );
@@ -180,9 +180,6 @@ impl FireboltGateway {
                                     extn_msg,
                                 )
                                 .await;
-                                if let Some(timer) = metrics_timer {
-                                    platform_state.get_client().send_extn_request( ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest::Timer(timer)).await.ok();
-                                }
                                 result
                             } else {
                                 error!("missing invalid message not forwarding");
@@ -195,8 +192,13 @@ impl FireboltGateway {
                                 .get_session(&request_c.ctx)
                             {
                                 // if the websocket disconnects before the session is recieved this leads to an error
-                                RpcRouter::route(platform_state, request_c, session, metrics_timer)
-                                    .await;
+                                RpcRouter::route(
+                                    platform_state.clone(),
+                                    request_c,
+                                    session,
+                                    metrics_timer.clone(),
+                                )
+                                .await;
                             } else {
                                 error!("session is missing request is not forwarded");
                             }
@@ -207,7 +209,7 @@ impl FireboltGateway {
                     let deny_reason = e.reason;
 
                     let _ = TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
-                        &platform_state,
+                        &platform_state.clone(),
                         metrics_timer,
                         format!("{}", deny_reason.get_rpc_error_code()),
                     )
