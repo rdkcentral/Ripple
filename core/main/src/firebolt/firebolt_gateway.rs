@@ -206,7 +206,7 @@ impl FireboltGateway {
                 Err(e) => {
                     let deny_reason = e.reason;
 
-                    TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
+                    let _ = TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
                         &platform_state,
                         metrics_timer,
                         format!("{}", deny_reason.get_rpc_error_code()),

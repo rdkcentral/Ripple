@@ -230,24 +230,20 @@ impl TelemetryBuilder {
         if let Some(mut timer) = timer {
             timer.stop();
             timer.insert_tag(Tag::Status.key(), status);
-            debug!("stop_and_send_firebolt_metrics_timer: {:?}", timer);
-            let _ = &ps
+            if let Err(e) = &ps
                 .get_client()
                 .send_extn_request(
                     ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest::Timer(
                         timer.clone(),
                     ),
                 )
-                .await;
-            /*
-            bobra: do we need this here if
-            */
-            // if let Err(e) = Self::send_telemetry(ps, TelemetryPayload::Timer(timer)) {
-            //     error!(
-            //         "stop_and_send_firebolt_metrics_timer: send_telemetry={:?}",
-            //         e
-            //     )
-            // }
+                .await
+            {
+                error!(
+                    "stop_and_send_firebolt_metrics_timer: send_telemetry={:?}",
+                    e
+                )
+            }
         }
     }
 }
