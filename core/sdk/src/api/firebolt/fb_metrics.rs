@@ -32,7 +32,6 @@ use super::fb_telemetry::TelemetryPayload;
 //https://developer.comcast.com/firebolt/core/sdk/latest/api/metrics
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-
 pub struct BehavioralMetricContext {
     pub app_id: String,
     pub app_version: String,
@@ -134,12 +133,29 @@ pub enum CategoryType {
     app,
 }
 
+#[derive(Debug, PartialEq, PartialOrd, Serialize, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum FlatMapValue {
+    String(String),
+    Number(f64),
+    Boolean(bool),
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Param {
     pub name: String,
-    pub value: String,
+    pub value: FlatMapValue,
 }
-pub fn hashmap_to_param_vec(the_map: Option<HashMap<String, String>>) -> Vec<Param> {
+
+// custom comparison function used only in unit tests
+#[cfg(test)]
+impl Param {
+    fn cmp(&self, other: &Param) -> std::cmp::Ordering {
+        self.name.cmp(&other.name)
+    }
+}
+
+pub fn hashmap_to_param_vec(the_map: Option<HashMap<String, FlatMapValue>>) -> Vec<Param> {
     let mut result = Vec::new();
     if the_map.is_none() {
         return vec![];
@@ -696,5 +712,90 @@ mod tests {
         let metrics_response = MetricsResponse::None;
         let contract_type: RippleContract = RippleContract::BehaviorMetrics;
         test_extn_payload_provider(metrics_response, contract_type);
+    }
+
+    #[test]
+    fn test_hashmap_to_param_vec() {
+        let mut map = HashMap::new();
+        map.insert(
+            "key1".to_string(),
+            FlatMapValue::String("value1".to_string()),
+        );
+        map.insert("key2".to_string(), FlatMapValue::Number(2.0));
+        map.insert("key3".to_string(), FlatMapValue::Boolean(true));
+        let mut vec = hashmap_to_param_vec(Some(map));
+        let mut expected = vec![
+            Param {
+                name: "key1".to_string(),
+                value: FlatMapValue::String("value1".to_string()),
+            },
+            Param {
+                name: "key2".to_string(),
+                value: FlatMapValue::Number(2.0),
+            },
+            Param {
+                name: "key3".to_string(),
+                value: FlatMapValue::Boolean(true),
+            },
+        ];
+        vec.sort_by(|param1, param2| param1.cmp(param2));
+        expected.sort_by(|param1, param2| param1.cmp(param2));
+        assert_eq!(vec, expected);
+    }
+
+    #[test]
+    fn test_flatmap() {
+        let flatmap = FlatMapValue::String("value1".to_string());
+        let flatmap2 = FlatMapValue::Number(2.0);
+        let flatmap3 = FlatMapValue::Boolean(true);
+        assert_eq!(flatmap, FlatMapValue::String("value1".to_string()));
+        assert_eq!(flatmap2, FlatMapValue::Number(2.0));
+        assert_eq!(flatmap3, FlatMapValue::Boolean(true));
+    }
+
+    #[test]
+    fn test_behavioral_metric_payload() {
+        let behavioral_metric_context = BehavioralMetricContext {
+            app_id: "test_app_id".to_string(),
+            app_version: "test_app_version".to_string(),
+            partner_id: "test_partner_id".to_string(),
+            app_session_id: "test_app_session_id".to_string(),
+            app_user_session_id: Some("test_user_session_id".to_string()),
+            durable_app_id: "test_durable_app_id".to_string(),
+            governance_state: Some(AppDataGovernanceState {
+                data_tags_to_apply: HashSet::new(),
+            }),
+        };
+
+        let ready_payload = Ready {
+            context: behavioral_metric_context.clone(),
+            ttmu_ms: 100,
+        };
+
+        let mut behavioral_metric_payload = BehavioralMetricPayload::Ready(ready_payload);
+
+        assert_eq!(
+            behavioral_metric_payload.get_context(),
+            behavioral_metric_context
+        );
+
+        let new_behavioral_metric_context = BehavioralMetricContext {
+            app_id: "new_test_app_id".to_string(),
+            app_version: "new_test_app_version".to_string(),
+            partner_id: "new_test_partner_id".to_string(),
+            app_session_id: "new_test_app_session_id".to_string(),
+            app_user_session_id: Some("new_test_user_session_id".to_string()),
+            durable_app_id: "new_test_durable_app_id".to_string(),
+            governance_state: Some(AppDataGovernanceState {
+                data_tags_to_apply: HashSet::new(),
+            }),
+        };
+
+        behavioral_metric_payload.update_context(new_behavioral_metric_context.clone());
+
+        assert_eq!(
+            behavioral_metric_payload.get_context(),
+            new_behavioral_metric_context
+        );
     }
 }
