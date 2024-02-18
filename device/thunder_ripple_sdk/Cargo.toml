@@ -35,7 +35,7 @@ contract_tests = [
 ]
 
 [dependencies]
-ripple_sdk = { path = "../../core/sdk" }
+ripple_sdk = { path = "../../core/sdk"}
 ripple_tdk = { path = "../../core/tdk" }
 jsonrpsee = { version = "0.9.0", features = ["macros", "ws-client"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -54,3 +54,4 @@ regex = "1.7.3"
 
 [dev-dependencies]
 tokio-tungstenite = { version = "0.17.1", features = ["native-tls"] }
+ripple_sdk = { path = "../../core/sdk", features=["tdk"]}

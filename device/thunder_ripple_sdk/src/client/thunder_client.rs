@@ -446,7 +446,7 @@ impl ThunderClientBuilder {
         url: Url,
         thunder_connection_state: Arc<ThunderConnectionState>,
     ) -> Result<Client, JsonRpcError> {
-        // only one connection attempt at a time
+        // Ensure that only one connection attempt is made at a time
         {
             let mut is_connecting = thunder_connection_state.conn_status_mutex.lock().await;
             // check if we are already reconnecting
@@ -463,7 +463,15 @@ impl ThunderClientBuilder {
         let mut client: Result<Client, JsonRpcError>;
         let mut delay_duration = tokio::time::Duration::from_millis(50);
         loop {
-            client = WsClientBuilder::default().build(url.to_string()).await;
+            // get the token from the environment anew each time
+            let url_with_token = if let Ok(token) = env::var("THUNDER_TOKEN") {
+                Url::parse_with_params(url.as_str(), &[("token", token)]).unwrap()
+            } else {
+                url.clone()
+            };
+            client = WsClientBuilder::default()
+                .build(url_with_token.to_string())
+                .await;
             if client.is_err() {
                 warn!("Attempt to connect to thunder, retrying");
                 sleep(delay_duration).await;
@@ -494,13 +502,7 @@ impl ThunderClientBuilder {
         let subscriptions = Arc::new(Mutex::new(HashMap::<String, ThunderSubscription>::default()));
         let (s, mut r) = mpsc::channel::<ThunderMessage>(32);
         let pmtx_c = plugin_manager_tx.clone();
-        let url_with_token = if let Ok(token) = env::var("THUNDER_TOKEN") {
-            Url::parse_with_params(url.as_str(), &[("token", token)]).unwrap()
-        } else {
-            url.clone()
-        };
-
-        let client = Self::create_client(url_with_token, thunder_connection_state.clone()).await;
+        let client = Self::create_client(url, thunder_connection_state.clone()).await;
         // add error handling here
         if client.is_err() {
             return Err(RippleError::BootstrapError);
