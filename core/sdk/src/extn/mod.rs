@@ -19,3 +19,6 @@ pub mod client;
 pub mod extn_client_message;
 pub mod extn_id;
 pub mod ffi;
+
+#[cfg(feature = "tdk")]
+pub mod mock_extension_client;
