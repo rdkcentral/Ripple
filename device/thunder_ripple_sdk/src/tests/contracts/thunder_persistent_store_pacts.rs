@@ -136,7 +136,10 @@ async fn test_device_get_persistent_value() {
     );
     params.insert("key".into(), ContractMatcher::MatchType("testKey".into()));
 
-    let given_statement = format!("\"key:{}\", \"namespace: {}\" to \"{}\" is set in persistentStore", "testKey", "testNamesapce", "testValue1");
+    let given_statement = format!(
+        "\"key:{}\", \"namespace: {}\" to \"{}\" is set in persistentStore",
+        "testKey", "testNamesapce", "testValue1"
+    );
 
     pact_builder_async
         .synchronous_message_interaction(
