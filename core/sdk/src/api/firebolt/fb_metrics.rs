@@ -412,8 +412,8 @@ impl Counter {
     pub fn new(name: String, value: u64, tags: Option<HashMap<String, String>>) -> Counter {
         Counter {
             name: format!("{}_counter", name),
-            value: value,
-            tags: tags,
+            value,
+            tags,
         }
     }
     pub fn increment(&mut self) {
@@ -437,7 +437,7 @@ impl Counter {
     pub fn get(&self) -> u64 {
         self.value
     }
-    pub fn tag(&mut self, tag_name: String, tag_value: String) -> () {
+    pub fn tag(&mut self, tag_name: String, tag_value: String) {
         if let Some(my_tags) = self.tags.as_mut() {
             my_tags.insert(tag_name, tag_value);
         } else {
@@ -501,11 +501,11 @@ impl Timer {
         time_unit: TimeUnit,
     ) -> Timer {
         Timer {
-            name: name,
-            start: start,
+            name,
+            start,
             stop: None,
-            tags: tags,
-            time_unit: time_unit,
+            tags,
+            time_unit,
         }
     }
 
@@ -528,13 +528,13 @@ impl Timer {
         }
     }
 
-    pub fn insert_tag(&mut self, tag_name: String, tag_value: String) -> () {
+    pub fn insert_tag(&mut self, tag_name: String, tag_value: String) {
         if let Some(my_tags) = self.tags.as_mut() {
             my_tags.insert(tag_name, tag_value);
         }
     }
 
-    pub fn insert_tags(&mut self, new_tags: HashMap<String, String>) -> () {
+    pub fn insert_tags(&mut self, new_tags: HashMap<String, String>) {
         let tags = self.tags.clone();
         match tags {
             Some(mut t) => t.extend(new_tags),
