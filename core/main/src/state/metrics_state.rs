@@ -52,7 +52,7 @@ pub struct MetricsState {
 
 impl MetricsState {
     fn send_context_update_request(platform_state: &PlatformState) {
-        let mut extn_client = platform_state.get_client().get_extn_client().clone();
+        let mut extn_client = platform_state.get_client().get_extn_client();
         let metrics_context = platform_state.metrics.context.read().unwrap().clone();
 
         if let Err(e) = extn_client
@@ -194,7 +194,7 @@ impl MetricsState {
             Self::update_account_session(state).await;
         }
 
-        Self::send_context_update_request(&state);
+        Self::send_context_update_request(state);
     }
 
     async fn get_os_ver_from_firebolt(platform_state: &PlatformState) -> String {
@@ -231,7 +231,7 @@ impl MetricsState {
                 context.distribution_tenant_id = "no.distribution_tenant_id.set".to_string();
             }
         }
-        Self::send_context_update_request(&state);
+        Self::send_context_update_request(state);
     }
 
     pub fn operational_telemetry_listener(&self, target: &str, listen: bool) {

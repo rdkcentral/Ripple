@@ -160,7 +160,7 @@ impl FireboltGateway {
         request_c.method = FireboltOpenRpcMethod::name_with_lowercase_module(&request.method);
 
         let metrics_timer = TelemetryBuilder::start_firebolt_metrics_timer(
-            &platform_state.clone().get_client().get_extn_client(),
+            &platform_state.get_client().get_extn_client(),
             request_c.method.clone(),
             request_c.ctx.app_id.clone(),
         );
@@ -174,13 +174,12 @@ impl FireboltGateway {
                     match request.clone().ctx.protocol {
                         ApiProtocol::Extn => {
                             if let Some(extn_msg) = extn_msg {
-                                let result = RpcRouter::route_extn_protocol(
+                                RpcRouter::route_extn_protocol(
                                     &platform_state,
                                     request.clone(),
                                     extn_msg,
                                 )
-                                .await;
-                                result
+                                .await
                             } else {
                                 error!("missing invalid message not forwarding");
                             }
@@ -208,7 +207,7 @@ impl FireboltGateway {
                 Err(e) => {
                     let deny_reason = e.reason;
 
-                    let _ = TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
+                    TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
                         &platform_state.clone(),
                         metrics_timer,
                         format!("{}", deny_reason.get_rpc_error_code()),

@@ -40,10 +40,7 @@ use ripple_sdk::{
     tokio::{self},
     utils::error::RippleError,
 };
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 use crate::{
     service::telemetry_builder::TelemetryBuilder,
