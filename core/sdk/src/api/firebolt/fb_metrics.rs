@@ -510,10 +510,10 @@ impl Timer {
     }
 
     pub fn stop(&mut self) -> Timer {
-        if let None = self.stop {
+        if self.stop.is_none() {
             self.stop = Some(std::time::Instant::now());
         }
-        Timer::from(self.clone())
+        self.clone()
     }
 
     pub fn restart(&mut self) {
@@ -846,20 +846,17 @@ pub fn get_metrics_tags(
     }
 
     tags.insert(Tag::Firmware.key(), metrics_context.firmware.clone());
-    tags.insert(
-        Tag::RippleVersion.key(),
-        metrics_context.ripple_version.clone(),
-    );
+    tags.insert(Tag::RippleVersion.key(), metrics_context.ripple_version);
 
     let features = extn_client.get_features();
     let feature_count = features.len();
     let mut features_str = String::new();
 
     if feature_count > 0 {
-        for i in 0..feature_count {
-            features_str.push_str(&features[i]);
+        for (i, feature) in features.iter().enumerate() {
+            features_str.push_str(feature);
             if i < feature_count - 1 {
-                features_str.push_str(",".into());
+                features_str.push_str(",");
             }
         }
     }
