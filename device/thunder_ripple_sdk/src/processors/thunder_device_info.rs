@@ -1634,13 +1634,13 @@ pub mod tests {
         extn::{
             client::extn_processor::ExtnRequestProcessor,
             extn_client_message::{ExtnMessage, ExtnRequest},
+            mock_extension_client::MockExtnClient,
         },
         framework::ripple_contract::RippleContract,
         serde_json::{self, json},
         tokio,
         utils::channel_utils::oneshot_send_and_log,
     };
-    use ripple_tdk::utils::mock_extension_client::MockExtnClient;
     use serde::{Deserialize, Serialize};
 
     use crate::{

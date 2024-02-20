@@ -37,8 +37,7 @@ use crate::{
     utils::error::RippleError,
 };
 
-use super::{apps::AppManifest, exclusory::ExclusoryImpl};
-
+use super::{apps::AppManifest, exclusory::ExclusoryImpl, remote_feature::FeatureFlag};
 pub const PARTNER_EXCLUSION_REFRESH_TIMEOUT: u32 = 12 * 60 * 60; // 12 hours
 pub const METRICS_LOGGING_PERCENTAGE_DEFAULT: u32 = 0;
 
@@ -434,6 +433,8 @@ pub struct RippleFeatures {
     pub intent_validation: IntentValidation,
     #[serde(default = "default_cloud_permissions")]
     pub cloud_permissions: bool,
+    #[serde(default)]
+    pub catalog_uninstalls_enabled: FeatureFlag,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -466,6 +467,7 @@ fn default_ripple_features() -> RippleFeatures {
         privacy_settings_storage_type: default_privacy_settings_storage_type(),
         intent_validation: default_intent_validation(),
         cloud_permissions: default_cloud_permissions(),
+        catalog_uninstalls_enabled: Default::default(),
     }
 }
 
