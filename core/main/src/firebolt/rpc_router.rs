@@ -160,8 +160,7 @@ impl RpcRouter {
                 Err(e) => format!("{}", e),
             };
 
-            let _ =
-                TelemetryBuilder::stop_and_send_firebolt_metrics_timer(&state, timer, status).await;
+            TelemetryBuilder::stop_and_send_firebolt_metrics_timer(&state, timer, status).await;
 
             if let Ok(msg) = resp {
                 let now = Utc::now().timestamp_millis();
