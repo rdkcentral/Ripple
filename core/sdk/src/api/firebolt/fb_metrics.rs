@@ -856,7 +856,7 @@ pub fn get_metrics_tags(
         for (i, feature) in features.iter().enumerate() {
             features_str.push_str(feature);
             if i < feature_count - 1 {
-                features_str.push_str(",");
+                features_str.push(',');
             }
         }
     }
