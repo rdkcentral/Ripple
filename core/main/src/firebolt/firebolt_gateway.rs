@@ -210,7 +210,7 @@ impl FireboltGateway {
                     TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
                         &platform_state.clone(),
                         metrics_timer,
-                        format!("{}", deny_reason.get_rpc_error_code()),
+                        format!("{}", deny_reason.get_observability_error_code()),
                     )
                     .await;
 
