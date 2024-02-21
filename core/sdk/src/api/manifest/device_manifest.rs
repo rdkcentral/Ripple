@@ -39,7 +39,7 @@ use crate::{
 
 use super::{apps::AppManifest, exclusory::ExclusoryImpl, remote_feature::FeatureFlag};
 pub const PARTNER_EXCLUSION_REFRESH_TIMEOUT: u32 = 12 * 60 * 60; // 12 hours
-pub const METRICS_LOGGING_PERCENTAGE_DEFAULT: u32 = 0;
+pub const METRICS_LOGGING_PERCENTAGE_DEFAULT: u32 = 10;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct RippleConfiguration {
