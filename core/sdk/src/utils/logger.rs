@@ -55,30 +55,30 @@ pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern
     let _version_string = version.to_string();
     let filter = log::LevelFilter::from_str(&log_string).unwrap_or(log::LevelFilter::Info);
     fern::Dispatch::new()
-    .format(move |out, message, record| {
-        let _v = LOG_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        #[cfg(not(feature = "sysd"))]
-        if _v % 100 == 0 {
-            LOG_COUNTER.store(1, std::sync::atomic::Ordering::Relaxed);
-        return out.finish(format_args!(
-            "{}[{}][{}][{}][{}]-{}",
-            chrono::Local::now().format("%Y-%m-%d-%H:%M:%S.%3f"),
-            record.level(),
-            record.target(),
-            name,
-            _version_string,
-            message
-        ));
-        } else {
-            return out.finish(format_args!(
-                "{}[{}][{}][{}]-{}",
-                chrono::Local::now().format("%Y-%m-%d-%H:%M:%S.%3f"),
-                record.level(),
-                record.target(),
-                name,
-                message
-            ));
-        }
+        .format(move |out, message, record| {
+            let _v = LOG_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            #[cfg(not(feature = "sysd"))]
+            if _v % 100 == 0 {
+                LOG_COUNTER.store(1, std::sync::atomic::Ordering::Relaxed);
+                return out.finish(format_args!(
+                    "{}[{}][{}][{}][{}]-{}",
+                    chrono::Local::now().format("%Y-%m-%d-%H:%M:%S.%3f"),
+                    record.level(),
+                    record.target(),
+                    name,
+                    _version_string,
+                    message
+                ));
+            } else {
+                return out.finish(format_args!(
+                    "{}[{}][{}][{}]-{}",
+                    chrono::Local::now().format("%Y-%m-%d-%H:%M:%S.%3f"),
+                    record.level(),
+                    record.target(),
+                    name,
+                    message
+                ));
+            }
             #[cfg(feature = "sysd")]
             if _v % 100 == 0 {
                 LOG_COUNTER.store(1, std::sync::atomic::Ordering::Relaxed);
