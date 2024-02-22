@@ -16,8 +16,11 @@
 //
 
 use crate::{
-    client::plugin_manager::ThunderPluginBootParam, thunder_state::ThunderBootstrapStateWithConfig,
+    client::plugin_manager::ThunderPluginBootParam,
+    thunder_state::{ThunderBootstrapStateWithConfig, ThunderConnectionState},
 };
+use std::sync::Arc;
+
 use ripple_sdk::extn::{
     client::extn_client::ExtnClient,
     extn_client_message::{ExtnMessage, ExtnResponse},
@@ -92,6 +95,7 @@ impl ThunderGetConfigStep {
                     url: gateway_url,
                     pool_size,
                     plugin_param: expected_plugins,
+                    thunder_connection_state: Arc::new(ThunderConnectionState::new()),
                 });
             }
         }
