@@ -30,10 +30,12 @@ use crate::ripple_sdk::{
     serde_json,
 };
 use crate::tests::contracts::contract_utils::*;
+use crate::thunder_state::ThunderConnectionState;
 use crate::{client::thunder_client_pool::ThunderClientPool, thunder_state::ThunderState};
 use pact_consumer::mock_server::StartMockServerAsync;
 use serde_json::json;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 // #[tokio::test(flavor = "multi_thread")]
 // #[cfg_attr(not(feature = "contract_tests"), ignore)]
@@ -66,7 +68,10 @@ async fn test_device_scan_wifi() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s.clone(), r.clone());
@@ -126,7 +131,10 @@ async fn test_device_connect_wifi() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s.clone(), r.clone());
