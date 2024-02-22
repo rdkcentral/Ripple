@@ -29,7 +29,7 @@ use ripple_sdk::{
         },
         distributor::distributor_sync::{SyncAndMonitorModule, SyncAndMonitorRequest},
         firebolt::fb_capabilities::{CapEvent, CapabilityRole, FireboltCap, FireboltPermission},
-        manifest::device_manifest::PrivacySettingsStorageType,
+        manifest::{device_manifest::PrivacySettingsStorageType, remote_feature::RemoteFeature},
         session::AccountSessionRequest,
     },
     async_trait::async_trait,
@@ -206,7 +206,20 @@ impl MainContextProcessor {
             if state.supports_app_catalog() {
                 let ignore_list = vec![state.get_device_manifest().applications.defaults.main];
                 let client = state.get_client();
-                client.add_event_processor(AppsUpdater::new(client.get_extn_client(), ignore_list));
+                let uninstalls_enabled = RemoteFeature::flag(
+                    &mut state.get_client().get_extn_client(),
+                    state
+                        .get_device_manifest()
+                        .get_features()
+                        .catalog_uninstalls_enabled,
+                )
+                .await;
+                info!("Catalog manager uninstalls_enabled={}", uninstalls_enabled);
+                client.add_event_processor(AppsUpdater::new(
+                    client.get_extn_client(),
+                    ignore_list,
+                    uninstalls_enabled,
+                ));
             }
         }
     }
