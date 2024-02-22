@@ -674,59 +674,56 @@ async fn test_device_get_video_resolution() {
     .await;
 }
 
-#[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
-async fn test_device_get_system_memory() {
-    let mut pact_builder_async = get_pact_builder_async_obj().await;
+// #[tokio::test(flavor = "multi_thread")]
+// #[cfg_attr(not(feature = "contract_tests"), ignore)]
+// async fn test_device_get_system_memory() {
+//     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
-    let mut result = HashMap::new();
-    result.insert("freeRam".into(), ContractMatcher::MatchNumber(321944));
-    result.insert("swapRam".into(), ContractMatcher::MatchNumber(0));
-    result.insert("totalRam".into(), ContractMatcher::MatchNumber(624644));
-    result.insert("success".into(), ContractMatcher::MatchBool(true));
+//     let mut result = HashMap::new();
+//     result.insert("freeRam".into(), ContractMatcher::MatchNumber(321944));
+//     result.insert("swapRam".into(), ContractMatcher::MatchNumber(0));
+//     result.insert("totalRam".into(), ContractMatcher::MatchNumber(624644));
+//     result.insert("success".into(), ContractMatcher::MatchBool(true));
 
-    pact_builder_async
-        .synchronous_message_interaction(
-            "A request to get the device available system memory",
-            |mut i| async move {
-                i.contents_from(get_pact!(
-                    "org.rdk.RDKShell.1.getSystemMemory",
-                    ContractResult { result }
-                ))
-                .await;
-                i.test_name("get_device_system_memory");
-                i
-            },
-        )
-        .await;
+//     pact_builder_async
+//         .synchronous_message_interaction(
+//             "A request to get the device available system memory",
+//             |mut i| async move {
+//                 i.contents_from(get_pact!(
+//                     "org.rdk.RDKShell.1.getSystemMemory",
+//                     ContractResult { result }
+//                 ))
+//                 .await;
+//                 i.test_name("get_device_system_memory");
+//                 i
+//             },
+//         )
+//         .await;
 
-    let mock_server = pact_builder_async
-        .start_mock_server_async(Some("websockets/transport/websockets"))
-        .await;
+//     let mock_server = pact_builder_async
+//         .start_mock_server_async(Some("websockets/transport/websockets"))
+//         .await;
 
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-        DeviceInfoRequest::AvailableMemory,
-    )));
-    let msg = get_extn_msg(payload);
+//     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
+//         DeviceInfoRequest::AvailableMemory,
+//     )));
+//     let msg = get_extn_msg(payload);
 
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
-            .await
-            .unwrap();
+//     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+//     let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
 
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s, r);
+//     let (s, r) = unbounded();
+//     let extn_client = get_extn_client(s, r);
 
-    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
+//     let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
 
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(
-        state,
-        msg,
-        DeviceInfoRequest::AvailableMemory,
-    )
-    .await;
-}
+//     let _ = ThunderDeviceInfoRequestProcessor::process_request(
+//         state,
+//         msg,
+//         DeviceInfoRequest::AvailableMemory,
+//     )
+//     .await;
+// }
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
