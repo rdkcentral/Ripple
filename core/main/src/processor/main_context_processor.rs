@@ -229,6 +229,10 @@ impl MainContextProcessor {
             .grant_state
             .delete_all_entries_for_lifespan(&GrantLifespan::PowerActive)
     }
+
+    pub fn remove_expired_and_inactive_entries(state: &PlatformState) {
+        state.cap_state.grant_state.cleanup_user_grants();
+    }
 }
 
 impl ExtnStreamProcessor for MainContextProcessor {
