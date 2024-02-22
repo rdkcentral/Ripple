@@ -321,7 +321,8 @@ impl DeviceServer for DeviceImpl {
         os.readable = format!("Firebolt OS v{}", env!("CARGO_PKG_VERSION"));
 
         let firmware = self.firmware_info(ctx).await?;
-
+        // os is deprecated, for now senidng firmware ver in os as well
+        os = firmware.clone();
         let open_rpc_state = self.state.clone().open_rpc_state;
         let api = open_rpc_state.get_open_rpc().info;
         Ok(DeviceVersionResponse {
