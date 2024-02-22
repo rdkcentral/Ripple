@@ -3,13 +3,12 @@ use std::{collections::HashMap, str::FromStr, sync::Arc};
 use ripple_sdk::{
     api::device::device_operator::DeviceResponseMessage,
     async_channel::{unbounded, Receiver},
-    extn::ffi::ffi_message::CExtnMessage,
+    extn::{ffi::ffi_message::CExtnMessage, mock_extension_client::MockExtnClient},
     serde_json,
     tokio::{self, sync::mpsc},
     utils::channel_utils::{mpsc_send_and_log, oneshot_send_and_log},
     uuid::Uuid,
 };
-use ripple_tdk::utils::mock_extension_client::MockExtnClient;
 use serde_json::Value;
 
 use crate::{

@@ -35,7 +35,7 @@ contract_tests = [
 ]
 
 [dependencies]
-ripple_sdk = { path = "../../core/sdk" }
+ripple_sdk = { path = "../../core/sdk"}
 ripple_tdk = { path = "../../core/tdk" }
 jsonrpsee = { version = "0.9.0", features = ["macros", "ws-client"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -51,3 +51,6 @@ csv = "=1.1.5"
 base64 = "0.13.0"
 home = { version = "=0.5.5", optional = true}
 regex = "1.7.3"
+
+[dev-dependencies]
+ripple_sdk = { path = "../../core/sdk", features=["tdk"]}
