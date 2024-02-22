@@ -105,9 +105,9 @@ pub enum ThunderMetricsTimerName {
 impl ToString for ThunderMetricsTimerName {
     fn to_string(&self) -> String {
         match self {
-            ThunderMetricsTimerName::PackageManagerGetList => "package_manager::get_list".into(),
-            ThunderMetricsTimerName::PackageManagerInstall => "package_manager::install".into(),
-            ThunderMetricsTimerName::PackageManagerUninstall => "package_manager::uninstall".into(),
+            ThunderMetricsTimerName::PackageManagerGetList => "package_manager_get_list".into(),
+            ThunderMetricsTimerName::PackageManagerInstall => "package_manager_install".into(),
+            ThunderMetricsTimerName::PackageManagerUninstall => "package_manager_uninstall".into(),
         }
     }
 }
