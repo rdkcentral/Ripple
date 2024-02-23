@@ -30,7 +30,7 @@ impl ExtnPayloadProvider for AppCatalogRequest {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct AppMetadata {
     pub id: String,
     pub title: String,
