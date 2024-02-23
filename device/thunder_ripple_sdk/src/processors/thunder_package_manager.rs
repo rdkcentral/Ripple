@@ -699,11 +699,17 @@ impl ThunderPackageManagerRequestProcessor {
                 {
                     Some(r) => match Self::decode_permissions(r.value.clone()) {
                         Ok(permissions) => ExtnResponse::Permission(permissions.capabilities),
-                        Err(()) => ExtnResponse::Error(RippleError::ProcessorError),
+                        // <pca>
+                        //Err(()) => ExtnResponse::Error(RippleError::ProcessorError),
+                        Err(()) => ExtnResponse::Error(RippleError::NotAvailable),
+                        // </pca>
                     },
                     None => {
                         error!("get_firebolt_permissions: No permissions for app");
-                        ExtnResponse::Error(RippleError::ProcessorError)
+                        // <pca>
+                        //ExtnResponse::Error(RippleError::ProcessorError)
+                        ExtnResponse::Error(RippleError::NotAvailable)
+                        // </pca>
                     }
                 }
             }
@@ -712,7 +718,10 @@ impl ThunderPackageManagerRequestProcessor {
                     "get_firebolt_permissions: Failed to deserialize response: e={:?}",
                     e
                 );
-                ExtnResponse::Error(RippleError::ProcessorError)
+                // <pca>
+                //ExtnResponse::Error(RippleError::ProcessorError)
+                ExtnResponse::Error(RippleError::NotAvailable)
+                // </pca>
             }
         };
 
@@ -775,7 +784,9 @@ impl ExtnRequestProcessor for ThunderPackageManagerRequestProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         match extracted_message {
-            AppsRequest::GetApps(id) => Self::get_apps(state.thunder_state.clone(), msg, id).await,
+            AppsRequest::GetInstalledApps(id) => {
+                Self::get_apps(state.thunder_state.clone(), msg, id).await
+            }
             AppsRequest::InstallApp(app) => Self::install_app(state.clone(), msg, app).await,
             AppsRequest::UninstallApp(app) => Self::uninstall_app(state.clone(), msg, app).await,
             AppsRequest::GetFireboltPermissions(app_id) => {

@@ -161,7 +161,20 @@ impl PermissionHandler {
             Self::cloud_fetch_and_store(state, app_id).await
         } else {
             // Never use cache, always fetch from device.
-            Self::device_fetch_and_store(state, app_id).await
+            // <pca>
+            //Self::device_fetch_and_store(state, app_id).await
+            let resp = Self::device_fetch_and_store(state, app_id).await;
+
+            if let Err(RippleError::NotAvailable) = resp {
+                let resp = state
+                    .get_client()
+                    .get_extn_client()
+                    .request(AppsRequest::GetFireboltPermissions(app_id.to_string()))
+                    .await;
+            }
+
+            resp
+            // </pca>
         }
     }
 

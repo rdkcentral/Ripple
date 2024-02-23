@@ -94,7 +94,7 @@ pub async fn update(
 ) {
     debug!("update: apps_update={:?}", apps_update);
 
-    let resp = client.request(AppsRequest::GetApps(None)).await;
+    let resp = client.request(AppsRequest::GetInstalledApps(None)).await;
     if let Err(e) = resp {
         error!("update: Could not retrieve app list: e={:?}", e);
         return;
@@ -259,7 +259,7 @@ pub mod tests {
                     }
                     let apps_req = msg.payload.extract::<AppsRequest>().unwrap();
                     match apps_req {
-                        AppsRequest::GetApps(_) => {
+                        AppsRequest::GetInstalledApps(_) => {
                             let response =
                                 ExtnResponse::InstalledApps(pm.pre_installed_apps.clone());
                             client

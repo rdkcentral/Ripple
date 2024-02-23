@@ -8,6 +8,9 @@ use crate::{
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AppCatalogRequest {
     CheckForUpdates,
+    // <pca>
+    GetCatalog,
+    // </pca>
 }
 
 impl ExtnPayloadProvider for AppCatalogRequest {

@@ -26,7 +26,7 @@ use super::device_request::DeviceRequest;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AppsRequest {
-    GetApps(Option<String>),
+    GetInstalledApps(Option<String>),
     InstallApp(AppMetadata),
     UninstallApp(InstalledApp),
     GetFireboltPermissions(String),
@@ -90,7 +90,7 @@ mod tests {
 
     #[test]
     fn test_extn_payload_provider_for_apps_request_get_apps() {
-        let get_apps_request = AppsRequest::GetApps(Some(String::from("filter_criteria")));
+        let get_apps_request = AppsRequest::GetInstalledApps(Some(String::from("filter_criteria")));
 
         let contract_type: RippleContract = RippleContract::Apps;
         test_extn_payload_provider(get_apps_request, contract_type);
