@@ -30,6 +30,7 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         apps::EffectiveTransport,
+        firebolt::fb_metrics::Timer,
         gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
     },
     chrono::Utc,
@@ -132,15 +133,36 @@ async fn resolve_route(
 }
 
 impl RpcRouter {
-    pub async fn route(state: PlatformState, req: RpcRequest, session: Session) {
+    pub async fn route(
+        state: PlatformState,
+        req: RpcRequest,
+        session: Session,
+        timer: Option<Timer>,
+    ) {
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
+
         tokio::spawn(async move {
             let method = req.method.clone();
             let app_id = req.ctx.app_id.clone();
             let session_id = req.ctx.session_id.clone();
             let start = Utc::now().timestamp_millis();
-            if let Ok(msg) = resolve_route(methods, resources, req.clone()).await {
+            let resp = resolve_route(methods, resources, req.clone()).await;
+
+            let status = match resp.clone() {
+                Ok(msg) => {
+                    if msg.is_error() {
+                        msg.jsonrpc_msg
+                    } else {
+                        "0".into()
+                    }
+                }
+                Err(e) => format!("{}", e),
+            };
+
+            TelemetryBuilder::stop_and_send_firebolt_metrics_timer(&state, timer, status).await;
+
+            if let Ok(msg) = resp {
                 let now = Utc::now().timestamp_millis();
                 let success = !msg.is_error();
                 info!(
@@ -154,7 +176,9 @@ impl RpcRouter {
                         false => &msg.jsonrpc_msg,
                     }
                 );
+
                 TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start, success);
+
                 match session.get_transport() {
                     EffectiveTransport::Websocket => {
                         if let Err(e) = session.send_json_rpc(msg).await {
