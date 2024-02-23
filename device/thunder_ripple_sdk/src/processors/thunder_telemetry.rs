@@ -96,6 +96,36 @@ fn get_event_name(event: &TelemetryPayload) -> &'static str {
     }
 }
 
+pub enum ThunderMetricsTimerName {
+    PackageManagerGetList,
+    PackageManagerInstall,
+    PackageManagerUninstall,
+}
+
+impl ToString for ThunderMetricsTimerName {
+    fn to_string(&self) -> String {
+        match self {
+            ThunderMetricsTimerName::PackageManagerGetList => "package_manager_get_list".into(),
+            ThunderMetricsTimerName::PackageManagerInstall => "package_manager_install".into(),
+            ThunderMetricsTimerName::PackageManagerUninstall => "package_manager_uninstall".into(),
+        }
+    }
+}
+
+pub enum ThunderResponseStatus {
+    Success,
+    Failure,
+}
+
+impl ToString for ThunderResponseStatus {
+    fn to_string(&self) -> String {
+        match self {
+            ThunderResponseStatus::Success => "success".into(),
+            ThunderResponseStatus::Failure => "failure".into(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct ThunderTelemetryProcessor {
     state: ThunderState,
@@ -147,7 +177,6 @@ impl ExtnEventProcessor for ThunderTelemetryProcessor {
                 })
                 .await;
         }
-
         None
     }
 }

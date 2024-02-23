@@ -42,7 +42,9 @@ use crate::processors::thunder_device_info::{CachedState, ThunderDeviceInfoReque
 
 use crate::get_pact;
 use crate::tests::contracts::contract_utils::*;
+use crate::thunder_state::ThunderConnectionState;
 use pact_consumer::mock_server::StartMockServerAsync;
+use std::sync::Arc;
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
@@ -86,7 +88,10 @@ async fn test_device_get_info_mac_address() {
 
     // Creating thunder client with mock server url
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     // Creating extn client which will send back the data to the receiver(instead of callback)
     let (s, r) = unbounded();
@@ -152,7 +157,10 @@ async fn test_device_get_model() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s.clone(), r.clone());
@@ -214,7 +222,10 @@ async fn test_device_get_interfaces_wifi() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s.clone(), r.clone());
@@ -276,7 +287,10 @@ async fn test_device_get_interfaces_ethernet() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s, r);
@@ -327,7 +341,10 @@ async fn test_device_get_audio() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s, r);
@@ -377,7 +394,10 @@ async fn test_device_get_hdcp_supported() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s, r);
@@ -436,7 +456,10 @@ async fn test_device_get_hdcp_status() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s, r);
@@ -485,7 +508,10 @@ async fn test_device_get_hdr() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s, r);
@@ -532,7 +558,10 @@ async fn test_device_get_screen_resolution_without_port() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s, r);
@@ -577,7 +606,10 @@ async fn test_device_get_make() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s, r);
@@ -624,7 +656,10 @@ async fn test_device_get_video_resolution() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s, r);
@@ -731,7 +766,10 @@ async fn test_device_get_timezone() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s, r);
@@ -791,7 +829,10 @@ async fn test_device_get_available_timezone() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s, r);
@@ -844,7 +885,10 @@ async fn test_device_get_voice_guidance_enabled() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s, r);
@@ -919,7 +963,10 @@ async fn test_device_get_voice_guidance_speed() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s, r);
@@ -974,7 +1021,10 @@ async fn test_device_set_timezone() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s, r);
@@ -1027,7 +1077,10 @@ async fn test_device_set_voice_guidance() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s, r);
@@ -1080,7 +1133,10 @@ async fn test_device_set_voice_guidance_speed() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s, r);
@@ -1134,7 +1190,10 @@ async fn test_device_get_internet() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s, r);

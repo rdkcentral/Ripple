@@ -40,6 +40,9 @@ use crate::{
 use ripple_sdk::api::device::device_apps::AppMetadata;
 use ripple_sdk::api::device::device_operator::{DeviceResponseMessage, DeviceSubscribeRequest};
 use ripple_sdk::api::firebolt::fb_capabilities::FireboltPermissions;
+use ripple_sdk::api::observability::metrics_util::{
+    start_service_metrics_timer, stop_and_send_service_metrics_timer,
+};
 use ripple_sdk::log::{debug, error, info};
 use ripple_sdk::tokio;
 use ripple_sdk::{
@@ -49,6 +52,8 @@ use ripple_sdk::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+use super::thunder_telemetry::{ThunderMetricsTimerName, ThunderResponseStatus};
 
 // TODO: If/when ripple supports selectable download speeds we'll probably want multiple configurable values or compute this based on throughput.
 const OPERATION_TIMEOUT_SECS: u64 = 6 * 60; // 6 minutes
@@ -471,7 +476,7 @@ impl ThunderPackageManagerRequestProcessor {
                     handle.clone()
                 );
 
-                Self::cancel_operation(state.thunder_state, handle).await;
+                Self::cancel_operation(state, handle).await;
             }
         });
     }
@@ -479,6 +484,12 @@ impl ThunderPackageManagerRequestProcessor {
     async fn get_apps_list(thunder_state: ThunderState, id: Option<String>) -> ExtnResponse {
         let method: String = ThunderPlugin::PackageManager.method("getlist");
         let request = GetListRequest::new(id.unwrap_or_default());
+
+        let metrics_timer = start_service_metrics_timer(
+            &thunder_state.get_client(),
+            ThunderMetricsTimerName::PackageManagerGetList.to_string(),
+        );
+
         let device_response = thunder_state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -488,10 +499,27 @@ impl ThunderPackageManagerRequestProcessor {
                 )),
             })
             .await;
-        match serde_json::from_value::<Vec<InstalledApp>>(device_response.message) {
-            Ok(apps) => ExtnResponse::InstalledApps(apps),
-            Err(_) => ExtnResponse::Error(RippleError::ProcessorError),
-        }
+
+        let (status, extn_resp) =
+            match serde_json::from_value::<Vec<InstalledApp>>(device_response.message) {
+                Ok(apps) => (
+                    ThunderResponseStatus::Success,
+                    ExtnResponse::InstalledApps(apps),
+                ),
+                Err(_) => (
+                    ThunderResponseStatus::Failure,
+                    ExtnResponse::Error(RippleError::ProcessorError),
+                ),
+            };
+
+        stop_and_send_service_metrics_timer(
+            thunder_state.get_client().clone(),
+            metrics_timer,
+            status.to_string(),
+        )
+        .await;
+
+        extn_resp
     }
 
     async fn get_apps(thunder_state: ThunderState, req: ExtnMessage, id: Option<String>) -> bool {
@@ -528,6 +556,12 @@ impl ThunderPackageManagerRequestProcessor {
 
         let method: String = ThunderPlugin::PackageManager.method("install");
         let request = InstallAppRequest::new(app.clone());
+
+        let metrics_timer = start_service_metrics_timer(
+            &state.thunder_state.get_client(),
+            ThunderMetricsTimerName::PackageManagerInstall.to_string(),
+        );
+
         let device_response = state
             .thunder_state
             .get_thunder_client()
@@ -538,7 +572,23 @@ impl ThunderPackageManagerRequestProcessor {
                 )),
             })
             .await;
-        let res = match serde_json::from_value::<String>(device_response.message) {
+
+        let thunder_resp = serde_json::from_value::<String>(device_response.message);
+
+        let status = if thunder_resp.is_ok() {
+            ThunderResponseStatus::Success
+        } else {
+            ThunderResponseStatus::Failure
+        };
+
+        stop_and_send_service_metrics_timer(
+            state.thunder_state.get_client().clone(),
+            metrics_timer,
+            status.to_string(),
+        )
+        .await;
+
+        let extn_resp = match thunder_resp {
             Ok(handle) => {
                 let operation = Operation::new(
                     AppsOperationType::Install,
@@ -551,7 +601,7 @@ impl ThunderPackageManagerRequestProcessor {
             Err(_) => ExtnResponse::Error(RippleError::ProcessorError),
         };
 
-        Self::respond(state.thunder_state.get_client(), req, res)
+        Self::respond(state.thunder_state.get_client(), req, extn_resp)
             .await
             .is_ok()
     }
@@ -583,6 +633,12 @@ impl ThunderPackageManagerRequestProcessor {
 
         let method: String = ThunderPlugin::PackageManager.method("uninstall");
         let request = UninstallAppRequest::new(app.clone());
+
+        let metrics_timer = start_service_metrics_timer(
+            &state.thunder_state.get_client(),
+            ThunderMetricsTimerName::PackageManagerUninstall.to_string(),
+        );
+
         let device_response = state
             .thunder_state
             .get_thunder_client()
@@ -593,7 +649,23 @@ impl ThunderPackageManagerRequestProcessor {
                 )),
             })
             .await;
-        let res = match serde_json::from_value::<String>(device_response.message) {
+
+        let thunder_resp = serde_json::from_value::<String>(device_response.message);
+
+        let status = if thunder_resp.is_ok() {
+            ThunderResponseStatus::Success
+        } else {
+            ThunderResponseStatus::Failure
+        };
+
+        stop_and_send_service_metrics_timer(
+            state.thunder_state.get_client().clone(),
+            metrics_timer,
+            status.to_string(),
+        )
+        .await;
+
+        let extn_resp = match thunder_resp {
             Ok(handle) => {
                 let operation = Operation::new(
                     AppsOperationType::Uninstall,
@@ -606,7 +678,7 @@ impl ThunderPackageManagerRequestProcessor {
             Err(_) => ExtnResponse::Error(RippleError::ProcessorError),
         };
 
-        Self::respond(state.thunder_state.get_client(), req, res)
+        Self::respond(state.thunder_state.get_client(), req, extn_resp)
             .await
             .is_ok()
     }
@@ -674,6 +746,12 @@ impl ThunderPackageManagerRequestProcessor {
         let app = installed_app.unwrap();
         let method: String = ThunderPlugin::PackageManager.method("getmetadata");
         let request = GetMetadataRequest::new(app.id.clone(), app.version.clone());
+
+        let metrics_timer = start_service_metrics_timer(
+            &state.thunder_state.get_client(),
+            ThunderMetricsTimerName::PackageManagerUninstall.to_string(),
+        );
+
         let device_response = state
             .thunder_state
             .get_thunder_client()
@@ -690,7 +768,22 @@ impl ThunderPackageManagerRequestProcessor {
             device_response
         );
 
-        let res = match serde_json::from_value::<ThunderAppMetadata>(device_response.message) {
+        let thunder_resp = serde_json::from_value::<ThunderAppMetadata>(device_response.message);
+
+        let status = if thunder_resp.is_ok() {
+            ThunderResponseStatus::Success
+        } else {
+            ThunderResponseStatus::Failure
+        };
+
+        stop_and_send_service_metrics_timer(
+            state.thunder_state.get_client().clone(),
+            metrics_timer,
+            status.to_string(),
+        )
+        .await;
+
+        let extn_resp = match thunder_resp {
             Ok(metadata) => {
                 match metadata
                     .resources
@@ -725,15 +818,22 @@ impl ThunderPackageManagerRequestProcessor {
             }
         };
 
-        Self::respond(state.thunder_state.get_client(), req, res)
+        Self::respond(state.thunder_state.get_client(), req, extn_resp)
             .await
             .is_ok()
     }
 
-    async fn cancel_operation(thunder_state: ThunderState, handle: String) {
+    async fn cancel_operation(state: ThunderPackageManagerState, handle: String) {
         let method: String = ThunderPlugin::PackageManager.method("cancel");
         let request = CancelRequest::new(handle);
-        let device_response = thunder_state
+
+        let metrics_timer = start_service_metrics_timer(
+            &state.thunder_state.get_client(),
+            ThunderMetricsTimerName::PackageManagerUninstall.to_string(),
+        );
+
+        let device_response = state
+            .thunder_state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method,
@@ -743,12 +843,23 @@ impl ThunderPackageManagerRequestProcessor {
             })
             .await;
 
-        if !device_response.message.is_null() {
+        let status = if device_response.message.is_null() {
+            ThunderResponseStatus::Success
+        } else {
             error!(
                 "cancel_operation: Unexpected response: message={:?}",
                 device_response.message
             );
-        }
+
+            ThunderResponseStatus::Failure
+        };
+
+        stop_and_send_service_metrics_timer(
+            state.thunder_state.get_client().clone(),
+            metrics_timer,
+            status.to_string(),
+        )
+        .await;
     }
 }
 

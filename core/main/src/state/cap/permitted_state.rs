@@ -23,6 +23,7 @@ use std::{
 
 use ripple_sdk::{
     api::{
+        config::FEATURE_CLOUD_PERMISISONS,
         device::device_apps::AppsRequest,
         //config::Config,
         distributor::distributor_permissions::{PermissionRequest, PermissionResponse},
@@ -149,7 +150,12 @@ impl PermissionHandler {
         app_id: &str,
         allow_cached: bool,
     ) -> RippleResponse {
-        if state.get_device_manifest().get_features().cloud_permissions {
+        if state
+            .get_client()
+            .get_extn_client()
+            .get_features()
+            .contains(&String::from(FEATURE_CLOUD_PERMISISONS))
+        {
             if allow_cached {
                 if let Some(permissions) =
                     state.cap_state.permitted_state.get_app_permissions(app_id)
