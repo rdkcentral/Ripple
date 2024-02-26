@@ -23,11 +23,14 @@ use serde_json::Value;
 
 use crate::{
     api::{gateway::rpc_gateway_api::CallContext, session::AccountSession},
-    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
+    extn::{
+        client::extn_client::ExtnClient,
+        extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
+    },
     framework::ripple_contract::RippleContract,
 };
 
-use super::fb_telemetry::TelemetryPayload;
+use super::fb_telemetry::{OperationalMetricRequest, TelemetryPayload};
 
 //https://developer.comcast.com/firebolt/core/sdk/latest/api/metrics
 
@@ -390,6 +393,197 @@ impl BehavioralMetricPayload {
     }
 }
 
+/*
+Operational Metrics. These are metrics that are not directly related to the user's behavior. They are
+more related to the operation of the platform itself. These metrics are not sent to the BI system, and
+are only used for operational/performance measurement - timers, counters, etc -all of low cardinality.
+*/
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct Counter {
+    pub name: String,
+    pub value: u64,
+    /*
+    TODO... this needs to be a map
+    */
+    pub tags: Option<HashMap<String, String>>,
+}
+impl Counter {
+    pub fn new(name: String, value: u64, tags: Option<HashMap<String, String>>) -> Counter {
+        Counter {
+            name: format!("{}_counter", name),
+            value,
+            tags,
+        }
+    }
+    pub fn increment(&mut self) {
+        self.value += 1;
+    }
+    pub fn decrement(&mut self) {
+        self.value -= 1;
+    }
+    pub fn set_value(&mut self, value: u64) {
+        self.value = value;
+    }
+    pub fn add(&mut self, value: u64) {
+        self.value += value;
+    }
+    pub fn subtract(&mut self, value: u64) {
+        self.value -= value;
+    }
+    pub fn reset(&mut self) {
+        self.value = 0;
+    }
+    pub fn get(&self) -> u64 {
+        self.value
+    }
+    pub fn tag(&mut self, tag_name: String, tag_value: String) {
+        if let Some(my_tags) = self.tags.as_mut() {
+            my_tags.insert(tag_name, tag_value);
+        } else {
+            let mut the_map = HashMap::new();
+            the_map.insert(tag_name, tag_value);
+            self.tags = Some(the_map);
+        }
+    }
+    pub fn error(&mut self) {
+        if let Some(my_tags) = self.tags.as_mut() {
+            my_tags.insert("error".to_string(), true.to_string());
+        }
+    }
+    pub fn is_error(&self) -> bool {
+        if let Some(my_tags) = &self.tags {
+            if let Some(error) = my_tags.get("error") {
+                error.parse::<bool>().unwrap_or(false)
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+    pub fn to_extn_request(&self) -> OperationalMetricRequest {
+        OperationalMetricRequest::Counter(self.clone())
+    }
+}
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub enum TimeUnit {
+    Nanos,
+    Millis,
+    Seconds,
+}
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct Timer {
+    pub name: String,
+    #[serde(with = "serde_millis")]
+    pub start: std::time::Instant,
+    #[serde(with = "serde_millis")]
+    pub stop: Option<std::time::Instant>,
+    pub tags: Option<HashMap<String, String>>,
+    pub time_unit: TimeUnit,
+}
+impl Timer {
+    pub fn start(name: String, tags: Option<HashMap<String, String>>) -> Timer {
+        Timer::new(name, std::time::Instant::now(), tags, TimeUnit::Millis)
+    }
+    pub fn start_with_time_unit(
+        name: String,
+        tags: Option<HashMap<String, String>>,
+        time_unit: TimeUnit,
+    ) -> Timer {
+        Timer::new(name, std::time::Instant::now(), tags, time_unit)
+    }
+
+    pub fn new(
+        name: String,
+        start: std::time::Instant,
+        tags: Option<HashMap<String, String>>,
+        time_unit: TimeUnit,
+    ) -> Timer {
+        Timer {
+            name,
+            start,
+            stop: None,
+            tags,
+            time_unit,
+        }
+    }
+
+    pub fn stop(&mut self) -> Timer {
+        if self.stop.is_none() {
+            self.stop = Some(std::time::Instant::now());
+        }
+        self.clone()
+    }
+
+    pub fn restart(&mut self) {
+        self.start = std::time::Instant::now();
+        self.stop = None;
+    }
+
+    pub fn elapsed(&self) -> std::time::Duration {
+        match self.stop {
+            Some(stop) => stop.duration_since(self.start),
+            None => self.start.elapsed(),
+        }
+    }
+
+    pub fn insert_tag(&mut self, tag_name: String, tag_value: String) {
+        if let Some(my_tags) = self.tags.as_mut() {
+            my_tags.insert(tag_name, tag_value);
+        }
+    }
+
+    pub fn insert_tags(&mut self, new_tags: HashMap<String, String>) {
+        let tags = self.tags.clone();
+        match tags {
+            Some(mut t) => t.extend(new_tags),
+            None => self.tags = Some(new_tags),
+        }
+    }
+
+    pub fn error(&mut self) {
+        if let Some(my_tags) = self.tags.as_mut() {
+            my_tags.insert("error".to_string(), true.to_string());
+        }
+    }
+
+    pub fn to_extn_request(&self) -> OperationalMetricRequest {
+        OperationalMetricRequest::Timer(self.clone())
+    }
+}
+
+static FIREBOLT_RPC_NAME: &str = "firebolt_rpc_call";
+impl From<Timer> for OperationalMetricRequest {
+    fn from(timer: Timer) -> Self {
+        OperationalMetricRequest::Timer(timer)
+    }
+}
+
+pub fn fb_api_counter(method_name: String, tags: Option<HashMap<String, String>>) -> Counter {
+    let counter_tags = match tags {
+        Some(mut tags) => {
+            tags.insert("method_name".to_string(), method_name);
+            tags
+        }
+        None => {
+            let mut the_map = HashMap::new();
+            the_map.insert("method_name".to_string(), method_name);
+            the_map
+        }
+    };
+    Counter {
+        name: FIREBOLT_RPC_NAME.to_string(),
+        value: 1,
+        tags: Some(counter_tags),
+    }
+}
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+pub enum OperationalMetricPayload {
+    Timer(Timer),
+    Counter(Counter),
+}
+
 /// all the things that are provided by platform that need to
 /// be updated, and eventually in/outjected into/out of a payload
 /// These items may (or may not) be available when the ripple
@@ -398,6 +592,7 @@ impl BehavioralMetricPayload {
 /// This design assumes that all of the items will be available at the same times
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct MetricsContext {
+    pub enabled: bool,
     pub device_language: String,
     pub device_model: String,
     pub device_id: String,
@@ -411,10 +606,13 @@ pub struct MetricsContext {
     pub device_session_id: String,
     pub mac_address: String,
     pub serial_number: String,
+    pub firmware: String,
+    pub ripple_version: String,
 }
 
 #[allow(non_camel_case_types)]
 pub enum MetricsContextField {
+    enabled,
     device_language,
     device_model,
     device_id,
@@ -428,10 +626,13 @@ pub enum MetricsContextField {
     session_id,
     mac_address,
     serial_number,
+    firmware,
+    ripple_version,
 }
 impl MetricsContext {
     pub fn new() -> MetricsContext {
         MetricsContext {
+            enabled: false,
             device_language: String::from(""),
             device_model: String::from(""),
             device_id: String::from(""),
@@ -445,10 +646,13 @@ impl MetricsContext {
             os_ver: String::from(""),
             device_session_id: String::from(""),
             distribution_tenant_id: String::from(""),
+            firmware: String::from(""),
+            ripple_version: String::from(""),
         }
     }
     pub fn set(&mut self, field: MetricsContextField, value: String) {
         match field {
+            MetricsContextField::enabled => self.enabled = value.parse().unwrap_or(false),
             MetricsContextField::device_language => self.device_language = value,
             MetricsContextField::device_model => self.device_model = value,
             MetricsContextField::device_id => self.device_id = value,
@@ -464,6 +668,8 @@ impl MetricsContext {
             MetricsContextField::mac_address => self.mac_address = value,
             MetricsContextField::serial_number => self.serial_number = value,
             MetricsContextField::device_name => self.device_name = value,
+            MetricsContextField::firmware => self.firmware = value,
+            MetricsContextField::ripple_version => self.ripple_version = value,
         };
     }
 }
@@ -536,7 +742,8 @@ impl ExtnPayloadProvider for MetricsResponse {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum MetricsPayload {
     BehaviorMetric(BehavioralMetricPayload, CallContext),
-    OperationalMetric(TelemetryPayload),
+    TelemetryPayload(TelemetryPayload),
+    OperationalMetric(OperationalMetricPayload),
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -586,6 +793,79 @@ pub struct SystemErrorParams {
     pub context: Option<String>,
 }
 
+pub const SERVICE_METRICS_SEND_REQUEST_TIMEOUT_MS: u64 = 2000;
+
+pub enum InteractionType {
+    Firebolt,
+    Service,
+}
+
+impl ToString for InteractionType {
+    fn to_string(&self) -> String {
+        match self {
+            InteractionType::Firebolt => "fi".into(),
+            InteractionType::Service => "si".into(),
+        }
+    }
+}
+
+pub enum Tag {
+    Type,
+    App,
+    Firmware,
+    Status,
+    RippleVersion,
+    Features,
+}
+
+impl Tag {
+    pub fn key(&self) -> String {
+        match self {
+            Tag::Type => "type".into(),
+            Tag::App => "app".into(),
+            Tag::Firmware => "firmware".into(),
+            Tag::Status => "status".into(),
+            Tag::RippleVersion => "ripple".into(),
+            Tag::Features => "features".into(),
+        }
+    }
+}
+
+pub fn get_metrics_tags(
+    extn_client: &ExtnClient,
+    interaction_type: InteractionType,
+    app_id: Option<String>,
+) -> HashMap<String, String> {
+    let metrics_context = extn_client.get_metrics_context();
+    let mut tags: HashMap<String, String> = HashMap::new();
+
+    tags.insert(Tag::Type.key(), interaction_type.to_string());
+
+    if let Some(app) = app_id {
+        tags.insert(Tag::App.key(), app);
+    }
+
+    tags.insert(Tag::Firmware.key(), metrics_context.firmware.clone());
+    tags.insert(Tag::RippleVersion.key(), metrics_context.ripple_version);
+
+    let features = extn_client.get_features();
+    let feature_count = features.len();
+    let mut features_str = String::new();
+
+    if feature_count > 0 {
+        for (i, feature) in features.iter().enumerate() {
+            features_str.push_str(feature);
+            if i < feature_count - 1 {
+                features_str.push(',');
+            }
+        }
+    }
+
+    tags.insert(Tag::Features.key(), features_str);
+
+    tags
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -605,6 +885,47 @@ mod tests {
         assert!(InternalInitializeParams::deserialize(value).is_err());
         let value = json!({ "version":{"major": 0,"minor": 13,"patch": 0,"readable": 1}} );
         assert!(InternalInitializeParams::deserialize(value).is_err());
+    }
+
+    #[test]
+    pub fn test_counter() {
+        let mut counter = super::Counter::new("test".to_string(), 0, None);
+        counter.increment();
+        assert_eq!(counter.get(), 1);
+        counter.decrement();
+        assert_eq!(counter.get(), 0);
+        counter.set_value(10);
+        assert_eq!(counter.get(), 10);
+        counter.add(5);
+        assert_eq!(counter.get(), 15);
+        counter.subtract(5);
+        assert_eq!(counter.get(), 10);
+        counter.reset();
+        assert_eq!(counter.get(), 0);
+    }
+    #[test]
+    pub fn test_counter_with_tags() {
+        let mut counter = super::Counter::new("test".to_string(), 0, None);
+        assert_eq!(counter.tags, None);
+        counter.tag("tag1".to_string(), "tag1_value".to_string());
+        counter.tag("tag2".to_string(), "tag2_value".to_string());
+        let mut expected = HashMap::new();
+        expected.insert("tag1".to_string(), "tag1_value".to_string());
+        expected.insert("tag2".to_string(), "tag2_value".to_string());
+        assert_eq!(counter.tags, Some(expected));
+    }
+    #[test]
+    pub fn test_timer() {
+        let mut timer = super::Timer::start("test".to_string(), None);
+        std::thread::sleep(std::time::Duration::from_millis(101));
+        timer.stop();
+        assert!(timer.elapsed().as_millis() > 100);
+        assert!(timer.elapsed().as_millis() < 200);
+        timer.restart();
+        std::thread::sleep(std::time::Duration::from_millis(101));
+        timer.stop();
+        assert!(timer.elapsed().as_millis() > 100);
+        assert!(timer.elapsed().as_millis() < 200);
     }
 
     #[test]
@@ -628,6 +949,7 @@ mod tests {
 
         let behavioral_metric_request = BehavioralMetricRequest {
             context: Some(MetricsContext {
+                enabled: true,
                 device_language: "en".to_string(),
                 device_model: "iPhone".to_string(),
                 device_id: "test_device_id".to_string(),
@@ -641,6 +963,8 @@ mod tests {
                 device_session_id: "test_device_session_id".to_string(),
                 mac_address: "test_mac_address".to_string(),
                 serial_number: "test_serial_number".to_string(),
+                firmware: "test_firmware".to_string(),
+                ripple_version: "test_ripple_version".to_string(),
             }),
             payload: BehavioralMetricPayload::Ready(ready_payload),
             session: AccountSession {

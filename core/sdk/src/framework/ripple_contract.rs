@@ -114,6 +114,8 @@ pub enum RippleContract {
     Metrics,
     /// Contract for Extensions to recieve Telemetry events from Main
     OperationalMetricListener,
+    Observability,
+    TelemetryEventsListener,
     Storage(StorageAdjective),
     /// Provided by the distributor could be a device extension or a cloud extension.
     /// Distributor gets the ability to configure and customize the generation of

@@ -37,7 +37,7 @@ async fn main() {
         println!("{:?} logger init error", e);
         return;
     }
-    info!("version {} {}", SEMVER, SHA_SHORT);
+    info!("version {}", SEMVER_LIGHTWEIGHT);
     let bootstate = BootstrapState::build().expect("Failure to init state for bootstrap");
 
     // bootstrap
