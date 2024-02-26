@@ -172,7 +172,7 @@ impl PermissionHandler {
             let resp = Self::device_fetch_and_store(state, app_id).await;
 
             if let Err(RippleError::NotAvailable) = resp {
-                let resp = state
+                state
                     .get_client()
                     .get_extn_client()
                     .request(AppsRequest::GetFireboltPermissions(app_id.to_string()))

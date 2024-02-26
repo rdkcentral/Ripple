@@ -72,12 +72,12 @@ impl AppMetadata {
 //     }
 // }
 pub struct AppsUpdate {
-    pub old_catalog: Vec<AppMetadata>,
+    pub old_catalog: Option<Vec<AppMetadata>>,
     pub new_catalog: Vec<AppMetadata>,
 }
 
 impl AppsUpdate {
-    pub fn new(old_catalog: Vec<AppMetadata>, new_catalog: Vec<AppMetadata>) -> AppsUpdate {
+    pub fn new(old_catalog: Option<Vec<AppMetadata>>, new_catalog: Vec<AppMetadata>) -> AppsUpdate {
         AppsUpdate {
             old_catalog,
             new_catalog,
