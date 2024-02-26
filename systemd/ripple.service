@@ -1,6 +1,5 @@
 [Unit]
 Description=Firebolt reference implementation
-Requires=wpeframework.service
 After=wpeframework.service
 
 [Service]

@@ -18,7 +18,10 @@
 use ripple_sdk::{
     api::{
         firebolt::{
-            fb_metrics::{ErrorParams, InternalInitializeParams, SystemErrorParams},
+            fb_metrics::{
+                get_metrics_tags, ErrorParams, InteractionType, InternalInitializeParams,
+                SystemErrorParams, Tag, Timer,
+            },
             fb_telemetry::{
                 AppLoadStart, AppLoadStop, FireboltInteraction, InternalInitialize,
                 TelemetryAppError, TelemetryPayload, TelemetrySignIn, TelemetrySignOut,
@@ -28,8 +31,9 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::{CallContext, RpcRequest},
     },
     chrono::{DateTime, Utc},
+    extn::client::extn_client::ExtnClient,
     framework::RippleResponse,
-    log::error,
+    log::{debug, error},
 };
 use serde_json::Value;
 
@@ -52,7 +56,7 @@ impl TelemetryBuilder {
                 app_version,
                 start_time: start_time.unwrap_or_default().timestamp_millis(),
                 ripple_session_id: ps.metrics.get_context().device_session_id,
-                ripple_version: String::from(SEMVER),
+                ripple_version: String::from(SEMVER_LIGHTWEIGHT),
                 ripple_context: None,
             }),
         ) {
@@ -101,7 +105,7 @@ impl TelemetryBuilder {
         Self::send_app_load_start(
             ps,
             "ripple".to_string(),
-            Some(String::from(SEMVER)),
+            Some(String::from(SEMVER_LIGHTWEIGHT)),
             Some(ps.metrics.start_time),
         );
         Self::send_app_load_stop(ps, "ripple".to_string(), true);
@@ -197,6 +201,49 @@ impl TelemetryBuilder {
             }),
         ) {
             error!("send_telemetry={:?}", e)
+        }
+    }
+
+    pub fn start_firebolt_metrics_timer(
+        extn_client: &ExtnClient,
+        name: String,
+        app_id: String,
+    ) -> Option<Timer> {
+        let metrics_context = extn_client.get_metrics_context();
+
+        if !metrics_context.enabled {
+            return None;
+        }
+
+        let metrics_tags = get_metrics_tags(extn_client, InteractionType::Firebolt, Some(app_id));
+
+        debug!("start_firebolt_metrics_timer: {}: {:?}", name, metrics_tags);
+
+        Some(Timer::start(name, Some(metrics_tags)))
+    }
+
+    pub async fn stop_and_send_firebolt_metrics_timer(
+        ps: &PlatformState,
+        timer: Option<Timer>,
+        status: String,
+    ) {
+        if let Some(mut timer) = timer {
+            timer.stop();
+            timer.insert_tag(Tag::Status.key(), status);
+            if let Err(e) = &ps
+                .get_client()
+                .send_extn_request(
+                    ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest::Timer(
+                        timer.clone(),
+                    ),
+                )
+                .await
+            {
+                error!(
+                    "stop_and_send_firebolt_metrics_timer: send_telemetry={:?}",
+                    e
+                )
+            }
         }
     }
 }
