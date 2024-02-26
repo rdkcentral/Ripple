@@ -124,7 +124,10 @@ pub async fn update(
             }
 
             if !apps_update
-                .apps
+                // <pca>
+                //.apps
+                .new_catalog
+                // </pca>
                 .clone()
                 .into_iter()
                 .any(|app| app.id.eq(&installed_app.id))
@@ -151,7 +154,10 @@ pub async fn update(
     );
 
     let mut app_list: Vec<app_catalog::AppMetadata> = apps_update
-        .apps
+        // <pca>
+        //.apps
+        .new_catalog
+        // </pca>
         .into_iter()
         .filter(|a| {
             !installed_apps

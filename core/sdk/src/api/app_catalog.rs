@@ -61,15 +61,30 @@ impl AppMetadata {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+// <pca>
+// pub struct AppsUpdate {
+//     pub apps: Vec<AppMetadata>,
+// }
+
+// impl AppsUpdate {
+//     pub fn new(apps: Vec<AppMetadata>) -> AppsUpdate {
+//         AppsUpdate { apps }
+//     }
+// }
 pub struct AppsUpdate {
-    pub apps: Vec<AppMetadata>,
+    pub old_catalog: Vec<AppMetadata>,
+    pub new_catalog: Vec<AppMetadata>,
 }
 
 impl AppsUpdate {
-    pub fn new(apps: Vec<AppMetadata>) -> AppsUpdate {
-        AppsUpdate { apps }
+    pub fn new(old_catalog: Vec<AppMetadata>, new_catalog: Vec<AppMetadata>) -> AppsUpdate {
+        AppsUpdate {
+            old_catalog,
+            new_catalog,
+        }
     }
 }
+// </pca>
 
 impl ExtnPayloadProvider for AppsUpdate {
     fn get_extn_payload(&self) -> ExtnPayload {
