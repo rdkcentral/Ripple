@@ -533,7 +533,7 @@ impl Timer {
             stop: None,
             tags,
             time_unit,
-            timer_type: timer_type.unwrap_or_else(|| TimerType::Local),
+            timer_type: timer_type.unwrap_or(TimerType::Local),
         }
     }
 
