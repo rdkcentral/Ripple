@@ -17,8 +17,15 @@
 
 use serde::Deserialize;
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct MockConfig {
-    #[serde(default = "bool::default")]
     pub activate_all_plugins: bool,
+}
+
+impl Default for MockConfig {
+    fn default() -> Self {
+        Self {
+            activate_all_plugins: true,
+        }
+    }
 }

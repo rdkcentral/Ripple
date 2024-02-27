@@ -180,28 +180,4 @@ mod tests {
         assert!(methods.method("mockdevice.removeRequest").is_some());
         assert!(methods.method("mockdevice.emitEvent").is_some());
     }
-
-    #[test]
-    #[should_panic]
-    fn test_init_extn_builder() {
-        todo!("test that the mock device web socket server is started when the channel extension is launched")
-        // FIXME: Currently unable to mock the extn client responses so that the Config::PlatformParameter response works.
-        // let ripple_client = RippleClient::new        client.add_request_processor(ConfigRequestProcessor::new(state.platform_state.clone()));
-
-        // let builder = init_extn_builder();
-        // let (sender, receiver) = extn_sender();
-        // let client = ExtnClient::new(receiver, sender);
-        // let channel = (builder.build)("ripple:channel:device:mock_device".to_owned());
-
-        // assert_eq!(builder.service, "mock_device".to_owned());
-        // assert!(channel.is_ok());
-
-        // (channel.unwrap().start)(sender, receiver.clone());
-
-        // let ready = receiver.recv();
-        // assert!(ready.is_ok());
-        // let message: ExtnMessage = ready.unwrap().try_into().unwrap();
-        // let status: Option<ExtnStatus> = message.payload.extract();
-        // assert_eq!(status, Some(ExtnStatus::Ready));
-    }
 }
