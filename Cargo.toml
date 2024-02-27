@@ -27,6 +27,7 @@ members = [
     "distributor/general",
     "examples/rpc_extn",
     "examples/tm_extn",
+    "openrpc_validator"
 ]
 
 [workspace.package]
