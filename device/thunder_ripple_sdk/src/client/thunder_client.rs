@@ -749,4 +749,31 @@ mod tests {
         assert_eq!(thunder_call_message.callsign(), "org.rdk.RDKShell");
         assert_eq!(thunder_call_message.method_name(), "createDisplay");
     }
+
+    #[test]
+    fn test_extract_callsign_from_register_method() {
+        let method = "org.rdk.RDKShell.1.register";
+        let callsign = ThunderClient::extract_callsign_from_register_method(method);
+        assert_eq!(callsign, Some("org.rdk.RDKShell".to_string()));
+
+        let method = "org.rdk.RDKShell.register";
+        let callsign = ThunderClient::extract_callsign_from_register_method(method);
+        assert_eq!(callsign, Some("org.rdk.RDKShell".to_string()));
+
+        // test method abcd. 1.register
+        let method = "abcd .1.register";
+        let callsign = ThunderClient::extract_callsign_from_register_method(method);
+        assert_eq!(callsign, Some("abcd ".to_string()));
+    }
+
+    #[test]
+    fn test_extract_callsign_from_register_method_invalid_pattern() {
+        let method = "abcd.1";
+        let callsign = ThunderClient::extract_callsign_from_register_method(method);
+        assert_eq!(callsign, None);
+
+        let method = "abcd.1.register.2";
+        let callsign = ThunderClient::extract_callsign_from_register_method(method);
+        assert_eq!(callsign, None);
+    }
 }
