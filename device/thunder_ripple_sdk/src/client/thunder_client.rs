@@ -24,6 +24,7 @@ use jsonrpsee::ws_client::WsClientBuilder;
 
 use jsonrpsee::core::{async_trait, error::Error as JsonRpcError};
 use jsonrpsee::types::ParamsSer;
+use regex::Regex;
 use ripple_sdk::{
     api::device::device_operator::DeviceResponseMessage,
     tokio::sync::mpsc::{self, Sender as MpscSender},
@@ -249,6 +250,7 @@ impl ThunderClient {
         client: &Client,
         subscriptions_map: &Arc<Mutex<HashMap<String, ThunderSubscription>>>,
         thunder_message: ThunderSubscribeMessage,
+        plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
         pool_tx: Option<mpsc::Sender<ThunderPoolCommand>>,
     ) {
         let subscribe_method = format!(
@@ -286,8 +288,13 @@ impl ThunderClient {
             id: format!("client.{}.events", thunder_message.module.clone()),
         };
         let json = serde_json::to_string(&params).unwrap();
+        let method = format!("{}.register", thunder_message.module);
+        if let Some(callsign) = Self::extract_callsign_from_register_method(&method) {
+            Self::check_and_activate_plugin(&callsign, &plugin_manager_tx).await;
+        }
+
         let response = Box::new(ThunderParamRequest {
-            method: format!("{}.register", thunder_message.module).as_str(),
+            method: method.as_str(),
             params: &json,
             json_based: true,
         })
@@ -383,17 +390,7 @@ impl ThunderClient {
         plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
     ) {
         // First check if the plugin is activated and ready to use
-        let (plugin_rdy_tx, plugin_rdy_rx) = oneshot::channel::<PluginActivatedResult>();
-        if let Some(tx) = plugin_manager_tx {
-            let msg = PluginManagerCommand::ActivatePluginIfNeeded {
-                callsign: thunder_message.callsign(),
-                tx: plugin_rdy_tx,
-            };
-            mpsc_send_and_log(&tx, msg, "ActivatePluginIfNeeded").await;
-            if let Ok(res) = plugin_rdy_rx.await {
-                res.ready().await;
-            }
-        }
+        Self::check_and_activate_plugin(&thunder_message.callsign(), &plugin_manager_tx).await;
         let params = thunder_message.params;
         match params {
             Some(p) => match p {
@@ -427,7 +424,36 @@ impl ThunderClient {
             }
         }
     }
+
+    async fn check_and_activate_plugin(
+        call_sign: &str,
+        plugin_manager_tx: &Option<MpscSender<PluginManagerCommand>>,
+    ) {
+        let (plugin_rdy_tx, plugin_rdy_rx) = oneshot::channel::<PluginActivatedResult>();
+        if let Some(tx) = plugin_manager_tx {
+            let msg = PluginManagerCommand::ActivatePluginIfNeeded {
+                callsign: call_sign.to_string(),
+                tx: plugin_rdy_tx,
+            };
+            mpsc_send_and_log(tx, msg, "ActivatePluginIfNeeded").await;
+            if let Ok(res) = plugin_rdy_rx.await {
+                res.ready().await;
+            }
+        }
+    }
+    fn extract_callsign_from_register_method(method: &str) -> Option<String> {
+        // capture the initial string before an optional version number, followed by ".register"
+        let re = Regex::new(r"^(.*?)(?:\.\d+)?\.register$").unwrap();
+
+        if let Some(cap) = re.captures(method) {
+            if let Some(string) = cap.get(1) {
+                return Some(string.as_str().to_string());
+            }
+        }
+        None
+    }
 }
+
 impl ThunderClientBuilder {
     fn parse_subscribe_method(subscribe_method: &str) -> Option<(String, String)> {
         if let Some(client_start) = subscribe_method.find("client.") {
@@ -538,6 +564,7 @@ impl ThunderClientBuilder {
                             &client,
                             &subscriptions_c,
                             thunder_message,
+                            plugin_manager_tx.clone(),
                             pool_tx.clone(),
                         )
                         .await;
