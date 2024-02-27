@@ -944,7 +944,7 @@ mod tests {
     }
     #[test]
     pub fn test_timer() {
-        let mut timer = super::Timer::start("test".to_string(), None);
+        let mut timer = super::Timer::start("test".to_string(), None, None);
         std::thread::sleep(std::time::Duration::from_millis(101));
         timer.stop();
         assert!(timer.elapsed().as_millis() > 100);
