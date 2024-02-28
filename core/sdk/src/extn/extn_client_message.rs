@@ -26,7 +26,7 @@ use std::fmt::Debug;
 use crate::{
     api::{
         account_link::AccountLinkRequest,
-        app_catalog::{AppCatalogRequest, AppMetadata, AppsUpdate},
+        app_catalog::{AppCatalogRequest, AppMetadata, AppsCatalogUpdate, AppsUpdate},
         apps::AppEventRequest,
         caps::CapsRequest,
         config::{Config, ConfigResponse},
@@ -340,7 +340,10 @@ pub enum ExtnEvent {
     VoiceGuidanceState(VoiceGuidanceState),
     PubSubEvent(PubSubEvents),
     TimeZone(TimeZone),
+    AppsCatalogUpdate(AppsCatalogUpdate),
+    // <pca>
     AppsUpdate(AppsUpdate),
+    // </pca>
 }
 
 impl ExtnPayloadProvider for ExtnEvent {

@@ -1,8 +1,8 @@
 use jsonrpsee::core::async_trait;
 use ripple_sdk::{
     api::{
-        app_catalog::{self, AppsUpdate},
-        device::device_apps::{AppMetadata, AppsRequest},
+        app_catalog::{self, AppMetadata, AppsCatalogUpdate},
+        device::device_apps::{AppsRequest, DeviceAppMetadata},
     },
     extn::{
         client::{
@@ -52,7 +52,7 @@ impl AppsUpdater {
 }
 
 impl ExtnStreamProcessor for AppsUpdater {
-    type VALUE = AppsUpdate;
+    type VALUE = AppsCatalogUpdate;
     type STATE = AppsUpdaterState;
 
     fn get_state(&self) -> Self::STATE {
@@ -88,7 +88,7 @@ impl ExtnEventProcessor for AppsUpdater {
 
 pub async fn update(
     mut client: ExtnClient,
-    apps_update: AppsUpdate,
+    apps_update: AppsCatalogUpdate,
     ignore_list: Vec<String>,
     uninstalls_enabled: bool,
 ) {
@@ -168,7 +168,7 @@ pub async fn update(
     app_list.sort_by_key(|app| app.install_priority);
     for app in app_list {
         debug!("update: Application is not currently installed, installing: title={}, id={}, version={}", app.title, app.id, app.version);
-        let metadata = AppMetadata::new(app.id, app.title, app.version, app.uri, app.data);
+        let metadata = DeviceAppMetadata::new(app.id, app.title, app.version, app.uri, app.data);
         let resp = client.request(AppsRequest::InstallApp(metadata)).await;
 
         if let Err(e) = resp {
@@ -182,8 +182,8 @@ pub mod tests {
 
     use ripple_sdk::{
         api::{
-            app_catalog::{AppMetadata, AppsUpdate},
-            device::device_apps::{AppMetadata as DeviceAppMetadata, AppsRequest, InstalledApp},
+            app_catalog::{AppMetadata, AppsCatalogUpdate},
+            device::device_apps::{AppsRequest, DeviceAppMetadata, InstalledApp},
         },
         async_channel::Receiver,
         extn::{
@@ -311,7 +311,7 @@ pub mod tests {
     pub async fn test_update_install_one_app() {
         let (mut client, pm_r) = MockExtnClient::main_and_extn(vec![String::from("apps")]);
         let pm_ftr = MockPackageManager::start(vec![], client.clone(), pm_r);
-        let apps_update = AppsUpdate {
+        let apps_update = AppsCatalogUpdate {
             apps: vec![AppBuilder::new("firecert").meta()],
         };
 
@@ -331,7 +331,7 @@ pub mod tests {
             client.clone(),
             pm_r,
         );
-        let apps_update = AppsUpdate {
+        let apps_update = AppsCatalogUpdate {
             apps: vec![AppBuilder::new("firecert").meta()],
         };
 
@@ -347,7 +347,7 @@ pub mod tests {
     pub async fn test_update_install_in_priority_order() {
         let (mut client, pm_r) = MockExtnClient::main_and_extn(vec![String::from("apps")]);
         let pm_ftr = MockPackageManager::start(vec![], client.clone(), pm_r);
-        let apps_update = AppsUpdate {
+        let apps_update = AppsCatalogUpdate {
             apps: vec![
                 AppBuilder::new("no_priority_app").meta(),
                 AppBuilder::new("high_priority_app").priority(1).meta(),
@@ -381,7 +381,7 @@ pub mod tests {
             client.clone(),
             pm_r,
         );
-        let apps_update = AppsUpdate {
+        let apps_update = AppsCatalogUpdate {
             apps: vec![AppBuilder::new("firecert").version("2.0").meta()],
         };
 
@@ -406,7 +406,7 @@ pub mod tests {
             client.clone(),
             pm_r,
         );
-        let apps_update = AppsUpdate { apps: vec![] };
+        let apps_update = AppsCatalogUpdate { apps: vec![] };
 
         update(client.clone(), apps_update, vec![], true).await;
         let pm = MockPackageManager::shutdown(&mut client, pm_ftr).await;
@@ -424,7 +424,7 @@ pub mod tests {
             client.clone(),
             pm_r,
         );
-        let apps_update = AppsUpdate { apps: vec![] };
+        let apps_update = AppsCatalogUpdate { apps: vec![] };
 
         update(client.clone(), apps_update, vec![], false).await;
         let pm = MockPackageManager::shutdown(&mut client, pm_ftr).await;
@@ -441,7 +441,7 @@ pub mod tests {
             client.clone(),
             pm_r,
         );
-        let apps_update = AppsUpdate {
+        let apps_update = AppsCatalogUpdate {
             apps: vec![AppBuilder::new("firecert").meta()],
         };
 

@@ -71,21 +71,57 @@ impl AppMetadata {
 //         AppsUpdate { apps }
 //     }
 // }
-pub struct AppsUpdate {
+pub struct AppsCatalogUpdate {
     pub old_catalog: Option<Vec<AppMetadata>>,
     pub new_catalog: Vec<AppMetadata>,
 }
 
-impl AppsUpdate {
-    pub fn new(old_catalog: Option<Vec<AppMetadata>>, new_catalog: Vec<AppMetadata>) -> AppsUpdate {
-        AppsUpdate {
+impl AppsCatalogUpdate {
+    pub fn new(
+        old_catalog: Option<Vec<AppMetadata>>,
+        new_catalog: Vec<AppMetadata>,
+    ) -> AppsCatalogUpdate {
+        AppsCatalogUpdate {
             old_catalog,
             new_catalog,
         }
     }
 }
+
+impl ExtnPayloadProvider for AppsCatalogUpdate {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Event(ExtnEvent::AppsCatalogUpdate(self.clone()))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        if let ExtnPayload::Event(ExtnEvent::AppsCatalogUpdate(apps_catalog_update)) = payload {
+            return Some(apps_catalog_update);
+        }
+
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::AppCatalog
+    }
+}
 // </pca>
 
+// <pca>
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub enum AppsUpdate {
+    CatalogUpdate(AppsCatalogUpdate),
+    InstallComplete(AppOperationComplete),
+    UninstallComplete(AppOperationComplete),
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct AppOperationComplete {
+    pub id: String,
+    pub version: String,
+    pub success: bool,
+}
+// </pca>
 impl ExtnPayloadProvider for AppsUpdate {
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Event(ExtnEvent::AppsUpdate(self.clone()))
@@ -118,8 +154,9 @@ mod tests {
 
     #[test]
     fn test_extn_payload_provider_for_apps_update() {
-        let apps_update = AppsUpdate {
-            apps: vec![AppMetadata {
+        let apps_update = AppsCatalogUpdate {
+            old_catalog: None,
+            new_catalog: vec![AppMetadata {
                 id: String::from("app1"),
                 title: String::from("App 1"),
                 version: String::from("1.0"),

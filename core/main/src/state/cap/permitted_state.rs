@@ -23,6 +23,7 @@ use std::{
 
 use ripple_sdk::{
     api::{
+        app_catalog::AppCatalogRequest,
         config::FEATURE_CLOUD_PERMISISONS,
         device::device_apps::AppsRequest,
         //config::Config,
@@ -167,20 +168,7 @@ impl PermissionHandler {
             Self::cloud_fetch_and_store(state, app_id).await
         } else {
             // Never use cache, always fetch from device.
-            // <pca>
-            //Self::device_fetch_and_store(state, app_id).await
-            let resp = Self::device_fetch_and_store(state, app_id).await;
-
-            if let Err(RippleError::NotAvailable) = resp {
-                state
-                    .get_client()
-                    .get_extn_client()
-                    .request(AppsRequest::GetFireboltPermissions(app_id.to_string()))
-                    .await;
-            }
-
-            resp
-            // </pca>
+            Self::device_fetch_and_store(state, app_id).await
         }
     }
 
@@ -326,7 +314,42 @@ impl PermissionHandler {
             .map_or(Vec::new(), |v| v)
     }
 
-    pub async fn fetch_permission_for_app_session(state: &PlatformState, app_id: &String) {
+    // <pca>
+    // pub async fn fetch_permission_for_app_session(state: &PlatformState, app_id: &String) {
+    //     // This call should hit the server and fetch permissions for the app.
+    //     // Local cache will be updated with the fetched permissions
+    //     let has_stored = state
+    //         .cap_state
+    //         .permitted_state
+    //         .has_cached_permissions(app_id);
+    //     let ps_c = state.clone();
+    //     let app_id_c = app_id.clone();
+    //     let handle = tokio::spawn(async move {
+    //         let perm_res = Self::fetch_and_store(&ps_c, &app_id_c, false).await;
+    //         if perm_res.is_err() {
+    //             if has_stored {
+    //                 error!(
+    //                     "Failed to get permissions for {}, possibly using stale permissions",
+    //                     app_id_c
+    //                 )
+    //             } else {
+    //                 error!("Failed to get permissions for {} and no previous permissions store, app may not be able to access capabilities", app_id_c)
+    //             }
+    //         }
+    //     });
+    //     if !has_stored {
+    //         // app has no stored permissions, wait until it does
+    //         debug!(
+    //             "{} did not have any permissions, waiting until permissions are fetched from cloud",
+    //             app_id
+    //         );
+    //         handle.await.ok();
+    //     }
+    // }
+    pub async fn fetch_permission_for_app_session(
+        state: &PlatformState,
+        app_id: &String,
+    ) -> Result<(), RippleError> {
         // This call should hit the server and fetch permissions for the app.
         // Local cache will be updated with the fetched permissions
         let has_stored = state
@@ -347,16 +370,28 @@ impl PermissionHandler {
                     error!("Failed to get permissions for {} and no previous permissions store, app may not be able to access capabilities", app_id_c)
                 }
             }
+            perm_res
         });
-        if !has_stored {
+        let result: Result<(), RippleError> = if !has_stored {
             // app has no stored permissions, wait until it does
             debug!(
                 "{} did not have any permissions, waiting until permissions are fetched from cloud",
                 app_id
             );
-            handle.await.ok();
-        }
+            match handle.await {
+                Ok(handle_result) => handle_result,
+                Err(e) => {
+                    error!("fetch_permission_for_app_session: e={:?}", e);
+                    Err(RippleError::NotAvailable)
+                }
+            }
+        } else {
+            Ok(())
+        };
+        result
     }
+    // </pca>
+
     pub async fn check_permitted(
         state: &PlatformState,
         app_id: &str,
