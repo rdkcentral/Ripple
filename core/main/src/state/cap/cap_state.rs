@@ -110,14 +110,14 @@ impl CapState {
 
     fn check_primed(
         ps: &PlatformState,
-        event: CapEvent,
-        cap: FireboltCap,
+        _event: &CapEvent,
+        cap: &FireboltCap,
         app_id: Option<String>,
     ) -> bool {
         let r = ps.cap_state.primed_listeners.read().unwrap();
         debug!("primed entries {:?}", r);
         if r.iter().any(|x| {
-            if x.event == event && x.cap == cap {
+            if matches!(&x.event, _event) && &x.cap == cap {
                 if let Some(a) = &app_id {
                     x.app_id.eq(a)
                 } else {
@@ -134,11 +134,11 @@ impl CapState {
 
     pub async fn emit(
         ps: &PlatformState,
-        event: CapEvent,
+        event: &CapEvent,
         cap: FireboltCap,
         role: Option<CapabilityRole>,
     ) {
-        match &event {
+        match event {
             CapEvent::OnAvailable => ps
                 .cap_state
                 .generic
@@ -150,7 +150,7 @@ impl CapState {
             _ => {}
         }
         // check if given event and capability needs emitting
-        if Self::check_primed(ps, event.clone(), cap.clone(), None) {
+        if Self::check_primed(ps, event, &cap, None) {
             debug!("preparing cap event emit {}", cap.as_str());
             // if its a grant or revoke it could be done per app
             // these require additional
@@ -174,7 +174,7 @@ impl CapState {
                 let cc = listener.call_ctx.clone();
                 // Step 2: Check if the given event is valid for the app
                 if is_app_check_necessary
-                    && !Self::check_primed(ps, event.clone(), cap.clone(), Some(cc.app_id.clone()))
+                    && !Self::check_primed(ps, event, &cap, Some(cc.app_id.clone()))
                 {
                     continue;
                 }
