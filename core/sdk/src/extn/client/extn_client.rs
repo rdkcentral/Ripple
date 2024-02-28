@@ -1528,7 +1528,7 @@ pub mod tests {
             Some(HashMap::new()),
         );
 
-        let mut extn_client = ExtnClient::new(receiver.clone(), mock_sender.clone());
+        let extn_client = ExtnClient::new(receiver.clone(), mock_sender.clone());
 
         // TODO - this is a dummy test, need to add a real test
         if let Ok(ExtnResponse::Value(_v)) = extn_client
@@ -1550,7 +1550,7 @@ pub mod tests {
             Some(HashMap::new()),
         );
 
-        let mut extn_client = ExtnClient::new(receiver, mock_sender);
+        let extn_client = ExtnClient::new(receiver, mock_sender);
         let (s, _receiver) = unbounded();
         extn_client.clone().add_sender(
             ExtnId::get_main_target("main".into()),
