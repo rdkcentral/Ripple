@@ -372,6 +372,12 @@ pub const JSON_RPC_STANDARD_ERROR_INVALID_PARAMS: i32 = -32602;
 
 pub const JSON_RPC_STANDARD_ERROR_METHOD_NOT_FOUND: i32 = -32601;
 
+pub const CAPABILITY_GRANT_DENIED: i32 = -40400;
+
+pub const CAPABILITY_UNGRANTED: i32 = -40401;
+
+pub const CAPABILITY_APP_NOT_IN_ACTIVE_STATE: i32 = -40402;
+
 impl RpcError for DenyReason {
     type E = Vec<String>;
     fn get_rpc_error_code(&self) -> i32 {
@@ -400,6 +406,19 @@ impl RpcError for DenyReason {
                 "Capability cannot be used when app is not in foreground state due to requiring a user grant".to_string()
             }
             _ => format!("Error with {}", caps_disp),
+        }
+    }
+
+    fn get_observability_error_code(&self) -> i32 {
+        match self {
+            Self::Unavailable => CAPABILITY_NOT_AVAILABLE,
+            Self::Unsupported => CAPABILITY_NOT_SUPPORTED,
+            Self::GrantDenied => CAPABILITY_GRANT_DENIED,
+            Self::Unpermitted => CAPABILITY_NOT_PERMITTED,
+            Self::Ungranted => CAPABILITY_UNGRANTED,
+            Self::NotFound => JSON_RPC_STANDARD_ERROR_METHOD_NOT_FOUND,
+            Self::AppNotInActiveState => CAPABILITY_APP_NOT_IN_ACTIVE_STATE,
+            _ => CAPABILITY_GET_ERROR,
         }
     }
 }

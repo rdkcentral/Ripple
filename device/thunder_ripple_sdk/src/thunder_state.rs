@@ -27,6 +27,7 @@ use ripple_sdk::{
     },
     tokio,
     tokio::sync::mpsc,
+    tokio::sync::{Mutex, Notify},
     utils::error::RippleError,
 };
 use url::Url;
@@ -36,12 +37,33 @@ use crate::{
     events::thunder_event_processor::{ThunderEventHandler, ThunderEventProcessor},
 };
 
+#[derive(Debug)]
+pub struct ThunderConnectionState {
+    pub conn_status_mutex: Mutex<bool>,
+    pub conn_status_notify: Notify,
+}
+
+impl Default for ThunderConnectionState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ThunderConnectionState {
+    pub fn new() -> Self {
+        ThunderConnectionState {
+            conn_status_mutex: Mutex::new(false),
+            conn_status_notify: Notify::new(),
+        }
+    }
+}
 #[derive(Debug, Clone)]
 pub struct ThunderBootstrapStateWithConfig {
     pub extn_client: ExtnClient,
     pub url: Url,
     pub pool_size: u32,
     pub plugin_param: ThunderPluginBootParam,
+    pub thunder_connection_state: Arc<ThunderConnectionState>,
 }
 
 #[derive(Debug, Clone)]
