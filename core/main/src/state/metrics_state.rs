@@ -23,6 +23,7 @@ use std::{
 use jsonrpsee::tracing::debug;
 use ripple_sdk::{
     api::{
+        context::RippleContextUpdateRequest,
         device::device_info_request::{DeviceInfoRequest, DeviceResponse},
         distributor::distributor_privacy::PrivacySettingsData,
         firebolt::{fb_metrics::MetricsContext, fb_openrpc::FireboltSemanticVersion},
@@ -30,11 +31,16 @@ use ripple_sdk::{
     },
     chrono::{DateTime, Utc},
     extn::extn_client_message::ExtnResponse,
+    log::error,
 };
+
+use rand::Rng;
 
 use crate::processor::storage::storage_manager::StorageManager;
 
 use super::platform_state::PlatformState;
+
+include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
 #[derive(Debug, Clone, Default)]
 pub struct MetricsState {
@@ -45,6 +51,20 @@ pub struct MetricsState {
 }
 
 impl MetricsState {
+    fn send_context_update_request(platform_state: &PlatformState) {
+        let mut extn_client = platform_state.get_client().get_extn_client();
+        let metrics_context = platform_state.metrics.context.read().unwrap().clone();
+
+        if let Err(e) = extn_client
+            .request_transient(RippleContextUpdateRequest::MetricsContext(metrics_context))
+        {
+            error!(
+                "Error sending context update: RippleContextUpdateRequest::MetricsContext: {:?}",
+                e
+            );
+        }
+    }
+
     pub fn get_context(&self) -> MetricsContext {
         self.context.read().unwrap().clone()
     }
@@ -56,6 +76,19 @@ impl MetricsState {
         *cache = value.clone();
     }
     pub async fn initialize(state: &PlatformState) {
+        let metrics_percentage = state
+            .get_device_manifest()
+            .configuration
+            .metrics_logging_percentage;
+
+        let random_number = rand::thread_rng().gen_range(1..101);
+        let metrics_enabled = random_number <= metrics_percentage;
+
+        debug!(
+            "initialize: metrics_percentage={}, random_number={}, enabled={}",
+            metrics_percentage, random_number, metrics_enabled
+        );
+
         let mut mac_address: Option<String> = None;
         if let Ok(resp) = state
             .get_client()
@@ -112,9 +145,28 @@ impl MetricsState {
                 timezone = Some(format!("{} {}", tz, offset));
             }
         }
+
+        let firmware = match state
+            .get_client()
+            .send_extn_request(DeviceInfoRequest::PlatformBuildInfo)
+            .await
+        {
+            Ok(resp) => {
+                if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp.payload.extract() {
+                    info.name
+                } else {
+                    String::default()
+                }
+            }
+            Err(_) => String::default(),
+        };
+
         {
             // Time to set them
             let mut context = state.metrics.context.write().unwrap();
+
+            context.enabled = metrics_enabled;
+
             if let Some(mac) = mac_address {
                 context.mac_address = mac;
             }
@@ -131,12 +183,18 @@ impl MetricsState {
             context.os_ver = os_ver;
             context.device_name = device_name;
             context.device_session_id = String::from(&state.device_session_id);
+            context.firmware = firmware;
+            context.ripple_version = SEMVER.into();
 
             if let Some(t) = timezone {
                 context.device_timezone = t;
             }
         }
-        Self::update_account_session(state).await
+        {
+            Self::update_account_session(state).await;
+        }
+
+        Self::send_context_update_request(state);
     }
 
     async fn get_os_ver_from_firebolt(platform_state: &PlatformState) -> String {
@@ -160,17 +218,20 @@ impl MetricsState {
     }
 
     pub async fn update_account_session(state: &PlatformState) {
-        let mut context = state.metrics.context.write().unwrap();
-        let account_session = state.session_state.get_account_session();
-        if let Some(session) = account_session {
-            context.account_id = session.account_id;
-            context.device_id = session.device_id;
-            context.distribution_tenant_id = session.id;
-        } else {
-            context.account_id = "no.account.set".to_string();
-            context.device_id = "no.device_id.set".to_string();
-            context.distribution_tenant_id = "no.distribution_tenant_id.set".to_string();
+        {
+            let mut context = state.metrics.context.write().unwrap();
+            let account_session = state.session_state.get_account_session();
+            if let Some(session) = account_session {
+                context.account_id = session.account_id;
+                context.device_id = session.device_id;
+                context.distribution_tenant_id = session.id;
+            } else {
+                context.account_id = "no.account.set".to_string();
+                context.device_id = "no.device_id.set".to_string();
+                context.distribution_tenant_id = "no.distribution_tenant_id.set".to_string();
+            }
         }
+        Self::send_context_update_request(state);
     }
 
     pub fn operational_telemetry_listener(&self, target: &str, listen: bool) {
@@ -191,9 +252,12 @@ impl MetricsState {
             .collect()
     }
 
-    pub fn update_session_id(&self, value: Option<String>) {
+    pub fn update_session_id(&self, platform_state: PlatformState, value: Option<String>) {
         let value = value.unwrap_or_default();
-        let mut context = self.context.write().unwrap();
-        context.device_session_id = value;
+        {
+            let mut context = self.context.write().unwrap();
+            context.device_session_id = value;
+        }
+        Self::send_context_update_request(&platform_state);
     }
 }
