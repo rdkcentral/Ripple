@@ -26,8 +26,9 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::device::device_request::{
-    AccountToken, InternetConnectionStatus, SystemPowerState, TimeZone,
+use super::{
+    device::device_request::{AccountToken, InternetConnectionStatus, SystemPowerState, TimeZone},
+    firebolt::fb_metrics::MetricsContext,
 };
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -60,6 +61,8 @@ pub struct RippleContext {
     pub system_power_state: SystemPowerState,
     pub time_zone: TimeZone,
     pub update_type: Option<RippleContextUpdateType>,
+    pub features: Vec<String>,
+    pub metrics_context: MetricsContext,
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -69,6 +72,8 @@ pub enum RippleContextUpdateType {
     InternetConnectionChanged,
     PowerStateChanged,
     TimeZoneChanged,
+    FeaturesChanged,
+    MetricsContextChanged,
 }
 
 impl RippleContext {
@@ -98,6 +103,18 @@ impl RippleContext {
                 self.time_zone = tz;
                 self.update_type = Some(RippleContextUpdateType::TimeZoneChanged)
             }
+            RippleContextUpdateRequest::Features(features) => {
+                for feature in features {
+                    if !self.features.contains(&feature) {
+                        self.features.push(feature);
+                    }
+                }
+                self.update_type = Some(RippleContextUpdateType::FeaturesChanged)
+            }
+            RippleContextUpdateRequest::MetricsContext(context) => {
+                self.metrics_context = context;
+                self.update_type = Some(RippleContextUpdateType::MetricsContextChanged)
+            }
         }
     }
 
@@ -105,6 +122,8 @@ impl RippleContext {
         self.activation_status = context.activation_status;
         self.internet_connectivity = context.internet_connectivity;
         self.time_zone = context.time_zone;
+        self.features = context.features;
+        self.metrics_context = context.metrics_context;
     }
 
     pub fn get_event_message(&self) -> ExtnMessage {
@@ -138,6 +157,8 @@ impl Default for RippleContext {
             update_type: None,
             system_power_state: SystemPowerState::default(),
             time_zone: TimeZone::default(),
+            features: Vec::new(),
+            metrics_context: MetricsContext::default(),
         }
     }
 }
@@ -167,6 +188,8 @@ pub enum RippleContextUpdateRequest {
     InternetStatus(InternetConnectionStatus),
     PowerState(SystemPowerState),
     TimeZone(TimeZone),
+    Features(Vec<String>),
+    MetricsContext(MetricsContext),
 }
 
 impl RippleContextUpdateRequest {
@@ -220,6 +243,8 @@ mod tests {
                 offset: -28800,
             },
             update_type: None,
+            features: Vec::default(),
+            metrics_context: MetricsContext::default(),
         };
 
         let contract_type: RippleContract = RippleContract::RippleContext;

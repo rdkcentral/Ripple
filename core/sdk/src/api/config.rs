@@ -32,6 +32,8 @@ use super::manifest::{
 
 use super::manifest::device_manifest::AppLibraryEntry;
 
+pub const FEATURE_CLOUD_PERMISISONS: &str = "cloud_permissions";
+
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum Config {
     AllDefaultApps,

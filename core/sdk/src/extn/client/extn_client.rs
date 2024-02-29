@@ -38,6 +38,7 @@ use crate::{
     api::{
         context::{ActivationStatus, RippleContext, RippleContextUpdateRequest},
         device::device_request::{InternetConnectionStatus, TimeZone},
+        firebolt::fb_metrics::MetricsContext,
         manifest::extn_manifest::ExtnSymbol,
     },
     extn::{
@@ -519,7 +520,7 @@ impl ExtnClient {
     /// Critical method used by event processors to emit event back to the requestor
     /// # Arguments
     /// `msg` - [ExtnMessage] event object
-    pub fn event(&mut self, event: impl ExtnPayloadProvider) -> Result<(), RippleError> {
+    pub fn event(&self, event: impl ExtnPayloadProvider) -> Result<(), RippleError> {
         let other_sender = self.get_extn_sender_with_contract(event.get_contract());
         self.sender.send_event(event, other_sender)
     }
@@ -553,7 +554,7 @@ impl ExtnClient {
     /// # Arguments
     /// `payload` - impl [ExtnPayloadProvider]
     pub async fn standalone_request<T: ExtnPayloadProvider>(
-        &mut self,
+        &self,
         payload: impl ExtnPayloadProvider,
         timeout_in_msecs: u64,
     ) -> Result<T, RippleError> {
@@ -575,7 +576,7 @@ impl ExtnClient {
                     }
                 }
             }
-            Ok(Err(_)) => error!("Invalid message"),
+            Ok(Err(e)) => error!("Invalid message: e={:?}", e),
             Err(_) => {
                 error!("Channel disconnected");
             }
@@ -590,7 +591,7 @@ impl ExtnClient {
     ///
     /// # Arguments
     /// `payload` - impl [ExtnPayloadProvider]
-    pub fn request_transient(&mut self, payload: impl ExtnPayloadProvider) -> RippleResponse {
+    pub fn request_transient(&self, payload: impl ExtnPayloadProvider) -> RippleResponse {
         let id = uuid::Uuid::new_v4().to_string();
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
         self.sender.send_request(id, payload, other_sender, None)
@@ -660,6 +661,16 @@ impl ExtnClient {
     pub fn get_timezone(&self) -> Option<TimeZone> {
         let ripple_context = self.ripple_context.read().unwrap();
         Some(ripple_context.time_zone.clone())
+    }
+
+    pub fn get_features(&self) -> Vec<String> {
+        let ripple_context = self.ripple_context.read().unwrap();
+        ripple_context.features.clone()
+    }
+
+    pub fn get_metrics_context(&self) -> MetricsContext {
+        let ripple_context = self.ripple_context.read().unwrap();
+        ripple_context.metrics_context.clone()
     }
 }
 
@@ -1790,6 +1801,7 @@ pub mod tests {
     async fn test_request_transient() {
         let (mock_sender, mock_rx) = ExtnSender::mock();
         let mut extn_client = ExtnClient::new(mock_rx, mock_sender.clone());
+
         extn_client.clone().add_sender(
             ExtnId::get_main_target("main".into()),
             ExtnSymbol {
