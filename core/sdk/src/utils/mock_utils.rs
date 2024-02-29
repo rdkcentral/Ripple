@@ -83,7 +83,7 @@ impl ExtnPayloadProvider for MockRequest {
     }
 
     fn get_contract(&self) -> RippleContract {
-        RippleContract::Internal
+        self.contract.clone()
     }
 
     fn contract() -> RippleContract {

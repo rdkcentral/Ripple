@@ -95,3 +95,78 @@ macro_rules! export_channel_builder {
         }
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::extn::client::extn_sender::tests::Mockable;
+    use libloading::Library;
+    use std::path::Path;
+
+    #[test]
+    fn test_extn_channel_builder() {
+        // Mock implementation for the build function
+        fn build_fn(_extn_id: String) -> Result<Box<ExtnChannel>, RippleError> {
+            // Mock implementation for creating an ExtnChannel
+            let extn_channel = ExtnChannel {
+                start: |client, receiver| {
+                    // Mock implementation for ExtnChannel's start function
+                    println!(
+                        "ExtnChannel started with client: {:?}, receiver: {:?}",
+                        client, receiver
+                    );
+                },
+            };
+
+            Ok(Box::new(extn_channel))
+        }
+
+        // Mock service name
+        let service = "mock_service".to_string();
+
+        // Create an instance of ExtnChannelBuilder with the mock build function
+        let extn_channel_builder = ExtnChannelBuilder {
+            build: build_fn,
+            service,
+        };
+
+        // Use the ExtnChannelBuilder to create an ExtnChannel
+        let extn_id = "some_extn_id".to_string();
+        let result = (extn_channel_builder.build)(extn_id);
+
+        // Perform assertions or actions based on the expected behavior
+        match result {
+            Ok(extn_channel) => {
+                let (mock_sender, rx) = ExtnSender::mock();
+                // If the build was successful, you can now use the created ExtnChannel
+                (extn_channel.start)(mock_sender, rx);
+            }
+            Err(err) => {
+                // Handle the error case if the build fails
+                panic!("Error building ExtnChannel: {:?}", err);
+            }
+        }
+    }
+
+    #[test]
+    fn test_load_channel_builder() {
+        // TODO : update test to gen library from examples manifest instead of using the actual library
+        unsafe {
+            let current_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+            let ripple_dir = Path::new(&current_dir).parent().unwrap().parent().unwrap();
+            let dylib_path = ripple_dir
+                .join("examples")
+                .join("lib")
+                .join("libthunder.dylib");
+
+            // Load the dylib library
+            let lib = Library::new(dylib_path).expect("Failed to load library");
+
+            // Call the function to test (load_channel_builder in this case)
+            let result = load_channel_builder(&lib);
+
+            // Perform assertions on the result as needed
+            assert!(result.is_ok());
+        }
+    }
+}

@@ -186,3 +186,171 @@ pub unsafe fn load_extn_library_metadata(lib: &Library) -> Option<Box<ExtnMetada
     }
     None
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        extn::extn_id::{ExtnClassId, ExtnType},
+        framework::ripple_contract::RippleContract,
+    };
+    use semver::Version;
+    use std::path::Path;
+
+    // Mock implementation for ExtnMetadata
+    fn mock_extn_metadata() -> ExtnMetadata {
+        let launcher_channel_meta = ExtnSymbolMetadata::get(
+            ExtnId::new_channel(ExtnClassId::Launcher, "internal".into()),
+            ContractFulfiller::new(vec![RippleContract::Launcher]),
+            Version::new(1, 1, 0),
+        );
+
+        ExtnMetadata {
+            name: "launcher".into(),
+            symbols: vec![launcher_channel_meta],
+        }
+    }
+
+    fn init_library() -> CExtnMetadata {
+        mock_extn_metadata().into()
+    }
+
+    // Test for TryInto<ExtnMetadata> implementation
+    #[test]
+    fn test_try_into_extn_metadata() {
+        // Mock extnMetadata
+        let extn_metadata: Box<CExtnMetadata> = Box::new(mock_extn_metadata().into());
+
+        // Perform the conversion
+        let result: Result<ExtnMetadata, RippleError> = extn_metadata.try_into();
+        assert!(result.is_ok());
+
+        // Extract metadata
+        let metadata = result.unwrap();
+        // Assertions
+        assert_eq!(metadata.name, "launcher");
+        assert_eq!(metadata.symbols.len(), 1);
+
+        let symbol = &metadata.symbols[0];
+        // Assert ExtnId
+        assert_eq!(symbol.id._type, ExtnType::Channel);
+        assert_eq!(symbol.id.class, ExtnClassId::Launcher);
+        assert_eq!(symbol.id.service, "internal");
+
+        // Assert ContractFulfiller
+        assert_eq!(symbol.fulfills.contracts.len(), 1);
+        assert!(symbol
+            .fulfills
+            .contracts
+            .contains(&RippleContract::Launcher));
+
+        // Assert required_version
+        assert_eq!(symbol.required_version.major, 1);
+        assert_eq!(symbol.required_version.minor, 1);
+        assert_eq!(symbol.required_version.patch, 0);
+    }
+
+    // Test for From<ExtnMetadata> implementation
+    #[test]
+    fn test_from_extn_metadata() {
+        // Mock extnMetadata
+        let extn_metadata: ExtnMetadata = mock_extn_metadata();
+
+        // Convert to CExtnMetadata using From
+        let c_extn_metadata: CExtnMetadata = extn_metadata.clone().into();
+        assert_eq!(extn_metadata.name, "launcher");
+
+        let symbols: Vec<CExtnSymbolMetadata> =
+            serde_json::from_str(&c_extn_metadata.metadata).unwrap();
+        assert_eq!(symbols.len(), 1);
+
+        let symbol = &symbols[0];
+        assert_eq!(symbol.id, "ripple:channel:launcher:internal");
+        assert_eq!(symbol.fulfills, format!("[\"\\\"launcher\\\"\"]"));
+
+        // Parse required_version and assert its components
+        let required_version = Version::parse(&symbol.required_version).unwrap();
+        assert_eq!(required_version.major, 1);
+        assert_eq!(required_version.minor, 1);
+        assert_eq!(required_version.patch, 0);
+    }
+
+    // Test for ExtnSymbolMetadata methods
+    #[test]
+    fn test_extn_symbol_metadata_methods() {
+        let extn_symbol_metadata = ExtnSymbolMetadata::get(
+            ExtnId::new_channel(ExtnClassId::Launcher, "internal".into()),
+            ContractFulfiller::new(vec![RippleContract::Launcher]),
+            Version::new(1, 1, 0),
+        );
+        // Assert id, fulfills, and required_version using the individual components
+        assert_eq!(extn_symbol_metadata.id._type, ExtnType::Channel);
+        assert_eq!(extn_symbol_metadata.id.class, ExtnClassId::Launcher);
+        assert_eq!(extn_symbol_metadata.id.service, "internal");
+        assert!(extn_symbol_metadata
+            .fulfills
+            .contracts
+            .contains(&RippleContract::Launcher));
+
+        // Parse required_version and assert its components
+        let version = &extn_symbol_metadata.required_version;
+        assert_eq!(version.major, 1);
+        assert_eq!(version.minor, 1);
+        assert_eq!(version.patch, 0);
+
+        // Test get_contract
+        assert_eq!(
+            extn_symbol_metadata.get_contract(),
+            ContractFulfiller::new(vec![RippleContract::Launcher])
+        );
+
+        // Test get_version
+        assert_eq!(
+            extn_symbol_metadata.get_version(),
+            Version::parse("1.1.0").unwrap()
+        );
+    }
+
+    // Test for export_extn_metadata! macro
+    #[test]
+    fn test_export_extn_metadata_macro() {
+        export_extn_metadata!(CExtnMetadata, init_library);
+        // TODO - add assertions here based on the expected behavior.
+        // For example, loading the metadata from a dynamic library and checking if it matches the expected values.
+    }
+
+    // Test for unsafe load_extn_library_metadata function
+    #[test]
+    fn test_load_extn_library_metadata() {
+        // TODO : update test to gen library from examples manifest instead of using the actual library
+        unsafe {
+            let current_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+            let ripple_dir = Path::new(&current_dir).parent().unwrap().parent().unwrap();
+            let dylib_path = ripple_dir
+                .join("examples")
+                .join("lib")
+                .join("libthunder.dylib");
+
+            // Load the dylib library
+            let lib = Library::new(dylib_path).expect("Failed to load library");
+            let result = load_extn_library_metadata(&lib);
+            assert!(result.is_some());
+
+            let metadata = result.unwrap();
+            assert_eq!(metadata.name, "thunder");
+
+            let symbol = &metadata.symbols[0];
+            assert_eq!(symbol.id._type, ExtnType::Channel);
+            assert_eq!(symbol.id.class, ExtnClassId::Device);
+            assert_eq!(symbol.id.service, "thunder");
+            assert!(symbol
+                .fulfills
+                .contracts
+                .contains(&RippleContract::RippleContext));
+            let version = &symbol.required_version;
+            assert_eq!(version.major, 1);
+            assert_eq!(version.minor, 1);
+            assert_eq!(version.patch, 0);
+        }
+    }
+}
