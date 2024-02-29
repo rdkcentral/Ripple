@@ -24,11 +24,21 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
+
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct ExtnVersionInfo {
+    extension_version: String,
+    extenstion_hash: String,
+
+}
+
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct ExtnMetadata {
     pub name: String,
     pub symbols: Vec<ExtnSymbolMetadata>,
+    pub version_info: Option<ExtnVersionInfo>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -74,6 +84,7 @@ impl TryInto<ExtnMetadata> for Box<CExtnMetadata> {
             return Ok(ExtnMetadata {
                 name: self.name,
                 symbols: metadata,
+                version_info: None
             });
         }
 
