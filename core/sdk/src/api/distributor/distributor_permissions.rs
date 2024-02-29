@@ -23,10 +23,65 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum Role {
+    Use,
+    Manage,
+    Provide,
+}
+
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PermissionRequest {
     pub app_id: String,
     pub session: AccountSession,
+    pub payload: Option<PermissionRequestPayload>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum PermissionRequestPayload {
+    ListCaps,
+    ListMethods,
+    ListFireboltPermissions,
+    Check(PermissionRequestParam),
+    CheckAll(Vec<PermissionRequestParam>),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PermissionRequestParam {
+    pub capability: Option<String>,
+    pub method: Option<String>,
+    pub role: Option<Role>,
+}
+
+impl PermissionRequestParam {
+    pub fn is_cap(&self) -> bool {
+        self.capability.is_some()
+    }
+    pub fn is_method(&self) -> bool {
+        self.method.is_some()
+    }
+    pub fn is_valid(&self) -> bool {
+        self.capability.is_some() || self.method.is_some()
+    }
+    pub fn has_role(&self) -> bool {
+        self.role.is_some()
+    }
+    pub fn get(self) -> Option<String> {
+        if self.capability.is_some() {
+            Some(self.capability.unwrap())
+        } else if self.method.is_some() {
+            Some(self.method.unwrap())
+        } else {
+            None
+        }
+    }
+    pub fn contains(self, list: Vec<String>) -> bool {
+        if let Some(v) = self.get() {
+            list.contains(&v)
+        } else {
+            false
+        }
+    }
 }
 
 impl ExtnPayloadProvider for PermissionRequest {
@@ -85,6 +140,7 @@ mod tests {
         let permission_request = PermissionRequest {
             app_id: "test_app_id".to_string(),
             session: account_session,
+            payload: None
         };
 
         let contract_type: RippleContract = RippleContract::Permissions;
