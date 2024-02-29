@@ -1066,7 +1066,7 @@ pub mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_request_context_update() {
         let (mock_sender, mock_rx) = ExtnSender::mock();
-        let mut main_client = ExtnClient::new(mock_rx, mock_sender.clone());
+        let main_client = ExtnClient::new(mock_rx, mock_sender.clone());
         main_client.clone().add_sender(
             ExtnId::get_main_target("main".into()),
             ExtnSymbol {
@@ -1784,7 +1784,7 @@ pub mod tests {
     #[tokio::test] // TODO: fix the dummy test
     async fn test_standalone_request() {
         let (mock_sender, mock_rx) = ExtnSender::mock();
-        let mut extn_client = ExtnClient::new(mock_rx.clone(), mock_sender.clone());
+        let extn_client = ExtnClient::new(mock_rx.clone(), mock_sender.clone());
 
         // TODO - this is a dummy test, need to add a real test
         if let Ok(ExtnResponse::Value(_v)) = extn_client
@@ -1800,7 +1800,7 @@ pub mod tests {
     #[tokio::test]
     async fn test_request_transient() {
         let (mock_sender, mock_rx) = ExtnSender::mock();
-        let mut extn_client = ExtnClient::new(mock_rx, mock_sender.clone());
+        let extn_client = ExtnClient::new(mock_rx, mock_sender.clone());
 
         extn_client.clone().add_sender(
             ExtnId::get_main_target("main".into()),
