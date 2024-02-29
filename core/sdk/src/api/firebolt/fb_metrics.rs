@@ -472,6 +472,20 @@ pub enum TimeUnit {
     Millis,
     Seconds,
 }
+/*
+Type to indicate if the timer is local or remote, used for bucket sizing in downstreams
+*/
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub enum TimerType {
+    /*
+    Local metrics are generated for local, on device service calls
+    */
+    Local,
+    /*
+    Remote metrics are generated for remote, off device service calls
+    */
+    Remote,
+}
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Timer {
     pub name: String,
@@ -481,17 +495,29 @@ pub struct Timer {
     pub stop: Option<std::time::Instant>,
     pub tags: Option<HashMap<String, String>>,
     pub time_unit: TimeUnit,
+    pub timer_type: TimerType,
 }
 impl Timer {
-    pub fn start(name: String, tags: Option<HashMap<String, String>>) -> Timer {
-        Timer::new(name, std::time::Instant::now(), tags, TimeUnit::Millis)
+    pub fn start(
+        name: String,
+        tags: Option<HashMap<String, String>>,
+        timer_type: Option<TimerType>,
+    ) -> Timer {
+        Timer::new(
+            name,
+            std::time::Instant::now(),
+            tags,
+            TimeUnit::Millis,
+            timer_type,
+        )
     }
     pub fn start_with_time_unit(
         name: String,
         tags: Option<HashMap<String, String>>,
         time_unit: TimeUnit,
+        timer_type: Option<TimerType>,
     ) -> Timer {
-        Timer::new(name, std::time::Instant::now(), tags, time_unit)
+        Timer::new(name, std::time::Instant::now(), tags, time_unit, timer_type)
     }
 
     pub fn new(
@@ -499,6 +525,7 @@ impl Timer {
         start: std::time::Instant,
         tags: Option<HashMap<String, String>>,
         time_unit: TimeUnit,
+        timer_type: Option<TimerType>,
     ) -> Timer {
         Timer {
             name,
@@ -506,6 +533,8 @@ impl Timer {
             stop: None,
             tags,
             time_unit,
+            /*most will probably be local, so default as such*/
+            timer_type: timer_type.unwrap_or(TimerType::Local),
         }
     }
 
@@ -916,7 +945,7 @@ mod tests {
     }
     #[test]
     pub fn test_timer() {
-        let mut timer = super::Timer::start("test".to_string(), None);
+        let mut timer = super::Timer::start("test".to_string(), None, None);
         std::thread::sleep(std::time::Duration::from_millis(101));
         timer.stop();
         assert!(timer.elapsed().as_millis() > 100);
