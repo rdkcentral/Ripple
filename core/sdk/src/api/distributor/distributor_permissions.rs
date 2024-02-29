@@ -140,7 +140,7 @@ mod tests {
         let permission_request = PermissionRequest {
             app_id: "test_app_id".to_string(),
             session: account_session,
-            payload: None
+            payload: None,
         };
 
         let contract_type: RippleContract = RippleContract::Permissions;

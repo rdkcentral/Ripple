@@ -180,7 +180,7 @@ impl PermissionHandler {
                 .send_extn_request(PermissionRequest {
                     app_id: app_id_alias,
                     session,
-                    payload: None
+                    payload: None,
                 })
                 .await
                 .ok()
