@@ -792,7 +792,7 @@ impl DelegatedLauncherHandler {
             .app_manager_state
             .set_session(&app_id, session.clone());
         if emit_event {
-            Self::emit_completed(&&self.platform_state, &app_id).await;
+            Self::emit_completed(&self.platform_state, &app_id).await;
         }
         if let Some(intent) = session.launch.intent {
             AppEvents::emit_to_app(
@@ -995,7 +995,7 @@ impl DelegatedLauncherHandler {
     pub async fn emit_cancelled(platform_state: &PlatformState, app_id: &String) {
         platform_state.session_state.clear_pending_session(app_id);
         AppEvents::emit(
-            &platform_state,
+            platform_state,
             LCM_EVENT_ON_SESSION_TRANSITION_CANCELED,
             &json!({ "app_id": app_id }),
         )
