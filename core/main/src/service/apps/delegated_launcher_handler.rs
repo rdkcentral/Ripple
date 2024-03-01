@@ -327,7 +327,7 @@ impl DelegatedLauncherHandler {
         platform_state: PlatformState,
     ) -> DelegatedLauncherHandler {
         DelegatedLauncherHandler {
-            platform_state: platform_state.clone(),
+            platform_state,
             app_mgr_req_rx: channels_state
                 .get_app_mgr_receiver()
                 .expect("App Mgr receiver to be available"),
