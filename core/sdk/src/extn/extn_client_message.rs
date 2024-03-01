@@ -341,9 +341,7 @@ pub enum ExtnEvent {
     PubSubEvent(PubSubEvents),
     TimeZone(TimeZone),
     AppsCatalogUpdate(AppsCatalogUpdate),
-    // <pca>
     AppsUpdate(AppsUpdate),
-    // </pca>
 }
 
 impl ExtnPayloadProvider for ExtnEvent {

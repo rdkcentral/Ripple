@@ -91,6 +91,7 @@ impl Session {
 pub struct SessionState {
     session_map: Arc<RwLock<HashMap<String, Session>>>,
     account_session: Arc<RwLock<Option<AccountSession>>>,
+    pending_sessions: Arc<RwLock<Vec<String>>>,
 }
 
 impl SessionState {
@@ -164,5 +165,23 @@ impl SessionState {
     pub fn get_session_for_connection_id(&self, cid: &str) -> Option<Session> {
         let session_state = self.session_map.read().unwrap();
         session_state.get(cid).cloned()
+    }
+
+    pub fn add_pending_session(&self, app_id: &String) {
+        let mut pending_sessions = self.pending_sessions.write().unwrap();
+        if !pending_sessions.contains(app_id) {
+            pending_sessions.push(app_id.clone());
+        }
+    }
+
+    pub fn clear_pending_session(&self, app_id: &String) {
+        self.pending_sessions
+            .write()
+            .unwrap()
+            .retain(|id| !id.eq(app_id));
+    }
+
+    pub fn has_pending_session(&self, app_id: &String) -> bool {
+        self.pending_sessions.read().unwrap().contains(app_id)
     }
 }

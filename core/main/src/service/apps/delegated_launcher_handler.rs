@@ -91,8 +91,6 @@ use crate::{
     SEMVER_LIGHTWEIGHT,
 };
 
-use super::pending_session_event_processor::PendingSessionState;
-
 const APP_ID_TITLE_FILE_NAME: &str = "appInfo.json";
 #[derive(Debug, Clone)]
 pub struct App {
@@ -288,9 +286,6 @@ pub struct DelegatedLauncherHandler {
     platform_state: PlatformState,
     app_mgr_req_rx: Receiver<AppRequest>,
     timer_map: HashMap<String, Timer>,
-    // <pca>
-    pending_session_state: PendingSessionState,
-    // </pca>
 }
 /*
 Tell lifecycle metrics which methods map to which metrics AppLifecycleStates
@@ -337,21 +332,16 @@ impl DelegatedLauncherHandler {
                 .get_app_mgr_receiver()
                 .expect("App Mgr receiver to be available"),
             timer_map: HashMap::new(),
-            // <pca>
-            pending_session_state: PendingSessionState::new(platform_state),
-            // </pca>
         }
     }
 
     pub async fn start(&mut self) {
-        // <pca>
         self.platform_state
             .get_client()
             .get_extn_client()
             .add_event_processor(PendingSessionEventProcessor::new(
-                self.pending_session_state.clone(),
+                self.platform_state.clone(),
             ));
-        // </pca>
 
         while let Some(data) = self.app_mgr_req_rx.recv().await {
             // App request
@@ -668,18 +658,9 @@ impl DelegatedLauncherHandler {
             loaded_session_id = Some(app.loaded_session_id);
         }
 
-        // <pca>
-        // PermissionHandler::fetch_permission_for_app_session(&self.platform_state, &app_id).await;
-        // debug!(
-        //     "precheck_then_load_or_activate: fetch_for_app_session completed for app_id={}",
-        //     app_id
-        // );
-        {
-            let mut pending_sessions = self.pending_session_state.pending_sessions.write().unwrap();
-            if !pending_sessions.contains(&app_id) {
-                pending_sessions.push(app_id.clone());
-            }
-        }
+        self.platform_state
+            .session_state
+            .add_pending_session(&app_id);
 
         let result =
             PermissionHandler::fetch_permission_for_app_session(&self.platform_state, &app_id)
@@ -698,11 +679,7 @@ impl DelegatedLauncherHandler {
                 session_id,
                 loaded_session_id,
             });
-        } else {
-            let mut pending_sessions = self.pending_session_state.pending_sessions.write().unwrap();
-            pending_sessions.retain(|id| !id.eq(&app_id));
         }
-        // </pca>
 
         let mut perms_with_grants_opt = if !session.launch.inactive {
             Self::get_permissions_requiring_user_grant_resolution(
@@ -729,10 +706,7 @@ impl DelegatedLauncherHandler {
             Some(perms_with_grants) => {
                 // Grants required, spawn a thread to handle the response from grants
                 let cloned_ps = self.platform_state.clone();
-                // <pca>
-                //let cloned_app_id = app_id.to_owned();
                 let cloned_app_id = app_id.clone();
-                // </pca>
                 tokio::spawn(async move {
                     let resolved_result = GrantState::check_with_roles(
                         &cloned_ps,
@@ -770,15 +744,7 @@ impl DelegatedLauncherHandler {
                         }
                         _ => {
                             debug!("handle session for deferred grant and other errors");
-                            // <pca>
-                            // AppEvents::emit(
-                            //     &cloned_ps,
-                            //     LCM_EVENT_ON_SESSION_TRANSITION_CANCELED,
-                            //     &json!({ "app_id": cloned_app_id }),
-                            // )
-                            // .await;
                             Self::emit_cancelled(&cloned_ps, &cloned_app_id).await;
-                            // </pca>
                         }
                     }
                 });
@@ -826,10 +792,7 @@ impl DelegatedLauncherHandler {
             .app_manager_state
             .set_session(&app_id, session.clone());
         if emit_event {
-            // <pca>
-            //self.emit_completed(app_id.clone()).await;
             Self::emit_completed(&&self.platform_state, &app_id).await;
-            // </pca>
         }
         if let Some(intent) = session.launch.intent {
             AppEvents::emit_to_app(
@@ -922,10 +885,7 @@ impl DelegatedLauncherHandler {
             .insert(app_id.clone(), app.clone());
         let sess = Self::to_completed_session(&app);
         if emit_event {
-            // <pca>
-            //self.emit_completed(app_id.clone()).await;
             Self::emit_completed(&&self.platform_state, &app_id).await;
-            // </pca>
         }
         sess
     }
@@ -1006,32 +966,6 @@ impl DelegatedLauncherHandler {
         None
     }
 
-    // <pca>
-    // fn to_completed_session(app: &App) -> CompletedSessionResponse {
-    //     CompletedSessionResponse {
-    //         app_id: app.app_id.clone(),
-    //         session_id: app.session_id.clone(),
-    //         loaded_session_id: app.loaded_session_id.clone(),
-    //         active_session_id: app.active_session_id.clone(),
-    //         transition_pending: false,
-    //     }
-    // }
-
-    // async fn emit_completed(&self, app_id: String) {
-    //     println!("*** _DEBUG: emit_completed: app_id={}", app_id);
-    //     let app_opt = self.platform_state.app_manager_state.get(&app_id);
-    //     if app_opt.is_none() {
-    //         return;
-    //     }
-    //     let app = app_opt.unwrap();
-    //     let sr = SessionResponse::Completed(Self::to_completed_session(&app));
-    //     AppEvents::emit(
-    //         &self.platform_state,
-    //         LCM_EVENT_ON_SESSION_TRANSITION_COMPLETED,
-    //         &serde_json::to_value(sr).unwrap(),
-    //     )
-    //     .await;
-    // }
     fn to_completed_session(app: &App) -> CompletedSessionResponse {
         CompletedSessionResponse {
             app_id: app.app_id.clone(),
@@ -1043,7 +977,7 @@ impl DelegatedLauncherHandler {
     }
 
     pub async fn emit_completed(platform_state: &PlatformState, app_id: &String) {
-        println!("*** _DEBUG: emit_completed: app_id={}", app_id);
+        platform_state.session_state.clear_pending_session(app_id);
         let app_opt = platform_state.app_manager_state.get(app_id);
         if app_opt.is_none() {
             return;
@@ -1059,6 +993,7 @@ impl DelegatedLauncherHandler {
     }
 
     pub async fn emit_cancelled(platform_state: &PlatformState, app_id: &String) {
+        platform_state.session_state.clear_pending_session(app_id);
         AppEvents::emit(
             &platform_state,
             LCM_EVENT_ON_SESSION_TRANSITION_CANCELED,
@@ -1066,7 +1001,6 @@ impl DelegatedLauncherHandler {
         )
         .await;
     }
-    // </pca>
 
     async fn end_session(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
         debug!("end_session: entry: app_id={}", app_id);

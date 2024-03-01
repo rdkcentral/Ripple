@@ -66,7 +66,6 @@ impl DeviceAppMetadata {
     }
 }
 
-// <pca>
 impl From<AppMetadata> for DeviceAppMetadata {
     fn from(value: AppMetadata) -> Self {
         DeviceAppMetadata {
@@ -78,7 +77,6 @@ impl From<AppMetadata> for DeviceAppMetadata {
         }
     }
 }
-// </pca>
 
 impl ExtnPayloadProvider for AppsRequest {
     fn get_extn_payload(&self) -> ExtnPayload {

@@ -35,7 +35,7 @@ use ripple_sdk::{
         net::{TcpListener, TcpStream},
         sync::{mpsc, oneshot},
     },
-    utils::channel_utils::oneshot_send_and_log,
+    utils::{channel_utils::oneshot_send_and_log, error::RippleError},
     uuid::Uuid,
 };
 use ripple_sdk::{log::debug, tokio};
@@ -220,12 +220,14 @@ impl FireboltWs {
             error!("Error registering the connection {:?}", e);
             return;
         }
-        if !gateway_secure
-            && PermissionHandler::fetch_and_store(&state, &app_id, false)
+        if !gateway_secure {
+            state.session_state.add_pending_session(&app_id);
+            if PermissionHandler::fetch_and_store(&state, &app_id, false)
                 .await
                 .is_err()
-        {
-            error!("Couldnt pre cache permissions");
+            {
+                error!("Couldnt pre cache permissions");
+            }
         }
 
         let (mut sender, mut receiver) = ws_stream.split();

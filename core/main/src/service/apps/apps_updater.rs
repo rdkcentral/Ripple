@@ -1,7 +1,7 @@
 use jsonrpsee::core::async_trait;
 use ripple_sdk::{
     api::{
-        app_catalog::{self, AppMetadata, AppsCatalogUpdate},
+        app_catalog::{self, AppMetadata, AppsCatalogUpdate, AppsUpdate},
         device::device_apps::{AppsRequest, DeviceAppMetadata},
     },
     extn::{
@@ -9,7 +9,7 @@ use ripple_sdk::{
             extn_client::ExtnClient,
             extn_processor::{DefaultExtnStreamer, ExtnEventProcessor, ExtnStreamProcessor},
         },
-        extn_client_message::{ExtnMessage, ExtnPayload, ExtnResponse},
+        extn_client_message::{ExtnEvent, ExtnMessage, ExtnPayload, ExtnResponse},
     },
     tokio::sync::mpsc::{Receiver, Sender},
 };
@@ -88,11 +88,11 @@ impl ExtnEventProcessor for AppsUpdater {
 
 pub async fn update(
     mut client: ExtnClient,
-    apps_update: AppsCatalogUpdate,
+    apps_catalog_update: AppsCatalogUpdate,
     ignore_list: Vec<String>,
     uninstalls_enabled: bool,
 ) {
-    debug!("update: apps_update={:?}", apps_update);
+    debug!("update: apps_catalog_update={:?}", apps_catalog_update);
 
     let resp = client.request(AppsRequest::GetInstalledApps(None)).await;
     if let Err(e) = resp {
@@ -123,11 +123,8 @@ pub async fn update(
                 continue;
             }
 
-            if !apps_update
-                // <pca>
-                //.apps
+            if !apps_catalog_update
                 .new_catalog
-                // </pca>
                 .clone()
                 .into_iter()
                 .any(|app| app.id.eq(&installed_app.id))
@@ -149,15 +146,12 @@ pub async fn update(
 
     debug!(
         "update: apps_update={:?}, installed_apps={:?}",
-        apps_update,
+        apps_catalog_update,
         installed_apps.clone()
     );
 
-    let mut app_list: Vec<app_catalog::AppMetadata> = apps_update
-        // <pca>
-        //.apps
+    let mut app_list: Vec<app_catalog::AppMetadata> = apps_catalog_update
         .new_catalog
-        // </pca>
         .into_iter()
         .filter(|a| {
             !installed_apps

@@ -8,9 +8,7 @@ use crate::{
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AppCatalogRequest {
     CheckForUpdates,
-    // <pca>
     GetCatalog,
-    // </pca>
 }
 
 impl ExtnPayloadProvider for AppCatalogRequest {
@@ -61,16 +59,6 @@ impl AppMetadata {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-// <pca>
-// pub struct AppsUpdate {
-//     pub apps: Vec<AppMetadata>,
-// }
-
-// impl AppsUpdate {
-//     pub fn new(apps: Vec<AppMetadata>) -> AppsUpdate {
-//         AppsUpdate { apps }
-//     }
-// }
 pub struct AppsCatalogUpdate {
     pub old_catalog: Option<Vec<AppMetadata>>,
     pub new_catalog: Vec<AppMetadata>,
@@ -105,12 +93,9 @@ impl ExtnPayloadProvider for AppsCatalogUpdate {
         RippleContract::AppCatalog
     }
 }
-// </pca>
 
-// <pca>
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AppsUpdate {
-    CatalogUpdate(AppsCatalogUpdate),
     InstallComplete(AppOperationComplete),
     UninstallComplete(AppOperationComplete),
 }
@@ -121,7 +106,7 @@ pub struct AppOperationComplete {
     pub version: String,
     pub success: bool,
 }
-// </pca>
+
 impl ExtnPayloadProvider for AppsUpdate {
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Event(ExtnEvent::AppsUpdate(self.clone()))
@@ -131,12 +116,11 @@ impl ExtnPayloadProvider for AppsUpdate {
         if let ExtnPayload::Event(ExtnEvent::AppsUpdate(apps_update)) = payload {
             return Some(apps_update);
         }
-
         None
     }
 
     fn contract() -> RippleContract {
-        RippleContract::AppCatalog
+        RippleContract::Apps
     }
 }
 

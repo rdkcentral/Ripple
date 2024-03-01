@@ -40,40 +40,25 @@ use crate::{
 //     }
 // }
 
-#[derive(Debug, Clone)]
-pub struct PendingSessionState {
-    pub platform_state: PlatformState,
-    pub pending_sessions: Arc<RwLock<Vec<String>>>,
-}
-
-impl PendingSessionState {
-    pub fn new(platform_state: PlatformState) -> PendingSessionState {
-        PendingSessionState {
-            platform_state,
-            pending_sessions: Arc::new(RwLock::new(Vec::default())),
-        }
-    }
-}
-
 pub struct PendingSessionEventProcessor {
-    state: PendingSessionState,
+    platform_state: PlatformState,
     streamer: DefaultExtnStreamer,
 }
 
 impl PendingSessionEventProcessor {
-    pub fn new(state: PendingSessionState) -> PendingSessionEventProcessor {
+    pub fn new(platform_state: PlatformState) -> PendingSessionEventProcessor {
         PendingSessionEventProcessor {
-            state,
+            platform_state,
             streamer: DefaultExtnStreamer::new(),
         }
     }
 }
 
 impl ExtnStreamProcessor for PendingSessionEventProcessor {
-    type STATE = PendingSessionState;
+    type STATE = PlatformState;
     type VALUE = AppsUpdate;
     fn get_state(&self) -> Self::STATE {
-        self.state.clone()
+        self.platform_state.clone()
     }
 
     fn sender(&self) -> Sender<ExtnMessage> {
@@ -93,56 +78,26 @@ impl ExtnEventProcessor for PendingSessionEventProcessor {
         extracted_message: Self::VALUE,
     ) -> Option<bool> {
         if let AppsUpdate::InstallComplete(operation) = extracted_message.clone() {
-            println!(
-                "PendingSessionEventProcessor::process_event: Got AppsUpdate::InstallComplete"
-            );
-            //let pending_sessions = state.pending_sessions.read().unwrap();
-            //if pending_sessions.contains(&operation.id) {
-            let has_pending_session = {
-                state
-                    .pending_sessions
-                    .read()
-                    .unwrap()
-                    .contains(&operation.id)
-            };
+            let has_pending_session = state.session_state.has_pending_session(&operation.id);
+
             if has_pending_session {
                 if operation.success {
                     // Send request to create session and send lifecyclemanagement.OnSessionTransitionComplete
-                    match PermissionHandler::fetch_permission_for_app_session(
-                        &state.platform_state,
-                        &operation.id,
-                    )
-                    .await
+                    match PermissionHandler::fetch_permission_for_app_session(&state, &operation.id)
+                        .await
                     {
                         Ok(()) => {
-                            DelegatedLauncherHandler::emit_completed(
-                                &state.platform_state,
-                                &operation.id,
-                            )
-                            .await
+                            DelegatedLauncherHandler::emit_completed(&state, &operation.id).await
                         }
                         Err(e) => {
-                            println!(
+                            error!(
                             "PendingSessionEventProcessor::process_event: Failed to fetch permissions: app_id={}, e={:?}", operation.id, e);
-                            DelegatedLauncherHandler::emit_cancelled(
-                                &state.platform_state,
-                                &operation.id,
-                            )
-                            .await;
+                            DelegatedLauncherHandler::emit_cancelled(&state, &operation.id).await;
                         }
                     }
                 } else {
                     error!("PendingSessionEventProcessor::process_event: Installation failed: app_id={}", operation.id);
-                    DelegatedLauncherHandler::emit_cancelled(&state.platform_state, &operation.id)
-                        .await;
-                }
-                //pending_sessions.retain(|id| !id.eq(&operation.id));
-                {
-                    state
-                        .pending_sessions
-                        .write()
-                        .unwrap()
-                        .retain(|id| !id.eq(&operation.id));
+                    DelegatedLauncherHandler::emit_cancelled(&state, &operation.id).await;
                 }
             }
         }
