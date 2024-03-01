@@ -38,6 +38,7 @@ use crate::{
             device_info_request::DeviceInfoRequest,
             device_request::{InternetConnectionStatus, TimeZone},
         },
+        firebolt::fb_metrics::MetricsContext,
         manifest::extn_manifest::ExtnSymbol,
     },
     extn::{
@@ -575,7 +576,7 @@ impl ExtnClient {
     /// # Arguments
     /// `payload` - impl [ExtnPayloadProvider]
     pub async fn standalone_request<T: ExtnPayloadProvider>(
-        &mut self,
+        &self,
         payload: impl ExtnPayloadProvider,
         timeout_in_msecs: u64,
     ) -> Result<T, RippleError> {
@@ -597,7 +598,7 @@ impl ExtnClient {
                     }
                 }
             }
-            Ok(Err(_)) => error!("Invalid message"),
+            Ok(Err(e)) => error!("Invalid message: e={:?}", e),
             Err(_) => {
                 error!("Channel disconnected");
             }
@@ -692,6 +693,16 @@ impl ExtnClient {
         let ripple_context = self.ripple_context.read().unwrap();
         // Some(ripple_context.time_zone.clone())
         ripple_context.time_zone.clone()
+    }
+
+    pub fn get_features(&self) -> Vec<String> {
+        let ripple_context = self.ripple_context.read().unwrap();
+        ripple_context.features.clone()
+    }
+
+    pub fn get_metrics_context(&self) -> MetricsContext {
+        let ripple_context = self.ripple_context.read().unwrap();
+        ripple_context.metrics_context.clone()
     }
 }
 
@@ -1555,7 +1566,7 @@ pub mod tests {
             Some(HashMap::new()),
         );
 
-        let mut extn_client = ExtnClient::new(receiver.clone(), mock_sender.clone());
+        let extn_client = ExtnClient::new(receiver.clone(), mock_sender.clone());
 
         // TODO - this is a dummy test, need to add a real test
         if let Ok(ExtnResponse::Value(_v)) = extn_client
@@ -1577,7 +1588,7 @@ pub mod tests {
             Some(HashMap::new()),
         );
 
-        let mut extn_client = ExtnClient::new(receiver, mock_sender);
+        let extn_client = ExtnClient::new(receiver, mock_sender);
         let (s, _receiver) = unbounded();
         extn_client.add_sender(
             ExtnId::get_main_target("main".into()),

@@ -19,6 +19,7 @@ use crate::get_pact_with_params;
 use crate::processors::thunder_persistent_store::ThunderStorageRequestProcessor;
 use crate::tests::contracts::contract_utils::*;
 use crate::tests::contracts::thunder_persistent_store_pacts::chrono::Utc;
+use crate::thunder_state::ThunderConnectionState;
 use crate::{
     client::thunder_client_pool::ThunderClientPool,
     ripple_sdk::{
@@ -42,6 +43,7 @@ use pact_consumer::mock_server::StartMockServerAsync;
 use pact_consumer::prelude::*;
 use ripple_sdk::chrono;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
@@ -99,7 +101,10 @@ async fn test_device_set_persistent_value() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s, r);
@@ -136,10 +141,16 @@ async fn test_device_get_persistent_value() {
     );
     params.insert("key".into(), ContractMatcher::MatchType("testKey".into()));
 
+    let given_statement = format!(
+        "\"key:{}\", \"namespace: {}\" to \"{}\" is set in persistentStore",
+        "testKey", "testNamesapce", "testValue1"
+    );
+
     pact_builder_async
         .synchronous_message_interaction(
             "A request to get the persistent stored value",
             |mut i| async move {
+                i.given(given_statement);
                 i.contents_from(get_pact_with_params!(
                     "org.rdk.PersistentStore.1.getValue",
                     ContractResult { result },
@@ -168,7 +179,10 @@ async fn test_device_get_persistent_value() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s, r);

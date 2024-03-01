@@ -24,6 +24,7 @@ repository = "https://github.com/rdkcentral/Ripple"
 [features]
 default = []
 rpc = []
+tdk = []
 full = ["rpc"]
 sysd = []
 test = []
@@ -32,6 +33,7 @@ test = []
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9.10"
+serde_millis = "0.1.1"
 semver = "*"
 log = "0.4"
 fern = "0.6"
@@ -52,6 +54,8 @@ regex = "=1.7.3"
 async-channel = "=2.1.0"
 
 [dev-dependencies]
+ripple_sdk = { path = ".", features=["tdk"]}
+
 rstest = "0.18.0"
 async-std = { version = "1.5", features = ["attributes"] }
 testing_logger = "0.1.1"
