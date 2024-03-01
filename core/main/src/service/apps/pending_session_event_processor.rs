@@ -1,5 +1,3 @@
-use std::sync::{Arc, RwLock};
-
 use ripple_sdk::extn::client::extn_processor::ExtnStreamer;
 use ripple_sdk::{
     api::app_catalog::AppsUpdate,

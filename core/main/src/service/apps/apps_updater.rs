@@ -1,7 +1,7 @@
 use jsonrpsee::core::async_trait;
 use ripple_sdk::{
     api::{
-        app_catalog::{self, AppMetadata, AppsCatalogUpdate, AppsUpdate},
+        app_catalog::{self, AppsCatalogUpdate},
         device::device_apps::{AppsRequest, DeviceAppMetadata},
     },
     extn::{
@@ -9,7 +9,7 @@ use ripple_sdk::{
             extn_client::ExtnClient,
             extn_processor::{DefaultExtnStreamer, ExtnEventProcessor, ExtnStreamProcessor},
         },
-        extn_client_message::{ExtnEvent, ExtnMessage, ExtnPayload, ExtnResponse},
+        extn_client_message::{ExtnMessage, ExtnPayload, ExtnResponse},
     },
     tokio::sync::mpsc::{Receiver, Sender},
 };

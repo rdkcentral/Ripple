@@ -885,7 +885,7 @@ impl DelegatedLauncherHandler {
             .insert(app_id.clone(), app.clone());
         let sess = Self::to_completed_session(&app);
         if emit_event {
-            Self::emit_completed(&&self.platform_state, &app_id).await;
+            Self::emit_completed(&self.platform_state, &app_id).await;
         }
         sess
     }
@@ -985,7 +985,7 @@ impl DelegatedLauncherHandler {
         let app = app_opt.unwrap();
         let sr = SessionResponse::Completed(Self::to_completed_session(&app));
         AppEvents::emit(
-            &platform_state,
+            platform_state,
             LCM_EVENT_ON_SESSION_TRANSITION_COMPLETED,
             &serde_json::to_value(sr).unwrap(),
         )

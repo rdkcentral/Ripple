@@ -44,7 +44,7 @@ use ripple_sdk::api::firebolt::fb_capabilities::FireboltPermissions;
 use ripple_sdk::api::observability::metrics_util::{
     start_service_metrics_timer, stop_and_send_service_metrics_timer,
 };
-use ripple_sdk::log::{debug, error, info, warn};
+use ripple_sdk::log::{debug, error, info};
 use ripple_sdk::tokio;
 use ripple_sdk::{
     api::device::device_apps::{AppsRequest, InstalledApp},
@@ -395,7 +395,7 @@ impl ThunderPackageManagerRequestProcessor {
                             version: operation_status.version,
                             success: status.succeeded(),
                         };
-                        let mut cli = state.thunder_state.get_client();
+                        let cli = state.thunder_state.get_client();
                         match operation_status.operation {
                             AppsOperationType::Install => {
                                 if let Err(e) = cli.event(AppsUpdate::InstallComplete(op_comp)) {
@@ -613,7 +613,7 @@ impl ThunderPackageManagerRequestProcessor {
         )
         .await;
 
-        let extn_resp = match thunder_resp {
+        match thunder_resp {
             Ok(handle) => {
                 let operation = Operation::new(
                     AppsOperationType::Install,
@@ -624,9 +624,7 @@ impl ThunderPackageManagerRequestProcessor {
                 ExtnResponse::String(handle)
             }
             Err(_) => ExtnResponse::Error(RippleError::ProcessorError),
-        };
-
-        extn_resp
+        }
     }
 
     async fn uninstall_app(
@@ -754,7 +752,7 @@ impl ThunderPackageManagerRequestProcessor {
                         let app: Vec<ripple_sdk::api::app_catalog::AppMetadata> =
                             apps.iter().filter(|&a| a.id.eq(&app_id)).cloned().collect();
 
-                        if app.len() < 1 {
+                        if app.is_empty() {
                             error!(
                                 "get_firebolt_permissions: App not found in catalog: app_id={}",
                                 app_id

@@ -23,7 +23,6 @@ use std::{
 
 use ripple_sdk::{
     api::{
-        app_catalog::AppCatalogRequest,
         config::FEATURE_CLOUD_PERMISISONS,
         device::device_apps::AppsRequest,
         //config::Config,
