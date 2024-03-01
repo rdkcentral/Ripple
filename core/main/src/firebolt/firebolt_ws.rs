@@ -35,7 +35,7 @@ use ripple_sdk::{
         net::{TcpListener, TcpStream},
         sync::{mpsc, oneshot},
     },
-    utils::{channel_utils::oneshot_send_and_log, error::RippleError},
+    utils::channel_utils::oneshot_send_and_log,
     uuid::Uuid,
 };
 use ripple_sdk::{log::debug, tokio};

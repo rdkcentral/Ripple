@@ -306,7 +306,8 @@ pub mod tests {
         let (mut client, pm_r) = MockExtnClient::main_and_extn(vec![String::from("apps")]);
         let pm_ftr = MockPackageManager::start(vec![], client.clone(), pm_r);
         let apps_update = AppsCatalogUpdate {
-            apps: vec![AppBuilder::new("firecert").meta()],
+            old_catalog: None,
+            new_catalog: vec![AppBuilder::new("firecert").meta()],
         };
 
         update(client.clone(), apps_update, vec![], true).await;
@@ -326,7 +327,8 @@ pub mod tests {
             pm_r,
         );
         let apps_update = AppsCatalogUpdate {
-            apps: vec![AppBuilder::new("firecert").meta()],
+            old_catalog: None,
+            new_catalog: vec![AppBuilder::new("firecert").meta()],
         };
 
         update(client.clone(), apps_update, vec![], true).await;
@@ -342,7 +344,8 @@ pub mod tests {
         let (mut client, pm_r) = MockExtnClient::main_and_extn(vec![String::from("apps")]);
         let pm_ftr = MockPackageManager::start(vec![], client.clone(), pm_r);
         let apps_update = AppsCatalogUpdate {
-            apps: vec![
+            old_catalog: None,
+            new_catalog: vec![
                 AppBuilder::new("no_priority_app").meta(),
                 AppBuilder::new("high_priority_app").priority(1).meta(),
                 AppBuilder::new("low_priority_app").priority(200).meta(),
@@ -376,7 +379,8 @@ pub mod tests {
             pm_r,
         );
         let apps_update = AppsCatalogUpdate {
-            apps: vec![AppBuilder::new("firecert").version("2.0").meta()],
+            old_catalog: None,
+            new_catalog: vec![AppBuilder::new("firecert").version("2.0").meta()],
         };
 
         update(client.clone(), apps_update, vec![], true).await;
@@ -400,7 +404,10 @@ pub mod tests {
             client.clone(),
             pm_r,
         );
-        let apps_update = AppsCatalogUpdate { apps: vec![] };
+        let apps_update = AppsCatalogUpdate {
+            old_catalog: None,
+            new_catalog: vec![],
+        };
 
         update(client.clone(), apps_update, vec![], true).await;
         let pm = MockPackageManager::shutdown(&mut client, pm_ftr).await;
@@ -418,7 +425,10 @@ pub mod tests {
             client.clone(),
             pm_r,
         );
-        let apps_update = AppsCatalogUpdate { apps: vec![] };
+        let apps_update = AppsCatalogUpdate {
+            old_catalog: None,
+            new_catalog: vec![],
+        };
 
         update(client.clone(), apps_update, vec![], false).await;
         let pm = MockPackageManager::shutdown(&mut client, pm_ftr).await;
@@ -436,7 +446,8 @@ pub mod tests {
             pm_r,
         );
         let apps_update = AppsCatalogUpdate {
-            apps: vec![AppBuilder::new("firecert").meta()],
+            old_catalog: None,
+            new_catalog: vec![AppBuilder::new("firecert").meta()],
         };
 
         update(client.clone(), apps_update, vec![], true).await;
