@@ -26,7 +26,7 @@ pub fn start_service_metrics_timer(extn_client: &ExtnClient, name: String) -> Op
 }
 
 pub async fn stop_and_send_service_metrics_timer(
-    mut client: ExtnClient,
+    client: ExtnClient,
     timer: Option<Timer>,
     status: String,
 ) {
