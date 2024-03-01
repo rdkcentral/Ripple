@@ -17,29 +17,6 @@ use crate::{
     state::{cap::permitted_state::PermissionHandler, platform_state::PlatformState},
 };
 
-// #[derive(Debug, Clone)]
-// pub enum PendingSessionRequest {
-//     PendingSession(String),
-// }
-
-// impl ExtnPayloadProvider for PendingSessionRequest {
-//     fn get_extn_payload(&self) -> ExtnPayload {
-//         ExtnPayload::Request(ExtnRequest::PendingSession(self.clone()))
-//     }
-
-//     fn get_from_payload(payload: ExtnPayload) -> Option<PendingSessionRequest> {
-//         if let ExtnPayload::Request(ExtnRequest::PendingSession(r)) = payload {
-//             return Some(r);
-//         }
-
-//         None
-//     }
-
-//     fn contract() -> RippleContract {
-//         RippleContract::LifecycleManagement
-//     }
-// }
-
 pub struct PendingSessionEventProcessor {
     platform_state: PlatformState,
     streamer: DefaultExtnStreamer,
