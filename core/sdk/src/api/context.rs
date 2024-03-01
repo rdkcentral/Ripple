@@ -64,7 +64,7 @@ pub struct RippleContext {
     pub time_zone: Option<TimeZone>,
     pub update_type: Option<RippleContextUpdateType>,
     pub features: Vec<String>,
-    pub metrics_context: MetricsContext,
+    pub metrics_context: Option<MetricsContext>,
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -142,16 +142,27 @@ impl RippleContext {
                 // This is not an update request so need not to honour it
             }
             RippleContextUpdateRequest::Features(features) => {
+                let mut changed = false;
                 for feature in features {
                     if !self.features.contains(&feature) {
                         self.features.push(feature);
+                        changed = true;
                     }
                 }
-                self.update_type = Some(RippleContextUpdateType::FeaturesChanged)
+                if changed {
+                    self.update_type = Some(RippleContextUpdateType::FeaturesChanged);
+                }
+                changed
             }
             RippleContextUpdateRequest::MetricsContext(context) => {
-                self.metrics_context = context;
-                self.update_type = Some(RippleContextUpdateType::MetricsContextChanged)
+                if let Some(metrics_context) = self.metrics_context.as_ref() {
+                    if metrics_context == &context {
+                        return false;
+                    }
+                }
+                self.metrics_context = Some(context);
+                self.update_type = Some(RippleContextUpdateType::MetricsContextChanged);
+                true
             }
         }
     }
@@ -269,7 +280,7 @@ mod tests {
             }),
             update_type: None,
             features: Vec::default(),
-            metrics_context: MetricsContext::default(),
+            metrics_context: Some(MetricsContext::default()),
         };
 
         let contract_type: RippleContract = RippleContract::RippleContext;

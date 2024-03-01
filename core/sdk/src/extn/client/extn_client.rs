@@ -700,7 +700,7 @@ impl ExtnClient {
         ripple_context.features.clone()
     }
 
-    pub fn get_metrics_context(&self) -> MetricsContext {
+    pub fn get_metrics_context(&self) -> Option<MetricsContext> {
         let ripple_context = self.ripple_context.read().unwrap();
         ripple_context.metrics_context.clone()
     }
@@ -1588,7 +1588,7 @@ pub mod tests {
             Some(HashMap::new()),
         );
 
-        let extn_client = ExtnClient::new(receiver, mock_sender);
+        let mut extn_client = ExtnClient::new(receiver, mock_sender);
         let (s, _receiver) = unbounded();
         extn_client.add_sender(
             ExtnId::get_main_target("main".into()),
