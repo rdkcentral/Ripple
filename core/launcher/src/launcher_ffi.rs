@@ -49,11 +49,10 @@ fn init_library() -> CExtnMetadata {
     );
 
     debug!("Returning launcher builder");
-    let extn_metadata = ExtnMetadata {
-        name: "launcher".into(),
-        symbols: vec![launcher_meta],
-    };
-    extn_metadata.into()
+    ExtnMetadata::new(
+        "launcher".into(),
+        vec![launcher_meta],
+    ).into()
 }
 
 export_extn_metadata!(CExtnMetadata, init_library);

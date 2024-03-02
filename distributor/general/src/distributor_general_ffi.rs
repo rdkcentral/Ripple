@@ -72,11 +72,8 @@ fn init_library() -> CExtnMetadata {
     );
 
     debug!("Returning distributor builder");
-    let extn_metadata = ExtnMetadata {
-        name: "distributor_general".into(),
-        symbols: vec![dist_meta],
-    };
-    extn_metadata.into()
+    
+    ExtnMetadata::new("distributor_general".into(),vec![dist_meta]).into()
 }
 
 export_extn_metadata!(CExtnMetadata, init_library);
