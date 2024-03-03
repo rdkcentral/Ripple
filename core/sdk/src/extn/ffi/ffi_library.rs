@@ -24,13 +24,11 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct ExtnVersionInfo {
     pub extension_version: String,
     pub extenstion_hash: String,
-
 }
 impl ExtnVersionInfo {
     pub fn new(extension_version: String, extenstion_hash: String) -> ExtnVersionInfo {
@@ -56,11 +54,15 @@ impl ExtnMetadata {
             version_info: None,
         }
     }
-    pub fn new_with_version(name:String, symbols:Vec<ExtnSymbolMetadata>, version_info:Option<ExtnVersionInfo>) -> ExtnMetadata {
+    pub fn new_with_version(
+        name: String,
+        symbols: Vec<ExtnSymbolMetadata>,
+        version_info: Option<ExtnVersionInfo>,
+    ) -> ExtnMetadata {
         ExtnMetadata {
             name,
             symbols,
-            version_info
+            version_info,
         }
     }
 }
@@ -128,7 +130,10 @@ impl From<ExtnMetadata> for CExtnMetadata {
             });
         }
         let symbols = serde_json::to_string(&metadata).unwrap();
-        info!("exported symbols in library {}, with version : {:?}", symbols,value.version_info);
+        info!(
+            "exported symbols in library {}, with version : {:?}",
+            symbols, value.version_info
+        );
         CExtnMetadata {
             name: value.name,
             metadata: symbols,

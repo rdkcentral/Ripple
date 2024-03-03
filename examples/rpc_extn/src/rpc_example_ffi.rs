@@ -49,10 +49,7 @@ fn init_library() -> CExtnMetadata {
     );
 
     debug!("Returning extended custom library entries");
-    ExtnMetadata::new(
-        "custom".into(),
-        vec![json_rpsee_extn_meta],
-    ).into()
+    ExtnMetadata::new("custom".into(), vec![json_rpsee_extn_meta]).into()
 }
 
 export_extn_metadata!(CExtnMetadata, init_library);

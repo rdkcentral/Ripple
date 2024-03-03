@@ -49,10 +49,7 @@ fn init_library() -> CExtnMetadata {
     );
 
     debug!("Returning tm builder");
-    ExtnMetadata::new(
-        "tm".into(),
-        vec![dist_meta],
-    ).into()
+    ExtnMetadata::new("tm".into(), vec![dist_meta]).into()
 }
 
 export_extn_metadata!(CExtnMetadata, init_library);

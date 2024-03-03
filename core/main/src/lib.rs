@@ -1,8 +1,8 @@
 pub mod bootstrap;
-pub mod utils;
 pub mod firebolt;
+pub mod processor;
 pub mod service;
 pub mod state;
-pub mod processor;
+pub mod utils;
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));

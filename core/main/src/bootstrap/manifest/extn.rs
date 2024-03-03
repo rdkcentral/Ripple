@@ -26,46 +26,50 @@ impl LoadExtnManifestStep {
         try_manifest_files().expect("Need valid extn manifest")
     }
 }
-
-type ExtnManifestLoader = Vec<fn() -> Result<(String, ExtnManifest), RippleError>>;
+pub struct ExtnManifestLoadResult {
+    pub extn_manifest: ExtnManifest,
+    pub load_path: String,
+}
 
 fn try_manifest_files() -> Result<ExtnManifest, RippleError> {
-    let dm_arr: ExtnManifestLoader = if cfg!(any(feature = "local_dev", feature = "pre_prod")) {
-        vec![load_from_env, load_from_home, load_from_opt, load_from_etc]
-    } else if cfg!(test) {
-        vec![load_from_env]
-    } else {
-        vec![load_from_etc]
-    };
-
-    for dm_provider in dm_arr {
-        if let Ok((p, m)) = dm_provider() {
+    let path = resolve_manifest_file_path()?;
+    load_manifest(path)
+}
+fn load_manifest(path: String) -> Result<ExtnManifest, RippleError> {
+    match ExtnManifest::load(path) {
+        Ok((p, m)) => {
             info!("loaded_extn_file_content={}", p);
-            return Ok(m);
+            Ok(m)
         }
+        Err(e) => Err(e),
     }
-    Err(RippleError::BootstrapError)
 }
 
-fn load_from_env() -> Result<(String, ExtnManifest), RippleError> {
+pub fn resolve_manifest_file_path() -> Result<String, RippleError> {
+    if cfg!(any(feature = "local_dev", feature = "pre_prod")) {
+        path_from_env().or(path_from_home().or(path_from_opt().or(path_from_etc())))
+    } else if cfg!(test) {
+        path_from_env()
+    } else {
+        path_from_etc()
+    }
+}
+fn path_from_env() -> Result<String, RippleError> {
     let device_manifest_path = std::env::var("EXTN_MANIFEST");
     match device_manifest_path {
-        Ok(path) => ExtnManifest::load(path),
+        Ok(path) => Ok(path),
         Err(_) => Err(RippleError::MissingInput),
     }
 }
-
-fn load_from_home() -> Result<(String, ExtnManifest), RippleError> {
+fn path_from_home() -> Result<String, RippleError> {
     match std::env::var("HOME") {
-        Ok(home) => ExtnManifest::load(format!("{}/.ripple/firebolt-extn-manifest.json", home)),
+        Ok(home) => Ok(format!("{}/.ripple/firebolt-extn-manifest.json", home)),
         Err(_) => Err(RippleError::MissingInput),
     }
 }
-
-fn load_from_opt() -> Result<(String, ExtnManifest), RippleError> {
-    ExtnManifest::load("/opt/firebolt-extn-manifest.json".into())
+fn path_from_opt() -> Result<String, RippleError> {
+    Ok("/opt/firebolt-extn-manifest.json".into())
 }
-
-fn load_from_etc() -> Result<(String, ExtnManifest), RippleError> {
-    ExtnManifest::load("/etc/firebolt-extn-manifest.json".into())
+fn path_from_etc() -> Result<String, RippleError> {
+    Ok("/etc/firebolt-extn-manifest.json".into())
 }

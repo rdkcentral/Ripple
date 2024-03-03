@@ -63,7 +63,7 @@ fn init_library() -> CExtnMetadata {
 
     debug!("Returning thunder library entries");
     ExtnMetadata::new("thunder".into(), vec![thunder_channel_meta]).into()
-     
+
     //extn_metadata.into()
 }
 export_extn_metadata!(CExtnMetadata, init_library);
