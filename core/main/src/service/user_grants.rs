@@ -1541,7 +1541,7 @@ impl GrantPolicyEnforcer {
                     debug!("grant step execute Err. step={:?} e={:?}", step, e);
                     CapState::emit(
                         platform_state,
-                        CapEvent::OnRevoked,
+                        &CapEvent::OnRevoked,
                         permission.cap.clone(),
                         Some(permission.role),
                     )
@@ -1556,7 +1556,7 @@ impl GrantPolicyEnforcer {
 
             CapState::emit(
                 platform_state,
-                CapEvent::OnGranted,
+                &CapEvent::OnGranted,
                 permission.cap.clone(),
                 Some(permission.role),
             )
