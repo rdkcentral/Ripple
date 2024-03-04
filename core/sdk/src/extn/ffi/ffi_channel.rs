@@ -107,7 +107,7 @@ mod tests {
         fn build_fn(_extn_id: String) -> Result<Box<ExtnChannel>, RippleError> {
             // Mock implementation for creating an ExtnChannel
             let extn_channel = ExtnChannel {
-                start: |client, receiver| {
+                start: |_client, _receiver| {
                     // Mock implementation for ExtnChannel's start function
                 },
             };
