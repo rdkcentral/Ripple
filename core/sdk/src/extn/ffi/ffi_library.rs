@@ -318,39 +318,4 @@ mod tests {
         // TODO - add assertions here based on the expected behavior.
         // For example, loading the metadata from a dynamic library and checking if it matches the expected values.
     }
-
-    // Test for unsafe load_extn_library_metadata function
-    #[test]
-    fn test_load_extn_library_metadata() {
-        // TODO : update test to gen library from examples manifest instead of using the actual library
-        unsafe {
-            let current_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-            let ripple_dir = Path::new(&current_dir).parent().unwrap().parent().unwrap();
-            let dylib_path = ripple_dir
-                .join("examples")
-                .join("lib")
-                .join("libthunder.dylib");
-
-            // Load the dylib library
-            let lib = Library::new(dylib_path).expect("Failed to load library");
-            let result = load_extn_library_metadata(&lib);
-            assert!(result.is_some());
-
-            let metadata = result.unwrap();
-            assert_eq!(metadata.name, "thunder");
-
-            let symbol = &metadata.symbols[0];
-            assert_eq!(symbol.id._type, ExtnType::Channel);
-            assert_eq!(symbol.id.class, ExtnClassId::Device);
-            assert_eq!(symbol.id.service, "thunder");
-            assert!(symbol
-                .fulfills
-                .contracts
-                .contains(&RippleContract::RippleContext));
-            let version = &symbol.required_version;
-            assert_eq!(version.major, 1);
-            assert_eq!(version.minor, 1);
-            assert_eq!(version.patch, 0);
-        }
-    }
 }

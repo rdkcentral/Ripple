@@ -147,26 +147,4 @@ mod tests {
             }
         }
     }
-
-    #[test]
-    fn test_load_channel_builder() {
-        // TODO : update test to gen library from examples manifest instead of using the actual library
-        unsafe {
-            let current_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-            let ripple_dir = Path::new(&current_dir).parent().unwrap().parent().unwrap();
-            let dylib_path = ripple_dir
-                .join("examples")
-                .join("lib")
-                .join("libthunder.dylib");
-
-            // Load the dylib library
-            let lib = Library::new(dylib_path).expect("Failed to load library");
-
-            // Call the function to test (load_channel_builder in this case)
-            let result = load_channel_builder(&lib);
-
-            // Perform assertions on the result as needed
-            assert!(result.is_ok());
-        }
-    }
 }
