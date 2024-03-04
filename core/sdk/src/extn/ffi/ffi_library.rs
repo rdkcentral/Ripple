@@ -195,7 +195,6 @@ mod tests {
         framework::ripple_contract::RippleContract,
     };
     use semver::Version;
-    use std::path::Path;
 
     // Mock implementation for ExtnMetadata
     fn mock_extn_metadata() -> ExtnMetadata {

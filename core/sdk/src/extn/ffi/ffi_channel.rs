@@ -100,8 +100,6 @@ macro_rules! export_channel_builder {
 mod tests {
     use super::*;
     use crate::extn::client::extn_sender::tests::Mockable;
-    use libloading::Library;
-    use std::path::Path;
 
     #[test]
     fn test_extn_channel_builder() {
