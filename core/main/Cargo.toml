@@ -22,13 +22,14 @@ edition = "2021"
 repository = "https://github.com/rdkcentral/Ripple"
 build = "build.rs"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-[lib]
-crate-type = ["rlib"]
-
 [[bin]]
 name = "ripple"
 path = "src/main.rs"
+[lib]
+crate-type = ["rlib"]
+
+
+
 
 
 [features]
