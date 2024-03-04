@@ -197,7 +197,7 @@ impl ProviderBroker {
 
         CapState::emit(
             pst,
-            CapEvent::OnAvailable,
+            &CapEvent::OnAvailable,
             FireboltCap::Full(capability),
             None,
         )
@@ -379,7 +379,7 @@ impl ProviderBroker {
             .map(|x| FireboltCap::Full(x.clone()))
             .collect();
         for cap in caps {
-            CapState::emit(pst, CapEvent::OnUnavailable, cap, None).await
+            CapState::emit(pst, &CapEvent::OnUnavailable, cap, None).await
         }
     }
 

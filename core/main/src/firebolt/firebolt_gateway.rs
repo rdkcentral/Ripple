@@ -34,7 +34,7 @@ use serde::Serialize;
 
 use crate::{
     firebolt::firebolt_gatekeeper::FireboltGatekeeper,
-    service::apps::app_events::AppEvents,
+    service::{apps::app_events::AppEvents, telemetry_builder::TelemetryBuilder},
     state::{bootstrap_state::BootstrapState, session_state::Session},
 };
 
@@ -158,8 +158,17 @@ impl FireboltGateway {
          */
         let mut request_c = request.clone();
         request_c.method = FireboltOpenRpcMethod::name_with_lowercase_module(&request.method);
+
+        let metrics_timer = TelemetryBuilder::start_firebolt_metrics_timer(
+            &platform_state.get_client().get_extn_client(),
+            request_c.method.clone(),
+            request_c.ctx.app_id.clone(),
+        );
+
         tokio::spawn(async move {
-            match FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await {
+            let result = FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await;
+
+            match result {
                 Ok(_) => {
                     // Route
                     match request.clone().ctx.protocol {
@@ -182,7 +191,13 @@ impl FireboltGateway {
                                 .get_session(&request_c.ctx)
                             {
                                 // if the websocket disconnects before the session is recieved this leads to an error
-                                RpcRouter::route(platform_state, request_c, session).await;
+                                RpcRouter::route(
+                                    platform_state.clone(),
+                                    request_c,
+                                    session,
+                                    metrics_timer.clone(),
+                                )
+                                .await;
                             } else {
                                 error!("session is missing request is not forwarded");
                             }
@@ -191,11 +206,19 @@ impl FireboltGateway {
                 }
                 Err(e) => {
                     let deny_reason = e.reason;
-                    // return error for Api message
+
+                    TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
+                        &platform_state.clone(),
+                        metrics_timer,
+                        format!("{}", deny_reason.get_observability_error_code()),
+                    )
+                    .await;
+
                     error!(
                         "Failed gateway present error {:?} {:?}",
                         request, deny_reason
                     );
+
                     let caps = e.caps.iter().map(|x| x.as_str()).collect();
                     let err = JsonRpcMessage {
                         jsonrpc: TwoPointZero {},
@@ -206,7 +229,9 @@ impl FireboltGateway {
                             data: None,
                         }),
                     };
+
                     let msg = serde_json::to_string(&err).unwrap();
+
                     let api_msg = ApiMessage::new(
                         request.clone().ctx.protocol,
                         msg,

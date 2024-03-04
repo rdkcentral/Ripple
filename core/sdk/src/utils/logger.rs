@@ -17,7 +17,7 @@
 
 use std::{str::FromStr, sync::atomic::AtomicU32};
 
-pub static LOG_COUNTER: AtomicU32 = AtomicU32::new(0);
+pub static LOG_COUNTER: AtomicU32 = AtomicU32::new(1);
 
 pub fn init_logger(name: String) -> Result<(), fern::InitError> {
     let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".into());
@@ -58,18 +58,30 @@ pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern
         .format(move |out, message, record| {
             let _v = LOG_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             #[cfg(not(feature = "sysd"))]
-            return out.finish(format_args!(
-                "{}[{}][{}][{}][{}]-{}",
-                chrono::Local::now().format("%Y-%m-%d-%H:%M:%S.%3f"),
-                record.level(),
-                record.target(),
-                name,
-                _version_string,
-                message
-            ));
+            if _v % 100 == 0 {
+                LOG_COUNTER.store(1, std::sync::atomic::Ordering::Relaxed);
+                return out.finish(format_args!(
+                    "{}[{}][{}][{}][{}]-{}",
+                    chrono::Local::now().format("%Y-%m-%d-%H:%M:%S.%3f"),
+                    record.level(),
+                    record.target(),
+                    name,
+                    _version_string,
+                    message
+                ));
+            } else {
+                return out.finish(format_args!(
+                    "{}[{}][{}][{}]-{}",
+                    chrono::Local::now().format("%Y-%m-%d-%H:%M:%S.%3f"),
+                    record.level(),
+                    record.target(),
+                    name,
+                    message
+                ));
+            }
             #[cfg(feature = "sysd")]
             if _v % 100 == 0 {
-                LOG_COUNTER.store(0, std::sync::atomic::Ordering::Relaxed);
+                LOG_COUNTER.store(1, std::sync::atomic::Ordering::Relaxed);
                 return out.finish(format_args!(
                     "[{}][{}][{}][{}]-{}",
                     record.level(),
