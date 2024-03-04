@@ -23,7 +23,9 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
-use super::fb_metrics::{Counter, ErrorParams, ErrorType, Param, SystemErrorParams, Timer};
+use super::fb_metrics::{
+    Counter, ErrorParams, ErrorType, FlatMapValue, Param, SystemErrorParams, Timer,
+};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppLoadStart {
@@ -59,7 +61,7 @@ pub struct TelemetryAppError {
     pub code: String,
     pub description: String,
     pub visible: bool,
-    pub parameters: Option<HashMap<String, String>>,
+    pub parameters: Option<HashMap<String, FlatMapValue>>,
     pub ripple_session_id: String,
 }
 
@@ -77,7 +79,7 @@ impl From<ErrorParams> for TelemetryAppError {
     }
 }
 
-fn get_params(error_params: Option<Vec<Param>>) -> Option<HashMap<String, String>> {
+fn get_params(error_params: Option<Vec<Param>>) -> Option<HashMap<String, FlatMapValue>> {
     error_params.map(|params| {
         params
             .into_iter()
