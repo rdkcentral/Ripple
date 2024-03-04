@@ -340,7 +340,6 @@ pub enum ExtnEvent {
     VoiceGuidanceState(VoiceGuidanceState),
     PubSubEvent(PubSubEvents),
     TimeZone(TimeZone),
-    AppsCatalogUpdate(AppsCatalogUpdate),
     AppsUpdate(AppsUpdate),
 }
 

@@ -76,28 +76,11 @@ impl AppsCatalogUpdate {
     }
 }
 
-impl ExtnPayloadProvider for AppsCatalogUpdate {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Event(ExtnEvent::AppsCatalogUpdate(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        if let ExtnPayload::Event(ExtnEvent::AppsCatalogUpdate(apps_catalog_update)) = payload {
-            return Some(apps_catalog_update);
-        }
-
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::AppCatalog
-    }
-}
-
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AppsUpdate {
     InstallComplete(AppOperationComplete),
     UninstallComplete(AppOperationComplete),
+    AppsCatalogUpdate(AppsCatalogUpdate),
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]

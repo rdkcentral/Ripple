@@ -1,7 +1,7 @@
 use jsonrpsee::core::async_trait;
 use ripple_sdk::{
     api::{
-        app_catalog::{self, AppsCatalogUpdate},
+        app_catalog::{self, AppsCatalogUpdate, AppsUpdate},
         device::device_apps::{AppsRequest, DeviceAppMetadata},
     },
     extn::{
@@ -52,7 +52,7 @@ impl AppsUpdater {
 }
 
 impl ExtnStreamProcessor for AppsUpdater {
-    type VALUE = AppsCatalogUpdate;
+    type VALUE = AppsUpdate;
     type STATE = AppsUpdaterState;
 
     fn get_state(&self) -> Self::STATE {
@@ -75,13 +75,15 @@ impl ExtnEventProcessor for AppsUpdater {
         _msg: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> Option<bool> {
-        update(
-            state.client.clone(),
-            extracted_message,
-            state.ignore_list,
-            state.uninstalls_enabled,
-        )
-        .await;
+        if let AppsUpdate::AppsCatalogUpdate(apps_catalog_update) = extracted_message {
+            update(
+                state.client.clone(),
+                apps_catalog_update,
+                state.ignore_list,
+                state.uninstalls_enabled,
+            )
+            .await;
+        }
         None
     }
 }
