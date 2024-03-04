@@ -109,13 +109,8 @@ mod tests {
             let extn_channel = ExtnChannel {
                 start: |client, receiver| {
                     // Mock implementation for ExtnChannel's start function
-                    println!(
-                        "ExtnChannel started with client: {:?}, receiver: {:?}",
-                        client, receiver
-                    );
                 },
             };
-
             Ok(Box::new(extn_channel))
         }
 
