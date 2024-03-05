@@ -108,7 +108,7 @@ impl MockDeviceController {
         request: MockServerRequest,
     ) -> Result<ExtnProviderResponse, MockDeviceControllerError> {
         debug!("request={request:?}");
-        let mut client = self.client.clone();
+        let client = self.client.clone();
         let request = ExtnProviderRequest {
             value: serde_json::to_value(request).unwrap(),
             id: self.id.clone(),
