@@ -121,7 +121,7 @@ mod tests {
 
     #[test]
     fn test_extn_payload_provider_for_apps_update() {
-        let apps_update = AppsCatalogUpdate {
+        let apps_update = AppsUpdate::AppsCatalogUpdate(AppsCatalogUpdate {
             old_catalog: None,
             new_catalog: vec![AppMetadata {
                 id: String::from("app1"),
@@ -131,8 +131,8 @@ mod tests {
                 data: Some(String::from("app1_data")),
                 install_priority: 9999,
             }],
-        };
-        let contract_type: RippleContract = RippleContract::AppCatalog;
+        });
+        let contract_type: RippleContract = RippleContract::Apps;
         test_extn_payload_provider(apps_update, contract_type);
     }
 }
