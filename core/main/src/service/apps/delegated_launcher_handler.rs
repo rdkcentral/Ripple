@@ -820,11 +820,11 @@ impl DelegatedLauncherHandler {
             .app_manager_state
             .set_session(&app_id, session.clone());
         if emit_event {
-            Self::emit_completed(&platform_state, &app_id).await;
+            Self::emit_completed(platform_state, &app_id).await;
         }
         if let Some(intent) = session.launch.intent {
             AppEvents::emit_to_app(
-                &platform_state,
+                platform_state,
                 app_id.clone(),
                 DISCOVERY_EVENT_ON_NAVIGATE_TO,
                 &serde_json::to_value(intent).unwrap_or_default(),
@@ -834,7 +834,7 @@ impl DelegatedLauncherHandler {
 
         if let Some(ss) = session.launch.second_screen {
             AppEvents::emit_to_app(
-                &platform_state,
+                platform_state,
                 app_id.clone(),
                 SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST,
                 &serde_json::to_value(ss).unwrap_or_default(),
