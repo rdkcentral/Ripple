@@ -515,7 +515,7 @@ impl ExtnClient {
     /// Critical method used by event processors to emit event back to the requestor
     /// # Arguments
     /// `msg` - [ExtnMessage] event object
-    pub fn event(&mut self, event: impl ExtnPayloadProvider) -> Result<(), RippleError> {
+    pub fn event(&self, event: impl ExtnPayloadProvider) -> Result<(), RippleError> {
         let other_sender = self.get_extn_sender_with_contract(event.get_contract());
         self.sender.send_event(event, other_sender)
     }
@@ -549,7 +549,7 @@ impl ExtnClient {
     /// # Arguments
     /// `payload` - impl [ExtnPayloadProvider]
     pub async fn standalone_request<T: ExtnPayloadProvider>(
-        &mut self,
+        &self,
         payload: impl ExtnPayloadProvider,
         timeout_in_msecs: u64,
     ) -> Result<T, RippleError> {
@@ -586,7 +586,7 @@ impl ExtnClient {
     ///
     /// # Arguments
     /// `payload` - impl [ExtnPayloadProvider]
-    pub fn request_transient(&mut self, payload: impl ExtnPayloadProvider) -> RippleResponse {
+    pub fn request_transient(&self, payload: impl ExtnPayloadProvider) -> RippleResponse {
         let id = uuid::Uuid::new_v4().to_string();
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
         self.sender.send_request(id, payload, other_sender, None)
@@ -1528,7 +1528,7 @@ pub mod tests {
             Some(HashMap::new()),
         );
 
-        let mut extn_client = ExtnClient::new(receiver.clone(), mock_sender.clone());
+        let extn_client = ExtnClient::new(receiver.clone(), mock_sender.clone());
 
         // TODO - this is a dummy test, need to add a real test
         if let Ok(ExtnResponse::Value(_v)) = extn_client
@@ -1550,7 +1550,7 @@ pub mod tests {
             Some(HashMap::new()),
         );
 
-        let mut extn_client = ExtnClient::new(receiver, mock_sender);
+        let extn_client = ExtnClient::new(receiver, mock_sender);
         let (s, _receiver) = unbounded();
         extn_client.clone().add_sender(
             ExtnId::get_main_target("main".into()),

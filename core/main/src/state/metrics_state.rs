@@ -52,7 +52,7 @@ pub struct MetricsState {
 
 impl MetricsState {
     fn send_context_update_request(platform_state: &PlatformState) {
-        let mut extn_client = platform_state.get_client().get_extn_client();
+        let extn_client = platform_state.get_client().get_extn_client();
         let metrics_context = platform_state.metrics.context.read().unwrap().clone();
 
         if let Err(e) = extn_client
