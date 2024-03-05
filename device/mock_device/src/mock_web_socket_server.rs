@@ -427,10 +427,7 @@ impl MockWebSocketServer {
 
 #[cfg(test)]
 mod tests {
-    use ripple_sdk::{
-        tokio::time::{self, error::Elapsed, Duration},
-        utils::logger::init_logger,
-    };
+    use ripple_sdk::tokio::time::{self, error::Elapsed, Duration};
 
     use super::*;
 
@@ -524,7 +521,6 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_startup_mock_data_json_matched_request() {
-        init_logger("test".to_owned()).unwrap();
         let params = json!({
             "event": "statechange",
             "id": "client.Controller.1.events"
