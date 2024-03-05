@@ -64,11 +64,10 @@ impl ExtnEventProcessor for PendingSessionEventProcessor {
                         Ok(()) => {
                             if let Some(info) = pending_session_info {
                                 DelegatedLauncherHandler::check_grants_then_load_or_activate(
-                                    &state, info,
+                                    &state, info, true,
                                 )
                                 .await;
                             }
-                            DelegatedLauncherHandler::emit_completed(&state, &operation.id).await;
                         }
                         Err(e) => {
                             error!(

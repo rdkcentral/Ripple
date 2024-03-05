@@ -633,6 +633,7 @@ impl DelegatedLauncherHandler {
     pub async fn check_grants_then_load_or_activate(
         platform_state: &PlatformState,
         pending_session_info: PendingSessionInfo,
+        emit_completed: bool,
     ) -> SessionResponse {
         let session = pending_session_info.session;
         let mut perms_with_grants_opt = if !session.launch.inactive {
@@ -682,19 +683,10 @@ impl DelegatedLauncherHandler {
                             reason: DenyReason::GrantDenied,
                             ..
                         }) => {
-                            let (resp_tx, resp_rx) =
-                                oneshot::channel::<Result<AppManagerResponse, AppError>>();
-                            let app_method = if pending_session_info.loading {
-                                AppMethod::NewLoadedSession(session)
+                            if pending_session_info.loading {
+                                Self::new_loaded_session(&cloned_ps, session, true).await;
                             } else {
-                                AppMethod::NewActiveSession(session)
-                            };
-                            if cloned_ps
-                                .get_client()
-                                .send_app_request(AppRequest::new(app_method, resp_tx))
-                                .is_ok()
-                            {
-                                let _ = rpc_await_oneshot(resp_rx).await.is_ok();
+                                Self::new_active_session(&cloned_ps, session, true).await;
                             }
                         }
                         _ => {
@@ -713,16 +705,11 @@ impl DelegatedLauncherHandler {
             None => {
                 // No grants required, transition immediately
                 if pending_session_info.loading {
-                    let sess = DelegatedLauncherHandler::new_loaded_session(
-                        platform_state,
-                        session,
-                        false,
-                    )
-                    .await;
+                    let sess =
+                        Self::new_loaded_session(platform_state, session, emit_completed).await;
                     SessionResponse::Completed(sess)
                 } else {
-                    DelegatedLauncherHandler::new_active_session(platform_state, session, false)
-                        .await;
+                    Self::new_active_session(platform_state, session, emit_completed).await;
                     SessionResponse::Completed(Self::to_completed_session(
                         &platform_state.app_manager_state.get(&app_id).unwrap(),
                     ))
@@ -791,7 +778,8 @@ impl DelegatedLauncherHandler {
             });
         }
 
-        Self::check_grants_then_load_or_activate(&self.platform_state, pending_session_info).await
+        Self::check_grants_then_load_or_activate(&self.platform_state, pending_session_info, false)
+            .await
     }
 
     /// Actually perform the transition of the session from inactive to active.
