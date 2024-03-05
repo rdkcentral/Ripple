@@ -18,17 +18,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::{firebolt::fb_capabilities::FireboltPermission, session::AccountSession},
+    api::{firebolt::{fb_capabilities::{CapabilityRole, FireboltPermission}}, session::AccountSession},
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum Role {
-    Use,
-    Manage,
-    Provide,
-}
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PermissionRequest {
@@ -50,7 +43,7 @@ pub enum PermissionRequestPayload {
 pub struct PermissionRequestParam {
     pub capability: Option<String>,
     pub method: Option<String>,
-    pub role: Option<Role>,
+    pub role: Option<CapabilityRole>,
 }
 
 impl PermissionRequestParam {
