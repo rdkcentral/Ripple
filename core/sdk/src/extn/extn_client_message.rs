@@ -26,7 +26,7 @@ use std::fmt::Debug;
 use crate::{
     api::{
         account_link::AccountLinkRequest,
-        app_catalog::{AppCatalogRequest, AppMetadata, AppsCatalogUpdate, AppsUpdate},
+        app_catalog::{AppCatalogRequest, AppMetadata, AppsUpdate},
         apps::AppEventRequest,
         caps::CapsRequest,
         config::{Config, ConfigResponse},

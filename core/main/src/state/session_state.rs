@@ -22,7 +22,7 @@ use std::{
 
 use ripple_sdk::{
     api::{
-        apps::EffectiveTransport,
+        apps::{AppSession, EffectiveTransport},
         gateway::rpc_gateway_api::{ApiMessage, CallContext},
         session::{AccountSession, ProvisionRequest},
     },
@@ -91,7 +91,15 @@ impl Session {
 pub struct SessionState {
     session_map: Arc<RwLock<HashMap<String, Session>>>,
     account_session: Arc<RwLock<Option<AccountSession>>>,
-    pending_sessions: Arc<RwLock<Vec<String>>>,
+    pending_sessions: Arc<RwLock<HashMap<String, Option<PendingSessionInfo>>>>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PendingSessionInfo {
+    pub session: AppSession,
+    pub loading: bool,
+    pub session_id: Option<String>,
+    pub loaded_session_id: Option<String>,
 }
 
 impl SessionState {
@@ -167,21 +175,19 @@ impl SessionState {
         session_state.get(cid).cloned()
     }
 
-    pub fn add_pending_session(&self, app_id: &String) {
+    pub fn add_pending_session(&self, app_id: String, info: Option<PendingSessionInfo>) {
         let mut pending_sessions = self.pending_sessions.write().unwrap();
-        if !pending_sessions.contains(app_id) {
-            pending_sessions.push(app_id.clone());
+        if info.is_none() && pending_sessions.get(&app_id).is_some() {
+            return;
         }
+        pending_sessions.insert(app_id, info);
     }
 
     pub fn clear_pending_session(&self, app_id: &String) {
-        self.pending_sessions
-            .write()
-            .unwrap()
-            .retain(|id| !id.eq(app_id));
+        self.pending_sessions.write().unwrap().remove(app_id);
     }
 
-    pub fn has_pending_session(&self, app_id: &String) -> bool {
-        self.pending_sessions.read().unwrap().contains(app_id)
+    pub fn get_pending_session_info(&self, app_id: &String) -> Option<Option<PendingSessionInfo>> {
+        self.pending_sessions.read().unwrap().get(app_id).cloned()
     }
 }

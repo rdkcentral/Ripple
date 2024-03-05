@@ -53,16 +53,22 @@ impl ExtnEventProcessor for PendingSessionEventProcessor {
         extracted_message: Self::VALUE,
     ) -> Option<bool> {
         if let AppsUpdate::InstallComplete(operation) = extracted_message.clone() {
-            let has_pending_session = state.session_state.has_pending_session(&operation.id);
-
-            if has_pending_session {
+            if let Some(pending_session_info) =
+                state.session_state.get_pending_session_info(&operation.id)
+            {
                 if operation.success {
                     // Send request to create session and send lifecyclemanagement.OnSessionTransitionComplete
                     match PermissionHandler::fetch_permission_for_app_session(&state, &operation.id)
                         .await
                     {
                         Ok(()) => {
-                            DelegatedLauncherHandler::emit_completed(&state, &operation.id).await
+                            if let Some(info) = pending_session_info {
+                                DelegatedLauncherHandler::check_grants_then_load_or_activate(
+                                    &state, info,
+                                )
+                                .await;
+                            }
+                            DelegatedLauncherHandler::emit_completed(&state, &operation.id).await;
                         }
                         Err(e) => {
                             error!(
