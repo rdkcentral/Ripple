@@ -51,7 +51,7 @@ pub trait Legacy {
 #[async_trait]
 impl LegacyServer for LegacyImpl {
     async fn make(&self, ctx: CallContext) -> RpcResult<String> {
-        let mut client = self.client.clone();
+        let client = self.client.clone();
         let mut new_ctx = ctx;
         new_ctx.protocol = ApiProtocol::Extn;
 
