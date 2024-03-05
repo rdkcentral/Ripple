@@ -18,7 +18,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::{firebolt::{fb_capabilities::{CapabilityRole, FireboltPermission}}, session::AccountSession},
+    api::{
+        firebolt::fb_capabilities::{CapabilityRole, FireboltPermission},
+        session::AccountSession,
+    },
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
