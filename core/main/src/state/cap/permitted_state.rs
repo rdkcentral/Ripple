@@ -205,6 +205,10 @@ impl PermissionHandler {
     }
 
     pub async fn device_fetch_and_store(state: &PlatformState, app_id: &str) -> RippleResponse {
+        if state.open_rpc_state.is_app_excluded(app_id) {
+            return Ok(());
+        }
+
         let mut client = state.get_client().get_extn_client();
         let resp = client
             .request(AppsRequest::GetFireboltPermissions(app_id.to_string()))
