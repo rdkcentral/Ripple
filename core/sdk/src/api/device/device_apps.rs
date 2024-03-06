@@ -26,6 +26,7 @@ use super::device_request::DeviceRequest;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AppsRequest {
+    Init,
     GetApps(Option<String>),
     InstallApp(AppMetadata),
     UninstallApp(InstalledApp),
