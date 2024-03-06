@@ -112,7 +112,7 @@ impl ExtnPayloadProvider for RfcRequest {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ConfigResponse {
     String(String),
     Boolean(bool),
