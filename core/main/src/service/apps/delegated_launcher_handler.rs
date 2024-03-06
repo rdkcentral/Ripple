@@ -146,7 +146,7 @@ impl AppManagerState {
             HashMap::new()
         }
     }
-    /* 
+    /*
     Adding to suppress:
     ```note: joining a path starting with separator will replace the path instead
     help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#join_absolute_paths
@@ -162,7 +162,7 @@ impl AppManagerState {
                     "Could not create directory {} for persisting app info err: {:?}, using /tmp/app_info/",
                     path.display().to_string(),
                     err
-                );      
+                );
                 path =
                     std::path::Path::new(&env::temp_dir().display().to_string()).join("/app_info");
                 if let Err(err) = fs::create_dir_all(path.clone()) {

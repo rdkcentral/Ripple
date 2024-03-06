@@ -1255,7 +1255,8 @@ mod tests {
                         .options
                         .unwrap()
                         .program_types
-                        .unwrap().first()
+                        .unwrap()
+                        .first()
                         .unwrap(),
                     ProgramType::Movie
                 ));

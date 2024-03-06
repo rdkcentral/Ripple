@@ -539,7 +539,9 @@ impl GrantState {
         let app_id = app_requested_for.app_id.to_owned();
         let caps_needing_grants = grant_state.caps_needing_grants.clone();
         let mut caps_needing_grant_in_request: Vec<FireboltPermission> = fb_perms
-            .iter().filter(|&x| caps_needing_grants.contains(&x.cap.as_str())).cloned()
+            .iter()
+            .filter(|&x| caps_needing_grants.contains(&x.cap.as_str()))
+            .cloned()
             .collect();
 
         if apply_exclusion_filter {
@@ -586,15 +588,15 @@ impl GrantState {
                     match result {
                         Ok(_) => {}
                         Err(deny_reason_with_cap) => {
-                            if fail_on_first_error || deny_reason_with_cap.reason == DenyReason::AppNotInActiveState {
+                            if fail_on_first_error
+                                || deny_reason_with_cap.reason == DenyReason::AppNotInActiveState
+                            {
                                 return Err(deny_reason_with_cap);
                             } else {
                                 denied_caps.push(permission.cap.clone())
                             }
                         }
-                        
                     }
-            
                 }
             }
         }

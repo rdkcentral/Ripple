@@ -139,8 +139,6 @@ impl DataGovernance {
                     }
                 };
 
-               
-
                 if val == tag.enforcement_value {
                     let tags_to_add: HashSet<DataTagInfo> = tag
                         .tags
