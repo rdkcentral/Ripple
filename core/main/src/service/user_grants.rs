@@ -539,9 +539,7 @@ impl GrantState {
         let app_id = app_requested_for.app_id.to_owned();
         let caps_needing_grants = grant_state.caps_needing_grants.clone();
         let mut caps_needing_grant_in_request: Vec<FireboltPermission> = fb_perms
-            .iter()
-            .cloned()
-            .filter(|x| caps_needing_grants.contains(&x.cap.as_str()))
+            .iter().filter(|&x| caps_needing_grants.contains(&x.cap.as_str())).cloned()
             .collect();
 
         if apply_exclusion_filter {
@@ -584,16 +582,19 @@ impl GrantState {
                         &permission,
                     )
                     .await;
-                    if result.is_err() {
-                        if fail_on_first_error
-                            || result.as_ref().unwrap_err().reason
-                                == DenyReason::AppNotInActiveState
-                        {
-                            return result;
-                        } else {
-                            denied_caps.push(permission.cap.clone())
+
+                    match result {
+                        Ok(_) => {}
+                        Err(deny_reason_with_cap) => {
+                            if fail_on_first_error || deny_reason_with_cap.reason == DenyReason::AppNotInActiveState {
+                                return Err(deny_reason_with_cap);
+                            } else {
+                                denied_caps.push(permission.cap.clone())
+                            }
                         }
+                        
                     }
+            
                 }
             }
         }
@@ -620,6 +621,7 @@ impl GrantState {
             "Incoming grant check for app_id: {:?} and role: {:?}",
             app_id, role_info
         );
+        #[allow(clippy::unnecessary_fallible_conversions)]
         if let Ok(permission) = FireboltPermission::try_from(role_info) {
             let resolved_perms = FireboltGatekeeper::resolve_dependencies(state, &vec![permission]);
             for perm in resolved_perms {

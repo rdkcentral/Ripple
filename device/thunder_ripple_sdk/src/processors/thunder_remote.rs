@@ -238,7 +238,7 @@ impl ThunderRemoteAccessoryRequestProcessor {
                             info!("successfully paired");
                             let success_accessory_response: AccessoryDeviceResponse =
                             if !remote_status_event.status.remote_data.is_empty() {
-                                let remote = remote_status_event.status.remote_data.get(0).unwrap();
+                                let remote = remote_status_event.status.remote_data.first().unwrap();
 
                                 ThunderRemoteAccessoryRequestProcessor::get_accessory_response(
                                         protocol,

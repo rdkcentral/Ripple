@@ -319,7 +319,7 @@ impl PluginManager {
         let status_res: Result<Vec<PluginStatus>, serde_json::Error> =
             serde_json::from_value(resp.message.clone());
         match status_res {
-            Ok(status_arr) => match status_arr.get(0) {
+            Ok(status_arr) => match status_arr.first() {
                 Some(status) => status.to_plugin_state(),
                 None => PluginState::Missing,
             },

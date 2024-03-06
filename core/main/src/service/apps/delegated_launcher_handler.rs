@@ -146,6 +146,14 @@ impl AppManagerState {
             HashMap::new()
         }
     }
+    /* 
+    Adding to suppress:
+    ```note: joining a path starting with separator will replace the path instead
+    help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#join_absolute_paths
+    note: `-D clippy::join-absolute-paths` implied by `-D warnings```
+    to avoid breaking any existing functionality
+    */
+    #[allow(clippy::join_absolute_paths)]
     fn get_storage_path(saved_dir: &str) -> String {
         let mut path = std::path::Path::new(saved_dir).join("app_info");
         if !path.exists() {
@@ -154,7 +162,7 @@ impl AppManagerState {
                     "Could not create directory {} for persisting app info err: {:?}, using /tmp/app_info/",
                     path.display().to_string(),
                     err
-                );
+                );      
                 path =
                     std::path::Path::new(&env::temp_dir().display().to_string()).join("/app_info");
                 if let Err(err) = fs::create_dir_all(path.clone()) {
@@ -660,7 +668,7 @@ impl DelegatedLauncherHandler {
                 &self.platform_state,
                 session.app.id.clone(),
                 // Do not pass None as catalog value from this place, instead pass an empty string when app.catalog is None
-                Some(session.app.catalog.clone().unwrap_or(String::new())),
+                Some(session.app.catalog.clone().unwrap_or_default()),
             )
             .await
         } else {
