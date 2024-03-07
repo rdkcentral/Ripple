@@ -1186,11 +1186,7 @@ mod tests {
         });
 
         if let Err(e) = serde_json::from_value::<NavigationIntentStrict>(v) {
-            assert!(e
-                .to_string()
-                .contains("invalid options for entityType=playlist"))
-        } else {
-            panic!("expecting error for entityType of playlist without options")
+            panic!("{:?}", e)
         }
 
         let v = json!({
