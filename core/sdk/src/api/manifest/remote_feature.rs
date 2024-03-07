@@ -58,12 +58,16 @@ pub mod tests {
             config::Config,
             manifest::remote_feature::{FeatureFlag, RemoteFeature},
         },
+        create_processor,
         extn::{
+            client::extn_processor::ExtnStreamer,
             extn_client_message::{ExtnMessage, ExtnResponse},
-            mock_extension_client::MockExtnClient,
+            mock_extension_client::MockExtnClientUtil,
         },
         utils::error::RippleError,
     };
+
+    create_processor!(MockRFC, Config);
 
     #[tokio::test]
     pub async fn test_flag_no_remote() {
@@ -71,8 +75,8 @@ pub mod tests {
             default: false,
             remote_key: None,
         };
-        let (mut client, _) = MockExtnClient::main_and_extn(vec![String::from("config")]);
-        assert!(!RemoteFeature::flag(&mut client, ff).await);
+        let mut main = MockExtnClientUtil::main();
+        assert!(!RemoteFeature::flag(&mut main, ff).await);
     }
 
     #[tokio::test]
@@ -100,11 +104,11 @@ pub mod tests {
             default: false,
             remote_key: Some(String::from(rfc_key)),
         };
-        let (mut client, rcv) = MockExtnClient::main_and_extn(vec![String::from("config")]);
+
+        let (mut client, _, mut rcv) = MockRFC::mock_extn_client();
         let mut client_for_mock = client.clone();
         spawn(async move {
-            let msg: ExtnMessage = rcv.recv().await.unwrap().try_into().unwrap();
-            let rfc_req = msg.payload.extract::<Config>().unwrap();
+            let (msg, rfc_req) = rcv.recv().await.unwrap().as_msg().unwrap();
             if let Config::RFC(rfc) = rfc_req {
                 if rfc == "myflag" {
                     let response = ExtnResponse::Value(rfc_val);

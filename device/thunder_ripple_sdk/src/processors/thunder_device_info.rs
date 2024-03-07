@@ -1634,7 +1634,7 @@ pub mod tests {
         extn::{
             client::extn_processor::ExtnRequestProcessor,
             extn_client_message::{ExtnMessage, ExtnRequest},
-            mock_extension_client::MockExtnClient,
+            mock_extension_client::MockExtnClientUtil,
         },
         framework::ripple_contract::RippleContract,
         serde_json::{self, json},
@@ -1704,7 +1704,7 @@ pub mod tests {
             handler,
         );
         let (state, r) = MockThunderController::state_with_mock(Some(ch));
-        let msg = MockExtnClient::req(
+        let msg = MockExtnClientUtil::req(
             RippleContract::DeviceInfo,
             ExtnRequest::Device(DeviceRequest::DeviceInfo(
                 DeviceInfoRequest::PlatformBuildInfo,
