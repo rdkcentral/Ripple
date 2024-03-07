@@ -77,7 +77,7 @@ pub struct StorageManager;
 impl StorageManager {
     pub async fn get_bool(state: &PlatformState, property: StorageProperty) -> RpcResult<bool> {
         if property.is_a_privacy_setting_property() {
-            // check if the privacy setting property is avaiale in cache
+            // check if the privacy setting property is available in cache
             let privacy_settings_cache = state.ripple_cache.get_privacy_settings_cache();
             let val_opt = property.get_privacy_setting_value(&privacy_settings_cache);
             if let Some(val) = val_opt {
@@ -114,6 +114,18 @@ impl StorageManager {
     ) -> RpcResult<()> {
         let data = property.as_data();
         debug!("Storage property: {:?} as data: {:?}", property, data);
+        if property.is_a_privacy_setting_property() {
+            // check if the privacy setting property is available in cache.
+            // If yes, check if the value is same as the one being set
+            let privacy_settings_cache = state.ripple_cache.get_privacy_settings_cache();
+            let val_opt = property.get_privacy_setting_value(&privacy_settings_cache);
+            if let Some(val) = val_opt {
+                if val == value {
+                    return Ok(());
+                }
+            }
+        }
+
         match StorageManager::set_in_namespace(
             state,
             data.namespace.to_string(),

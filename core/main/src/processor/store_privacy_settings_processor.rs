@@ -125,7 +125,6 @@ impl StorePrivacySettingsProcessor {
         privacy_settings_data: PrivacySettingsData,
     ) -> bool {
         let mut err = false;
-
         macro_rules! set_property {
             ($property:ident, $value:expr) => {
                 if let Some(value) = $value {

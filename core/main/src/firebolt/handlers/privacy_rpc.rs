@@ -18,8 +18,8 @@
 use crate::processor::storage::storage_manager::StorageManager;
 use crate::service::apps::app_events::AppEventDecorator;
 use crate::{
-    firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManagerError,
-    service::apps::app_events::AppEvents, state::platform_state::PlatformState,
+    firebolt::rpc::RippleRPCProvider, service::apps::app_events::AppEvents,
+    state::platform_state::PlatformState,
 };
 use jsonrpsee::{
     core::{async_trait, RpcResult},
