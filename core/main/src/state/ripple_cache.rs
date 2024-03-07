@@ -14,16 +14,21 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
+use std::sync::{Arc, RwLock};
 
-pub mod bootstrap_state;
-pub mod extn_state;
-pub mod metrics_state;
-pub mod openrpc_state;
-pub mod platform_state;
-pub mod ripple_cache;
-pub mod session_state;
-pub mod cap {
-    pub mod cap_state;
-    pub mod generic_cap_state;
-    pub mod permitted_state;
+use ripple_sdk::api::distributor::distributor_privacy::PrivacySettingsData;
+
+#[derive(Debug, Clone, Default)]
+pub struct RippleCache {
+    pub privacy_settings_cache: Arc<RwLock<PrivacySettingsData>>,
+}
+
+impl RippleCache {
+    pub fn get_privacy_settings_cache(&self) -> PrivacySettingsData {
+        self.privacy_settings_cache.read().unwrap().clone()
+    }
+    pub fn update_privacy_settings_cache(&self, value: &PrivacySettingsData) {
+        let mut cache = self.privacy_settings_cache.write().unwrap();
+        *cache = value.clone();
+    }
 }
