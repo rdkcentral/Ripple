@@ -101,3 +101,134 @@ impl TryInto<ExtnMessage> for CExtnMessage {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use core::panic;
+
+    use super::*;
+    use crate::api::config::Config;
+    use crate::extn::extn_client_message::ExtnRequest;
+    use crate::extn::extn_id::ExtnClassId;
+    use crate::framework::ripple_contract::RippleContract;
+    use rstest::rstest;
+
+    #[test]
+    fn test_from_extn_message_to_c_extn_message() {
+        // Create a mock ExtnMessage
+        let extn_message = ExtnMessage {
+            id: "test_id".to_string(),
+            requestor: ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
+            target: RippleContract::Internal,
+            target_id: Some(ExtnId::get_main_target("main".into())),
+            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
+            callback: None,
+            ts: Some(1234567890),
+        };
+        let c_extn_message: CExtnMessage = extn_message.into();
+
+        // Check if the conversion is valid
+        assert_eq!(c_extn_message.id, "test_id");
+        assert_eq!(c_extn_message.requestor, "ripple:channel:device:info");
+        assert_eq!(
+            c_extn_message.target,
+            format!(r#""{}""#, RippleContract::Internal.as_clear_string())
+        );
+        assert_eq!(c_extn_message.target_id, "ripple:main:internal:main");
+        assert_eq!(
+            c_extn_message.payload,
+            r#"{"Request":{"Config":"DefaultName"}}"#.to_string()
+        );
+        assert!(c_extn_message.callback.is_none());
+        assert_eq!(c_extn_message.ts, 1234567890);
+    }
+
+    #[rstest(
+        requestor,
+        target,
+        payload,
+        exp_res,
+        case(
+            ExtnId::new_channel(ExtnClassId::Device, "thunder_comcast".into())
+                .to_string(),
+            format!("\"{}\"", RippleContract::DeviceInfo.as_clear_string()),
+            r#"{"Request":{"Config":"DefaultName"}}"#.to_string(),
+            Ok(()),
+        ),
+        case(
+            RippleContract::Internal.as_clear_string(),
+            format!("\"{}\"", RippleContract::DeviceInfo.as_clear_string()),
+            r#"{"Request":{"Config":"DefaultName"}}"#.to_string(),
+            Err(RippleError::ParseError),
+        ),
+        case(
+            ExtnId::new_channel(ExtnClassId::Device, "thunder_comcast".into())
+                .to_string(),
+            RippleContract::DeviceInfo.as_clear_string(),
+            r#"{"Request":{"Config":"DefaultName"}}"#.to_string(),
+            Err(RippleError::ParseError),
+        ),
+        case(
+            ExtnId::new_channel(ExtnClassId::Device, "thunder_comcast".into())
+                .to_string(),
+            format!("\"{}\"", RippleContract::DeviceInfo.as_clear_string()),
+            r#"{"test":{"Config":"DefaultName"}}"#.to_string(),
+            Err(RippleError::ParseError),
+        )
+    )]
+    fn test_try_into_extn_message_from_c_extn_message(
+        requestor: String,
+        target: String,
+        payload: String,
+        exp_res: Result<(), RippleError>,
+    ) {
+        // Create a mock CExtnMessage
+        let c_extn_message = CExtnMessage {
+            id: "test_id".to_string(),
+            requestor,
+            target,
+            target_id: "".to_string(),
+            payload,
+            callback: None,
+            ts: 1234567890,
+        };
+
+        // Convert the mock CExtnMessage to ExtnMessage
+        let extn_message: Result<ExtnMessage, RippleError> = c_extn_message.try_into();
+
+        match exp_res {
+            Ok(_) => {
+                assert!(extn_message.is_ok(), "Expected Ok, but got Err");
+                if let Ok(extn_message) = extn_message {
+                    assert_eq!(extn_message.id, "test_id");
+                    assert_eq!(
+                        extn_message.requestor,
+                        ExtnId::new_channel(ExtnClassId::Device, "info".to_string())
+                    );
+                    assert_eq!(extn_message.target, RippleContract::DeviceInfo);
+                    assert_eq!(extn_message.target_id, None);
+                    assert_eq!(
+                        extn_message.payload,
+                        ExtnPayload::Request(ExtnRequest::Config(
+                            crate::api::config::Config::DefaultName
+                        ))
+                    );
+                    assert!(extn_message.callback.is_none());
+                    assert_eq!(extn_message.ts.unwrap(), 1234567890);
+                } else {
+                    panic!("Expected Ok, but got Err: {:?}", extn_message);
+                }
+            }
+            Err(expected_err) => {
+                assert!(
+                    extn_message.is_err(),
+                    "Expected Err, but got Ok: {:?}",
+                    extn_message
+                );
+
+                let actual_err = extn_message.unwrap_err();
+                assert_eq!(actual_err, expected_err, "Unexpected error");
+            }
+        }
+    }
+}

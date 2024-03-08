@@ -103,6 +103,12 @@ impl GrantState {
         }
     }
 
+    pub fn cleanup_user_grants(&self) {
+        self.delete_all_expired_entries();
+        self.delete_all_entries_for_lifespan(&GrantLifespan::PowerActive);
+        self.delete_all_entries_for_lifespan(&GrantLifespan::AppActive);
+    }
+
     fn check_device_grants(&self, grant_entry: &GrantEntry) -> Option<GrantStatus> {
         let device_grants = self.device_grants.read().unwrap();
         if let Some(v) = device_grants.value.get(grant_entry) {
@@ -398,10 +404,7 @@ impl GrantState {
         deleted
     }
 
-    pub fn delete_expired_entries_for_app(
-        &self,
-        app_id: String, // None is for device
-    ) -> bool {
+    pub fn delete_expired_entries_for_app(&self, app_id: String) -> bool {
         let mut deleted = false;
         let mut grant_state = self.grant_app_map.write().unwrap();
         let entries = match grant_state.value.get_mut(&app_id) {
@@ -417,18 +420,29 @@ impl GrantState {
         deleted
     }
 
-    pub fn delete_all_expired_entries(&self) -> bool {
+    pub fn delete_expired_entries_for_device(&self) -> bool {
         let mut deleted = false;
-        let mut grant_state = self.grant_app_map.write().unwrap();
-        for (_, entries) in grant_state.value.iter_mut() {
-            let prev_len = entries.len();
-            entries.retain(|entry| !entry.has_expired());
-            if entries.len() < prev_len {
-                deleted = true;
-            }
+        let mut grant_state = self.device_grants.write().unwrap();
+        let prev_len = grant_state.value.len();
+        grant_state.value.retain(|entry| !entry.has_expired());
+        if grant_state.value.len() < prev_len {
+            deleted = true;
         }
         grant_state.sync();
         deleted
+    }
+
+    pub fn delete_all_expired_entries(&self) -> bool {
+        // delete expired entries for app
+        let mut grant_state = self.grant_app_map.write().unwrap();
+        for (_, entries) in grant_state.value.iter_mut() {
+            entries.retain(|entry| !entry.has_expired());
+        }
+        grant_state.sync();
+
+        // delete expired entries for device
+        self.delete_expired_entries_for_device();
+        true
     }
 
     fn add_device_entry(&self, entry: GrantEntry) {
@@ -671,7 +685,6 @@ impl GrantState {
     }
 
     // Returns all active and denied user grant entries for the given `app_id`.
-    // Pass None for device scope
     pub fn get_grant_entries_for_app_id(&self, app_id: String) -> HashSet<GrantEntry> {
         self.delete_expired_entries_for_app(app_id.clone());
         match self.grant_app_map.read().unwrap().value.get(&app_id) {
@@ -683,6 +696,7 @@ impl GrantState {
     // Returns all active and denied user grant entries for the given `app_id`.
     // Pass None for device scope
     pub fn get_device_entries(&self) -> HashSet<GrantEntry> {
+        self.delete_expired_entries_for_device();
         self.device_grants.read().unwrap().value.clone()
     }
 
@@ -1072,6 +1086,14 @@ impl GrantPolicyEnforcer {
                     lifespan: GrantLifespan::Forever,
                 }
             };
+
+            if matches!(
+                user_grant_info.lifespan,
+                GrantLifespan::PowerActive | GrantLifespan::AppActive | GrantLifespan::Once
+            ) {
+                warn!("Can't sync user grant info with lifespan other than forever or seconds");
+                return;
+            }
 
             let usergrants_cloud_set_params = UserGrantsCloudSetParams {
                 account_session,
