@@ -623,25 +623,22 @@ impl GrantState {
             "Incoming grant check for app_id: {:?} and role: {:?}",
             app_id, role_info
         );
-        #[allow(clippy::unnecessary_fallible_conversions)]
-        if let Ok(permission) = FireboltPermission::try_from(role_info) {
-            let resolved_perms = FireboltGatekeeper::resolve_dependencies(state, &vec![permission]);
-            for perm in resolved_perms {
-                let result = self.get_grant_state(app_id, &perm, Some(state));
-                match result {
-                    GrantActiveState::ActiveGrant(grant) => {
-                        if grant.is_err() {
-                            return Err(RippleError::Permission(DenyReason::GrantDenied));
-                        }
-                    }
-                    GrantActiveState::PendingGrant => {
-                        return Err(RippleError::Permission(DenyReason::Ungranted));
+        for perm in FireboltGatekeeper::resolve_dependencies(
+            state,
+            &vec![FireboltPermission::from(role_info)],
+        ) {
+            match self.get_grant_state(app_id, &perm, Some(state)) {
+                GrantActiveState::ActiveGrant(grant) => {
+                    if grant.is_err() {
+                        return Err(RippleError::Permission(DenyReason::GrantDenied));
                     }
                 }
+                GrantActiveState::PendingGrant => {
+                    return Err(RippleError::Permission(DenyReason::Ungranted));
+                }
             }
-            return Ok(true);
         }
-        Err(RippleError::InvalidInput)
+        Ok(true)
     }
 
     pub fn update(
