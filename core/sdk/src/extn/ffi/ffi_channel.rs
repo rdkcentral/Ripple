@@ -95,3 +95,49 @@ macro_rules! export_channel_builder {
         }
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::extn::client::extn_sender::tests::Mockable;
+
+    #[test]
+    fn test_extn_channel_builder() {
+        // Mock implementation for the build function
+        fn build_fn(_extn_id: String) -> Result<Box<ExtnChannel>, RippleError> {
+            // Mock implementation for creating an ExtnChannel
+            let extn_channel = ExtnChannel {
+                start: |_client, _receiver| {
+                    // Mock implementation for ExtnChannel's start function
+                },
+            };
+            Ok(Box::new(extn_channel))
+        }
+
+        // Mock service name
+        let service = "mock_service".to_string();
+
+        // Create an instance of ExtnChannelBuilder with the mock build function
+        let extn_channel_builder = ExtnChannelBuilder {
+            build: build_fn,
+            service,
+        };
+
+        // Use the ExtnChannelBuilder to create an ExtnChannel
+        let extn_id = "some_extn_id".to_string();
+        let result = (extn_channel_builder.build)(extn_id);
+
+        // Perform assertions or actions based on the expected behavior
+        match result {
+            Ok(extn_channel) => {
+                let (mock_sender, rx) = ExtnSender::mock();
+                // If the build was successful, you can now use the created ExtnChannel
+                (extn_channel.start)(mock_sender, rx);
+            }
+            Err(err) => {
+                // Handle the error case if the build fails
+                panic!("Error building ExtnChannel: {:?}", err);
+            }
+        }
+    }
+}
