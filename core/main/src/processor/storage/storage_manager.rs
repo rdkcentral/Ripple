@@ -76,29 +76,20 @@ pub struct StorageManager;
 
 impl StorageManager {
     pub async fn get_bool(state: &PlatformState, property: StorageProperty) -> RpcResult<bool> {
-        if property.is_a_privacy_setting_property() {
-            // check if the privacy setting property is available in cache
-            let privacy_settings_cache = state.ripple_cache.get_privacy_settings_cache();
-            let val_opt = property.get_privacy_setting_value(&privacy_settings_cache);
-            if let Some(val) = val_opt {
-                return Ok(val);
-            }
+        if let Some(val) = state
+            .ripple_cache
+            .get_cached_bool_storage_property(&property)
+        {
+            return Ok(val);
         }
-
         let data = property.as_data();
         match StorageManager::get_bool_from_namespace(state, data.namespace.to_string(), data.key)
             .await
         {
             Ok(StorageManagerResponse::Ok(value)) | Ok(StorageManagerResponse::NoChange(value)) => {
-                if property.is_a_privacy_setting_property() {
-                    // update the privacy setting property in cache
-                    let mut privacy_settings_cache =
-                        state.ripple_cache.get_privacy_settings_cache();
-                    property.set_privacy_setting_value(&mut privacy_settings_cache, value);
-                    state
-                        .ripple_cache
-                        .update_privacy_settings_cache(&privacy_settings_cache);
-                }
+                state
+                    .ripple_cache
+                    .update_cached_bool_storage_property(&property, value);
                 Ok(value)
             }
             Ok(StorageManagerResponse::Default(value)) => Ok(value),
@@ -114,18 +105,14 @@ impl StorageManager {
     ) -> RpcResult<()> {
         let data = property.as_data();
         debug!("Storage property: {:?} as data: {:?}", property, data);
-        if property.is_a_privacy_setting_property() {
-            // check if the privacy setting property is available in cache.
-            // If yes, check if the value is same as the one being set
-            let privacy_settings_cache = state.ripple_cache.get_privacy_settings_cache();
-            let val_opt = property.get_privacy_setting_value(&privacy_settings_cache);
-            if let Some(val) = val_opt {
-                if val == value {
-                    return Ok(());
-                }
+        if let Some(val) = state
+            .ripple_cache
+            .get_cached_bool_storage_property(&property)
+        {
+            if val == value {
+                return Ok(());
             }
         }
-
         match StorageManager::set_in_namespace(
             state,
             data.namespace.to_string(),
@@ -137,15 +124,9 @@ impl StorageManager {
         .await
         {
             Ok(StorageManagerResponse::Ok(_)) | Ok(StorageManagerResponse::NoChange(_)) => {
-                if property.is_a_privacy_setting_property() {
-                    // update the privacy setting property in cache
-                    let mut privacy_settings_cache =
-                        state.ripple_cache.get_privacy_settings_cache();
-                    property.set_privacy_setting_value(&mut privacy_settings_cache, value);
-                    state
-                        .ripple_cache
-                        .update_privacy_settings_cache(&privacy_settings_cache);
-                }
+                state
+                    .ripple_cache
+                    .update_cached_bool_storage_property(&property, value);
                 Ok(())
             }
             Ok(StorageManagerResponse::Default(_)) => Ok(()),
