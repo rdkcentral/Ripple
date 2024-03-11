@@ -146,14 +146,7 @@ impl AppManagerState {
             HashMap::new()
         }
     }
-    /*
-    Adding to suppress:
-    ```note: joining a path starting with separator will replace the path instead
-    help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#join_absolute_paths
-    note: `-D clippy::join-absolute-paths` implied by `-D warnings```
-    to avoid breaking any existing functionality
-    */
-    #[allow(clippy::join_absolute_paths)]
+
     fn get_storage_path(saved_dir: &str) -> String {
         let mut path = std::path::Path::new(saved_dir).join("app_info");
         if !path.exists() {
@@ -164,7 +157,7 @@ impl AppManagerState {
                     err
                 );
                 path =
-                    std::path::Path::new(&env::temp_dir().display().to_string()).join("/app_info");
+                    std::path::Path::new(&env::temp_dir().display().to_string()).join("app_info");
                 if let Err(err) = fs::create_dir_all(path.clone()) {
                     error!(
                         "Could not create directory {} for persisting app info err: {:?}, app title will persist in /tmp/",
