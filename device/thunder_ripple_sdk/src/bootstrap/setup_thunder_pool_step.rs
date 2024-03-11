@@ -36,15 +36,17 @@ impl ThunderPoolStep {
     }
 
     pub async fn setup(
-        mut state: ThunderBootstrapStateWithConfig,
+        state: ThunderBootstrapStateWithConfig,
     ) -> Result<ThunderBootstrapStateWithClient, RippleError> {
         let pool_size = state.pool_size;
         let url = state.url.clone();
+        let thunder_connection_state = state.thunder_connection_state.clone();
         if pool_size < 2 {
             warn!("Pool size of 1 is not recommended, there will be no dedicated connection for Controller events");
             return Err(RippleError::BootstrapError);
         }
-        let controller_pool = ThunderClientPool::start(url.clone(), None, 1).await;
+        let controller_pool =
+            ThunderClientPool::start(url.clone(), None, thunder_connection_state.clone(), 1).await;
         if controller_pool.is_err() {
             if let Err(e) = controller_pool {
                 let _ = state.extn_client.event(ExtnStatus::Error);
@@ -55,7 +57,13 @@ impl ThunderPoolStep {
         let expected_plugins = state.plugin_param.clone();
         let plugin_manager_tx =
             PluginManager::start(Box::new(controller_pool), expected_plugins).await;
-        let client = ThunderClientPool::start(url, Some(plugin_manager_tx), pool_size - 1).await;
+        let client = ThunderClientPool::start(
+            url,
+            Some(plugin_manager_tx),
+            thunder_connection_state.clone(),
+            pool_size - 1,
+        )
+        .await;
 
         if client.is_err() {
             if let Err(e) = client {

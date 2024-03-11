@@ -29,7 +29,7 @@ use ripple_sdk::{
         },
         distributor::distributor_sync::{SyncAndMonitorModule, SyncAndMonitorRequest},
         firebolt::fb_capabilities::{CapEvent, CapabilityRole, FireboltCap, FireboltPermission},
-        manifest::device_manifest::PrivacySettingsStorageType,
+        manifest::{device_manifest::PrivacySettingsStorageType, remote_feature::RemoteFeature},
         session::AccountSessionRequest,
     },
     async_trait::async_trait,
@@ -98,8 +98,15 @@ impl MainContextProcessor {
         }
         CapState::emit(
             state,
-            event,
+            &event,
             FireboltCap::Short("token:account".to_owned()),
+            None,
+        )
+        .await;
+        CapState::emit(
+            state,
+            &event,
+            FireboltCap::Short("token:platform".to_owned()),
             None,
         )
         .await;
@@ -199,7 +206,20 @@ impl MainContextProcessor {
             if state.supports_app_catalog() {
                 let ignore_list = vec![state.get_device_manifest().applications.defaults.main];
                 let client = state.get_client();
-                client.add_event_processor(AppsUpdater::new(client.get_extn_client(), ignore_list));
+                let uninstalls_enabled = RemoteFeature::flag(
+                    &mut state.get_client().get_extn_client(),
+                    state
+                        .get_device_manifest()
+                        .get_features()
+                        .catalog_uninstalls_enabled,
+                )
+                .await;
+                info!("Catalog manager uninstalls_enabled={}", uninstalls_enabled);
+                client.add_event_processor(AppsUpdater::new(
+                    client.get_extn_client(),
+                    ignore_list,
+                    uninstalls_enabled,
+                ));
             }
         }
     }
@@ -215,6 +235,10 @@ impl MainContextProcessor {
             .cap_state
             .grant_state
             .delete_all_entries_for_lifespan(&GrantLifespan::PowerActive)
+    }
+
+    pub fn remove_expired_and_inactive_entries(state: &PlatformState) {
+        state.cap_state.grant_state.cleanup_user_grants();
     }
 }
 

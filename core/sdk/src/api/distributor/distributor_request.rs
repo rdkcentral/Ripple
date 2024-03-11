@@ -23,7 +23,7 @@ use super::{
     distributor_permissions::PermissionRequest,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum DistributorRequest {
     Permission(PermissionRequest),
     Discovery(DiscoveryRequest),

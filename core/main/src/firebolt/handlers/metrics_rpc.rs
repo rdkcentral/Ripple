@@ -29,11 +29,11 @@ use ripple_sdk::{
             fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
             fb_metrics::{
                 self, hashmap_to_param_vec, Action, BehavioralMetricContext,
-                BehavioralMetricPayload, CategoryType, ErrorParams, InternalInitializeParams,
-                InternalInitializeResponse, MediaEnded, MediaLoadStart, MediaPause, MediaPlay,
-                MediaPlaying, MediaPositionType, MediaProgress, MediaRateChanged,
-                MediaRenditionChanged, MediaSeeked, MediaSeeking, MediaWaiting, MetricsError, Page,
-                SignIn, SignOut, StartContent, StopContent, Version,
+                BehavioralMetricPayload, CategoryType, ErrorParams, FlatMapValue,
+                InternalInitializeParams, InternalInitializeResponse, MediaEnded, MediaLoadStart,
+                MediaPause, MediaPlay, MediaPlaying, MediaPositionType, MediaProgress,
+                MediaRateChanged, MediaRenditionChanged, MediaSeeked, MediaSeeking, MediaWaiting,
+                MetricsError, Page, SignIn, SignOut, StartContent, StopContent, Version,
             },
         },
         gateway::rpc_gateway_api::CallContext,
@@ -49,8 +49,6 @@ use crate::{
     utils::rpc_utils::rpc_err,
 };
 
-use ripple_sdk::api::firebolt::fb_metrics::SemanticVersion;
-
 //const LAUNCH_COMPLETED_SEGMENT: &'static str = "LAUNCH_COMPLETED";
 
 #[derive(Deserialize, Debug)]
@@ -64,7 +62,7 @@ pub struct ActionParams {
     pub category: CategoryType,
     #[serde(rename = "type")]
     pub action_type: String,
-    pub parameters: Option<HashMap<String, String>>,
+    pub parameters: Option<HashMap<String, FlatMapValue>>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -426,10 +424,7 @@ impl MetricsServer for MetricsImpl {
             readable: readable_result,
         };
         Ok(InternalInitializeResponse {
-            name: String::from("Default Result"),
-            value: SemanticVersion {
-                version: internal_initialize_resp,
-            },
+            version: internal_initialize_resp,
         })
     }
     async fn media_load_start(

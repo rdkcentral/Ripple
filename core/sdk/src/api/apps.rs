@@ -114,6 +114,15 @@ pub enum EffectiveTransport {
     Websocket,
 }
 
+impl std::fmt::Display for EffectiveTransport {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            EffectiveTransport::Bridge(id) => write!(f, "bridge_{}", id),
+            EffectiveTransport::Websocket => write!(f, "websocket"),
+        }
+    }
+}
+
 pub type AppResponse = Result<AppManagerResponse, AppError>;
 
 impl ExtnPayloadProvider for AppResponse {
