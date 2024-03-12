@@ -880,8 +880,8 @@ pub fn get_metrics_tags(
     extn_client: &ExtnClient,
     interaction_type: InteractionType,
     app_id: Option<String>,
-) -> HashMap<String, String> {
-    let metrics_context = extn_client.get_metrics_context();
+) -> Option<HashMap<String, String>> {
+    let metrics_context = extn_client.get_metrics_context()?;
     let mut tags: HashMap<String, String> = HashMap::new();
 
     tags.insert(Tag::Type.key(), interaction_type.to_string());
@@ -908,7 +908,7 @@ pub fn get_metrics_tags(
 
     tags.insert(Tag::Features.key(), features_str);
 
-    tags
+    Some(tags)
 }
 
 #[cfg(test)]
