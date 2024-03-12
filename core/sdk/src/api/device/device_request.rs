@@ -31,7 +31,7 @@ use super::{
     device_window_manager::WindowManagerRequest,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum DeviceRequest {
     DeviceInfo(DeviceInfoRequest),
     Browser(BrowserRequest),
@@ -106,7 +106,7 @@ pub struct DeviceVersionResponse {
     pub os: FireboltSemanticVersion,
     pub debug: String,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct NetworkResponse {
     pub state: NetworkState,
     #[serde(rename = "type")]
