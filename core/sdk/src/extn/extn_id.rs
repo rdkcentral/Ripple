@@ -135,9 +135,9 @@ impl ExtnClassType {
 /// `ripple:extn:jsonrpsee:bridge`
 #[derive(Debug, Clone)]
 pub struct ExtnId {
-    _type: ExtnType,
-    class: ExtnClassId,
-    service: String,
+    pub _type: ExtnType,
+    pub class: ExtnClassId,
+    pub service: String,
 }
 
 impl ToString for ExtnId {
@@ -409,5 +409,173 @@ impl ExtnId {
 impl PartialEq for ExtnId {
     fn eq(&self, other: &ExtnId) -> bool {
         self._type == other._type && self.class == other.class
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extn_class_id_to_string() {
+        assert_eq!(ExtnClassId::Gateway.to_string(), "gateway");
+        assert_eq!(ExtnClassId::Device.to_string(), "device");
+        assert_eq!(ExtnClassId::DataGovernance.to_string(), "data-governance");
+        assert_eq!(ExtnClassId::Distributor.to_string(), "distributor");
+        assert_eq!(ExtnClassId::Protected.to_string(), "rpc");
+        assert_eq!(ExtnClassId::Jsonrpsee.to_string(), "jsonrpsee");
+        assert_eq!(ExtnClassId::Launcher.to_string(), "launcher");
+        assert_eq!(ExtnClassId::Internal.to_string(), "internal");
+    }
+
+    #[test]
+    fn test_extn_class_id_get() {
+        assert_eq!(ExtnClassId::get("device"), Some(ExtnClassId::Device));
+        assert_eq!(ExtnClassId::get("unknown"), None);
+        // Add similar assertions for other variants
+    }
+
+    #[test]
+    fn test_extn_type_to_string() {
+        assert_eq!(ExtnType::Main.to_string(), "main");
+        assert_eq!(ExtnType::Channel.to_string(), "channel");
+        assert_eq!(ExtnType::Extn.to_string(), "extn");
+    }
+
+    #[test]
+    fn test_extn_type_get() {
+        assert_eq!(ExtnType::get("main"), Some(ExtnType::Main));
+        assert_eq!(ExtnType::get("unknown"), None);
+        // Add similar assertions for other variants
+    }
+
+    #[test]
+    fn test_extn_class_type_new() {
+        let extn_class_type = ExtnClassType::new(ExtnType::Main, ExtnClassId::Internal);
+        assert_eq!(extn_class_type._type, ExtnType::Main);
+        assert_eq!(extn_class_type.class, ExtnClassId::Internal);
+    }
+
+    #[test]
+    fn test_extn_id_to_string() {
+        let extn_id = ExtnId::new_channel(ExtnClassId::Device, "info".into());
+        assert_eq!(extn_id.to_string(), "ripple:channel:device:info");
+    }
+
+    #[test]
+    fn test_extn_id_try_from() {
+        let extn_id_str = "ripple:channel:device:info";
+        let extn_id = ExtnId::try_from(extn_id_str.to_string()).unwrap();
+        assert_eq!(extn_id._type, ExtnType::Channel);
+        assert_eq!(extn_id.class, ExtnClassId::Device);
+        assert_eq!(extn_id.service, "info");
+    }
+
+    #[test]
+    fn test_extn_id_get_main_target() {
+        let main_cap = ExtnId::get_main_target("cap".into());
+        assert_eq!(main_cap.to_string(), "ripple:main:internal:cap");
+    }
+
+    #[test]
+    fn test_extn_id_is_channel() {
+        let device_channel = ExtnId::new_channel(ExtnClassId::Device, "info".into());
+        assert!(device_channel.is_channel());
+    }
+
+    #[test]
+    fn test_extn_id_is_extn() {
+        let device_channel = ExtnId::new_extn(ExtnClassId::Device, "info".into());
+        assert!(device_channel.is_extn());
+    }
+
+    #[test]
+    fn test_extn_id_is_main() {
+        let launcher_channel = ExtnId::get_main_target("cap".into());
+        assert!(launcher_channel.is_main());
+    }
+
+    #[test]
+    fn test_extn_id_is_device_channel() {
+        let device_channel = ExtnId::new_channel(ExtnClassId::Device, "info".into());
+        assert!(device_channel.is_device_channel());
+    }
+
+    #[test]
+    fn test_extn_id_is_launcher_channel() {
+        let launcher_channel = ExtnId::new_channel(ExtnClassId::Launcher, "info".into());
+        assert!(launcher_channel.is_launcher_channel());
+    }
+
+    #[test]
+    fn test_extn_id_is_distributor_channel() {
+        let dist_channel = ExtnId::new_channel(ExtnClassId::Distributor, "general".into());
+        assert!(dist_channel.is_distributor_channel());
+    }
+
+    #[test]
+    fn test_extn_id_match_layer() {
+        let info = ExtnId::new_channel(ExtnClassId::Device, "info".into());
+        let remote = ExtnId::new_channel(ExtnClassId::Device, "remote".into());
+        assert!(info.match_layer(remote));
+    }
+
+    #[test]
+    fn test_extn_id_get_short() {
+        let device_channel = ExtnId::new_channel(ExtnClassId::Device, "info".into());
+        assert_eq!(device_channel.get_short(), "Channel:Device");
+    }
+
+    #[test]
+    fn test_extn_class_id_get_unknown() {
+        assert_eq!(ExtnClassId::get("unknown"), None);
+        // Add similar assertions for other variants
+    }
+
+    #[test]
+    fn test_extn_type_get_unknown() {
+        assert_eq!(ExtnType::get("unknown"), None);
+        // Add similar assertions for other variants
+    }
+
+    #[test]
+    fn test_extn_class_type_get_cap() {
+        let extn_class_type = ExtnClassType::new(ExtnType::Main, ExtnClassId::Internal);
+        let extn_id = extn_class_type.get_cap("some_service".into());
+        assert_eq!(extn_id.to_string(), "ripple:main:internal:some_service");
+    }
+
+    #[test]
+    fn test_extn_id_try_from_invalid_format() {
+        let extn_id_str = "invalid_format";
+        assert!(ExtnId::try_from(extn_id_str.to_string()).is_err());
+    }
+
+    #[test]
+    fn test_extn_id_try_from_incomplete_fields() {
+        let extn_id_str = "ripple:channel:device";
+        assert!(ExtnId::try_from(extn_id_str.to_string()).is_err());
+    }
+
+    #[test]
+    fn test_extn_id_try_from_invalid_prefix() {
+        let extn_id_str = "invalid:channel:device:info";
+        assert!(ExtnId::try_from(extn_id_str.to_string()).is_err());
+    }
+
+    #[test]
+    fn test_extn_id_try_from_valid() {
+        let extn_id_str = "ripple:channel:device:info";
+        let extn_id = ExtnId::try_from(extn_id_str.to_string()).unwrap();
+        assert_eq!(extn_id._type, ExtnType::Channel);
+        assert_eq!(extn_id.class, ExtnClassId::Device);
+        assert_eq!(extn_id.service, "info");
+    }
+
+    #[test]
+    fn test_extn_id_eq() {
+        let extn_id1 = ExtnId::new_channel(ExtnClassId::Device, "info".into());
+        let extn_id2 = ExtnId::new_channel(ExtnClassId::Device, "info".into());
+        assert_eq!(extn_id1, extn_id2);
     }
 }

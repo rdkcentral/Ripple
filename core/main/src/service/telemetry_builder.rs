@@ -20,7 +20,7 @@ use ripple_sdk::{
         firebolt::{
             fb_metrics::{
                 get_metrics_tags, ErrorParams, InteractionType, InternalInitializeParams,
-                SystemErrorParams, Tag, Timer,
+                SystemErrorParams, Tag, Timer, TimerType,
             },
             fb_telemetry::{
                 AppLoadStart, AppLoadStop, FireboltInteraction, InternalInitialize,
@@ -213,7 +213,11 @@ impl TelemetryBuilder {
 
         debug!("start_firebolt_metrics_timer: {}: {:?}", name, metrics_tags);
 
-        Some(Timer::start(name, Some(metrics_tags)))
+        Some(Timer::start(
+            name,
+            Some(metrics_tags),
+            Some(TimerType::Local),
+        ))
     }
 
     pub async fn stop_and_send_firebolt_metrics_timer(
