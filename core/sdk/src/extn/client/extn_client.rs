@@ -1133,8 +1133,11 @@ pub mod tests {
         assert!(result.is_ok());
 
         let ripple_context = main_client.ripple_context.read().unwrap();
-        assert_eq!(ripple_context.time_zone.time_zone, time_zone);
-        assert_eq!(ripple_context.time_zone.offset, offset);
+        assert_eq!(
+            ripple_context.time_zone.as_ref().unwrap().time_zone,
+            time_zone
+        );
+        assert_eq!(ripple_context.time_zone.as_ref().unwrap().offset, offset);
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -1838,10 +1841,8 @@ pub mod tests {
     #[tokio::test]
     async fn test_request_transient() {
         let (mock_sender, mock_rx) = ExtnSender::mock();
-        let extn_client = ExtnClient::new(mock_rx, mock_sender.clone());
+        let mut extn_client = ExtnClient::new(mock_rx, mock_sender.clone());
 
-        let mut extn_client = ExtnClient::new(receiver, mock_sender);
-        let (s, _receiver) = unbounded();
         extn_client.add_sender(
             ExtnId::get_main_target("main".into()),
             ExtnSymbol {
