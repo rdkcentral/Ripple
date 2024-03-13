@@ -205,7 +205,6 @@ impl PermissionHandler {
     }
 
     pub async fn device_fetch_and_store(state: &PlatformState, app_id: &str) -> RippleResponse {
-        println!("*** _DEBUG: device_fetch_and_store: app_id={}", app_id);
         if state.open_rpc_state.is_app_excluded(app_id) {
             return Ok(());
         }
@@ -215,17 +214,13 @@ impl PermissionHandler {
             .request(AppsRequest::GetFireboltPermissions(app_id.to_string()))
             .await?;
 
-        println!("*** _DEBUG: device_fetch_and_store: resp={:?}", resp);
-
         let mut permissions = match resp.payload {
             ExtnPayload::Response(response) => match response {
                 ExtnResponse::Permission(perms) => perms,
-                // <pca>
                 ExtnResponse::Error(e) => {
                     error!("device_fetch_and_store: e={:?}", e);
                     return Err(e);
                 }
-                // </pca>
                 _ => {
                     error!("device_fetch_and_store: Unexpected response");
                     return Err(RippleError::ExtnError);
@@ -352,7 +347,6 @@ impl PermissionHandler {
             }
             perm_res
         });
-        println!("*** _DEBUG: has_stored={}", has_stored);
         let result: Result<(), RippleError> = if !has_stored {
             // app has no stored permissions, wait until it does
             debug!(
@@ -360,13 +354,7 @@ impl PermissionHandler {
                 app_id
             );
             match handle.await {
-                // <pca>
-                //Ok(handle_result) => handle_result,
-                Ok(handle_result) => {
-                    println!("*** _DEBUG: handle_result={:?}", handle_result);
-                    handle_result
-                }
-                // </pca>
+                Ok(handle_result) => handle_result,
                 Err(e) => {
                     error!("fetch_permission_for_app_session: e={:?}", e);
                     Err(RippleError::NotAvailable)
