@@ -3,7 +3,8 @@ use log::{debug, error};
 use crate::{
     api::firebolt::{
         fb_metrics::{
-            get_metrics_tags, InteractionType, Tag, Timer, SERVICE_METRICS_SEND_REQUEST_TIMEOUT_MS,
+            get_metrics_tags, InteractionType, Tag, Timer, TimerType,
+            SERVICE_METRICS_SEND_REQUEST_TIMEOUT_MS,
         },
         fb_telemetry::OperationalMetricRequest,
     },
@@ -12,17 +13,15 @@ use crate::{
 };
 
 pub fn start_service_metrics_timer(extn_client: &ExtnClient, name: String) -> Option<Timer> {
-    let metrics_context = &extn_client.get_metrics_context();
-
-    if !metrics_context.enabled {
-        return None;
-    }
-
-    let metrics_tags = get_metrics_tags(extn_client, InteractionType::Service, None);
+    let metrics_tags = get_metrics_tags(extn_client, InteractionType::Service, None)?;
 
     debug!("start_service_metrics_timer: {}: {:?}", name, metrics_tags);
 
-    Some(Timer::start(name, Some(metrics_tags)))
+    Some(Timer::start(
+        name,
+        Some(metrics_tags),
+        Some(TimerType::Remote),
+    ))
 }
 
 pub async fn stop_and_send_service_metrics_timer(

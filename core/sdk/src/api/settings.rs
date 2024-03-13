@@ -127,7 +127,7 @@ impl ExtnPayloadProvider for SettingsRequest {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct SettingValue {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,

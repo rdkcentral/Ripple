@@ -200,7 +200,7 @@ pub const DEFAULT_LIFECYCLE_POLICY: LifecyclePolicy = LifecyclePolicy {
     app_finished_timeout_ms: 2000,
 };
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct IdSalt {
     pub algorithm: Option<String>,
     pub magic: Option<String>,

@@ -89,13 +89,6 @@ pub struct PubSubSubscribedParam {
     pub connection_id: String,
     pub topic: String,
 }
-// #[derive(Debug, Serialize, Deserialize, Clone)]
-// pub struct PubSubSubscribedResponse {
-//     pub payload: Option<String>,
-//     pub payload_type: Option<String>,
-//     pub headers: Option<String>,
-//     pub result: bool,
-// }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PubSubPublishRequest {
