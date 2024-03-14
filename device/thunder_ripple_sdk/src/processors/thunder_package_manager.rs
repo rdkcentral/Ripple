@@ -963,6 +963,7 @@ impl ExtnRequestProcessor for ThunderPackageManagerRequestProcessor {
             AppsRequest::GetFireboltPermissions(app_id) => {
                 Self::get_firebolt_permissions(state.clone(), msg, app_id).await
             }
+            _ => true,
         }
     }
 }
