@@ -19,6 +19,7 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
+use crate::api::usergrant_entry::UserGrantInfo;
 use crate::{
     api::{
         session::AccountSession,
@@ -165,7 +166,6 @@ impl ExtnPayloadProvider for PrivacySettingsData {
         {
             return Some(settings);
         }
-
         None
     }
 
@@ -298,6 +298,25 @@ impl FromStr for DataEventType {
             _ => Err(()),
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AppSetting {
+    // XXX: ???
+    pub app_id: Option<String>,
+    pub value: Option<bool>,
+}
+
+pub type UserGrants = Vec<UserGrantInfo>; // XXX: UserGrantInfo was formerly CloudGrantEntry
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum PrivacyResponse {
+    // XXX: ???
+    None,
+    Bool(bool),
+    Settings(PrivacySettings),
+    Exclusions(ExclusionPolicy),
+    Grants(UserGrants),
 }
 
 #[cfg(test)]

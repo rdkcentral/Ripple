@@ -90,7 +90,7 @@ pub enum AccountSessionResponse {
 }
 
 #[repr(C)]
-#[derive(Serialize, PartialEq, Deserialize, Clone)]
+#[derive(Serialize, PartialEq, Deserialize, Clone, Default)]
 pub struct AccountSession {
     pub id: String,
     pub token: String,
