@@ -295,7 +295,7 @@ impl MockWebSocketServer {
             for resp in responses {
                 let response = resp.data.to_string();
                 if resp.delay > 0 {
-                    tokio::time::sleep(Duration::from_secs(resp.delay)).await
+                    tokio::time::sleep(Duration::from_millis(resp.delay)).await
                 }
                 if let Err(e) = sink.send(Message::Text(response.clone())).await {
                     error!("Error sending response. resp={e:?}");
@@ -420,8 +420,23 @@ impl MockWebSocketServer {
         Ok(())
     }
 
-    pub async fn emit_event(self: Arc<Self>, event: &Value, delay: u32) {
-        unimplemented!("Emit event functionality has not yet been implemented {event} {delay}");
+    pub async fn emit_event(self: Arc<Self>, event: &Value, delay: u64) {
+        let mut peers = self.connected_peer_sinks.lock().await;
+        let event_value = event.to_string();
+        let mut new_peers = HashMap::new();
+        if delay > 0 {
+            tokio::time::sleep(Duration::from_millis(delay)).await
+        }
+        for (k, mut sink) in peers.drain().take(1) {
+            if let Err(e) = sink.send(Message::Text(event_value.clone())).await {
+                error!("Error sending response. resp={e:?}");
+            } else {
+                debug!("sent response. resp={event_value:?}");
+            }
+            new_peers.insert(k, sink);
+        }
+        peers.extend(new_peers);
+        //unimplemented!("Emit event functionality has not yet been implemented {event} {delay}");
     }
 }
 

@@ -86,15 +86,15 @@ pub struct EventPayload {
     // TODO: wrap around MessagePayload
     /// The body of the event
     pub body: Value,
-    /// The number of ms before the event should be emitted
-    pub delay: u32,
+    /// The number of msecs before the event should be emitted
+    pub delay: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum MockServerRequest {
     EmitEvent(EmitEventParams),
-    AddRequestResponseV2(MockData),
-    RemoveRequestResponseV2(MockData),
+    AddRequestResponse(MockData),
+    RemoveRequestResponse(MockData),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]

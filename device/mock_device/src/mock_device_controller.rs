@@ -133,7 +133,7 @@ impl MockDeviceControllerServer for MockDeviceController {
         req: MockData,
     ) -> RpcResult<ExtnProviderResponse> {
         let res = self
-            .request(MockServerRequest::AddRequestResponseV2(req))
+            .request(MockServerRequest::AddRequestResponse(req))
             .await
             .map_err(rpc_err)?;
 
@@ -146,7 +146,7 @@ impl MockDeviceControllerServer for MockDeviceController {
         req: MockData,
     ) -> RpcResult<ExtnProviderResponse> {
         let res = self
-            .request(MockServerRequest::RemoveRequestResponseV2(req))
+            .request(MockServerRequest::RemoveRequestResponse(req))
             .await
             .map_err(rpc_err)?;
 
@@ -156,8 +156,13 @@ impl MockDeviceControllerServer for MockDeviceController {
     async fn emit_event(
         &self,
         _ctx: CallContext,
-        _req: EmitEventParams,
+        req: EmitEventParams,
     ) -> RpcResult<ExtnProviderResponse> {
-        unimplemented!("emitting events is not yet implemented");
+        let res = self
+            .request(MockServerRequest::EmitEvent(req))
+            .await
+            .map_err(rpc_err)?;
+
+        Ok(res)
     }
 }

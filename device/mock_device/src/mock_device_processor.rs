@@ -123,7 +123,7 @@ impl ExtnRequestProcessor for MockDeviceProcessor {
         debug!("extn_request={extn_request:?}, extracted_message={extracted_message:?}");
         if let Ok(message) = serde_json::from_value::<MockServerRequest>(extracted_message.value) {
             match message {
-                MockServerRequest::AddRequestResponseV2(params) => {
+                MockServerRequest::AddRequestResponse(params) => {
                     let resp = match state.server.add_request_response_v2(params).await {
                         Ok(_) => AddRequestResponseResponse {
                             success: true,
@@ -141,7 +141,7 @@ impl ExtnRequestProcessor for MockDeviceProcessor {
                     )
                     .await
                 }
-                MockServerRequest::RemoveRequestResponseV2(params) => {
+                MockServerRequest::RemoveRequestResponse(params) => {
                     let resp = match state.server.remove_request_response_v2(params).await {
                         Ok(_) => RemoveRequestResponse {
                             success: true,
