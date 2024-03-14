@@ -983,7 +983,6 @@ impl ThunderDeviceInfoRequestProcessor {
 
     async fn get_version(state: &CachedState) -> FireboltSemanticVersion {
         let response: FireboltSemanticVersion;
-        // TODO: refactor this to use return syntax and not use response variable across branches
         match state.get_version() {
             Some(v) => response = v,
             None => {
@@ -994,30 +993,35 @@ impl ThunderDeviceInfoRequestProcessor {
                         params: None,
                     })
                     .await;
-                // FIXME: if the thunder plugin does not respond then we panic on the unwrap here. This would be a problem if the Thunder System plugin was not loaded
                 info!("{}", resp.message);
-                let tsv: SystemVersion = serde_json::from_value(resp.message).unwrap();
-                let tsv_split = tsv.receiver_version.split('.');
-                let tsv_vec: Vec<&str> = tsv_split.collect();
+                if let Ok(tsv) = serde_json::from_value::<SystemVersion>(resp.message) {
+                    let tsv_split = tsv.receiver_version.split('.');
+                    let tsv_vec: Vec<&str> = tsv_split.collect();
 
-                if tsv_vec.len() >= 3 {
-                    let major: String = tsv_vec[0].chars().filter(|c| c.is_ascii_digit()).collect();
-                    let minor: String = tsv_vec[1].chars().filter(|c| c.is_ascii_digit()).collect();
-                    let patch: String = tsv_vec[2].chars().filter(|c| c.is_ascii_digit()).collect();
+                    if tsv_vec.len() >= 3 {
+                        let major: String =
+                            tsv_vec[0].chars().filter(|c| c.is_ascii_digit()).collect();
+                        let minor: String =
+                            tsv_vec[1].chars().filter(|c| c.is_ascii_digit()).collect();
+                        let patch: String =
+                            tsv_vec[2].chars().filter(|c| c.is_ascii_digit()).collect();
 
-                    response = FireboltSemanticVersion {
-                        major: major.parse::<u32>().unwrap(),
-                        minor: minor.parse::<u32>().unwrap(),
-                        patch: patch.parse::<u32>().unwrap(),
-                        readable: tsv.stb_version,
-                    };
-                    state.update_version(response.clone());
+                        response = FireboltSemanticVersion {
+                            major: major.parse::<u32>().unwrap(),
+                            minor: minor.parse::<u32>().unwrap(),
+                            patch: patch.parse::<u32>().unwrap(),
+                            readable: tsv.stb_version,
+                        };
+                        state.update_version(response.clone());
+                    } else {
+                        response = FireboltSemanticVersion {
+                            readable: tsv.stb_version,
+                            ..FireboltSemanticVersion::default()
+                        };
+                        state.update_version(response.clone())
+                    }
                 } else {
-                    response = FireboltSemanticVersion {
-                        readable: tsv.stb_version,
-                        ..FireboltSemanticVersion::default()
-                    };
-                    state.update_version(response.clone())
+                    response = FireboltSemanticVersion::default()
                 }
             }
         }
