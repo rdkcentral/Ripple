@@ -38,7 +38,7 @@ use ripple_sdk::{
                 HDCP_CHANGED_EVENT, HDR_CHANGED_EVENT, NETWORK_CHANGED_EVENT,
                 SCREEN_RESOLUTION_CHANGED_EVENT, VIDEO_RESOLUTION_CHANGED_EVENT,
             },
-            device_info_request::{DeviceInfoRequest, DeviceResponse},
+            device_info_request::{DeviceInfoRequest, DeviceResponse, FirmwareInfo},
             device_operator::DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS,
             device_peristence::SetStringProperty,
             device_request::{
@@ -248,11 +248,11 @@ pub struct DeviceImpl {
 }
 
 impl DeviceImpl {
-    async fn firmware_info(&self, _ctx: CallContext) -> RpcResult<FireboltSemanticVersion> {
+    async fn firmware_info(&self, _ctx: CallContext) -> RpcResult<FirmwareInfo> {
         let resp = self
             .state
             .get_client()
-            .send_extn_request(DeviceInfoRequest::Version)
+            .send_extn_request(DeviceInfoRequest::FirmwareInfo)
             .await;
 
         match resp {
@@ -318,17 +318,18 @@ impl DeviceServer for DeviceImpl {
             env!("CARGO_PKG_VERSION_PATCH").parse().unwrap(),
             "".to_string(),
         );
+
         os.readable = format!("Firebolt OS v{}", env!("CARGO_PKG_VERSION"));
 
-        let firmware = self.firmware_info(ctx).await?;
-        // os is deprecated, for now senidng firmware ver in os as well
-        os = firmware.clone();
+        let firmware_info = self.firmware_info(ctx).await?;
         let open_rpc_state = self.state.clone().open_rpc_state;
         let api = open_rpc_state.get_open_rpc().info;
+
+        // os is deprecated, for now senidng firmware ver in os as well
         Ok(DeviceVersionResponse {
             api,
-            firmware,
-            os,
+            firmware: firmware_info.version,
+            os: firmware_info.version,
             debug: format!("{} ({})", env!("CARGO_PKG_VERSION"), SHA_SHORT),
         })
     }
