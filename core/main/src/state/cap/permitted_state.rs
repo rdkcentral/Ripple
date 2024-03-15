@@ -180,6 +180,7 @@ impl PermissionHandler {
                 .send_extn_request(PermissionRequest {
                     app_id: app_id_alias,
                     session,
+                    payload: None,
                 })
                 .await
                 .ok()
@@ -217,6 +218,10 @@ impl PermissionHandler {
         let mut permissions = match resp.payload {
             ExtnPayload::Response(response) => match response {
                 ExtnResponse::Permission(perms) => perms,
+                ExtnResponse::Error(e) => {
+                    error!("device_fetch_and_store: e={:?}", e);
+                    return Err(e);
+                }
                 _ => {
                     error!("device_fetch_and_store: Unexpected response");
                     return Err(RippleError::ExtnError);

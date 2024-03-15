@@ -488,6 +488,20 @@ pub enum TimeUnit {
     Millis,
     Seconds,
 }
+/*
+Type to indicate if the timer is local or remote, used for bucket sizing in downstreams
+*/
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub enum TimerType {
+    /*
+    Local metrics are generated for local, on device service calls
+    */
+    Local,
+    /*
+    Remote metrics are generated for remote, off device service calls
+    */
+    Remote,
+}
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Timer {
     pub name: String,
@@ -497,17 +511,29 @@ pub struct Timer {
     pub stop: Option<std::time::Instant>,
     pub tags: Option<HashMap<String, String>>,
     pub time_unit: TimeUnit,
+    pub timer_type: TimerType,
 }
 impl Timer {
-    pub fn start(name: String, tags: Option<HashMap<String, String>>) -> Timer {
-        Timer::new(name, std::time::Instant::now(), tags, TimeUnit::Millis)
+    pub fn start(
+        name: String,
+        tags: Option<HashMap<String, String>>,
+        timer_type: Option<TimerType>,
+    ) -> Timer {
+        Timer::new(
+            name,
+            std::time::Instant::now(),
+            tags,
+            TimeUnit::Millis,
+            timer_type,
+        )
     }
     pub fn start_with_time_unit(
         name: String,
         tags: Option<HashMap<String, String>>,
         time_unit: TimeUnit,
+        timer_type: Option<TimerType>,
     ) -> Timer {
-        Timer::new(name, std::time::Instant::now(), tags, time_unit)
+        Timer::new(name, std::time::Instant::now(), tags, time_unit, timer_type)
     }
 
     pub fn new(
@@ -515,6 +541,7 @@ impl Timer {
         start: std::time::Instant,
         tags: Option<HashMap<String, String>>,
         time_unit: TimeUnit,
+        timer_type: Option<TimerType>,
     ) -> Timer {
         Timer {
             name,
@@ -522,6 +549,8 @@ impl Timer {
             stop: None,
             tags,
             time_unit,
+            /*most will probably be local, so default as such*/
+            timer_type: timer_type.unwrap_or(TimerType::Local),
         }
     }
 
@@ -617,6 +646,7 @@ pub struct MetricsContext {
     pub device_timezone_offset: String,
     pub device_name: String,
     pub platform: String,
+    pub os_name: String,
     pub os_ver: String,
     pub distribution_tenant_id: String,
     pub device_session_id: String,
@@ -637,6 +667,7 @@ pub enum MetricsContextField {
     device_timezone_offset,
     device_name,
     platform,
+    os_name,
     os_ver,
     distributor_id,
     session_id,
@@ -645,6 +676,7 @@ pub enum MetricsContextField {
     firmware,
     ripple_version,
 }
+
 impl MetricsContext {
     pub fn new() -> MetricsContext {
         MetricsContext {
@@ -659,6 +691,7 @@ impl MetricsContext {
             serial_number: String::from(""),
             account_id: String::from(""),
             platform: String::from(""),
+            os_name: String::from(""),
             os_ver: String::from(""),
             device_session_id: String::from(""),
             distribution_tenant_id: String::from(""),
@@ -678,6 +711,7 @@ impl MetricsContext {
                 self.device_timezone_offset = value.parse().unwrap()
             }
             MetricsContextField::platform => self.platform = value,
+            MetricsContextField::os_name => self.os_name = value,
             MetricsContextField::os_ver => self.os_ver = value,
             MetricsContextField::distributor_id => self.distribution_tenant_id = value,
             MetricsContextField::session_id => self.device_session_id = value,
@@ -851,8 +885,8 @@ pub fn get_metrics_tags(
     extn_client: &ExtnClient,
     interaction_type: InteractionType,
     app_id: Option<String>,
-) -> HashMap<String, String> {
-    let metrics_context = extn_client.get_metrics_context();
+) -> Option<HashMap<String, String>> {
+    let metrics_context = extn_client.get_metrics_context()?;
     let mut tags: HashMap<String, String> = HashMap::new();
 
     tags.insert(Tag::Type.key(), interaction_type.to_string());
@@ -879,7 +913,7 @@ pub fn get_metrics_tags(
 
     tags.insert(Tag::Features.key(), features_str);
 
-    tags
+    Some(tags)
 }
 
 #[cfg(test)]
@@ -932,7 +966,7 @@ mod tests {
     }
     #[test]
     pub fn test_timer() {
-        let mut timer = super::Timer::start("test".to_string(), None);
+        let mut timer = super::Timer::start("test".to_string(), None, None);
         std::thread::sleep(std::time::Duration::from_millis(101));
         timer.stop();
         assert!(timer.elapsed().as_millis() > 100);
@@ -974,6 +1008,7 @@ mod tests {
                 device_timezone_offset: "+0:00".to_string(),
                 device_name: "TestDevice".to_string(),
                 platform: "iOS".to_string(),
+                os_name: "test_os_name".to_string(),
                 os_ver: "14.0".to_string(),
                 distribution_tenant_id: "test_distribution_tenant_id".to_string(),
                 device_session_id: "test_device_session_id".to_string(),

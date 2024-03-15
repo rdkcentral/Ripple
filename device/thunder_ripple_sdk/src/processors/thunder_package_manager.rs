@@ -803,7 +803,7 @@ impl ThunderPackageManagerRequestProcessor {
 
         let metrics_timer = start_service_metrics_timer(
             &state.thunder_state.get_client(),
-            ThunderMetricsTimerName::PackageManagerUninstall.to_string(),
+            ThunderMetricsTimerName::PackageManagerGetMetadata.to_string(),
         );
 
         let device_response = state

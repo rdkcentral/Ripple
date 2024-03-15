@@ -675,10 +675,6 @@ pub mod tests {
     pub async fn test_update_install_in_priority_order() {
         let (client, mock_extn, extn_rx) = MockPMProcessor::mock_extn_client();
         let pm_ftr = MockPackageManager::start(vec![], client.clone(), extn_rx);
-        let apps_update = AppsCatalogUpdate {
-            old_catalog: None,
-            new_catalog: vec![
-                AppBuilder::new("no_priority_app").meta(),
                 AppBuilder::new("high_priority_app").priority(1).meta(),
                 AppBuilder::new("low_priority_app").priority(200).meta(),
                 AppBuilder::new("medium_priority_app").priority(50).meta(),

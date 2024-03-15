@@ -240,9 +240,9 @@ impl RippleContract {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ContractFulfiller {
-    contracts: Vec<RippleContract>,
+    pub contracts: Vec<RippleContract>,
 }
 
 impl ContractFulfiller {

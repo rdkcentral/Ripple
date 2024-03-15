@@ -31,7 +31,7 @@ use super::{
     device_window_manager::WindowManagerRequest,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum DeviceRequest {
     DeviceInfo(DeviceInfoRequest),
     Browser(BrowserRequest),
@@ -93,7 +93,7 @@ impl std::fmt::Display for AudioProfile {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct AccountToken {
     pub token: String,
     pub expires: u64,
@@ -106,7 +106,7 @@ pub struct DeviceVersionResponse {
     pub os: FireboltSemanticVersion,
     pub debug: String,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct NetworkResponse {
     pub state: NetworkState,
     #[serde(rename = "type")]
@@ -250,7 +250,7 @@ impl FromStr for PowerState {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemPowerState {
     pub power_state: PowerState,
