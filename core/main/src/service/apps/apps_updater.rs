@@ -84,13 +84,11 @@ impl AppsUpdaterState {
             .truncate(true)
             .open(path)
         {
-            Ok(file) => {
-                return serde_json::to_writer_pretty(
-                    &file,
-                    &serde_json::to_value(failed_installs.clone()).unwrap(),
-                )
-                .is_ok()
-            }
+            Ok(file) => serde_json::to_writer_pretty(
+                &file,
+                &serde_json::to_value(failed_installs.clone()).unwrap(),
+            )
+            .is_ok(),
             Err(err) => {
                 error!(
                     "unable to create file {}: {:?}",
@@ -102,11 +100,15 @@ impl AppsUpdaterState {
     }
 
     pub fn success_install(&self, app_id: String) {
-        {
+        let did_change = {
             let mut failed = self.failed_app_installs.write().unwrap();
+            let len_before = failed.len();
             failed.retain(|a| a.app_id != app_id);
+            failed.len() != len_before
+        };
+        if did_change {
+            self.persist_failed_installs();
         }
-        self.persist_failed_installs();
     }
 
     pub fn fail_install(&self, install: FailedAppInstall) {
@@ -123,11 +125,12 @@ impl AppsUpdaterState {
         self.persist_failed_installs();
     }
 
-    pub fn remove_pending(&mut self, app_id: String) {
-        self.pending_installs
-            .write()
-            .unwrap()
-            .retain(|a| a.app_id != app_id);
+    pub fn remove_pending(&mut self, app_id: &String, version: &String) -> Option<AppInstall> {
+        let mut pi = self.pending_installs.write().unwrap();
+
+        pi.iter()
+            .position(|a| a.app_id == *app_id && a.version == *version)
+            .map(|pos| pi.remove(pos))
     }
 }
 
@@ -411,22 +414,20 @@ pub async fn update(mut state: AppsUpdaterState, apps_catalog_update: AppsCatalo
     }
 }
 
-fn install_complete(state: AppsUpdaterState, op: AppOperationComplete) {
+fn install_complete(mut state: AppsUpdaterState, op: AppOperationComplete) {
+    let pending = state.remove_pending(&op.id, &op.version);
     if op.success {
         state.success_install(op.id);
     } else {
-        let mut pi = state.pending_installs.write().unwrap();
-        if let Some(pos) = pi
-            .iter()
-            .position(|a| a.app_id == op.id && a.version == op.version)
-        {
-            let pending = pi.remove(pos);
-            state.fail_install(FailedAppInstall {
-                app_id: op.id,
-                failed_install_version: op.version,
-                last_good_version: pending.previous_version,
-            })
-        }
+        let last_good_version: Option<String> = match pending {
+            Some(p) => p.previous_version,
+            None => None,
+        };
+        state.fail_install(FailedAppInstall {
+            app_id: op.id,
+            failed_install_version: op.version,
+            last_good_version,
+        })
     }
 }
 
