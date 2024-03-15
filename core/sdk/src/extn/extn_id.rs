@@ -140,7 +140,7 @@ impl ExtnClassType {
 /// Below capability means the given plugin offers a JsonRpsee rpc extension for a service named bridge
 ///
 /// `ripple:extn:jsonrpsee:bridge`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ExtnId {
     pub _type: ExtnType,
     pub class: ExtnClassId,
@@ -167,14 +167,6 @@ impl<'de> Deserialize<'de> for ExtnId {
             }
         }
         Err(serde::de::Error::unknown_variant("unknown", &["unknown"]))
-    }
-}
-
-impl PartialEq for ExtnId {
-    fn eq(&self, other: &Self) -> bool {
-        self._type.eq(&other._type)
-            && self.class.eq(&other.class)
-            && self.service.eq(&other.service)
     }
 }
 
