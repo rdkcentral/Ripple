@@ -57,13 +57,11 @@
                         "config"
                     ],
                     "fulfills": [
-                        "extn_provider.mock_device"
                     ]
                 },
                 {
                     "id": "ripple:extn:jsonrpsee:mock_device",
                     "uses": [
-                        "extn_provider.mock_device"
                     ],
                     "fulfills": [
                         "json_rpsee"
