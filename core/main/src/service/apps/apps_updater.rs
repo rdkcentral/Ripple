@@ -25,6 +25,7 @@ use serde::{Deserialize, Serialize};
 
 use std::{
     fs,
+    path::{Path, PathBuf},
     sync::{Arc, RwLock},
 };
 #[cfg(test)]
@@ -41,15 +42,15 @@ pub struct AppsUpdaterState {
     uninstalls_enabled: bool,
     sideload_support: bool,
     failed_app_installs: Arc<RwLock<Vec<FailedAppInstall>>>,
-    failed_app_installs_persist_path: String,
+    failed_app_installs_persist_path: PathBuf,
     pending_installs: Arc<RwLock<Vec<AppInstall>>>,
 }
 
 const FAILED_INSTALLS_FILE_NAME: &str = "failed_installs.json";
 
 impl AppsUpdaterState {
-    pub fn load_failed_app_installs(persistence_path: &str) -> Vec<FailedAppInstall> {
-        let file_path = std::path::Path::new(persistence_path).join(FAILED_INSTALLS_FILE_NAME);
+    pub fn load_failed_app_installs(persistence_path: &Path) -> Vec<FailedAppInstall> {
+        let file_path = persistence_path.join(FAILED_INSTALLS_FILE_NAME);
 
         let file_res = fs::OpenOptions::new().read(true).open(file_path);
         if file_res.is_err() {
@@ -77,21 +78,27 @@ impl AppsUpdaterState {
         let failed_installs = self.failed_app_installs.read().unwrap();
         let path = std::path::Path::new(&self.failed_app_installs_persist_path)
             .join(FAILED_INSTALLS_FILE_NAME);
-        if let Ok(file) = fs::OpenOptions::new()
+        match fs::OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(true)
             .open(path)
         {
-            return serde_json::to_writer_pretty(
-                &file,
-                &serde_json::to_value(failed_installs.clone()).unwrap(),
-            )
-            .is_ok();
-        } else {
-            error!("unable to create file: {}:", FAILED_INSTALLS_FILE_NAME);
+            Ok(file) => {
+                return serde_json::to_writer_pretty(
+                    &file,
+                    &serde_json::to_value(failed_installs.clone()).unwrap(),
+                )
+                .is_ok()
+            }
+            Err(err) => {
+                error!(
+                    "unable to create file {}: {:?}",
+                    FAILED_INSTALLS_FILE_NAME, err
+                );
+                false
+            }
         }
-        false
     }
 
     pub fn success_install(&self, app_id: String) {
@@ -150,7 +157,7 @@ impl AppsUpdater {
         uninstalls_enabled: bool,
         sideload_support: bool,
         failed_app_installs: Vec<FailedAppInstall>,
-        failed_app_installs_persist_path: String,
+        failed_app_installs_persist_path: PathBuf,
     ) -> AppsUpdater {
         AppsUpdater {
             state: AppsUpdaterState {
@@ -159,7 +166,7 @@ impl AppsUpdater {
                 uninstalls_enabled,
                 sideload_support,
                 failed_app_installs: Arc::new(RwLock::new(failed_app_installs)),
-                failed_app_installs_persist_path,
+                failed_app_installs_persist_path: failed_app_installs_persist_path.to_path_buf(),
                 pending_installs: Arc::new(RwLock::new(vec![])),
             },
             streamer: DefaultExtnStreamer::new(),
@@ -177,7 +184,8 @@ impl AppsUpdater {
             "Catalog manager uninstalls_enabled={} sideload_support={}",
             uninstalls_enabled, sideload_support
         );
-        let persist_path = state.get_device_manifest().configuration.saved_dir;
+        let persist_path =
+            Path::new(&state.get_device_manifest().configuration.saved_dir).join("apps");
         let failed = AppsUpdaterState::load_failed_app_installs(&persist_path);
         AppsUpdater::new(
             extn_client,
@@ -426,6 +434,7 @@ fn install_complete(state: AppsUpdaterState, op: AppOperationComplete) {
 pub mod tests {
 
     use std::{
+        path::Path,
         sync::{Arc, RwLock},
         time::Duration,
     };
@@ -446,7 +455,6 @@ pub mod tests {
             extn_client_message::{ExtnMessage, ExtnResponse},
             mock_extension_client::{MockExtnClient, MockExtnRequest},
         },
-        framework::ripple_contract::RippleContract,
         tokio::{self, spawn, sync::mpsc, task::JoinHandle, time::sleep},
     };
     use ripple_sdk::{
@@ -476,7 +484,7 @@ pub mod tests {
             uninstalls_enabled: true,
             sideload_support: false,
             failed_app_installs: Arc::new(RwLock::new(vec![])),
-            failed_app_installs_persist_path: String::from("/tmp"),
+            failed_app_installs_persist_path: Path::new("/tmp").to_path_buf(),
             pending_installs: Arc::new(RwLock::new(vec![])),
         }
     }
