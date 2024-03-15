@@ -341,12 +341,12 @@ impl ThunderPackageManagerRequestProcessor {
         }
     }
 
-    pub async fn init(&self, thunder_state: ThunderState) {
+    pub async fn init(state: ThunderPackageManagerState) -> bool {
         let (sub_tx, mut sub_rx) = mpsc::channel::<DeviceResponseMessage>(32);
 
         debug!("ThunderPackageManagerRequestProcessor::init: Starting listener loop");
 
-        let state = self.state.clone();
+        let s = state.clone();
         tokio::spawn(async move {
             while let Some(message) = sub_rx.recv().await {
                 debug!(
@@ -380,7 +380,7 @@ impl ThunderPackageManagerRequestProcessor {
                             AppData::new(operation_status.version.clone()),
                         );
                         Self::add_or_remove_operation(
-                            state.clone(),
+                            s.clone(),
                             operation_status.handle,
                             operation,
                         );
@@ -391,7 +391,8 @@ impl ThunderPackageManagerRequestProcessor {
             }
         });
 
-        thunder_state
+        state
+            .thunder_state
             .get_thunder_client()
             .clone()
             .subscribe(
@@ -404,6 +405,8 @@ impl ThunderPackageManagerRequestProcessor {
                 sub_tx,
             )
             .await;
+
+        true
     }
 
     // add_or_remove_operation: Adds or removes an active operation to/from the map depending on whether or not it already existed.
@@ -886,6 +889,7 @@ impl ExtnRequestProcessor for ThunderPackageManagerRequestProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         match extracted_message {
+            AppsRequest::Init => Self::init(state).await,
             AppsRequest::GetApps(id) => Self::get_apps(state.thunder_state.clone(), msg, id).await,
             AppsRequest::InstallApp(app) => Self::install_app(state.clone(), msg, app).await,
             AppsRequest::UninstallApp(app) => Self::uninstall_app(state.clone(), msg, app).await,
