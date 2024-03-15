@@ -20,6 +20,7 @@ pub mod extn_state;
 pub mod metrics_state;
 pub mod openrpc_state;
 pub mod platform_state;
+pub mod ripple_cache;
 pub mod session_state;
 pub mod cap {
     pub mod cap_state;

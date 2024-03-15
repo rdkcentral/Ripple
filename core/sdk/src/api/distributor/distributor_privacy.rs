@@ -288,6 +288,7 @@ impl ExtnPayloadProvider for ExclusionPolicy {
 pub enum DataEventType {
     Watched,
     BusinessIntelligence,
+    Unknown,
 }
 
 impl FromStr for DataEventType {
@@ -295,7 +296,8 @@ impl FromStr for DataEventType {
     fn from_str(input: &str) -> Result<DataEventType, Self::Err> {
         match input {
             "Watch_History" => Ok(DataEventType::Watched),
-            _ => Err(()),
+            "Product_Analytics" => Ok(DataEventType::BusinessIntelligence),
+            _ => Ok(DataEventType::Unknown),
         }
     }
 }

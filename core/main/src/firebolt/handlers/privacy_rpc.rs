@@ -18,8 +18,8 @@
 use crate::processor::storage::storage_manager::StorageManager;
 use crate::service::apps::app_events::AppEventDecorator;
 use crate::{
-    firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManagerError,
-    service::apps::app_events::AppEvents, state::platform_state::PlatformState,
+    firebolt::rpc::RippleRPCProvider, service::apps::app_events::AppEvents,
+    state::platform_state::PlatformState,
 };
 use jsonrpsee::{
     core::{async_trait, RpcResult},
@@ -278,7 +278,7 @@ pub async fn get_allow_app_content_ad_targeting_settings(
     scope_option: Option<&ScopeOption>,
     caller_app: &String,
 ) -> HashMap<String, String> {
-    let mut data = StorageProperty::AllowAppContentAdTargeting.as_data();
+    let mut data = StorageProperty::AllowAppContentAdTargeting;
     if let Some(scope_opt) = scope_option {
         if let Some(scope) = &scope_opt.scope {
             let primary_app = platform_state
@@ -288,27 +288,20 @@ pub async fn get_allow_app_content_ad_targeting_settings(
                 .main;
             if primary_app == *caller_app.to_string() {
                 if scope._type.as_string() == "browse" {
-                    data = StorageProperty::AllowPrimaryBrowseAdTargeting.as_data();
+                    data = StorageProperty::AllowPrimaryBrowseAdTargeting;
                 } else if scope._type.as_string() == "content" {
-                    data = StorageProperty::AllowPrimaryContentAdTargeting.as_data();
+                    data = StorageProperty::AllowPrimaryContentAdTargeting;
                 }
             }
         }
     }
-    match StorageManager::get_bool_from_namespace(
-        platform_state,
-        data.namespace.to_string(),
-        data.key,
+
+    AllowAppContentAdTargetingSettings::new(
+        StorageManager::get_bool(platform_state, data)
+            .await
+            .unwrap_or(true),
     )
-    .await
-    {
-        Ok(resp) => AllowAppContentAdTargetingSettings::new(resp.as_value())
-            .get_allow_app_content_ad_targeting_settings(),
-        Err(StorageManagerError::NotFound) => AllowAppContentAdTargetingSettings::default()
-            .get_allow_app_content_ad_targeting_settings(),
-        _ => AllowAppContentAdTargetingSettings::new(true)
-            .get_allow_app_content_ad_targeting_settings(),
-    }
+    .get_allow_app_content_ad_targeting_settings()
 }
 
 #[derive(Debug)]
