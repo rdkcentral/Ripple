@@ -397,7 +397,7 @@ impl ThunderPackageManagerRequestProcessor {
                             version: operation_status.version,
                             success: status.succeeded(),
                         };
-                        let cli = state.thunder_state.get_client();
+                        let cli = state_for_event_handler.thunder_state.get_client();
                         match operation_status.operation {
                             AppsOperationType::Install => {
                                 if let Err(e) = cli.event(AppsUpdate::InstallComplete(op_comp)) {
