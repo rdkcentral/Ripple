@@ -444,7 +444,7 @@ pub mod tests {
                 extn_processor::{DefaultExtnStreamer, ExtnStreamer},
             },
             extn_client_message::{ExtnMessage, ExtnResponse},
-            mock_extension_client::{MockExtnClientUtil, MockExtnRequest},
+            mock_extension_client::{MockExtnClient, MockExtnRequest},
         },
         framework::ripple_contract::RippleContract,
         tokio::{self, spawn, sync::mpsc, task::JoinHandle, time::sleep},
@@ -579,15 +579,14 @@ pub mod tests {
                         AppsRequest::GetInstalledApps(_) => {
                             let response =
                                 ExtnResponse::InstalledApps(pm.pre_installed_apps.clone());
-                            MockExtnClientUtil::respond_with_payload(&mut client, msg, response)
-                                .await;
+                            MockExtnClient::respond_with_payload(&mut client, msg, response).await;
                         }
                         AppsRequest::InstallApp(app) => {
                             pm.new_installed_apps.push(app.clone());
                             if let Some(fail) = failed_installs.pop() {
                                 match fail {
                                     FailedInstall::Sync => {
-                                        MockExtnClientUtil::respond_with_payload(
+                                        MockExtnClient::respond_with_payload(
                                             &mut client,
                                             msg,
                                             ExtnResponse::Error(RippleError::InvalidOutput),
@@ -675,6 +674,10 @@ pub mod tests {
     pub async fn test_update_install_in_priority_order() {
         let (client, mock_extn, extn_rx) = MockPMProcessor::mock_extn_client();
         let pm_ftr = MockPackageManager::start(vec![], client.clone(), extn_rx);
+        let apps_update = AppsCatalogUpdate {
+            old_catalog: None,
+            new_catalog: vec![
+                AppBuilder::new("no_priority_app").meta(),
                 AppBuilder::new("high_priority_app").priority(1).meta(),
                 AppBuilder::new("low_priority_app").priority(200).meta(),
                 AppBuilder::new("medium_priority_app").priority(50).meta(),
@@ -996,10 +999,10 @@ pub mod tests {
         exp_uninstall_enabled: bool,
         exp_sideload_support: bool,
     ) {
-        let mut client = MockExtnClientUtil::main();
+        let mut client = MockExtnClient::main();
         let (mock_di_extn, mut di_extn_rx) = MockDeviceInfo::add(&mut client);
         let (mock_cfg_extn, mut cfg_extn_rx) = MockConfig::add(&mut client);
-        MockExtnClientUtil::start(client.clone());
+        MockExtnClient::start(client.clone());
         let mut client_for_di = client.clone();
         let mut client_for_cfg = client.clone();
         // Set the RippleFeatures on the device manifest for the test
@@ -1032,7 +1035,7 @@ pub mod tests {
                         debug: device_debug,
                         ..Default::default()
                     });
-                    MockExtnClientUtil::respond_with_payload(&mut client_for_di, m, response).await;
+                    MockExtnClient::respond_with_payload(&mut client_for_di, m, response).await;
                 }
             }
         });
@@ -1043,7 +1046,7 @@ pub mod tests {
                 }
                 if let MockExtnRequest::Message(m, Config::RFC(_)) = msg {
                     let resp = ExtnResponse::Value(serde_json::json!(rfc_value));
-                    MockExtnClientUtil::respond_with_payload(&mut client_for_cfg, m, resp).await;
+                    MockExtnClient::respond_with_payload(&mut client_for_cfg, m, resp).await;
                 }
             }
         });

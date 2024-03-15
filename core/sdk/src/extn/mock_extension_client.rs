@@ -132,9 +132,9 @@ macro_rules! create_processor {
                     $crate::extn::mock_extension_client::MockExtnRequest<$val_ty>,
                 >,
             ) {
-                let mut main = $crate::extn::mock_extension_client::MockExtnClientUtil::main();
+                let mut main = $crate::extn::mock_extension_client::MockExtnClient::main();
                 let (cli, extn_rx) = $proc_ty::add(&mut main);
-                $crate::extn::mock_extension_client::MockExtnClientUtil::start(main.clone());
+                $crate::extn::mock_extension_client::MockExtnClient::start(main.clone());
                 (main, cli, extn_rx)
             }
         }
@@ -159,9 +159,9 @@ impl<T> MockProcessorClient<T> {
     }
 }
 
-pub struct MockExtnClientUtil {}
+pub struct MockExtnClient {}
 
-impl MockExtnClientUtil {
+impl MockExtnClient {
     pub fn client(response_sender: Sender<CExtnMessage>) -> ExtnClient {
         let (_, ignore) = unbounded();
         ExtnClient::new(

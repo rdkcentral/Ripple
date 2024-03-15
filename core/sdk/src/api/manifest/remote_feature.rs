@@ -62,7 +62,7 @@ pub mod tests {
         extn::{
             client::extn_processor::ExtnStreamer,
             extn_client_message::{ExtnMessage, ExtnResponse},
-            mock_extension_client::MockExtnClientUtil,
+            mock_extension_client::MockExtnClient,
         },
         utils::error::RippleError,
     };
@@ -75,7 +75,7 @@ pub mod tests {
             default: false,
             remote_key: None,
         };
-        let mut main = MockExtnClientUtil::main();
+        let mut main = MockExtnClient::main();
         assert!(!RemoteFeature::flag(&mut main, ff).await);
     }
 

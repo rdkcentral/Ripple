@@ -31,7 +31,7 @@ use ripple_sdk::{
         distributor::distributor_sync::{SyncAndMonitorModule, SyncAndMonitorRequest},
         firebolt::fb_capabilities::{CapEvent, CapabilityRole, FireboltCap, FireboltPermission},
         manifest::device_manifest::PrivacySettingsStorageType,
-        session::AccountSessionRequest,
+        session::{AccountSessionRequest, AccountSessionResponse},
     },
     async_trait::async_trait,
     extn::{
