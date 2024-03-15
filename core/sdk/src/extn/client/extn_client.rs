@@ -433,7 +433,6 @@ impl ExtnClient {
     ) {
         let id_c = msg.target.as_clear_string();
         let mut gc_sender_indexes: Vec<usize> = Vec::new();
-        let mut sender: Option<MSender<ExtnMessage>> = None;
         let read_processor = processor.clone();
         {
             let processors = read_processor.read().unwrap();
@@ -441,26 +440,30 @@ impl ExtnClient {
             if let Some(v) = v {
                 for (index, s) in v.iter().enumerate() {
                     if !s.is_closed() {
-                        let _ = sender.insert(s.clone());
-                        break;
+                        let sndr = s.clone();
+                        let m = msg.clone();
+                        tokio::spawn(async move {
+                            if let Err(e) = sndr.try_send(m) {
+                                error!("Error sending the response back {:?}", e);
+                            }
+                        });
                     } else {
                         gc_sender_indexes.push(index);
                     }
                 }
             }
         };
-        if let Some(sender) = sender {
-            tokio::spawn(async move {
-                if let Err(e) = sender.clone().try_send(msg) {
-                    error!("Error sending the response back {:?}", e);
-                }
-            });
-        } else if RippleContext::is_ripple_context(&msg.payload).is_none() {
+
+        if RippleContext::is_ripple_context(&msg.payload).is_none() {
             // Not every extension will have a context listener
             error!("No Event Processor for {:?}", msg);
         }
 
-        Self::cleanup_vec_stream(id_c, None, processor);
+        let cleanup_indexes = match gc_sender_indexes.is_empty() {
+            true => None,
+            false => Some(gc_sender_indexes),
+        };
+        Self::cleanup_vec_stream(id_c, cleanup_indexes, processor);
     }
 
     fn cleanup_vec_stream(
