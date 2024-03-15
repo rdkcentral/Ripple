@@ -169,7 +169,7 @@ impl AppsUpdater {
                 uninstalls_enabled,
                 sideload_support,
                 failed_app_installs: Arc::new(RwLock::new(failed_app_installs)),
-                failed_app_installs_persist_path: failed_app_installs_persist_path.to_path_buf(),
+                failed_app_installs_persist_path,
                 pending_installs: Arc::new(RwLock::new(vec![])),
             },
             streamer: DefaultExtnStreamer::new(),
