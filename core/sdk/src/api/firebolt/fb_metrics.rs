@@ -646,6 +646,7 @@ pub struct MetricsContext {
     pub device_timezone_offset: String,
     pub device_name: String,
     pub platform: String,
+    pub os_name: String,
     pub os_ver: String,
     pub distribution_tenant_id: String,
     pub device_session_id: String,
@@ -666,6 +667,7 @@ pub enum MetricsContextField {
     device_timezone_offset,
     device_name,
     platform,
+    os_name,
     os_ver,
     distributor_id,
     session_id,
@@ -674,6 +676,7 @@ pub enum MetricsContextField {
     firmware,
     ripple_version,
 }
+
 impl MetricsContext {
     pub fn new() -> MetricsContext {
         MetricsContext {
@@ -688,6 +691,7 @@ impl MetricsContext {
             serial_number: String::from(""),
             account_id: String::from(""),
             platform: String::from(""),
+            os_name: String::from(""),
             os_ver: String::from(""),
             device_session_id: String::from(""),
             distribution_tenant_id: String::from(""),
@@ -707,6 +711,7 @@ impl MetricsContext {
                 self.device_timezone_offset = value.parse().unwrap()
             }
             MetricsContextField::platform => self.platform = value,
+            MetricsContextField::os_name => self.os_name = value,
             MetricsContextField::os_ver => self.os_ver = value,
             MetricsContextField::distributor_id => self.distribution_tenant_id = value,
             MetricsContextField::session_id => self.device_session_id = value,
@@ -1003,6 +1008,7 @@ mod tests {
                 device_timezone_offset: "+0:00".to_string(),
                 device_name: "TestDevice".to_string(),
                 platform: "iOS".to_string(),
+                os_name: "test_os_name".to_string(),
                 os_ver: "14.0".to_string(),
                 distribution_tenant_id: "test_distribution_tenant_id".to_string(),
                 device_session_id: "test_device_session_id".to_string(),
