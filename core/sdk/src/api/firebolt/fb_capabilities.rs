@@ -629,18 +629,4 @@ mod tests {
             }
         );
     }
-
-    #[test]
-    fn test_firebolt_permissions_from_vec_string() {
-        let _cap_list = vec!["account:session".to_string()];
-        let _fb_perm = FireboltPermissions {
-            capabilities: vec![FireboltPermission::from(FireboltCap::short(
-                "account:session",
-            ))],
-        };
-        // assert_eq!(
-        //     fb_perm.capabilities,
-        //     FireboltPermissions::from_vec_string(cap_list).capabilities
-        // );
-    }
 }

@@ -363,7 +363,7 @@ mod tests {
         assert_eq!(call_context.protocol, ApiProtocol::Bridge);
         assert_eq!(call_context.method, "method".to_string());
         assert_eq!(call_context.cid, Some("cid".to_string()));
-        assert_eq!(call_context.gateway_secure, true);
+        assert!(call_context.gateway_secure);
     }
 
     #[test]
@@ -408,7 +408,7 @@ mod tests {
             request_id: "request_id".to_string(),
         };
 
-        assert_eq!(api_message.is_error(), true);
+        assert!(api_message.is_error());
     }
 
     #[test]

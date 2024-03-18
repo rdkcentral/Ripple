@@ -151,7 +151,7 @@ mod tests {
     #[test]
     fn test_get_default_app() {
         let default_apps = get_default_apps();
-        let app_library_state = AppLibraryState::new(default_apps.clone());
+        let app_library_state = AppLibraryState::new(default_apps);
 
         assert_eq!(
             app_library_state.get_default_app(),
@@ -166,7 +166,7 @@ mod tests {
     #[test]
     fn test_get_provider() {
         let default_apps = get_default_apps();
-        let mut app_library_state = AppLibraryState::new(default_apps.clone());
+        let mut app_library_state = AppLibraryState::new(default_apps);
         app_library_state
             .providers
             .insert("cap1".to_string(), "app1".to_string());
@@ -193,7 +193,7 @@ mod tests {
     #[test]
     fn test_get_manifest() {
         let default_apps = get_default_apps();
-        let app_library_state = AppLibraryState::new(default_apps.clone());
+        let app_library_state = AppLibraryState::new(default_apps);
 
         assert_eq!(
             AppLibrary::get_manifest(&app_library_state, "app1"),

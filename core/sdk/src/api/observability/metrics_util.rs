@@ -17,13 +17,7 @@ use log::{debug, error};
 use {println as debug, println as error};
 
 pub fn start_service_metrics_timer(extn_client: &ExtnClient, name: String) -> Option<Timer> {
-    let metrics_context = &extn_client.get_metrics_context();
-
-    if !metrics_context.enabled {
-        return None;
-    }
-
-    let metrics_tags = get_metrics_tags(extn_client, InteractionType::Service, None);
+    let metrics_tags = get_metrics_tags(extn_client, InteractionType::Service, None)?;
 
     debug!("start_service_metrics_timer: {}: {:?}", name, metrics_tags);
 
@@ -85,6 +79,7 @@ mod tests {
             serial_number: "test_serial".to_string(),
             firmware: "test_firmware".to_string(),
             ripple_version: "test_ripple_version".to_string(),
+            os_name: "test_os_name".to_string(),
         }
     }
 
@@ -106,8 +101,7 @@ mod tests {
 
         let expected_tags = get_metrics_tags(&extn_client, InteractionType::Service, None);
         assert_eq!(
-            timer.tags,
-            Some(expected_tags),
+            timer.tags, expected_tags,
             "Timer tags do not match expected tags"
         );
     }

@@ -114,7 +114,7 @@ mod tests {
         }
 
         // Serialize the actual TokenResult object into a JSON string
-        let actual_json = serde_json::to_value(&token_result).unwrap();
+        let actual_json = serde_json::to_value(token_result).unwrap();
 
         // Assert that both JSON objects are equal regardless of the order
         assert_eq!(expected_json, actual_json);

@@ -415,7 +415,7 @@ mod tests {
         let launch_request = LaunchRequest {
             app_id: "test_app".to_string(),
             intent: Some(NavigationIntent::NavigationIntentStrict(
-                NavigationIntentStrict::Home(home_intent.clone()),
+                NavigationIntentStrict::Home(home_intent),
             )),
         };
 

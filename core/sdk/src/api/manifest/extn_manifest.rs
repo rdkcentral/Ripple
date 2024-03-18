@@ -223,7 +223,7 @@ mod tests {
         };
         assert_eq!(
             extn_manifest_entry.get_symbol(ExtnId::try_from(dist_channel).unwrap()),
-            Some(symbol.clone())
+            Some(symbol)
         );
     }
 
@@ -320,7 +320,7 @@ mod tests {
         };
         let extn_manifest_entry = ExtnManifestEntry {
             path: "relative/path".to_string(),
-            symbols: vec![symbol.clone()],
+            symbols: vec![symbol],
             resolution: None,
         };
         manifest.extns = vec![extn_manifest_entry];
@@ -344,7 +344,7 @@ mod tests {
         };
         let extn_manifest_entry = ExtnManifestEntry {
             path: "relative/path".to_string(),
-            symbols: vec![symbol.clone()],
+            symbols: vec![symbol],
             resolution: None,
         };
 
@@ -368,7 +368,7 @@ mod tests {
         };
         let extn_manifest_entry = ExtnManifestEntry {
             path: "relative/path".to_string(),
-            symbols: vec![symbol.clone()],
+            symbols: vec![symbol],
             resolution: None,
         };
 

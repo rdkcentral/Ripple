@@ -160,7 +160,7 @@ mod tests {
             pin_space: pin_space.clone(),
             requestor: requestor.clone(),
             capability: capability.clone(),
-            call_ctx: context.clone(),
+            call_ctx: context,
         };
 
         let pin_challenge_request = PinChallengeRequest::from(pin_challenge_request_with_context);

@@ -37,7 +37,7 @@ use super::{
     gateway::rpc_gateway_api::CallContext,
 };
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct AppSession {
     pub app: AppBasicInfo,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -68,7 +68,7 @@ impl AppSession {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct AppBasicInfo {
     pub id: String,
     pub catalog: Option<String>,
@@ -449,9 +449,11 @@ mod tests {
         // Assert that the result is Ok
         assert!(result.is_ok());
 
-        // Assert that the sender has been consumed
-        let sender_lock = app_request.resp_tx.read().unwrap();
-        assert!(sender_lock.is_none());
+        // Drop the lock explicitly
+        {
+            let sender_lock = app_request.resp_tx.read().unwrap();
+            assert!(sender_lock.is_none());
+        } // Lock is released here
 
         // Assert that the response has been sent through the channel
         let received_response = receiver.await.unwrap();

@@ -706,7 +706,7 @@ mod tests {
             },
             methods: Vec::new(),
         };
-        apis.insert("v1".to_string(), parser.clone());
+        apis.insert("v1".to_string(), parser);
 
         let manifest = FireboltVersionManifest {
             capabilities: HashMap::new(),

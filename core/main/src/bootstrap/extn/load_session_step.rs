@@ -16,7 +16,6 @@
 //
 
 use ripple_sdk::framework::bootstrap::Bootstep;
-use ripple_sdk::log::debug;
 use ripple_sdk::{async_trait::async_trait, framework::RippleResponse};
 
 use crate::processor::main_context_processor::MainContextProcessor;
@@ -34,22 +33,12 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
 
     async fn setup(&self, s: BootstrapState) -> RippleResponse {
         MetricsState::initialize(&s.platform_state).await;
-        if MainContextProcessor::handle_power_active_cleanup(&s.platform_state) {
-            debug!("Power Active grants were cleaned up");
-        }
+        MainContextProcessor::remove_expired_and_inactive_entries(&s.platform_state);
         ContextManager::setup(&s.platform_state).await;
         if !s.platform_state.supports_session() {
             return Ok(());
         }
         MainContextProcessor::initialize_session(&s.platform_state).await;
-        // Session available during startup make sure the context is updated with the token for first time
-        if s.platform_state
-            .session_state
-            .get_account_session()
-            .is_some()
-        {
-            ContextManager::update_context_for_session(s.platform_state.clone());
-        }
 
         s.platform_state
             .get_client()
