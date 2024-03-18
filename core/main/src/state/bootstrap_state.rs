@@ -23,7 +23,6 @@ use ripple_sdk::{
     tokio::sync::mpsc::{self, Receiver, Sender},
     utils::error::RippleError,
 };
-use tokio_tungstenite::tungstenite::http::version;
 
 use crate::{
     bootstrap::manifest::{
