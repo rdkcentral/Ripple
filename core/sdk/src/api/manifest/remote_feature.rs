@@ -18,7 +18,7 @@ fn val_to_bool_parse(val: Value, def: bool) -> bool {
     def
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct FeatureFlag {
     pub default: bool,
     pub remote_key: Option<String>,

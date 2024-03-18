@@ -510,3 +510,137 @@ impl CapEvent {
         variant_name.to_owned()
     }
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_firebolt_cap_short() {
+        let cap = FireboltCap::short("account:session");
+        assert_eq!(cap.as_str(), "xrn:firebolt:capability:account:session");
+    }
+
+    #[test]
+    fn test_firebolt_cap_full() {
+        let cap = FireboltCap::parse_long("xrn:firebolt:capability:account:session".to_string());
+        assert_eq!(cap, Some(FireboltCap::Short("account:session".to_string())));
+    }
+
+    #[test]
+    fn test_firebolt_cap_parse() {
+        let cap = FireboltCap::parse("xrn:firebolt:capability:account:session".to_string());
+        assert_eq!(cap, Some(FireboltCap::Short("account:session".to_string())));
+    }
+
+    #[test]
+    fn test_firebolt_cap_parse_long() {
+        let cap = FireboltCap::parse_long("xrn:firebolt:capability:account:session".to_string());
+        assert_eq!(cap, Some(FireboltCap::Short("account:session".to_string())));
+    }
+
+    #[test]
+    fn test_firebolt_cap_from_vec_string() {
+        let cap_list = vec!["account:session".to_string()];
+        let cap = FireboltCap::from_vec_string(cap_list);
+        assert_eq!(cap, vec![FireboltCap::Full("account:session".to_string())]);
+    }
+
+    #[test]
+    fn test_capability_role_as_string() {
+        let role = CapabilityRole::Use;
+        assert_eq!(role.as_string(), "use");
+    }
+
+    #[test]
+    fn test_firebolt_permission_from_role_info() {
+        let role = RoleInfo {
+            role: Some(CapabilityRole::Use),
+            capability: FireboltCap::short("account:session"),
+        };
+        let perm = FireboltPermission::from(role);
+        assert_eq!(
+            perm,
+            FireboltPermission::from(FireboltCap::short("account:session"))
+        );
+    }
+
+    #[test]
+    fn test_firebolt_permission_from_firebolt_cap() {
+        let cap = FireboltCap::short("account:session");
+        let perm = FireboltPermission::from(cap);
+        assert_eq!(
+            perm,
+            FireboltPermission::from(FireboltCap::short("account:session"))
+        );
+    }
+
+    #[test]
+    fn test_firebolt_permission_from_cap_request_rpc_request() {
+        let cap_req = CapRequestRpcRequest {
+            grants: vec![RoleInfo {
+                role: Some(CapabilityRole::Use),
+                capability: FireboltCap::short("account:session"),
+            }],
+        };
+        let perm = Vec::<FireboltPermission>::from(cap_req);
+        assert_eq!(
+            perm,
+            vec![FireboltPermission::from(FireboltCap::short(
+                "account:session"
+            ))]
+        );
+    }
+
+    #[test]
+    fn test_firebolt_permission_from_capability_set() {
+        let cap_set = CapabilitySet {
+            use_caps: Some(vec![FireboltCap::short("account:session")]),
+            manage_caps: None,
+            provide_cap: None,
+        };
+        let perm = Vec::<FireboltPermission>::from(cap_set);
+        assert_eq!(
+            perm,
+            vec![FireboltPermission::from(FireboltCap::short(
+                "account:session"
+            ))]
+        );
+    }
+
+    #[test]
+    fn test_firebolt_permission_serialize() {
+        let perm = FireboltPermission {
+            cap: FireboltCap::short("account:session"),
+            role: CapabilityRole::Use,
+        };
+        let serialized = serde_json::to_string(&perm).unwrap();
+        assert_eq!(serialized, "\"xrn:firebolt:capability:account:session\"");
+    }
+
+    #[test]
+    fn test_firebolt_permission_deserialize() {
+        let perm = "\"xrn:firebolt:capability:account:session\"";
+        let deserialized: FireboltPermission = serde_json::from_str(perm).unwrap();
+        assert_eq!(
+            deserialized,
+            FireboltPermission {
+                cap: FireboltCap::short("account:session"),
+                role: CapabilityRole::Use
+            }
+        );
+    }
+
+    #[test]
+    fn test_firebolt_permissions_from_vec_string() {
+        let _cap_list = vec!["account:session".to_string()];
+        let _fb_perm = FireboltPermissions {
+            capabilities: vec![FireboltPermission::from(FireboltCap::short(
+                "account:session",
+            ))],
+        };
+        // assert_eq!(
+        //     fb_perm.capabilities,
+        //     FireboltPermissions::from_vec_string(cap_list).capabilities
+        // );
+    }
+}
