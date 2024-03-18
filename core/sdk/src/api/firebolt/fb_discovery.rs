@@ -227,6 +227,12 @@ impl From<SignInInfo> for ContentAccessRequest {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum DiscoveryRequest {
+    SetContentAccess(ContentAccessListSetParams),
+    ClearContent(ClearContentSetParams),
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentAccessEntitlement {
@@ -283,13 +289,13 @@ pub struct SignInRequestParams {
     pub is_signed_in: bool, /*true for signIn, false for signOut */
 }
 
-// #[derive(Debug, Clone)]
-// pub enum DiscoveryAccountLinkRequest {
-//     EntitlementsAccountLink(EntitlementsAccountLinkRequestParams),
-//     MediaEventAccountLink(MediaEventsAccountLinkRequestParams),
-//     LaunchPadAccountLink(LaunchPadAccountLinkRequestParams),
-//     SignIn(SignInRequestParams),
-// }
+#[derive(Debug, Clone)]
+pub enum DiscoveryAccountLinkRequest {
+    EntitlementsAccountLink(EntitlementsAccountLinkRequestParams),
+    MediaEventAccountLink(MediaEventsAccountLinkRequestParams),
+    LaunchPadAccountLink(LaunchPadAccountLinkRequestParams),
+    SignIn(SignInRequestParams),
+}
 
 pub const PROGRESS_UNIT_SECONDS: &str = "Seconds";
 pub const PROGRESS_UNIT_PERCENT: &str = "Percent";
@@ -371,6 +377,12 @@ pub struct MediaEventsAccountLinkRequestParams {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MediaEventsAccountLinkResponse {}
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LaunchPadAccountLinkRequestParams {
+    pub link_launchpad: AccountLaunchpad,
+    pub content_partner_id: String,
+    pub dist_session: AccountSession,
+}
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LaunchPadAccountLinkResponse {}
 
