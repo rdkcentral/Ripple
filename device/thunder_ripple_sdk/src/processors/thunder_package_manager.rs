@@ -37,7 +37,8 @@ use crate::{
     },
     thunder_state::ThunderState,
 };
-use ripple_sdk::api::device::device_apps::AppMetadata;
+use ripple_sdk::api::app_catalog::{AppCatalogRequest, AppOperationComplete, AppsUpdate};
+use ripple_sdk::api::device::device_apps::DeviceAppMetadata;
 use ripple_sdk::api::device::device_operator::{DeviceResponseMessage, DeviceSubscribeRequest};
 use ripple_sdk::api::firebolt::fb_capabilities::FireboltPermissions;
 use ripple_sdk::api::observability::metrics_util::{
@@ -113,7 +114,7 @@ pub struct InstallAppRequest {
 }
 
 impl InstallAppRequest {
-    pub fn new(app: AppMetadata) -> InstallAppRequest {
+    pub fn new(app: DeviceAppMetadata) -> InstallAppRequest {
         let mut app_type = String::default();
         let mut category = String::default();
 
@@ -245,6 +246,10 @@ impl OperationStatus {
             OperationStatus::Unknown => false,
         }
     }
+
+    pub fn succeeded(&self) -> bool {
+        matches!(self, OperationStatus::Succeeded)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -373,7 +378,8 @@ impl ThunderPackageManagerRequestProcessor {
                         details: get_string_field(status_map, "details"),
                     };
 
-                    if OperationStatus::new(&operation_status.status).completed() {
+                    let status = OperationStatus::new(&operation_status.status);
+                    if status.completed() {
                         let operation = Operation::new(
                             operation_status.operation.clone(),
                             operation_status.id.clone(),
@@ -384,6 +390,24 @@ impl ThunderPackageManagerRequestProcessor {
                             operation_status.handle,
                             operation,
                         );
+                        let op_comp = AppOperationComplete {
+                            id: operation_status.id,
+                            version: operation_status.version,
+                            success: status.succeeded(),
+                        };
+                        let cli = state.thunder_state.get_client();
+                        match operation_status.operation {
+                            AppsOperationType::Install => {
+                                if let Err(e) = cli.event(AppsUpdate::InstallComplete(op_comp)) {
+                                    error!("Could not emit install complete event, e={:?}", e)
+                                }
+                            }
+                            AppsOperationType::Uninstall => {
+                                if let Err(e) = cli.event(AppsUpdate::UninstallComplete(op_comp)) {
+                                    error!("Could not emit uninstall complete event, e={:?}", e)
+                                }
+                            }
+                        }
                     }
                 } else {
                     error!("ThunderPackageManagerRequestProcessor: Unexpected message payload");
@@ -532,8 +556,15 @@ impl ThunderPackageManagerRequestProcessor {
     async fn install_app(
         state: ThunderPackageManagerState,
         req: ExtnMessage,
-        app: AppMetadata,
+        app: DeviceAppMetadata,
     ) -> bool {
+        let extn_resp = Self::install(state.clone(), app).await;
+        Self::respond(state.thunder_state.get_client(), req, extn_resp)
+            .await
+            .is_ok()
+    }
+
+    async fn install(state: ThunderPackageManagerState, app: DeviceAppMetadata) -> ExtnResponse {
         if let Some(handle) = Self::operation_in_progress(
             state.clone(),
             AppsOperationType::Install,
@@ -541,17 +572,11 @@ impl ThunderPackageManagerRequestProcessor {
             &app.version,
         ) {
             info!(
-                "install_app: Installation already in progress: app={}, version={}",
+                "install: Installation already in progress: app={}, version={}",
                 app.id, app.version
             );
 
-            return Self::respond(
-                state.clone().thunder_state.get_client(),
-                req,
-                ExtnResponse::String(handle),
-            )
-            .await
-            .is_ok();
+            return ExtnResponse::String(handle);
         }
 
         let method: String = ThunderPlugin::PackageManager.method("install");
@@ -588,7 +613,7 @@ impl ThunderPackageManagerRequestProcessor {
         )
         .await;
 
-        let extn_resp = match thunder_resp {
+        match thunder_resp {
             Ok(handle) => {
                 let operation = Operation::new(
                     AppsOperationType::Install,
@@ -599,11 +624,7 @@ impl ThunderPackageManagerRequestProcessor {
                 ExtnResponse::String(handle)
             }
             Err(_) => ExtnResponse::Error(RippleError::ProcessorError),
-        };
-
-        Self::respond(state.thunder_state.get_client(), req, extn_resp)
-            .await
-            .is_ok()
+        }
     }
 
     async fn uninstall_app(
@@ -716,31 +737,64 @@ impl ThunderPackageManagerRequestProcessor {
         req: ExtnMessage,
         app_id: String,
     ) -> bool {
+        let extn_resp = match Self::get_perms(state.clone(), app_id.clone()).await {
+            ExtnResponse::Permission(perms) => ExtnResponse::Permission(perms),
+            ExtnResponse::Error(RippleError::NotAvailable) => {
+                // Could not retrieve permissions from app, attempt to _asynchronously_ reinstall. Upon successful installation
+                // permissions may then be available.
+                match state
+                    .thunder_state
+                    .get_client()
+                    .standalone_request(AppCatalogRequest::GetCatalog, 2000)
+                    .await
+                {
+                    Ok(ExtnResponse::AppCatalog(apps)) => {
+                        let app: Vec<ripple_sdk::api::app_catalog::AppMetadata> =
+                            apps.iter().filter(|&a| a.id.eq(&app_id)).cloned().collect();
+
+                        if app.is_empty() {
+                            error!(
+                                "get_firebolt_permissions: App not found in catalog: app_id={}",
+                                app_id
+                            );
+                        } else {
+                            Self::install(state.clone(), app[0].clone().into()).await;
+                        }
+                    }
+                    Ok(_) => {
+                        error!("get_firebolt_permissions: Unexpected response");
+                    }
+                    Err(e) => {
+                        error!("get_firebolt_permissions: Failed to get catalog: e={:?}", e);
+                    }
+                }
+                ExtnResponse::Error(RippleError::NotAvailable)
+            }
+            _ => {
+                error!("get_firebolt_permissions: Unexpected response");
+                ExtnResponse::Error(RippleError::NotAvailable)
+            }
+        };
+
+        Self::respond(state.thunder_state.get_client(), req, extn_resp)
+            .await
+            .is_ok()
+    }
+
+    async fn get_perms(state: ThunderPackageManagerState, app_id: String) -> ExtnResponse {
         let installed_apps =
             match Self::get_apps_list(state.thunder_state.clone(), Some(app_id.clone())).await {
                 ExtnResponse::InstalledApps(apps) => apps,
                 _ => {
-                    error!("get_firebolt_permissions: Unexpected extension response");
-                    return Self::respond(
-                        state.thunder_state.get_client(),
-                        req,
-                        ExtnResponse::Error(RippleError::ProcessorError),
-                    )
-                    .await
-                    .is_ok();
+                    error!("get_perms: Unexpected extension response");
+                    return ExtnResponse::Error(RippleError::ProcessorError);
                 }
             };
 
         let installed_app = installed_apps.iter().find(|app| app.id.eq(&app_id));
         if installed_app.is_none() {
-            error!("get_firebolt_permissions: Failed to determine version");
-            return Self::respond(
-                state.thunder_state.get_client(),
-                req,
-                ExtnResponse::Error(RippleError::ProcessorError),
-            )
-            .await
-            .is_ok();
+            error!("get_perms: Failed to determine version");
+            return ExtnResponse::Error(RippleError::NotAvailable);
         }
 
         let app = installed_app.unwrap();
@@ -749,7 +803,7 @@ impl ThunderPackageManagerRequestProcessor {
 
         let metrics_timer = start_service_metrics_timer(
             &state.thunder_state.get_client(),
-            ThunderMetricsTimerName::PackageManagerUninstall.to_string(),
+            ThunderMetricsTimerName::PackageManagerGetMetadata.to_string(),
         );
 
         let device_response = state
@@ -763,10 +817,7 @@ impl ThunderPackageManagerRequestProcessor {
             })
             .await;
 
-        debug!(
-            "get_firebolt_permissions: device_response={:?}",
-            device_response
-        );
+        debug!("get_perms: device_response={:?}", device_response);
 
         let thunder_resp = serde_json::from_value::<ThunderAppMetadata>(device_response.message);
 
@@ -792,26 +843,21 @@ impl ThunderPackageManagerRequestProcessor {
                 {
                     Some(r) => match Self::decode_permissions(r.value.clone()) {
                         Ok(permissions) => ExtnResponse::Permission(permissions.capabilities),
-                        Err(()) => ExtnResponse::Error(RippleError::ProcessorError),
+                        Err(()) => ExtnResponse::Error(RippleError::NotAvailable),
                     },
                     None => {
-                        error!("get_firebolt_permissions: No permissions for app");
-                        ExtnResponse::Error(RippleError::ProcessorError)
+                        error!("get_perms: No permissions for app");
+                        ExtnResponse::Error(RippleError::NotAvailable)
                     }
                 }
             }
             Err(e) => {
-                error!(
-                    "get_firebolt_permissions: Failed to deserialize response: e={:?}",
-                    e
-                );
-                ExtnResponse::Error(RippleError::ProcessorError)
+                error!("get_perms: Failed to deserialize response: e={:?}", e);
+                ExtnResponse::Error(RippleError::NotAvailable)
             }
         };
 
-        Self::respond(state.thunder_state.get_client(), req, extn_resp)
-            .await
-            .is_ok()
+        extn_resp
     }
 
     async fn cancel_operation(state: ThunderPackageManagerState, handle: String) {
@@ -886,7 +932,9 @@ impl ExtnRequestProcessor for ThunderPackageManagerRequestProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         match extracted_message {
-            AppsRequest::GetApps(id) => Self::get_apps(state.thunder_state.clone(), msg, id).await,
+            AppsRequest::GetInstalledApps(id) => {
+                Self::get_apps(state.thunder_state.clone(), msg, id).await
+            }
             AppsRequest::InstallApp(app) => Self::install_app(state.clone(), msg, app).await,
             AppsRequest::UninstallApp(app) => Self::uninstall_app(state.clone(), msg, app).await,
             AppsRequest::GetFireboltPermissions(app_id) => {
