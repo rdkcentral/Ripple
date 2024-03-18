@@ -121,7 +121,7 @@ impl BootstrapState {
                     std::env::var("RIPPLE_VERSIONS_FILE").unwrap_or(RIPPLE_VER_FILE_DEFAULT.to_string());
                 let version_var_name =
                     std::env::var("RIPPLE_VERSIONS_VAR").unwrap_or(RIPPLE_VER_VAR_NAME_DEFAULT.to_string());
-                read_file(version_file_name.clone()).map(|res| res.get(&version_var_name).cloned()).ok()?
+                read_file(version_file_name).map(|res| res.get(&version_var_name).cloned()).ok()?
             }
         Ok(BootstrapState {
             platform_state,
