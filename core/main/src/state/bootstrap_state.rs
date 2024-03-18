@@ -108,21 +108,28 @@ impl BootstrapState {
                 .expect("Valid app manifest");
         let extn_manifest = LoadExtnManifestStep::get_manifest();
         let extn_state = ExtnState::new(channels_state.clone(), extn_manifest.clone());
-        let platform_state =
-            PlatformState::new(extn_manifest, device_manifest, client, app_manifest_result, ripple_version_from_etc());
+        let platform_state = PlatformState::new(
+            extn_manifest,
+            device_manifest,
+            client,
+            app_manifest_result,
+            ripple_version_from_etc(),
+        );
 
         fn ripple_version_from_etc() -> Option<String> {
-                /*
-                read /etc/rippleversion
-                */
-                static RIPPLE_VER_FILE_DEFAULT: &str = "/etc/rippleversion.txt";
-                static RIPPLE_VER_VAR_NAME_DEFAULT: &str = "RIPPLE_VER";
-                let version_file_name =
-                    std::env::var("RIPPLE_VERSIONS_FILE").unwrap_or(RIPPLE_VER_FILE_DEFAULT.to_string());
-                let version_var_name =
-                    std::env::var("RIPPLE_VERSIONS_VAR").unwrap_or(RIPPLE_VER_VAR_NAME_DEFAULT.to_string());
-                read_file(version_file_name).map(|res| res.get(&version_var_name).cloned()).ok()?
-            }
+            /*
+            read /etc/rippleversion
+            */
+            static RIPPLE_VER_FILE_DEFAULT: &str = "/etc/rippleversion.txt";
+            static RIPPLE_VER_VAR_NAME_DEFAULT: &str = "RIPPLE_VER";
+            let version_file_name = std::env::var("RIPPLE_VERSIONS_FILE")
+                .unwrap_or(RIPPLE_VER_FILE_DEFAULT.to_string());
+            let version_var_name = std::env::var("RIPPLE_VERSIONS_VAR")
+                .unwrap_or(RIPPLE_VER_VAR_NAME_DEFAULT.to_string());
+            read_file(version_file_name)
+                .map(|res| res.get(&version_var_name).cloned())
+                .ok()?
+        }
         Ok(BootstrapState {
             platform_state,
             channels_state,
