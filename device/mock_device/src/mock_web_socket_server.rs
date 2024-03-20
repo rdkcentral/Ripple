@@ -327,9 +327,9 @@ impl MockWebSocketServer {
                     }]);
                 } else if let Some(v) = self.responses_for_key_v2(&request) {
                     if v.params.is_some() {
-                        if let Ok(t) =
-                            serde_json::from_value::<ThunderRegisterParams>(request.params.unwrap())
-                        {
+                        if let Ok(t) = serde_json::from_value::<ThunderRegisterParams>(
+                            v.clone().params.unwrap(),
+                        ) {
                             return Some(v.get_all(Some(id), Some(t)));
                         }
                     }
