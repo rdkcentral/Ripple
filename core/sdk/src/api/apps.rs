@@ -37,7 +37,7 @@ use super::{
     gateway::rpc_gateway_api::CallContext,
 };
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct AppSession {
     pub app: AppBasicInfo,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -68,7 +68,7 @@ impl AppSession {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct AppBasicInfo {
     pub id: String,
     pub catalog: Option<String>,
