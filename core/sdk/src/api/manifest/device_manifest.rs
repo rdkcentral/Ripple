@@ -450,7 +450,7 @@ fn default_saved_dir() -> String {
 
 #[derive(Deserialize, Serialize, Debug, Clone, Default)]
 pub struct DataGovernanceConfig {
-    pub(crate) policies: Vec<DataGovernancePolicy>,
+    policies: Vec<DataGovernancePolicy>,
 }
 
 impl DataGovernanceConfig {

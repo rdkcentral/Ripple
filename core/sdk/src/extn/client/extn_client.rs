@@ -75,14 +75,14 @@ use super::{
 #[repr(C)]
 #[derive(Clone, Debug)]
 pub struct ExtnClient {
-    pub(crate) receiver: CReceiver<CExtnMessage>,
-    pub(crate) sender: ExtnSender,
-    pub(crate) extn_sender_map: Arc<RwLock<HashMap<String, CSender<CExtnMessage>>>>,
-    pub(crate) contract_map: Arc<RwLock<HashMap<String, String>>>,
-    pub(crate) response_processors: Arc<RwLock<HashMap<String, OSender<ExtnMessage>>>>,
-    pub(crate) request_processors: Arc<RwLock<HashMap<String, MSender<ExtnMessage>>>>,
-    pub(crate) event_processors: Arc<RwLock<HashMap<String, Vec<MSender<ExtnMessage>>>>>,
-    pub(crate) ripple_context: Arc<RwLock<RippleContext>>,
+    receiver: CReceiver<CExtnMessage>,
+    sender: ExtnSender,
+    extn_sender_map: Arc<RwLock<HashMap<String, CSender<CExtnMessage>>>>,
+    contract_map: Arc<RwLock<HashMap<String, String>>>,
+    response_processors: Arc<RwLock<HashMap<String, OSender<ExtnMessage>>>>,
+    request_processors: Arc<RwLock<HashMap<String, MSender<ExtnMessage>>>>,
+    event_processors: Arc<RwLock<HashMap<String, Vec<MSender<ExtnMessage>>>>>,
+    ripple_context: Arc<RwLock<RippleContext>>,
 }
 
 fn add_stream_processor<P>(id: String, context: P, map: Arc<RwLock<HashMap<String, P>>>) {
