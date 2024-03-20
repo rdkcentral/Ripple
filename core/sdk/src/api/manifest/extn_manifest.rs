@@ -24,7 +24,7 @@ use crate::{extn::extn_id::ExtnId, utils::error::RippleError};
 
 /// Contains the default path for the manifest
 /// file extension type based on platform
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct ExtnManifest {
     pub default_path: String,
     pub default_extension: String,
