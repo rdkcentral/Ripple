@@ -431,7 +431,8 @@ impl MockWebSocketServer {
         if delay > 0 {
             tokio::time::sleep(Duration::from_millis(delay)).await
         }
-        for (k, mut sink) in peers.drain().take(1) {
+        let v = peers.keys().len();
+        for (k, mut sink) in peers.drain().take(v) {
             if let Err(e) = sink.send(Message::Text(event_value.clone())).await {
                 error!("Error sending response. resp={e:?}");
             } else {
