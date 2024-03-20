@@ -51,7 +51,7 @@ impl ParamResponse {
                 }
                 None
             }
-            None => None,
+            None => Some(self.clone()),
         }
     }
     pub fn get_notification_id(&self) -> Option<String> {

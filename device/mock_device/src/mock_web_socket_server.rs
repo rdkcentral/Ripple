@@ -396,7 +396,7 @@ impl MockWebSocketServer {
     pub async fn remove_request_response_v2(&self, request: MockData) -> Result<(), MockDataError> {
         let mut mock_data = self.mock_data_v2.write().unwrap();
         for (cleanup_key, cleanup_params) in request {
-            if let Some(v) = mock_data.remove(&cleanup_key) {
+            if let Some(v) = mock_data.remove(&cleanup_key.to_lowercase()) {
                 let mut new_param_response = Vec::new();
                 let mut updated = false;
                 for cleanup_param in cleanup_params {
@@ -408,6 +408,8 @@ impl MockWebSocketServer {
                                 updated = true;
                             }
                         }
+                    } else {
+                        error!("cleanup Params missing")
                     }
                 }
                 if updated && !new_param_response.is_empty() {
@@ -415,6 +417,8 @@ impl MockWebSocketServer {
                 } else {
                     let _ = mock_data.insert(cleanup_key, v);
                 }
+            } else {
+                error!("Couldnt find the data in mock")
             }
         }
         Ok(())
