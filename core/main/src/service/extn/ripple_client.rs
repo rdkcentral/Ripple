@@ -87,6 +87,16 @@ impl RippleClient {
         }
     }
 
+    #[cfg(test)]
+    pub fn test_client(extn_client: ExtnClient) -> RippleClient {
+        let cs = ChannelsState::new();
+        RippleClient {
+            client: Arc::new(RwLock::new(extn_client)),
+            gateway_sender: cs.get_gateway_sender(),
+            app_mgr_sender: cs.get_app_mgr_sender(),
+        }
+    }
+
     pub fn send_gateway_command(&self, cmd: FireboltGatewayCommand) -> Result<(), RippleError> {
         if let Err(e) = self.gateway_sender.try_send(cmd) {
             error!("failed to send firebolt gateway message {:?}", e);
