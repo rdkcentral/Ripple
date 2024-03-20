@@ -6,35 +6,35 @@ The operation of the extension is quite simple. Once the extension loads it look
 
 ## Extension Manifest
 
-There is an example manifest in the `examples` folder that shows how to get the mock_device extension setup. The file is called `extn-manifest-mock-device-example.json`. The important part of this file is the libmock_device entry in the `extns` array.
+There is an example manifest in the `examples` folder that shows how to get the mock_device extension setup. The file is called `mock-thunder-device.json`. The important part of this file is the libmock_device entry in the `extns` array.
 
 ```json
 {
-    "path": "libmock_device",
-    "symbols": [
-        {
-            "id": "ripple:channel:device:mock_device",
-            "config": {
-                "mock_data_file": "mock-device.json"
-            },
-            "uses": [
-                "config"
-            ],
-            "fulfills": [
-                "extn_provider.mock_device"
-            ]
-        },
-        {
-            "id": "ripple:extn:jsonrpsee:mock_device",
-            "uses": [
-                "extn_provider.mock_device"
-            ],
-            "fulfills": [
-                "json_rpsee"
+            "path": "libmock_device",
+            "symbols": [
+                {
+                    "id": "ripple:channel:device:mock_device",
+                    "config": {
+                        "mock_data_file": "mock-device.json",
+                        "activate_all_plugins": "true"
+                    },
+                    "uses": [
+                        "config"
+                    ],
+                    "fulfills": [
+                    ]
+                },
+                {
+                    "id": "ripple:extn:jsonrpsee:mock_device",
+                    "uses": [
+                        "ripple:channel:device:mock_device"
+                    ],
+                    "fulfills": [
+                        "json_rpsee"
+                    ]
+                }
             ]
         }
-    ]
-}
 ```
 
 The extension has two symbols in it. One for the websocket server channel and the other to add the RPC methods for controlling the mock server to the Ripple gateway.
@@ -47,38 +47,57 @@ Once your extn manifest has been updated to include this entry you will be able 
 
 Due to timing requirements of platform integrations it is often the case that you will need mock data in the server as soon as it starts, rather than adding it at runtime. This is prevents platform integration extensions from crashing when they make requests to the platform durin initilization. The mock device extension supports this use case by allowing the user to stored their mock data in a JSON file which will be loaded and passed to the websocket server before it starts accepting requests.
 
-The file should contain a single array in JSON that represents the set of requests and responses that are expected from the device. For example:
+The file contains a request and response map with additional support for events with delay.
 ```json
-[
-    {
-        // the request to match
-        "request": {
-            // the type that the request should be interpretted as
-            "type": "jsonrpc",
-            // the body of the request to match
-            "body": {
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "Controller.1.register",
-                "params": {
-                    "event": "statechange",
-                    "id": "client.Controller.1.events"
-                }
-            }
-        },
-        // the list of responses which should be sent back to the client
-        "responses": [
+{
+    "org.rdk.System.1.getSystemVersions": [
             {
-                "type": "jsonrpc",
-                "body": {
-                    "jsonrpc": "2.0",
-                    "id": 0,
-                    "result": 0
+                "result": {
+                    "receiverVersion": "6.9.0.0",
+                    "stbTimestamp": "Tue 07 Nov 2023 00:03:20 AP UTC",
+                    "stbVersion": "SCXI11BEI_VBN_23Q4_sprint_20231107000320sdy_FG_EDGE_R2PB_NG",
+                    "success": true
                 }
             }
-        ]
+        ],
+    "org.rdk.System.register": [
+    {
+      "params": {
+        "event": "onTimeZoneDSTChanged",
+        "id": "client.org.rdk.System.events"
+      },
+      "result": 0,
+      "events": [
+        {
+          "delay": 0,
+          "data": {
+            "oldTimeZone": "America/New_York",
+            "newTimeZone": "Europe/London",
+            "oldAccuracy": "INITIAL",
+            "newAccuracy": "FINAL"
+          }
+        }
+      ]
     },
-]
+    {
+      "params": {
+        "event": "onSystemPowerStateChanged",
+        "id": "client.org.rdk.System.events"
+      },
+      "result": 0,
+      "events": [
+        {
+          "delay": 0,
+          "data": {
+            "powerState": "ON",
+            "currentPowerState": "ON"
+          }
+        }
+      ]
+    }
+  ]
+
+}
 ```
 
 By default, this file is looked for in the ripple persistent folder under the name `mock-device.json` e.g. `~/.ripple/mock-device.json`. The location of this file can be controlled with the config setting in the channel sysmobl of the extensions manifest entry e.g. 
@@ -87,7 +106,7 @@ By default, this file is looked for in the ripple persistent folder under the na
 {
     "id": "ripple:channel:device:mock_device",
     "config": {
-        "mock_data_file": "mock-device.json"
+        "mock_data_file": "<path>/mock-device.json"
     },
     ...
 }
@@ -110,34 +129,20 @@ Payload:
 ```json
 {
     "jsonrpc": "2.0",
-    "id": 24,
-    "method": "mockdevice.addRequestResponse",
+    "id": 1,
+    "method": "mockdevice.addRequests",
     "params": {
-        // incoming request to match
-        "request": {
-            "type": "jsonrpc",
-            "body": {
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "org.rdk.System.1.getSystemVersions"
-            }
-        },
-        "responses": [
-            // expected response from the platform
-            {
-                "type": "jsonrpc",
-                "body": {
-                    "jsonrpc": "2.0",
-                    "id": 0,
-                    "result": {
-                        "stbVersion": "AX061AEI_VBN_1911_sprint_20200109040424sdy",
-                        "receiverVersion": "3.14.0.0",
-                        "stbTimestamp": "Thu 09 Jan 2020 04:04:24 AM UTC",
-                        "success": true
-                    }
-                }
-            }
-        ]
+        "org.rdk.DisplaySettings.1.getCurrentResolution": [
+    {
+      "params": {
+        "videoDisplay": "HDMI0"
+      },
+      "result": {
+        "resolution": "2160p",
+        "success": true
+      }
+    }
+  ]
     }
 }
 ```
@@ -149,7 +154,7 @@ Request:
 {
     "jsonrpc": "2.0",
     "id": 5,
-    "method": "device.version"
+    "method": "device.screenResolution"
 }
 ```
 
@@ -157,28 +162,11 @@ Response:
 ```json
 {
     "jsonrpc": "2.0",
-    "result": {
-        "api": {
-            "major": 0,
-            "minor": 14,
-            "patch": 0,
-            "readable": "Firebolt API v0.14.0"
-        },
-        "firmware": {
-            "major": 3,
-            "minor": 14,
-            "patch": 0,
-            "readable": "AX061AEI_VBN_1911_sprint_20200109040424sdy"
-        },
-        "os": {
-            "major": 0,
-            "minor": 8,
-            "patch": 0,
-            "readable": "Firebolt OS v0.8.0"
-        },
-        "debug": "0.8.0 (02542a1)"
-    },
-    "id": 5
+    "result": [
+        3840,
+        2160
+    ],
+    "id": 1
 }
 ```
 
@@ -190,33 +178,31 @@ Payload:
 ```json
 {
     "jsonrpc": "2.0",
-    "id": 24,
-    "method": "mockdevice.removeRequest",
+    "id": 1,
+    "method": "mockdevice.removeRequests",
     "params": {
-        "request": {
-            "type": "jsonrpc",
-            "body": {
-                "jsonrpc": "2.0",
-                "id": 0,
-                "method": "org.rdk.System.1.getSystemVersions"
-            }
-        }
+        "org.rdk.DisplaySettings.1.getCurrentResolution": [
+    {
+      "params": {
+        "videoDisplay": "HDMI0"
+      },
+      "result": {
+        "resolution": "2160p",
+        "success": true
+      }
+    }
+  ]
     }
 }
 ```
 
 ## Payload types
 
-Currently two payload types for the mock data are supported:
-
-- JSON (json): requests using this type will match verbatim to incoming requests. If an incoming request is not matched no response will be sent.
-- JSON RPC (jsonrpc): request using this type will ignore the "id" field for matching and any responses sent will be amended with the incoming request id. If an incoming request is not matched a JSON RPC error response will be sent back.
-
+Payload types MUST match the original schema definition from the mock data file.
 
 # TODO
 
 What's left?
 
-- Support for emitting device events
 - Integration tests for the mock device extension
 - Unit tests covering extension client interactions
