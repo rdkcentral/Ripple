@@ -18,10 +18,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-<<<<<<< HEAD
     api::app_catalog::AppMetadata,
-=======
->>>>>>> 03be422 (fix formatting)
     api::session::AccountSession,
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
