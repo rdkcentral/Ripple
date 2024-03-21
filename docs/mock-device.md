@@ -196,6 +196,33 @@ Payload:
 }
 ```
 
+### Emitting Events
+Mock device extension can also provide ability to emit events for an existing register Thunder listener.
+Below is an example of emitting screen resolution event.
+
+```json
+{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "mockdevice.emitEvent",
+    "params": {
+        "event": {
+        "body": {
+            "jsonrpc": "2.0",
+            "method": "client.org.rdk.DisplaySettings.events.resolutionChanged",
+            "params": {
+                "width": 3840,
+                "height": 2160,
+                "videoDisplayType": "HDMI0",
+                "resolution": "2160p"
+            }
+        },
+        "delay": 0
+        }
+    }
+}
+```
+
 ## Payload types
 
 Payload types MUST match the original schema definition from the mock data file.
