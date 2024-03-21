@@ -58,7 +58,7 @@ mod tests {
         assert!(serde_json::from_value::<SetPreferredAudioLanguage>(bad_language).is_err());
         let good_language = json!({"value": ["eng"]});
         if let Ok(l) = serde_json::from_value::<SetPreferredAudioLanguage>(good_language) {
-            assert!(String::from("eng").eq(l.value.get(0).unwrap().0.as_str()));
+            assert!(String::from("eng").eq(l.value.first().unwrap().0.as_str()));
         } else {
             panic!("bad language entry should not serialize")
         }
