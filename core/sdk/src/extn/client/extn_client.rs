@@ -246,10 +246,13 @@ impl ExtnClient {
                 error!("IEC Latency {:?}", c_message);
             }
             let message_result: Result<ExtnMessage, RippleError> = c_message.clone().try_into();
-            if message_result.is_err() {
-                error!("invalid message {:?}", c_message);
-            }
-            let message = message_result.unwrap();
+            let message = match message_result {
+                Ok(extn_msg) => extn_msg,
+                Err(_) => {
+                    error!("invalid message {:?}", c_message);
+                    continue;
+                }
+            };
             debug!("** receiving message latency={} msg={:?}", latency, message);
             if message.payload.is_response() {
                 Self::handle_single(message, self.response_processors.clone());
