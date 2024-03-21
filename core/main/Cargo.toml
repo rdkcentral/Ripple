@@ -54,3 +54,4 @@ vergen = "1"
 
 [dev-dependencies]
 ripple_tdk = { path = "../tdk" }
+rstest = "0.18.0"

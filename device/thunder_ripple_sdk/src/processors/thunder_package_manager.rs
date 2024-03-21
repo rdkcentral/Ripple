@@ -18,6 +18,7 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
+use std::{thread, time};
 
 use crate::ripple_sdk::{self};
 use crate::{
@@ -346,12 +347,13 @@ impl ThunderPackageManagerRequestProcessor {
         }
     }
 
-    pub async fn init(&self, thunder_state: ThunderState) {
+    pub async fn init(state: ThunderPackageManagerState, req: ExtnMessage) -> bool {
         let (sub_tx, mut sub_rx) = mpsc::channel::<DeviceResponseMessage>(32);
 
         debug!("ThunderPackageManagerRequestProcessor::init: Starting listener loop");
 
-        let state = self.state.clone();
+        Self::poll_pm(state.thunder_state.clone()).await;
+        let state_for_event_handler = state.clone();
         tokio::spawn(async move {
             while let Some(message) = sub_rx.recv().await {
                 debug!(
@@ -386,7 +388,7 @@ impl ThunderPackageManagerRequestProcessor {
                             AppData::new(operation_status.version.clone()),
                         );
                         Self::add_or_remove_operation(
-                            state.clone(),
+                            state_for_event_handler.clone(),
                             operation_status.handle,
                             operation,
                         );
@@ -395,7 +397,7 @@ impl ThunderPackageManagerRequestProcessor {
                             version: operation_status.version,
                             success: status.succeeded(),
                         };
-                        let cli = state.thunder_state.get_client();
+                        let cli = state_for_event_handler.thunder_state.get_client();
                         match operation_status.operation {
                             AppsOperationType::Install => {
                                 if let Err(e) = cli.event(AppsUpdate::InstallComplete(op_comp)) {
@@ -415,7 +417,8 @@ impl ThunderPackageManagerRequestProcessor {
             }
         });
 
-        thunder_state
+        state
+            .thunder_state
             .get_thunder_client()
             .clone()
             .subscribe(
@@ -428,6 +431,25 @@ impl ThunderPackageManagerRequestProcessor {
                 sub_tx,
             )
             .await;
+        Self::ack(state.thunder_state.get_client(), req)
+            .await
+            .is_ok()
+    }
+
+    pub async fn poll_pm(thunder_state: ThunderState) {
+        info!("Checking if PackageManager is ready");
+        let mut got_success = false;
+        while !got_success {
+            let resp = Self::get_apps_list(thunder_state.clone(), None).await;
+            got_success = matches!(resp, ExtnResponse::InstalledApps(_));
+            if got_success {
+                info!("PackageManager is ready");
+            } else {
+                info!("PackageManager still not ready, checking again in 10 seconds");
+                let poll_time = time::Duration::from_secs(10);
+                thread::sleep(poll_time);
+            }
+        }
     }
 
     // add_or_remove_operation: Adds or removes an active operation to/from the map depending on whether or not it already existed.
@@ -932,6 +954,7 @@ impl ExtnRequestProcessor for ThunderPackageManagerRequestProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         match extracted_message {
+            AppsRequest::Init => Self::init(state, msg).await,
             AppsRequest::GetInstalledApps(id) => {
                 Self::get_apps(state.thunder_state.clone(), msg, id).await
             }
