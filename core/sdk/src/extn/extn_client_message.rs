@@ -185,6 +185,14 @@ impl ExtnPayload {
             None
         }
     }
+
+    pub fn as_request(&self) -> Option<ExtnRequest> {
+        if let ExtnPayload::Request(r) = self.clone() {
+            Some(r)
+        } else {
+            None
+        }
+    }
 }
 
 /// Most critical trait used in Inter Extension Communication(IEC). Any message has to conform to this trait specification
