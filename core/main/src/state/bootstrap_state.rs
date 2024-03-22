@@ -20,7 +20,7 @@ use ripple_sdk::{
     async_channel::{unbounded, Receiver as CReceiver, Sender as CSender},
     extn::ffi::ffi_message::CExtnMessage,
     framework::bootstrap::TransientChannel,
-    log::warn,
+    log::{info, warn},
     tokio::sync::mpsc::{self, Receiver, Sender},
     utils::error::RippleError,
 };
@@ -131,6 +131,10 @@ impl BootstrapState {
             match read_file(version_file_name.clone()) {
                 Ok(env_vars) => {
                     if let Some(version) = env_vars.get(&version_var_name) {
+                        info!(
+                            "Printing ripple version from rippleversion.txt {:?}",
+                            version.clone()
+                        );
                         return Some(version.clone());
                     }
                 }
