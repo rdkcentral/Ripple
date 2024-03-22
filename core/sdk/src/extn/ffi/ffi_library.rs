@@ -26,9 +26,45 @@ use std::str::FromStr;
 
 #[repr(C)]
 #[derive(Debug, Clone)]
+pub struct ExtnVersionInfo {
+    pub extension_version: String,
+    pub extenstion_hash: String,
+}
+impl ExtnVersionInfo {
+    pub fn new(extension_version: String, extenstion_hash: String) -> ExtnVersionInfo {
+        ExtnVersionInfo {
+            extension_version,
+            extenstion_hash,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Clone)]
 pub struct ExtnMetadata {
     pub name: String,
     pub symbols: Vec<ExtnSymbolMetadata>,
+    pub version_info: Option<ExtnVersionInfo>,
+}
+impl ExtnMetadata {
+    pub fn new(name: String, symbols: Vec<ExtnSymbolMetadata>) -> ExtnMetadata {
+        ExtnMetadata {
+            name: name,
+            symbols: symbols,
+            version_info: None,
+        }
+    }
+    pub fn new_with_version(
+        name: String,
+        symbols: Vec<ExtnSymbolMetadata>,
+        version_info: Option<ExtnVersionInfo>,
+    ) -> ExtnMetadata {
+        ExtnMetadata {
+            name,
+            symbols,
+            version_info,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -50,6 +86,7 @@ pub struct ExtnSymbolMetadata {
 pub struct CExtnMetadata {
     pub name: String,
     pub metadata: String,
+    pub version_info: Option<ExtnVersionInfo>,
 }
 
 impl TryInto<ExtnMetadata> for Box<CExtnMetadata> {
@@ -74,6 +111,7 @@ impl TryInto<ExtnMetadata> for Box<CExtnMetadata> {
             return Ok(ExtnMetadata {
                 name: self.name,
                 symbols: metadata,
+                version_info: self.version_info,
             });
         }
 
@@ -92,10 +130,14 @@ impl From<ExtnMetadata> for CExtnMetadata {
             });
         }
         let symbols = serde_json::to_string(&metadata).unwrap();
-        info!("exported symbols in library {}", symbols);
+        info!(
+            "exported symbols in library {}, with version : {:?}",
+            symbols, value.version_info
+        );
         CExtnMetadata {
             name: value.name,
             metadata: symbols,
+            version_info: value.version_info,
         }
     }
 }

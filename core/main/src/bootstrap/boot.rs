@@ -71,7 +71,7 @@ pub async fn boot(state: BootstrapState) -> RippleResponse {
     Ok(())
 }
 
-async fn execute_step<T: Bootstep<BootstrapState>>(
+pub async fn execute_step<T: Bootstep<BootstrapState>>(
     step: T,
     state: &Bootstrap<BootstrapState>,
 ) -> RippleResponse {
