@@ -23,7 +23,7 @@ use std::{
 
 use ripple_sdk::{
     api::{
-        config::FEATURE_CLOUD_PERMISISONS,
+        config::FEATURE_CLOUD_PERMISSIONS,
         device::device_apps::AppsRequest,
         //config::Config,
         distributor::distributor_permissions::{PermissionRequest, PermissionResponse},
@@ -150,11 +150,15 @@ impl PermissionHandler {
         app_id: &str,
         allow_cached: bool,
     ) -> RippleResponse {
+        if state.open_rpc_state.is_app_excluded(app_id) {
+            return Ok(());
+        }
+
         if state
             .get_client()
             .get_extn_client()
             .get_features()
-            .contains(&String::from(FEATURE_CLOUD_PERMISISONS))
+            .contains(&String::from(FEATURE_CLOUD_PERMISSIONS))
         {
             if allow_cached {
                 if let Some(permissions) =
@@ -206,10 +210,6 @@ impl PermissionHandler {
     }
 
     pub async fn device_fetch_and_store(state: &PlatformState, app_id: &str) -> RippleResponse {
-        if state.open_rpc_state.is_app_excluded(app_id) {
-            return Ok(());
-        }
-
         let mut client = state.get_client().get_extn_client();
         let resp = client
             .request(AppsRequest::GetFireboltPermissions(app_id.to_string()))
