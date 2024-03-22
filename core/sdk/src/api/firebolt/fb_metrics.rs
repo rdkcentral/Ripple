@@ -99,14 +99,14 @@ pub enum MediaPositionType {
     AbsolutePosition(i32),
 }
 impl MediaPositionType {
-    fn as_absolute(self) -> Option<i32> {
+    pub fn as_absolute(self) -> Option<i32> {
         match self {
             MediaPositionType::None => None,
             MediaPositionType::PercentageProgress(_) => None,
             MediaPositionType::AbsolutePosition(absolute) => Some(absolute),
         }
     }
-    fn as_percentage(self) -> Option<f32> {
+    pub fn as_percentage(self) -> Option<f32> {
         match self {
             MediaPositionType::None => None,
             MediaPositionType::PercentageProgress(percentage) => Some(percentage),
