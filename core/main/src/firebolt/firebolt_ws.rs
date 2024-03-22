@@ -221,9 +221,6 @@ impl FireboltWs {
             return;
         }
         if !gateway_secure {
-            state
-                .session_state
-                .add_pending_session(app_id.clone(), None);
             if PermissionHandler::fetch_and_store(&state, &app_id, false)
                 .await
                 .is_err()

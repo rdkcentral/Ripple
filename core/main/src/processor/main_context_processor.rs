@@ -22,7 +22,8 @@ use std::{
 
 use ripple_sdk::{
     api::{
-        context::{ActivationStatus, RippleContext, RippleContextUpdateType},
+        config::FEATURE_CLOUD_PERMISSIONS,
+        context::{ActivationStatus, FeatureUpdate, RippleContext, RippleContextUpdateType},
         device::{
             device_info_request::DeviceInfoRequest,
             device_request::{InternetConnectionStatus, PowerState, SystemPowerState},

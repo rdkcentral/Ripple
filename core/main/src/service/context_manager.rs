@@ -16,7 +16,8 @@
 //
 
 use crate::state::platform_state::PlatformState;
-use ripple_sdk::api::context::RippleContextUpdateRequest;
+use ripple_sdk::api::config::FEATURE_CLOUD_PERMISSIONS;
+use ripple_sdk::api::context::{FeatureUpdate, RippleContextUpdateRequest};
 use ripple_sdk::api::device::device_events::{
     DeviceEvent, DeviceEventCallback, DeviceEventRequest,
 };
@@ -93,6 +94,14 @@ impl ContextManager {
 
         // Asynchronously get context and update the state
         tokio::spawn(async move {
+            // Set default cloud permissions value
+            ps_c.get_client().get_extn_client().context_update(
+                RippleContextUpdateRequest::UpdateFeatures(vec![FeatureUpdate::new(
+                    FEATURE_CLOUD_PERMISSIONS.into(),
+                    ps_c.get_device_manifest().get_features().cloud_permissions,
+                )]),
+            );
+
             // Get Initial power state
             if let Ok(resp) = ps_c
                 .get_client()
