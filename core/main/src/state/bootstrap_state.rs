@@ -20,7 +20,7 @@ use ripple_sdk::{
     async_channel::{unbounded, Receiver as CReceiver, Sender as CSender},
     extn::ffi::ffi_message::CExtnMessage,
     framework::bootstrap::TransientChannel,
-    log::info,
+    log::warn,
     tokio::sync::mpsc::{self, Receiver, Sender},
     utils::error::RippleError,
 };
@@ -127,11 +127,23 @@ impl BootstrapState {
                 .unwrap_or(RIPPLE_VER_FILE_DEFAULT.to_string());
             let version_var_name = std::env::var("RIPPLE_VERSIONS_VAR")
                 .unwrap_or(RIPPLE_VER_VAR_NAME_DEFAULT.to_string());
-            let ripple_ver = read_file(version_file_name)
-                .map(|res| res.get(&version_var_name).cloned())
-                .unwrap();
-            info!("ripple version {:?}", ripple_ver);
-            ripple_ver
+
+            match read_file(version_file_name.clone()) {
+                Ok(env_vars) => {
+                    if let Some(version) = env_vars.get(&version_var_name) {
+                        return Some(version.clone());
+                    }
+                }
+                Err(err) => {
+                    warn!(
+                        "error reading versions from {}, err={:?}",
+                        version_file_name.clone(),
+                        err
+                    );
+                }
+            }
+            warn!("error reading versions from {}", version_file_name.clone(),);
+            None
         }
         Ok(BootstrapState {
             platform_state,
