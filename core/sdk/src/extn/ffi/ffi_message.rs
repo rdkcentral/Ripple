@@ -185,7 +185,7 @@ mod tests {
         // Create a mock CExtnMessage
         let c_extn_message = CExtnMessage {
             id: "test_id".to_string(),
-            requestor,
+            requestor: requestor.clone(),
             target,
             target_id: "".to_string(),
             payload,
@@ -201,10 +201,7 @@ mod tests {
                 assert!(extn_message.is_ok(), "Expected Ok, but got Err");
                 if let Ok(extn_message) = extn_message {
                     assert_eq!(extn_message.id, "test_id");
-                    assert_eq!(
-                        extn_message.requestor,
-                        ExtnId::new_channel(ExtnClassId::Device, "info".to_string())
-                    );
+                    assert_eq!(extn_message.requestor.to_string(), requestor);
                     assert_eq!(extn_message.target, RippleContract::DeviceInfo);
                     assert_eq!(extn_message.target_id, None);
                     assert_eq!(

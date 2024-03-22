@@ -84,7 +84,7 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                                 return Err(RippleError::BootstrapError);
                             }
                         } else {
-                            error!("invalid channel builder in {}", path);
+                            error!("failed loading builder in {}", path);
                             return Err(RippleError::BootstrapError);
                         }
                     } else {

@@ -15,7 +15,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::utils::error::RippleError;
+use crate::{
+    framework::ripple_contract::{ContractAdjective, RippleContract},
+    utils::error::RippleError,
+};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::Value;
+
+use super::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExtnClassId {
@@ -133,11 +140,34 @@ impl ExtnClassType {
 /// Below capability means the given plugin offers a JsonRpsee rpc extension for a service named bridge
 ///
 /// `ripple:extn:jsonrpsee:bridge`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ExtnId {
     pub _type: ExtnType,
     pub class: ExtnClassId,
     pub service: String,
+}
+
+impl Serialize for ExtnId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for ExtnId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        if let Ok(str) = String::deserialize(deserializer) {
+            if let Ok(id) = ExtnId::try_from(str) {
+                return Ok(id);
+            }
+        }
+        Err(serde::de::Error::unknown_variant("unknown", &["unknown"]))
+    }
 }
 
 impl ToString for ExtnId {
@@ -406,9 +436,100 @@ impl ExtnId {
     }
 }
 
-impl PartialEq for ExtnId {
-    fn eq(&self, other: &ExtnId) -> bool {
-        self._type == other._type && self.class == other.class
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExtnProviderAdjective {
+    pub id: ExtnId,
+}
+
+impl Serialize for ExtnProviderAdjective {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.id.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for ExtnProviderAdjective {
+    fn deserialize<D>(deserializer: D) -> Result<ExtnProviderAdjective, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        if let Ok(str) = String::deserialize(deserializer) {
+            if let Ok(id) = ExtnId::try_from(str) {
+                return Ok(ExtnProviderAdjective { id });
+            }
+        }
+        Err(serde::de::Error::unknown_variant("unknown", &["unknown"]))
+    }
+}
+
+impl ContractAdjective for ExtnProviderAdjective {
+    fn get_contract(&self) -> RippleContract {
+        RippleContract::ExtnProvider(self.clone())
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ExtnProviderRequest {
+    pub value: Value,
+    pub id: ExtnId,
+}
+
+impl ExtnPayloadProvider for ExtnProviderRequest {
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        if let ExtnPayload::Request(ExtnRequest::Extn(value)) = payload {
+            if let Ok(v) = serde_json::from_value::<ExtnProviderRequest>(value) {
+                return Some(v);
+            }
+        }
+
+        None
+    }
+
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(ExtnRequest::Extn(
+            serde_json::to_value(self.clone()).unwrap(),
+        ))
+    }
+
+    fn contract() -> RippleContract {
+        // Will be replaced by the IEC before CExtnMessage conversion
+        RippleContract::ExtnProvider(ExtnProviderAdjective {
+            id: ExtnId::get_main_target("default".into()),
+        })
+    }
+
+    fn get_contract(&self) -> RippleContract {
+        RippleContract::ExtnProvider(ExtnProviderAdjective {
+            id: self.id.clone(),
+        })
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ExtnProviderResponse {
+    pub value: Value,
+}
+
+impl ExtnPayloadProvider for ExtnProviderResponse {
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        if let ExtnPayload::Response(ExtnResponse::Value(value)) = payload {
+            return Some(ExtnProviderResponse { value });
+        }
+
+        None
+    }
+
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Response(ExtnResponse::Value(self.value.clone()))
+    }
+
+    fn contract() -> RippleContract {
+        // Will be replaced by the IEC before CExtnMessage conversion
+        RippleContract::ExtnProvider(ExtnProviderAdjective {
+            id: ExtnId::get_main_target("default".into()),
+        })
     }
 }
 

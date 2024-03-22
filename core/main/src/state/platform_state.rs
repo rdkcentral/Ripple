@@ -113,7 +113,6 @@ impl PlatformState {
         app_library: Vec<AppLibraryEntry>,
     ) -> PlatformState {
         let exclusory = ExclusoryImpl::get(&manifest);
-
         Self {
             extn_manifest,
             cap_state: CapState::new(manifest.clone()),

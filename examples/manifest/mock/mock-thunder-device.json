@@ -1,0 +1,77 @@
+
+    {
+        "Controller.1.register": [
+            {
+                "params": {
+                    "event": "statechange",
+                    "id": "client.Controller.1.events"
+                },
+                "result": 0
+            }
+        ],
+        "org.rdk.System.1.getSystemVersions": [
+            {
+                "result": {
+                    "receiverVersion": "6.9.0.0",
+                    "stbTimestamp": "Tue 07 Nov 2023 00:03:20 AP UTC",
+                    "stbVersion": "SCXI11BEI_VBN_23Q4_sprint_20231107000320sdy_FG_EDGE_R2PB_NG",
+                    "success": true
+                }
+            }
+        ],
+        "org.rdk.System.register": [
+            {
+                "params": {
+                    "event":"onTimeZoneDSTChanged",
+                    "id":"client.org.rdk.System.events"
+                },
+                "result": 0,
+                "events": [
+                    {
+                        "delay": 0,
+                        "data": {
+                            "oldTimeZone": "America/New_York",
+                            "newTimeZone": "Europe/London",
+                            "oldAccuracy": "INITIAL",
+                            "newAccuracy": "FINAL"
+                        }
+
+                    }
+                ]
+            },
+            {
+                "params": {
+                    "event":"onSystemPowerStateChanged",
+                    "id":"client.org.rdk.System.events"
+                },
+                "result": 0,
+                "events": [
+                    {
+                        "delay": 0,
+                        "data": {
+                            "powerState": "ON",
+                            "currentPowerState": "ON"
+                        }
+                    }
+                ]
+            }
+        ],
+        "org.rdk.Network.register": [
+            {
+                "params": {
+                    "event":"onInternetStatusChange",
+                    "id":"client.org.rdk.Network.events"
+                },
+                "result": 0,
+                "events": [
+                    {
+                        "delay": 0,
+                        "data": {
+                            "state": 0,
+                            "status": "FULLY_CONNECTED"
+                        }
+                    }
+                ]
+            }
+        ]
+    }

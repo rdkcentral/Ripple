@@ -1,0 +1,136 @@
+{
+    "default_path": "/usr/lib/rust/",
+    "default_extension": "so",
+    "timeout": 2000,
+    "extns": [
+        {
+            "path": "libthunder",
+            "symbols": [
+                {
+                    "id": "ripple:channel:device:thunder",
+                    "uses": [
+                        "config"
+                    ],
+                    "fulfills": [
+                        "device_info",
+                        "window_manager",
+                        "browser",
+                        "wifi",
+                        "device_events",
+                        "device_persistence",
+                        "remote_accessory",
+                        "local.storage",
+                        "input.device_events",
+                        "hdr.device_events",
+                        "screen_resolution.device_events",
+                        "video_resolution.device_events",
+                        "voice_guidance.device_events",
+                        "network.device_events",
+                        "internet.device_events",
+                        "audio.device_events",
+                        "system_power_state.device_events",
+                        "time_zone.device_events",
+                        "remote_feature_control",
+                        "apps"
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "libdistributor_general",
+            "symbols": [
+                {
+                    "id": "ripple:channel:distributor:general",
+                    "uses": [
+                        "config"
+                    ],
+                    "fulfills": [
+                        "permissions",
+                        "account.session",
+                        "secure.storage",
+                        "advertising",
+                        "privacy_cloud.storage",
+                        "metrics",
+                        "session.token",
+                        "discovery",
+                        "media_events",
+                        "behavior_metrics",
+                        "root.session",
+                        "device.session"
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "libmock_device",
+            "symbols": [
+                {
+                    "id": "ripple:channel:device:mock_device",
+                    "config": {
+                        "mock_data_file": "mock-device.json",
+                        "activate_all_plugins": "true"
+                    },
+                    "uses": [
+                        "config"
+                    ],
+                    "fulfills": [
+                    ]
+                },
+                {
+                    "id": "ripple:extn:jsonrpsee:mock_device",
+                    "uses": [
+                        "ripple:channel:device:mock_device"
+                    ],
+                    "fulfills": [
+                        "json_rpsee"
+                    ]
+                }
+            ]
+        }
+    ],
+    "required_contracts": [
+        "rpc",
+        "lifecycle_management",
+        "device_info",
+        "window_manager",
+        "browser",
+        "permissions",
+        "account_session",
+        "wifi",
+        "device_events",
+        "device_persistence",
+        "remote_accessory",
+        "secure_storage",
+        "advertising",
+        "privacy_settings",
+        "session_token",
+        "metrics",
+        "discovery",
+        "media_events",
+        "account.session"
+    ],
+    "rpc_aliases": {
+        "device.model": [
+            "custom.model"
+        ]
+    },
+    "passthrough_rpcs": {
+        "endpoints": [
+           {
+	            "url": "ws://127.0.0.1:9998/jsonrpc",
+	            "protocol": "thunder",
+                "rpcs": [
+                    { 
+                        "matcher":"HDMIInput.*",
+                        "transformer": {
+                            "HDMIInput.onAutoLowLatencyModeSignalChanged": {
+                                "module":"org.rdk.HdmiInput",
+                                "method": "gameFeatureStatusUpdate"
+                            }
+                        }
+                    }
+                ]
+	        }
+        ]
+    }
+}

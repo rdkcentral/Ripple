@@ -59,6 +59,7 @@ pub struct TimeZoneChangedThunderEvent {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ResolutionChangedEvent {
     pub width: i32,
     pub height: i32,
