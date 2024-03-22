@@ -577,6 +577,27 @@ impl ExtnClient {
         Err(RippleError::ExtnError)
     }
 
+    ///
+    /// Same as request except will inspect the response payload for errors
+    /// and place error in the returned result instead of in the payload
+    /// TODO: should request just do this?
+    pub async fn request_and_flatten(
+        &mut self,
+        payload: impl ExtnPayloadProvider,
+    ) -> Result<ExtnMessage, RippleError> {
+        let res = self.request(payload).await;
+        match res {
+            Err(e) => Err(e),
+            Ok(r) => {
+                if let Some(ExtnResponse::Error(e)) = r.payload.extract() {
+                    Err(e)
+                } else {
+                    Ok(r)
+                }
+            }
+        }
+    }
+
     /// Request method which accepts a impl [ExtnPayloadProvider] and uses the capability provided by the trait to send the request.
     /// As part of the send process it adds a callback to asynchronously respond back to the caller when the response does get
     /// received. This method can be called synchrnously with a timeout
