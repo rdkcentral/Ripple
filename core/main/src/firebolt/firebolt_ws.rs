@@ -220,13 +220,12 @@ impl FireboltWs {
             error!("Error registering the connection {:?}", e);
             return;
         }
-        if !gateway_secure {
-            if PermissionHandler::fetch_and_store(&state, &app_id, false)
+        if !gateway_secure
+            && PermissionHandler::fetch_and_store(&state, &app_id, false)
                 .await
                 .is_err()
-            {
-                error!("Couldnt pre cache permissions");
-            }
+        {
+            error!("Couldnt pre cache permissions");
         }
 
         let (mut sender, mut receiver) = ws_stream.split();
