@@ -19,6 +19,7 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
+use crate::utils::error::RippleError;
 use crate::{
     api::{
         device::entertainment_data::{ContentIdentifiers, NavigationIntent},
@@ -26,6 +27,7 @@ use crate::{
     },
     utils::serde_utils::{optional_date_time_str_serde, progress_value_deserialize},
 };
+use async_trait::async_trait;
 
 pub const DISCOVERY_EVENT_ON_NAVIGATE_TO: &str = "discovery.onNavigateTo";
 
@@ -386,25 +388,26 @@ pub struct LaunchPadAccountLinkRequestParams {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LaunchPadAccountLinkResponse {}
 
-// #[async_trait]
-// pub trait AccountLinkService {
-//     async fn entitlements_account_link(
-//         self: Box<Self>,
-//         request: DpabRequest,
-//         params: EntitlementsAccountLinkRequestParams,
-//     );
-//     async fn media_events_account_link(
-//         self: Box<Self>,
-//         request: DpabRequest,
-//         params: MediaEventsAccountLinkRequestParams,
-//     );
-//     async fn launch_pad_account_link(
-//         self: Box<Self>,
-//         request: DpabRequest,
-//         params: LaunchPadAccountLinkRequestParams,
-//     );
-//     async fn sign_in(self: Box<Self>, request: DpabRequest, params: SignInRequestParams);
-// }
+#[async_trait]
+pub trait AccountLinkService {
+    async fn entitlements_account_link(
+        self: Box<Self>,
+        params: EntitlementsAccountLinkRequestParams,
+    ) -> Result<EntitlementsAccountLinkResponse, RippleError>;
+    async fn media_events_account_link(
+        self: Box<Self>,
+        params: MediaEventsAccountLinkRequestParams,
+    ) -> Result<MediaEventsAccountLinkResponse, RippleError>;
+    async fn launch_pad_account_link(
+        self: Box<Self>,
+        params: LaunchPadAccountLinkRequestParams,
+    ) -> Result<LaunchPadAccountLinkResponse, RippleError>;
+    async fn sign_in(
+        self: Box<Self>,
+        params: SignInRequestParams,
+    ) -> Result<(), RippleError>;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
