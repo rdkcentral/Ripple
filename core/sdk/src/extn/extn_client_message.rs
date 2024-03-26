@@ -111,7 +111,13 @@ impl ExtnMessage {
     }
 
     pub fn get_extn_payload(&self) -> Result<ExtnPayload, RippleError> {
-        serde_json::from_value(self.payload.clone()).unwrap_or(Err(RippleError::ParseError))
+        match serde_json::from_value(self.payload.clone()) {
+            Ok(v) => Ok(v),
+            Err(e) => {
+                error!("Error in get_extn_payload {:?}", e);
+                Err(RippleError::ParseError)
+            }
+        }
     }
 
     /// This method can be used to create [ExtnResponse] payload message from a given [ExtnRequest]
