@@ -28,7 +28,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct MockEvent {
     pub event_name: String,
     pub result: Value,
@@ -39,9 +39,7 @@ pub struct MockEvent {
 
 impl ExtnPayloadProvider for MockEvent {
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Event(ExtnEvent::Value(
-            serde_json::to_value(self.clone()).unwrap(),
-        ))
+        ExtnPayload::Event(ExtnEvent::Value(serde_json::to_value(self).unwrap()))
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
@@ -59,7 +57,7 @@ impl ExtnPayloadProvider for MockEvent {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct MockRequest {
     pub app_id: String,
     pub contract: RippleContract,
@@ -77,9 +75,7 @@ impl ExtnPayloadProvider for MockRequest {
     }
 
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::Extn(
-            serde_json::to_value(self.clone()).unwrap(),
-        ))
+        ExtnPayload::Request(ExtnRequest::Extn(serde_json::to_value(self).unwrap()))
     }
 
     fn get_contract(&self) -> RippleContract {

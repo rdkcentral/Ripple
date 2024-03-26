@@ -574,7 +574,7 @@ pub mod tests {
         let result = MockEventProcessor::process_event(
             processor.get_state(),
             mock_message.clone(),
-            mock_extracted_message.clone(),
+            mock_extracted_message,
         )
         .await;
 
@@ -668,9 +668,9 @@ pub mod tests {
         assert!(!MockEventProcessor::check_message_type(&request_message));
     }
 
-    #[rstest(exp_resp, case(Some(ExtnResponse::Boolean(true))))]
+    #[rstest(exp_resp, case(true))]
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_request_processor_run(exp_resp: Option<ExtnResponse>) {
+    async fn test_request_processor_run(exp_resp: bool) {
         let (mock_sender, receiver) = ExtnSender::mock();
         let mut extn_client = ExtnClient::new(receiver, mock_sender.clone());
         let processor = MockRequestProcessor {
@@ -692,7 +692,7 @@ pub mod tests {
             .request(MockRequest {
                 app_id: "test_app_id".to_string(),
                 contract: RippleContract::Internal,
-                expected_response: exp_resp.clone(),
+                expected_response: Some(ExtnResponse::Boolean(exp_resp)),
             })
             .await;
 
@@ -703,7 +703,7 @@ pub mod tests {
                     requestor: ExtnId::get_main_target("main".into()),
                     target: RippleContract::Internal,
                     target_id: None,
-                    payload: ExtnPayload::Response(exp_resp.clone().unwrap()).as_value(),
+                    payload: ExtnPayload::Response(ExtnResponse::Boolean(exp_resp)).as_value(),
                     callback: None,
                     ts: Some(Utc::now().timestamp_millis()),
                 };

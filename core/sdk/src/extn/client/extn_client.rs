@@ -1622,7 +1622,7 @@ pub mod tests {
             requestor: ExtnId::get_main_target("main".into()),
             target: RippleContract::Internal,
             target_id: None,
-            payload: ExtnPayload::Response(exp_resp.clone()).as_value(),
+            payload: ExtnPayload::Response(exp_resp).as_value(),
             callback: None,
             ts: Some(Utc::now().timestamp_millis()),
         };
@@ -1790,7 +1790,7 @@ pub mod tests {
         };
 
         let response = ExtnResponse::String("test_make".to_string());
-        let result = extn_client.respond(req.clone(), response.clone()).await;
+        let result = extn_client.respond(req.clone(), response).await;
         assert!(result.is_ok());
 
         if let Ok(received_msg) = mock_rx.recv().await {

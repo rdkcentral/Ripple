@@ -209,7 +209,7 @@ impl From<ExtnPayload> for String {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum ExtnPayload {
     Request(ExtnRequest),
     Response(ExtnResponse),
@@ -217,10 +217,6 @@ pub enum ExtnPayload {
 }
 
 impl ExtnPayload {
-    pub fn extract<T: ExtnPayloadProvider>(&self) -> Option<T> {
-        T::get_from_payload(self.clone())
-    }
-
     pub fn is_request(&self) -> bool {
         matches!(self, ExtnPayload::Request(_))
     }
@@ -231,22 +227,6 @@ impl ExtnPayload {
 
     pub fn is_event(&self) -> bool {
         matches!(self, ExtnPayload::Event(_))
-    }
-
-    pub fn as_response(&self) -> Option<ExtnResponse> {
-        if let ExtnPayload::Response(r) = self.clone() {
-            Some(r)
-        } else {
-            None
-        }
-    }
-
-    pub fn as_request(&self) -> Option<ExtnRequest> {
-        if let ExtnPayload::Request(r) = self.clone() {
-            Some(r)
-        } else {
-            None
-        }
     }
 
     pub fn as_value(&self) -> Value {
@@ -303,7 +283,7 @@ impl ExtnPayload {
 /// }
 /// }
 /// ```
-pub trait ExtnPayloadProvider: Clone + Send + Sync + Debug
+pub trait ExtnPayloadProvider: Send + Sync + Debug
 where
     Self: Sized,
 {
@@ -369,7 +349,7 @@ impl ExtnPayloadProvider for ExtnRequest {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum ExtnResponse {
     None(()),
     String(String),
@@ -402,7 +382,7 @@ pub enum ExtnResponse {
 
 impl ExtnPayloadProvider for ExtnResponse {
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Response(self.clone())
+        ExtnPayload::Response(serde_json::from_value(serde_json::to_value(self).unwrap()).unwrap())
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
@@ -459,10 +439,24 @@ mod tests {
     };
     use rstest::rstest;
 
+    fn get_message_for_payload(payload: ExtnPayload) -> ExtnMessage {
+        ExtnMessage {
+            id: "123".to_string(),
+            requestor: ExtnId::get_main_target("some".to_owned()),
+            target: RippleContract::Internal,
+            target_id: None,
+            payload: payload.as_value(),
+            callback: None,
+            ts: None,
+        }
+    }
+
     #[test]
     fn test_extract_response() {
-        let response_payload = ExtnPayload::Response(ExtnResponse::String("Response".to_string()));
-        let extracted_response: Option<ExtnResponse> = response_payload.extract();
+        let extracted_response: Option<ExtnResponse> = get_message_for_payload(
+            ExtnPayload::Response(ExtnResponse::String("Response".to_string())),
+        )
+        .extract();
         assert_eq!(
             extracted_response,
             Some(ExtnResponse::String("Response".to_string()))
@@ -472,7 +466,8 @@ mod tests {
     #[test]
     fn test_extract_event() {
         let event_payload = ExtnPayload::Event(ExtnEvent::String("Event".to_string()));
-        let extracted_event: Option<ExtnEvent> = event_payload.extract();
+
+        let extracted_event: Option<ExtnEvent> = get_message_for_payload(event_payload).extract();
         assert_eq!(
             extracted_event,
             Some(ExtnEvent::String("Event".to_string()))
@@ -506,7 +501,8 @@ mod tests {
     #[test]
     fn test_as_response() {
         let response_payload = ExtnPayload::Response(ExtnResponse::String("Response".to_string()));
-        let extracted_response: Option<ExtnResponse> = response_payload.as_response();
+        let extracted_response: Option<ExtnResponse> =
+            get_message_for_payload(response_payload).as_response();
         assert_eq!(
             extracted_response,
             Some(ExtnResponse::String("Response".to_string()))
@@ -516,7 +512,8 @@ mod tests {
     #[test]
     fn test_as_response_with_non_response_payload() {
         let request_payload = ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName));
-        let extracted_response: Option<ExtnResponse> = request_payload.as_response();
+        let extracted_response: Option<ExtnResponse> =
+            get_message_for_payload(request_payload).as_response();
         assert_eq!(extracted_response, None);
     }
 
