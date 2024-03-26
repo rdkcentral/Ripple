@@ -84,6 +84,10 @@ impl PrivacySettings {
             allow_watch_history: false,
         }
     }
+
+    pub fn as_response(&self) -> ExtnResponse {
+        ExtnResponse::Value(serde_json::to_value(self.clone()).unwrap())
+    }
 }
 
 impl Default for PrivacySettings {
@@ -147,9 +151,7 @@ impl ExtnPayloadProvider for PrivacySettings {
     }
 
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Response(ExtnResponse::Value(
-            serde_json::to_value(self.clone()).unwrap(),
-        ))
+        ExtnPayload::Response(self.as_response())
     }
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {
@@ -262,6 +264,12 @@ pub struct ExclusionPolicy {
     pub watch_history: Option<ExclusionPolicyData>,
 }
 
+impl ExclusionPolicy {
+    pub fn as_response(&self) -> ExtnResponse {
+        ExtnResponse::Value(serde_json::to_value(self.clone()).unwrap())
+    }
+}
+
 impl ExtnPayloadProvider for ExclusionPolicy {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         if let ExtnPayload::Response(ExtnResponse::Value(v)) = payload {
@@ -274,9 +282,7 @@ impl ExtnPayloadProvider for ExclusionPolicy {
     }
 
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Response(ExtnResponse::Value(
-            serde_json::to_value(self.clone()).unwrap(),
-        ))
+        ExtnPayload::Response(self.as_response())
     }
 
     fn contract() -> crate::framework::ripple_contract::RippleContract {

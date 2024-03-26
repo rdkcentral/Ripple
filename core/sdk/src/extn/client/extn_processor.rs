@@ -230,7 +230,7 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     }
 
     async fn ack(mut extn_client: ExtnClient, request: ExtnMessage) -> RippleResponse {
-        return extn_client.send_message(request.ack()).await;
+        extn_client.send_message(request.ack()).await
     }
 
     async fn run(&mut self) {
