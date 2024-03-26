@@ -251,9 +251,9 @@ impl ExtnClient {
             }
             let message = message_result.unwrap();
             debug!("** receiving message latency={} msg={:?}", latency, message);
-            if message.payload.is_response() {
+            if message.is_response() {
                 Self::handle_single(message, self.response_processors.clone());
-            } else if message.payload.is_event() {
+            } else if message.is_event() {
                 let is_main = self.sender.get_cap().is_main();
                 if is_main // This part of code is for the main ExntClient to handle
                             && message.target_id.is_some() // The sender knew the target
@@ -271,7 +271,7 @@ impl ExtnClient {
                     }
                 } else {
                     if !is_main {
-                        if let Some(context) = RippleContext::is_ripple_context(&message.payload) {
+                        if let Some(context) = RippleContext::is_ripple_context(&message) {
                             trace!(
                                 "Received ripple context in {} message: {:?}",
                                 self.sender.get_cap().to_string(),
@@ -290,7 +290,7 @@ impl ExtnClient {
                 let target_contract = message.clone().target;
                 if current_cap.is_main() {
                     if let Some(request) =
-                        RippleContextUpdateRequest::is_ripple_context_update(&message.payload)
+                        RippleContextUpdateRequest::is_ripple_context_update(&message)
                     {
                         self.context_update(request);
                     }
@@ -454,7 +454,7 @@ impl ExtnClient {
             }
         };
 
-        if RippleContext::is_ripple_context(&msg.payload).is_none() {
+        if RippleContext::is_ripple_context(&msg).is_none() {
             // Not every extension will have a context listener
             error!("No Event Processor for {:?}", msg);
         }
@@ -529,7 +529,7 @@ impl ExtnClient {
         req: ExtnMessage,
         response: ExtnResponse,
     ) -> Result<(), RippleError> {
-        if !req.payload.is_request() {
+        if !req.is_request() {
             Err(RippleError::InvalidInput)
         } else {
             let msg = req.get_response(response).unwrap();
@@ -589,7 +589,7 @@ impl ExtnClient {
         match res {
             Err(e) => Err(e),
             Ok(r) => {
-                if let Some(ExtnResponse::Error(e)) = r.payload.extract() {
+                if let Some(ExtnResponse::Error(e)) = r.extract() {
                     Err(e)
                 } else {
                     Ok(r)
@@ -620,7 +620,7 @@ impl ExtnClient {
                 let message: Result<ExtnMessage, RippleError> = cmessage.try_into();
 
                 if let Ok(message) = message {
-                    if let Some(v) = message.payload.extract() {
+                    if let Some(v) = message.extract() {
                         return Ok(v);
                     } else {
                         return Err(RippleError::ParseError);
@@ -1102,7 +1102,7 @@ pub mod tests {
                     requestor: ExtnId::get_main_target("main".into()),
                     target: RippleContract::Internal,
                     target_id: None,
-                    payload: ExtnPayload::Response(ExtnResponse::Boolean(true)),
+                    payload: ExtnPayload::Response(ExtnResponse::Boolean(true)).as_value(),
                     callback: None,
                     ts: Some(Utc::now().timestamp_millis()),
                 };
@@ -1230,7 +1230,7 @@ pub mod tests {
                     requestor: ExtnId::get_main_target("main".into()),
                     target: RippleContract::DeviceInfo,
                     target_id: None,
-                    payload: ExtnPayload::Response(ExtnResponse::Boolean(true)),
+                    payload: ExtnPayload::Response(ExtnResponse::Boolean(true)).as_value(),
                     callback: None,
                     ts: Some(Utc::now().timestamp_millis()),
                 };
@@ -1318,7 +1318,8 @@ pub mod tests {
                     target_id: None,
                     payload: ExtnPayload::Response(ExtnResponse::String(
                         "some_config_resp".to_string(),
-                    )),
+                    ))
+                    .as_value(),
                     callback: None,
                     ts: Some(Utc::now().timestamp_millis()),
                 };
@@ -1562,7 +1563,8 @@ pub mod tests {
                     target_id: None,
                     payload: ExtnPayload::Response(ExtnResponse::Error(
                         RippleError::ProcessorError,
-                    )),
+                    ))
+                    .as_value(),
                     callback: None,
                     ts: Some(Utc::now().timestamp_millis()),
                 };
@@ -1620,7 +1622,7 @@ pub mod tests {
             requestor: ExtnId::get_main_target("main".into()),
             target: RippleContract::Internal,
             target_id: None,
-            payload: ExtnPayload::Response(exp_resp.clone()),
+            payload: ExtnPayload::Response(exp_resp.clone()).as_value(),
             callback: None,
             ts: Some(Utc::now().timestamp_millis()),
         };
@@ -1682,7 +1684,7 @@ pub mod tests {
             requestor: ExtnId::get_main_target("main".into()),
             target: RippleContract::Internal,
             target_id: None,
-            payload: ExtnPayload::Response(exp_resp),
+            payload: ExtnPayload::Response(exp_resp).as_value(),
             callback: None,
             ts: Some(Utc::now().timestamp_millis()),
         };
@@ -1744,7 +1746,7 @@ pub mod tests {
             requestor: ExtnId::get_main_target("main".into()),
             target: RippleContract::Internal,
             target_id: None,
-            payload: ExtnPayload::Response(exp_resp),
+            payload: ExtnPayload::Response(exp_resp).as_value(),
             callback: None,
             ts: Some(Utc::now().timestamp_millis()),
         };
@@ -1781,7 +1783,8 @@ pub mod tests {
             target_id: None,
             payload: ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
                 DeviceInfoRequest::Make,
-            ))),
+            )))
+            .as_value(),
             callback: None,
             ts: Some(Utc::now().timestamp_millis()),
         };
@@ -1824,7 +1827,8 @@ pub mod tests {
             requestor: ExtnId::get_main_target("main".into()),
             target: RippleContract::Internal,
             target_id: None,
-            payload: ExtnPayload::Response(ExtnResponse::String("test_make".to_string())),
+            payload: ExtnPayload::Response(ExtnResponse::String("test_make".to_string()))
+                .as_value(),
             callback: None,
             ts: Some(Utc::now().timestamp_millis()),
         };

@@ -186,8 +186,7 @@ impl PermissionHandler {
                 .ok()
             {
                 Some(extn_response) => {
-                    if let Some(permission_response) =
-                        extn_response.payload.extract::<PermissionResponse>()
+                    if let Some(permission_response) = extn_response.extract::<PermissionResponse>()
                     {
                         let mut permission_response_copy = permission_response;
                         return Self::process_permissions(
@@ -215,8 +214,8 @@ impl PermissionHandler {
             .request(AppsRequest::GetFireboltPermissions(app_id.to_string()))
             .await?;
 
-        let mut permissions = match resp.payload {
-            ExtnPayload::Response(response) => match response {
+        let mut permissions = match resp.get_extn_payload() {
+            Ok(ExtnPayload::Response(response)) => match response {
                 ExtnResponse::Permission(perms) => perms,
                 ExtnResponse::Error(e) => {
                     error!("device_fetch_and_store: e={:?}", e);

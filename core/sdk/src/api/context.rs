@@ -79,8 +79,12 @@ pub enum RippleContextUpdateType {
 }
 
 impl RippleContext {
-    pub fn is_ripple_context(msg: &ExtnPayload) -> Option<Self> {
-        RippleContext::get_from_payload(msg.clone())
+    pub fn is_ripple_context(msg: &ExtnMessage) -> Option<Self> {
+        if let Ok(v) = msg.get_extn_payload() {
+            RippleContext::get_from_payload(v)
+        } else {
+            None
+        }
     }
 
     pub fn update(&mut self, request: RippleContextUpdateRequest) -> bool {
@@ -181,7 +185,7 @@ impl RippleContext {
             requestor: ExtnId::get_main_target("ripple_context".to_owned()),
             target: RippleContract::RippleContext,
             target_id: None,
-            payload: self.get_extn_payload(),
+            payload: self.get_extn_payload().as_value(),
             callback: None,
             ts: None,
         }
@@ -229,8 +233,12 @@ pub enum RippleContextUpdateRequest {
 }
 
 impl RippleContextUpdateRequest {
-    pub fn is_ripple_context_update(msg: &ExtnPayload) -> Option<RippleContextUpdateRequest> {
-        RippleContextUpdateRequest::get_from_payload(msg.clone())
+    pub fn is_ripple_context_update(msg: &ExtnMessage) -> Option<RippleContextUpdateRequest> {
+        if let Ok(v) = msg.get_extn_payload() {
+            RippleContextUpdateRequest::get_from_payload(v)
+        } else {
+            None
+        }
     }
 }
 

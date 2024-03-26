@@ -200,7 +200,7 @@ impl MockExtnClient {
         ExtnMessage {
             callback: None,
             id: Uuid::new_v4().to_string(),
-            payload: ExtnPayload::Request(req),
+            payload: ExtnPayload::Request(req).as_value(),
             requestor: ExtnId::new_channel(ExtnClassId::Internal, "test".into()),
             target: contract,
             target_id: None,

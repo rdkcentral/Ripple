@@ -111,8 +111,8 @@ pub fn get_mock_message(payload_type: PayloadType) -> ExtnMessage {
         target: RippleContract::Internal,
         target_id: Some(ExtnId::get_main_target("main".into())),
         payload: match payload_type {
-            PayloadType::Event => get_mock_event_payload(),
-            PayloadType::Request => get_mock_request_payload(),
+            PayloadType::Event => get_mock_event_payload().as_value(),
+            PayloadType::Request => get_mock_request_payload().as_value(),
         },
         callback: None,
         ts: Some(Utc::now().timestamp_millis()),

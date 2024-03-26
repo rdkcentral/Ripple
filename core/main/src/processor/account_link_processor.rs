@@ -91,7 +91,7 @@ impl AccountLinkProcessor {
         let resp = state.get_client().send_extn_request(payload).await;
 
         if let Ok(v) = resp {
-            if let Some(ExtnResponse::None(())) = v.payload.extract() {
+            if let Some(ExtnResponse::None(())) = v.extract() {
                 return Self::respond(
                     state.get_client().get_extn_client(),
                     msg,
@@ -167,7 +167,7 @@ impl AccountLinkProcessor {
 
         let resp = state.get_client().send_extn_request(payload).await;
         if let Ok(v) = resp {
-            if let Some(ExtnResponse::None(())) = v.payload.extract() {
+            if let Some(ExtnResponse::None(())) = v.extract() {
                 return Self::respond(
                     state.get_client().get_extn_client(),
                     msg,
@@ -207,7 +207,7 @@ impl AccountLinkProcessor {
 
         let resp = state.get_client().send_extn_request(payload).await;
         if let Ok(v) = resp {
-            if let Some(ExtnResponse::None(())) = v.payload.extract() {
+            if let Some(ExtnResponse::None(())) = v.extract() {
                 return Self::respond(
                     state.get_client().get_extn_client(),
                     msg,

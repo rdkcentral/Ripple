@@ -73,7 +73,7 @@ impl ProfileServer for ProfileImpl {
             .send_extn_request(pin_request)
             .await
         {
-            if let Some(ExtnResponse::PinChallenge(v)) = response.payload.extract() {
+            if let Some(ExtnResponse::PinChallenge(v)) = response.extract() {
                 return Ok(v.granted.map_or(false, |inner| inner));
             }
         }
@@ -99,7 +99,7 @@ impl ProfileServer for ProfileImpl {
             .send_extn_request(pin_request)
             .await
         {
-            if let Some(ExtnResponse::PinChallenge(v)) = response.payload.extract() {
+            if let Some(ExtnResponse::PinChallenge(v)) = response.extract() {
                 return Ok(v.granted.map_or(false, |inner| inner));
             }
         }

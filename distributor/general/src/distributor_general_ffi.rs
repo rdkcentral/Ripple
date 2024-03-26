@@ -90,7 +90,7 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
         let client_c = client.clone();
         tokio::spawn(async move {
             if let Ok(response) = client.request(Config::SavedDir).await {
-                if let Some(ExtnResponse::String(value)) = response.payload.extract() {
+                if let Some(ExtnResponse::String(value)) = response.extract() {
                     client.add_request_processor(DistributorPrivacyProcessor::new(
                         client.clone(),
                         value.clone(),

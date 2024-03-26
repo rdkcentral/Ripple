@@ -84,7 +84,7 @@ impl AccountServer for AccountImpl {
                     })
                     .await
                 {
-                    if let Some(ExtnResponse::String(s)) = resp.payload.extract() {
+                    if let Some(ExtnResponse::String(s)) = resp.extract() {
                         return Ok(s);
                     }
                 }

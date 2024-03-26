@@ -513,8 +513,8 @@ impl PrivacyImpl {
                 let payload = PrivacySettingsStoreRequest::GetPrivacySettings(property);
                 let response = platform_state.get_client().send_extn_request(payload).await;
                 if let Ok(extn_msg) = response {
-                    match extn_msg.payload {
-                        ExtnPayload::Response(res) => match res {
+                    match extn_msg.get_extn_payload() {
+                        Ok(ExtnPayload::Response(res)) => match res {
                             ExtnResponse::Boolean(val) => RpcResult::Ok(val),
                             _ => RpcResult::Err(jsonrpsee::core::Error::Custom(
                                 "Unable to fetch".to_owned(),
@@ -537,7 +537,7 @@ impl PrivacyImpl {
                         dist_session,
                     });
                     if let Ok(resp) = platform_state.get_client().send_extn_request(request).await {
-                        if let Some(ExtnResponse::Boolean(b)) = resp.payload.extract() {
+                        if let Some(ExtnResponse::Boolean(b)) = resp.extract() {
                             return Ok(b);
                         }
                     }
@@ -570,8 +570,8 @@ impl PrivacyImpl {
                 let payload = PrivacySettingsStoreRequest::SetPrivacySettings(property, value);
                 let response = platform_state.get_client().send_extn_request(payload).await;
                 if let Ok(extn_msg) = response {
-                    match extn_msg.payload {
-                        ExtnPayload::Response(res) => match res {
+                    match extn_msg.get_extn_payload() {
+                        Ok(ExtnPayload::Response(res)) => match res {
                             ExtnResponse::None(_) => RpcResult::Ok(()),
                             _ => RpcResult::Err(jsonrpsee::core::Error::Custom(
                                 "Unable to fetch".to_owned(),
@@ -1032,7 +1032,7 @@ impl PrivacyServer for PrivacyImpl {
                 if let Some(dist_session) = self.state.session_state.get_account_session() {
                     let request = PrivacyCloudRequest::GetProperties(dist_session);
                     if let Ok(resp) = self.state.get_client().send_extn_request(request).await {
-                        if let Some(b) = resp.payload.extract() {
+                        if let Some(b) = resp.extract() {
                             return Ok(b);
                         }
                     }

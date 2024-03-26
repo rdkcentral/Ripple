@@ -46,7 +46,7 @@ pub struct CExtnMessage {
 
 impl From<ExtnMessage> for CExtnMessage {
     fn from(value: ExtnMessage) -> Self {
-        let payload: String = value.payload.into();
+        let payload: String = value.payload.to_string();
         CExtnMessage {
             callback: value.callback,
             id: value.id,
@@ -88,7 +88,7 @@ impl TryInto<ExtnMessage> for CExtnMessage {
         if payload.is_err() {
             return Err(RippleError::ParseError);
         }
-        let payload = payload.unwrap();
+        let payload = serde_json::to_value(payload.unwrap()).unwrap();
         let ts = Some(self.ts);
         Ok(ExtnMessage {
             callback: self.callback,
@@ -121,7 +121,7 @@ mod tests {
             requestor: ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
             target: RippleContract::Internal,
             target_id: Some(ExtnId::get_main_target("main".into())),
-            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
+            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)).as_value(),
             callback: None,
             ts: Some(1234567890),
         };
@@ -208,7 +208,7 @@ mod tests {
                     assert_eq!(extn_message.target, RippleContract::DeviceInfo);
                     assert_eq!(extn_message.target_id, None);
                     assert_eq!(
-                        extn_message.payload,
+                        extn_message.get_extn_payload().unwrap(),
                         ExtnPayload::Request(ExtnRequest::Config(
                             crate::api::config::Config::DefaultName
                         ))

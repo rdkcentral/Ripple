@@ -202,7 +202,7 @@ impl AuthenticationImpl {
             }
         };
         match resp {
-            Ok(payload) => match payload.payload.extract().unwrap() {
+            Ok(payload) => match payload.extract().unwrap() {
                 ExtnResponse::Token(t) => Ok(TokenResult {
                     value: t.value,
                     expires: t.expires,

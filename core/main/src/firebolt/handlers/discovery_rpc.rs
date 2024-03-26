@@ -268,7 +268,6 @@ impl DiscoveryImpl {
         let def_lang = match result {
             Ok(extn_message) => {
                 match extn_message
-                    .payload
                     .extract()
                     .unwrap_or_else(|| ExtnResponse::String("en".to_owned()))
                 {
@@ -478,7 +477,7 @@ impl DiscoveryServer for DiscoveryImpl {
             .send_extn_request(AccountLinkRequest::Watched(request))
             .await
         {
-            if let Some(ExtnResponse::Boolean(v)) = response.payload.extract() {
+            if let Some(ExtnResponse::Boolean(v)) = response.extract() {
                 return Ok(v);
             }
         }
@@ -511,7 +510,7 @@ impl DiscoveryServer for DiscoveryImpl {
             .send_extn_request(AccountLinkRequest::Watched(request))
             .await
         {
-            if let Some(ExtnResponse::Boolean(v)) = response.payload.extract() {
+            if let Some(ExtnResponse::Boolean(v)) = response.extract() {
                 return Ok(v);
             }
         }

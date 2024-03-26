@@ -901,7 +901,7 @@ impl ThunderDeviceInfoRequestProcessor {
             return resolution;
         }
         if let Ok(response) = state.get_client().request(Config::DefaultValues).await {
-            if let Some(ExtnResponse::Value(value)) = response.payload.extract() {
+            if let Some(ExtnResponse::Value(value)) = response.extract() {
                 if let Ok(default_values) = serde_json::from_value::<DefaultValues>(value) {
                     return default_values.video_dimensions;
                 }
@@ -1753,7 +1753,7 @@ pub mod tests {
         )
         .await;
         let msg: ExtnMessage = r.recv().await.unwrap().try_into().unwrap();
-        let resp_opt = msg.payload.extract::<DeviceResponse>();
+        let resp_opt = msg.extract::<DeviceResponse>();
         if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp_opt {
             let exp = tests.iter().find(|x| x.build_name == build_name).unwrap();
             assert_eq!(info, exp.info);

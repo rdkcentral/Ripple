@@ -137,7 +137,7 @@ mod tests {
             requestor: ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
             target: RippleContract::Internal,
             target_id: Some(ExtnId::get_main_target("main".into())),
-            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
+            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)).as_value(),
             callback: None,
             ts: Some(1234567890),
         };
@@ -187,7 +187,7 @@ mod tests {
             requestor: ExtnId::new_channel(ExtnClassId::Device, "other".to_string()),
             target: RippleContract::Internal,
             target_id: Some(ExtnId::get_main_target("main".into())),
-            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
+            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)).as_value(),
             callback: None,
             ts: Some(1234567890),
         };
@@ -242,7 +242,7 @@ mod tests {
             requestor: ExtnId::new_channel(ExtnClassId::Device, "other".to_string()),
             target: RippleContract::Internal,
             target_id: Some(ExtnId::get_main_target("main".into())),
-            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
+            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)).as_value(),
             callback: None,
             ts: Some(1234567890),
         };
@@ -279,7 +279,7 @@ mod tests {
             requestor: ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
             target: RippleContract::Internal,
             target_id: Some(ExtnId::get_main_target("main".into())),
-            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
+            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)).as_value(),
             callback: None,
             ts: Some(1234567890),
         };

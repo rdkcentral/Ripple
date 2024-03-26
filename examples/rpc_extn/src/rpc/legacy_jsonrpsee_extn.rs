@@ -83,7 +83,7 @@ impl LegacyServer for LegacyImpl {
             params_json: RpcRequest::prepend_ctx(Some(serde_json::Value::Null), &new_ctx),
         };
         if let Ok(msg) = client.request(rpc_request).await {
-            if let Some(ExtnResponse::Value(v)) = msg.payload.extract() {
+            if let Some(ExtnResponse::Value(v)) = msg.extract() {
                 if let Some(v) = v.as_str() {
                     return Ok(v.into());
                 }

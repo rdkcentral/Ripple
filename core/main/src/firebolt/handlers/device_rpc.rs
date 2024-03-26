@@ -203,9 +203,7 @@ pub async fn get_uid(state: &PlatformState, app_id: String) -> RpcResult<String>
                 })
                 .await
             {
-                if let Some(ExtnResponse::String(enc_device_id)) =
-                    resp.payload.extract::<ExtnResponse>()
-                {
+                if let Some(ExtnResponse::String(enc_device_id)) = resp.extract::<ExtnResponse>() {
                     return Ok(enc_device_id);
                 }
             }
@@ -222,7 +220,7 @@ pub async fn get_ll_mac_addr(state: PlatformState) -> RpcResult<String> {
         .send_extn_request(DeviceInfoRequest::MacAddress)
         .await;
     match resp {
-        Ok(response) => match response.payload.extract().unwrap() {
+        Ok(response) => match response.extract().unwrap() {
             ExtnResponse::String(value) => Ok(filter_mac(value)),
             _ => Err(jsonrpsee::core::Error::Custom(String::from(
                 "MAC Info error response TBD",
@@ -256,7 +254,7 @@ impl DeviceImpl {
             .await;
 
         match resp {
-            Ok(dab_payload) => match dab_payload.payload.extract().unwrap() {
+            Ok(dab_payload) => match dab_payload.extract().unwrap() {
                 DeviceResponse::FirmwareInfo(value) => Ok(value),
                 _ => Err(jsonrpsee::core::Error::Custom(String::from(
                     "Firmware Info error response TBD",
@@ -342,7 +340,7 @@ impl DeviceServer for DeviceImpl {
             .send_extn_request(DeviceInfoRequest::Model)
             .await
         {
-            if let Some(ExtnResponse::String(v)) = response.payload.extract() {
+            if let Some(ExtnResponse::String(v)) = response.extract() {
                 if let Some(f) = self
                     .state
                     .get_device_manifest()
@@ -364,7 +362,7 @@ impl DeviceServer for DeviceImpl {
             .send_extn_request(DeviceInfoRequest::Model)
             .await
         {
-            if let Some(ExtnResponse::String(v)) = response.payload.extract() {
+            if let Some(ExtnResponse::String(v)) = response.extract() {
                 return Ok(v);
             }
         }
@@ -379,7 +377,7 @@ impl DeviceServer for DeviceImpl {
             .await;
 
         match resp {
-            Ok(payload) => match payload.payload.extract().unwrap() {
+            Ok(payload) => match payload.extract().unwrap() {
                 DeviceResponse::HdcpSupportResponse(value) => Ok(value),
                 _ => Err(jsonrpsee::core::Error::Custom(String::from(
                     "Hdcp capabilities error response TBD",
@@ -433,7 +431,7 @@ impl DeviceServer for DeviceImpl {
             .await;
 
         match resp {
-            Ok(response) => match response.payload.extract().unwrap() {
+            Ok(response) => match response.extract().unwrap() {
                 DeviceResponse::HdrResponse(value) => Ok(value),
                 _ => Err(jsonrpsee::core::Error::Custom(String::from(
                     "Hdr capabilities error response TBD",
@@ -487,7 +485,7 @@ impl DeviceServer for DeviceImpl {
         )
         .await
         {
-            if let Some(DeviceResponse::ScreenResolutionResponse(value)) = resp.payload.extract() {
+            if let Some(DeviceResponse::ScreenResolutionResponse(value)) = resp.extract() {
                 return Ok(value);
             }
         }
@@ -539,7 +537,7 @@ impl DeviceServer for DeviceImpl {
         )
         .await
         {
-            if let Some(DeviceResponse::VideoResolutionResponse(value)) = resp.payload.extract() {
+            if let Some(DeviceResponse::VideoResolutionResponse(value)) = resp.extract() {
                 return Ok(value);
             }
         }
@@ -589,7 +587,7 @@ impl DeviceServer for DeviceImpl {
             .send_extn_request(DeviceInfoRequest::Make)
             .await
         {
-            if let Some(ExtnResponse::String(v)) = response.payload.extract() {
+            if let Some(ExtnResponse::String(v)) = response.extract() {
                 return Ok(v);
             }
         }
@@ -608,7 +606,7 @@ impl DeviceServer for DeviceImpl {
             .await;
 
         match resp {
-            Ok(response) => match response.payload.extract().unwrap() {
+            Ok(response) => match response.extract().unwrap() {
                 DeviceResponse::AudioProfileResponse(audio) => Ok(audio),
                 _ => Err(jsonrpsee::core::Error::Custom(String::from(
                     "Audio error response TBD",
@@ -665,7 +663,7 @@ impl DeviceServer for DeviceImpl {
             .await;
 
         match resp {
-            Ok(response) => match response.payload.extract().unwrap() {
+            Ok(response) => match response.extract().unwrap() {
                 ExtnResponse::NetworkResponse(value) => Ok(value),
                 _ => Err(jsonrpsee::core::Error::Custom(String::from(
                     "Network Status error response TBD",
@@ -726,7 +724,7 @@ impl DeviceServer for DeviceImpl {
             .send_extn_request(AccountSessionRequest::Provision(provision_request))
             .await;
         match resp {
-            Ok(payload) => match payload.payload.extract().unwrap() {
+            Ok(payload) => match payload.extract().unwrap() {
                 ExtnResponse::None(()) => Ok(()),
                 _ => Err(rpc_err("Provision Status error response TBD")),
             },

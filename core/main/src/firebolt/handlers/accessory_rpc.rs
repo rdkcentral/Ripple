@@ -68,7 +68,7 @@ impl AccessoryServer for AccessoryImpl {
             .await
         {
             if let Some(RemoteAccessoryResponse::RemoteAccessoryListResponse(value)) =
-                response.payload.extract()
+                response.extract()
             {
                 return Ok(value);
             }
@@ -94,9 +94,7 @@ impl AccessoryServer for AccessoryImpl {
             .send_extn_request(RemoteAccessoryRequest::Pair(pair_request))
             .await
         {
-            if let Some(RemoteAccessoryResponse::AccessoryPairResponse(v)) =
-                response.payload.extract()
-            {
+            if let Some(RemoteAccessoryResponse::AccessoryPairResponse(v)) = response.extract() {
                 return Ok(v);
             }
         }

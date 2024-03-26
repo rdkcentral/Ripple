@@ -146,7 +146,7 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
                         .send_extn_request(RfcRequest { flag })
                         .await
                     {
-                        if let Some(ExtnResponse::Value(v)) = v.payload.extract() {
+                        if let Some(ExtnResponse::Value(v)) = v.extract() {
                             resp = ExtnResponse::Value(v);
                         }
                     }

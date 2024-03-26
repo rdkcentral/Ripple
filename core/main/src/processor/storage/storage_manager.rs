@@ -482,7 +482,7 @@ impl StorageManager {
 
         match result {
             Ok(msg) => {
-                if let Some(m) = msg.payload.extract() {
+                if let Some(m) = msg.extract() {
                     Ok(m)
                 } else {
                     Err(RippleError::ParseError)
@@ -508,7 +508,7 @@ impl StorageManager {
             .await;
         match result {
             Ok(msg) => {
-                if let Some(m) = msg.payload.extract() {
+                if let Some(m) = msg.extract() {
                     Ok(m)
                 } else {
                     Err(RippleError::ParseError)

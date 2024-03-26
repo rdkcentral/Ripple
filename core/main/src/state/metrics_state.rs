@@ -96,7 +96,7 @@ impl MetricsState {
             .send_extn_request(DeviceInfoRequest::MacAddress)
             .await
         {
-            if let Some(ExtnResponse::String(mac)) = resp.payload.extract() {
+            if let Some(ExtnResponse::String(mac)) = resp.extract() {
                 let _ = mac_address.insert(mac);
             }
         }
@@ -107,7 +107,7 @@ impl MetricsState {
             .send_extn_request(DeviceInfoRequest::SerialNumber)
             .await
         {
-            if let Some(ExtnResponse::String(sn)) = resp.payload.extract() {
+            if let Some(ExtnResponse::String(sn)) = resp.extract() {
                 let _ = serial_number.insert(sn);
             }
         }
@@ -118,7 +118,7 @@ impl MetricsState {
             .send_extn_request(DeviceInfoRequest::Model)
             .await
         {
-            if let Some(ExtnResponse::String(model)) = resp.payload.extract() {
+            if let Some(ExtnResponse::String(model)) = resp.extract() {
                 let _ = device_model.insert(model);
             }
         }
@@ -149,7 +149,7 @@ impl MetricsState {
             .send_extn_request(DeviceInfoRequest::GetTimezoneWithOffset)
             .await
         {
-            if let Some(ExtnResponse::TimezoneWithOffset(tz, offset)) = resp.payload.extract() {
+            if let Some(ExtnResponse::TimezoneWithOffset(tz, offset)) = resp.extract() {
                 timezone = Some(format!("{} {}", tz, offset));
             }
         }
@@ -160,7 +160,7 @@ impl MetricsState {
             .await
         {
             Ok(resp) => {
-                if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp.payload.extract() {
+                if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp.extract() {
                     info.name
                 } else {
                     String::default()
@@ -215,7 +215,7 @@ impl MetricsState {
             .await
         {
             Ok(message) => {
-                if let Some(DeviceResponse::FirmwareInfo(info)) = message.payload.extract() {
+                if let Some(DeviceResponse::FirmwareInfo(info)) = message.extract() {
                     Ok(info)
                 } else {
                     Err(RippleError::InvalidOutput)
