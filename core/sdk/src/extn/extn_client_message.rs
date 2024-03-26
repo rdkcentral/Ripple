@@ -295,7 +295,7 @@ where
     fn contract() -> RippleContract;
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum ExtnRequest {
     Config(Config),
     Rpc(RpcRequest),
@@ -333,7 +333,7 @@ pub enum ExtnRequest {
 
 impl ExtnPayloadProvider for ExtnRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(self.clone())
+        ExtnPayload::Request(serde_json::from_value(serde_json::to_value(self).unwrap()).unwrap())
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
@@ -398,7 +398,7 @@ impl ExtnPayloadProvider for ExtnResponse {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum ExtnEvent {
     String(String),
     Value(Value),
@@ -414,7 +414,7 @@ pub enum ExtnEvent {
 
 impl ExtnPayloadProvider for ExtnEvent {
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Event(self.clone())
+        ExtnPayload::Event(serde_json::from_value(serde_json::to_value(self).unwrap()).unwrap())
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
@@ -606,9 +606,12 @@ mod tests {
     #[test]
     fn test_get_from_payload_with_valid_payload() {
         let event_payload = ExtnEvent::String("Event".to_string());
-        let extn_payload = ExtnPayload::Event(event_payload.clone());
+        let extn_payload = ExtnPayload::Event(event_payload);
         let extracted_event: Option<ExtnEvent> = ExtnEvent::get_from_payload(extn_payload);
-        assert_eq!(extracted_event, Some(event_payload));
+        assert_eq!(
+            extracted_event,
+            Some(ExtnEvent::String("Event".to_string()))
+        );
     }
 
     #[test]

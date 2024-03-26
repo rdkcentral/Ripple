@@ -320,14 +320,11 @@ impl ThunderEventProcessor {
 
     pub fn add_last_event(&self, event_name: &str, value: &ExtnEvent) {
         let mut last_event_map = self.last_event.write().unwrap();
-        last_event_map.insert(
-            event_name.to_string(),
-            serde_json::to_value(value.clone()).unwrap(),
-        );
+        last_event_map.insert(event_name.to_string(), serde_json::to_value(value).unwrap());
     }
 
     pub fn check_last_event(&self, event_name: &str, value: &ExtnEvent) -> bool {
-        let ref_value = serde_json::to_value(value.clone()).unwrap();
+        let ref_value = serde_json::to_value(value).unwrap();
         let last_event_map = self.last_event.read().unwrap();
         if let Some(last_event) = last_event_map.get(event_name) {
             return last_event.eq(&ref_value);
