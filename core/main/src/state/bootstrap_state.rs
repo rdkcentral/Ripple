@@ -146,7 +146,7 @@ impl BootstrapState {
                     );
                 }
             }
-            warn!("error reading versions from {}", version_file_name.clone(),);
+            warn!("error reading versions from {}", version_file_name,);
             None
         }
         Ok(BootstrapState {
