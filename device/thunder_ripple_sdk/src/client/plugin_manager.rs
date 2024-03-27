@@ -247,16 +247,7 @@ impl PluginManager {
                 }
             }
         });
-        let mut plugins = Vec::new();
-        match &plugin_request.activate_on_boot {
-            ThunderPluginParam::Default => {
-                for p in ThunderPlugin::activate_on_boot_plugins() {
-                    plugins.push(p.callsign().to_string())
-                }
-            }
-            ThunderPluginParam::Custom(p) => plugins.extend(p.clone()),
-            ThunderPluginParam::None => {}
-        }
+
         let failed_plugins =
             Self::activate_mandatory_plugins(plugin_request.clone(), tx.clone()).await;
         (tx, failed_plugins)
