@@ -18,6 +18,7 @@
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
+use jsonrpsee::tracing::info;
 use ripple_sdk::tokio;
 use ripple_sdk::{
     api::device::device_operator::{DeviceCallRequest, DeviceSubscribeRequest},
@@ -142,8 +143,8 @@ impl PluginActivatedResult {
             PluginActivatedResult::Ready => true,
             PluginActivatedResult::Error => false,
             PluginActivatedResult::Pending(sub_rx) => {
-                // Fail after 2 secs of expecting a Plugin to be activated
-                match tokio::time::timeout(Duration::from_millis(2000), sub_rx).await {
+                // Fail after 30 secs of expecting a Plugin to be activated
+                match tokio::time::timeout(Duration::from_millis(30000), sub_rx).await {
                     Ok(Ok(v)) => v.is_activated(),
                     _ => false,
                 }
@@ -169,7 +170,7 @@ impl PluginManager {
     pub async fn start(
         thunder_client: Box<ThunderClient>,
         plugin_request: ThunderPluginBootParam,
-    ) -> mpsc::Sender<PluginManagerCommand> {
+    ) -> (mpsc::Sender<PluginManagerCommand>, Vec<String>) {
         let (sub_tx, mut sub_rx) = mpsc::channel::<DeviceResponseMessage>(32);
         let (tx, mut rx) = mpsc::channel::<PluginManagerCommand>(32);
         let mut pm = PluginManager {
@@ -247,6 +248,26 @@ impl PluginManager {
             }
         });
         let mut plugins = Vec::new();
+        match &plugin_request.activate_on_boot {
+            ThunderPluginParam::Default => {
+                for p in ThunderPlugin::activate_on_boot_plugins() {
+                    plugins.push(p.callsign().to_string())
+                }
+            }
+            ThunderPluginParam::Custom(p) => plugins.extend(p.clone()),
+            ThunderPluginParam::None => {}
+        }
+        let failed_plugins =
+            Self::activate_mandatory_plugins(plugin_request.clone(), tx.clone()).await;
+        (tx, failed_plugins)
+    }
+
+    pub async fn activate_mandatory_plugins(
+        plugin_request: ThunderPluginBootParam,
+        tx: mpsc::Sender<PluginManagerCommand>,
+    ) -> Vec<String> {
+        info!("Activating Mandatory Thunder Plugins");
+        let mut plugins = Vec::new();
         match plugin_request.activate_on_boot {
             ThunderPluginParam::Default => {
                 for p in ThunderPlugin::activate_on_boot_plugins() {
@@ -256,6 +277,7 @@ impl PluginManager {
             ThunderPluginParam::Custom(p) => plugins.extend(p),
             ThunderPluginParam::None => {}
         }
+        let mut failed_plugins = Vec::new();
 
         for p in plugins {
             let (plugin_rdy_tx, plugin_rdy_rx) = oneshot::channel::<PluginActivatedResult>();
@@ -269,10 +291,11 @@ impl PluginManager {
             )
             .await;
             if !plugin_rdy_rx.await.unwrap().ready().await {
-                error!("{:?} Plugin is not activated ", p)
+                error!("{:?} Mandatory Plugin activation failed after timeout", p);
+                failed_plugins.push(p)
             }
         }
-        tx
+        failed_plugins
     }
 
     pub async fn handle_state_change(&mut self, ev: PluginStateChangeEvent) {
@@ -469,7 +492,7 @@ mod tests {
         let plugin_manager_tx =
             PluginManager::start(Box::new(controller_pool), expected_plugins).await;
 
-        let plugin_manager_tx_clone = plugin_manager_tx.clone();
+        let (plugin_manager_tx_clone, _) = plugin_manager_tx.clone();
 
         // Start the ThunderClientPool
         let client = ThunderClientPool::start(
@@ -482,7 +505,7 @@ mod tests {
         assert!(client.is_ok());
 
         // 1. test PluginManagerCommand::StateChangeEvent command
-        let plugin_manager_tx_clone = plugin_manager_tx.clone();
+        let (plugin_manager_tx_clone, _) = plugin_manager_tx.clone();
         let msg = PluginManagerCommand::StateChangeEvent(PluginStateChangeEvent {
             callsign: "org.rdk.Controller".to_string(),
             state: PluginState::Activated,
@@ -491,7 +514,7 @@ mod tests {
 
         // 2. test PluginManagerCommand::ActivatePluginIfNeeded command
         let (tx, _rx) = oneshot::channel::<PluginActivatedResult>();
-        let plugin_manager_tx_clone = plugin_manager_tx.clone();
+        let (plugin_manager_tx_clone, _) = plugin_manager_tx.clone();
         let msg = PluginManagerCommand::ActivatePluginIfNeeded {
             callsign: "org.rdk.Controller".to_string(),
             tx,
@@ -500,7 +523,7 @@ mod tests {
 
         // 3. test PluginManagerCommand::WaitForActivation command
         let (tx, _rx) = oneshot::channel::<PluginActivatedResult>();
-        let plugin_manager_tx_clone = plugin_manager_tx.clone();
+        let (plugin_manager_tx_clone, _) = plugin_manager_tx.clone();
         let msg = PluginManagerCommand::WaitForActivation {
             callsign: "org.rdk.Controller".to_string(),
             tx,
@@ -509,7 +532,7 @@ mod tests {
 
         // 4. test PluginManagerCommand::ReactivatePluginState command
         let (tx, _rx) = oneshot::channel::<PluginActivatedResult>();
-        let plugin_manager_tx_clone = plugin_manager_tx.clone();
+        let (plugin_manager_tx_clone, _) = plugin_manager_tx.clone();
         let msg = PluginManagerCommand::ReactivatePluginState { tx };
         mpsc_send_and_log(&plugin_manager_tx_clone, msg, "ReactivatePluginState").await;
 

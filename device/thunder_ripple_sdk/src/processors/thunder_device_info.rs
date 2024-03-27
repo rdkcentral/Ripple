@@ -30,6 +30,7 @@ use crate::{
         tokio::sync::mpsc,
     },
     thunder_state::ThunderState,
+    utils::check_thunder_response_success,
 };
 use crate::{
     ripple_sdk::{
@@ -258,18 +259,8 @@ impl ThunderNetworkService {
             })
             .await;
         info!("{}", response.message);
-        if let Ok(v) = serde_json::from_str(&response.message.to_string()) {
-            v
-        } else {
-            ThunderGetInterfacesResponse::default()
-        }
-
-        // let get_interfaces = Network.method("getInterfaces");
-        // let get_internet_response = client
-        //     .clone()
-        //     .call_thunder(&get_interfaces, None, Some(span.clone()))
-        //     .await;
-        // serde_json::from_value(get_internet_response.message).unwrap()
+        serde_json::from_str(&response.message.to_string())
+            .unwrap_or(ThunderGetInterfacesResponse::default())
     }
 
     async fn get_connected_interface(state: CachedState) -> ThunderInterfaceType {
@@ -293,10 +284,11 @@ impl ThunderNetworkService {
             })
             .await;
         info!("{}", response.message);
-        if let Some(ip) = response.message["connectedToInternet"].as_bool() {
-            return ip;
-        };
-        false
+        if let Some(v) = response.message.get("connectedToInternet") {
+            v.as_bool().unwrap_or(false)
+        } else {
+            false
+        }
     }
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -422,9 +414,8 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     async fn get_mac_address(state: &CachedState) -> String {
-        let response: String;
         match state.get_mac_address() {
-            Some(value) => response = value,
+            Some(value) => value,
             None => {
                 let resp = state
                     .get_thunder_client()
@@ -436,17 +427,14 @@ impl ThunderDeviceInfoRequestProcessor {
                     })
                     .await;
                 info!("{}", resp.message);
-
-                let mac_value_option = resp.message["estb_mac"].as_str();
-                if let Some(value) = mac_value_option {
-                    response = value.to_string();
-                    state.update_mac_address(response.clone())
+                if let Some(mac_value_option) = resp.message.get("estb_mac") {
+                    state.update_mac_address(mac_value_option.to_string());
+                    mac_value_option.to_string()
                 } else {
-                    response = "".to_string();
+                    "".to_string()
                 }
             }
         }
-        response
     }
 
     async fn mac_address(state: CachedState, req: ExtnMessage) -> bool {
@@ -532,23 +520,21 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-        if let Some(value) = dev_response.message.get("state").cloned() {
-            if let Ok(internet_status) = serde_json::from_value::<u32>(value) {
-                return match internet_status {
-                    0 => Some(InternetConnectionStatus::NoInternet),
-                    1 => Some(InternetConnectionStatus::LimitedInternet),
-                    2 => Some(InternetConnectionStatus::CaptivePortal),
-                    3 => Some(InternetConnectionStatus::FullyConnected),
-                    _ => None,
-                };
-            }
+        let resp = dev_response.message.get("state")?;
+        if let Ok(internet_status) = serde_json::from_value::<u32>(resp.clone()) {
+            return match internet_status {
+                0 => Some(InternetConnectionStatus::NoInternet),
+                1 => Some(InternetConnectionStatus::LimitedInternet),
+                2 => Some(InternetConnectionStatus::CaptivePortal),
+                3 => Some(InternetConnectionStatus::FullyConnected),
+                _ => None,
+            };
         }
         None
     }
     async fn get_make(state: &CachedState) -> String {
-        let response: String;
         match state.get_make() {
-            Some(value) => response = value,
+            Some(value) => value,
             None => {
                 let resp = state
                     .get_thunder_client()
@@ -558,15 +544,16 @@ impl ThunderDeviceInfoRequestProcessor {
                     })
                     .await;
                 info!("{}", resp.message);
-                if let Some(make) = resp.message["make"].as_str() {
-                    response = make.into();
-                    state.update_make(response.clone());
+                let r = resp.message.get("make");
+                if r.is_none() {
+                    "".into()
                 } else {
-                    response = "".into();
+                    let make = r.unwrap().to_string();
+                    state.update_make(make.clone());
+                    make
                 }
             }
         }
-        response
     }
 
     async fn start_internet_monitoring_changes(state: CachedState, request: ExtnMessage) -> bool {
@@ -583,9 +570,7 @@ impl ThunderDeviceInfoRequestProcessor {
                 )),
             })
             .await;
-        if response.message.get("success").is_none()
-            || response.message["success"].as_bool().unwrap_or_default()
-        {
+        if check_thunder_response_success(&response) {
             return Self::respond(state.get_client(), request, ExtnResponse::None(()))
                 .await
                 .is_ok();
@@ -643,9 +628,7 @@ impl ThunderDeviceInfoRequestProcessor {
             })
             .await;
         info!("{}", response.message);
-        if response.message.get("success").is_none()
-            || !response.message["success"].as_bool().unwrap_or_default()
-        {
+        if check_thunder_response_success(&response) {
             error!("{}", response.message);
             return HashMap::new();
         }
@@ -680,6 +663,11 @@ impl ThunderDeviceInfoRequestProcessor {
             .await;
         info!("{}", response.message);
         let mut hdcp_response = HashMap::new();
+        let resp = response.message.get("supportedHDCPVersion");
+
+        if resp.is_none() {
+            return hdcp_response;
+        }
 
         if let Some(v) = response.message.get("supportedHDCPVersion") {
             let hdcp_version = v.to_string();
@@ -841,9 +829,7 @@ impl ThunderDeviceInfoRequestProcessor {
             .await;
         info!("{}", response.message);
 
-        if response.message.get("success").is_none()
-            || !response.message["success"].as_bool().unwrap_or_default()
-        {
+        if check_thunder_response_success(&response) {
             error!("{}", response.message);
             return Vec::new();
         }
@@ -878,9 +864,7 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-        if response.message.get("success").is_none()
-            || !response.message["success"].as_bool().unwrap_or_default()
-        {
+        if check_thunder_response_success(&response) {
             error!("{}", response.message);
             return Err(());
         }
@@ -897,9 +881,7 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-        if response.message.get("success").is_none()
-            || !response.message["success"].as_bool().unwrap_or_default()
-        {
+        if check_thunder_response_success(&response) {
             error!("{}", response.message);
             return Err(());
         }
@@ -1075,9 +1057,7 @@ impl ThunderDeviceInfoRequestProcessor {
             })
             .await;
         info!("{}", response.message);
-        if response.message.get("success").is_some()
-            && response.message["success"].as_bool().unwrap_or_default()
-        {
+        if check_thunder_response_success(&response) {
             if let Some(v) = response.message["freeRam"].as_u64() {
                 return Self::respond(state.get_client(), req, ExtnResponse::Value(json!(v)))
                     .await
@@ -1113,9 +1093,7 @@ impl ThunderDeviceInfoRequestProcessor {
             .await;
 
         info!("getTimeZoneDST: {}", response.message);
-        if response.message.get("success").is_none()
-            || response.message["success"].as_bool().unwrap_or_default()
-        {
+        if check_thunder_response_success(&response) {
             if let Ok(v) = serde_json::from_value::<ThunderTimezoneResponse>(response.message) {
                 return Ok(v.time_zone);
             }
@@ -1189,9 +1167,7 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-        if response.message.get("success").is_some()
-            && response.message["success"].as_bool().unwrap_or_default()
-        {
+        if check_thunder_response_success(&response) {
             match serde_json::from_value::<ThunderAllTimezonesResponse>(response.message) {
                 Ok(timezones) => Ok(timezones),
                 Err(e) => {
@@ -1235,9 +1211,7 @@ impl ThunderDeviceInfoRequestProcessor {
             .await;
         info!("{}", response.message);
 
-        if response.message.get("success").is_none()
-            || response.message["success"].as_bool().unwrap_or_default()
-        {
+        if check_thunder_response_success(&response) {
             return Self::respond(state.get_client(), request, ExtnResponse::None(()))
                 .await
                 .is_ok();
@@ -1279,9 +1253,7 @@ impl ThunderDeviceInfoRequestProcessor {
                 params,
             })
             .await;
-        if response.message.get("success").is_some()
-            && response.message["success"].as_bool().is_some()
-        {
+        if check_thunder_response_success(&response) {
             return Self::ack(state.get_client(), request).await.is_ok();
         }
         Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
@@ -1341,9 +1313,7 @@ impl ThunderDeviceInfoRequestProcessor {
                 params,
             })
             .await;
-        if response.message.get("success").is_some()
-            && response.message["success"].as_bool().is_some()
-        {
+        if check_thunder_response_success(&response) {
             return Self::ack(state.get_client(), request).await.is_ok();
         }
         Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
@@ -1357,26 +1327,31 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-        if let Some(value) = dev_response.message.get("powerState").cloned() {
-            if let Ok(power_state) = serde_json::from_value::<PowerState>(value) {
-                return Self::respond(
-                    state.get_client(),
-                    req,
-                    if let ExtnPayload::Response(r) =
-                        DeviceResponse::PowerState(power_state).get_extn_payload()
-                    {
-                        r
-                    } else {
-                        ExtnResponse::Error(RippleError::ProcessorError)
-                    },
-                )
-                .await
-                .is_ok();
-            }
+        let resp = dev_response.message.get("powerState").cloned();
+        if resp.is_none() {
+            error!("Unable to get power state from thunder");
+            return Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await;
         }
 
-        error!("Unable to get power state from thunder");
-        Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
+        let value = resp.unwrap();
+        let power_state = serde_json::from_value::<PowerState>(value);
+        if power_state.is_err() {
+            return Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await;
+        }
+        let power_state = power_state.unwrap();
+        Self::respond(
+            state.get_client(),
+            req,
+            if let ExtnPayload::Response(r) =
+                DeviceResponse::PowerState(power_state).get_extn_payload()
+            {
+                r
+            } else {
+                ExtnResponse::Error(RippleError::ProcessorError)
+            },
+        )
+        .await
+        .is_ok()
     }
 
     async fn get_device_capabilities(state: CachedState, keys: &[&str], msg: ExtnMessage) -> bool {

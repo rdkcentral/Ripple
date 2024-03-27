@@ -54,6 +54,7 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::thunder_state::ThunderConnectionState;
+use crate::utils::get_error_value;
 
 use super::thunder_client_pool::ThunderPoolCommand;
 use super::{
@@ -515,7 +516,9 @@ impl ThunderClientBuilder {
                 .build(url_with_token.to_string())
                 .await;
             if client.is_err() {
-                warn!("Attempt to connect to thunder, retrying");
+                error!(
+                    "Thunder Websocket is not available. Attempt to connect to thunder, retrying"
+                );
                 sleep(delay_duration).await;
                 if delay_duration < tokio::time::Duration::from_secs(3) {
                     delay_duration *= 2;
@@ -708,7 +711,7 @@ impl ThunderNoParamRequest {
         let result = client.request(&self.method, None).await;
         if let Err(e) = result {
             error!("send_request: Error: e={}", e);
-            return Value::Null;
+            return get_error_value(&e);
         }
         result.unwrap()
     }
@@ -725,7 +728,7 @@ impl<'a> ThunderParamRequest<'a> {
         let result = client.request(self.method, self.get_params()).await;
         if let Err(e) = result {
             error!("send_request: Error: e={}", e);
-            return Value::Null;
+            return get_error_value(&e);
         }
         result.unwrap()
     }
