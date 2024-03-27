@@ -16,6 +16,7 @@
 //
 
 use std::collections::{HashMap, HashSet};
+use std::time::Duration;
 
 use ripple_sdk::tokio;
 use ripple_sdk::{
@@ -141,10 +142,10 @@ impl PluginActivatedResult {
             PluginActivatedResult::Ready => true,
             PluginActivatedResult::Error => false,
             PluginActivatedResult::Pending(sub_rx) => {
-                if let Ok(v) = sub_rx.await {
-                    v.is_activated()
-                } else {
-                    false
+                // Fail after 2 secs of expecting a Plugin to be activated
+                match tokio::time::timeout(Duration::from_millis(2000), sub_rx).await {
+                    Ok(Ok(v)) => v.is_activated(),
+                    _ => false,
                 }
             }
         }
