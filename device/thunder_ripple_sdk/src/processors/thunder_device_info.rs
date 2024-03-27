@@ -1476,7 +1476,7 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-
+        println!("{:?}", resp);
         if let Ok(tsv) = serde_json::from_value::<SystemVersion>(resp.message) {
             let release_regex = Regex::new(r"([^_]*)_(.*)_(VBN|PROD[^_]*)_(.*)").unwrap();
             let non_release_regex =
@@ -1713,7 +1713,7 @@ pub mod tests {
             test_platform_build_info_with_build_name($build_name, Arc::new(|msg: ThunderCallMessage| {
                 oneshot_send_and_log(
                     msg.callback,
-                    DeviceResponseMessage::call(json!({"success" : true, "stbVersion": $build_name })),
+                    DeviceResponseMessage::call(json!({"success" : true, "stbVersion": $build_name, "receiverVersion": $build_name, "stbTimestamp": "".to_owned() })),
                     "",
                 );
             })).await;
@@ -1778,6 +1778,7 @@ pub mod tests {
         .await;
         let msg: ExtnMessage = r.recv().await.unwrap().try_into().unwrap();
         let resp_opt = msg.payload.extract::<DeviceResponse>();
+        println!("{:?}", resp_opt);
         if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp_opt {
             let exp = tests.iter().find(|x| x.build_name == build_name).unwrap();
             assert_eq!(info, exp.info);
