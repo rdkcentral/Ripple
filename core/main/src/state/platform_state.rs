@@ -103,6 +103,7 @@ pub struct PlatformState {
     pub data_governance: DataGovernanceState,
     pub metrics: MetricsState,
     pub device_session_id: DeviceSessionIdentifier,
+    pub version: Option<String>,
 }
 
 impl PlatformState {
@@ -111,6 +112,7 @@ impl PlatformState {
         manifest: DeviceManifest,
         client: RippleClient,
         app_library: Vec<AppLibraryEntry>,
+        version: Option<String>,
     ) -> PlatformState {
         let exclusory = ExclusoryImpl::get(&manifest);
 
@@ -129,6 +131,7 @@ impl PlatformState {
             data_governance: DataGovernanceState::default(),
             metrics: MetricsState::default(),
             device_session_id: DeviceSessionIdentifier::default(),
+            version,
         }
     }
 
@@ -236,6 +239,7 @@ mod tests {
                 manifest,
                 RippleClient::new(ChannelsState::new()),
                 vec![],
+                None,
             )
         }
     }

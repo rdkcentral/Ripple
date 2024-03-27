@@ -81,7 +81,10 @@ pub async fn update_app_context(
     if let Some(app) = ps.app_manager_state.get(&ctx.app_id) {
         context.app_session_id = app.loaded_session_id.to_owned();
         context.app_user_session_id = app.active_session_id;
-        context.app_version = SEMVER_LIGHTWEIGHT.to_string();
+        context.app_version = ps
+            .version
+            .clone()
+            .unwrap_or(String::from(SEMVER_LIGHTWEIGHT));
     }
     if let Some(session) = ps.session_state.get_account_session() {
         context.partner_id = session.id;
@@ -130,7 +133,10 @@ pub async fn send_metric_for_app_state_change(
                 if let Some(app) = ps.app_manager_state.get(app_id) {
                     context.app_session_id = app.loaded_session_id.to_owned();
                     context.app_user_session_id = app.active_session_id;
-                    context.app_version = SEMVER_LIGHTWEIGHT.to_string();
+                    context.app_version = ps
+                        .version
+                        .clone()
+                        .unwrap_or(String::from(SEMVER_LIGHTWEIGHT));
                 }
                 context.governance_state = Some(AppDataGovernanceState::new(tag_name_set));
                 context.partner_id = session.clone().id;
