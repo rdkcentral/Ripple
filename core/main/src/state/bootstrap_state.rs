@@ -141,8 +141,7 @@ impl BootstrapState {
                 Err(err) => {
                     warn!(
                         "error reading versions from {}, err={:?}",
-                        version_file_name,
-                        err
+                        version_file_name, err
                     );
                 }
             }
