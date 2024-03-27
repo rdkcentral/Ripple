@@ -284,11 +284,11 @@ impl ThunderNetworkService {
             })
             .await;
         info!("{}", response.message);
-        if let Some(v) = response.message.get("connectedToInternet") {
-            v.as_bool().unwrap_or(false)
-        } else {
-            false
+        let response = response.message.get("connectedToInternet");
+        if response.is_none() {
+            return false;
         }
+        response.unwrap().as_bool().unwrap_or(false)
     }
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -427,12 +427,13 @@ impl ThunderDeviceInfoRequestProcessor {
                     })
                     .await;
                 info!("{}", resp.message);
-                if let Some(mac_value_option) = resp.message.get("estb_mac") {
-                    state.update_mac_address(mac_value_option.to_string());
-                    mac_value_option.to_string()
-                } else {
-                    "".to_string()
+                let resp = resp.message.get("estb_mac");
+                if resp.is_none() {
+                    return "".to_string();
                 }
+                let mac = resp.unwrap().to_string();
+                state.update_mac_address(mac.to_string());
+                mac
             }
         }
     }
@@ -479,9 +480,8 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     async fn get_model(state: &CachedState) -> String {
-        let mut response: String = "NA".to_owned();
         match state.get_model() {
-            Some(value) => response = value,
+            Some(value) => value,
             None => {
                 let resp = state
                     .get_thunder_client()
@@ -491,16 +491,17 @@ impl ThunderDeviceInfoRequestProcessor {
                     })
                     .await;
                 info!("{}", resp.message);
-                if let Some(stb_version) = resp.message.get("stbVersion") {
-                    if let Some(v) = stb_version.as_str() {
-                        let split_string: Vec<&str> = v.split('_').collect();
-                        response = String::from(split_string[0]);
-                        state.update_model(response.clone());
-                    }
+                let resp = resp.message.get("stbVersion");
+                if resp.is_none() {
+                    return "NA".to_owned();
                 }
+                let resp = resp.unwrap().to_string();
+                let split_string: Vec<&str> = resp.split('_').collect();
+                let model = String::from(split_string[0]);
+                state.update_model(model.clone());
+                model
             }
         }
-        response
     }
 
     async fn model(state: CachedState, req: ExtnMessage) -> bool {
@@ -668,25 +669,24 @@ impl ThunderDeviceInfoRequestProcessor {
         if resp.is_none() {
             return hdcp_response;
         }
+        let v = resp.unwrap();
 
-        if let Some(v) = response.message.get("supportedHDCPVersion") {
-            let hdcp_version = v.to_string();
+        let hdcp_version = v.to_string();
 
-            let is_hdcp_supported: bool = if let Some(h) = response.message.get("isHDCPSupported") {
-                if let Ok(v) = h.to_string().parse::<bool>() {
-                    v
-                } else {
-                    false
-                }
+        let is_hdcp_supported: bool = if let Some(h) = response.message.get("isHDCPSupported") {
+            if let Ok(v) = h.to_string().parse::<bool>() {
+                v
             } else {
                 false
-            };
-            if hdcp_version.contains("1.4") {
-                hdcp_response.insert(HdcpProfile::Hdcp1_4, is_hdcp_supported);
             }
-            if hdcp_version.contains("2.2") {
-                hdcp_response.insert(HdcpProfile::Hdcp2_2, is_hdcp_supported);
-            }
+        } else {
+            false
+        };
+        if hdcp_version.contains("1.4") {
+            hdcp_response.insert(HdcpProfile::Hdcp1_4, is_hdcp_supported);
+        }
+        if hdcp_version.contains("2.2") {
+            hdcp_response.insert(HdcpProfile::Hdcp2_2, is_hdcp_supported);
         }
 
         hdcp_response
@@ -1451,7 +1451,6 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-        println!("{:?}", resp);
         if let Ok(tsv) = serde_json::from_value::<SystemVersion>(resp.message) {
             let release_regex = Regex::new(r"([^_]*)_(.*)_(VBN|PROD[^_]*)_(.*)").unwrap();
             let non_release_regex =
@@ -1753,7 +1752,6 @@ pub mod tests {
         .await;
         let msg: ExtnMessage = r.recv().await.unwrap().try_into().unwrap();
         let resp_opt = msg.payload.extract::<DeviceResponse>();
-        println!("{:?}", resp_opt);
         if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp_opt {
             let exp = tests.iter().find(|x| x.build_name == build_name).unwrap();
             assert_eq!(info, exp.info);
