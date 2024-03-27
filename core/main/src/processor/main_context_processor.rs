@@ -90,7 +90,7 @@ impl MainContextProcessor {
             .send_extn_request(AccountSessionRequest::Get)
             .await
         {
-            if let Some(session) = response.payload.extract() {
+            if let Some(session) = response.extract() {
                 state.session_state.insert_account_session(session);
                 MetricsState::update_account_session(state).await;
                 event = CapEvent::OnAvailable;
@@ -104,7 +104,7 @@ impl MainContextProcessor {
                     {
                         if let Some(ExtnResponse::AccountSession(
                             AccountSessionResponse::AccountSessionToken(token),
-                        )) = response.payload.extract::<ExtnResponse>()
+                        )) = response.extract::<ExtnResponse>()
                         {
                             state_c.get_client().get_extn_client().context_update(
                                 ripple_sdk::api::context::RippleContextUpdateRequest::Token(token),

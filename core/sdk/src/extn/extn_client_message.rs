@@ -97,22 +97,39 @@ pub struct ExtnMessage {
     pub requestor: ExtnId,
     pub target: RippleContract,
     pub target_id: Option<ExtnId>,
-    pub payload: ExtnPayload,
+    pub payload: Value,
     pub callback: Option<CSender<CExtnMessage>>,
     pub ts: Option<i64>,
 }
 
 impl ExtnMessage {
+    pub fn extract<T: ExtnPayloadProvider>(&self) -> Option<T> {
+        if let Ok(payload) = self.get_extn_payload() {
+            return T::get_from_payload(payload);
+        }
+        None
+    }
+
+    pub fn get_extn_payload(&self) -> Result<ExtnPayload, RippleError> {
+        match serde_json::from_value(self.payload.clone()) {
+            Ok(v) => Ok(v),
+            Err(e) => {
+                error!("Error in get_extn_payload {:?}", e);
+                Err(RippleError::ParseError)
+            }
+        }
+    }
+
     /// This method can be used to create [ExtnResponse] payload message from a given [ExtnRequest]
     /// payload.
     ///
     /// Note: If used in a processor this method can be safely unwrapped
     pub fn get_response(&self, response: ExtnResponse) -> Result<ExtnMessage, RippleError> {
-        match self.payload {
-            ExtnPayload::Request(_) => Ok(ExtnMessage {
+        match self.get_extn_payload() {
+            Ok(ExtnPayload::Request(_)) => Ok(ExtnMessage {
                 callback: self.callback.clone(),
                 id: self.id.clone(),
-                payload: ExtnPayload::Response(response),
+                payload: ExtnPayload::Response(response).as_value(),
                 requestor: self.requestor.clone(),
                 target: self.target.clone(),
                 target_id: self.target_id.clone(),
@@ -131,10 +148,54 @@ impl ExtnMessage {
             requestor: self.requestor.clone(),
             target: self.target.clone(),
             target_id: self.target_id.clone(),
-            payload: ExtnPayload::Response(ExtnResponse::None(())),
+            payload: ExtnPayload::Response(ExtnResponse::None(())).as_value(),
             callback: self.callback.clone(),
             ts: None,
         }
+    }
+
+    pub fn is_request(&self) -> bool {
+        if let Ok(payload) = self.get_extn_payload() {
+            matches!(payload, ExtnPayload::Request(_))
+        } else {
+            false
+        }
+    }
+
+    pub fn is_response(&self) -> bool {
+        if let Ok(payload) = self.get_extn_payload() {
+            matches!(payload, ExtnPayload::Response(_))
+        } else {
+            false
+        }
+    }
+
+    pub fn is_event(&self) -> bool {
+        if let Ok(payload) = self.get_extn_payload() {
+            matches!(payload, ExtnPayload::Event(_))
+        } else {
+            false
+        }
+    }
+
+    pub fn as_response(&self) -> Option<ExtnResponse> {
+        if let Ok(ExtnPayload::Response(payload)) = self.get_extn_payload() {
+            Some(payload)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_request(&self) -> Option<ExtnRequest> {
+        if let Ok(ExtnPayload::Request(payload)) = self.get_extn_payload() {
+            Some(payload)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_value(&self) -> Value {
+        self.payload.clone()
     }
 }
 
@@ -154,7 +215,7 @@ impl From<ExtnPayload> for String {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum ExtnPayload {
     Request(ExtnRequest),
     Response(ExtnResponse),
@@ -162,10 +223,6 @@ pub enum ExtnPayload {
 }
 
 impl ExtnPayload {
-    pub fn extract<T: ExtnPayloadProvider>(&self) -> Option<T> {
-        T::get_from_payload(self.clone())
-    }
-
     pub fn is_request(&self) -> bool {
         matches!(self, ExtnPayload::Request(_))
     }
@@ -178,20 +235,8 @@ impl ExtnPayload {
         matches!(self, ExtnPayload::Event(_))
     }
 
-    pub fn as_response(&self) -> Option<ExtnResponse> {
-        if let ExtnPayload::Response(r) = self.clone() {
-            Some(r)
-        } else {
-            None
-        }
-    }
-
-    pub fn as_request(&self) -> Option<ExtnRequest> {
-        if let ExtnPayload::Request(r) = self.clone() {
-            Some(r)
-        } else {
-            None
-        }
+    pub fn as_value(&self) -> Value {
+        serde_json::to_value(self).unwrap()
     }
 }
 
@@ -244,7 +289,7 @@ impl ExtnPayload {
 /// }
 /// }
 /// ```
-pub trait ExtnPayloadProvider: Clone + Send + Sync + Debug
+pub trait ExtnPayloadProvider: Send + Sync + Debug
 where
     Self: Sized,
 {
@@ -256,7 +301,7 @@ where
     fn contract() -> RippleContract;
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum ExtnRequest {
     Config(Config),
     Rpc(RpcRequest),
@@ -294,7 +339,7 @@ pub enum ExtnRequest {
 
 impl ExtnPayloadProvider for ExtnRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(self.clone())
+        ExtnPayload::Request(serde_json::from_value(serde_json::to_value(self).unwrap()).unwrap())
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
@@ -310,7 +355,7 @@ impl ExtnPayloadProvider for ExtnRequest {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum ExtnResponse {
     None(()),
     String(String),
@@ -343,7 +388,7 @@ pub enum ExtnResponse {
 
 impl ExtnPayloadProvider for ExtnResponse {
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Response(self.clone())
+        ExtnPayload::Response(serde_json::from_value(serde_json::to_value(self).unwrap()).unwrap())
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
@@ -359,7 +404,7 @@ impl ExtnPayloadProvider for ExtnResponse {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum ExtnEvent {
     String(String),
     Value(Value),
@@ -375,7 +420,7 @@ pub enum ExtnEvent {
 
 impl ExtnPayloadProvider for ExtnEvent {
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Event(self.clone())
+        ExtnPayload::Event(serde_json::from_value(serde_json::to_value(self).unwrap()).unwrap())
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
@@ -400,10 +445,24 @@ mod tests {
     };
     use rstest::rstest;
 
+    fn get_message_for_payload(payload: ExtnPayload) -> ExtnMessage {
+        ExtnMessage {
+            id: "123".to_string(),
+            requestor: ExtnId::get_main_target("some".to_owned()),
+            target: RippleContract::Internal,
+            target_id: None,
+            payload: payload.as_value(),
+            callback: None,
+            ts: None,
+        }
+    }
+
     #[test]
     fn test_extract_response() {
-        let response_payload = ExtnPayload::Response(ExtnResponse::String("Response".to_string()));
-        let extracted_response: Option<ExtnResponse> = response_payload.extract();
+        let extracted_response: Option<ExtnResponse> = get_message_for_payload(
+            ExtnPayload::Response(ExtnResponse::String("Response".to_string())),
+        )
+        .extract();
         assert_eq!(
             extracted_response,
             Some(ExtnResponse::String("Response".to_string()))
@@ -413,7 +472,8 @@ mod tests {
     #[test]
     fn test_extract_event() {
         let event_payload = ExtnPayload::Event(ExtnEvent::String("Event".to_string()));
-        let extracted_event: Option<ExtnEvent> = event_payload.extract();
+
+        let extracted_event: Option<ExtnEvent> = get_message_for_payload(event_payload).extract();
         assert_eq!(
             extracted_event,
             Some(ExtnEvent::String("Event".to_string()))
@@ -447,7 +507,8 @@ mod tests {
     #[test]
     fn test_as_response() {
         let response_payload = ExtnPayload::Response(ExtnResponse::String("Response".to_string()));
-        let extracted_response: Option<ExtnResponse> = response_payload.as_response();
+        let extracted_response: Option<ExtnResponse> =
+            get_message_for_payload(response_payload).as_response();
         assert_eq!(
             extracted_response,
             Some(ExtnResponse::String("Response".to_string()))
@@ -457,7 +518,8 @@ mod tests {
     #[test]
     fn test_as_response_with_non_response_payload() {
         let request_payload = ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName));
-        let extracted_response: Option<ExtnResponse> = request_payload.as_response();
+        let extracted_response: Option<ExtnResponse> =
+            get_message_for_payload(request_payload).as_response();
         assert_eq!(extracted_response, None);
     }
 
@@ -471,7 +533,7 @@ mod tests {
             requestor,
             target,
             target_id: None,
-            payload,
+            payload: payload.as_value(),
             callback: None,
             ts: None,
         };
@@ -480,7 +542,7 @@ mod tests {
         let response_message = message.get_response(response).unwrap();
 
         assert_eq!(
-            response_message.payload,
+            response_message.get_extn_payload().unwrap(),
             ExtnPayload::Response(ExtnResponse::String("Response".to_string()))
         );
     }
@@ -513,7 +575,7 @@ mod tests {
             requestor: ExtnId::get_main_target("main".into()),
             target: RippleContract::Internal,
             target_id: Some(ExtnId::get_main_target("main".into())),
-            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
+            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)).as_value(),
             callback: None,
             ts: Some(1234567890),
         };
@@ -533,7 +595,7 @@ mod tests {
             Some(ExtnId::get_main_target("main".into()))
         );
         assert_eq!(
-            ack_message.payload,
+            ack_message.get_extn_payload().unwrap(),
             ExtnPayload::Response(ExtnResponse::None(()))
         );
         assert!(ack_message.callback.is_none());
@@ -550,9 +612,12 @@ mod tests {
     #[test]
     fn test_get_from_payload_with_valid_payload() {
         let event_payload = ExtnEvent::String("Event".to_string());
-        let extn_payload = ExtnPayload::Event(event_payload.clone());
+        let extn_payload = ExtnPayload::Event(event_payload);
         let extracted_event: Option<ExtnEvent> = ExtnEvent::get_from_payload(extn_payload);
-        assert_eq!(extracted_event, Some(event_payload));
+        assert_eq!(
+            extracted_event,
+            Some(ExtnEvent::String("Event".to_string()))
+        );
     }
 
     #[test]

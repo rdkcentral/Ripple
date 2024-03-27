@@ -127,7 +127,7 @@ pub async fn voice_guidance_settings_enabled(state: &PlatformState) -> RpcResult
         .await;
     match resp {
         Ok(value) => {
-            if let Some(ExtnResponse::Boolean(v)) = value.payload.extract() {
+            if let Some(ExtnResponse::Boolean(v)) = value.extract() {
                 Ok(v)
             } else {
                 Err(jsonrpsee::core::Error::Custom(String::from(
@@ -148,7 +148,7 @@ pub async fn voice_guidance_settings_speed(state: &PlatformState) -> RpcResult<f
         .await;
     match resp {
         Ok(value) => {
-            if let Some(ExtnResponse::Float(v)) = value.payload.extract() {
+            if let Some(ExtnResponse::Float(v)) = value.extract() {
                 Ok(v)
             } else {
                 Err(jsonrpsee::core::Error::Custom(String::from(

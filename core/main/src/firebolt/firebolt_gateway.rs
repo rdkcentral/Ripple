@@ -112,7 +112,7 @@ impl FireboltGateway {
                 }
                 HandleRpc { request } => self.handle(request, None).await,
                 HandleRpcForExtn { msg } => {
-                    if let Some(request) = msg.payload.clone().extract() {
+                    if let Some(request) = msg.extract() {
                         self.handle(request, Some(msg)).await
                     } else {
                         error!("Not a valid RPC Request {:?}", msg);

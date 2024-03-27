@@ -117,7 +117,7 @@ impl SecureStorageImpl {
                 .await
             {
                 Ok(response) => {
-                    if let Some(ExtnResponse::SecureStorage(_r)) = response.payload.extract() {
+                    if let Some(ExtnResponse::SecureStorage(_r)) = response.extract() {
                         Ok(())
                     } else {
                         Err(get_err_msg(RippleError::ExtnError))
@@ -139,7 +139,7 @@ impl SecureStorageImpl {
                 .await
             {
                 Ok(response) => {
-                    if let Some(ExtnResponse::SecureStorage(_r)) = response.payload.extract() {
+                    if let Some(ExtnResponse::SecureStorage(_r)) = response.extract() {
                         Ok(())
                     } else {
                         Err(get_err_msg(RippleError::ExtnError))
@@ -160,7 +160,7 @@ impl SecureStorageImpl {
                 .await
             {
                 Ok(response) => {
-                    if let Some(ExtnResponse::SecureStorage(_r)) = response.payload.extract() {
+                    if let Some(ExtnResponse::SecureStorage(_r)) = response.extract() {
                         Ok(())
                     } else {
                         Err(get_err_msg(RippleError::ExtnError))
@@ -190,7 +190,7 @@ impl SecureStorageServer for SecureStorageImpl {
             {
                 Ok(response) => {
                     if let Some(ExtnResponse::SecureStorage(SecureStorageResponse::Get(v))) =
-                        response.payload.extract()
+                        response.extract()
                     {
                         Ok(v.value)
                     } else {

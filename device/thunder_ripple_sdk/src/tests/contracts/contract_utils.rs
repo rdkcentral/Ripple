@@ -153,7 +153,7 @@ pub fn get_extn_msg(payload: ExtnPayload) -> ExtnMessage {
     ExtnMessage {
         callback: None,
         id: "SomeId".into(),
-        payload,
+        payload: payload.as_value(),
         requestor: ExtnId::new_channel(ExtnClassId::Device, "pact".into()),
         target: RippleContract::DeviceInfo,
         target_id: None,

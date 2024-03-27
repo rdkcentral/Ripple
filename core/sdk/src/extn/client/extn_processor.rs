@@ -118,8 +118,28 @@ macro_rules! start_rx_stream {
             // check the type of the message
             if $type_check(&msg) {
                 let state_c = state.clone();
-                let extracted_message = <$get_type>::get(msg.payload.clone());
-                if extracted_message.is_none() {
+                if let Ok(payload) = msg.get_extn_payload() {
+                    let extracted_message = <$get_type>::get(payload);
+                    if extracted_message.is_none() {
+                        <$get_type>::$error(
+                            state_c,
+                            msg,
+                            $crate::utils::error::RippleError::ParseError,
+                        )
+                        .await;
+                        continue;
+                    } else if let Some(v) =
+                        <$get_type>::$process(state_c, msg.clone(), extracted_message.unwrap())
+                            .await
+                    {
+                        if msg.is_event() && v {
+                            // trigger closure processor is dropped
+                            trace!("dropping rx to trigger cleanup");
+                            rx.close();
+                            break;
+                        }
+                    }
+                } else {
                     <$get_type>::$error(
                         state_c,
                         msg,
@@ -127,16 +147,6 @@ macro_rules! start_rx_stream {
                     )
                     .await;
                     continue;
-                }
-                if let Some(v) =
-                    <$get_type>::$process(state_c, msg.clone(), extracted_message.unwrap()).await
-                {
-                    if msg.payload.is_event() && v {
-                        // trigger closure processor is dropped
-                        trace!("dropping rx to trigger cleanup");
-                        rx.close();
-                        break;
-                    }
                 }
             } else {
                 <$get_type>::$error(
@@ -205,7 +215,7 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     }
 
     fn check_message_type(message: &ExtnMessage) -> bool {
-        message.payload.is_request()
+        message.is_request()
     }
 
     async fn respond(
@@ -220,7 +230,7 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     }
 
     async fn ack(mut extn_client: ExtnClient, request: ExtnMessage) -> RippleResponse {
-        return extn_client.send_message(request.ack()).await;
+        extn_client.send_message(request.ack()).await
     }
 
     async fn run(&mut self) {
@@ -234,23 +244,28 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
         let prereq = self.get_prerequisites();
         tokio::spawn(async move {
             while let Some(msg) = receiver.recv().await {
-                let extracted_message = Self::get(msg.clone().payload);
-                if extracted_message.is_none() {
-                    Self::handle_error(extn_client.clone(), msg, RippleError::ParseError).await;
-                } else if !Self::check_prerequisties(&prereq, &extn_client) {
-                    error!(
-                        "Prerequsties not statisfied: {:?}. Not processing request: {:?} by ",
-                        prereq, extracted_message
-                    );
-                    Self::handle_error(extn_client.clone(), msg, RippleError::ProcessorError).await;
-                } else if !Self::process_request(
-                    state.clone(),
-                    msg.clone(),
-                    extracted_message.unwrap(),
-                )
-                .await
-                {
-                    debug!("Error processing request {:?}", msg);
+                if let Ok(payload) = msg.get_extn_payload() {
+                    let extracted_message = Self::get(payload);
+                    if extracted_message.is_none() {
+                        Self::handle_error(extn_client.clone(), msg, RippleError::ParseError).await;
+                    } else if !Self::check_prerequisties(&prereq, &extn_client) {
+                        error!(
+                            "Prerequsties not statisfied: {:?}. Not processing request: {:?} by ",
+                            prereq, extracted_message
+                        );
+                        Self::handle_error(extn_client.clone(), msg, RippleError::ProcessorError)
+                            .await;
+                    } else if !Self::process_request(
+                        state.clone(),
+                        msg.clone(),
+                        extracted_message.unwrap(),
+                    )
+                    .await
+                    {
+                        debug!("Error processing request {:?}", msg);
+                    }
+                } else {
+                    error!("Invalid payload");
                 }
             }
         });
@@ -323,7 +338,7 @@ pub trait ExtnEventProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     }
 
     fn check_message_type(message: &ExtnMessage) -> bool {
-        message.payload.is_event()
+        message.is_event()
     }
 }
 
@@ -559,7 +574,7 @@ pub mod tests {
         let result = MockEventProcessor::process_event(
             processor.get_state(),
             mock_message.clone(),
-            mock_extracted_message.clone(),
+            mock_extracted_message,
         )
         .await;
 
@@ -653,9 +668,9 @@ pub mod tests {
         assert!(!MockEventProcessor::check_message_type(&request_message));
     }
 
-    #[rstest(exp_resp, case(Some(ExtnResponse::Boolean(true))))]
+    #[rstest(exp_resp, case(true))]
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_request_processor_run(exp_resp: Option<ExtnResponse>) {
+    async fn test_request_processor_run(exp_resp: bool) {
         let (mock_sender, receiver) = ExtnSender::mock();
         let mut extn_client = ExtnClient::new(receiver, mock_sender.clone());
         let processor = MockRequestProcessor {
@@ -677,7 +692,7 @@ pub mod tests {
             .request(MockRequest {
                 app_id: "test_app_id".to_string(),
                 contract: RippleContract::Internal,
-                expected_response: exp_resp.clone(),
+                expected_response: Some(ExtnResponse::Boolean(exp_resp)),
             })
             .await;
 
@@ -688,7 +703,7 @@ pub mod tests {
                     requestor: ExtnId::get_main_target("main".into()),
                     target: RippleContract::Internal,
                     target_id: None,
-                    payload: ExtnPayload::Response(exp_resp.clone().unwrap()),
+                    payload: ExtnPayload::Response(ExtnResponse::Boolean(exp_resp)).as_value(),
                     callback: None,
                     ts: Some(Utc::now().timestamp_millis()),
                 };

@@ -357,7 +357,7 @@ impl AppLauncher {
             .send_extn_request(DeviceInfoRequest::AvailableMemory)
             .await
         {
-            if let Some(ExtnResponse::Value(v)) = msg.payload.extract() {
+            if let Some(ExtnResponse::Value(v)) = msg.extract() {
                 if let Some(memory) = v.as_u64() {
                     return Ok(memory);
                 }
@@ -582,7 +582,7 @@ impl AppLauncher {
             return Err(AppError::NotSupported);
         }
         match resp {
-            Ok(response) => match response.payload.extract::<AppResponse>() {
+            Ok(response) => match response.extract::<AppResponse>() {
                 Some(Ok(AppManagerResponse::Session(SessionResponse::Completed(val)))) => {
                     sessionid = val.session_id;
                     debug!("session id : {:?} ", sessionid);
@@ -634,12 +634,11 @@ impl AppLauncher {
             return Err(AppError::NotSupported);
         }
 
-        let callsign =
-            if let Some(ExtnResponse::String(callsign)) = response.unwrap().payload.extract() {
-                callsign
-            } else {
-                return Err(AppError::NotSupported);
-            };
+        let callsign = if let Some(ExtnResponse::String(callsign)) = response.unwrap().extract() {
+            callsign
+        } else {
+            return Err(AppError::NotSupported);
+        };
 
         let intent = request
             .intent

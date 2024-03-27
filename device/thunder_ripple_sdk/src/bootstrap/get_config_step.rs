@@ -66,7 +66,7 @@ impl ThunderGetConfigStep {
         let extn_message_response: Result<ExtnMessage, RippleError> =
             state.request(Config::PlatformParameters).await;
         if let Ok(message) = extn_message_response {
-            if let Some(ExtnResponse::Value(v)) = message.payload.extract() {
+            if let Some(ExtnResponse::Value(v)) = message.extract() {
                 let mut pool_size = POOL_SIZE_DEFAULT;
                 let tp_res: Result<ThunderPlatformParameters, Error> = serde_json::from_value(v);
                 let mut gateway_url = url::Url::parse(GATEWAY_DEFAULT).unwrap();

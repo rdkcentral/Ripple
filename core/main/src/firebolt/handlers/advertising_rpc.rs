@@ -301,7 +301,7 @@ impl AdvertisingServer for AdvertisingImpl {
 
             if let Ok(payload) = resp {
                 if let Some(AdvertisingResponse::AdIdObject(obj)) =
-                    payload.payload.extract::<AdvertisingResponse>()
+                    payload.extract::<AdvertisingResponse>()
                 {
                     let ad_id = AdvertisingId {
                         ifa: obj.ifa,
@@ -383,7 +383,7 @@ impl AdvertisingServer for AdvertisingImpl {
             .send_extn_request(advertising_request)
             .await
         {
-            Ok(message) => match message.payload.extract() {
+            Ok(message) => match message.extract() {
                 Some(advertising_resp) => match advertising_resp {
                     AdvertisingResponse::AdConfig(resp) => resp,
                     _ => {

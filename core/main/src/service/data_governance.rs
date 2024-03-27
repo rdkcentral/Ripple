@@ -192,7 +192,7 @@ impl DataGovernance {
                 .send_extn_request(PrivacyCloudRequest::GetPartnerExclusions(session))
                 .await
             {
-                if let Some(excl) = response.payload.clone().extract::<ExclusionPolicy>() {
+                if let Some(excl) = response.extract::<ExclusionPolicy>() {
                     DataGovernance::update_local_exclusion_policy(
                         &state.data_governance,
                         excl.clone(),

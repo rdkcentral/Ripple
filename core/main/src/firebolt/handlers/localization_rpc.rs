@@ -509,7 +509,7 @@ impl LocalizationServer for LocalizationImpl {
                 "timezone_set: error response TBD",
             )));
         }
-        if let Some(ExtnResponse::AvailableTimezones(timezones)) = resp.unwrap().payload.extract() {
+        if let Some(ExtnResponse::AvailableTimezones(timezones)) = resp.unwrap().extract() {
             if !timezones.contains(&set_request.value) {
                 error!(
                     "timezone_set: Unsupported timezone: tz={}",
@@ -546,7 +546,7 @@ impl LocalizationServer for LocalizationImpl {
             .send_extn_request(DeviceInfoRequest::GetTimezone)
             .await
         {
-            if let Some(ExtnResponse::String(v)) = response.payload.extract() {
+            if let Some(ExtnResponse::String(v)) = response.extract() {
                 return Ok(v);
             }
         }

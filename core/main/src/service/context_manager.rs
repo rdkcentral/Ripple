@@ -99,9 +99,7 @@ impl ContextManager {
                 .send_extn_request(DeviceInfoRequest::PowerState)
                 .await
             {
-                if let Some(DeviceResponse::PowerState(p)) =
-                    resp.payload.extract::<DeviceResponse>()
-                {
+                if let Some(DeviceResponse::PowerState(p)) = resp.extract::<DeviceResponse>() {
                     ps_c.get_client().get_extn_client().context_update(
                         RippleContextUpdateRequest::PowerState(SystemPowerState {
                             current_power_state: p.clone(),
@@ -122,7 +120,7 @@ impl ContextManager {
             {
                 ripple_sdk::log::debug!("[RIPPLE CONTEXT] Sending OnInternetConnected request");
                 if let Some(DeviceResponse::InternetConnectionStatus(s)) =
-                    resp.payload.extract::<DeviceResponse>()
+                    resp.extract::<DeviceResponse>()
                 {
                     ripple_sdk::log::debug!(
                         "[RIPPLE CONTEXT] OnInternetConnected response: {:?}",
@@ -145,7 +143,7 @@ impl ContextManager {
                 .await
             {
                 if let Some(ExtnResponse::TimezoneWithOffset(tz, offset)) =
-                    resp.payload.extract::<ExtnResponse>()
+                    resp.extract::<ExtnResponse>()
                 {
                     ps_c.get_client().get_extn_client().context_update(
                         RippleContextUpdateRequest::TimeZone(TimeZone {
@@ -164,7 +162,7 @@ impl ContextManager {
             {
                 if let Some(ExtnResponse::AccountSession(
                     AccountSessionResponse::AccountSessionToken(account_token),
-                )) = resp.payload.extract::<ExtnResponse>()
+                )) = resp.extract::<ExtnResponse>()
                 {
                     ps_c.get_client()
                         .get_extn_client()
@@ -185,7 +183,7 @@ impl ContextManager {
             {
                 if let Some(ExtnResponse::AccountSession(
                     AccountSessionResponse::AccountSessionToken(token),
-                )) = response.payload.extract::<ExtnResponse>()
+                )) = response.extract::<ExtnResponse>()
                 {
                     state_c.get_client().get_extn_client().context_update(
                         ripple_sdk::api::context::RippleContextUpdateRequest::Token(token),

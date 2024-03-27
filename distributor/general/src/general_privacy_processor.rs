@@ -33,7 +33,7 @@ use ripple_sdk::{
                 DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
             },
         },
-        extn_client_message::{ExtnPayloadProvider, ExtnResponse},
+        extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     },
     framework::file_store::FileStore,
 };
@@ -117,9 +117,14 @@ impl PrivacyState {
         false
     }
 
-    fn get_settings(&self) -> PrivacySettings {
+    fn get_settings(&self) -> ExtnResponse {
         let data = self.privacy_data.read().unwrap();
-        data.value.settings.clone()
+        let value = data.value.settings.clone();
+        if let ExtnPayload::Response(r) = value.get_extn_payload() {
+            r
+        } else {
+            ExtnResponse::Value(serde_json::Value::Null)
+        }
     }
 }
 
@@ -234,22 +239,18 @@ impl ExtnRequestProcessor for DistributorPrivacyProcessor {
                 Self::ack(state.client.clone(), msg).await.is_ok()
             }
             PrivacyCloudRequest::GetProperties(_) => {
-                let v = state.get_settings();
-                Self::respond(
-                    state.client.clone(),
-                    msg,
-                    v.get_extn_payload().as_response().unwrap(),
-                )
-                .await
-                .is_ok()
+                Self::respond(state.client.clone(), msg, state.get_settings())
+                    .await
+                    .is_ok()
             }
             PrivacyCloudRequest::GetPartnerExclusions(_) => Self::respond(
                 state.client.clone(),
                 msg,
-                ExclusionPolicy::default()
-                    .get_extn_payload()
-                    .as_response()
-                    .unwrap(),
+                if let ExtnPayload::Response(r) = ExclusionPolicy::default().get_extn_payload() {
+                    r
+                } else {
+                    ExtnResponse::Value(serde_json::Value::Null)
+                },
             )
             .await
             .is_ok(),

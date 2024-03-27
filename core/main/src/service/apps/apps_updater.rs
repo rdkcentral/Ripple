@@ -283,25 +283,18 @@ pub async fn update(mut state: AppsUpdaterState, apps_catalog_update: AppsCatalo
         .client
         .request(AppsRequest::GetInstalledApps(None))
         .await;
-    if let Err(e) = resp {
-        error!("update: Could not retrieve app list: e={:?}", e);
+    if resp.is_err() {
+        error!("update: Could not retrieve app list: e={:?}", resp.err());
         return;
     }
 
-    let installed_apps = match resp.unwrap().payload {
-        ExtnPayload::Response(response) => match response {
-            ExtnResponse::InstalledApps(apps) => apps,
-            _ => {
-                error!("update: Unexpected response");
-                return;
-            }
-        },
+    let installed_apps = match resp.unwrap().get_extn_payload() {
+        Ok(ExtnPayload::Response(ExtnResponse::InstalledApps(apps))) => apps,
         _ => {
-            error!("update: Unexpected payload");
+            error!("update: Unexpected response");
             return;
         }
     };
-
     debug!(
         "update: apps_update={:?}, installed_apps={:?}",
         apps_catalog_update,

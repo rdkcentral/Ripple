@@ -63,7 +63,7 @@ impl LauncherState {
         let extn_message_response: Result<ExtnMessage, RippleError> =
             extn_client.request(Config::LauncherConfig).await;
         if let Ok(message) = extn_message_response {
-            if let Some(config) = message.payload.extract() {
+            if let Some(config) = message.extract() {
                 return Ok(LauncherState {
                     config,
                     view_state: ViewState::default(),

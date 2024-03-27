@@ -35,7 +35,7 @@ impl RemoteFeature {
         let rfc_res = extn_client.request(Config::RFC(key.clone())).await;
         let mut val = flag_cfg.default;
         if let Ok(resp) = rfc_res {
-            if let Some(ExtnResponse::Value(v)) = resp.payload.extract::<ExtnResponse>() {
+            if let Some(ExtnResponse::Value(v)) = resp.extract::<ExtnResponse>() {
                 info!("RFC Value for {} = {}", key, v);
                 val = val_to_bool_parse(v, flag_cfg.default);
             } else {

@@ -168,7 +168,7 @@ impl DeviceInfo {
         if resp_res.is_err() {
             return false;
         }
-        let device_resp = resp_res.unwrap().payload.extract::<DeviceResponse>();
+        let device_resp = resp_res.unwrap().extract::<DeviceResponse>();
         if device_resp.is_none() {
             return false;
         }
