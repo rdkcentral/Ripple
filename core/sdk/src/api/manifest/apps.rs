@@ -130,3 +130,62 @@ fn w_default() -> u32 {
 fn h_default() -> u32 {
     H_DEFAULT
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_browser_props() {
+        let app_props = AppProperties {
+            user_agent: Some(String::from("Mozilla/5.0")),
+            http_cookie_accept_policy: Some(String::from("strict")),
+            local_storage_enabled: Some(true),
+            languages: Some(String::from("en-US")),
+            headers: Some(String::from("Content-Type: application/json")),
+        };
+
+        let browser_props = app_props.get_browser_props();
+
+        assert_eq!(browser_props.user_agent, Some(String::from("Mozilla/5.0")));
+        assert_eq!(
+            browser_props.http_cookie_accept_policy,
+            Some(String::from("strict"))
+        );
+        assert_eq!(browser_props.local_storage_enabled, Some(true));
+        assert_eq!(browser_props.languages, Some(String::from("en-US")));
+        assert_eq!(
+            browser_props.headers,
+            Some(String::from("Content-Type: application/json"))
+        );
+    }
+
+    #[test]
+    fn test_requires_capability() {
+        let app_manifest = AppManifest {
+            app_key: String::from("xrn:firebolt:application:test"),
+            name: String::from("test"),
+            start_page: String::from("https://firecertapp.firecert.comcast.com/prod/index.html"),
+            content_catalog: None,
+            runtime: String::from("Web"),
+            x: X_DEFAULT,
+            y: Y_DEFAULT,
+            w: W_DEFAULT,
+            h: H_DEFAULT,
+            capabilities: AppCapabilities {
+                used: Capability {
+                    required: vec![String::from("capability1"), String::from("capability2")],
+                    optional: vec![String::from("capability3")],
+                },
+                managed: Capability::default(),
+                provided: Capability::default(),
+            },
+            properties: None,
+        };
+
+        assert!(app_manifest.requires_capability("capability1"));
+        assert!(app_manifest.requires_capability("capability2"));
+        assert!(!app_manifest.requires_capability("capability3"));
+        assert!(!app_manifest.requires_capability("capability4"));
+    }
+}

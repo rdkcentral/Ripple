@@ -101,3 +101,26 @@ pub struct AudioDescriptionSettings {
 pub struct AudioDescriptionSettingsSet {
     pub value: bool,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+    use serde_json::ser::Serializer;
+
+    #[rstest]
+    #[case(2.0, "2.0")]
+    #[case(0.50, "0.5")]
+    #[case(2.51, "2.51")]
+    #[case(0.491, "0.5")]
+    fn test_speed_serializer_various_values(
+        #[case] input_speed: f32,
+        #[case] expected_output: &str,
+    ) {
+        let mut buf = Vec::new();
+        let mut serializer = Serializer::new(&mut buf);
+        speed_serializer(&input_speed, &mut serializer).unwrap();
+        let serialized_str = String::from_utf8(buf).unwrap();
+        assert_eq!(serialized_str, expected_output);
+    }
+}

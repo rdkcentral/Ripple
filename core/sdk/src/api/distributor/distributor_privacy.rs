@@ -306,6 +306,66 @@ mod tests {
     use crate::utils::test_utils::test_extn_payload_provider;
 
     #[test]
+    fn test_get_session_get_property() {
+        let params = GetPropertyParams {
+            setting: PrivacySetting::AppDataCollection("test_app_data_collection".to_string()),
+            dist_session: AccountSession {
+                id: "test_session_id".to_string(),
+                token: "test_token".to_string(),
+                account_id: "test_account_id".to_string(),
+                device_id: "test_device_id".to_string(),
+            },
+        };
+        let request = PrivacyCloudRequest::GetProperty(params.clone());
+        let session = request.get_session();
+        assert_eq!(session, params.dist_session);
+    }
+
+    #[test]
+    fn test_get_session_get_properties() {
+        let session = AccountSession {
+            id: "test_session_id".to_string(),
+            token: "test_token".to_string(),
+            account_id: "test_account_id".to_string(),
+            device_id: "test_device_id".to_string(),
+        };
+        let request = PrivacyCloudRequest::GetProperties(session.clone());
+        let result = request.get_session();
+        assert_eq!(result, session);
+    }
+
+    #[test]
+    fn test_get_session_set_property() {
+        let params = SetPropertyParams {
+            setting: PrivacySetting::AppDataCollection("test_app_data_collection".to_string()),
+            value: true,
+            dist_session: AccountSession {
+                id: "test_session_id".to_string(),
+                token: "test_token".to_string(),
+                account_id: "test_account_id".to_string(),
+                device_id: "test_device_id".to_string(),
+            },
+        };
+        let request = PrivacyCloudRequest::SetProperty(params.clone());
+        let session = request.get_session();
+        assert_eq!(session, params.dist_session);
+    }
+
+    #[test]
+    fn test_get_session_get_partner_exclusions() {
+        let session = AccountSession {
+            id: "test_session_id".to_string(),
+            token: "test_token".to_string(),
+            account_id: "test_account_id".to_string(),
+            device_id: "test_device_id".to_string(),
+        };
+
+        let request = PrivacyCloudRequest::GetPartnerExclusions(session.clone());
+        let result = request.get_session();
+        assert_eq!(result, session);
+    }
+
+    #[test]
     fn test_extn_request_privacy_cloud() {
         let get_property_params = GetPropertyParams {
             setting: PrivacySetting::AppDataCollection("test_app_data_collection".to_string()),

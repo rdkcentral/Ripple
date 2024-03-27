@@ -223,7 +223,26 @@ pub struct AccessoryDeviceListResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::manifest::device_manifest::tests::Mockable;
     use crate::utils::test_utils::test_extn_payload_provider;
+    use rstest::rstest;
+
+    #[rstest(
+        supported_caps,
+        expected_protocol,
+        case(vec!["xrn:firebolt:capability:remote:rf4ce".to_string()], AccessoryProtocol::RF4CE),
+        case(vec!["xrn:firebolt:capability:remote:ble".to_string()], AccessoryProtocol::BluetoothLE),
+        case(Vec::new(), AccessoryProtocol::BluetoothLE)
+    )]
+    fn test_get_supported_protocol(
+        supported_caps: Vec<String>,
+        expected_protocol: AccessoryProtocol,
+    ) {
+        let mut dm = DeviceManifest::mock();
+        dm.capabilities.supported = supported_caps;
+        let result = AccessoryProtocol::get_supported_protocol(dm);
+        assert_eq!(result, expected_protocol);
+    }
 
     #[test]
     fn test_extn_payload_provider_for_remote_accessory_request() {

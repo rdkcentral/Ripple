@@ -117,3 +117,53 @@ impl DeviceResponseMessage {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+    use serde_json::json;
+
+    #[rstest]
+    #[case(DeviceChannelParams::Json(r#"{"key": "value"}"#.to_string()), true)]
+    #[case(DeviceChannelParams::Literal("literal_value".to_string()), false)]
+    #[case(DeviceChannelParams::Bool(true), false)]
+    fn test_is_json(#[case] params: DeviceChannelParams, #[case] expected: bool) {
+        assert_eq!(params.is_json(), expected);
+    }
+
+    #[rstest]
+    #[case(DeviceChannelParams::Json(r#"{"key": "value"}"#.to_string()), r#"{"key": "value"}"#.to_string())]
+    #[case(DeviceChannelParams::Literal("literal_value".to_string()), "literal_value".to_string())]
+    #[case(DeviceChannelParams::Bool(true), "".to_string())]
+    fn test_as_params(#[case] params: DeviceChannelParams, #[case] expected: String) {
+        assert_eq!(params.as_params(), expected);
+    }
+
+    #[rstest]
+    #[case(DeviceChannelParams::Json(r#"{"key": "value"}"#.to_string()), None)]
+    #[case(DeviceChannelParams::Literal("literal_value".to_string()), None)]
+    #[case(DeviceChannelParams::Bool(true), Some(Value::Bool(true)))]
+    fn test_as_value(#[case] params: DeviceChannelParams, #[case] expected: Option<Value>) {
+        assert_eq!(params.as_value(), expected);
+    }
+
+    #[test]
+    fn test_call() {
+        let message = json!({"key": "value"});
+        let response = DeviceResponseMessage::call(message.clone());
+
+        assert_eq!(response.message, message);
+        assert_eq!(response.sub_id, None);
+    }
+
+    #[test]
+    fn test_sub() {
+        let message = json!({"key": "value"});
+        let sub_id = "12345".to_string();
+        let response = DeviceResponseMessage::sub(message.clone(), sub_id.clone());
+
+        assert_eq!(response.message, message);
+        assert_eq!(response.sub_id, Some(sub_id));
+    }
+}

@@ -1157,4 +1157,124 @@ mod tests {
             new_behavioral_metric_context
         );
     }
+
+    #[test]
+    fn test_timer_start() {
+        let timer = Timer::start("test_timer".to_string(), None, None);
+        assert_eq!(timer.name, "test_timer");
+        assert!(timer.start.elapsed().as_millis() < 10);
+        assert_eq!(timer.stop, None);
+        assert_eq!(timer.tags, None);
+        assert_eq!(timer.time_unit, TimeUnit::Millis);
+        assert_eq!(timer.timer_type, TimerType::Local);
+    }
+
+    #[test]
+    fn test_timer_start_with_time_unit() {
+        let timer =
+            Timer::start_with_time_unit("test_timer".to_string(), None, TimeUnit::Seconds, None);
+        assert_eq!(timer.name, "test_timer");
+        assert!(timer.start.elapsed().as_secs() < 1);
+        assert_eq!(timer.stop, None);
+        assert_eq!(timer.tags, None);
+        assert_eq!(timer.time_unit, TimeUnit::Seconds);
+        assert_eq!(timer.timer_type, TimerType::Local);
+    }
+
+    #[test]
+    fn test_timer_stop() {
+        let mut timer = Timer::start("test_timer".to_string(), None, None);
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        let stopped_timer = timer.stop();
+        assert_eq!(stopped_timer.name, "test_timer");
+        assert!(stopped_timer.elapsed().as_secs() >= 1);
+        assert_eq!(stopped_timer.tags, None);
+        assert_eq!(stopped_timer.time_unit, TimeUnit::Millis);
+        assert_eq!(stopped_timer.timer_type, TimerType::Local);
+    }
+
+    #[test]
+    fn test_timer_restart() {
+        let mut timer = Timer::start("test_timer".to_string(), None, None);
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        timer.restart();
+        assert_eq!(timer.name, "test_timer");
+        assert!(timer.start.elapsed().as_secs() < 1);
+        assert_eq!(timer.stop, None);
+        assert_eq!(timer.tags, None);
+        assert_eq!(timer.time_unit, TimeUnit::Millis);
+        assert_eq!(timer.timer_type, TimerType::Local);
+    }
+
+    #[test]
+    fn test_insert_tag() {
+        let mut timer = Timer::new(
+            "test_timer".to_string(),
+            std::time::Instant::now(),
+            Some(
+                vec![("tag1".to_string(), "value1".to_string())]
+                    .into_iter()
+                    .collect(),
+            ),
+            TimeUnit::Millis,
+            None,
+        );
+
+        timer.insert_tag("tag2".to_string(), "value2".to_string());
+
+        assert_eq!(
+            timer.tags,
+            Some(
+                vec![
+                    ("tag1".to_string(), "value1".to_string()),
+                    ("tag2".to_string(), "value2".to_string())
+                ]
+                .into_iter()
+                .collect()
+            )
+        );
+    }
+
+    #[test]
+    fn test_timer_insert_tags() {
+        let mut timer = Timer::start("test_timer".to_string(), None, None);
+        let mut new_tags = HashMap::new();
+        new_tags.insert("tag_name".to_string(), "tag_value".to_string());
+        timer.insert_tags(new_tags);
+        assert_eq!(
+            timer.tags.unwrap().get("tag_name"),
+            Some(&"tag_value".to_string())
+        );
+    }
+
+    #[test]
+    fn test_timer_error() {
+        let mut timer = Timer::new(
+            "test_timer".to_string(),
+            std::time::Instant::now(),
+            Some(HashMap::new()),
+            TimeUnit::Millis,
+            None,
+        );
+        timer.error();
+        assert_eq!(timer.tags.unwrap().get("error"), Some(&"true".to_string()));
+    }
+
+    #[test]
+    fn test_timer_to_extn_request() {
+        let timer = Timer::start("test_timer".to_string(), None, None);
+        let request = timer.to_extn_request();
+        assert_eq!(request, OperationalMetricRequest::Timer(timer));
+    }
+
+    #[test]
+    fn test_fb_api_counter() {
+        let counter = fb_api_counter("test_method".to_string(), None);
+        assert_eq!(counter.name, "firebolt_rpc_call");
+        assert_eq!(counter.value, 1);
+        assert_eq!(
+            counter.tags.unwrap().get("method_name"),
+            Some(&"test_method".to_string())
+        );
+    }
 }

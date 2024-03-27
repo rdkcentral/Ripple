@@ -110,3 +110,108 @@ pub trait Exclusory {
     fn can_resolve(&self, method: String) -> bool;
     fn is_app_all_excluded(&self, app_id: &str) -> bool;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::manifest::device_manifest::tests::Mockable;
+
+    #[test]
+    fn test_get() {
+        let mut dm = DeviceManifest::mock();
+        dm.configuration.exclusory = Some(ExclusoryImpl {
+            resolve_only: Some(vec!["method1".to_string(), "method2".to_string()]),
+            method_ignore_rules: vec!["method3".to_string()],
+            app_authorization_rules: AppAuthorizationRules {
+                app_ignore_rules: HashMap::new(),
+            },
+        });
+        let exclusory = ExclusoryImpl::get(&dm);
+
+        assert_eq!(
+            exclusory.resolve_only,
+            Some(vec!["method1".to_string(), "method2".to_string()])
+        );
+        assert_eq!(exclusory.method_ignore_rules, vec!["method3".to_string()]);
+        assert_eq!(
+            exclusory.app_authorization_rules.app_ignore_rules,
+            HashMap::new()
+        );
+    }
+
+    #[test]
+    fn test_can_resolve() {
+        let exclusory = ExclusoryImpl {
+            resolve_only: Some(vec!["method1".to_string(), "method2".to_string()]),
+            method_ignore_rules: vec![],
+            app_authorization_rules: AppAuthorizationRules {
+                app_ignore_rules: HashMap::new(),
+            },
+        };
+
+        assert!(exclusory.can_resolve("method1".to_string()));
+        assert!(exclusory.can_resolve("method2".to_string()));
+        assert!(!exclusory.can_resolve("method3".to_string()));
+    }
+
+    #[test]
+    fn test_is_excluded() {
+        let exclusory = ExclusoryImpl {
+            resolve_only: None,
+            method_ignore_rules: vec!["method3".to_string()],
+            app_authorization_rules: AppAuthorizationRules {
+                app_ignore_rules: HashMap::new(),
+            },
+        };
+
+        assert!(!exclusory.is_excluded("app1".to_string(), "method1".to_string()),);
+        assert!(exclusory.is_excluded("app1".to_string(), "method3".to_string()),);
+        assert!(!exclusory.is_excluded("app2".to_string(), "method1".to_string()),);
+    }
+
+    #[test]
+    fn test_is_app_all_excluded() {
+        let exclusory = ExclusoryImpl {
+            resolve_only: None,
+            method_ignore_rules: vec![],
+            app_authorization_rules: AppAuthorizationRules {
+                app_ignore_rules: {
+                    let mut map = HashMap::new();
+                    map.insert("app1".to_string(), vec!["*".to_string()]);
+                    map
+                },
+            },
+        };
+
+        assert!(exclusory.is_app_all_excluded("app1"));
+        assert!(!exclusory.is_app_all_excluded("app2"));
+    }
+
+    #[test]
+    fn test_is_all_excluded() {
+        let exclusory = ExclusoryImpl {
+            resolve_only: None,
+            method_ignore_rules: vec!["*".to_string()],
+            app_authorization_rules: AppAuthorizationRules {
+                app_ignore_rules: HashMap::new(),
+            },
+        };
+
+        assert!(exclusory.is_all_excluded());
+    }
+
+    #[test]
+    fn test_is_method_excluded() {
+        let exclusory = ExclusoryImpl {
+            resolve_only: None,
+            method_ignore_rules: vec!["method1".to_string(), "method2".to_string()],
+            app_authorization_rules: AppAuthorizationRules {
+                app_ignore_rules: HashMap::new(),
+            },
+        };
+
+        assert!(exclusory.is_method_excluded("method1".to_string()));
+        assert!(exclusory.is_method_excluded("method2".to_string()));
+        assert!(!exclusory.is_method_excluded("method3".to_string()));
+    }
+}

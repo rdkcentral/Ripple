@@ -96,3 +96,40 @@ impl From<UserGrantRequestParam> for Vec<FireboltPermission> {
         fb_perms
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_from_user_grant_request_param() {
+        let param = UserGrantRequestParam {
+            app_id: String::from("my_app"),
+            permissions: vec![
+                CapabilityAndRole {
+                    capability: FireboltCap::Short("use_cap".to_string()),
+                    role: CapabilityRole::Use,
+                },
+                CapabilityAndRole {
+                    capability: FireboltCap::Short("provide_cap".to_string()),
+                    role: CapabilityRole::Provide,
+                },
+            ],
+            options: Some(RequestOptions { force: true }),
+        };
+
+        let expected = vec![
+            FireboltPermission {
+                cap: FireboltCap::Short("use_cap".to_string()),
+                role: CapabilityRole::Use,
+            },
+            FireboltPermission {
+                cap: FireboltCap::Short("provide_cap".to_string()),
+                role: CapabilityRole::Provide,
+            },
+        ];
+
+        let result: Vec<FireboltPermission> = param.into();
+        assert_eq!(result, expected);
+    }
+}
