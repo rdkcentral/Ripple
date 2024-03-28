@@ -1033,6 +1033,7 @@ pub mod tests {
             dev_man,
             RippleClient::test_client(client.clone()),
             vec![],
+            None,
         );
         spawn(async move {
             while let Some(msg) = di_extn_rx.recv().await {

@@ -193,7 +193,10 @@ impl MetricsState {
             context.device_name = device_name;
             context.device_session_id = String::from(&state.device_session_id);
             context.firmware = firmware;
-            context.ripple_version = SEMVER.into();
+            context.ripple_version = state
+                .version
+                .clone()
+                .unwrap_or(String::from(SEMVER_LIGHTWEIGHT));
 
             if let Some(t) = timezone {
                 context.device_timezone = t;
