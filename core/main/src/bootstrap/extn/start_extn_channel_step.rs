@@ -83,7 +83,7 @@ impl Bootstep<BootstrapState> for StartExtnChannelsStep {
             {
                 while let Some(v) = tr.recv().await {
                     match v {
-                        ExtnStatus::Ready => continue,
+                        ExtnStatus::Ready => break,
                         // When Extension is in this state means it has minimal success criteria for continuing
                         // yet not fully ready due to some errors.
                         // Expectation of the system here progressive to wait for an eventual success
