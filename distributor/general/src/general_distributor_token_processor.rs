@@ -17,8 +17,9 @@
 
 use ripple_sdk::{
     api::{
+        distributor::distributor_token::DistributorTokenRequest,
         firebolt::fb_authentication::TokenResult,
-        session::{SessionAdjective, SessionTokenRequest},
+        session::{SessionAdjective, TokenType},
     },
     async_trait::async_trait,
     extn::{
@@ -33,23 +34,23 @@ use ripple_sdk::{
     framework::ripple_contract::RippleContract,
 };
 
-pub struct GeneralTokenProcessor {
+pub struct DistributorTokenProcessor {
     client: ExtnClient,
     streamer: DefaultExtnStreamer,
 }
 
-impl GeneralTokenProcessor {
-    pub fn new(client: ExtnClient) -> GeneralTokenProcessor {
-        GeneralTokenProcessor {
+impl DistributorTokenProcessor {
+    pub fn new(client: ExtnClient) -> DistributorTokenProcessor {
+        DistributorTokenProcessor {
             client,
             streamer: DefaultExtnStreamer::new(),
         }
     }
 }
 
-impl ExtnStreamProcessor for GeneralTokenProcessor {
+impl ExtnStreamProcessor for DistributorTokenProcessor {
     type STATE = ExtnClient;
-    type VALUE = SessionTokenRequest;
+    type VALUE = DistributorTokenRequest;
 
     fn get_state(&self) -> Self::STATE {
         self.client.clone()
@@ -72,24 +73,21 @@ impl ExtnStreamProcessor for GeneralTokenProcessor {
     fn fulfills_mutiple(
         &self,
     ) -> Option<Vec<ripple_sdk::framework::ripple_contract::RippleContract>> {
-        Some(vec![
-            RippleContract::Session(SessionAdjective::Root),
-            RippleContract::Session(SessionAdjective::Device),
-        ])
+        Some(vec![RippleContract::Session(SessionAdjective::Distributor)])
     }
 }
 
 #[async_trait]
-impl ExtnRequestProcessor for GeneralTokenProcessor {
+impl ExtnRequestProcessor for DistributorTokenProcessor {
     fn get_client(&self) -> ExtnClient {
         self.client.clone()
     }
     async fn process_request(
         state: Self::STATE,
         msg: ripple_sdk::extn::extn_client_message::ExtnMessage,
-        extracted_message: Self::VALUE,
+        _extracted_message: Self::VALUE,
     ) -> bool {
-        let token = ExtnResponse::Token(TokenResult {_type:extracted_message.clone().token_type,expires:None,value:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c".into(),scope:None,expires_in:None, token_type: None });
+        let token = ExtnResponse::Token(TokenResult {_type:TokenType::Distributor,expires:None,value:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c".into(),scope:None,expires_in:None, token_type: None });
         Self::respond(state.clone(), msg, token).await.is_ok()
     }
 }

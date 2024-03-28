@@ -50,6 +50,9 @@
           ],
           "refui": [
             "*"
+          ],
+          "comcast.test.firecert": [
+            "*"
           ]
         }
       },
@@ -130,7 +133,12 @@
       "xrn:firebolt:capability:usergrant:acknowledgechallenge",
       "xrn:firebolt:capability:input:keyboard",
       "xrn:firebolt:capability:remote:ble",
-      "xrn:firebolt:capability:storage:secure"
+      "xrn:firebolt:capability:storage:secure",
+      "xrn:firebolt:capability:token:account",
+      "xrn:firebolt:capability:token:platform",
+      "xrn:firebolt:capability:token:device",
+      "xrn:firebolt:capability:token:session",
+      "xrn:firebolt:capability:token:root"
     ],
     "grantPolicies": {
       "xrn:firebolt:capability:device:id": {
