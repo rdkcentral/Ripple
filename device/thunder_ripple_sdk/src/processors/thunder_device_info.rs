@@ -431,9 +431,9 @@ impl ThunderDeviceInfoRequestProcessor {
                 if resp.is_none() {
                     return "".to_string();
                 }
-                let mac = resp.unwrap().to_string();
+                let mac = resp.unwrap().as_str().unwrap().trim_matches('"');
                 state.update_mac_address(mac.to_string());
-                mac
+                mac.to_string()
             }
         }
     }
@@ -495,7 +495,7 @@ impl ThunderDeviceInfoRequestProcessor {
                 if resp.is_none() {
                     return "NA".to_owned();
                 }
-                let resp = resp.unwrap().to_string();
+                let resp = resp.unwrap().as_str().unwrap().trim_matches('"');
                 let split_string: Vec<&str> = resp.split('_').collect();
                 let model = String::from(split_string[0]);
                 state.update_model(model.clone());
@@ -549,9 +549,9 @@ impl ThunderDeviceInfoRequestProcessor {
                 if r.is_none() {
                     "".into()
                 } else {
-                    let make = r.unwrap().to_string();
-                    state.update_make(make.clone());
-                    make
+                    let make = r.unwrap().as_str().unwrap().trim_matches('"');
+                    state.update_make(make.to_string());
+                    make.to_string()
                 }
             }
         }
