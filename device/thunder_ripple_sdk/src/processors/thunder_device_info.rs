@@ -629,7 +629,7 @@ impl ThunderDeviceInfoRequestProcessor {
             })
             .await;
         info!("{}", response.message);
-        if check_thunder_response_success(&response) {
+        if !check_thunder_response_success(&response) {
             error!("{}", response.message);
             return HashMap::new();
         }
@@ -829,7 +829,7 @@ impl ThunderDeviceInfoRequestProcessor {
             .await;
         info!("{}", response.message);
 
-        if check_thunder_response_success(&response) {
+        if !check_thunder_response_success(&response) {
             error!("{}", response.message);
             return Vec::new();
         }
@@ -864,7 +864,7 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-        if check_thunder_response_success(&response) {
+        if !check_thunder_response_success(&response) {
             error!("{}", response.message);
             return Err(());
         }
@@ -881,7 +881,7 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-        if check_thunder_response_success(&response) {
+        if !check_thunder_response_success(&response) {
             error!("{}", response.message);
             return Err(());
         }

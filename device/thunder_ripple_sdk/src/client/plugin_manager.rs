@@ -18,7 +18,7 @@
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
-use jsonrpsee::tracing::info;
+use ripple_sdk::log::info;
 use ripple_sdk::tokio;
 use ripple_sdk::{
     api::device::device_operator::{DeviceCallRequest, DeviceSubscribeRequest},
