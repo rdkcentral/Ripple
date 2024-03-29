@@ -87,8 +87,7 @@ impl PluginStatus {
             "deactivated" => PluginState::Deactivated,
             "deactivation" => PluginState::Deactivation,
             "activation" | "precondition" => PluginState::Activation,
-            "unavailable" | "hibernated" => PluginState::Unavailable,
-            _ => PluginState::Missing,
+            _ => PluginState::Unavailable,
         }
     }
 }
@@ -595,7 +594,7 @@ mod tests {
         ));
         assert!(matches!(
             get_plugin_status("").to_plugin_state(),
-            PluginState::Missing
+            PluginState::Unavailable
         ));
     }
 }
