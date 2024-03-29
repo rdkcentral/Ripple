@@ -60,7 +60,7 @@ impl ExtnPayloadProvider for UserGrantsCloudStoreRequest {
     }
 }
 
-pub type UserGrants = Vec<UserGrantInfo>; // XXX: UserGrantInfo was formerly CloudGrantEntry
+pub type UserGrants = Vec<UserGrantInfo>;
 
 #[cfg(test)]
 mod tests {

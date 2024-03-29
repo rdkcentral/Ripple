@@ -302,16 +302,14 @@ impl FromStr for DataEventType {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppSetting {
-    // XXX: ???
     pub app_id: Option<String>,
     pub value: Option<bool>,
 }
 
-pub type UserGrants = Vec<UserGrantInfo>; // XXX: UserGrantInfo was formerly CloudGrantEntry
+pub type UserGrants = Vec<UserGrantInfo>;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum PrivacyResponse {
-    // XXX: ???
     None,
     Bool(bool),
     Settings(PrivacySettings),
