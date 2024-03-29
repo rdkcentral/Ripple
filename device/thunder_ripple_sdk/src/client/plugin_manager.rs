@@ -83,10 +83,11 @@ impl ThunderError {
 impl PluginStatus {
     pub fn to_plugin_state(&self) -> PluginState {
         match self.state.as_str() {
-            "activated" => PluginState::Activated,
-            "resumed" => PluginState::Activated,
-            "suspended" => PluginState::Activated,
+            "activated" | "resumed" | "suspended" => PluginState::Activated,
             "deactivated" => PluginState::Deactivated,
+            "deactivation" => PluginState::Deactivation,
+            "activation" | "precondition" => PluginState::Activation,
+            "unavailable" | "hibernated" => PluginState::Unavailable,
             _ => PluginState::Missing,
         }
     }
@@ -98,6 +99,10 @@ pub enum PluginState {
     Activation,
     Deactivated,
     Deactivation,
+    Unavailable,
+    Precondition,
+    Suspended,
+    Resumed,
     Missing,
     Error,
     InProgress,
@@ -108,7 +113,9 @@ impl PluginState {
     pub fn is_activated(&self) -> bool {
         matches!(self, PluginState::Activated)
     }
-
+    pub fn is_activating(&self) -> bool {
+        matches!(self, PluginState::Activation)
+    }
     pub fn is_missing(&self) -> bool {
         matches!(self, PluginState::Missing)
     }
@@ -341,7 +348,8 @@ impl PluginManager {
                 callsign: callsign.clone(),
                 callback: sub_tx,
             });
-            if trigger_activation {
+
+            if !state.is_activating() && trigger_activation {
                 return match self.activate_plugin(callsign).await {
                     PluginState::Activated => PluginActivatedResult::Ready,
                     PluginState::Missing => PluginActivatedResult::Error,
@@ -381,6 +389,7 @@ impl PluginManager {
             })
             .await;
 
+        // For an unavailable plugin Thunder responds with a Code and Message
         if let Ok(plugin_error) = serde_json::from_value::<ThunderError>(resp.message.clone()) {
             return plugin_error.get_plugin_state();
         }
@@ -538,5 +547,55 @@ mod tests {
             state: "activated".to_string(),
         };
         assert_eq!(status.to_plugin_state(), PluginState::Activated);
+    }
+
+    #[test]
+    fn test_plugin_states() {
+        fn get_plugin_status(state: &str) -> PluginStatus {
+            PluginStatus {
+                state: state.to_owned(),
+            }
+        }
+
+        assert!(matches!(
+            get_plugin_status("activated").to_plugin_state(),
+            PluginState::Activated
+        ));
+        assert!(matches!(
+            get_plugin_status("resumed").to_plugin_state(),
+            PluginState::Activated
+        ));
+        assert!(matches!(
+            get_plugin_status("suspended").to_plugin_state(),
+            PluginState::Activated
+        ));
+        assert!(matches!(
+            get_plugin_status("deactivated").to_plugin_state(),
+            PluginState::Deactivated
+        ));
+        assert!(matches!(
+            get_plugin_status("deactivation").to_plugin_state(),
+            PluginState::Deactivation
+        ));
+        assert!(matches!(
+            get_plugin_status("activation").to_plugin_state(),
+            PluginState::Activation
+        ));
+        assert!(matches!(
+            get_plugin_status("precondition").to_plugin_state(),
+            PluginState::Activation
+        ));
+        assert!(matches!(
+            get_plugin_status("unavailable").to_plugin_state(),
+            PluginState::Unavailable
+        ));
+        assert!(matches!(
+            get_plugin_status("hibernated").to_plugin_state(),
+            PluginState::Unavailable
+        ));
+        assert!(matches!(
+            get_plugin_status("").to_plugin_state(),
+            PluginState::Missing
+        ));
     }
 }
