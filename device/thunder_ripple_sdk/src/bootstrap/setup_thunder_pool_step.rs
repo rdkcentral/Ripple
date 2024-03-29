@@ -72,7 +72,10 @@ impl ThunderPoolStep {
             PluginManager::start(tc, expected_plugins.clone()).await;
 
         if !failed_plugins.is_empty() {
-            error!("Mandatory Plugin activation for {:?} failed after 30 secs. Thunder Bootstrap delayed...", failed_plugins);
+            error!(
+                "Mandatory Plugin activation for {:?} failed. Thunder Bootstrap delayed...",
+                failed_plugins
+            );
             loop {
                 let failed_plugins = PluginManager::activate_mandatory_plugins(
                     expected_plugins.clone(),
@@ -80,7 +83,10 @@ impl ThunderPoolStep {
                 )
                 .await;
                 if !failed_plugins.is_empty() {
-                    error!("Mandatory Plugin activation for {:?} failed after 30 secs. Thunder Bootstrap delayed...", failed_plugins);
+                    error!(
+                        "Mandatory Plugin activation for {:?} failed. Thunder Bootstrap delayed...",
+                        failed_plugins
+                    );
                     let _ = state.extn_client.event(ExtnStatus::Interrupted);
                     continue;
                 } else {
