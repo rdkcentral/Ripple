@@ -234,6 +234,13 @@ mod tests {
                     PluginManagerCommand::WaitForActivation { callsign: _, tx } => {
                         oneshot_send_and_log(tx, PluginActivatedResult::Ready, "WaitForActivation");
                     }
+                    PluginManagerCommand::WaitForActivationForDynamicPlugin { callsign: _, tx } => {
+                        oneshot_send_and_log(
+                            tx,
+                            PluginActivatedResult::Ready,
+                            "WaitForActivationForDynamic",
+                        );
+                    }
                     PluginManagerCommand::ReactivatePluginState { tx } => {
                         oneshot_send_and_log(
                             tx,
