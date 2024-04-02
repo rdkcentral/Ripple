@@ -443,21 +443,28 @@ impl StorageManager {
     }
 
     pub async fn delete_key(state: &PlatformState, property: StorageProperty) -> RpcResult<()> {
+        let mut result = Ok(());
         let data = property.as_data();
 
         if let Ok(ExtnResponse::StorageData(_)) =
             StorageManager::get(state, &data.namespace.to_string(), &data.key.to_string()).await
         {
-            if let Ok(_) =
-                StorageManager::delete(state, &data.namespace.to_string(), &data.key.to_string()).await
+            result = match StorageManager::delete(
+                state,
+                &data.namespace.to_string(),
+                &data.key.to_string(),
+            )
+            .await
             {
-                StorageManager::notify(state, Value::Null, data.event_names, None).await;
-            } else {
-                return Err(StorageManager::get_firebolt_error(&property));
+                Ok(_) => {
+                    StorageManager::notify(state, Value::Null, data.event_names, None).await;
+                    Ok(())
+                }
+                Err(_) => Err(StorageManager::get_firebolt_error(&property)),
             }
         }
 
-        Ok(())
+        result
     }
 
     async fn get(
