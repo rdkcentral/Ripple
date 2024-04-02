@@ -56,3 +56,5 @@ tree_magic_mini = { version = "=3.0.3", optional = true}
 [dev-dependencies]
 tokio-tungstenite = { version = "0.17.1", features = ["native-tls"] }
 ripple_sdk = { path = "../../core/sdk", features=["tdk"]}
+rstest = "0.18.0"
+async-std = { version = "1.5", features = ["attributes"] }
