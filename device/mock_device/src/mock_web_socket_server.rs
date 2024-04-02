@@ -138,7 +138,7 @@ impl MockWebSocketServer {
             listener,
             port,
             conn_path: server_config.path.unwrap_or_else(|| "/".to_string()),
-            conn_headers: server_config.headers.unwrap_or_else(HeaderMap::new),
+            conn_headers: server_config.headers.unwrap_or_default(),
             conn_query_params: server_config.query_params.unwrap_or_default(),
             connected_peer_sinks: Arc::new(Mutex::new(HashMap::new())),
             config,
@@ -357,7 +357,7 @@ impl MockWebSocketServer {
         let mock_data = self.mock_data_v2.read().unwrap();
         if let Some(v) = mock_data.get(&req.method.to_lowercase()).cloned() {
             if v.len() == 1 {
-                return v.get(0).cloned();
+                return v.first().cloned();
             } else if let Some(params) = &req.params {
                 for response in v {
                     if response.get_key(params).is_some() {
