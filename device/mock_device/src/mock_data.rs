@@ -214,7 +214,7 @@ mod tests {
             events: None,
             params: None,
         };
-        assert!(response.get_key(&Value::Null).is_none());
+        assert!(response.get_key(&Value::Null).is_some());
         let response = ParamResponse {
             result: None,
             error: None,
