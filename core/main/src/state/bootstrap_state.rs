@@ -141,12 +141,11 @@ impl BootstrapState {
                 Err(err) => {
                     warn!(
                         "error reading versions from {}, err={:?}",
-                        version_file_name.clone(),
-                        err
+                        version_file_name, err
                     );
                 }
             }
-            warn!("error reading versions from {}", version_file_name.clone(),);
+            warn!("error reading versions from {}", version_file_name,);
             None
         }
         Ok(BootstrapState {
