@@ -160,7 +160,7 @@ impl AppManagerState {
                     err
                 );
                 path =
-                    std::path::Path::new(&env::temp_dir().display().to_string()).join("/app_info");
+                    std::path::Path::new(&env::temp_dir().display().to_string()).join("app_info");
                 if let Err(err) = fs::create_dir_all(path.clone()) {
                     error!(
                         "Could not create directory {} for persisting app info err: {:?}, app title will persist in /tmp/",
@@ -641,7 +641,7 @@ impl DelegatedLauncherHandler {
                 platform_state,
                 session.app.id.clone(),
                 // Do not pass None as catalog value from this place, instead pass an empty string when app.catalog is None
-                Some(session.app.catalog.clone().unwrap_or(String::new())),
+                Some(session.app.catalog.clone().unwrap_or_default()),
             )
             .await
         } else {
