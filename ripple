@@ -83,18 +83,39 @@ case ${1} in
         cp ./examples/manifest/extn-manifest-example.json ~/.ripple/firebolt-extn-manifest.json
 
         ## Update firebolt-extn-manifest.json
-        sed -i "" "s@\"default_path\": \"/usr/lib/rust/\"@\"default_path\": \"$workspace_dir/target/debug\"@" ~/.ripple/firebolt-extn-manifest.json
+        sed -i "" "s@\"default_path\": \"/usr/lib/rust/\"@\"default_path\": \"$workspace_dir/target/debug/\"@" ~/.ripple/firebolt-extn-manifest.json
         default_extension=$(get_default_extension)
         sed -i "" "s@\"default_extension\": \"so\"@\"default_extension\": \"$default_extension\"@" ~/.ripple/firebolt-extn-manifest.json
 
         ## Update firebolt-device-manifest.json
-        sed -i "" "s@\"library\": \"/etc/firebolt-app-library.json\"@\"library\": \"~/.ripple/firebolt-app-library.json\"@" ~/.ripple/firebolt-device-manifest.json
+        sed -i "" "s@\"library\": \"/etc/firebolt-app-library.json\"@\"library\": \"$HOME/.ripple/firebolt-app-library.json\"@" ~/.ripple/firebolt-device-manifest.json
 
         echo "All Done!"
     ;;
     "run")
         cargo build --features local_dev
         THUNDER_HOST=${2} cargo run --features local_dev core/main 
+    ;;
+    "run-mock")
+        workspace_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+        mkdir -p target/manifests
+        rm -rf target/manifests/*
+        cp examples/manifest/mock/mock-device-manifest.json target/manifests/firebolt-device-manifest.json
+        cp examples/manifest/mock/mock-app-library.json target/manifests/firebolt-app-library.json
+        cp examples/manifest/mock/mock-extn-manifest.json target/manifests/firebolt-extn-manifest.json
+        cp examples/manifest/mock/mock-thunder-device.json target/manifests/mock-thunder-device.json
+
+        sed -i "" "s@\"default_path\": \"/usr/lib/rust/\"@\"default_path\": \"$workspace_dir/target/debug/\"@" target/manifests/firebolt-extn-manifest.json
+        default_extension=$(get_default_extension)
+        sed -i "" "s@\"default_extension\": \"so\"@\"default_extension\": \"$default_extension\"@" target/manifests/firebolt-extn-manifest.json
+
+        ## Update firebolt-device-manifest.json
+        sed -i "" "s@\"library\": \"/etc/firebolt-app-library.json\"@\"library\": \"$workspace_dir/target/manifests/firebolt-app-library.json\"@" target/manifests/firebolt-device-manifest.json
+        sed -i "" "s@\"mock_data_file\": \"mock-device.json\"@\"mock_data_file\": \"$workspace_dir/target/manifests/mock-thunder-device.json\"@" target/manifests/firebolt-extn-manifest.json
+        export EXTN_MANIFEST=${workspace_dir}/target/manifests/firebolt-extn-manifest.json
+        export DEVICE_MANIFEST=${workspace_dir}/target/manifests/firebolt-device-manifest.json
+        cargo build --features local_dev
+        cargo run --features local_dev core/main
     ;;
     "-h")
         print_help

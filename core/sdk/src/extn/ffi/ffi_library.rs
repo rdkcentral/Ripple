@@ -46,7 +46,7 @@ pub struct ExtnSymbolMetadata {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CExtnMetadata {
     pub name: String,
     pub metadata: String,

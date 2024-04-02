@@ -115,7 +115,6 @@ impl PlatformState {
         version: Option<String>,
     ) -> PlatformState {
         let exclusory = ExclusoryImpl::get(&manifest);
-
         Self {
             extn_manifest,
             cap_state: CapState::new(manifest.clone()),
