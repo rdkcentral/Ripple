@@ -58,12 +58,13 @@ use serde_json::Value;
 use super::thunder_telemetry::{ThunderMetricsTimerName, ThunderResponseStatus};
 
 // TODO: If/when ripple supports selectable download speeds we'll probably want multiple configurable values or compute this based on throughput.
-const OPERATION_TIMEOUT_SECS: u64 = 6 * 60; // 6 minutes
+const DEFAULT_OPERATION_TIMEOUT_SECS: u64 = 12 * 60; // 12 minutes
 
 #[derive(Debug, Clone)]
 pub struct ThunderPackageManagerState {
     thunder_state: ThunderState,
     active_operations: Arc<Mutex<HashMap<String, Operation>>>,
+    operation_timeout_secs: u64,
 }
 
 #[derive(Debug)]
@@ -338,10 +339,16 @@ fn get_string_field(
 
 impl ThunderPackageManagerRequestProcessor {
     pub fn new(thunder_state: ThunderState) -> ThunderPackageManagerRequestProcessor {
+        let operation_timeout_secs = thunder_state
+            .get_client()
+            .get_uint_config("pm_operation_timeout_secs")
+            .unwrap_or(DEFAULT_OPERATION_TIMEOUT_SECS);
+
         ThunderPackageManagerRequestProcessor {
             state: ThunderPackageManagerState {
                 thunder_state,
                 active_operations: Arc::new(Mutex::new(HashMap::default())),
+                operation_timeout_secs,
             },
             streamer: DefaultExtnStreamer::new(),
         }
@@ -475,7 +482,7 @@ impl ThunderPackageManagerRequestProcessor {
                 .lock()
                 .unwrap()
                 .insert(handle.clone(), operation);
-            Self::start_operation_timer(state, handle, None);
+            Self::start_operation_timer(state, handle);
         }
     }
 
@@ -500,16 +507,10 @@ impl ThunderPackageManagerRequestProcessor {
         None
     }
 
-    fn start_operation_timer(
-        state: ThunderPackageManagerState,
-        handle: String,
-        timeout_secs: Option<u64>,
-    ) {
+    fn start_operation_timer(state: ThunderPackageManagerState, handle: String) {
+        let timeout_secs = state.operation_timeout_secs;
         tokio::spawn(async move {
-            tokio::time::sleep(tokio::time::Duration::from_secs(
-                timeout_secs.unwrap_or(OPERATION_TIMEOUT_SECS),
-            ))
-            .await;
+            let timeout = tokio::time::sleep(tokio::time::Duration::from_secs(timeout_secs)).await;
             if state
                 .active_operations
                 .lock()
@@ -517,11 +518,7 @@ impl ThunderPackageManagerRequestProcessor {
                 .remove(&handle)
                 .is_some()
             {
-                error!(
-                    "Detected incomplete operation, attempting to cancel: handle={}",
-                    handle.clone()
-                );
-
+                error!("Detected incomplete operation after {} seconds, attempting to cancel: handle={}", timeout_secs, handle.clone());
                 Self::cancel_operation(state, handle).await;
             }
         });
