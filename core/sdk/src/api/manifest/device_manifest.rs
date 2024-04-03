@@ -50,30 +50,26 @@ pub struct RippleConfiguration {
     pub distribution_platform: String,
     pub distribution_id_salt: Option<IdSalt>,
     pub form_factor: String,
-    #[serde(default = "default_values_default")]
+    #[serde(default)]
     pub default_values: DefaultValues,
-    #[serde(default = "settings_defaults_per_app_default")]
+    #[serde(default)]
     pub settings_defaults_per_app: HashMap<String, SettingsDefaults>,
-    #[serde(default = "model_friendly_names_default")]
+    #[serde(default)]
     pub model_friendly_names: HashMap<String, String>,
     pub distributor_experience_id: String,
     pub distributor_services: Option<Value>,
     pub exclusory: Option<ExclusoryImpl>,
-    #[serde(default = "default_ripple_features")]
+    #[serde(default)]
     pub features: RippleFeatures,
     pub internal_app_id: Option<String>,
     #[serde(default = "default_saved_dir")]
     pub saved_dir: String,
-    #[serde(default = "data_governance_default")]
+    #[serde(default)]
     pub data_governance: DataGovernanceConfig,
     #[serde(default = "partner_exclusion_refresh_timeout_default")]
     pub partner_exclusion_refresh_timeout: u32,
     #[serde(default = "metrics_logging_percentage_default")]
     pub metrics_logging_percentage: u32,
-}
-
-fn data_governance_default() -> DataGovernanceConfig {
-    DataGovernanceConfig::default()
 }
 
 fn partner_exclusion_refresh_timeout_default() -> u32 {
@@ -84,7 +80,7 @@ fn metrics_logging_percentage_default() -> u32 {
     METRICS_LOGGING_PERCENTAGE_DEFAULT
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CapabilityConfiguration {
     pub supported: Vec<String>,
@@ -95,7 +91,7 @@ pub struct CapabilityConfiguration {
     pub dependencies: HashMap<FireboltPermission, Vec<FireboltPermission>>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct LifecycleConfiguration {
     pub app_ready_timeout_ms: u64,
@@ -114,7 +110,7 @@ impl LifecycleConfiguration {
 }
 /// Device manifest contains all the specifications required for coniguration of a Ripple application.
 /// Device manifest file should be compliant to the Openrpc schema specified in <https://github.com/rdkcentral/firebolt-configuration>
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Default)]
 pub struct DeviceManifest {
     pub configuration: RippleConfiguration,
     pub capabilities: CapabilityConfiguration,
@@ -122,13 +118,13 @@ pub struct DeviceManifest {
     pub applications: ApplicationsConfiguration,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Default)]
 pub struct DistributionConfiguration {
     pub library: String,
     pub catalog: String,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Default)]
 pub struct ApplicationDefaultsConfiguration {
     #[serde(rename = "xrn:firebolt:application-type:main")]
     pub main: String,
@@ -156,7 +152,7 @@ impl ApplicationDefaultsConfiguration {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Default)]
 pub struct ApplicationsConfiguration {
     pub distribution: DistributionConfiguration,
     pub defaults: ApplicationDefaultsConfiguration,
@@ -164,7 +160,7 @@ pub struct ApplicationsConfiguration {
     pub distributor_app_aliases: HashMap<String, String>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Default)]
 pub struct WsConfiguration {
     pub enabled: bool,
     pub gateway: String,
@@ -230,7 +226,7 @@ pub enum AppManifestLoad {
     Embedded(AppManifest),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DefaultValues {
     pub country_code: String,
     pub language: String,
@@ -346,38 +342,32 @@ pub enum AppLauncherMode {
     Internal,
 }
 
-fn model_friendly_names_default() -> HashMap<String, String> {
-    HashMap::default()
-}
-
-fn settings_defaults_per_app_default() -> HashMap<String, SettingsDefaults> {
-    HashMap::default()
-}
-
-fn default_values_default() -> DefaultValues {
-    DefaultValues {
-        country_code: "US".to_string(),
-        language: "en".to_string(),
-        locale: "en-US".to_string(),
-        name: "Living Room".to_string(),
-        captions: captions_default(),
-        voice: voice_guidance_default(),
-        additional_info: additional_info_default(),
-        allow_acr_collection: false,
-        allow_app_content_ad_targeting: false,
-        allow_business_analytics: default_business_analytics(),
-        allow_camera_analytics: false,
-        allow_personalization: false,
-        allow_primary_browse_ad_targeting: false,
-        allow_primary_content_ad_targeting: false,
-        allow_product_analytics: false,
-        allow_remote_diagnostics: false,
-        allow_resume_points: false,
-        allow_unentitled_personalization: false,
-        allow_unentitled_resume_points: false,
-        allow_watch_history: false,
-        skip_restriction: "none".to_string(),
-        video_dimensions: default_video_dimensions(),
+impl Default for DefaultValues {
+    fn default() -> Self {
+        DefaultValues {
+            country_code: "US".to_string(),
+            language: "en".to_string(),
+            locale: "en-US".to_string(),
+            name: "Living Room".to_string(),
+            captions: captions_default(),
+            voice: voice_guidance_default(),
+            additional_info: additional_info_default(),
+            allow_acr_collection: false,
+            allow_app_content_ad_targeting: false,
+            allow_business_analytics: default_business_analytics(),
+            allow_camera_analytics: false,
+            allow_personalization: false,
+            allow_primary_browse_ad_targeting: false,
+            allow_primary_content_ad_targeting: false,
+            allow_product_analytics: false,
+            allow_remote_diagnostics: false,
+            allow_resume_points: false,
+            allow_unentitled_personalization: false,
+            allow_unentitled_resume_points: false,
+            allow_watch_history: false,
+            skip_restriction: "none".to_string(),
+            video_dimensions: default_video_dimensions(),
+        }
     }
 }
 
@@ -462,12 +452,14 @@ impl DataGovernanceConfig {
     }
 }
 
-fn default_ripple_features() -> RippleFeatures {
-    RippleFeatures {
-        privacy_settings_storage_type: default_privacy_settings_storage_type(),
-        intent_validation: default_intent_validation(),
-        cloud_permissions: default_cloud_permissions(),
-        catalog_uninstalls_enabled: Default::default(),
+impl Default for RippleFeatures {
+    fn default() -> Self {
+        RippleFeatures {
+            privacy_settings_storage_type: default_privacy_settings_storage_type(),
+            intent_validation: default_intent_validation(),
+            cloud_permissions: default_cloud_permissions(),
+            catalog_uninstalls_enabled: Default::default(),
+        }
     }
 }
 
@@ -505,6 +497,32 @@ pub struct DataGovernanceSettingTag {
     #[serde(default = "default_enforcement_value")]
     pub enforcement_value: bool,
     pub tags: HashSet<String>,
+}
+
+impl Default for RippleConfiguration {
+    fn default() -> Self {
+        Self {
+            ws_configuration: Default::default(),
+            internal_ws_configuration: Default::default(),
+            platform: DevicePlatformType::Thunder,
+            platform_parameters: Value::Null,
+            distribution_platform: Default::default(),
+            distribution_id_salt: None,
+            form_factor: Default::default(),
+            default_values: DefaultValues::default(),
+            settings_defaults_per_app: Default::default(),
+            model_friendly_names: Default::default(),
+            distributor_experience_id: Default::default(),
+            distributor_services: None,
+            exclusory: None,
+            features: Default::default(),
+            internal_app_id: None,
+            saved_dir: default_saved_dir(),
+            data_governance: Default::default(),
+            partner_exclusion_refresh_timeout: partner_exclusion_refresh_timeout_default(),
+            metrics_logging_percentage: metrics_logging_percentage_default(),
+        }
+    }
 }
 
 impl DeviceManifest {
@@ -627,6 +645,7 @@ impl DeviceManifest {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     #[test]
     fn check_default_features() {

@@ -1251,7 +1251,7 @@ mod tests {
                         .unwrap()
                         .program_types
                         .unwrap()
-                        .get(0)
+                        .first()
                         .unwrap(),
                     ProgramType::Movie
                 ));
@@ -1280,11 +1280,11 @@ mod tests {
             Ok(NavigationIntentStrict::PlayQuery(v)) => {
                 if let Some(v) = v.data.options {
                     assert!(matches!(
-                        v.program_types.unwrap().get(0).unwrap(),
+                        v.program_types.unwrap().first().unwrap(),
                         ProgramType::Movie
                     ));
                     assert!(matches!(
-                        v.music_types.unwrap().get(0).unwrap(),
+                        v.music_types.unwrap().first().unwrap(),
                         MusicType::Song
                     ));
                 }
