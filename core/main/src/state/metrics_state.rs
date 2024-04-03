@@ -190,7 +190,10 @@ impl MetricsState {
             context.device_language = language;
             context.os_name = os_info.name;
             context.os_ver = os_info.version.readable;
-            context.device_name = device_name;
+            // <pca>
+            //context.device_name = device_name;
+            context.device_name = Some(device_name);
+            // </pca>
             context.device_session_id = String::from(&state.device_session_id);
             context.firmware = firmware;
             context.ripple_version = state
@@ -228,22 +231,40 @@ impl MetricsState {
         }
     }
 
+    // <pca>
+    // pub async fn update_account_session(state: &PlatformState) {
+    //     {
+    //         let mut context = state.metrics.context.write().unwrap();
+    //         let account_session = state.session_state.get_account_session();
+    //         if let Some(session) = account_session {
+    //             context.account_id = session.account_id;
+    //             context.device_id = session.device_id;
+    //             context.distribution_tenant_id = session.id;
+    //         } else {
+    //             context.account_id = "no.account.set".to_string();
+    //             context.device_id = "no.device_id.set".to_string();
+    //             context.distribution_tenant_id = "no.distribution_tenant_id.set".to_string();
+    //         }
+    //     }
+    //     Self::send_context_update_request(state);
+    // }
     pub async fn update_account_session(state: &PlatformState) {
         {
             let mut context = state.metrics.context.write().unwrap();
             let account_session = state.session_state.get_account_session();
             if let Some(session) = account_session {
-                context.account_id = session.account_id;
-                context.device_id = session.device_id;
+                context.account_id = Some(session.account_id);
+                context.device_id = Some(session.device_id);
                 context.distribution_tenant_id = session.id;
             } else {
-                context.account_id = "no.account.set".to_string();
-                context.device_id = "no.device_id.set".to_string();
+                context.account_id = None;
+                context.device_id = None;
                 context.distribution_tenant_id = "no.distribution_tenant_id.set".to_string();
             }
         }
         Self::send_context_update_request(state);
     }
+    // </pca>
 
     pub fn operational_telemetry_listener(&self, target: &str, listen: bool) {
         let mut listeners = self.operational_telemetry_listeners.write().unwrap();
