@@ -53,11 +53,6 @@ impl ThunderPoolStep {
         )
         .await;
 
-        if controller_pool.is_err() {
-            error!("Fatal Thunder Unavailability Error: Ripple couldnt connect to Thunder websocket with many retries for a duration of 10 secs.");
-            let _ = state.extn_client.event(ExtnStatus::Error);
-        }
-
         let controller_pool = controller_pool.unwrap();
         if let Err(e) = controller_pool {
             error!("Fatal Thunder Unavailability Error: Ripple connection with Thunder is intermittent causing bootstrap errors.");
@@ -65,6 +60,7 @@ impl ThunderPoolStep {
             return Err(e);
         }
 
+        info!("Received Controller pool");
         let controller_pool = controller_pool.unwrap();
         let expected_plugins = state.plugin_param.clone();
         let tc = Box::new(controller_pool);
@@ -112,7 +108,7 @@ impl ThunderPoolStep {
 
         let client = client.unwrap();
         info!("Thunder client connected successfully");
-        let _ = state.extn_client.event(ExtnStatus::Ready);
+
         let extn_client = state.extn_client.clone();
         let thunder_boot_strap_state_with_client = ThunderBootstrapStateWithClient {
             prev: state,

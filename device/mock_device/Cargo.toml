@@ -16,43 +16,24 @@
 #
 
 [package]
-name = "main"
-version = "1.1.0"
+name = "mock_device"
+version = "1.0.0"
 edition = "2021"
-repository = "https://github.com/rdkcentral/Ripple"
-build = "build.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[[bin]]
-name = "ripple"
-path = "src/main.rs"
-
-[features]
-local_dev = []
-sysd = ["sd-notify"]
-pre_prod = []
+[lib]
+crate-type = ["cdylib"]
 
 [dependencies]
-ripple_sdk = { path = "../sdk", features = ["full"] }
-jsonrpsee = { version = "0.9.0", features = ["macros", "ws-server"] }
-futures-channel = "0.3.21"
-futures = "0.3.21"
-tokio-tungstenite = "0.17.1"
-querystring = "1.1.0"
-serde = { version = "1.0", features = ["derive"] }
-arrayvec = "0.7.2"
-regex = "=1.7.3"
+http = "0.2.8"
+jsonrpsee = { version = "0.9.0", features = ["macros", "jsonrpsee-core"] }
+ripple_sdk = { path = "../../core/sdk" }
 serde_json = "1.0"
-env-file-reader = "0.2.0"
-base64 = "0.13.0"
-sd-notify = { version = "0.4.1", optional = true }
-exitcode = "1.1.2"
-rand = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+tokio-tungstenite = { version = "0.20.0" }
+url = "2.2.2"
 
-[build-dependencies]
-vergen = "1"
 
 [dev-dependencies]
-ripple_tdk = { path = "../tdk" }
-rstest = "0.18.0"
+ripple_tdk = { path = "../../core/tdk" }

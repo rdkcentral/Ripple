@@ -311,9 +311,13 @@ impl ThunderClient {
         let sub_id_c = sub_id.clone();
         let handle = ripple_sdk::tokio::spawn(async move {
             while let Some(ev_res) = subscription.next().await {
-                if let Ok(ev) = ev_res {
-                    let msg = DeviceResponseMessage::sub(ev, sub_id_c.clone());
-                    mpsc_send_and_log(&thunder_message.handler, msg, "ThunderSubscribeEvent").await;
+                match ev_res {
+                    Ok(ev) => {
+                        let msg = DeviceResponseMessage::sub(ev, sub_id_c.clone());
+                        mpsc_send_and_log(&thunder_message.handler, msg, "ThunderSubscribeEvent")
+                            .await;
+                    }
+                    Err(e) => error!("Thunder event error {e:?}"),
                 }
             }
             if let Some(ptx) = pool_tx {
@@ -550,6 +554,7 @@ impl ThunderClientBuilder {
         let client = Self::create_client(url, thunder_connection_state.clone()).await;
         // add error handling here
         if client.is_err() {
+            error!("Unable to connect to thunder: {client:?}");
             return Err(RippleError::BootstrapError);
         }
 

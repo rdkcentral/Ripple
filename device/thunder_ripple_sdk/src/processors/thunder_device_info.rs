@@ -983,7 +983,7 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     async fn get_os_info(state: &CachedState) -> FirmwareInfo {
-        let mut version: FireboltSemanticVersion = FireboltSemanticVersion::default();
+        let version: FireboltSemanticVersion;
         // TODO: refactor this to use return syntax and not use response variable across branches
         match state.get_version() {
             Some(v) => version = v,
@@ -1009,9 +1009,9 @@ impl ThunderDeviceInfoRequestProcessor {
                             tsv_vec[2].chars().filter(|c| c.is_ascii_digit()).collect();
 
                         version = FireboltSemanticVersion {
-                            major: major.parse::<u32>().unwrap_or(0),
-                            minor: minor.parse::<u32>().unwrap_or(0),
-                            patch: patch.parse::<u32>().unwrap_or(0),
+                            major: major.parse::<u32>().unwrap(),
+                            minor: minor.parse::<u32>().unwrap(),
+                            patch: patch.parse::<u32>().unwrap(),
                             readable: tsv.stb_version,
                         };
                         state.update_version(version.clone());
@@ -1022,6 +1022,8 @@ impl ThunderDeviceInfoRequestProcessor {
                         };
                         state.update_version(version.clone())
                     }
+                } else {
+                    version = FireboltSemanticVersion::default()
                 }
             }
         }
