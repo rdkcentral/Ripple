@@ -91,7 +91,8 @@ pub struct CapabilityConfiguration {
     pub dependencies: HashMap<FireboltPermission, Vec<FireboltPermission>>,
 }
 
-#[derive(Deserialize, Debug, Clone, Default, PartialEq)]
+#[derive(Deserialize, Debug, Clone, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct LifecycleConfiguration {
     pub app_ready_timeout_ms: u64,
@@ -118,13 +119,15 @@ pub struct DeviceManifest {
     pub applications: ApplicationsConfiguration,
 }
 
-#[derive(Deserialize, Debug, Clone, Default, PartialEq)]
+#[derive(Deserialize, Debug, Clone, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct DistributionConfiguration {
     pub library: String,
     pub catalog: String,
 }
 
-#[derive(Deserialize, Debug, Clone, Default, PartialEq)]
+#[derive(Deserialize, Debug, Clone, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ApplicationDefaultsConfiguration {
     #[serde(rename = "xrn:firebolt:application-type:main")]
     pub main: String,
@@ -152,7 +155,8 @@ impl ApplicationDefaultsConfiguration {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, Default, PartialEq)]
+#[derive(Deserialize, Debug, Clone, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ApplicationsConfiguration {
     pub distribution: DistributionConfiguration,
     pub defaults: ApplicationDefaultsConfiguration,
@@ -286,7 +290,8 @@ pub fn default_video_dimensions() -> Vec<i32> {
     vec![1920, 1080]
 }
 
-#[derive(Deserialize, Debug, Clone, Default, PartialEq)]
+#[derive(Deserialize, Debug, Clone, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct SettingsDefaults {
     pub postal_code: String,
 }
@@ -415,7 +420,8 @@ pub enum PrivacySettingsStorageType {
     Sync,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct RippleFeatures {
     #[serde(default = "default_privacy_settings_storage_type")]
     pub privacy_settings_storage_type: PrivacySettingsStorageType,

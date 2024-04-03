@@ -26,7 +26,8 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct GrantStep {
     pub capability: String,
@@ -39,7 +40,8 @@ impl GrantStep {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, Default, PartialEq)]
+#[derive(Deserialize, Debug, Clone, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct GrantRequirements {
     pub steps: Vec<GrantStep>,
@@ -88,7 +90,8 @@ pub enum AutoApplyPolicy {
     Never,
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct GrantPrivacySetting {
     pub property: String,
@@ -126,7 +129,8 @@ pub enum EvaluateAt {
     ActiveSession,
     LoadedSession,
 }
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct GrantPolicy {
     #[serde(default = "default_evaluate_at")]
@@ -163,7 +167,8 @@ impl Default for GrantPolicy {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct GrantPolicies {
     #[serde(rename = "use")]
     pub use_: Option<GrantPolicy>,
@@ -213,7 +218,8 @@ impl GrantPolicy {
         None
     }
 }
-#[derive(Deserialize, Debug, Clone, Default, PartialEq)]
+#[derive(Deserialize, Debug, Clone, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct GrantExclusionFilter {
     pub capability: Option<String>,
     pub id: Option<String>,

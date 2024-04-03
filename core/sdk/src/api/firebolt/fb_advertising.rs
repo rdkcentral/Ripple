@@ -130,13 +130,15 @@ impl ExtnPayloadProvider for AdvertisingResponse {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct GetAdConfig {
     pub options: AdConfig,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone, Default, PartialEq)]
+#[derive(Deserialize, Serialize, Debug, Clone, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "lowercase")]
 pub enum Environment {
     #[default]
@@ -153,7 +155,8 @@ impl fmt::Display for Environment {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, Default, PartialEq)]
+#[derive(Deserialize, Serialize, Debug, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct AdConfig {
     #[serde(default)]

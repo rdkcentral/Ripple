@@ -40,7 +40,8 @@ pub enum ProviderRequestPayload {
     Generic(String),
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(untagged)]
 pub enum ProviderResponsePayload {
     ChallengeResponse(ChallengeResponse),
@@ -125,7 +126,8 @@ pub struct ExternalProviderResponse<T> {
     pub result: T,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ChallengeResponse {
     pub granted: Option<bool>,
 }
