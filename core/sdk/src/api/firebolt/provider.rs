@@ -132,10 +132,12 @@ pub struct ChallengeResponse {
     pub granted: Option<bool>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct DataObject {}
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ChallengeError {
     pub code: u32,
     pub message: String,

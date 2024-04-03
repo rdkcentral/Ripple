@@ -24,7 +24,8 @@ use crate::{extn::extn_id::ExtnId, utils::error::RippleError};
 
 /// Contains the default path for the manifest
 /// file extension type based on platform
-#[derive(Deserialize, Debug, Clone, Default, PartialEq)]
+#[derive(Deserialize, Debug, Clone, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ExtnManifest {
     pub default_path: String,
     pub default_extension: String,
@@ -34,7 +35,8 @@ pub struct ExtnManifest {
     pub timeout: Option<u64>,
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ExtnResolutionEntry {
     pub capability: String,
     pub priority: Option<u64>,
@@ -42,14 +44,16 @@ pub struct ExtnResolutionEntry {
 }
 
 /// Contains Resolution strategies and path for the manifest.
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ExtnManifestEntry {
     pub path: String,
     pub symbols: Vec<ExtnSymbol>,
     pub resolution: Option<Vec<ExtnResolutionEntry>>,
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ExtnSymbol {
     pub id: String,
     pub uses: Vec<String>,

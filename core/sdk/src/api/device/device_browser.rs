@@ -24,7 +24,8 @@ use crate::{
 
 use super::device_request::DeviceRequest;
 
-#[derive(Default, Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "lowercase")]
 pub struct BrowserProps {
     pub user_agent: Option<String>,
@@ -43,7 +44,8 @@ impl BrowserProps {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct BrowserLaunchParams {
     pub uri: String,
     pub browser_name: String,
@@ -81,7 +83,8 @@ pub struct BrowserNameRequestParams {
     pub instances: usize,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum BrowserRequest {
     Start(BrowserLaunchParams),
     Destroy(BrowserDestroyParams),
