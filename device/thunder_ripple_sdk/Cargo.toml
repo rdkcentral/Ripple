@@ -31,7 +31,8 @@ contract_tests = [
     "expectest",
     "maplit",
     "test-log",
-    "home"
+    "home",
+    "tree_magic_mini"
 ]
 
 [dependencies]

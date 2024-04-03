@@ -995,28 +995,34 @@ impl ThunderDeviceInfoRequestProcessor {
                     })
                     .await;
                 info!("{}", resp.message);
-                let tsv: SystemVersion = serde_json::from_value(resp.message).unwrap();
-                let tsv_split = tsv.receiver_version.split('.');
-                let tsv_vec: Vec<&str> = tsv_split.collect();
+                if let Ok(tsv) = serde_json::from_value::<SystemVersion>(resp.message) {
+                    let tsv_split = tsv.receiver_version.split('.');
+                    let tsv_vec: Vec<&str> = tsv_split.collect();
 
-                if tsv_vec.len() >= 3 {
-                    let major: String = tsv_vec[0].chars().filter(|c| c.is_ascii_digit()).collect();
-                    let minor: String = tsv_vec[1].chars().filter(|c| c.is_ascii_digit()).collect();
-                    let patch: String = tsv_vec[2].chars().filter(|c| c.is_ascii_digit()).collect();
+                    if tsv_vec.len() >= 3 {
+                        let major: String =
+                            tsv_vec[0].chars().filter(|c| c.is_ascii_digit()).collect();
+                        let minor: String =
+                            tsv_vec[1].chars().filter(|c| c.is_ascii_digit()).collect();
+                        let patch: String =
+                            tsv_vec[2].chars().filter(|c| c.is_ascii_digit()).collect();
 
-                    version = FireboltSemanticVersion {
-                        major: major.parse::<u32>().unwrap(),
-                        minor: minor.parse::<u32>().unwrap(),
-                        patch: patch.parse::<u32>().unwrap(),
-                        readable: tsv.stb_version,
-                    };
-                    state.update_version(version.clone());
+                        version = FireboltSemanticVersion {
+                            major: major.parse::<u32>().unwrap(),
+                            minor: minor.parse::<u32>().unwrap(),
+                            patch: patch.parse::<u32>().unwrap(),
+                            readable: tsv.stb_version,
+                        };
+                        state.update_version(version.clone());
+                    } else {
+                        version = FireboltSemanticVersion {
+                            readable: tsv.stb_version,
+                            ..FireboltSemanticVersion::default()
+                        };
+                        state.update_version(version.clone())
+                    }
                 } else {
-                    version = FireboltSemanticVersion {
-                        readable: tsv.stb_version,
-                        ..FireboltSemanticVersion::default()
-                    };
-                    state.update_version(version.clone())
+                    version = FireboltSemanticVersion::default()
                 }
             }
         }
