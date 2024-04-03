@@ -1,43 +1,35 @@
-use ripple_sdk::api::{
-    device::device_apps::InstalledApp,
-    firebolt::fb_capabilities::{
-        CapabilityRole, FireboltCap, FireboltPermission, FireboltPermissions,
-    },
-};
-use serde_json::json;
-use std::collections::HashMap;
-use std::env;
-
+use crate::tests::contracts::contract_utils::*;
+use crate::thunder_state::ThunderConnectionState;
 use crate::{
     client::thunder_client_pool::ThunderClientPool,
     get_pact_with_params,
-    processors::thunder_package_manager::{AppData, AppsOperationType},
+    processors::thunder_package_manager::{
+        AppData, AppsOperationType, Operation, ThunderPackageManagerRequestProcessor,
+        ThunderPackageManagerState,
+    },
     ripple_sdk::{
+        api::{
+            device::{
+                device_apps::{AppsRequest, DeviceAppMetadata, InstalledApp},
+                device_request::DeviceRequest,
+            },
+            firebolt::fb_capabilities::{
+                CapabilityRole, FireboltCap, FireboltPermission, FireboltPermissions,
+            },
+        },
         async_channel::unbounded,
+        extn::client::extn_processor::ExtnRequestProcessor,
         extn::extn_client_message::{ExtnPayload, ExtnRequest},
+        serde_json::{self},
+        tokio,
     },
     thunder_state::ThunderState,
 };
-
-use crate::processors::thunder_package_manager::{
-    ThunderPackageManagerRequestProcessor, ThunderPackageManagerState,
-};
-use crate::ripple_sdk::{
-    api::device::{
-        device_apps::{AppsRequest, DeviceAppMetadata},
-        device_request::DeviceRequest,
-    },
-    extn::client::extn_processor::ExtnRequestProcessor,
-    serde_json::{self},
-    tokio,
-};
-
-use crate::tests::contracts::contract_utils::*;
-use crate::thunder_state::ThunderConnectionState;
 use pact_consumer::mock_server::StartMockServerAsync;
 use rstest::rstest;
+use serde_json::json;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-pub const DEFAULT_OPERATION_TIMEOUT_SECS: u64 = 6 * 60; // 6 minutes
 
 #[rstest(
     active_operations_some,
@@ -46,8 +38,7 @@ pub const DEFAULT_OPERATION_TIMEOUT_SECS: u64 = 6 * 60; // 6 minutes
     case(false, AppsOperationType::Install, 360),
     case(false, AppsOperationType::Uninstall, 360),
     case(true, AppsOperationType::Install, 360),
-    case(true, AppsOperationType::Uninstall, 360),
-    case(false, AppsOperationType::Install, 0)
+    case(true, AppsOperationType::Uninstall, 360)
 )]
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
@@ -56,11 +47,7 @@ async fn test_install_app(
     op_type_progress: AppsOperationType,
     timeout: u64,
 ) {
-    use crate::processors;
-
     let mut pact_builder_async = get_pact_builder_async_obj().await;
-    // Set the custom timeout value in seconds
-    env::set_var("OPERATION_TIMEOUT_SECS", timeout.to_string());
 
     if !active_operations_some || op_type_progress == AppsOperationType::Uninstall {
         pact_builder_async
@@ -154,14 +141,14 @@ async fn test_install_app(
     if active_operations_some {
         active_operations.insert(
             "handle".into(),
-            Some(processors::thunder_package_manager::Operation::new(
+            Some(Operation::new(
                 op_type_progress,
                 "Netflix".into(),
                 AppData::new("2.0".into()),
             )),
         );
     }
-    let ao: HashMap<String, processors::thunder_package_manager::Operation> = active_operations
+    let ao: HashMap<String, Operation> = active_operations
         .into_iter()
         .map(|(k, v)| (k, v.unwrap()))
         .collect();
@@ -178,9 +165,6 @@ async fn test_install_app(
     )
     .await;
     assert!(resp);
-
-    // Unset the environment variable after the test
-    env::remove_var("OPERATION_TIMEOUT_SECS");
 }
 
 #[rstest(
@@ -188,10 +172,8 @@ async fn test_install_app(
     op_type_progress,
     timeout,
     case(false, AppsOperationType::Install, 360),
-    case(false, AppsOperationType::Uninstall, 360),
     case(true, AppsOperationType::Install, 360),
-    case(true, AppsOperationType::Uninstall, 360),
-    case(false, AppsOperationType::Uninstall, 0)
+    case(true, AppsOperationType::Uninstall, 360)
 )]
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
@@ -200,11 +182,7 @@ async fn test_uninstall_app(
     op_type_progress: AppsOperationType,
     timeout: u64,
 ) {
-    use crate::processors;
-
     let mut pact_builder_async = get_pact_builder_async_obj().await;
-    // Set the custom timeout value in seconds
-    env::set_var("OPERATION_TIMEOUT_SECS", timeout.to_string());
 
     if !active_operations_some || op_type_progress == AppsOperationType::Install {
         pact_builder_async
@@ -293,14 +271,14 @@ async fn test_uninstall_app(
     if active_operations_some {
         active_operations.insert(
             "handle".into(),
-            Some(processors::thunder_package_manager::Operation::new(
+            Some(Operation::new(
                 op_type_progress,
                 "Netflix".into(),
                 AppData::new("2.0".into()),
             )),
         );
     }
-    let ao: HashMap<String, processors::thunder_package_manager::Operation> = active_operations
+    let ao: HashMap<String, Operation> = active_operations
         .into_iter()
         .map(|(k, v)| (k, v.unwrap()))
         .collect();
@@ -317,9 +295,6 @@ async fn test_uninstall_app(
     )
     .await;
     assert!(resp);
-
-    // Unset the environment variable after the test
-    env::remove_var("OPERATION_TIMEOUT_SECS");
 }
 
 #[tokio::test(flavor = "multi_thread")]

@@ -60,38 +60,8 @@ use {println as info, println as debug, println as error};
 
 use super::thunder_telemetry::{ThunderMetricsTimerName, ThunderResponseStatus};
 
-pub const OPERATION_TIMEOUT_SECS: u64 = 6 * 60; // 6 minutes
-pub struct TimeoutConfig {
-    pub operation_timeout_secs: u64,
-}
-
 // TODO: If/when ripple supports selectable download speeds we'll probably want multiple configurable values or compute this based on throughput.
-impl TimeoutConfig {
-    pub fn get_operation_timeout_secs(&self) -> u64 {
-        self.operation_timeout_secs
-    }
-}
-
-#[cfg(not(test))]
-fn get_default_operation_timeout_secs() -> u64 {
-    OPERATION_TIMEOUT_SECS // 6 minutes
-}
-
-#[cfg(test)]
-fn get_default_operation_timeout_secs() -> u64 {
-    match std::env::var("OPERATION_TIMEOUT_SECS") {
-        Ok(val) => val.parse().unwrap_or(6 * 60), // Parse the value from the environment variable, default to 6 minutes if parsing fails
-        Err(_) => 6 * 60, // Default value if environment variable is not set or cannot be parsed
-    }
-}
-
-impl Default for TimeoutConfig {
-    fn default() -> Self {
-        TimeoutConfig {
-            operation_timeout_secs: get_default_operation_timeout_secs(),
-        }
-    }
-}
+pub const OPERATION_TIMEOUT_SECS: u64 = 6 * 60; // 6 minutes
 
 #[derive(Debug, Clone)]
 pub struct ThunderPackageManagerState {
@@ -538,9 +508,11 @@ impl ThunderPackageManagerRequestProcessor {
         handle: String,
         timeout_secs: Option<u64>,
     ) {
-        let timeout = timeout_secs.unwrap_or(TimeoutConfig::default().get_operation_timeout_secs());
         tokio::spawn(async move {
-            tokio::time::sleep(tokio::time::Duration::from_secs(timeout)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(
+                timeout_secs.unwrap_or(OPERATION_TIMEOUT_SECS),
+            ))
+            .await;
             if state
                 .active_operations
                 .lock()
