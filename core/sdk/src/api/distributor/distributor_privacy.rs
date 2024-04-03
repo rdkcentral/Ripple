@@ -300,7 +300,6 @@ impl FromStr for DataEventType {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppSetting {
     pub app_id: Option<String>,
     pub value: Option<bool>,
