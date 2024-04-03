@@ -53,6 +53,7 @@ impl ThunderPoolStep {
                 return Err(e);
             }
         }
+        info!("Received Controller pool");
         let controller_pool = controller_pool.unwrap();
         let expected_plugins = state.plugin_param.clone();
         let plugin_manager_tx =
@@ -74,7 +75,7 @@ impl ThunderPoolStep {
 
         let client = client.unwrap();
         info!("Thunder client connected successfully");
-        let _ = state.extn_client.event(ExtnStatus::Ready);
+
         let extn_client = state.extn_client.clone();
         let thunder_boot_strap_state_with_client = ThunderBootstrapStateWithClient {
             prev: state,
