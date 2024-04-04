@@ -163,7 +163,7 @@ impl FromStr for NetworkType {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct HDCPStatus {
     pub is_connected: bool,

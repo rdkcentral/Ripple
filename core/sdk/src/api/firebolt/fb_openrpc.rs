@@ -654,7 +654,7 @@ impl CapabilitySet {
                 },
                 CapabilityRole::Manage => CapabilitySet {
                     use_caps: None,
-                    provide_cap: Some(caps.get(0).cloned().unwrap()),
+                    provide_cap: Some(caps.first().cloned().unwrap()),
                     manage_caps: None,
                 },
                 CapabilityRole::Provide => CapabilitySet {
