@@ -10,6 +10,9 @@ ExecStart=/usr/bin/ripple
 ExecStop=/bin/kill -TERM $MAINPID
 Restart=on-failure
 RestartSec=5
+ExecStartPre=/bin/sh -c '. /etc/device.properties; if [ "$BUILD_TYPE" == "prod" ] && [ -f /opt/firebolt-device-manifest.json ];then  RPPLDEVICEMANIFESTFILE=/etc/firebolt-device-manifest.json; /bin/systemctl set-environment RPPLDEVICEMANIFESTFILE=$RPPLDEVICEMANIFESTFILE; fi'
+ExecStartPre=/bin/sh -c '. /etc/device.properties; if [ "$BUILD_TYPE" == "prod" ] && [ -f /opt/firebolt-extn-manifest.json ];then  RPPLEXTNMANIFESTFILE=/etc/firebolt-extn-manifest.json; /bin/systemctl set-environment RPPLEXTNMANIFESTFILE=$RPPLEXTNMANIFESTFILE; fi'
+ExecStartPre=/bin/sh -c '. /etc/device.properties; if [ "$BUILD_TYPE" == "prod" ] && [ -f /opt/firebolt-app-library.json ];then  RPPLAPPLIBRARYFILE=/etc/firebolt-app-library.json; /bin/systemctl set-environment RPPLAPPLIBRARYFILE=$RPPLAPPLIBRARYFILE; fi'
 
 [Install]
 WantedBy=multi-user.target
