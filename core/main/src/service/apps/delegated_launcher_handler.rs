@@ -47,7 +47,7 @@ use ripple_sdk::{
     log::{debug, error, trace, warn},
     serde_json::{self},
     tokio::sync::oneshot,
-    utils::time_utils::Timer,
+    utils::{error::RippleError, time_utils::Timer},
     uuid::Uuid,
 };
 use ripple_sdk::{
@@ -76,14 +76,18 @@ use serde_json::{json, Value};
 use crate::{
     processor::metrics_processor::send_metric_for_app_state_change,
     service::{
-        apps::app_events::AppEvents,
+        apps::{
+            app_events::AppEvents, pending_session_event_processor::PendingSessionEventProcessor,
+        },
         extn::ripple_client::RippleClient,
         telemetry_builder::TelemetryBuilder,
         user_grants::{GrantHandler, GrantPolicyEnforcer, GrantState},
     },
     state::{
-        bootstrap_state::ChannelsState, cap::permitted_state::PermissionHandler,
-        platform_state::PlatformState, session_state::Session,
+        bootstrap_state::ChannelsState,
+        cap::permitted_state::PermissionHandler,
+        platform_state::PlatformState,
+        session_state::{PendingSessionInfo, Session},
     },
     utils::rpc_utils::rpc_await_oneshot,
     SEMVER_LIGHTWEIGHT,
@@ -156,7 +160,7 @@ impl AppManagerState {
                     err
                 );
                 path =
-                    std::path::Path::new(&env::temp_dir().display().to_string()).join("/app_info");
+                    std::path::Path::new(&env::temp_dir().display().to_string()).join("app_info");
                 if let Err(err) = fs::create_dir_all(path.clone()) {
                     error!(
                         "Could not create directory {} for persisting app info err: {:?}, app title will persist in /tmp/",
@@ -334,6 +338,13 @@ impl DelegatedLauncherHandler {
     }
 
     pub async fn start(&mut self) {
+        self.platform_state
+            .get_client()
+            .get_extn_client()
+            .add_event_processor(PendingSessionEventProcessor::new(
+                self.platform_state.clone(),
+            ));
+
         while let Some(data) = self.app_mgr_req_rx.recv().await {
             // App request
             debug!("DelegatedLauncherHandler: App request: data={:?}", data);
@@ -441,12 +452,12 @@ impl DelegatedLauncherHandler {
                 AppMethod::GetAppName(app_id) => (self.get_app_name(app_id.clone()), Some(app_id)),
                 AppMethod::NewActiveSession(session) => {
                     let app_id = session.app.id.clone();
-                    self.new_active_session(session, true).await;
+                    Self::new_active_session(&self.platform_state, session, true).await;
                     (Ok(AppManagerResponse::None), Some(app_id))
                 }
                 AppMethod::NewLoadedSession(session) => {
                     let app_id = session.app.id.clone();
-                    self.new_loaded_session(session, true).await;
+                    Self::new_loaded_session(&self.platform_state, session, true).await;
                     (Ok(AppManagerResponse::None), Some(app_id))
                 }
                 _ => (Err(AppError::NotSupported), None),
@@ -619,6 +630,94 @@ impl DelegatedLauncherHandler {
         }
     }
 
+    pub async fn check_grants_then_load_or_activate(
+        platform_state: &PlatformState,
+        pending_session_info: PendingSessionInfo,
+        emit_completed: bool,
+    ) -> SessionResponse {
+        let session = pending_session_info.session;
+        let mut perms_with_grants_opt = if !session.launch.inactive {
+            Self::get_permissions_requiring_user_grant_resolution(
+                platform_state,
+                session.app.id.clone(),
+                // Do not pass None as catalog value from this place, instead pass an empty string when app.catalog is None
+                Some(session.app.catalog.clone().unwrap_or_default()),
+            )
+            .await
+        } else {
+            None
+        };
+        if perms_with_grants_opt.is_some()
+            && !GrantPolicyEnforcer::can_proceed_with_user_grant_resolution(
+                platform_state,
+                &perms_with_grants_opt.clone().unwrap(),
+            )
+            .await
+        {
+            // reset perms_req_user_grants_opt
+            perms_with_grants_opt = None;
+        }
+        let app_id = session.app.id.clone();
+        match perms_with_grants_opt {
+            Some(perms_with_grants) => {
+                // Grants required, spawn a thread to handle the response from grants
+                let cloned_ps = platform_state.clone();
+                let cloned_app_id = session.app.id.clone();
+                tokio::spawn(async move {
+                    let resolved_result = GrantState::check_with_roles(
+                        &cloned_ps,
+                        &CallerSession::default(),
+                        &AppIdentification {
+                            app_id: cloned_app_id.to_owned(),
+                        },
+                        &perms_with_grants,
+                        true,
+                        false, // false here as we have already applied user grant exclusion filter.
+                        false,
+                    )
+                    .await;
+                    match resolved_result {
+                        // Granted and Denied are valid results for app session lifecyclemgmt.
+                        Ok(_)
+                        | Err(DenyReasonWithCap {
+                            reason: DenyReason::GrantDenied,
+                            ..
+                        }) => {
+                            if pending_session_info.loading {
+                                Self::new_loaded_session(&cloned_ps, session, true).await;
+                            } else {
+                                Self::new_active_session(&cloned_ps, session, true).await;
+                            }
+                        }
+                        _ => {
+                            debug!("handle session for deferred grant and other errors");
+                            Self::emit_cancelled(&cloned_ps, &cloned_app_id).await;
+                        }
+                    }
+                });
+                SessionResponse::Pending(PendingSessionResponse {
+                    app_id,
+                    transition_pending: true,
+                    session_id: pending_session_info.session_id,
+                    loaded_session_id: pending_session_info.loaded_session_id,
+                })
+            }
+            None => {
+                // No grants required, transition immediately
+                if pending_session_info.loading {
+                    let sess =
+                        Self::new_loaded_session(platform_state, session, emit_completed).await;
+                    SessionResponse::Completed(sess)
+                } else {
+                    Self::new_active_session(platform_state, session, emit_completed).await;
+                    SessionResponse::Completed(Self::to_completed_session(
+                        &platform_state.app_manager_state.get(&app_id).unwrap(),
+                    ))
+                }
+            }
+        }
+    }
+
     /// Does some prechecks like user grants.
     /// If a user grant is not required then the session is created or transitioned
     /// and SessionResponse will return a CompletedSession
@@ -649,104 +748,38 @@ impl DelegatedLauncherHandler {
             loaded_session_id = Some(app.loaded_session_id);
         }
 
-        PermissionHandler::fetch_permission_for_app_session(&self.platform_state, &app_id).await;
+        let pending_session_info = PendingSessionInfo {
+            session: session.clone(),
+            loading,
+            session_id,
+            loaded_session_id,
+        };
+
+        self.platform_state
+            .session_state
+            .add_pending_session(app_id.clone(), Some(pending_session_info.clone()));
+
+        let result =
+            PermissionHandler::fetch_permission_for_app_session(&self.platform_state, &app_id)
+                .await;
         debug!(
-            "precheck_then_load_or_activate: fetch_for_app_session completed for app_id={}",
-            app_id
+            "precheck_then_load_or_activate: fetch_for_app_session completed for app_id={}, result={:?}",
+            app_id, result
         );
 
-        let mut perms_with_grants_opt = if !session.launch.inactive {
-            Self::get_permissions_requiring_user_grant_resolution(
-                &self.platform_state,
-                session.app.id.clone(),
-                // Do not pass None as catalog value from this place, instead pass an empty string when app.catalog is None
-                Some(session.app.catalog.clone().unwrap_or(String::new())),
-            )
-            .await
-        } else {
-            None
-        };
-        if perms_with_grants_opt.is_some()
-            && !GrantPolicyEnforcer::can_proceed_with_user_grant_resolution(
-                &self.platform_state,
-                &perms_with_grants_opt.clone().unwrap(),
-            )
-            .await
-        {
-            // reset perms_req_user_grants_opt
-            perms_with_grants_opt = None;
+        if let Err(RippleError::NotAvailable) = result {
+            // Permissions not available. PermissionHandler will attempt to resolve. PendingSessionRequestProcessor will
+            // refetch permissions and send lifecyclemanagement.OnSessionTransitionComplete when available.
+            return SessionResponse::Pending(PendingSessionResponse {
+                app_id,
+                transition_pending: true,
+                session_id: pending_session_info.session_id,
+                loaded_session_id: pending_session_info.loaded_session_id,
+            });
         }
-        match perms_with_grants_opt {
-            Some(perms_with_grants) => {
-                // Grants required, spawn a thread to handle the response from grants
-                let cloned_ps = self.platform_state.clone();
-                let cloned_app_id = app_id.to_owned();
-                tokio::spawn(async move {
-                    let resolved_result = GrantState::check_with_roles(
-                        &cloned_ps,
-                        &CallerSession::default(),
-                        &AppIdentification {
-                            app_id: cloned_app_id.to_owned(),
-                        },
-                        &perms_with_grants,
-                        true,
-                        false, // false here as we have already applied user grant exclusion filter.
-                        false,
-                    )
-                    .await;
-                    match resolved_result {
-                        // Granted and Denied are valid results for app session lifecyclemgmt.
-                        Ok(_)
-                        | Err(DenyReasonWithCap {
-                            reason: DenyReason::GrantDenied,
-                            ..
-                        }) => {
-                            let (resp_tx, resp_rx) =
-                                oneshot::channel::<Result<AppManagerResponse, AppError>>();
-                            let app_method = if loading {
-                                AppMethod::NewLoadedSession(session)
-                            } else {
-                                AppMethod::NewActiveSession(session)
-                            };
-                            if cloned_ps
-                                .get_client()
-                                .send_app_request(AppRequest::new(app_method, resp_tx))
-                                .is_ok()
-                            {
-                                let _ = rpc_await_oneshot(resp_rx).await.is_ok();
-                            }
-                        }
-                        _ => {
-                            debug!("handle session for deferred grant and other errors");
-                            AppEvents::emit(
-                                &cloned_ps,
-                                LCM_EVENT_ON_SESSION_TRANSITION_CANCELED,
-                                &json!({ "app_id": cloned_app_id }),
-                            )
-                            .await;
-                        }
-                    }
-                });
-                SessionResponse::Pending(PendingSessionResponse {
-                    app_id,
-                    transition_pending: true,
-                    session_id,
-                    loaded_session_id,
-                })
-            }
-            None => {
-                // No grants required, transition immediately
-                if loading {
-                    let sess = self.new_loaded_session(session, false).await;
-                    SessionResponse::Completed(sess)
-                } else {
-                    self.new_active_session(session, false).await;
-                    SessionResponse::Completed(Self::to_completed_session(
-                        &self.platform_state.app_manager_state.get(&app_id).unwrap(),
-                    ))
-                }
-            }
-        }
+
+        Self::check_grants_then_load_or_activate(&self.platform_state, pending_session_info, false)
+            .await
     }
 
     /// Actually perform the transition of the session from inactive to active.
@@ -754,28 +787,32 @@ impl DelegatedLauncherHandler {
     /// If this transition happened asynchronously, then emit the completed event
     /// If there is an intent in this new session then emit the onNavigateTo event with the intent
     /// If this is session was triggered by a second screen launch, then emit the second screen firebolt event
-    async fn new_active_session(&mut self, session: AppSession, emit_event: bool) {
+    async fn new_active_session(
+        platform_state: &PlatformState,
+        session: AppSession,
+        emit_event: bool,
+    ) {
         let app_id = session.app.id.clone();
-        let app_opt = self.platform_state.app_manager_state.get(&app_id);
+        let app_opt = platform_state.app_manager_state.get(&app_id);
         if app_opt.is_none() {
             return;
         }
         // safe to unwrap here as app_opt is not None
         let app = app_opt.unwrap();
         if app.active_session_id.is_none() {
-            self.platform_state
+            platform_state
                 .app_manager_state
                 .update_active_session(&app_id, Some(Uuid::new_v4().to_string()));
         }
-        self.platform_state
+        platform_state
             .app_manager_state
             .set_session(&app_id, session.clone());
         if emit_event {
-            self.emit_completed(app_id.clone()).await;
+            Self::emit_completed(platform_state, &app_id).await;
         }
         if let Some(intent) = session.launch.intent {
             AppEvents::emit_to_app(
-                &self.platform_state,
+                platform_state,
                 app_id.clone(),
                 DISCOVERY_EVENT_ON_NAVIGATE_TO,
                 &serde_json::to_value(intent).unwrap_or_default(),
@@ -785,7 +822,7 @@ impl DelegatedLauncherHandler {
 
         if let Some(ss) = session.launch.second_screen {
             AppEvents::emit_to_app(
-                &self.platform_state,
+                platform_state,
                 app_id.clone(),
                 SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST,
                 &serde_json::to_value(ss).unwrap_or_default(),
@@ -798,7 +835,7 @@ impl DelegatedLauncherHandler {
     /// Generate the session_id and loaded_session_id for this app
     /// If this transition happened asynchronously, then emit the completed event
     async fn new_loaded_session(
-        &mut self,
+        platform_state: &PlatformState,
         session: AppSession,
         emit_event: bool,
     ) -> CompletedSessionResponse {
@@ -806,10 +843,10 @@ impl DelegatedLauncherHandler {
         let transport = session.get_transport();
         let session_id = Uuid::new_v4().to_string();
         if let EffectiveTransport::Bridge(container_id) = transport.clone() {
-            if self.platform_state.supports_bridge() {
+            if platform_state.supports_bridge() {
                 // Step 1: Add the session of the app to the state if bridge
                 let session_state = Session::new(app_id.clone(), None, transport);
-                self.platform_state
+                platform_state
                     .session_state
                     .add_session(session_id.clone(), session_state);
                 let id = container_id.clone();
@@ -824,7 +861,7 @@ impl DelegatedLauncherHandler {
                     app_id: app_id.clone(),
                 };
                 let request = BridgeProtocolRequest::StartSession(request);
-                let client = self.platform_state.get_client();
+                let client = platform_state.get_client();
                 // After processing the session response the launcher will launch the app
                 // Below thread is going to wait for the app to be launched and create a connection
                 tokio::spawn(async move {
@@ -859,12 +896,12 @@ impl DelegatedLauncherHandler {
             app_id: app_id.clone(),
             is_app_init_params_invoked: false,
         };
-        self.platform_state
+        platform_state
             .app_manager_state
             .insert(app_id.clone(), app.clone());
         let sess = Self::to_completed_session(&app);
         if emit_event {
-            self.emit_completed(app_id.clone()).await;
+            Self::emit_completed(platform_state, &app_id).await;
         }
         sess
     }
@@ -955,17 +992,28 @@ impl DelegatedLauncherHandler {
         }
     }
 
-    async fn emit_completed(&self, app_id: String) {
-        let app_opt = self.platform_state.app_manager_state.get(&app_id);
+    pub async fn emit_completed(platform_state: &PlatformState, app_id: &String) {
+        platform_state.session_state.clear_pending_session(app_id);
+        let app_opt = platform_state.app_manager_state.get(app_id);
         if app_opt.is_none() {
             return;
         }
         let app = app_opt.unwrap();
         let sr = SessionResponse::Completed(Self::to_completed_session(&app));
         AppEvents::emit(
-            &self.platform_state,
+            platform_state,
             LCM_EVENT_ON_SESSION_TRANSITION_COMPLETED,
             &serde_json::to_value(sr).unwrap(),
+        )
+        .await;
+    }
+
+    pub async fn emit_cancelled(platform_state: &PlatformState, app_id: &String) {
+        platform_state.session_state.clear_pending_session(app_id);
+        AppEvents::emit(
+            platform_state,
+            LCM_EVENT_ON_SESSION_TRANSITION_CANCELED,
+            &json!({ "app_id": app_id }),
         )
         .await;
     }

@@ -100,6 +100,7 @@ pub enum ThunderMetricsTimerName {
     PackageManagerGetList,
     PackageManagerInstall,
     PackageManagerUninstall,
+    PackageManagerGetMetadata,
 }
 
 impl ToString for ThunderMetricsTimerName {
@@ -108,6 +109,9 @@ impl ToString for ThunderMetricsTimerName {
             ThunderMetricsTimerName::PackageManagerGetList => "package_manager_get_list".into(),
             ThunderMetricsTimerName::PackageManagerInstall => "package_manager_install".into(),
             ThunderMetricsTimerName::PackageManagerUninstall => "package_manager_uninstall".into(),
+            ThunderMetricsTimerName::PackageManagerGetMetadata => {
+                "package_manager_get_metadata".into()
+            }
         }
     }
 }
