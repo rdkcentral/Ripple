@@ -67,10 +67,6 @@ fn load_from_home() -> Result<(String, DeviceManifest), RippleError> {
     }
 }
 
-fn load_from_opt() -> Result<(String, DeviceManifest), RippleError> {
-    DeviceManifest::load("/opt/firebolt-device-manifest.json".into())
-}
-
 fn load_from_etc() -> Result<(String, DeviceManifest), RippleError> {
     DeviceManifest::load("/etc/firebolt-device-manifest.json".into())
 }
