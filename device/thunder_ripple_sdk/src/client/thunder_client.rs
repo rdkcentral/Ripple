@@ -25,6 +25,7 @@ use jsonrpsee::ws_client::WsClientBuilder;
 use jsonrpsee::core::{async_trait, error::Error as JsonRpcError};
 use jsonrpsee::types::ParamsSer;
 use regex::Regex;
+use ripple_sdk::serde_json::json;
 use ripple_sdk::{
     api::device::device_operator::DeviceResponseMessage,
     tokio::sync::mpsc::{self, Sender as MpscSender},
@@ -53,6 +54,7 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::thunder_state::ThunderConnectionState;
+use crate::utils::get_error_value;
 
 use super::thunder_client_pool::ThunderPoolCommand;
 use super::{
@@ -290,7 +292,12 @@ impl ThunderClient {
         let json = serde_json::to_string(&params).unwrap();
         let method = format!("{}.register", thunder_message.module);
         if let Some(callsign) = Self::extract_callsign_from_register_method(&method) {
-            Self::check_and_activate_plugin(&callsign, &plugin_manager_tx).await;
+            if Self::check_and_activate_plugin(&callsign, &plugin_manager_tx)
+                .await
+                .is_err()
+            {
+                error!("{} Thunder plugin couldnt be activated", callsign)
+            }
         }
 
         let response = Box::new(ThunderParamRequest {
@@ -304,9 +311,13 @@ impl ThunderClient {
         let sub_id_c = sub_id.clone();
         let handle = ripple_sdk::tokio::spawn(async move {
             while let Some(ev_res) = subscription.next().await {
-                if let Ok(ev) = ev_res {
-                    let msg = DeviceResponseMessage::sub(ev, sub_id_c.clone());
-                    mpsc_send_and_log(&thunder_message.handler, msg, "ThunderSubscribeEvent").await;
+                match ev_res {
+                    Ok(ev) => {
+                        let msg = DeviceResponseMessage::sub(ev, sub_id_c.clone());
+                        mpsc_send_and_log(&thunder_message.handler, msg, "ThunderSubscribeEvent")
+                            .await;
+                    }
+                    Err(e) => error!("Thunder event error {e:?}"),
                 }
             }
             if let Some(ptx) = pool_tx {
@@ -390,7 +401,13 @@ impl ThunderClient {
         plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
     ) {
         // First check if the plugin is activated and ready to use
-        Self::check_and_activate_plugin(&thunder_message.callsign(), &plugin_manager_tx).await;
+        if Self::check_and_activate_plugin(&thunder_message.callsign(), &plugin_manager_tx)
+            .await
+            .is_err()
+        {
+            return_message(thunder_message.callback, json!({"error": "pre send error"}));
+            return;
+        }
         let params = thunder_message.params;
         match params {
             Some(p) => match p {
@@ -428,7 +445,7 @@ impl ThunderClient {
     async fn check_and_activate_plugin(
         call_sign: &str,
         plugin_manager_tx: &Option<MpscSender<PluginManagerCommand>>,
-    ) {
+    ) -> Result<(), PluginActivatedResult> {
         let (plugin_rdy_tx, plugin_rdy_rx) = oneshot::channel::<PluginActivatedResult>();
         if let Some(tx) = plugin_manager_tx {
             let msg = PluginManagerCommand::ActivatePluginIfNeeded {
@@ -437,9 +454,13 @@ impl ThunderClient {
             };
             mpsc_send_and_log(tx, msg, "ActivatePluginIfNeeded").await;
             if let Ok(res) = plugin_rdy_rx.await {
-                res.ready().await;
+                if !res.ready().await {
+                    return Err(PluginActivatedResult::Error);
+                }
             }
         }
+
+        Ok(())
     }
     fn extract_callsign_from_register_method(method: &str) -> Option<String> {
         // capture the initial string before an optional version number, followed by ".register"
@@ -499,7 +520,9 @@ impl ThunderClientBuilder {
                 .build(url_with_token.to_string())
                 .await;
             if client.is_err() {
-                warn!("Attempt to connect to thunder, retrying");
+                error!(
+                    "Thunder Websocket is not available. Attempt to connect to thunder, retrying"
+                );
                 sleep(delay_duration).await;
                 if delay_duration < tokio::time::Duration::from_secs(3) {
                     delay_duration *= 2;
@@ -531,6 +554,7 @@ impl ThunderClientBuilder {
         let client = Self::create_client(url, thunder_connection_state.clone()).await;
         // add error handling here
         if client.is_err() {
+            error!("Unable to connect to thunder: {client:?}");
             return Err(RippleError::BootstrapError);
         }
 
@@ -692,7 +716,7 @@ impl ThunderNoParamRequest {
         let result = client.request(&self.method, None).await;
         if let Err(e) = result {
             error!("send_request: Error: e={}", e);
-            return Value::Null;
+            return get_error_value(&e);
         }
         result.unwrap()
     }
@@ -709,7 +733,7 @@ impl<'a> ThunderParamRequest<'a> {
         let result = client.request(self.method, self.get_params()).await;
         if let Err(e) = result {
             error!("send_request: Error: e={}", e);
-            return Value::Null;
+            return get_error_value(&e);
         }
         result.unwrap()
     }

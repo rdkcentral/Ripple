@@ -104,6 +104,7 @@ pub struct PlatformState {
     pub metrics: MetricsState,
     pub device_session_id: DeviceSessionIdentifier,
     pub ripple_cache: RippleCache,
+    pub version: Option<String>,
 }
 
 impl PlatformState {
@@ -112,9 +113,9 @@ impl PlatformState {
         manifest: DeviceManifest,
         client: RippleClient,
         app_library: Vec<AppLibraryEntry>,
+        version: Option<String>,
     ) -> PlatformState {
         let exclusory = ExclusoryImpl::get(&manifest);
-
         Self {
             extn_manifest,
             cap_state: CapState::new(manifest.clone()),
@@ -131,6 +132,7 @@ impl PlatformState {
             metrics: MetricsState::default(),
             device_session_id: DeviceSessionIdentifier::default(),
             ripple_cache: RippleCache::default(),
+            version,
         }
     }
 
@@ -238,6 +240,7 @@ mod tests {
                 manifest,
                 RippleClient::new(ChannelsState::new()),
                 vec![],
+                None,
             )
         }
     }

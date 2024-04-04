@@ -15,9 +15,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::time::Duration;
+
 use ripple_sdk::{
     api::status_update::ExtnStatus,
-    log::{info, warn},
+    log::{error, info, warn},
     utils::error::RippleError,
 };
 
@@ -45,18 +47,50 @@ impl ThunderPoolStep {
             warn!("Pool size of 1 is not recommended, there will be no dedicated connection for Controller events");
             return Err(RippleError::BootstrapError);
         }
-        let controller_pool =
-            ThunderClientPool::start(url.clone(), None, thunder_connection_state.clone(), 1).await;
-        if controller_pool.is_err() {
-            if let Err(e) = controller_pool {
-                let _ = state.extn_client.event(ExtnStatus::Error);
-                return Err(e);
-            }
+        let controller_pool = ripple_sdk::tokio::time::timeout(
+            Duration::from_secs(10),
+            ThunderClientPool::start(url.clone(), None, thunder_connection_state.clone(), 1),
+        )
+        .await;
+
+        let controller_pool = controller_pool.unwrap();
+        if let Err(e) = controller_pool {
+            error!("Fatal Thunder Unavailability Error: Ripple connection with Thunder is intermittent causing bootstrap errors.");
+            let _ = state.extn_client.event(ExtnStatus::Error);
+            return Err(e);
         }
+
+        info!("Received Controller pool");
         let controller_pool = controller_pool.unwrap();
         let expected_plugins = state.plugin_param.clone();
-        let plugin_manager_tx =
-            PluginManager::start(Box::new(controller_pool), expected_plugins).await;
+        let tc = Box::new(controller_pool);
+        let (plugin_manager_tx, failed_plugins) =
+            PluginManager::start(tc, expected_plugins.clone()).await;
+
+        if !failed_plugins.is_empty() {
+            error!(
+                "Mandatory Plugin activation for {:?} failed. Thunder Bootstrap delayed...",
+                failed_plugins
+            );
+            loop {
+                let failed_plugins = PluginManager::activate_mandatory_plugins(
+                    expected_plugins.clone(),
+                    plugin_manager_tx.clone(),
+                )
+                .await;
+                if !failed_plugins.is_empty() {
+                    error!(
+                        "Mandatory Plugin activation for {:?} failed. Thunder Bootstrap delayed...",
+                        failed_plugins
+                    );
+                    let _ = state.extn_client.event(ExtnStatus::Interrupted);
+                    continue;
+                } else {
+                    break;
+                }
+            }
+        }
+
         let client = ThunderClientPool::start(
             url,
             Some(plugin_manager_tx),
@@ -74,7 +108,7 @@ impl ThunderPoolStep {
 
         let client = client.unwrap();
         info!("Thunder client connected successfully");
-        let _ = state.extn_client.event(ExtnStatus::Ready);
+
         let extn_client = state.extn_client.clone();
         let thunder_boot_strap_state_with_client = ThunderBootstrapStateWithClient {
             prev: state,

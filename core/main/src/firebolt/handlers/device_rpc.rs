@@ -325,11 +325,21 @@ impl DeviceServer for DeviceImpl {
         let open_rpc_state = self.state.clone().open_rpc_state;
         let api = open_rpc_state.get_open_rpc().info;
 
+        // os is deprecated, for now senidng firmware ver in os as well
+        let os_ver = firmware_info.clone().version;
+
         Ok(DeviceVersionResponse {
             api,
             firmware: firmware_info.version,
-            os,
-            debug: format!("{} ({})", env!("CARGO_PKG_VERSION"), SHA_SHORT),
+            os: os_ver,
+            debug: format!(
+                "{} ({})",
+                env!("CARGO_PKG_VERSION"),
+                self.state
+                    .version
+                    .clone()
+                    .unwrap_or(String::from(SEMVER_LIGHTWEIGHT))
+            ),
         })
     }
 
