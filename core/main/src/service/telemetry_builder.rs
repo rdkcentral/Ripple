@@ -20,7 +20,7 @@ use ripple_sdk::{
         firebolt::{
             fb_metrics::{
                 get_metrics_tags, ErrorParams, InteractionType, InternalInitializeParams,
-                SystemErrorParams, Tag, Timer,
+                SystemErrorParams, Tag, Timer, TimerType,
             },
             fb_telemetry::{
                 AppLoadStart, AppLoadStop, FireboltInteraction, InternalInitialize,
@@ -56,7 +56,10 @@ impl TelemetryBuilder {
                 app_version,
                 start_time: start_time.unwrap_or_default().timestamp_millis(),
                 ripple_session_id: ps.metrics.get_context().device_session_id,
-                ripple_version: String::from(SEMVER_LIGHTWEIGHT),
+                ripple_version: ps
+                    .version
+                    .clone()
+                    .unwrap_or(String::from(SEMVER_LIGHTWEIGHT)),
                 ripple_context: None,
             }),
         ) {
@@ -105,7 +108,11 @@ impl TelemetryBuilder {
         Self::send_app_load_start(
             ps,
             "ripple".to_string(),
-            Some(String::from(SEMVER_LIGHTWEIGHT)),
+            Some(
+                ps.version
+                    .clone()
+                    .unwrap_or(String::from(SEMVER_LIGHTWEIGHT)),
+            ),
             Some(ps.metrics.start_time),
         );
         Self::send_app_load_stop(ps, "ripple".to_string(), true);
@@ -209,17 +216,15 @@ impl TelemetryBuilder {
         name: String,
         app_id: String,
     ) -> Option<Timer> {
-        let metrics_context = extn_client.get_metrics_context();
-
-        if !metrics_context.enabled {
-            return None;
-        }
-
-        let metrics_tags = get_metrics_tags(extn_client, InteractionType::Firebolt, Some(app_id));
+        let metrics_tags = get_metrics_tags(extn_client, InteractionType::Firebolt, Some(app_id))?;
 
         debug!("start_firebolt_metrics_timer: {}: {:?}", name, metrics_tags);
 
-        Some(Timer::start(name, Some(metrics_tags)))
+        Some(Timer::start(
+            name,
+            Some(metrics_tags),
+            Some(TimerType::Local),
+        ))
     }
 
     pub async fn stop_and_send_firebolt_metrics_timer(

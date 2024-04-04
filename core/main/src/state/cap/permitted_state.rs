@@ -23,7 +23,7 @@ use std::{
 
 use ripple_sdk::{
     api::{
-        config::FEATURE_CLOUD_PERMISISONS,
+        config::FEATURE_CLOUD_PERMISSIONS,
         device::device_apps::AppsRequest,
         //config::Config,
         distributor::distributor_permissions::{PermissionRequest, PermissionResponse},
@@ -150,11 +150,15 @@ impl PermissionHandler {
         app_id: &str,
         allow_cached: bool,
     ) -> RippleResponse {
+        if state.open_rpc_state.is_app_excluded(app_id) {
+            return Ok(());
+        }
+
         if state
             .get_client()
             .get_extn_client()
             .get_features()
-            .contains(&String::from(FEATURE_CLOUD_PERMISISONS))
+            .contains(&String::from(FEATURE_CLOUD_PERMISSIONS))
         {
             if allow_cached {
                 if let Some(permissions) =
@@ -180,6 +184,7 @@ impl PermissionHandler {
                 .send_extn_request(PermissionRequest {
                     app_id: app_id_alias,
                     session,
+                    payload: None,
                 })
                 .await
                 .ok()
@@ -213,6 +218,10 @@ impl PermissionHandler {
         let mut permissions = match resp.payload {
             ExtnPayload::Response(response) => match response {
                 ExtnResponse::Permission(perms) => perms,
+                ExtnResponse::Error(e) => {
+                    error!("device_fetch_and_store: e={:?}", e);
+                    return Err(e);
+                }
                 _ => {
                     error!("device_fetch_and_store: Unexpected response");
                     return Err(RippleError::ExtnError);
@@ -313,7 +322,10 @@ impl PermissionHandler {
             .map_or(Vec::new(), |v| v)
     }
 
-    pub async fn fetch_permission_for_app_session(state: &PlatformState, app_id: &String) {
+    pub async fn fetch_permission_for_app_session(
+        state: &PlatformState,
+        app_id: &String,
+    ) -> Result<(), RippleError> {
         // This call should hit the server and fetch permissions for the app.
         // Local cache will be updated with the fetched permissions
         let has_stored = state
@@ -334,16 +346,27 @@ impl PermissionHandler {
                     error!("Failed to get permissions for {} and no previous permissions store, app may not be able to access capabilities", app_id_c)
                 }
             }
+            perm_res
         });
-        if !has_stored {
+        let result: Result<(), RippleError> = if !has_stored {
             // app has no stored permissions, wait until it does
             debug!(
                 "{} did not have any permissions, waiting until permissions are fetched from cloud",
                 app_id
             );
-            handle.await.ok();
-        }
+            match handle.await {
+                Ok(handle_result) => handle_result,
+                Err(e) => {
+                    error!("fetch_permission_for_app_session: e={:?}", e);
+                    Err(RippleError::NotAvailable)
+                }
+            }
+        } else {
+            Ok(())
+        };
+        result
     }
+
     pub async fn check_permitted(
         state: &PlatformState,
         app_id: &str,

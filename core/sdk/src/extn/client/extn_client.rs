@@ -36,8 +36,13 @@ use tokio::sync::{
 
 use crate::{
     api::{
-        context::{ActivationStatus, RippleContext, RippleContextUpdateRequest},
-        device::device_request::{InternetConnectionStatus, TimeZone},
+        context::{
+            ActivationStatus, RippleContext, RippleContextUpdateRequest, RippleContextUpdateType,
+        },
+        device::{
+            device_info_request::DeviceInfoRequest,
+            device_request::{InternetConnectionStatus, TimeZone},
+        },
         firebolt::fb_metrics::MetricsContext,
         manifest::extn_manifest::ExtnSymbol,
     },
@@ -224,6 +229,7 @@ impl ExtnClient {
             .read()
             .unwrap()
             .iter()
+            .inspect(|item| debug!("other sender: {:?}", item.0))
             .map(|(_, v)| v)
             .cloned()
             .collect()
@@ -288,6 +294,22 @@ impl ExtnClient {
                     {
                         self.context_update(request);
                     }
+                    // if its a request coming as an extn provider the extension is calling on itself.
+                    // for eg an extension has a RPC Method provider and also a channel to process the
+                    // requests this below impl will take care of sending the data back to the Extension
+                    else if let Some(extn_id) = target_contract.is_extn_provider() {
+                        if let Some(s) = self.get_extn_sender_with_extn_id(&extn_id) {
+                            let new_message = message.clone();
+                            tokio::spawn(async move {
+                                if let Err(e) = s.send(new_message.into()).await {
+                                    error!("Error forwarding request {:?}", e)
+                                }
+                            });
+                        } else {
+                            error!("couldn't find the extension id registered the extn channel {:?} is not available", extn_id);
+                            self.handle_no_processor_error(message);
+                        }
+                    }
                     // Forward the message to an extn sender
                     else if let Some(sender) = self.get_extn_sender_with_contract(target_contract)
                     {
@@ -327,21 +349,42 @@ impl ExtnClient {
         let current_cap = self.sender.get_cap();
         if !current_cap.is_main() {
             error!("Updating context is not allowed outside main");
+            return;
         }
-
-        {
+        if let RippleContextUpdateRequest::RefreshContext(refresh_context) = &request {
+            if let Some(RippleContextUpdateType::InternetConnectionChanged) = refresh_context {
+                let resp = self.request_transient(DeviceInfoRequest::InternetConnectionStatus);
+                if let Err(_err) = resp {
+                    error!("Error in starting internet monitoring");
+                }
+            }
+            return;
+        }
+        // Main's Extn client will receive Context events and if it results in changing any of its
+        // context members then it propagates the event to other extension's extn client.
+        // Propagating 'known information' to other clients increases processing but no meaningful task is performed.
+        let propagate = {
             let mut ripple_context = self.ripple_context.write().unwrap();
+            debug!(
+                "Received context request: {:?} current ripple_context: {:?}",
+                request, ripple_context
+            );
             ripple_context.update(request)
-        }
+        };
         let new_context = { self.ripple_context.read().unwrap().clone() };
         let message = new_context.get_event_message();
-        let c_message: CExtnMessage = message.clone().into();
-        {
-            let senders = self.get_other_senders();
-            for sender in senders {
-                let send_res = sender.try_send(c_message.clone());
-                trace!("Send to other client result: {:?}", send_res);
+        if propagate {
+            debug!("Formed Context update event: {:?}", message);
+            let c_message: CExtnMessage = message.clone().into();
+            {
+                let senders = self.get_other_senders();
+                for sender in senders {
+                    let send_res = sender.try_send(c_message.clone());
+                    trace!("Send to other client result: {:?}", send_res);
+                }
             }
+        } else {
+            debug!("Context information is already updated. Hence not propagating");
         }
         Self::handle_vec_stream(message, self.event_processors.clone());
     }
@@ -406,7 +449,6 @@ impl ExtnClient {
     ) {
         let id_c = msg.target.as_clear_string();
         let mut gc_sender_indexes: Vec<usize> = Vec::new();
-        let mut sender: Option<MSender<ExtnMessage>> = None;
         let read_processor = processor.clone();
         {
             let processors = read_processor.read().unwrap();
@@ -414,26 +456,30 @@ impl ExtnClient {
             if let Some(v) = v {
                 for (index, s) in v.iter().enumerate() {
                     if !s.is_closed() {
-                        let _ = sender.insert(s.clone());
-                        break;
+                        let sndr = s.clone();
+                        let m = msg.clone();
+                        tokio::spawn(async move {
+                            if let Err(e) = sndr.try_send(m) {
+                                error!("Error sending the response back {:?}", e);
+                            }
+                        });
                     } else {
                         gc_sender_indexes.push(index);
                     }
                 }
             }
         };
-        if let Some(sender) = sender {
-            tokio::spawn(async move {
-                if let Err(e) = sender.clone().try_send(msg) {
-                    error!("Error sending the response back {:?}", e);
-                }
-            });
-        } else if RippleContext::is_ripple_context(&msg.payload).is_none() {
+
+        if RippleContext::is_ripple_context(&msg.payload).is_none() {
             // Not every extension will have a context listener
             error!("No Event Processor for {:?}", msg);
         }
 
-        Self::cleanup_vec_stream(id_c, None, processor);
+        let cleanup_indexes = match gc_sender_indexes.is_empty() {
+            true => None,
+            false => Some(gc_sender_indexes),
+        };
+        Self::cleanup_vec_stream(id_c, cleanup_indexes, processor);
     }
 
     fn cleanup_vec_stream(
@@ -547,9 +593,30 @@ impl ExtnClient {
         Err(RippleError::ExtnError)
     }
 
+    ///
+    /// Same as request except will inspect the response payload for errors
+    /// and place error in the returned result instead of in the payload
+    /// TODO: should request just do this?
+    pub async fn request_and_flatten(
+        &mut self,
+        payload: impl ExtnPayloadProvider,
+    ) -> Result<ExtnMessage, RippleError> {
+        let res = self.request(payload).await;
+        match res {
+            Err(e) => Err(e),
+            Ok(r) => {
+                if let Some(ExtnResponse::Error(e)) = r.payload.extract() {
+                    Err(e)
+                } else {
+                    Ok(r)
+                }
+            }
+        }
+    }
+
     /// Request method which accepts a impl [ExtnPayloadProvider] and uses the capability provided by the trait to send the request.
     /// As part of the send process it adds a callback to asynchronously respond back to the caller when the response does get
-    /// received. This method can be called synchrnously with a timeout
+    /// received. This method can be called synchronously with a timeout
     ///
     /// # Arguments
     /// `payload` - impl [ExtnPayloadProvider]
@@ -639,13 +706,18 @@ impl ExtnClient {
 
     pub fn has_token(&self) -> bool {
         let ripple_context = self.ripple_context.read().unwrap();
+        // matches!(
+        //     ripple_context.activation_status.clone(),
+        //     ActivationStatus::AccountToken(_)
+        // )
         matches!(
-            ripple_context.activation_status.clone(),
-            ActivationStatus::AccountToken(_)
+            ripple_context.activation_status.as_ref(),
+            Some(activation_status) if matches!(activation_status, ActivationStatus::AccountToken(_))
         )
     }
 
-    pub fn get_activation_status(&self) -> ActivationStatus {
+    pub fn get_activation_status(&self) -> Option<ActivationStatus> {
+        // pub fn get_activation_status(&self) -> ActivationStatus {
         let ripple_context = self.ripple_context.read().unwrap();
         ripple_context.activation_status.clone()
     }
@@ -653,14 +725,19 @@ impl ExtnClient {
     pub fn has_internet(&self) -> bool {
         let ripple_context = self.ripple_context.read().unwrap();
         matches!(
-            ripple_context.internet_connectivity,
-            InternetConnectionStatus::FullyConnected | InternetConnectionStatus::LimitedInternet
+            ripple_context.internet_connectivity.as_ref(), Some(internet_connectivity) if matches!(internet_connectivity, InternetConnectionStatus::FullyConnected | InternetConnectionStatus::LimitedInternet)
         )
+    }
+
+    pub fn internet_status(&self) -> Option<InternetConnectionStatus> {
+        let ripple_contract = self.ripple_context.read().unwrap();
+        ripple_contract.internet_connectivity.clone()
     }
 
     pub fn get_timezone(&self) -> Option<TimeZone> {
         let ripple_context = self.ripple_context.read().unwrap();
-        Some(ripple_context.time_zone.clone())
+        // Some(ripple_context.time_zone.clone())
+        ripple_context.time_zone.clone()
     }
 
     pub fn get_features(&self) -> Vec<String> {
@@ -668,7 +745,7 @@ impl ExtnClient {
         ripple_context.features.clone()
     }
 
-    pub fn get_metrics_context(&self) -> MetricsContext {
+    pub fn get_metrics_context(&self) -> Option<MetricsContext> {
         let ripple_context = self.ripple_context.read().unwrap();
         ripple_context.metrics_context.clone()
     }
@@ -1096,8 +1173,11 @@ pub mod tests {
         assert!(result.is_ok());
 
         let ripple_context = main_client.ripple_context.read().unwrap();
-        assert_eq!(ripple_context.time_zone.time_zone, time_zone);
-        assert_eq!(ripple_context.time_zone.offset, offset);
+        assert_eq!(
+            ripple_context.time_zone.as_ref().unwrap().time_zone,
+            time_zone
+        );
+        assert_eq!(ripple_context.time_zone.as_ref().unwrap().offset, offset);
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -1466,8 +1546,9 @@ pub mod tests {
         extn_client.context_update(request);
         let ripple_context = extn_client.ripple_context.read().unwrap();
 
-        assert_eq!(ripple_context.time_zone.time_zone, test_string);
-        assert_eq!(ripple_context.time_zone.offset, 1);
+        assert!(
+            matches!(&ripple_context.time_zone, Some(time_zone) if time_zone.time_zone == test_string && time_zone.offset == 1)
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -1800,9 +1881,9 @@ pub mod tests {
     #[tokio::test]
     async fn test_request_transient() {
         let (mock_sender, mock_rx) = ExtnSender::mock();
-        let extn_client = ExtnClient::new(mock_rx, mock_sender.clone());
+        let mut extn_client = ExtnClient::new(mock_rx, mock_sender.clone());
 
-        extn_client.clone().add_sender(
+        extn_client.add_sender(
             ExtnId::get_main_target("main".into()),
             ExtnSymbol {
                 id: "id".to_string(),
@@ -2014,10 +2095,10 @@ pub mod tests {
         // Set activation status to AccountToken
         {
             let mut ripple_context = extn_client.ripple_context.write().unwrap();
-            ripple_context.activation_status = ActivationStatus::AccountToken(AccountToken {
+            ripple_context.activation_status = Some(ActivationStatus::AccountToken(AccountToken {
                 token: "some_token".to_string(),
                 expires: 123,
-            });
+            }));
         }
 
         // Check if has_token returns true
@@ -2027,7 +2108,7 @@ pub mod tests {
         // Reset activation status to None
         {
             let mut ripple_context = extn_client.ripple_context.write().unwrap();
-            ripple_context.activation_status = ActivationStatus::NotActivated;
+            ripple_context.activation_status = None;
         }
 
         // Check if has_token returns false after resetting activation status
@@ -2042,34 +2123,31 @@ pub mod tests {
         // Set activation status to AccountToken
         {
             let mut ripple_context = extn_client.ripple_context.write().unwrap();
-            ripple_context.activation_status = ActivationStatus::AccountToken(AccountToken {
+            ripple_context.activation_status = Some(ActivationStatus::AccountToken(AccountToken {
                 token: "some_token".to_string(),
                 expires: 123,
-            });
+            }));
         }
 
         // Check if get_activation_status returns AccountToken
         let activation_status = extn_client.get_activation_status();
         assert_eq!(
             activation_status,
-            ActivationStatus::AccountToken(AccountToken {
+            Some(ActivationStatus::AccountToken(AccountToken {
                 token: "some_token".to_string(),
                 expires: 123,
-            })
+            }))
         );
 
         // Reset activation status to None
         {
             let mut ripple_context = extn_client.ripple_context.write().unwrap();
-            ripple_context.activation_status = ActivationStatus::NotActivated;
+            ripple_context.activation_status = None;
         }
 
         // Check if get_activation_status returns None after resetting activation status
         let activation_status_after_reset = extn_client.get_activation_status();
-        assert_eq!(
-            activation_status_after_reset,
-            ActivationStatus::NotActivated
-        );
+        assert_eq!(activation_status_after_reset, None);
     }
 
     #[rstest(
@@ -2087,7 +2165,7 @@ pub mod tests {
             .ripple_context
             .write()
             .unwrap()
-            .internet_connectivity = connectivity;
+            .internet_connectivity = Some(connectivity);
 
         let has_internet = extn_client.has_internet();
         assert_eq!(has_internet, expected_result);
@@ -2101,7 +2179,7 @@ pub mod tests {
             offset: -5,
         };
 
-        extn_client.ripple_context.write().unwrap().time_zone = test_timezone.clone();
+        extn_client.ripple_context.write().unwrap().time_zone = Some(test_timezone.clone());
         let result = extn_client.get_timezone();
         assert_eq!(result, Some(test_timezone));
     }

@@ -17,7 +17,10 @@
 
 use crate::{
     api::firebolt::fb_openrpc::FireboltSemanticVersion,
-    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
+    extn::{
+        client::extn_client::ExtnClient,
+        extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
+    },
     framework::ripple_contract::RippleContract,
 };
 use serde::{Deserialize, Serialize};
@@ -39,7 +42,7 @@ pub enum DeviceInfoRequest {
     Model,
     Make,
     Name,
-    Version,
+    FirmwareInfo,
     HdcpSupport,
     HdcpStatus,
     Hdr,
@@ -62,6 +65,8 @@ pub enum DeviceInfoRequest {
     FullCapabilities(Vec<String>),
     PowerState,
     SerialNumber,
+    StartMonitoringInternetChanges,
+    StopMonitoringInternetChanges,
     PlatformBuildInfo,
 }
 
@@ -96,7 +101,7 @@ pub struct DeviceCapabilities {
     pub audio: Option<HashMap<AudioProfile, bool>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct PlatformBuildInfo {
     pub name: String,
     pub device_model: String,
@@ -106,13 +111,19 @@ pub struct PlatformBuildInfo {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct FirmwareInfo {
+    pub name: String,
+    pub version: FireboltSemanticVersion,
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum DeviceResponse {
     CustomError(String),
     AudioProfileResponse(HashMap<AudioProfile, bool>),
     HdcpSupportResponse(HashMap<HdcpProfile, bool>),
     HdcpStatusResponse(HDCPStatus),
     HdrResponse(HashMap<HdrProfile, bool>),
-    FirmwareInfo(FireboltSemanticVersion),
+    FirmwareInfo(FirmwareInfo),
     ScreenResolutionResponse(Vec<i32>),
     VideoResolutionResponse(Vec<i32>),
     FullCapabilities(DeviceCapabilities),
@@ -141,6 +152,30 @@ impl ExtnPayloadProvider for DeviceResponse {
 
     fn contract() -> RippleContract {
         RippleContract::DeviceInfo
+    }
+}
+
+pub struct DeviceInfo {}
+
+impl DeviceInfo {
+    ///
+    /// Checks if the device is a debug device
+    /// If any error happens then assume it is NOT a debug device
+    pub async fn is_debug(extn_client: &mut ExtnClient) -> bool {
+        let resp_res = extn_client
+            .request(DeviceInfoRequest::PlatformBuildInfo)
+            .await;
+        if resp_res.is_err() {
+            return false;
+        }
+        let device_resp = resp_res.unwrap().payload.extract::<DeviceResponse>();
+        if device_resp.is_none() {
+            return false;
+        }
+        match device_resp.unwrap() {
+            DeviceResponse::PlatformBuildInfo(pbi) => pbi.debug,
+            _ => false,
+        }
     }
 }
 

@@ -17,7 +17,12 @@
 
 use std::collections::HashMap;
 
-use ripple_sdk::{api::device::device_request::AudioProfile, serde_json::Value};
+use jsonrpsee::core::Error;
+use ripple_sdk::{
+    api::device::{device_operator::DeviceResponseMessage, device_request::AudioProfile},
+    serde_json::Value,
+};
+use serde::Deserialize;
 
 pub fn get_audio_profile_from_value(value: Value) -> HashMap<AudioProfile, bool> {
     let mut hm: HashMap<AudioProfile, bool> = HashMap::new();
@@ -79,4 +84,27 @@ pub fn get_audio_profile_from_value(value: Value) -> HashMap<AudioProfile, bool>
         }
     }
     hm
+}
+
+pub fn check_thunder_response_success(response: &DeviceResponseMessage) -> bool {
+    let r = response.message.get("success");
+    if let Some(r) = r {
+        r.as_bool().unwrap_or_default()
+    } else {
+        false
+    }
+}
+
+#[derive(Deserialize)]
+pub struct ThunderErrorResponse {
+    pub error: Value,
+}
+
+pub fn get_error_value(error: &Error) -> Value {
+    if let jsonrpsee::core::Error::Request(s) = error {
+        if let Ok(v) = ripple_sdk::serde_json::from_str::<ThunderErrorResponse>(s) {
+            return v.error;
+        }
+    }
+    Value::Null
 }

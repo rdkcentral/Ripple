@@ -52,6 +52,21 @@ impl Default for DefaultExtnStreamer {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct Prerequisites {
+    pub need_internet: bool,
+    pub need_activation: bool,
+}
+
+impl Prerequisites {
+    pub fn new(need_internet: bool, need_activation: bool) -> Self {
+        Prerequisites {
+            need_internet,
+            need_activation,
+        }
+    }
+}
+
 impl ExtnStreamer for DefaultExtnStreamer {
     fn sender(&self) -> MSender<ExtnMessage> {
         self.tx.clone().unwrap()
@@ -74,7 +89,7 @@ pub trait ExtnStreamer {
 /// 2. Have a STATE which is bound by [Clone]
 /// 3. Provide a Sender and Receiver
 pub trait ExtnStreamProcessor: Send + Sync + 'static {
-    type VALUE: ExtnPayloadProvider;
+    type VALUE: ExtnPayloadProvider + Debug;
     type STATE: Clone + Send + Sync;
     fn get(payload: ExtnPayload) -> Option<Self::VALUE> {
         Self::VALUE::get_from_payload(payload)
@@ -89,6 +104,9 @@ pub trait ExtnStreamProcessor: Send + Sync + 'static {
         Self::VALUE::contract()
     }
     fn sender(&self) -> MSender<ExtnMessage>;
+    fn get_prerequisites(&self) -> Prerequisites {
+        Prerequisites::default()
+    }
 }
 
 #[macro_export]
@@ -157,10 +175,9 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     ///
     /// # Returns
     ///
-    /// `Option<bool>` -> Used by [ExtnClient] to handle post processing
-    /// None - means not processed
-    /// Some(true) - Successful processing with status success
-    /// Some(false) - Successful processing with status error
+    /// `bool` -> Used by [ExtnClient] to handle post processing
+    /// `true` - Successful processing with status success
+    /// `false` - Successful processing with status error
     async fn process_request(
         state: Self::STATE,
         msg: ExtnMessage,
@@ -170,6 +187,21 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     /// For [ExtnRequestProcessor] each implementor should return an instance of [ExtnClient]
     /// This is necessary for the processor to intenally log and delegate errors.
     fn get_client(&self) -> ExtnClient;
+
+    fn needs_internet(&self) -> bool {
+        false
+    }
+
+    fn has_internet(&self) -> bool {
+        self.get_client().has_internet()
+    }
+
+    fn check_prerequisties(prereq: &Prerequisites, client: &ExtnClient) -> bool {
+        match (prereq.need_internet, client.has_internet()) {
+            (true, true) | (false, _) => true,
+            (true, false) => false,
+        }
+    }
 
     fn check_message_type(message: &ExtnMessage) -> bool {
         message.payload.is_request()
@@ -187,7 +219,7 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     }
 
     async fn ack(mut extn_client: ExtnClient, request: ExtnMessage) -> RippleResponse {
-        return extn_client.send_message(request.ack()).await;
+        extn_client.send_message(request.ack()).await
     }
 
     async fn run(&mut self) {
@@ -198,11 +230,18 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
         let extn_client = self.get_client();
         let mut receiver = self.receiver();
         let state = self.get_state();
+        let prereq = self.get_prerequisites();
         tokio::spawn(async move {
             while let Some(msg) = receiver.recv().await {
                 let extracted_message = Self::get(msg.clone().payload);
                 if extracted_message.is_none() {
                     Self::handle_error(extn_client.clone(), msg, RippleError::ParseError).await;
+                } else if !Self::check_prerequisties(&prereq, &extn_client) {
+                    error!(
+                        "Prerequsties not statisfied: {:?}. Not processing request: {:?} by ",
+                        prereq, extracted_message
+                    );
+                    Self::handle_error(extn_client.clone(), msg, RippleError::ProcessorError).await;
                 } else if !Self::process_request(
                     state.clone(),
                     msg.clone(),
