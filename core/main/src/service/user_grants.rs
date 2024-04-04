@@ -554,8 +554,8 @@ impl GrantState {
         let caps_needing_grants = grant_state.caps_needing_grants.clone();
         let mut caps_needing_grant_in_request: Vec<FireboltPermission> = fb_perms
             .iter()
+            .filter(|&x| caps_needing_grants.contains(&x.cap.as_str()))
             .cloned()
-            .filter(|x| caps_needing_grants.contains(&x.cap.as_str()))
             .collect();
 
         if apply_exclusion_filter {
@@ -598,14 +598,17 @@ impl GrantState {
                         &permission,
                     )
                     .await;
-                    if result.is_err() {
-                        if fail_on_first_error
-                            || result.as_ref().unwrap_err().reason
-                                == DenyReason::AppNotInActiveState
-                        {
-                            return result;
-                        } else {
-                            denied_caps.push(permission.cap.clone())
+
+                    match result {
+                        Ok(_) => {}
+                        Err(deny_reason_with_cap) => {
+                            if fail_on_first_error
+                                || deny_reason_with_cap.reason == DenyReason::AppNotInActiveState
+                            {
+                                return Err(deny_reason_with_cap);
+                            } else {
+                                denied_caps.push(permission.cap.clone())
+                            }
                         }
                     }
                 }
@@ -634,24 +637,22 @@ impl GrantState {
             "Incoming grant check for app_id: {:?} and role: {:?}",
             app_id, role_info
         );
-        if let Ok(permission) = FireboltPermission::try_from(role_info) {
-            let resolved_perms = FireboltGatekeeper::resolve_dependencies(state, &vec![permission]);
-            for perm in resolved_perms {
-                let result = self.get_grant_state(app_id, &perm, Some(state));
-                match result {
-                    GrantActiveState::ActiveGrant(grant) => {
-                        if grant.is_err() {
-                            return Err(RippleError::Permission(DenyReason::GrantDenied));
-                        }
-                    }
-                    GrantActiveState::PendingGrant => {
-                        return Err(RippleError::Permission(DenyReason::Ungranted));
+        for perm in FireboltGatekeeper::resolve_dependencies(
+            state,
+            &vec![FireboltPermission::from(role_info)],
+        ) {
+            match self.get_grant_state(app_id, &perm, Some(state)) {
+                GrantActiveState::ActiveGrant(grant) => {
+                    if grant.is_err() {
+                        return Err(RippleError::Permission(DenyReason::GrantDenied));
                     }
                 }
+                GrantActiveState::PendingGrant => {
+                    return Err(RippleError::Permission(DenyReason::Ungranted));
+                }
             }
-            return Ok(true);
         }
-        Err(RippleError::InvalidInput)
+        Ok(true)
     }
 
     pub fn update(

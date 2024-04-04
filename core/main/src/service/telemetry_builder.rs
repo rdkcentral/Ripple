@@ -56,7 +56,10 @@ impl TelemetryBuilder {
                 app_version,
                 start_time: start_time.unwrap_or_default().timestamp_millis(),
                 ripple_session_id: ps.metrics.get_context().device_session_id,
-                ripple_version: String::from(SEMVER_LIGHTWEIGHT),
+                ripple_version: ps
+                    .version
+                    .clone()
+                    .unwrap_or(String::from(SEMVER_LIGHTWEIGHT)),
                 ripple_context: None,
             }),
         ) {
@@ -105,7 +108,11 @@ impl TelemetryBuilder {
         Self::send_app_load_start(
             ps,
             "ripple".to_string(),
-            Some(String::from(SEMVER_LIGHTWEIGHT)),
+            Some(
+                ps.version
+                    .clone()
+                    .unwrap_or(String::from(SEMVER_LIGHTWEIGHT)),
+            ),
             Some(ps.metrics.start_time),
         );
         Self::send_app_load_stop(ps, "ripple".to_string(), true);
