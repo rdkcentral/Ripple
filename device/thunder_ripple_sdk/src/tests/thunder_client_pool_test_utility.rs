@@ -17,7 +17,7 @@
 use crate::client::jsonrpc_method_locator::JsonRpcMethodLocator;
 use futures::SinkExt;
 use futures::StreamExt;
-use jsonrpsee::tracing::info;
+use ripple_sdk::log::info;
 use ripple_sdk::{futures, serde_json, tokio};
 use serde_json::{json, Value};
 use std::net::SocketAddr;

@@ -49,6 +49,7 @@ impl ChannelsState {
         let (gateway_tx, gateway_tr) = mpsc::channel(32);
         let (app_req_tx, app_req_tr) = mpsc::channel(32);
         let (ctx, ctr) = unbounded();
+
         ChannelsState {
             gateway_channel: TransientChannel::new(gateway_tx, gateway_tr),
             app_req_channel: TransientChannel::new(app_req_tx, app_req_tr),
@@ -141,12 +142,11 @@ impl BootstrapState {
                 Err(err) => {
                     warn!(
                         "error reading versions from {}, err={:?}",
-                        version_file_name.clone(),
-                        err
+                        version_file_name, err
                     );
                 }
             }
-            warn!("error reading versions from {}", version_file_name.clone(),);
+            warn!("error reading versions from {}", version_file_name,);
             None
         }
         Ok(BootstrapState {
