@@ -79,6 +79,26 @@ pub enum RippleContextUpdateType {
 }
 
 impl RippleContext {
+    pub fn new(
+        activation_status: Option<ActivationStatus>,
+        internet_connectivity: Option<InternetConnectionStatus>,
+        system_power_state: Option<SystemPowerState>,
+        time_zone: Option<TimeZone>,
+        update_type: Option<RippleContextUpdateType>,
+        features: Vec<String>,
+        metrics_context: Option<MetricsContext>,
+    ) -> RippleContext {
+        RippleContext {
+            activation_status,
+            internet_connectivity,
+            system_power_state,
+            time_zone,
+            update_type,
+            features,
+            metrics_context,
+        }
+    }
+
     pub fn is_ripple_context(msg: &ExtnPayload) -> Option<Self> {
         RippleContext::get_from_payload(msg.clone())
     }
@@ -141,14 +161,25 @@ impl RippleContext {
                 false
                 // This is not an update request so need not to honour it
             }
-            RippleContextUpdateRequest::Features(features) => {
+            RippleContextUpdateRequest::UpdateFeatures(features) => {
                 let mut changed = false;
                 for feature in features {
-                    if !self.features.contains(&feature) {
-                        self.features.push(feature);
-                        changed = true;
+                    match feature.enabled {
+                        true => {
+                            if !self.features.contains(&feature.name) {
+                                self.features.push(feature.name);
+                                changed = true;
+                            }
+                        }
+                        false => {
+                            if self.features.contains(&feature.name) {
+                                self.features.retain(|f| !f.eq(&feature.name));
+                                changed = true;
+                            }
+                        }
                     }
                 }
+
                 if changed {
                     self.update_type = Some(RippleContextUpdateType::FeaturesChanged);
                 }
@@ -217,13 +248,25 @@ impl ExtnPayloadProvider for RippleContext {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct FeatureUpdate {
+    name: String,
+    enabled: bool,
+}
+
+impl FeatureUpdate {
+    pub fn new(name: String, enabled: bool) -> FeatureUpdate {
+        FeatureUpdate { name, enabled }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum RippleContextUpdateRequest {
     Activation(bool),
     Token(AccountToken),
     InternetStatus(InternetConnectionStatus),
     PowerState(SystemPowerState),
     TimeZone(TimeZone),
-    Features(Vec<String>),
+    UpdateFeatures(Vec<FeatureUpdate>),
     MetricsContext(MetricsContext),
     RefreshContext(Option<RippleContextUpdateType>),
 }
@@ -343,5 +386,95 @@ mod tests {
 
         let contract_type: RippleContract = RippleContract::RippleContext;
         test_extn_payload_provider(ripple_context, contract_type);
+    }
+
+    #[test]
+    fn test_update_features_enabled_not_exists() {
+        let name = String::from("foo");
+        let some_other_feature = String::from("bar");
+        let mut ripple_context = RippleContext::new(
+            None,
+            None,
+            None,
+            None,
+            None,
+            vec![some_other_feature.clone()],
+            None,
+        );
+        let changed = ripple_context.update(RippleContextUpdateRequest::UpdateFeatures(vec![
+            FeatureUpdate::new(name.clone(), true),
+        ]));
+        assert!(changed);
+        assert!(ripple_context.features.contains(&name));
+        assert!(ripple_context.features.contains(&some_other_feature));
+    }
+
+    #[test]
+    fn test_update_features_enabled_exists() {
+        let name = String::from("foo");
+        let some_other_feature = String::from("bar");
+        let mut ripple_context = RippleContext::new(
+            None,
+            None,
+            None,
+            None,
+            None,
+            vec![some_other_feature.clone()],
+            None,
+        );
+        ripple_context.update(RippleContextUpdateRequest::UpdateFeatures(vec![
+            FeatureUpdate::new(name.clone(), true),
+        ]));
+        let changed = ripple_context.update(RippleContextUpdateRequest::UpdateFeatures(vec![
+            FeatureUpdate::new(name.clone(), true),
+        ]));
+        assert!(!changed);
+        assert!(ripple_context.features.contains(&name));
+        assert!(ripple_context.features.contains(&some_other_feature));
+    }
+
+    #[test]
+    fn test_update_features_disabled_not_exists() {
+        let name = String::from("foo");
+        let some_other_feature = String::from("bar");
+        let mut ripple_context = RippleContext::new(
+            None,
+            None,
+            None,
+            None,
+            None,
+            vec![some_other_feature.clone()],
+            None,
+        );
+        let changed = ripple_context.update(RippleContextUpdateRequest::UpdateFeatures(vec![
+            FeatureUpdate::new(name.clone(), false),
+        ]));
+        assert!(!changed);
+        assert!(!ripple_context.features.contains(&name));
+        assert!(ripple_context.features.contains(&some_other_feature));
+    }
+
+    #[test]
+    fn test_update_features_disabled_exists() {
+        let name = String::from("foo");
+        let some_other_feature = String::from("bar");
+        let mut ripple_context = RippleContext::new(
+            None,
+            None,
+            None,
+            None,
+            None,
+            vec![some_other_feature.clone()],
+            None,
+        );
+        ripple_context.update(RippleContextUpdateRequest::UpdateFeatures(vec![
+            FeatureUpdate::new(name.clone(), true),
+        ]));
+        let changed = ripple_context.update(RippleContextUpdateRequest::UpdateFeatures(vec![
+            FeatureUpdate::new(name.clone(), false),
+        ]));
+        assert!(changed);
+        assert!(!ripple_context.features.contains(&name));
+        assert!(ripple_context.features.contains(&some_other_feature));
     }
 }

@@ -35,3 +35,7 @@ pub extern crate serde_json;
 pub extern crate serde_yaml;
 pub extern crate tokio;
 pub extern crate uuid;
+
+pub trait Mockable {
+    fn mock() -> Self;
+}
