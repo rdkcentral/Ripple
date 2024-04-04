@@ -687,6 +687,15 @@ impl ExtnClient {
         false
     }
 
+    pub fn get_uint_config(&self, key: &str) -> Option<u64> {
+        if let Some(s) = self.sender.get_config(key) {
+            if let Ok(v) = s.parse() {
+                return Some(v);
+            }
+        }
+        None
+    }
+
     /// Method to send event to an extension based on its Id
     pub fn send_event_with_id(&self, id: &str, event: impl ExtnPayloadProvider) -> RippleResponse {
         if let Some(sender) = self.get_extn_sender_with_extn_id(id) {
