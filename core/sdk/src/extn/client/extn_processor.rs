@@ -175,10 +175,9 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     ///
     /// # Returns
     ///
-    /// `Option<bool>` -> Used by [ExtnClient] to handle post processing
-    /// None - means not processed
-    /// Some(true) - Successful processing with status success
-    /// Some(false) - Successful processing with status error
+    /// `bool` -> Used by [ExtnClient] to handle post processing
+    /// `true` - Successful processing with status success
+    /// `false` - Successful processing with status error
     async fn process_request(
         state: Self::STATE,
         msg: ExtnMessage,
@@ -220,7 +219,7 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     }
 
     async fn ack(mut extn_client: ExtnClient, request: ExtnMessage) -> RippleResponse {
-        return extn_client.send_message(request.ack()).await;
+        extn_client.send_message(request.ack()).await
     }
 
     async fn run(&mut self) {
