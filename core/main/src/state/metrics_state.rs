@@ -23,10 +23,13 @@ use std::{
 use jsonrpsee::tracing::debug;
 use ripple_sdk::{
     api::{
-        context::RippleContextUpdateRequest,
+        context::{ActivationStatus, RippleContextUpdateRequest},
         device::device_info_request::{DeviceInfoRequest, DeviceResponse, FirmwareInfo},
         distributor::distributor_privacy::PrivacySettingsData,
-        firebolt::{fb_metrics::MetricsContext, fb_openrpc::FireboltSemanticVersion},
+        firebolt::{
+            fb_metrics::{MetricsContext, MetricsEnvironment},
+            fb_openrpc::FireboltSemanticVersion,
+        },
         storage_property::StorageProperty,
     },
     chrono::{DateTime, Utc},
@@ -69,12 +72,50 @@ impl MetricsState {
     pub fn get_context(&self) -> MetricsContext {
         self.context.read().unwrap().clone()
     }
+    // <pca>
+    fn update_cet_list(&self, privacy_settings_data: &PrivacySettingsData) {
+        let mut cet_list = Vec::new();
+
+        if let Some(v) = privacy_settings_data.allow_business_analytics
+            && v
+        {
+            cet_list.push(String::from("dataPlatform:cet:xvp:analytics:business"));
+        }
+
+        if let Some(v) = privacy_settings_data.allow_resume_points
+            && v
+        {
+            cet_list.push(String::from(
+                "dataPlatform:cet:xvp:personalization:continueWatching",
+            ));
+        }
+
+        if let Some(v) = privacy_settings_data.allow_personalization
+            && v
+        {
+            cet_list.push(String::from(
+                "dataPlatform:cet:xvp:personalization:recommendation",
+            ));
+        }
+
+        if let Some(v) = privacy_settings_data.allow_product_analytics
+            && v
+        {
+            cet_list.push(String::from("dataPlatform:cet:xvp:analytics"));
+        }
+
+        *self.context.write().unwrap().cet_list = cet_list;
+    }
+    // </pca>
     pub fn get_privacy_settings_cache(&self) -> PrivacySettingsData {
         self.privacy_settings_cache.read().unwrap().clone()
     }
     pub fn update_privacy_settings_cache(&self, value: &PrivacySettingsData) {
         let mut cache = self.privacy_settings_cache.write().unwrap();
         *cache = value.clone();
+        // <pca>
+        self.update_cet_list(value);
+        // </pca>
     }
     pub async fn initialize(state: &PlatformState) {
         let metrics_percentage = state
@@ -154,20 +195,61 @@ impl MetricsState {
             }
         }
 
-        let firmware = match state
+        // <pca>
+        // let firmware = match state
+        //     .get_client()
+        //     .send_extn_request(DeviceInfoRequest::PlatformBuildInfo)
+        //     .await
+        // {
+        //     Ok(resp) => {
+        //         if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp.payload.extract() {
+        //             info.name
+        //         } else {
+        //             String::default()
+        //         }
+        //     }
+        //     Err(_) => String::default(),
+        // };
+        let mut firmware = String::default();
+        let mut env = None;
+
+        match state
             .get_client()
             .send_extn_request(DeviceInfoRequest::PlatformBuildInfo)
             .await
         {
             Ok(resp) => {
                 if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp.payload.extract() {
-                    info.name
-                } else {
-                    String::default()
+                    firmware = info.name;
+                    env = if info.debug {
+                        Some(MetricsEnvironment::Dev)
+                    } else {
+                        Some(MetricsEnvironment::Prod)
+                    };
                 }
             }
-            Err(_) => String::default(),
+            Err(_) => None,
         };
+
+        let activated = match state.get_client().get_extn_client().get_activation_status() {
+            Some(ActivationStatus::Activated) => Some(true),
+            None => None,
+            _ => Some(false),
+        };
+
+        let proposition = {};
+        let retailer = {};
+        let jv_agent = {};
+        let coam = {};
+        let country = {};
+        let region = {};
+        let account_type = {};
+        let operator = {};
+        let account_detail_type = {};
+        let device_type = {};
+        let device_manufacturer = {};
+        let authenticated = {};
+        // </pca>
 
         {
             // Time to set them
@@ -204,6 +286,12 @@ impl MetricsState {
             if let Some(t) = timezone {
                 context.device_timezone = t;
             }
+
+            // <pca>
+            context.env = env;
+            context.activated = activated;
+
+            // </pca>
         }
         {
             Self::update_account_session(state).await;

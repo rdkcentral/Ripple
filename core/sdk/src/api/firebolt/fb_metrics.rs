@@ -629,6 +629,16 @@ pub enum OperationalMetricPayload {
     Counter(Counter),
 }
 
+// <pca>
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum MetricsEnvironment {
+    Prod,
+    Dev,
+    Test,
+}
+// </pca>
+
 /// all the things that are provided by platform that need to
 /// be updated, and eventually in/outjected into/out of a payload
 /// These items may (or may not) be available when the ripple
@@ -742,9 +752,8 @@ pub struct MetricsContext {
     pub serial_number: String,
     pub firmware: String,
     pub ripple_version: String,
-    pub env: Option<String>,
-    pub logger_name: String,
-    pub logger_version: String,
+    pub env: Option<MetricsEnvironment>,
+    pub cet_list: Option<Vec<String>>,
     pub activated: Option<bool>,
     pub proposition: String,
     pub retailer: Option<String>,
@@ -780,8 +789,7 @@ pub enum MetricsContextField {
     firmware,
     ripple_version,
     env,
-    logger_name,
-    logger_version,
+    cet_list,
     activated,
     proposition,
     retailer,
@@ -815,8 +823,7 @@ impl MetricsContext {
             firmware: String::from(""),
             ripple_version: String::from(""),
             env: None,
-            logger_name: String::from(""),
-            logger_version: String::from(""),
+            cet_list: None,
             activated: None,
             proposition: String::from(""),
             retailer: None,
