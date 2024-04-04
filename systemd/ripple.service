@@ -7,11 +7,11 @@ Type=notify
 Environment="RUST_LOG=debug"
 EnvironmentFile=-/opt/ripple.conf
 ExecStart=/usr/bin/ripple
+ExecStartPre=/bin/sh -c '. /etc/device.properties; if [ "$BUILD_TYPE" != "prod" ] && [ -f /opt/ripple_pre.sh ];then  source /opt/ripple_pre.sh; fi'
+ExecStartPost=/bin/sh -c '. /etc/device.properties; if [ "$BUILD_TYPE" != "prod" ] && [ -f /opt/ripple_post.sh ];then  source /opt/ripple_post.sh; fi'
 ExecStop=/bin/kill -TERM $MAINPID
 Restart=on-failure
 RestartSec=5
-ExecStartPre=/bin/sh -c '. /etc/device.properties; if [ "$BUILD_TYPE" != "prod" ] && [ -f /opt/ripple_pre.sh ];then  source /opt/ripple_pre.sh; fi'
-ExecStartPost=/bin/sh -c '. /etc/device.properties; if [ "$BUILD_TYPE" != "prod" ] && [ -f /opt/ripple_post.sh ];then  source /opt/ripple_post.sh; fi'
 
 [Install]
 WantedBy=multi-user.target
