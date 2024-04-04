@@ -510,7 +510,7 @@ impl ThunderPackageManagerRequestProcessor {
     fn start_operation_timer(state: ThunderPackageManagerState, handle: String) {
         let timeout_secs = state.operation_timeout_secs;
         tokio::spawn(async move {
-            let timeout = tokio::time::sleep(tokio::time::Duration::from_secs(timeout_secs)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(timeout_secs)).await;
             if state
                 .active_operations
                 .lock()
