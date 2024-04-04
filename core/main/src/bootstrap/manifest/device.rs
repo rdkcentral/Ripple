@@ -41,7 +41,6 @@ fn try_manifest_files() -> Result<DeviceManifest, RippleError> {
         vec![load_from_env]
     } else {
         vec![load_from_etc]
-        vec![load_from_opt]
     };
 
     for dm_provider in dm_arr {
