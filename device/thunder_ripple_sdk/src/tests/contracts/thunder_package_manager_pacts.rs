@@ -58,10 +58,10 @@ async fn test_install_app(
                         "pact:content-type": "application/json",
                         "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 0)", "method": "org.rdk.PackageManager.1.install", "params": {
                             "type": "",
-                            "id": "Netflix",
+                            "id": "firecertApp",
                             "version": "2.0",
-                            "url": "https://google.com",
-                            "app_name": "Netflix",
+                            "url": "https://firecertApp.com",
+                            "app_name": "firecertApp",
                             "category": ""
                           }},
                           "requestMetadata": {
@@ -112,9 +112,9 @@ async fn test_install_app(
         .await;
 
     let app_metadata_params = DeviceAppMetadata {
-        id: "Netflix".to_string(),
-        title: "Netflix".to_string(),
-        uri: "https://google.com".into(),
+        id: "firecertApp".to_string(),
+        title: "firecertApp".to_string(),
+        uri: "https://firecertApp.com".into(),
         version: "2.0".to_string(),
         data: None,
     };
@@ -143,7 +143,7 @@ async fn test_install_app(
             "handle".into(),
             Some(Operation::new(
                 op_type_progress,
-                "Netflix".into(),
+                "firecertApp".into(),
                 AppData::new("2.0".into()),
             )),
         );
@@ -193,7 +193,7 @@ async fn test_uninstall_app(
                         "pact:content-type": "application/json",
                         "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 0)", "method": "org.rdk.PackageManager.1.uninstall", "params": {
                             "type": "",
-                            "id": "Netflix",
+                            "id": "firecertApp",
                             "version": "2.0",
                             "uninstall_type": ""
                           }},
@@ -245,7 +245,7 @@ async fn test_uninstall_app(
         .await;
 
     let installed_app = InstalledApp {
-        id: "Netflix".to_string(),
+        id: "firecertApp".to_string(),
         version: "2.0".to_string(),
     };
 
@@ -273,7 +273,7 @@ async fn test_uninstall_app(
             "handle".into(),
             Some(Operation::new(
                 op_type_progress,
-                "Netflix".into(),
+                "firecertApp".into(),
                 AppData::new("2.0".into()),
             )),
         );
@@ -302,7 +302,7 @@ async fn test_uninstall_app(
 async fn test_get_installed_apps() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
     let installed_apps = vec![InstalledApp {
-        id: "Netflix".to_string(),
+        id: "firecertApp".to_string(),
         version: "1.0".to_string(),
     }];
 
@@ -379,10 +379,10 @@ async fn test_init() {
                         "pact:content-type": "application/json",
                         "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 0)", "method": "org.rdk.PackageManager.1.install", "params": {
                             "type": "",
-                            "id": "Netflix",
+                            "id": "firecertApp",
                             "version": "2.0",
-                            "url": "https://google.com",
-                            "app_name": "Netflix",
+                            "url": "https://firecertApp.com",
+                            "app_name": "firecertApp",
                             "category": ""
                           }},
                           "requestMetadata": {
@@ -402,7 +402,7 @@ async fn test_init() {
             .await;
 
     let installed_apps = vec![InstalledApp {
-        id: "Netflix".to_string(),
+        id: "firecertApp".to_string(),
         version: "1.0".to_string(),
     }];
 
@@ -432,7 +432,10 @@ async fn test_init() {
 
     let mut register_result = HashMap::new();
     register_result.insert("type".into(), ContractMatcher::MatchType("test".into()));
-    register_result.insert("id".into(), ContractMatcher::MatchType("Netflix".into()));
+    register_result.insert(
+        "id".into(),
+        ContractMatcher::MatchType("firecertApp".into()),
+    );
     register_result.insert("version".into(), ContractMatcher::MatchType("2.0".into()));
 
     register_result.insert("handle".into(), ContractMatcher::MatchType("some".into()));
@@ -475,9 +478,9 @@ async fn test_init() {
         .await;
 
     let app_metadata_params = DeviceAppMetadata {
-        id: "Netflix".to_string(),
-        title: "Netflix".to_string(),
-        uri: "https://google.com".into(),
+        id: "firecertApp".to_string(),
+        title: "firecertApp".to_string(),
+        uri: "https://firecertApp.com".into(),
         version: "2.0".to_string(),
         data: None,
     };
@@ -532,7 +535,7 @@ async fn test_init() {
 async fn test_get_firebolt_permissions() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
     let installed_apps = vec![InstalledApp {
-        id: "Netflix".to_string(),
+        id: "firecertApp".to_string(),
         version: "1.0".to_string(),
     }];
 
@@ -542,7 +545,7 @@ async fn test_get_firebolt_permissions() {
             |mut i| async move {
                 i.contents_from(json!({
                     "pact:content-type": "application/json",
-                    "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 0)", "method": "org.rdk.PackageManager.1.getlist", "params": {"id": "Netflix"}},
+                    "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 0)", "method": "org.rdk.PackageManager.1.getlist", "params": {"id": "firecertApp"}},
                     "requestMetadata": {
                         "path": "/jsonrpc"
                     },
@@ -571,7 +574,7 @@ async fn test_get_firebolt_permissions() {
         base64::encode(serde_json::to_string(&firebolt_perms).expect("Serialization failed"));
     let metadata_response = json!({
         "metadata": {
-            "appname": "Netflix",
+            "appname": "firecertApp",
             "type": "test",
             "url": "http://example.com"
         },
@@ -592,7 +595,7 @@ async fn test_get_firebolt_permissions() {
                         "jsonrpc": "matching(type, '2.0')",
                         "id": "matching(integer, 1)",
                         "method": "org.rdk.PackageManager.1.getmetadata",
-                        "params": {"id": "Netflix", "version": "1.0"}
+                        "params": {"id": "firecertApp", "version": "1.0"}
                     },
                     "requestMetadata": {
                         "path": "/jsonrpc"
@@ -617,7 +620,7 @@ async fn test_get_firebolt_permissions() {
         .await;
 
     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Apps(
-        AppsRequest::GetFireboltPermissions("Netflix".to_string()),
+        AppsRequest::GetFireboltPermissions("firecertApp".to_string()),
     )));
     let msg = get_extn_msg(payload);
 
@@ -642,7 +645,7 @@ async fn test_get_firebolt_permissions() {
     let resp = ThunderPackageManagerRequestProcessor::process_request(
         tps,
         msg,
-        AppsRequest::GetFireboltPermissions("Netflix".to_string()),
+        AppsRequest::GetFireboltPermissions("firecertApp".to_string()),
     )
     .await;
     assert!(resp);
