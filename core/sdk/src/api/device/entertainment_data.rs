@@ -163,7 +163,9 @@ pub struct EntityInfo {
     pub identifiers: ContentIdentifiers,
     pub title: String,
     pub entity_type: EntityType, //constant "program"
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub program_type: Option<ProgramType>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub music_type: Option<MusicType>, // One of valid values from ProgramTypeValues
     #[serde(skip_serializing_if = "Option::is_none")]
     pub synopsis: Option<String>,
@@ -757,7 +759,9 @@ pub struct PlaylistEntity {
 #[serde(rename_all = "camelCase")]
 pub struct UntypedEntity {
     pub entity_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub asset_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub app_content_data: Option<AppContentDataString>,
 }
 
@@ -789,6 +793,7 @@ pub struct ChannelEntity {
     pub entity_type: ChannelEntityType,
     pub channel_type: ChannelType,
     pub entity_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub app_content_data: Option<AppContentDataString>,
 }
 
@@ -802,8 +807,11 @@ pub enum ChannelType {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TuneIntentDataOptions {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub asset_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub restart_current_program: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub time: Option<String>,
 }
 
@@ -845,13 +853,16 @@ where
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PlayEntityIntentData {
     pub entity: BaseEntity,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub options: Option<PlayEntityIntentDataOptions>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayEntityIntentDataOptions {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub play_first_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub play_first_track: Option<u32>,
 }
 
@@ -879,13 +890,16 @@ pub struct PlayQueryIntent {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PlayQueryIntentData {
     pub query: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub options: Option<PlayQueryIntentDataOptions>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayQueryIntentDataOptions {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub program_types: Option<Vec<ProgramType>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub music_types: Option<Vec<MusicType>>,
 }
 
