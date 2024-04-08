@@ -379,6 +379,8 @@ pub const CAPABILITY_UNGRANTED: i32 = -40401;
 
 pub const CAPABILITY_APP_NOT_IN_ACTIVE_STATE: i32 = -40402;
 
+pub const CAPABILITY_GRANT_PROVIDER_MISSING: i32 = -40403;
+
 impl RpcError for DenyReason {
     type E = Vec<String>;
     fn get_rpc_error_code(&self) -> i32 {
@@ -390,6 +392,7 @@ impl RpcError for DenyReason {
             Self::Ungranted => CAPABILITY_NOT_PERMITTED,
             Self::NotFound => JSON_RPC_STANDARD_ERROR_METHOD_NOT_FOUND,
             Self::AppNotInActiveState => CAPABILITY_NOT_PERMITTED,
+            Self::GrantProviderMissing => CAPABILITY_GRANT_PROVIDER_MISSING,
             _ => CAPABILITY_GET_ERROR,
         }
     }
@@ -406,6 +409,7 @@ impl RpcError for DenyReason {
             Self::AppNotInActiveState => {
                 "Capability cannot be used when app is not in foreground state due to requiring a user grant".to_string()
             }
+            Self::GrantProviderMissing => format!("Grant provider is missing for {}", caps_disp),
             _ => format!("Error with {}", caps_disp),
         }
     }
@@ -419,6 +423,7 @@ impl RpcError for DenyReason {
             Self::Ungranted => CAPABILITY_UNGRANTED,
             Self::NotFound => JSON_RPC_STANDARD_ERROR_METHOD_NOT_FOUND,
             Self::AppNotInActiveState => CAPABILITY_APP_NOT_IN_ACTIVE_STATE,
+            Self::GrantProviderMissing => CAPABILITY_GRANT_PROVIDER_MISSING,
             _ => CAPABILITY_GET_ERROR,
         }
     }
@@ -509,5 +514,117 @@ impl CapEvent {
             CapEvent::OnRevoked => "onRevoked",
         };
         variant_name.to_owned()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_deny_reason_get_rpc_error_message() {
+        let caps = vec!["xrn:firebolt:capability:account:session".to_string()];
+        assert_eq!(
+            DenyReason::Unavailable.get_rpc_error_message(caps.clone()),
+            "xrn:firebolt:capability:account:session is not available"
+        );
+        assert_eq!(
+            DenyReason::Unsupported.get_rpc_error_message(caps.clone()),
+            "xrn:firebolt:capability:account:session is not supported"
+        );
+        assert_eq!(
+            DenyReason::GrantDenied.get_rpc_error_message(caps.clone()),
+            "The user denied access to xrn:firebolt:capability:account:session"
+        );
+        assert_eq!(
+            DenyReason::Unpermitted.get_rpc_error_message(caps.clone()),
+            "xrn:firebolt:capability:account:session is not permitted"
+        );
+        assert_eq!(
+            DenyReason::Ungranted.get_rpc_error_message(caps.clone()),
+            "The user did not make a grant decision for xrn:firebolt:capability:account:session"
+        );
+        assert_eq!(
+            DenyReason::NotFound.get_rpc_error_message(caps.clone()),
+            "Method not Found"
+        );
+        assert_eq!(
+            DenyReason::AppNotInActiveState.get_rpc_error_message(caps.clone()),
+            "Capability cannot be used when app is not in foreground state due to requiring a user grant"
+        );
+        assert_eq!(
+            DenyReason::GrantProviderMissing.get_rpc_error_message(caps),
+            "Grant provider is missing for xrn:firebolt:capability:account:session"
+        );
+    }
+    #[test]
+    fn test_deny_reason_get_rpc_error_code() {
+        assert_eq!(
+            DenyReason::Unavailable.get_rpc_error_code(),
+            CAPABILITY_NOT_AVAILABLE
+        );
+        assert_eq!(
+            DenyReason::Unsupported.get_rpc_error_code(),
+            CAPABILITY_NOT_SUPPORTED
+        );
+        assert_eq!(
+            DenyReason::GrantDenied.get_rpc_error_code(),
+            CAPABILITY_NOT_PERMITTED
+        );
+        assert_eq!(
+            DenyReason::Unpermitted.get_rpc_error_code(),
+            CAPABILITY_NOT_PERMITTED
+        );
+        assert_eq!(
+            DenyReason::Ungranted.get_rpc_error_code(),
+            CAPABILITY_NOT_PERMITTED
+        );
+        assert_eq!(
+            DenyReason::NotFound.get_rpc_error_code(),
+            JSON_RPC_STANDARD_ERROR_METHOD_NOT_FOUND
+        );
+        assert_eq!(
+            DenyReason::AppNotInActiveState.get_rpc_error_code(),
+            CAPABILITY_NOT_PERMITTED
+        );
+        assert_eq!(
+            DenyReason::GrantProviderMissing.get_rpc_error_code(),
+            CAPABILITY_GRANT_PROVIDER_MISSING
+        );
+    }
+    #[test]
+    fn test_deny_reason_get_observability_error_code() {
+        assert_eq!(
+            DenyReason::Unavailable.get_observability_error_code(),
+            CAPABILITY_NOT_AVAILABLE
+        );
+        assert_eq!(
+            DenyReason::Unsupported.get_observability_error_code(),
+            CAPABILITY_NOT_SUPPORTED
+        );
+        assert_eq!(
+            DenyReason::GrantDenied.get_observability_error_code(),
+            CAPABILITY_GRANT_DENIED
+        );
+        assert_eq!(
+            DenyReason::Unpermitted.get_observability_error_code(),
+            CAPABILITY_NOT_PERMITTED
+        );
+        assert_eq!(
+            DenyReason::Ungranted.get_observability_error_code(),
+            CAPABILITY_UNGRANTED
+        );
+        assert_eq!(
+            DenyReason::NotFound.get_observability_error_code(),
+            JSON_RPC_STANDARD_ERROR_METHOD_NOT_FOUND
+        );
+        assert_eq!(
+            DenyReason::AppNotInActiveState.get_observability_error_code(),
+            CAPABILITY_APP_NOT_IN_ACTIVE_STATE
+        );
+        assert_eq!(
+            DenyReason::GrantProviderMissing.get_observability_error_code(),
+            CAPABILITY_GRANT_PROVIDER_MISSING
+        );
     }
 }
