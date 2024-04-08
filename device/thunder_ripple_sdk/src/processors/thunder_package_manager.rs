@@ -767,7 +767,7 @@ impl ThunderPackageManagerRequestProcessor {
                 match state
                     .thunder_state
                     .get_client()
-                    .standalone_request(AppCatalogRequest::GetCatalog, 2000)
+                    .standalone_request(AppsRequest::GetCatalog, 2000)
                     .await
                 {
                     Ok(ExtnResponse::AppCatalog(apps)) => {
