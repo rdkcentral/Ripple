@@ -23,6 +23,7 @@ use ripple_sdk::{
     api::{
         firebolt::fb_general::{ListenRequest, ListenerResponse},
         gateway::rpc_gateway_api::CallContext,
+        manifest::extn_manifest::PassthroughRpc,
     },
     tokio::sync::oneshot,
 };
@@ -103,4 +104,16 @@ pub fn rpc_navigate_reserved_app_err(msg: &str) -> jsonrpsee::core::error::Error
         message: msg.to_owned(),
         data: None,
     })
+}
+pub fn is_wildcard_method(method: &PassthroughRpc) -> Option<String> {
+    if method.matcher.ends_with(".*") {
+        Some(get_base_method(&method.matcher))
+    } else {
+        None
+    }
+}
+
+pub fn get_base_method(method: &str) -> String {
+    let method_vec: Vec<&str> = method.split('.').collect();
+    method_vec.first().unwrap().to_string().to_lowercase()
 }

@@ -49,6 +49,9 @@ base64 = "0.13.0"
 sd-notify = { version = "0.4.1", optional = true }
 exitcode = "1.1.2"
 rand = "0.8"
+url = "=2.3.1"
+futures-util = { version = "0.3.28", default-features = false, features = ["sink", "std"] }
+hyper = { version = "=0.14.27", features = ["client", "http1", "tcp"]}
 
 [build-dependencies]
 vergen = "1"
