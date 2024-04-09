@@ -826,13 +826,12 @@ where
     let val_c = val.clone();
     if val_c.entity.entity_type.0.eq_ignore_ascii_case("playlist") {
         if let Some(options) = val_c.options {
-            if options.is_valid() {
-                return Ok(val);
+            if !options.is_valid() {
+                return Err(serde::de::Error::custom(
+                    "invalid options for entityType=playlist",
+                ));
             }
         }
-        return Err(serde::de::Error::custom(
-            "invalid options for entityType=playlist",
-        ));
     }
 
     Ok(val)
@@ -1201,11 +1200,7 @@ mod tests {
         });
 
         if let Err(e) = serde_json::from_value::<NavigationIntentStrict>(v) {
-            assert!(e
-                .to_string()
-                .contains("invalid options for entityType=playlist"))
-        } else {
-            panic!("expecting error for entityType of playlist without options")
+            panic!("{:?}", e)
         }
 
         let v = json!({
