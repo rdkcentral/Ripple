@@ -662,9 +662,48 @@ pub enum ProgramEntityIntentData {
     Extra(AdditionalEntity),
 }
 
+// PlayableProgramEntity is almost similar to ProgramEntityIntentData.
+// firebolt-open-rpc.json has used a subset of ProgramEntity as PlayableEntity
+// Need to check if we can merge them
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[serde(tag = "programType", rename_all = "camelCase")]
+pub enum PlayableProgramEntity {
+    #[serde(alias = "Movie", alias = "MOVIE")]
+    Movie(MovieEntity),
+    #[serde(alias = "Episode", alias = "EPISODE")]
+    Episode(TVEpisodeEntity),
+    #[serde(alias = "Concert", alias = "CONCERT")]
+    Concert(AdditionalEntity),
+    #[serde(alias = "SportingEvent", alias = "SPORTINGEVENT")]
+    SportingEvent(AdditionalEntity),
+    #[serde(alias = "Preview", alias = "PREVIEW")]
+    Preview(AdditionalEntity),
+    #[serde(alias = "Other", alias = "OTHER")]
+    Other(AdditionalEntity),
+    #[serde(alias = "Advertisement", alias = "ADVERTISEMENT")]
+    Advertisement(AdditionalEntity),
+    #[serde(alias = "MusicVideo", alias = "MUSICVIDEO")]
+    MusicVideo(AdditionalEntity),
+    #[serde(alias = "Minisode", alias = "MINISODE")]
+    Minisode(AdditionalEntity),
+    #[serde(alias = "Extra", alias = "EXTRA")]
+    Extra(AdditionalEntity),
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct BaseEntity {
+    pub entity_type: String,
+    pub entity_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asset_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app_content_data: Option<AppContentDataString>,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgramBaseEntity {
     #[serde(default)]
     pub entity_type: ProgramEntityType,
     pub entity_id: String,
@@ -672,6 +711,13 @@ pub struct BaseEntity {
     pub asset_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub app_content_data: Option<AppContentDataString>,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum PlayableEntity {
+    PlaylistEntity(PlaylistEntity),
+    PlayableProgramEntity(PlayableProgramEntity),
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -702,14 +748,14 @@ impl Default for ProgramEntityType {
 #[serde(rename_all = "camelCase")]
 pub struct MovieEntity {
     #[serde(flatten)]
-    pub base_entity: BaseEntity,
+    pub base_entity: ProgramBaseEntity,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TVEpisodeEntity {
     #[serde(flatten)]
-    pub base_entity: BaseEntity,
+    pub base_entity: ProgramBaseEntity,
     pub series_id: String,
     pub season_id: String,
 }
@@ -718,7 +764,7 @@ pub struct TVEpisodeEntity {
 #[serde(rename_all = "camelCase")]
 pub struct TVSeasonEntity {
     #[serde(flatten)]
-    pub base_entity: BaseEntity,
+    pub base_entity: ProgramBaseEntity,
     pub series_id: String,
 }
 
@@ -726,21 +772,34 @@ pub struct TVSeasonEntity {
 #[serde(rename_all = "camelCase")]
 pub struct TVSeriesEntity {
     #[serde(flatten)]
-    pub base_entity: BaseEntity,
+    pub base_entity: ProgramBaseEntity,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AdditionalEntity {
     #[serde(flatten)]
-    pub base_entity: BaseEntity,
+    pub base_entity: ProgramBaseEntity,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaylistEntity {
-    #[serde(flatten)]
+    #[serde(flatten, deserialize_with = "play_list_entry_validator")]
     pub base_entity: BaseEntity,
+}
+
+pub fn play_list_entry_validator<'de, D>(deserializer: D) -> Result<BaseEntity, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let val = BaseEntity::deserialize(deserializer)?;
+    if val.entity_type != "playlist" {
+        return Err(serde::de::Error::custom(
+            "invalid entity type, most likely missing programType",
+        ));
+    }
+    Ok(val)
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -824,23 +883,33 @@ where
 {
     let val = PlayEntityIntentData::deserialize(deserializer)?;
     let val_c = val.clone();
-    if val_c.entity.entity_type.0.eq_ignore_ascii_case("playlist") {
+
+    // check if val_c has PlaylistEntity enum type
+    if let PlayableEntity::PlaylistEntity(_) = val_c.entity {
         if let Some(options) = val_c.options {
-            if options.is_valid() {
-                return Ok(val);
+            // options should be valid for entityType=playlist when present
+            if !options.is_valid() {
+                return Err(serde::de::Error::custom(
+                    "invalid options for entityType=playlist",
+                ));
             }
         }
-        return Err(serde::de::Error::custom(
-            "invalid options for entityType=playlist",
-        ));
+    } else {
+        // entity type is not playlist, so options should be None or max 0
+        if let Some(options) = val_c.options {
+            if !options.is_empty_option() {
+                return Err(serde::de::Error::custom(
+                    "Some options are given when entityType!=playlist",
+                ));
+            }
+        }
     }
-
     Ok(val)
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PlayEntityIntentData {
-    pub entity: BaseEntity,
+    pub entity: PlayableEntity,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub options: Option<PlayEntityIntentDataOptions>,
 }
@@ -856,16 +925,34 @@ pub struct PlayEntityIntentDataOptions {
 
 impl PlayEntityIntentDataOptions {
     fn is_valid(&self) -> bool {
-        if let Some(id) = &self.play_first_id {
-            if !id.is_empty() {
-                return true;
-            }
-        } else if let Some(track) = &self.play_first_track {
-            if track.ge(&1) {
-                return true;
-            }
+        if self.play_first_id.is_none() && self.play_first_track.is_none() {
+            // max properties equal to zero options
+            return true;
         }
-        false
+
+        // if any of the options is present, validate and return the status
+        let play_first_id_is_valid = self
+            .play_first_id
+            .as_ref()
+            .map(|id| !id.is_empty())
+            .unwrap_or(false);
+        let play_first_track_is_valid = self
+            .play_first_track
+            .as_ref()
+            .map(|track| track.ge(&1))
+            .unwrap_or(false);
+
+        play_first_id_is_valid ^ play_first_track_is_valid // XOR to ensure that only one is true
+    }
+
+    fn is_empty_option(&self) -> bool {
+        if self.play_first_id.is_none() && self.play_first_track.is_none() {
+            // max properties equal to zero options
+            true
+        } else {
+            // No need to check the validity of the options
+            false
+        }
     }
 }
 
@@ -993,7 +1080,7 @@ mod tests {
     pub fn test_navigation_intent_entity_strict() {
         let intent = NavigationIntentStrict::Entity(EntityIntent {
             data: EntityIntentData::Program(ProgramEntityIntentData::Movie(MovieEntity {
-                base_entity: BaseEntity {
+                base_entity: ProgramBaseEntity {
                     entity_type: ProgramEntityType("program".to_owned()),
                     entity_id: "example-movie-id".to_owned(),
                     asset_id: None,
@@ -1147,7 +1234,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_playentity_intent() {
+    pub fn test_playentity_intent_with_single_options() {
         let v = json!({
                 "action": "play-entity",
                 "data": {
@@ -1185,8 +1272,39 @@ mod tests {
         if let Err(e) = serde_json::from_value::<NavigationIntentStrict>(v) {
             panic!("{:?}", e)
         }
+    }
 
-        // missing options
+    #[test]
+    pub fn test_playentity_intent_with_multiple_options() {
+        let v = json!({
+            "action": "play-entity",
+            "data": {
+                "entity": {
+                    "entityType": "playlist",
+                    "entityId": "playlist/xyz"
+                },
+                "options": {
+                    "playFirstId": "song/xyz",
+                    "playFirstTrack": 3
+                }
+            },
+            "context": {
+                "source": "voice"
+            }
+        });
+        if let Err(e) = serde_json::from_value::<NavigationIntentStrict>(v) {
+            assert!(e
+                .to_string()
+                .contains("invalid options for entityType=playlist"))
+        } else {
+            panic!("expecting error for entityType of playlist with multiple options")
+        }
+    }
+
+    #[test]
+    pub fn test_playentity_intent_with_missing_options() {
+        // missing options should be valid for entityType=playlist as maxProperties=1 for
+        // entityType=playlist. So, options should be None or max 1. But should be valid when options are available
         let v = json!({
                 "action": "play-entity",
                 "data": {
@@ -1201,13 +1319,12 @@ mod tests {
         });
 
         if let Err(e) = serde_json::from_value::<NavigationIntentStrict>(v) {
-            assert!(e
-                .to_string()
-                .contains("invalid options for entityType=playlist"))
-        } else {
-            panic!("expecting error for entityType of playlist without options")
+            panic!("{:?}", e)
         }
+    }
 
+    #[test]
+    pub fn test_playentity_intent_with_invalid_options() {
         let v = json!({
                 "action": "play-entity",
                 "data": {
@@ -1229,7 +1346,209 @@ mod tests {
                 .to_string()
                 .contains("invalid options for entityType=playlist"))
         } else {
-            panic!("expecting error for entityType of playlist without options")
+            panic!("expecting error for entityType of playlist when options are invalid")
+        }
+
+        let v = json!({
+            "action": "play-entity",
+            "data": {
+                "entity": {
+                    "entityType": "playlist",
+                    "entityId": "playlist/xyz"
+                },
+                "options": {
+                    "playFirstId": ""
+                }
+            },
+            "context": {
+                "source": "voice"
+            }
+        });
+
+        if let Err(e) = serde_json::from_value::<NavigationIntentStrict>(v) {
+            assert!(e
+                .to_string()
+                .contains("invalid options for entityType=playlist"))
+        } else {
+            panic!("expecting error for entityType of playlist when options are invalid")
+        }
+    }
+
+    #[test]
+    pub fn test_playentity_intent_with_options_and_program_entity_type() {
+        //If the "entityType" is not "playlist," then the "options" property should have a maximum of 0 options
+        let v = json!({
+            "action": "play-entity",
+            "data": {
+                "entity": {
+                    "entityType": "program",
+                    "programType": "movie",
+                    "entityId": "el-camino"
+                },
+                "options": {
+                    "playFirstTrack": 0
+                }
+            },
+            "context": {
+                "source": "voice"
+            }
+        });
+
+        if let Err(e) = serde_json::from_value::<NavigationIntentStrict>(v) {
+            assert!(e
+                .to_string()
+                .contains("Some options are given when entityType!=playlist"))
+        } else {
+            panic!("expecting error for entityType of program when options are given")
+        }
+    }
+
+    #[test]
+    pub fn test_playentity_intent_without_entity_type() {
+        // In PlayList schema ,"entity" object should have a property "entityType".
+        let v = json!({
+            "action": "play-entity",
+            "data": {
+                "entity": {
+                    "entityId": "playlist/xyz"
+                },
+            },
+            "context": {
+                "source": "voice"
+            }
+        });
+
+        if let Err(e) = serde_json::from_value::<NavigationIntentStrict>(v) {
+            assert!(e
+                .to_string()
+                .contains("data did not match any variant of untagged enum PlayableEntity"))
+        } else {
+            panic!("expecting the mandatory field entityType")
+        }
+    }
+
+    #[test]
+    pub fn test_playentity_intent_movie_type_without_program_type() {
+        // Negative Scenario: PlayEntity Intent without programType for movieEntity expecting error
+        let v = json!({
+            "action": "play-entity",
+            "data": {
+                "entity": {
+                    "entityType": "program",
+                    "entityId": "el-camino"
+                },
+            },
+            "context": {
+                "source": "voice"
+            }
+        });
+        if let Err(e) = serde_json::from_value::<NavigationIntentStrict>(v) {
+            assert!(e
+                .to_string()
+                .contains("data did not match any variant of untagged enum PlayableEntity"))
+        } else {
+            panic!("expecting the mandatory field programType")
+        }
+    }
+
+    #[test]
+    pub fn test_playentity_intent_tv_episode_type_without_program_type() {
+        // Negative Scenario: PlayEntity Intent without programType for TvEpisodeEntity expecting error
+        let v = json!({
+            "action": "play-entity",
+            "data": {
+                "entity": {
+                    "entityType": "program",
+                    "entityId": "breaking-bad-pilot",
+                    "seriesId": "breaking-bad",
+                    "seasonId": "breaking-bad-s01"
+                },
+            },
+            "context": {
+                "source": "voice"
+            }
+        });
+        if let Err(e) = serde_json::from_value::<NavigationIntentStrict>(v) {
+            assert!(e
+                .to_string()
+                .contains("data did not match any variant of untagged enum PlayableEntity"))
+        } else {
+            panic!("expecting the mandatory field programType")
+        }
+    }
+
+    #[test]
+    pub fn test_playentity_intent_tv_episode_type_without_series_id() {
+        // Negative Scenario: PlayEntity Intent without seriesId for TvEpisodeEntity expecting error
+        let v = json!({
+            "action": "play-entity",
+            "data": {
+                "entity": {
+                    "entityType": "program",
+                    "programType": "episode",
+                    "entityId": "breaking-bad-pilot",
+                    "seasonId": "breaking-bad-s01"
+                },
+            },
+            "context": {
+                "source": "voice"
+            }
+        });
+        if let Err(e) = serde_json::from_value::<NavigationIntentStrict>(v) {
+            assert!(e
+                .to_string()
+                .contains("data did not match any variant of untagged enum PlayableEntity"))
+        } else {
+            panic!("expecting the mandatory field programType")
+        }
+    }
+
+    #[test]
+    pub fn test_playentity_intent_tv_episode_type_without_season_id() {
+        // Negative Scenario: PlayEntity Intent without seasonId for TvEpisodeEntity expecting error
+        let v = json!({
+            "action": "play-entity",
+            "data": {
+                "entity": {
+                    "entityType": "program",
+                    "programType": "episode",
+                    "entityId": "breaking-bad-pilot",
+                    "seriesId": "breaking-bad",
+                },
+            },
+            "context": {
+                "source": "voice"
+            }
+        });
+        if let Err(e) = serde_json::from_value::<NavigationIntentStrict>(v) {
+            assert!(e
+                .to_string()
+                .contains("data did not match any variant of untagged enum PlayableEntity"))
+        } else {
+            panic!("expecting the mandatory field programType")
+        }
+    }
+
+    #[test]
+    pub fn test_playentity_intent_tv_episode_type_valid_case() {
+        // Valid Scenario: Valid TvEpisodeEntity
+        let v = json!({
+            "action": "play-entity",
+            "data": {
+                "entity": {
+                    "entityType": "program",
+                    "programType": "episode",
+                    "entityId": "breaking-bad-pilot",
+                    "seriesId": "breaking-bad",
+                    "seasonId": "breaking-bad-s01"
+                },
+            },
+            "context": {
+                "source": "voice"
+            }
+        });
+        if let Err(e) = serde_json::from_value::<NavigationIntentStrict>(v) {
+            panic!("{:?}", e)
         }
     }
 
@@ -1340,6 +1659,7 @@ mod tests {
                 "programType": "movie"
             }
         }"#;
+
         match serde_json::from_str::<NavigationIntentStrict>(json) {
             Ok(i) => match i {
                 NavigationIntentStrict::Entity(ei) => match ei.data {
