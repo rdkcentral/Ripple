@@ -30,8 +30,8 @@ impl LoadExtnManifestStep {
 type ExtnManifestLoader = Vec<fn() -> Result<(String, ExtnManifest), RippleError>>;
 
 fn try_manifest_files() -> Result<ExtnManifest, RippleError> {
-    let dm_arr: ExtnManifestLoader = if cfg!(any(feature = "local_dev", feature = "pre_prod")) {
-        vec![load_from_env, load_from_home, load_from_opt, load_from_etc]
+    let dm_arr: ExtnManifestLoader = if cfg!(feature = "local_dev") {
+        vec![load_from_env, load_from_home]
     } else if cfg!(test) {
         vec![load_from_env]
     } else {
@@ -60,10 +60,6 @@ fn load_from_home() -> Result<(String, ExtnManifest), RippleError> {
         Ok(home) => ExtnManifest::load(format!("{}/.ripple/firebolt-extn-manifest.json", home)),
         Err(_) => Err(RippleError::MissingInput),
     }
-}
-
-fn load_from_opt() -> Result<(String, ExtnManifest), RippleError> {
-    ExtnManifest::load("/opt/firebolt-extn-manifest.json".into())
 }
 
 fn load_from_etc() -> Result<(String, ExtnManifest), RippleError> {
