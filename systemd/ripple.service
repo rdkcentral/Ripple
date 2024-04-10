@@ -6,7 +6,9 @@ After=wpeframework.service
 Type=notify
 Environment="RUST_LOG=debug"
 EnvironmentFile=-/opt/ripple.conf
+ExecStartPre=/bin/sh -c '.  /etc/device.properties; if [ "$BUILD_TYPE" != "prod" ] && [ -f /opt/ripple_pre.sh ];then  source /opt/ripple_pre.sh; fi'
 ExecStart=/usr/bin/ripple
+ExecStartPost=/bin/sh -c '.  /etc/device.properties; if [ "$BUILD_TYPE" != "prod" ] && [ -f /opt/ripple_post.sh ];then  source /opt/ripple_post.sh; fi'
 ExecStop=/bin/kill -TERM $MAINPID
 Restart=on-failure
 RestartSec=5
