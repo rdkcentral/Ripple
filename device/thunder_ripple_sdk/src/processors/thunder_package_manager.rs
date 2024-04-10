@@ -45,6 +45,7 @@ use ripple_sdk::api::firebolt::fb_capabilities::FireboltPermissions;
 use ripple_sdk::api::observability::metrics_util::{
     start_service_metrics_timer, stop_and_send_service_metrics_timer,
 };
+#[cfg(not(test))]
 use ripple_sdk::log::{debug, error, info};
 use ripple_sdk::tokio;
 use ripple_sdk::{
@@ -54,16 +55,18 @@ use ripple_sdk::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+#[cfg(test)]
+use {println as info, println as debug, println as error};
 
 use super::thunder_telemetry::{ThunderMetricsTimerName, ThunderResponseStatus};
 
 // TODO: If/when ripple supports selectable download speeds we'll probably want multiple configurable values or compute this based on throughput.
-const OPERATION_TIMEOUT_SECS: u64 = 6 * 60; // 6 minutes
+pub const OPERATION_TIMEOUT_SECS: u64 = 6 * 60; // 6 minutes
 
 #[derive(Debug, Clone)]
 pub struct ThunderPackageManagerState {
-    thunder_state: ThunderState,
-    active_operations: Arc<Mutex<HashMap<String, Operation>>>,
+    pub(crate) thunder_state: ThunderState,
+    pub(crate) active_operations: Arc<Mutex<HashMap<String, Operation>>>,
 }
 
 #[derive(Debug)]
@@ -176,7 +179,7 @@ impl AppData {
 }
 
 #[derive(Debug, PartialEq)]
-struct Operation {
+pub struct Operation {
     durable_app_id: String,
     operation_type: AppsOperationType,
     app_data: AppData,
