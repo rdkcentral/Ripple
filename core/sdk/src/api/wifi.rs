@@ -94,6 +94,22 @@ mod tests {
     use crate::utils::test_utils::test_extn_payload_provider;
 
     #[test]
+    fn test_wifi_scan_request_timeout_new() {
+        let timeout = WifiScanRequestTimeout::new();
+        assert_eq!(timeout.timeout, DEFAULT_WIFI_SCAN_TIMEOUT);
+    }
+
+    #[test]
+    fn test_wifi_scan_request_timeout_set_timeout() {
+        let mut timeout = WifiScanRequestTimeout::new();
+        timeout.set_timeout(30);
+        assert_eq!(timeout.timeout, 30);
+
+        timeout.set_timeout(0);
+        assert_eq!(timeout.timeout, DEFAULT_WIFI_SCAN_TIMEOUT);
+    }
+
+    #[test]
     fn test_extn_payload_provider_for_wifi_response() {
         let access_point_list = AccessPointList {
             list: vec![AccessPoint {

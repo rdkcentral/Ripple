@@ -27,6 +27,7 @@ use std::{
 };
 
 #[derive(Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct GrantStep {
     pub capability: String,
@@ -40,6 +41,7 @@ impl GrantStep {
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct GrantRequirements {
     pub steps: Vec<GrantStep>,
@@ -89,6 +91,7 @@ pub enum AutoApplyPolicy {
 }
 
 #[derive(Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct GrantPrivacySetting {
     pub property: String,
@@ -127,6 +130,7 @@ pub enum EvaluateAt {
     LoadedSession,
 }
 #[derive(Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct GrantPolicy {
     #[serde(default = "default_evaluate_at")]
@@ -164,6 +168,7 @@ impl Default for GrantPolicy {
 }
 
 #[derive(Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct GrantPolicies {
     #[serde(rename = "use")]
     pub use_: Option<GrantPolicy>,
@@ -214,6 +219,7 @@ impl GrantPolicy {
     }
 }
 #[derive(Deserialize, Debug, Clone, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct GrantExclusionFilter {
     pub capability: Option<String>,
     pub id: Option<String>,
@@ -350,5 +356,232 @@ impl GrantErrors {
         } else {
             None
         }
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+    use std::collections::{hash_map::DefaultHasher, HashSet};
+
+    #[rstest]
+    #[case("xrn:firebolt:capability:usergrant:pinchallenge".to_owned(), FireboltCap::Full("xrn:firebolt:capability:usergrant:pinchallenge".to_owned()))]
+    #[case("xrn:firebolt:capability:usergrant:notavailableonplatform".to_owned(), FireboltCap::Full("xrn:firebolt:capability:usergrant:notavailableonplatform".to_owned()))]
+    fn test_capability_as_fb_cap(#[case] capability: String, #[case] expected: FireboltCap) {
+        let grant_step = GrantStep {
+            capability,
+            configuration: None, // Configuration is not relevant for this test
+        };
+        assert_eq!(grant_step.capability_as_fb_cap(), expected);
+    }
+
+    #[test]
+    fn test_grant_step_capability_as_fb_cap() {
+        let grant_step = GrantStep {
+            capability: String::from("test_capability"),
+            configuration: None,
+        };
+
+        let fb_cap = grant_step.capability_as_fb_cap();
+        assert_eq!(fb_cap, FireboltCap::Full(String::from("test_capability")));
+    }
+
+    #[test]
+    fn test_grant_lifespan_as_string() {
+        assert_eq!(GrantLifespan::Once.as_string(), "once");
+        assert_eq!(GrantLifespan::Seconds.as_string(), "seconds");
+    }
+
+    fn hash_value<T: Hash>(t: &T) -> u64 {
+        let mut s = DefaultHasher::new();
+        t.hash(&mut s);
+        s.finish()
+    }
+
+    #[rstest]
+    #[case(GrantLifespan::Once, GrantLifespan::Once, true)]
+    #[case(GrantLifespan::Once, GrantLifespan::Forever, false)]
+    fn test_grant_lifespan_equality_and_hash(
+        #[case] a: GrantLifespan,
+        #[case] b: GrantLifespan,
+        #[case] expected: bool,
+    ) {
+        assert_eq!(a == b, expected);
+
+        let hash_a = hash_value(&a);
+        let hash_b = hash_value(&b);
+
+        assert_eq!(hash_a == hash_b, expected);
+    }
+
+    fn sample_grant_policy() -> GrantPolicy {
+        GrantPolicy {
+            evaluate_at: vec![],
+            options: vec![],
+            scope: GrantScope::App,
+            lifespan: GrantLifespan::Once,
+            overridable: true,
+            lifespan_ttl: Some(3600),
+            privacy_setting: None,
+            persistence: PolicyPersistenceType::Device,
+        }
+    }
+
+    #[rstest]
+    #[case(FireboltCap::Full("xrn:firebolt:capability:usergrant:pinchallenge".to_owned()), CapabilityRole::Use, true)]
+    #[case(FireboltCap::Full("xrn:firebolt:capability:manage:something".to_owned()), CapabilityRole::Manage, true)]
+    #[case(FireboltCap::Full("xrn:firebolt:capability:provide:anotherthing".to_owned()), CapabilityRole::Provide, true)]
+    #[case(FireboltCap::Full("xrn:firebolt:capability:nonexistent".to_owned()), CapabilityRole::Use, false)]
+    fn test_get_policy(
+        #[case] cap: FireboltCap,
+        #[case] role: CapabilityRole,
+        #[case] should_find_policy: bool,
+    ) {
+        let use_policy = if role == CapabilityRole::Use && should_find_policy {
+            Some(sample_grant_policy())
+        } else {
+            None
+        };
+        let manage_policy = if role == CapabilityRole::Manage && should_find_policy {
+            Some(sample_grant_policy())
+        } else {
+            None
+        };
+        let provide_policy = if role == CapabilityRole::Provide && should_find_policy {
+            Some(sample_grant_policy())
+        } else {
+            None
+        };
+
+        let grant_policies = GrantPolicies {
+            use_: use_policy,
+            manage: manage_policy,
+            provide: provide_policy,
+        };
+
+        let permission = FireboltPermission { cap, role };
+        let policy = grant_policies.get_policy(&permission);
+
+        assert_eq!(policy.is_some(), should_find_policy);
+    }
+
+    #[rstest]
+    #[case(vec![], None)]
+    #[case(
+    vec![
+        GrantRequirements {
+            steps: vec![
+                GrantStep {
+                    capability: "xrn:firebolt:capability:usergrant:example".to_string(),
+                    configuration: None,
+                },
+            ],
+        },
+    ],
+    None
+)]
+    #[case(
+    vec![
+        GrantRequirements {
+            steps: vec![
+                GrantStep {
+                    capability: "xrn:firebolt:capability:device:info".to_string(),
+                    configuration: None,
+                },
+                GrantStep {
+                    capability: "xrn:firebolt:capability:usergrant:anotherexample".to_string(),
+                    configuration: None,
+                },
+            ],
+        },
+    ],
+    Some(vec![GrantStep {
+        capability: "xrn:firebolt:capability:device:info".to_string(),
+        configuration: None,
+    }])
+)]
+    #[case(
+    vec![
+        GrantRequirements {
+            steps: vec![
+                GrantStep {
+                    capability: "xrn:firebolt:capability:network:status".to_string(),
+                    configuration: None,
+                },
+            ],
+        },
+    ],
+    Some(vec![GrantStep {
+        capability: "xrn:firebolt:capability:network:status".to_string(),
+        configuration: None,
+    }])
+)]
+    fn test_get_steps_without_grant(
+        #[case] options: Vec<GrantRequirements>,
+        #[case] expected: Option<Vec<GrantStep>>,
+    ) {
+        let mut policy = sample_grant_policy();
+        policy.options = options;
+        let result = policy.get_steps_without_grant();
+        assert_eq!(result, expected);
+    }
+
+    #[rstest]
+    #[case(None, None, 0, false)]
+    #[case(Some(GrantLifespan::Forever), None, 0, false)]
+    #[case(Some(GrantLifespan::Once), None, 0, true)]
+    #[case(Some(GrantLifespan::Seconds), None, 0, true)]
+    #[case(Some(GrantLifespan::Seconds), Some(3600), 3610, true)]
+    #[case(Some(GrantLifespan::Seconds), Some(3600), 0, false)]
+    fn test_has_expired(
+        #[case] lifespan: Option<GrantLifespan>,
+        #[case] lifespan_ttl_in_secs: Option<u64>,
+        #[case] elapsed_time_secs: u64,
+        #[case] expected_result: bool,
+    ) {
+        let entry = GrantEntry {
+            role: CapabilityRole::Use,
+            capability: "example_capability".to_string(),
+            status: Some(GrantStatus::Allowed),
+            lifespan,
+            last_modified_time: SystemTime::now()
+                .checked_sub(Duration::from_secs(elapsed_time_secs))
+                .unwrap_or(SystemTime::UNIX_EPOCH)
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or_default(),
+            lifespan_ttl_in_secs,
+        };
+
+        assert_eq!(entry.has_expired(), expected_result);
+    }
+
+    #[rstest]
+    #[case(&[FireboltCap::Short("ungranted_cap".to_string())], &[], true)]
+    #[case(&[], &[FireboltCap::Full("denied_cap".to_string())], true)]
+    #[case(&[], &[], false)]
+    fn test_has_errors(
+        #[case] ungranted_caps: &[FireboltCap],
+        #[case] denied_caps: &[FireboltCap],
+        #[case] expected_result: bool,
+    ) {
+        let errors = GrantErrors {
+            ungranted: ungranted_caps.iter().cloned().collect(),
+            denied: denied_caps.iter().cloned().collect(),
+        };
+
+        assert_eq!(errors.has_errors(), expected_result);
+    }
+
+    #[rstest]
+    #[case(FireboltCap::Short("ungranted_cap".to_string()), Some(DenyReason::Ungranted))]
+    #[case(FireboltCap::Full("denied_cap".to_string()), Some(DenyReason::GrantDenied))]
+    #[case(FireboltCap::Full("unknown_cap".to_string()), None)]
+    fn test_get_reason(#[case] cap: FireboltCap, #[case] expected_reason: Option<DenyReason>) {
+        let errors = GrantErrors {
+            ungranted: HashSet::from_iter(vec![FireboltCap::Short("ungranted_cap".to_string())]),
+            denied: HashSet::from_iter(vec![FireboltCap::Full("denied_cap".to_string())]),
+        };
+
+        assert_eq!(errors.get_reason(&cap), expected_reason);
     }
 }
