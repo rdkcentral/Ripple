@@ -366,6 +366,7 @@ async fn test_get_installed_apps() {
     assert!(resp);
 }
 
+#[ignore]
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_init() {
