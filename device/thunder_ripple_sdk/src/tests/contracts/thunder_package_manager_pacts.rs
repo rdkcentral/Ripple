@@ -2,7 +2,6 @@ use crate::tests::contracts::contract_utils::*;
 use crate::thunder_state::ThunderConnectionState;
 use crate::{
     client::thunder_client_pool::ThunderClientPool,
-    get_pact_with_params,
     processors::thunder_package_manager::{
         AppData, AppsOperationType, Operation, ThunderPackageManagerRequestProcessor,
         ThunderPackageManagerState,
