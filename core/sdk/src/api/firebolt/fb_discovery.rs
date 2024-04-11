@@ -411,6 +411,128 @@ pub trait AccountLinkService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::device::entertainment_data::{HomeIntent, NavigationIntentStrict};
+
+    #[test]
+    fn test_new_discovery_context() {
+        let context = DiscoveryContext::new("test_source");
+        assert_eq!(context.source, "test_source");
+    }
+
+    #[test]
+    fn test_get_intent_home() {
+        let home_intent = HomeIntent {
+            context: DiscoveryContext {
+                source: "test_source".to_string(),
+            },
+        };
+
+        let launch_request = LaunchRequest {
+            app_id: "test_app".to_string(),
+            intent: Some(NavigationIntent::NavigationIntentStrict(
+                NavigationIntentStrict::Home(home_intent),
+            )),
+        };
+
+        let intent = launch_request.get_intent();
+        assert_eq!(
+            intent,
+            NavigationIntent::NavigationIntentStrict(NavigationIntentStrict::Home(HomeIntent {
+                context: DiscoveryContext {
+                    source: "test_source".to_string()
+                }
+            }))
+        );
+    }
+
+    #[test]
+    fn test_entitlements_to_content_access_request() {
+        let ed = EntitlementData {
+            entitlement_id: "test_entitlement_id".to_string(),
+            start_time: Some("2024-01-26T12:00:00Z".to_string()),
+            end_time: Some("2024-02-01T12:00:00Z".to_string()),
+        };
+        let entitlements_info = EntitlementsInfo {
+            entitlements: vec![ed.clone()],
+        };
+
+        let content_access_request: ContentAccessRequest = entitlements_info.into();
+        assert_eq!(content_access_request.ids.entitlements, Some(vec![ed]));
+    }
+
+    #[test]
+    fn test_content_type_as_string() {
+        let channel_lineup = ContentType::ChannelLineup;
+        assert_eq!(channel_lineup.as_string(), "channel-lineup");
+
+        let program_lineup = ContentType::ProgramLineup;
+        assert_eq!(program_lineup.as_string(), "program-lineup");
+    }
+
+    fn get_mock_entitlement_data() -> Vec<EntitlementData> {
+        vec![
+            EntitlementData {
+                entitlement_id: "entitlement_id1".to_string(),
+                start_time: Some("2021-01-01T00:00:00.000Z".to_string()),
+                end_time: Some("2021-01-01T00:00:00.000Z".to_string()),
+            },
+            EntitlementData {
+                entitlement_id: "entitlement_id2".to_string(),
+                start_time: Some("2021-01-02T00:00:00.000Z".to_string()),
+                end_time: Some("2021-01-02T00:00:00.000Z".to_string()),
+            },
+        ]
+    }
+
+    #[test]
+    fn test_from_sign_in_info_to_content_access_identifiers() {
+        let sign_in_info = SignInInfo {
+            entitlements: Some(get_mock_entitlement_data()),
+        };
+
+        let content_access_identifiers = ContentAccessIdentifiers::from(sign_in_info);
+        assert_eq!(
+            content_access_identifiers,
+            ContentAccessIdentifiers {
+                availabilities: None,
+                entitlements: Some(get_mock_entitlement_data()),
+            }
+        );
+    }
+
+    #[test]
+    fn test_from_entitlements_info_to_content_access_identifiers() {
+        let entitlements_info = EntitlementsInfo {
+            entitlements: get_mock_entitlement_data(),
+        };
+
+        let content_access_identifiers = ContentAccessIdentifiers::from(entitlements_info);
+        assert_eq!(
+            content_access_identifiers,
+            ContentAccessIdentifiers {
+                availabilities: None,
+                entitlements: Some(get_mock_entitlement_data()),
+            }
+        );
+    }
+
+    #[test]
+    fn test_from_sign_in_info_to_content_access_request() {
+        let sign_in_info = SignInInfo {
+            entitlements: Some(get_mock_entitlement_data()),
+        };
+
+        let content_access_request = ContentAccessRequest::from(sign_in_info);
+        assert_eq!(
+            content_access_request,
+            ContentAccessRequest {
+                ids: ContentAccessIdentifiers {
+                    availabilities: None,
+                    entitlements: Some(get_mock_entitlement_data()),
+                },
+            }
+        );
+    }
 
     #[test]
     fn test_entitlements_data() {
