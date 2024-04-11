@@ -2,6 +2,7 @@ use crate::tests::contracts::contract_utils::*;
 use crate::thunder_state::ThunderConnectionState;
 use crate::{
     client::thunder_client_pool::ThunderClientPool,
+    get_pact_with_params,
     processors::thunder_package_manager::{
         AppData, AppsOperationType, Operation, ThunderPackageManagerRequestProcessor,
         ThunderPackageManagerState,
@@ -365,169 +366,170 @@ async fn test_get_installed_apps() {
     assert!(resp);
 }
 
-// #[tokio::test(flavor = "multi_thread")]
-// #[cfg_attr(not(feature = "contract_tests"), ignore)]
-// async fn test_init() {
-//     let mut pact_builder_async = get_pact_builder_async_obj().await;
+#[ignore]
+#[tokio::test(flavor = "multi_thread")]
+#[cfg_attr(not(feature = "contract_tests"), ignore)]
+async fn test_init() {
+    let mut pact_builder_async = get_pact_builder_async_obj().await;
 
-//     pact_builder_async
-//             .synchronous_message_interaction(
-//                 "A request to install app in package manager",
-//                 |mut i| async move {
-//                     i.contents_from(json!({
-//                         "pact:content-type": "application/json",
-//                         "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 0)", "method": "org.rdk.PackageManager.1.install", "params": {
-//                             "type": "",
-//                             "id": "firecertApp",
-//                             "version": "2.0",
-//                             "url": "https://firecertApp.com",
-//                             "app_name": "firecertApp",
-//                             "category": ""
-//                           }},
-//                           "requestMetadata": {
-//                             "path": "/jsonrpc",
-//                         },
-//                         "response": [{
-//                             "jsonrpc": "matching(type, '2.0')",
-//                             "id": "matching(integer, 0)",
-//                             "result": "some_resp",
-//                             }
-//                         ]
-//                     })).await;
-//                     i.test_name("install_package_manager_app");
-//                     i
-//                 },
-//             )
-//             .await;
+    pact_builder_async
+            .synchronous_message_interaction(
+                "A request to install app in package manager",
+                |mut i| async move {
+                    i.contents_from(json!({
+                        "pact:content-type": "application/json",
+                        "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 0)", "method": "org.rdk.PackageManager.1.install", "params": {
+                            "type": "",
+                            "id": "firecertApp",
+                            "version": "2.0",
+                            "url": "https://firecertApp.com",
+                            "app_name": "firecertApp",
+                            "category": ""
+                          }},
+                          "requestMetadata": {
+                            "path": "/jsonrpc",
+                        },
+                        "response": [{
+                            "jsonrpc": "matching(type, '2.0')",
+                            "id": "matching(integer, 0)",
+                            "result": "some_resp",
+                            }
+                        ]
+                    })).await;
+                    i.test_name("install_package_manager_app");
+                    i
+                },
+            )
+            .await;
 
-//     let installed_apps = vec![InstalledApp {
-//         id: "firecertApp".to_string(),
-//         version: "1.0".to_string(),
-//     }];
+    let installed_apps = vec![InstalledApp {
+        id: "firecertApp".to_string(),
+        version: "1.0".to_string(),
+    }];
 
-//     pact_builder_async
-//         .synchronous_message_interaction(
-//             "A request to list installed package manager apps",
-//             |mut i| async move {
-//                 i.contents_from(json!({
-//                     "pact:content-type": "application/json",
-//                     "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 0)", "method": "org.rdk.PackageManager.1.getlist", "params": {"id": ""}},
-//                     "requestMetadata": {
-//                         "path": "/jsonrpc"
-//                     },
-//                     "response": [
-//                         {
-//                             "jsonrpc": "matching(type, '2.0')",
-//                             "id": "matching(integer, 0)",
-//                             "result": installed_apps
-//                         }
-//                     ]
-//                 })).await;
-//                 i.test_name("getlist_installed_package_manager_apps");
-//                 i
-//             },
-//         )
-//         .await;
+    pact_builder_async
+        .synchronous_message_interaction(
+            "A request to list installed package manager apps",
+            |mut i| async move {
+                i.contents_from(json!({
+                    "pact:content-type": "application/json",
+                    "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 0)", "method": "org.rdk.PackageManager.1.getlist", "params": {"id": ""}},
+                    "requestMetadata": {
+                        "path": "/jsonrpc"
+                    },
+                    "response": [
+                        {
+                            "jsonrpc": "matching(type, '2.0')",
+                            "id": "matching(integer, 0)",
+                            "result": installed_apps
+                        }
+                    ]
+                })).await;
+                i.test_name("getlist_installed_package_manager_apps");
+                i
+            },
+        )
+        .await;
 
-//     let mut register_result = HashMap::new();
-//     register_result.insert("type".into(), ContractMatcher::MatchType("test".into()));
-//     register_result.insert(
-//         "id".into(),
-//         ContractMatcher::MatchType("firecertApp".into()),
-//     );
-//     register_result.insert("version".into(), ContractMatcher::MatchType("2.0".into()));
+    let mut register_result = HashMap::new();
+    register_result.insert("type".into(), ContractMatcher::MatchType("test".into()));
+    register_result.insert(
+        "id".into(),
+        ContractMatcher::MatchType("firecertApp".into()),
+    );
+    register_result.insert("version".into(), ContractMatcher::MatchType("2.0".into()));
 
-//     register_result.insert("handle".into(), ContractMatcher::MatchType("some".into()));
-//     register_result.insert(
-//         "operation".into(),
-//         ContractMatcher::MatchType("install".into()),
-//     );
-//     register_result.insert(
-//         "status".into(),
-//         ContractMatcher::MatchType("Succeeded".into()),
-//     );
-//     register_result.insert("details".into(), ContractMatcher::MatchType("some".into()));
-//     register_result.insert(
-//         "handle".into(),
-//         ContractMatcher::MatchType("some_str".into()),
-//     );
+    register_result.insert("handle".into(), ContractMatcher::MatchType("some".into()));
+    register_result.insert(
+        "operation".into(),
+        ContractMatcher::MatchType("install".into()),
+    );
+    register_result.insert(
+        "status".into(),
+        ContractMatcher::MatchType("Succeeded".into()),
+    );
+    register_result.insert("details".into(), ContractMatcher::MatchType("some".into()));
+    register_result.insert(
+        "handle".into(),
+        ContractMatcher::MatchType("some_str".into()),
+    );
 
-//     pact_builder_async
-//         .synchronous_message_interaction(
-//             "A request to register package manager",
-//             |mut i| async move {
-//                 i.contents_from(get_pact_with_params!(
-//                     "org.rdk.PackageManager.1.register",
-//                     ContractResult {
-//                         result: register_result
-//                     },
-//                     ContractParams {
-//                         params: HashMap::default()
-//                     }
-//                 ))
-//                 .await;
-//                 i.test_name("register_events_package_manager_app");
-//                 i
-//             },
-//         )
-//         .await;
+    pact_builder_async
+        .synchronous_message_interaction(
+            "A request to register package manager",
+            |mut i| async move {
+                i.contents_from(get_pact_with_params!(
+                    "org.rdk.PackageManager.1.register",
+                    ContractResult {
+                        result: register_result
+                    },
+                    ContractParams {
+                        params: HashMap::default()
+                    }
+                ))
+                .await;
+                i.test_name("register_events_package_manager_app");
+                i
+            },
+        )
+        .await;
 
-//     let mock_server = pact_builder_async
-//         .start_mock_server_async(Some("websockets/transport/websockets"))
-//         .await;
+    let mock_server = pact_builder_async
+        .start_mock_server_async(Some("websockets/transport/websockets"))
+        .await;
 
-//     let app_metadata_params = DeviceAppMetadata {
-//         id: "firecertApp".to_string(),
-//         title: "firecertApp".to_string(),
-//         uri: "https://firecertApp.com".into(),
-//         version: "2.0".to_string(),
-//         data: None,
-//     };
+    let app_metadata_params = DeviceAppMetadata {
+        id: "firecertApp".to_string(),
+        title: "firecertApp".to_string(),
+        uri: "https://firecertApp.com".into(),
+        version: "2.0".to_string(),
+        data: None,
+    };
 
-//     let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Apps(
-//         AppsRequest::InstallApp(app_metadata_params.clone()),
-//     )));
-//     let msg = get_extn_msg(payload);
+    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Apps(
+        AppsRequest::InstallApp(app_metadata_params.clone()),
+    )));
+    let msg = get_extn_msg(payload);
 
-//     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-//     let thunder_client =
-//         ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
-//             .await
-//             .unwrap();
+    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
-//     let (s, r) = unbounded();
-//     let mut extn_client = get_extn_client(s.clone(), r.clone());
-//     let state: ThunderState = ThunderState::new(extn_client.clone(), thunder_client);
+    let (s, r) = unbounded();
+    let mut extn_client = get_extn_client(s.clone(), r.clone());
+    let state: ThunderState = ThunderState::new(extn_client.clone(), thunder_client);
 
-//     let package_manager_processor = ThunderPackageManagerRequestProcessor::new(state.clone());
-//     extn_client.add_request_processor(package_manager_processor);
+    let package_manager_processor = ThunderPackageManagerRequestProcessor::new(state.clone());
+    extn_client.add_request_processor(package_manager_processor);
 
-//     let tps = ThunderPackageManagerState {
-//         thunder_state: state,
-//         active_operations: Arc::new(Mutex::new(HashMap::default())),
-//     };
+    let tps = ThunderPackageManagerState {
+        thunder_state: state,
+        active_operations: Arc::new(Mutex::new(HashMap::default())),
+    };
 
-//     let tps_for_thread = tps.clone();
-//     let msg_for_thread = msg.clone();
+    let tps_for_thread = tps.clone();
+    let msg_for_thread = msg.clone();
 
-//     tokio::spawn(async move {
-//         let init_resp = ThunderPackageManagerRequestProcessor::process_request(
-//             tps_for_thread,
-//             msg_for_thread,
-//             AppsRequest::Init,
-//         )
-//         .await;
-//         assert!(init_resp);
-//     });
+    tokio::spawn(async move {
+        let init_resp = ThunderPackageManagerRequestProcessor::process_request(
+            tps_for_thread,
+            msg_for_thread,
+            AppsRequest::Init,
+        )
+        .await;
+        assert!(init_resp);
+    });
 
-//     let resp = ThunderPackageManagerRequestProcessor::process_request(
-//         tps,
-//         msg,
-//         AppsRequest::InstallApp(app_metadata_params),
-//     )
-//     .await;
-//     assert!(resp);
-// }
+    let resp = ThunderPackageManagerRequestProcessor::process_request(
+        tps,
+        msg,
+        AppsRequest::InstallApp(app_metadata_params),
+    )
+    .await;
+    assert!(resp);
+}
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
