@@ -862,6 +862,7 @@ impl ToString for InteractionType {
 pub enum Tag {
     Type,
     App,
+    AppVersion,
     Firmware,
     Status,
     RippleVersion,
@@ -873,6 +874,7 @@ impl Tag {
         match self {
             Tag::Type => "type".into(),
             Tag::App => "app".into(),
+            Tag::AppVersion => "app_version".into(),
             Tag::Firmware => "firmware".into(),
             Tag::Status => "status".into(),
             Tag::RippleVersion => "ripple".into(),
@@ -885,6 +887,7 @@ pub fn get_metrics_tags(
     extn_client: &ExtnClient,
     interaction_type: InteractionType,
     app_id: Option<String>,
+    app_version: Option<String>,
 ) -> Option<HashMap<String, String>> {
     let metrics_context = extn_client.get_metrics_context()?;
     let mut tags: HashMap<String, String> = HashMap::new();
@@ -893,6 +896,9 @@ pub fn get_metrics_tags(
 
     if let Some(app) = app_id {
         tags.insert(Tag::App.key(), app);
+    }
+    if let Some(app_version) = app_version {
+        tags.insert(Tag::AppVersion.key(), app_version);
     }
 
     tags.insert(Tag::Firmware.key(), metrics_context.firmware.clone());

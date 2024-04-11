@@ -216,7 +216,8 @@ impl TelemetryBuilder {
         name: String,
         app_id: String,
     ) -> Option<Timer> {
-        let metrics_tags = get_metrics_tags(extn_client, InteractionType::Firebolt, Some(app_id))?;
+        let metrics_tags =
+            get_metrics_tags(extn_client, InteractionType::Firebolt, Some(app_id), None)?;
 
         debug!("start_firebolt_metrics_timer: {}: {:?}", name, metrics_tags);
 

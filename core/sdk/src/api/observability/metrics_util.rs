@@ -12,8 +12,14 @@ use crate::{
     utils::error::RippleError,
 };
 
-pub fn start_service_metrics_timer(extn_client: &ExtnClient, name: String) -> Option<Timer> {
-    let metrics_tags = get_metrics_tags(extn_client, InteractionType::Service, None)?;
+pub fn start_service_metrics_timer(
+    extn_client: &ExtnClient,
+    name: String,
+    app_id: Option<String>,
+    app_version: Option<String>,
+) -> Option<Timer> {
+    let metrics_tags =
+        get_metrics_tags(extn_client, InteractionType::Service, app_id, app_version)?;
 
     debug!("start_service_metrics_timer: {}: {:?}", name, metrics_tags);
 

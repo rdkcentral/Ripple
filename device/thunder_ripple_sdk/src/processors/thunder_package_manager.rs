@@ -537,6 +537,8 @@ impl ThunderPackageManagerRequestProcessor {
         let metrics_timer = start_service_metrics_timer(
             &thunder_state.get_client(),
             ThunderMetricsTimerName::PackageManagerGetList.to_string(),
+            None,
+            None,
         );
 
         let device_response = thunder_state
@@ -610,6 +612,8 @@ impl ThunderPackageManagerRequestProcessor {
         let metrics_timer = start_service_metrics_timer(
             &state.thunder_state.get_client(),
             ThunderMetricsTimerName::PackageManagerInstall.to_string(),
+            Some(app.clone().id),
+            Some(app.clone().version),
         );
 
         let device_response = state
@@ -642,7 +646,7 @@ impl ThunderPackageManagerRequestProcessor {
             Ok(handle) => {
                 let operation = Operation::new(
                     AppsOperationType::Install,
-                    app.id,
+                    app.clone().id,
                     AppData::new(app.version),
                 );
                 Self::add_or_remove_operation(state.clone(), handle.clone(), operation);
@@ -665,7 +669,8 @@ impl ThunderPackageManagerRequestProcessor {
         ) {
             info!(
                 "uninstall_app: Uninstallation already in progress: app={}, version={}",
-                app.id, app.version
+                app.clone().id,
+                app.clone().version
             );
 
             return Self::respond(
@@ -683,6 +688,8 @@ impl ThunderPackageManagerRequestProcessor {
         let metrics_timer = start_service_metrics_timer(
             &state.thunder_state.get_client(),
             ThunderMetricsTimerName::PackageManagerUninstall.to_string(),
+            Some(app.clone().id),
+            Some(app.clone().version),
         );
 
         let device_response = state
@@ -715,7 +722,7 @@ impl ThunderPackageManagerRequestProcessor {
             Ok(handle) => {
                 let operation = Operation::new(
                     AppsOperationType::Uninstall,
-                    app.id,
+                    app.clone().id,
                     AppData::new(app.version),
                 );
                 Self::add_or_remove_operation(state.clone(), handle.clone(), operation);
@@ -829,6 +836,8 @@ impl ThunderPackageManagerRequestProcessor {
         let metrics_timer = start_service_metrics_timer(
             &state.thunder_state.get_client(),
             ThunderMetricsTimerName::PackageManagerGetMetadata.to_string(),
+            None,
+            None,
         );
 
         let device_response = state
@@ -892,6 +901,8 @@ impl ThunderPackageManagerRequestProcessor {
         let metrics_timer = start_service_metrics_timer(
             &state.thunder_state.get_client(),
             ThunderMetricsTimerName::PackageManagerUninstall.to_string(),
+            None,
+            None,
         );
 
         let device_response = state
