@@ -31,7 +31,8 @@ use super::{
     device_window_manager::WindowManagerRequest,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum DeviceRequest {
     DeviceInfo(DeviceInfoRequest),
     Browser(BrowserRequest),

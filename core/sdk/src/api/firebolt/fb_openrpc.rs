@@ -185,7 +185,8 @@ impl From<FireboltVersionManifest> for FireboltOpenRpc {
     }
 }
 
-#[derive(Deserialize, PartialEq, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum CapType {
     Available,
     Supported,
