@@ -42,6 +42,7 @@ use ripple_sdk::api::app_catalog::{AppCatalogRequest, AppOperationComplete, Apps
 use ripple_sdk::api::device::device_apps::DeviceAppMetadata;
 use ripple_sdk::api::device::device_operator::{DeviceResponseMessage, DeviceSubscribeRequest};
 use ripple_sdk::api::firebolt::fb_capabilities::FireboltPermissions;
+use ripple_sdk::api::firebolt::fb_metrics::{Timer, TimerType};
 use ripple_sdk::api::observability::metrics_util::{
     start_service_metrics_timer, stop_and_send_service_metrics_timer,
 };
@@ -178,11 +179,12 @@ impl AppData {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Operation {
     durable_app_id: String,
     operation_type: AppsOperationType,
     app_data: AppData,
+    timer: Timer,
 }
 
 impl Operation {
@@ -191,10 +193,18 @@ impl Operation {
         durable_app_id: String,
         app_data: AppData,
     ) -> Operation {
+        let mut tags: HashMap<String, String> = HashMap::new();
+        tags.insert("app_id".to_string(), durable_app_id.clone());
+        tags.insert("app_version".to_string(), app_data.clone().version);
         Operation {
-            operation_type,
+            operation_type: operation_type.clone(),
             durable_app_id,
             app_data,
+            timer: Timer::start(
+                operation_type.to_string(),
+                Some(tags),
+                Some(TimerType::Remote),
+            ),
         }
     }
 }
@@ -271,6 +281,14 @@ impl FromStr for AppsOperationType {
             "install" => Ok(AppsOperationType::Install),
             "uninstall" => Ok(AppsOperationType::Uninstall),
             _ => Err(()),
+        }
+    }
+}
+impl ToString for AppsOperationType {
+    fn to_string(&self) -> String {
+        match self {
+            AppsOperationType::Install => "install".to_string(),
+            AppsOperationType::Uninstall => "uninstall".to_string(),
         }
     }
 }
@@ -390,6 +408,7 @@ impl ThunderPackageManagerRequestProcessor {
                             operation_status.id.clone(),
                             AppData::new(operation_status.version.clone()),
                         );
+
                         Self::add_or_remove_operation(
                             state_for_event_handler.clone(),
                             operation_status.handle,
@@ -605,6 +624,14 @@ impl ThunderPackageManagerRequestProcessor {
 
             return ExtnResponse::String(handle);
         }
+        /*
+        setup operation at higher scope to allow it to time itself
+        */
+        let operation = Operation::new(
+            AppsOperationType::Install,
+            app.clone().id,
+            AppData::new(app.clone().version),
+        );
 
         let method: String = ThunderPlugin::PackageManager.method("install");
         let request = InstallAppRequest::new(app.clone());
@@ -644,12 +671,14 @@ impl ThunderPackageManagerRequestProcessor {
 
         match thunder_resp {
             Ok(handle) => {
-                let operation = Operation::new(
-                    AppsOperationType::Install,
-                    app.clone().id,
-                    AppData::new(app.version),
-                );
+                let operation_timer = operation.timer.clone().stop();
                 Self::add_or_remove_operation(state.clone(), handle.clone(), operation);
+                stop_and_send_service_metrics_timer(
+                    state.thunder_state.get_client().clone(),
+                    Some(operation_timer),
+                    status.to_string(),
+                )
+                .await;
                 ExtnResponse::String(handle)
             }
             Err(_) => ExtnResponse::Error(RippleError::ProcessorError),
@@ -681,6 +710,14 @@ impl ThunderPackageManagerRequestProcessor {
             .await
             .is_ok();
         }
+        /*
+        instansiate operation here to start timing
+        */
+        let operation = Operation::new(
+            AppsOperationType::Uninstall,
+            app.clone().clone().id,
+            AppData::new(app.clone().version),
+        );
 
         let method: String = ThunderPlugin::PackageManager.method("uninstall");
         let request = UninstallAppRequest::new(app.clone());
@@ -720,12 +757,14 @@ impl ThunderPackageManagerRequestProcessor {
 
         let extn_resp = match thunder_resp {
             Ok(handle) => {
-                let operation = Operation::new(
-                    AppsOperationType::Uninstall,
-                    app.clone().id,
-                    AppData::new(app.version),
-                );
+                let operation_timer = operation.timer.clone().stop();
                 Self::add_or_remove_operation(state.clone(), handle.clone(), operation);
+                stop_and_send_service_metrics_timer(
+                    state.thunder_state.get_client().clone(),
+                    Some(operation_timer),
+                    status.to_string(),
+                )
+                .await;
                 ExtnResponse::String(handle)
             }
             Err(_) => ExtnResponse::Error(RippleError::ProcessorError),
