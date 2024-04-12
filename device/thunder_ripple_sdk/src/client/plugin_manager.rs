@@ -134,6 +134,10 @@ pub enum PluginManagerCommand {
     ReactivatePluginState {
         tx: oneshot::Sender<PluginActivatedResult>,
     },
+    WaitForActivationForDynamicPlugin {
+        callsign: String,
+        tx: oneshot::Sender<PluginActivatedResult>,
+    },
 }
 
 #[derive(Debug)]
@@ -250,6 +254,10 @@ impl PluginManager {
                         let res = pm.reactivate_plugin_state().await;
                         oneshot_send_and_log(tx, res, "ReactivatePluginState");
                     }
+                    PluginManagerCommand::WaitForActivationForDynamicPlugin { callsign, tx } => {
+                        let res = pm.wait_for_activation_for_dynamic(callsign).await;
+                        oneshot_send_and_log(tx, res, "WaitForActivation");
+                    }
                 }
             }
         });
@@ -257,6 +265,20 @@ impl PluginManager {
         let failed_plugins =
             Self::activate_mandatory_plugins(plugin_request.clone(), tx.clone()).await;
         (tx, failed_plugins)
+    }
+
+    pub async fn wait_for_activation_for_dynamic(
+        &mut self,
+        callsign: String,
+    ) -> PluginActivatedResult {
+        // Some thunder plugins are related to Apps and they become available when the app is launched.
+        let (sub_tx, sub_rx) = oneshot::channel::<PluginState>();
+
+        self.state_subscribers.push(ActivationSubscriber {
+            callsign,
+            callback: sub_tx,
+        });
+        PluginActivatedResult::Pending(sub_rx)
     }
 
     pub async fn activate_mandatory_plugins(
