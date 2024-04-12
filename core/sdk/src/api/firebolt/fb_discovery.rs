@@ -402,10 +402,7 @@ pub trait AccountLinkService {
         self: Box<Self>,
         params: LaunchPadAccountLinkRequestParams,
     ) -> Result<LaunchPadAccountLinkResponse, RippleError>;
-    async fn sign_in(
-        self: Box<Self>,
-        params: SignInRequestParams,
-    ) -> Result<(), RippleError>;
+    async fn sign_in(self: Box<Self>, params: SignInRequestParams) -> Result<(), RippleError>;
 }
 
 #[cfg(test)]
