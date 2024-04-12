@@ -19,6 +19,7 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
+use crate::utils::error::RippleError;
 use crate::{
     api::{
         device::entertainment_data::{ContentIdentifiers, NavigationIntent},
@@ -26,6 +27,7 @@ use crate::{
     },
     utils::serde_utils::{optional_date_time_str_serde, progress_value_deserialize},
 };
+use async_trait::async_trait;
 
 pub const DISCOVERY_EVENT_ON_NAVIGATE_TO: &str = "discovery.onNavigateTo";
 
@@ -227,6 +229,12 @@ impl From<SignInInfo> for ContentAccessRequest {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum DiscoveryRequest {
+    SetContentAccess(ContentAccessListSetParams),
+    ClearContent(ClearContentSetParams),
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentAccessEntitlement {
@@ -283,13 +291,13 @@ pub struct SignInRequestParams {
     pub is_signed_in: bool, /*true for signIn, false for signOut */
 }
 
-// #[derive(Debug, Clone)]
-// pub enum DiscoveryAccountLinkRequest {
-//     EntitlementsAccountLink(EntitlementsAccountLinkRequestParams),
-//     MediaEventAccountLink(MediaEventsAccountLinkRequestParams),
-//     LaunchPadAccountLink(LaunchPadAccountLinkRequestParams),
-//     SignIn(SignInRequestParams),
-// }
+#[derive(Debug, Clone)]
+pub enum DiscoveryAccountLinkRequest {
+    EntitlementsAccountLink(EntitlementsAccountLinkRequestParams),
+    MediaEventAccountLink(MediaEventsAccountLinkRequestParams),
+    LaunchPadAccountLink(LaunchPadAccountLinkRequestParams),
+    SignIn(SignInRequestParams),
+}
 
 pub const PROGRESS_UNIT_SECONDS: &str = "Seconds";
 pub const PROGRESS_UNIT_PERCENT: &str = "Percent";
@@ -372,27 +380,31 @@ pub struct MediaEventsAccountLinkRequestParams {
 pub struct MediaEventsAccountLinkResponse {}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LaunchPadAccountLinkRequestParams {
+    pub link_launchpad: AccountLaunchpad,
+    pub content_partner_id: String,
+    pub dist_session: AccountSession,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LaunchPadAccountLinkResponse {}
 
-// #[async_trait]
-// pub trait AccountLinkService {
-//     async fn entitlements_account_link(
-//         self: Box<Self>,
-//         request: DpabRequest,
-//         params: EntitlementsAccountLinkRequestParams,
-//     );
-//     async fn media_events_account_link(
-//         self: Box<Self>,
-//         request: DpabRequest,
-//         params: MediaEventsAccountLinkRequestParams,
-//     );
-//     async fn launch_pad_account_link(
-//         self: Box<Self>,
-//         request: DpabRequest,
-//         params: LaunchPadAccountLinkRequestParams,
-//     );
-//     async fn sign_in(self: Box<Self>, request: DpabRequest, params: SignInRequestParams);
-// }
+#[async_trait]
+pub trait AccountLinkService {
+    async fn entitlements_account_link(
+        self: Box<Self>,
+        params: EntitlementsAccountLinkRequestParams,
+    ) -> Result<EntitlementsAccountLinkResponse, RippleError>;
+    async fn media_events_account_link(
+        self: Box<Self>,
+        params: MediaEventsAccountLinkRequestParams,
+    ) -> Result<MediaEventsAccountLinkResponse, RippleError>;
+    async fn launch_pad_account_link(
+        self: Box<Self>,
+        params: LaunchPadAccountLinkRequestParams,
+    ) -> Result<LaunchPadAccountLinkResponse, RippleError>;
+    async fn sign_in(self: Box<Self>, params: SignInRequestParams) -> Result<(), RippleError>;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
