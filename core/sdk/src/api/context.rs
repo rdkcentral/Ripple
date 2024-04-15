@@ -219,9 +219,9 @@ impl RippleContext {
     }
 
     pub fn what_changed(&self, context: &RippleContext) -> RippleContextUpdateType {
-        if self.internet_connectivity == context.internet_connectivity {
+        if self.internet_connectivity != context.internet_connectivity {
             RippleContextUpdateType::InternetConnectionChanged
-        } else if self.time_zone == context.time_zone {
+        } else if self.time_zone != context.time_zone {
             RippleContextUpdateType::TimeZoneChanged
         } else {
             RippleContextUpdateType::ActivationStatusChanged
@@ -300,6 +300,64 @@ mod tests {
     use super::*;
     use crate::api::device::device_request::PowerState;
     use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_default_ripple_context() {
+        let context = RippleContext::default();
+        assert_eq!(context.activation_status, None);
+        assert_eq!(context.internet_connectivity, None);
+        assert_eq!(context.update_type, None);
+        assert_eq!(context.system_power_state, None);
+        assert_eq!(context.time_zone, None);
+        assert_eq!(context.features, Vec::<String>::default());
+        assert_eq!(context.metrics_context, None);
+    }
+
+    #[test]
+    fn test_ripple_context_update() {
+        let mut context = RippleContext::default();
+        let request = RippleContextUpdateRequest::Activation(true);
+        context.update(request);
+        assert_eq!(context.activation_status, Some(ActivationStatus::Activated));
+        assert_eq!(
+            context.update_type,
+            Some(RippleContextUpdateType::ActivationStatusChanged)
+        );
+    }
+
+    #[test]
+    fn test_ripple_context_what_changed() {
+        let context1 = RippleContext {
+            internet_connectivity: Some(InternetConnectionStatus::NoInternet),
+            time_zone: Some(TimeZone::default()),
+            activation_status: Some(ActivationStatus::NotActivated),
+            system_power_state: Some(SystemPowerState {
+                power_state: PowerState::On,
+                current_power_state: PowerState::On,
+            }),
+            update_type: None,
+            features: Vec::default(),
+            metrics_context: Some(MetricsContext::default()),
+        };
+
+        let context2 = RippleContext {
+            internet_connectivity: Some(InternetConnectionStatus::FullyConnected),
+            time_zone: Some(TimeZone::default()),
+            activation_status: Some(ActivationStatus::NotActivated),
+            system_power_state: Some(SystemPowerState {
+                power_state: PowerState::On,
+                current_power_state: PowerState::On,
+            }),
+            update_type: None,
+            features: Vec::default(),
+            metrics_context: Some(MetricsContext::default()),
+        };
+
+        assert_eq!(
+            context1.what_changed(&context2),
+            RippleContextUpdateType::InternetConnectionChanged
+        );
+    }
 
     #[test]
     fn test_extn_request_ripple_context_update() {

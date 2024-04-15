@@ -109,6 +109,7 @@ pub struct AppLaunchInfo {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum EffectiveTransport {
     Bridge(String),
     Websocket,
@@ -314,7 +315,170 @@ impl ExtnPayloadProvider for AppEventRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::test_utils::test_extn_payload_provider;
+    use crate::{
+        api::{
+            device::entertainment_data::{HomeIntent, NavigationIntentStrict},
+            firebolt::fb_discovery::DiscoveryContext,
+        },
+        utils::test_utils::test_extn_payload_provider,
+    };
+
+    #[test]
+    fn test_get_transport_with_bridge_runtime_and_id() {
+        let app = AppSession {
+            app: AppBasicInfo {
+                id: "app_id".to_string(),
+                catalog: None,
+                url: None,
+                title: None,
+            },
+            runtime: Some(AppRuntime {
+                id: Some("runtime_id".to_string()),
+                transport: AppRuntimeTransport::Bridge,
+            }),
+            launch: AppLaunchInfo::default(),
+        };
+
+        assert_eq!(
+            app.get_transport(),
+            EffectiveTransport::Bridge("runtime_id".to_string())
+        );
+    }
+
+    #[test]
+    fn test_get_transport_with_bridge_runtime_and_no_id() {
+        let app = AppSession {
+            app: AppBasicInfo {
+                id: "app_id".to_string(),
+                catalog: None,
+                url: None,
+                title: None,
+            },
+            runtime: Some(AppRuntime {
+                id: None,
+                transport: AppRuntimeTransport::Bridge,
+            }),
+            launch: AppLaunchInfo::default(),
+        };
+
+        assert_eq!(app.get_transport(), EffectiveTransport::Websocket);
+    }
+
+    #[test]
+    fn test_get_transport_with_websocket_runtime() {
+        let app = AppSession {
+            app: AppBasicInfo {
+                id: "app_id".to_string(),
+                catalog: None,
+                url: None,
+                title: None,
+            },
+            runtime: Some(AppRuntime {
+                id: Some("runtime_id".to_string()),
+                transport: AppRuntimeTransport::Websocket,
+            }),
+            launch: AppLaunchInfo::default(),
+        };
+
+        assert_eq!(app.get_transport(), EffectiveTransport::Websocket);
+    }
+
+    #[test]
+    fn test_get_transport_with_no_runtime() {
+        let app = AppSession {
+            app: AppBasicInfo {
+                id: "app_id".to_string(),
+                catalog: None,
+                url: None,
+                title: None,
+            },
+            runtime: None,
+            launch: AppLaunchInfo::default(),
+        };
+
+        assert_eq!(app.get_transport(), EffectiveTransport::Websocket);
+    }
+
+    #[test]
+    fn test_update_intent() {
+        let mut app = AppSession {
+            app: AppBasicInfo {
+                id: "app_id".to_string(),
+                catalog: None,
+                url: None,
+                title: None,
+            },
+            runtime: None,
+            launch: AppLaunchInfo::default(),
+        };
+
+        let home_intent = HomeIntent {
+            context: DiscoveryContext {
+                source: "test_source".to_string(),
+            },
+        };
+
+        app.update_intent(NavigationIntent::NavigationIntentStrict(
+            NavigationIntentStrict::Home(home_intent.clone()),
+        ));
+
+        assert_eq!(
+            app.launch.intent,
+            Some(NavigationIntent::NavigationIntentStrict(
+                NavigationIntentStrict::Home(home_intent),
+            ))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_send_response_success() {
+        // Create a mock response
+        let response = Ok(AppManagerResponse::None);
+
+        // Create a mock sender
+        let (sender, receiver) = oneshot::channel();
+
+        // Create an instance of AppRequest with the mock sender
+        let app_request = AppRequest {
+            method: AppMethod::Ready(String::from("ready")),
+            resp_tx: Arc::new(RwLock::new(Some(sender))),
+        };
+
+        // Call the send_response function
+        let result = app_request.send_response(response.clone());
+
+        // Assert that the result is Ok
+        assert!(result.is_ok());
+
+        // Drop the lock explicitly
+        {
+            let sender_lock = app_request.resp_tx.read().unwrap();
+            assert!(sender_lock.is_none());
+        } // Lock is released here
+
+        // Assert that the response has been sent through the channel
+        let received_response = receiver.await.unwrap();
+        assert_eq!(received_response, response);
+    }
+
+    #[tokio::test]
+    async fn test_send_response_sender_missing() {
+        // Create a mock response
+        let response = Ok(AppManagerResponse::None);
+
+        // Create an instance of AppRequest with a None sender
+        let app_request = AppRequest {
+            method: AppMethod::Ready(String::from("ready")),
+            resp_tx: Arc::new(RwLock::new(None)),
+        };
+
+        // Call the send_response function
+        let result = app_request.send_response(response);
+
+        // Assert that the result is Err with RippleError::SenderMissing
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), RippleError::SenderMissing);
+    }
 
     #[test]
     fn test_extn_payload_provider_for_app_response() {
