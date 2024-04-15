@@ -50,7 +50,7 @@ jobs:
     steps:
       - name: read threshold file into environment variable
         run: |
-          git clone -b locked_actions_branch --single-branch https://github.com/rdkcentral/Ripple.git
+          #git clone -b locked_actions_branch --single-branch https://github.com/rdkcentral/Ripple.git
           cd Ripple
           LOWER_COVERAGE_THRESHOLD=$(cat ./ci/coverage_threshold.txt |  cut -d ' ' -f1)
           echo "LOWER_COVERAGE_THRESHOLD=$LOWER_COVERAGE_THRESHOLD" >> $GITHUB_ENV
