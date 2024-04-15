@@ -38,7 +38,7 @@ use ripple_sdk::{
             },
             fb_metrics::{
                 AppLifecycleState, AppLifecycleStateChange, BehavioralMetricContext,
-                BehavioralMetricPayload, ErrorType, MetricsError, SystemErrorParams,
+                BehavioralMetricPayload,
             },
             fb_secondscreen::SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST,
         },
@@ -482,7 +482,7 @@ impl DelegatedLauncherHandler {
         &mut self,
         app_id: &str,
         method: &AppMethod,
-        app_manager_response: Result<AppManagerResponse, AppError>,
+        _app_manager_response: Result<AppManagerResponse, AppError>,
     ) {
         let previous_state = self
             .platform_state
@@ -499,36 +499,10 @@ impl DelegatedLauncherHandler {
             governance_state: None,
         };
 
-        /*always send errors, regardless of whether launcher impl maps them */
-        let error: Option<AppError> = app_manager_response.clone().err();
-        if let Some(err) = error {
-            TelemetryBuilder::send_system_error(
-                &self.platform_state,
-                SystemErrorParams {
-                    error_name: String::from("launch_fail"),
-                    component: String::from("launcher_handler_receive"),
-                    context: Some(format!("{:?}", err.clone())),
-                },
-            );
-            let error_message = BehavioralMetricPayload::Error(MetricsError {
-                context: context.clone(),
-                /*
-                TODO... do third_part_error correctly
-                */
-                error_type: ErrorType::other,
-                /*
-                TODO: make code correct */
-                code: String::from("AppError"),
-                /*   TODO: make code correct  */
-                description: String::from("AppError"),
-                visible: true,
-                parameters: None,
-                durable_app_id: app_id.to_string(),
-                third_party_error: true,
-            });
-            let _ =
-                send_metric_for_app_state_change(&self.platform_state, error_message, app_id).await;
-        };
+        /*
+        Do not forward internal errors from the launch handler as AppErrors. Only forward third-party application error messages as AppErrors.
+        TBD: Collaborate with the SIFT team to obtain the appropriate SIFT code for sharing error messages from the AppLauncher.
+        */
 
         let inactive = self
             .platform_state
