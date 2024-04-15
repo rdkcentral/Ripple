@@ -1997,6 +1997,24 @@ pub mod tests {
         assert_eq!(extn_client.get_bool_config("key"), expected_value);
     }
 
+    #[rstest(
+        config, expected_value,
+        case(Some([("key".to_string(), 1.to_string())].iter().cloned().collect::<HashMap<_, _>>()), Some(1)),
+        case(Some([("key".to_string(), 2.to_string())].iter().cloned().collect::<HashMap<_, _>>()), Some(2)),
+        case(Some(HashMap::new()), None),
+        case(None, None),
+    )]
+    fn test_get_uint_config(config: Option<HashMap<String, String>>, expected_value: Option<u64>) {
+        let (mock_sender, mock_rx) = ExtnSender::mock_with_params(
+            ExtnId::get_main_target("main".into()),
+            Vec::new(),
+            Vec::new(),
+            config,
+        );
+        let extn_client = ExtnClient::new(mock_rx, mock_sender);
+        assert_eq!(extn_client.get_uint_config("key"), expected_value);
+    }
+
     #[rstest(id, extn_id, permitted,fulfills, exp_resp,
         case("ext_id", ExtnId::get_main_target("main".into()), vec!["context".to_string()], Vec::new(),  Ok(())),
         case("non_ext_id", ExtnId::get_main_target("main".into()), vec!["context".to_string()], Vec::new(), Ok(())),    
