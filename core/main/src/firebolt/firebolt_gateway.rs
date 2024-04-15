@@ -170,36 +170,41 @@ impl FireboltGateway {
 
             match result {
                 Ok(_) => {
-                    // Route
-                    match request.clone().ctx.protocol {
-                        ApiProtocol::Extn => {
-                            if let Some(extn_msg) = extn_msg {
-                                RpcRouter::route_extn_protocol(
-                                    &platform_state,
-                                    request.clone(),
-                                    extn_msg,
-                                )
-                                .await
-                            } else {
-                                error!("missing invalid message not forwarding");
+                    if !platform_state
+                        .endpoint_state
+                        .handle_brokerage(request_c.clone())
+                    {
+                        // Route
+                        match request.clone().ctx.protocol {
+                            ApiProtocol::Extn => {
+                                if let Some(extn_msg) = extn_msg {
+                                    RpcRouter::route_extn_protocol(
+                                        &platform_state,
+                                        request.clone(),
+                                        extn_msg,
+                                    )
+                                    .await
+                                } else {
+                                    error!("missing invalid message not forwarding");
+                                }
                             }
-                        }
-                        _ => {
-                            if let Some(session) = platform_state
-                                .clone()
-                                .session_state
-                                .get_session(&request_c.ctx)
-                            {
-                                // if the websocket disconnects before the session is recieved this leads to an error
-                                RpcRouter::route(
-                                    platform_state.clone(),
-                                    request_c,
-                                    session,
-                                    metrics_timer.clone(),
-                                )
-                                .await;
-                            } else {
-                                error!("session is missing request is not forwarded");
+                            _ => {
+                                if let Some(session) = platform_state
+                                    .clone()
+                                    .session_state
+                                    .get_session(&request_c.ctx)
+                                {
+                                    // if the websocket disconnects before the session is recieved this leads to an error
+                                    RpcRouter::route(
+                                        platform_state.clone(),
+                                        request_c,
+                                        session,
+                                        metrics_timer.clone(),
+                                    )
+                                    .await;
+                                } else {
+                                    error!("session is missing request is not forwarded");
+                                }
                             }
                         }
                     }
