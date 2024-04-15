@@ -38,7 +38,7 @@ use ripple_sdk::{
             },
             fb_metrics::{
                 AppLifecycleState, AppLifecycleStateChange, BehavioralMetricContext,
-                BehavioralMetricPayload, ErrorType, MetricsError, SystemErrorParams,
+                BehavioralMetricPayload,
             },
             fb_secondscreen::SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST,
         },
@@ -482,7 +482,7 @@ impl DelegatedLauncherHandler {
         &mut self,
         app_id: &str,
         method: &AppMethod,
-        app_manager_response: Result<AppManagerResponse, AppError>,
+        _app_manager_response: Result<AppManagerResponse, AppError>,
     ) {
         let previous_state = self
             .platform_state
