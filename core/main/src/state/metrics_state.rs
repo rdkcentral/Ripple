@@ -132,20 +132,10 @@ impl MetricsState {
         )
         .await
         {
-            Ok(resp) => {
-                println!(
-                    "*** _DEBUG: get_persistent_store_string: key={}, resp={:?}",
-                    key, resp
-                );
-                Some(resp.as_value())
-            }
+            Ok(resp) => Some(resp.as_value()),
             Err(e) => {
                 error!(
                     "get_persistent_store_string: Could not retrieve value: e={:?}",
-                    e
-                );
-                error!(
-                    "*** _DEBUG: get_persistent_store_string: Could not retrieve value: e={:?}",
                     e
                 );
                 None
@@ -161,20 +151,10 @@ impl MetricsState {
         )
         .await
         {
-            Ok(resp) => {
-                println!(
-                    "*** _DEBUG: get_persistent_store_bool: key={}, resp={:?}",
-                    key, resp
-                );
-                Some(resp.as_value())
-            }
+            Ok(resp) => Some(resp.as_value()),
             Err(e) => {
                 error!(
                     "get_persistent_store_bool: Could not retrieve value: e={:?}",
-                    e
-                );
-                println!(
-                    "*** _DEBUG: get_persistent_store_bool: Could not retrieve value: e={:?}",
                     e
                 );
                 None
@@ -306,10 +286,9 @@ impl MetricsState {
             Err(_) => env = None,
         };
 
-        // TODO: Supposed to be optional?
         let activated = match state.get_client().get_extn_client().get_activation_status() {
             Some(ActivationStatus::Activated) => Some(true),
-            None => Some(false),
+            None => None,
             _ => Some(false),
         };
 
@@ -324,23 +303,21 @@ impl MetricsState {
         let jv_agent =
             Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_JVAGENT)
                 .await;
-        println!("*** _DEBUG: jv_agent={:?}", jv_agent);
 
-        // TODO: Shouldn't this match jvagent? AS stores jvagent as "xumo" but SIFT expects "xumo-tv"
-        //let platform = jv_agent.clone();
-        let platform = String::from("xumo-tv");
+        let platform = proposition.clone().unwrap_or_default();
 
         let coam =
             Self::get_persistent_store_bool(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_COAM).await;
-        println!("*** _DEBUG: coam={:?}", coam);
 
         let country = StorageManager::get_string(&state, StorageProperty::CountryCode)
             .await
             .ok();
 
-        let region = Some("SomeRegion".into()); // TODO: Was supposed to be optional?
+        let region = StorageManager::get_string(&state, StorageProperty::Locality)
+            .await
+            .ok();
 
-        // TODO: Not currently in PS, should it be? Was supposed to be optional?
+        // TODO: Not currently in PS, should it be?
         // let account_type =
         //     Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_ACCOUNT_TYPE)
         //         .await;
@@ -351,7 +328,7 @@ impl MetricsState {
             Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_OPERATOR)
                 .await;
 
-        // TODO: Not currently in PS, should it be? Was supposed to be optional?
+        // TODO: Not currently in PS, should it be?
         // let account_detail_type = Self::get_persistent_store_string(
         //     &state,
         //     ONTOLOGY_PERSISTENT_STORAGE_ACCOUNT_DETAIL_TYPE,

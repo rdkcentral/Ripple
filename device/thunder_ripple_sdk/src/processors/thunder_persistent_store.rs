@@ -161,7 +161,6 @@ impl ThunderStorageRequestProcessor {
     }
 
     async fn get_value(state: ThunderState, req: ExtnMessage, data: GetStorageProperty) -> bool {
-        info!("*** _DEBUG: get_value: data={:?}", data);
         let params = Some(DeviceChannelParams::Json(
             serde_json::to_string(&json!({
                 "namespace": data.namespace,
@@ -179,7 +178,6 @@ impl ThunderStorageRequestProcessor {
             })
             .await;
         info!("{}", response.message);
-        info!("*** _DEBUG: get_value: resp={:?}", response.message);
 
         if let Some(status) = response.message["success"].as_bool() {
             if status {
@@ -188,14 +186,8 @@ impl ThunderStorageRequestProcessor {
                     debug!("{:?}", res);
                     let value_resp: ThunderGetValueResponse = res;
                     if value_resp.success {
-                        println!(
-                            "*** _DEBUG: mark 0: value_resp.value={:?}",
-                            value_resp.value
-                        );
                         if let Ok(v) = serde_json::from_str::<Value>(&value_resp.value) {
-                            println!("*** _DEBUG: mark 1");
                             if let Ok(v) = serde_json::from_value(v.clone()) {
-                                println!("*** _DEBUG: mark 2");
                                 return Self::respond(
                                     state.get_client(),
                                     req.clone(),
@@ -206,7 +198,6 @@ impl ThunderStorageRequestProcessor {
                             // <pca>
                             //}
                             } else if let Ok(v) = serde_json::from_value(v.clone()) {
-                                println!("*** _DEBUG: mark 3");
                                 return Self::respond(
                                     state.get_client(),
                                     req.clone(),
@@ -218,7 +209,6 @@ impl ThunderStorageRequestProcessor {
                         //}
                         //error!("serialization failure for Storage data");
                         } else {
-                            println!("*** _DEBUG: mark 4");
                             return Self::respond(
                                 state.get_client(),
                                 req.clone(),
