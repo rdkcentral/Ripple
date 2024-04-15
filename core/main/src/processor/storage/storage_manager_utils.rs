@@ -54,7 +54,10 @@ fn get_value(resp: Result<ExtnResponse, RippleError>) -> Result<Value, Error> {
         ExtnResponse::Value(value) => Ok(value),
         ExtnResponse::String(str_val) => match serde_json::from_str(&str_val) {
             Ok(value) => Ok(value),
-            Err(_) => Err(storage_error()),
+            // <pca>
+            //Err(_) => Err(storage_error()),
+            Err(_) => Ok(Value::String(str_val)), // An actual string was stored, return it as a Value.
+                                                  // </pca>
         },
         _ => Err(storage_error()),
     }

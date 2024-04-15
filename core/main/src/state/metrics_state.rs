@@ -46,6 +46,15 @@ use super::platform_state::PlatformState;
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
+const ONTOLOGY_PERSISTENT_STORAGE_NAMESPACE: &str = "accountProfile";
+const ONTOLOGY_PERSISTENT_STORAGE_KEY_PROPOSITION: &str = "proposition";
+const ONTOLOGY_PERSISTENT_STORAGE_KEY_RETAILER: &str = "retailer";
+const ONTOLOGY_PERSISTENT_STORAGE_KEY_JVAGENT: &str = "jvagent";
+const ONTOLOGY_PERSISTENT_STORAGE_KEY_COAM: &str = "coam";
+const ONTOLOGY_PERSISTENT_STORAGE_KEY_ACCOUNT_TYPE: &str = "accountType";
+const ONTOLOGY_PERSISTENT_STORAGE_KEY_OPERATOR: &str = "operator";
+const ONTOLOGY_PERSISTENT_STORAGE_ACCOUNT_DETAIL_TYPE: &str = "detailType";
+
 #[derive(Debug, Clone, Default)]
 pub struct MetricsState {
     pub start_time: DateTime<Utc>,
@@ -76,35 +85,101 @@ impl MetricsState {
     fn update_cet_list(&self, privacy_settings_data: &PrivacySettingsData) {
         let mut cet_list = Vec::new();
 
-        if let Some(v) = privacy_settings_data.allow_business_analytics
-            && v
-        {
-            cet_list.push(String::from("dataPlatform:cet:xvp:analytics:business"));
+        if let Some(v) = privacy_settings_data.allow_business_analytics {
+            if v {
+                cet_list.push(String::from("dataPlatform:cet:xvp:analytics:business"));
+            }
         }
 
-        if let Some(v) = privacy_settings_data.allow_resume_points
-            && v
-        {
-            cet_list.push(String::from(
-                "dataPlatform:cet:xvp:personalization:continueWatching",
-            ));
+        if let Some(v) = privacy_settings_data.allow_resume_points {
+            if v {
+                cet_list.push(String::from(
+                    "dataPlatform:cet:xvp:personalization:continueWatching",
+                ));
+            }
         }
 
-        if let Some(v) = privacy_settings_data.allow_personalization
-            && v
-        {
-            cet_list.push(String::from(
-                "dataPlatform:cet:xvp:personalization:recommendation",
-            ));
+        if let Some(v) = privacy_settings_data.allow_personalization {
+            if v {
+                cet_list.push(String::from(
+                    "dataPlatform:cet:xvp:personalization:recommendation",
+                ));
+            }
         }
 
-        if let Some(v) = privacy_settings_data.allow_product_analytics
-            && v
-        {
-            cet_list.push(String::from("dataPlatform:cet:xvp:analytics"));
+        if let Some(v) = privacy_settings_data.allow_product_analytics {
+            if v {
+                cet_list.push(String::from("dataPlatform:cet:xvp:analytics"));
+            }
         }
 
-        *self.context.write().unwrap().cet_list = cet_list;
+        //let mut context = self.context.write().unwrap();
+        self.context.write().unwrap().cet_list = if !cet_list.is_empty() {
+            Some(cet_list)
+        } else {
+            None
+        };
+    }
+
+    async fn get_persistent_store_string(
+        state: &PlatformState,
+        key: &'static str,
+    ) -> Option<String> {
+        match StorageManager::get_string_from_namespace(
+            state,
+            ONTOLOGY_PERSISTENT_STORAGE_NAMESPACE.to_string(),
+            key,
+        )
+        .await
+        {
+            Ok(resp) => {
+                println!(
+                    "*** _DEBUG: get_persistent_store_string: key={}, resp={:?}",
+                    key, resp
+                );
+                Some(resp.as_value())
+            }
+            Err(e) => {
+                error!(
+                    "get_persistent_store_string: Could not retrieve value: e={:?}",
+                    e
+                );
+                error!(
+                    "*** _DEBUG: get_persistent_store_string: Could not retrieve value: e={:?}",
+                    e
+                );
+                None
+            }
+        }
+    }
+
+    async fn get_persistent_store_bool(state: &PlatformState, key: &'static str) -> Option<bool> {
+        match StorageManager::get_bool_from_namespace(
+            state,
+            ONTOLOGY_PERSISTENT_STORAGE_NAMESPACE.to_string(),
+            key,
+        )
+        .await
+        {
+            Ok(resp) => {
+                println!(
+                    "*** _DEBUG: get_persistent_store_bool: key={}, resp={:?}",
+                    key, resp
+                );
+                Some(resp.as_value())
+            }
+            Err(e) => {
+                error!(
+                    "get_persistent_store_bool: Could not retrieve value: e={:?}",
+                    e
+                );
+                println!(
+                    "*** _DEBUG: get_persistent_store_bool: Could not retrieve value: e={:?}",
+                    e
+                );
+                None
+            }
+        }
     }
     // </pca>
     pub fn get_privacy_settings_cache(&self) -> PrivacySettingsData {
@@ -222,33 +297,78 @@ impl MetricsState {
                 if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp.payload.extract() {
                     firmware = info.name;
                     env = if info.debug {
-                        Some(MetricsEnvironment::Dev)
+                        Some(MetricsEnvironment::Dev.to_string())
                     } else {
-                        Some(MetricsEnvironment::Prod)
+                        Some(MetricsEnvironment::Prod.to_string())
                     };
                 }
             }
-            Err(_) => None,
+            Err(_) => env = None,
         };
 
+        // TODO: Supposed to be optional?
         let activated = match state.get_client().get_extn_client().get_activation_status() {
             Some(ActivationStatus::Activated) => Some(true),
-            None => None,
+            None => Some(false),
             _ => Some(false),
         };
 
-        let proposition = {};
-        let retailer = {};
-        let jv_agent = {};
-        let coam = {};
-        let country = {};
-        let region = {};
-        let account_type = {};
-        let operator = {};
-        let account_detail_type = {};
-        let device_type = {};
-        let device_manufacturer = {};
-        let authenticated = {};
+        let proposition =
+            Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_PROPOSITION)
+                .await;
+
+        let retailer =
+            Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_RETAILER)
+                .await;
+
+        let jv_agent =
+            Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_JVAGENT)
+                .await;
+        println!("*** _DEBUG: jv_agent={:?}", jv_agent);
+
+        // TODO: Shouldn't this match jvagent? AS stores jvagent as "xumo" but SIFT expects "xumo-tv"
+        //let platform = jv_agent.clone();
+        let platform = String::from("xumo-tv");
+
+        let coam =
+            Self::get_persistent_store_bool(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_COAM).await;
+        println!("*** _DEBUG: coam={:?}", coam);
+
+        let country = StorageManager::get_string(&state, StorageProperty::CountryCode)
+            .await
+            .ok();
+
+        let region = Some("SomeRegion".into()); // TODO: Was supposed to be optional?
+
+        // TODO: Not currently in PS, should it be? Was supposed to be optional?
+        // let account_type =
+        //     Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_ACCOUNT_TYPE)
+        //         .await;
+        //let account_type = None;
+        let account_type = Some("SomeAccountType".into());
+
+        let operator =
+            Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_OPERATOR)
+                .await;
+
+        // TODO: Not currently in PS, should it be? Was supposed to be optional?
+        // let account_detail_type = Self::get_persistent_store_string(
+        //     &state,
+        //     ONTOLOGY_PERSISTENT_STORAGE_ACCOUNT_DETAIL_TYPE,
+        // )
+        // .await;
+        //let account_detail_type = None;
+        let account_detail_type = Some("SomeAccountDetailType".into());
+
+        // TODO: Currently not used by ripple, needs to align with AS value somehow. Likely AS will
+        // write to PS.
+        let device_type = "SomeDeviceType".into();
+
+        // TODO: Currently not used by ripple, needs to align with AS value somehow. AS team to check
+        // the current source and possibly write to PS or let us know where they get it.
+        let device_manufacturer = "SomeDeviceManufacturer".into();
+
+        let authenticated = Some(true);
         // </pca>
 
         {
@@ -290,7 +410,19 @@ impl MetricsState {
             // <pca>
             context.env = env;
             context.activated = activated;
-
+            context.proposition = proposition.unwrap_or_default();
+            context.retailer = retailer;
+            context.jv_agent = jv_agent;
+            context.platform = platform;
+            context.coam = coam;
+            context.country = country;
+            context.region = region;
+            context.account_type = account_type;
+            context.operator = operator;
+            context.account_detail_type = account_detail_type;
+            context.device_type = device_type;
+            context.device_manufacturer = device_manufacturer;
+            context.authenticated = authenticated;
             // </pca>
         }
         {

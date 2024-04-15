@@ -629,13 +629,29 @@ pub enum OperationalMetricPayload {
     Counter(Counter),
 }
 
-// <pca>
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+// <pca> added
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum MetricsEnvironment {
     Prod,
     Dev,
     Test,
+}
+
+impl Default for MetricsEnvironment {
+    fn default() -> Self {
+        Self::Prod
+    }
+}
+
+impl ToString for MetricsEnvironment {
+    fn to_string(&self) -> String {
+        match self {
+            MetricsEnvironment::Prod => "prod".into(),
+            MetricsEnvironment::Dev => "dev".into(),
+            MetricsEnvironment::Test => "test".into(),
+        }
+    }
 }
 // </pca>
 
@@ -752,7 +768,7 @@ pub struct MetricsContext {
     pub serial_number: String,
     pub firmware: String,
     pub ripple_version: String,
-    pub env: Option<MetricsEnvironment>,
+    pub env: Option<String>,
     pub cet_list: Option<Vec<String>>,
     pub activated: Option<bool>,
     pub proposition: String,
