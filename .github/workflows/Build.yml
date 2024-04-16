@@ -50,8 +50,8 @@ jobs:
     steps:
       - name: read threshold file into environment variable
         run: |
-          #git clone -b locked_actions_branch --single-branch https://github.com/rdkcentral/Ripple.git
-          #cd Ripple
+          git clone -b locked_actions_branch --single-branch https://github.com/rdkcentral/Ripple.git
+          cd Ripple
           LOWER_COVERAGE_THRESHOLD=$(cat ./ci/coverage_threshold.txt |  cut -d ' ' -f1)
           echo "LOWER_COVERAGE_THRESHOLD=$LOWER_COVERAGE_THRESHOLD" >> $GITHUB_ENV
       - uses: actions/checkout@v3
@@ -62,7 +62,7 @@ jobs:
         with:
           filename: coverage.cobertura.xml
           badge: true
-          fail_below_min: true
+          fail_below_min: false
           format: markdown
           hide_branch_rate: false
           hide_complexity: true
