@@ -79,6 +79,46 @@ impl ExtnPayloadProvider for TokenResult {
 mod tests {
     use super::*;
     use crate::utils::test_utils::test_extn_payload_provider;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case(None, TokenType::Device)]
+    #[case(Some("2024-12-31".to_string()), TokenType::Platform)]
+    fn test_fmt_token_result(#[case] expires_value: Option<String>, #[case] token_type: TokenType) {
+        let token_result = TokenResult {
+            value: "some_value".to_string(),
+            expires: expires_value.clone(),
+            _type: token_type,
+            scope: Some("some_scope".to_string()),
+            expires_in: Some(3600),
+            token_type: Some("Bearer".to_string()),
+        };
+
+        // Define expected JSON structure using serde_json::json! macro
+        let mut expected_json = serde_json::json!({
+            "value": "some_value",
+            "scope": "some_scope",
+            "expiresIn": 3600,
+            "tokenType": "Bearer",
+            "type": match token_type {
+                TokenType::Device => "device",
+                TokenType::Platform => "platform",
+                TokenType::Root => "root",
+                TokenType::Distributor => "distributor",
+            },
+        });
+
+        // Conditionally add expires field to the expected JSON object if expires_value is Some
+        if let Some(expires) = expires_value {
+            expected_json["expires"] = serde_json::Value::String(expires);
+        }
+
+        // Serialize the actual TokenResult object into a JSON string
+        let actual_json = serde_json::to_value(token_result).unwrap();
+
+        // Assert that both JSON objects are equal regardless of the order
+        assert_eq!(expected_json, actual_json);
+    }
 
     #[test]
     fn test_token_result() {

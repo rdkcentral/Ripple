@@ -31,6 +31,7 @@ pub struct ContentProvider {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "lowercase")]
 pub enum OfferingType {
     FREE,
@@ -51,6 +52,7 @@ impl Default for FederationOptions {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct ContentIdentifiers {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -66,6 +68,7 @@ pub struct ContentIdentifiers {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ContentRating {
     pub scheme: SchemeValue,
     #[serde(deserialize_with = "rating_format_extender")]
@@ -99,6 +102,7 @@ where
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct WaysToWatch {
     pub identifiers: ContentIdentifiers,
@@ -153,6 +157,7 @@ pub struct WaysToWatch {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct EntityInfo {
     pub identifiers: ContentIdentifiers,
@@ -177,6 +182,7 @@ pub struct EntityInfo {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub enum EntityType {
     Program,
@@ -230,6 +236,7 @@ pub enum MusicType {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "UPPERCASE")]
 pub enum VideoQuality {
     Sd,
@@ -238,6 +245,7 @@ pub enum VideoQuality {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum SchemeValue {
     #[serde(rename = "CA-Movie")]
     CaMovie,
@@ -253,6 +261,7 @@ pub enum SchemeValue {
     UsTv,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum RatingValue {
     NR,
     G,
@@ -281,6 +290,7 @@ pub enum RatingValue {
     Plus18,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum AdvisoriesValue {
     AT,
     BN,
@@ -315,6 +325,7 @@ impl ProviderResult {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct PurchasedContentResult {
     pub expires: String, //date-time Representation
@@ -363,6 +374,7 @@ pub struct ContentEntityRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct EntityInfoResult {
     pub expires: String,
     #[serde(deserialize_with = "entity_info_deserialize")]
@@ -826,13 +838,12 @@ where
     let val_c = val.clone();
     if val_c.entity.entity_type.0.eq_ignore_ascii_case("playlist") {
         if let Some(options) = val_c.options {
-            if options.is_valid() {
-                return Ok(val);
+            if !options.is_valid() {
+                return Err(serde::de::Error::custom(
+                    "invalid options for entityType=playlist",
+                ));
             }
         }
-        return Err(serde::de::Error::custom(
-            "invalid options for entityType=playlist",
-        ));
     }
 
     Ok(val)
@@ -1201,11 +1212,7 @@ mod tests {
         });
 
         if let Err(e) = serde_json::from_value::<NavigationIntentStrict>(v) {
-            assert!(e
-                .to_string()
-                .contains("invalid options for entityType=playlist"))
-        } else {
-            panic!("expecting error for entityType of playlist without options")
+            panic!("{:?}", e)
         }
 
         let v = json!({

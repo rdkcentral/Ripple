@@ -62,6 +62,7 @@ pub mod tests {
         pub mod contract_utils;
         pub mod thunder_browser_pacts;
         pub mod thunder_device_info_pacts;
+        pub mod thunder_package_manager_pacts;
         pub mod thunder_persistent_store_pacts;
         pub mod thunder_remote_pacts;
         pub mod thunder_wifi_pacts;

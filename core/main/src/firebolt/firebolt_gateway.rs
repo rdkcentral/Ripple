@@ -25,6 +25,7 @@ use ripple_sdk::{
             rpc_gateway_api::{ApiMessage, ApiProtocol, RpcRequest},
         },
     },
+    chrono::Utc,
     extn::extn_client_message::ExtnMessage,
     log::{error, info},
     serde_json::{self, Value},
@@ -166,6 +167,7 @@ impl FireboltGateway {
         );
 
         tokio::spawn(async move {
+            let start = Utc::now().timestamp_millis();
             let result = FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await;
 
             match result {
@@ -206,6 +208,15 @@ impl FireboltGateway {
                 }
                 Err(e) => {
                     let deny_reason = e.reason;
+                    // log firebolt response message in RDKTelemetry 1.0 friendly format
+                    let now = Utc::now().timestamp_millis();
+
+                    RpcRouter::log_rdk_telemetry_message(
+                        &request.ctx.app_id,
+                        &request.method,
+                        deny_reason.get_rpc_error_code(),
+                        now - start,
+                    );
 
                     TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
                         &platform_state.clone(),

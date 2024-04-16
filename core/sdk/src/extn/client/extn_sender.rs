@@ -229,7 +229,7 @@ pub mod tests {
         fn mock() -> (Self, CReceiver<CExtnMessage>)
         where
             Self: Sized;
-
+        //mock main sender
         fn mock_with_params(
             id: ExtnId,
             context: Vec<String>,
@@ -239,6 +239,7 @@ pub mod tests {
         where
             Self: Sized;
 
+        // mock extn sender
         fn mock_extn(
             id: ExtnId,
             context: Vec<String>,
