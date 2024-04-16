@@ -54,6 +54,8 @@ const ONTOLOGY_PERSISTENT_STORAGE_KEY_COAM: &str = "coam";
 const ONTOLOGY_PERSISTENT_STORAGE_KEY_ACCOUNT_TYPE: &str = "accountType";
 const ONTOLOGY_PERSISTENT_STORAGE_KEY_OPERATOR: &str = "operator";
 const ONTOLOGY_PERSISTENT_STORAGE_ACCOUNT_DETAIL_TYPE: &str = "detailType";
+const ONTOLOGY_PERSISTENT_STORAGE_ACCOUNT_DEVICE_TYPE: &str = "deviceType";
+const ONTOLOGY_PERSISTENT_STORAGE_ACCOUNT_DEVICE_MANUFACTURER: &str = "deviceManufacturer";
 
 #[derive(Debug, Clone, Default)]
 pub struct MetricsState {
@@ -292,9 +294,12 @@ impl MetricsState {
             _ => Some(false),
         };
 
+        // <pca> debug
         let proposition =
             Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_PROPOSITION)
-                .await;
+                .await
+                .unwrap_or("xsb".into());
+        // </pca>
 
         let retailer =
             Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_RETAILER)
@@ -304,7 +309,7 @@ impl MetricsState {
             Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_JVAGENT)
                 .await;
 
-        let platform = proposition.clone().unwrap_or_default();
+        let platform = proposition.clone();
 
         let coam =
             Self::get_persistent_store_bool(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_COAM).await;
@@ -318,34 +323,42 @@ impl MetricsState {
             .ok();
 
         // TODO: Not currently in PS, should it be?
-        // let account_type =
-        //     Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_ACCOUNT_TYPE)
-        //         .await;
-        //let account_type = None;
-        let account_type = Some("SomeAccountType".into());
+        let account_type =
+            Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_ACCOUNT_TYPE)
+                .await;
+        //let account_type = Some("SomeAccountType".into());
 
         let operator =
             Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_OPERATOR)
                 .await;
 
         // TODO: Not currently in PS, should it be?
-        // let account_detail_type = Self::get_persistent_store_string(
-        //     &state,
-        //     ONTOLOGY_PERSISTENT_STORAGE_ACCOUNT_DETAIL_TYPE,
-        // )
-        // .await;
-        //let account_detail_type = None;
-        let account_detail_type = Some("SomeAccountDetailType".into());
+        let account_detail_type = Self::get_persistent_store_string(
+            &state,
+            ONTOLOGY_PERSISTENT_STORAGE_ACCOUNT_DETAIL_TYPE,
+        )
+        .await;
+        //let account_detail_type = Some("SomeAccountDetailType".into());
 
         // TODO: Currently not used by ripple, needs to align with AS value somehow. Likely AS will
         // write to PS.
-        let device_type = "SomeDeviceType".into();
+        let device_type = Self::get_persistent_store_string(
+            &state,
+            ONTOLOGY_PERSISTENT_STORAGE_ACCOUNT_DEVICE_TYPE,
+        )
+        .await
+        .unwrap_or("SomeDeviceType".into());
 
         // TODO: Currently not used by ripple, needs to align with AS value somehow. AS team to check
         // the current source and possibly write to PS or let us know where they get it.
-        let device_manufacturer = "SomeDeviceManufacturer".into();
+        let device_manufacturer = Self::get_persistent_store_string(
+            &state,
+            ONTOLOGY_PERSISTENT_STORAGE_ACCOUNT_DEVICE_MANUFACTURER,
+        )
+        .await
+        .unwrap_or("SomeDeviceManufacturer".into());
 
-        let authenticated = Some(true);
+        let authenticated = None;
         // </pca>
 
         {
@@ -387,7 +400,7 @@ impl MetricsState {
             // <pca>
             context.env = env;
             context.activated = activated;
-            context.proposition = proposition.unwrap_or_default();
+            context.proposition = proposition;
             context.retailer = retailer;
             context.jv_agent = jv_agent;
             context.platform = platform;
