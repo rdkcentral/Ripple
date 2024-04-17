@@ -127,6 +127,18 @@ impl ApiMessage {
         // currently only these json rpsee errors are used in Ripple
         self.jsonrpc_msg.contains("Custom error:") || self.jsonrpc_msg.contains("Method not found")
     }
+
+    pub fn get_error_code_from_msg(&self) -> Result<Option<i32>, serde_json::Error> {
+        let v: Value = serde_json::from_str(&self.jsonrpc_msg)?;
+
+        if let Some(error) = v.get("error") {
+            if let Some(code) = error.get("code") {
+                return Ok(Some(code.as_i64().unwrap() as i32));
+            }
+        }
+        // if there is no error code, return None
+        Ok(None)
+    }
 }
 
 #[derive(Deserialize)]
@@ -535,5 +547,51 @@ mod tests {
         };
         let contract_type: RippleContract = RippleContract::Rpc;
         test_extn_payload_provider(rpc_request, contract_type);
+    }
+
+    #[test]
+    fn test_get_error_code_from_msg() {
+        let api_message = ApiMessage {
+            protocol: ApiProtocol::JsonRpc,
+            jsonrpc_msg: r#"{"jsonrpc": "2.0", "id": 123, "error": {"code": 456, "message": "error message"}}"#.to_string(),
+            request_id: "request_id".to_string(),
+        };
+
+        let result = api_message.get_error_code_from_msg();
+
+        assert!(result.is_ok());
+        let error_code = result.unwrap();
+        assert_eq!(error_code, Some(456));
+    }
+
+    #[test]
+    fn test_get_error_code_from_msg_error_code_not_present() {
+        let api_message = ApiMessage {
+            protocol: ApiProtocol::JsonRpc,
+            jsonrpc_msg: r#"{"jsonrpc": "2.0", "id": 123, "error": {"message": "error message"}}"#
+                .to_string(),
+            request_id: "request_id".to_string(),
+        };
+
+        let result = api_message.get_error_code_from_msg();
+
+        assert!(result.is_ok());
+        let error_code = result.unwrap();
+        assert_eq!(error_code, None);
+    }
+
+    #[test]
+    fn test_get_error_code_from_msg_result_present() {
+        let api_message = ApiMessage {
+            protocol: ApiProtocol::JsonRpc,
+            jsonrpc_msg: r#"{"jsonrpc": "2.0", "id": 123, "result": null}"#.to_string(),
+            request_id: "request_id".to_string(),
+        };
+
+        let result = api_message.get_error_code_from_msg();
+
+        assert!(result.is_ok());
+        let error_code = result.unwrap();
+        assert_eq!(error_code, None);
     }
 }
