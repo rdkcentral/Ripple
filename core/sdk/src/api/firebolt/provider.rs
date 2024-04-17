@@ -40,7 +40,8 @@ pub enum ProviderRequestPayload {
     Generic(String),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(untagged)]
 pub enum ProviderResponsePayload {
     ChallengeResponse(ChallengeResponse),
@@ -126,14 +127,17 @@ pub struct ExternalProviderResponse<T> {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ChallengeResponse {
     pub granted: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct DataObject {}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ChallengeError {
     pub code: u32,
     pub message: String,
@@ -156,4 +160,142 @@ pub struct FocusRequest {
 pub struct Challenge {
     pub capability: String,
     pub requestor: ChallengeRequestor,
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::api::{
+        device::{
+            device_request::AudioProfile,
+            entertainment_data::{
+                AdvisoriesValue, ContentIdentifiers, ContentRating, EntityInfo, EntityType,
+                MusicType, OfferingType, ProgramType, RatingValue, SchemeValue, VideoQuality,
+                WaysToWatch,
+            },
+        },
+        firebolt::fb_pin::PinChallengeResultReason,
+    };
+
+    use super::*;
+    use rstest::rstest;
+
+    #[test]
+    fn test_as_keyboard_result() {
+        let response = ProviderResponsePayload::KeyboardResult(KeyboardSessionResponse {
+            text: "text".to_string(),
+            canceled: false,
+        });
+        assert_eq!(
+            response.as_keyboard_result(),
+            Some(KeyboardSessionResponse {
+                text: "text".to_string(),
+                canceled: false
+            })
+        );
+    }
+
+    #[test]
+    fn test_as_pin_challenge_response() {
+        let response = ProviderResponsePayload::PinChallengeResponse(PinChallengeResponse {
+            granted: Some(true),
+            reason: PinChallengeResultReason::NoPinRequired,
+        });
+        assert_eq!(
+            response.as_pin_challenge_response(),
+            Some(PinChallengeResponse {
+                granted: Some(true),
+                reason: PinChallengeResultReason::NoPinRequired,
+            })
+        );
+    }
+
+    #[rstest]
+    fn test_as_challenge_response() {
+        let response = ProviderResponsePayload::ChallengeResponse(ChallengeResponse {
+            granted: Some(true),
+        });
+        assert_eq!(
+            response.as_challenge_response(),
+            Some(ChallengeResponse {
+                granted: Some(true)
+            })
+        );
+    }
+
+    #[test]
+    fn test_as_entity_info_result() {
+        let entity_info = EntityInfo {
+            entity_type: EntityType::Program,
+            identifiers: ContentIdentifiers {
+                asset_id: Some("asset_id".to_string()),
+                entity_id: Some("entity_id".to_string()),
+                season_id: Some("season_id".to_string()),
+                series_id: Some("series_id".to_string()),
+                app_content_data: Some("app_content_data".to_string()),
+            },
+            title: "title".to_string(),
+            program_type: Some(ProgramType::Movie),
+            music_type: Some(MusicType::Album),
+            synopsis: Some("synopsis".to_string()),
+            season_number: None,
+            episode_number: None,
+            release_date: Some("release_date".to_string()),
+            content_ratings: Some(vec![ContentRating {
+                rating: RatingValue::G,
+                scheme: SchemeValue::CaMovie,
+                advisories: Some(vec![AdvisoriesValue::G]),
+            }]),
+            ways_to_watch: Some(vec![WaysToWatch {
+                identifiers: ContentIdentifiers {
+                    asset_id: Some("asset_id".to_string()),
+                    entity_id: Some("entity_id".to_string()),
+                    season_id: Some("season_id".to_string()),
+                    series_id: Some("series_id".to_string()),
+                    app_content_data: Some("app_content_data".to_string()),
+                },
+                expires: Some("expires".to_string()),
+                entitled: Some(true),
+                entitled_expires: Some("entitled_expires".to_string()),
+                offering_type: Some(OfferingType::FREE),
+                has_ads: Some(false),
+                price: Some(5.0),
+                video_quality: Some(vec![VideoQuality::Sd]),
+                audio_profile: Some(vec![AudioProfile::Stereo]),
+                audio_languages: Some(vec!["en".to_string()]),
+                closed_captions: Some(vec!["en".to_string()]),
+                subtitles: Some(vec!["en".to_string()]),
+                audio_descriptions: Some(vec!["en".to_string()]),
+            }]),
+        };
+        let response = ProviderResponsePayload::EntityInfoResponse(Some(EntityInfoResult {
+            expires: "expires".to_string(),
+            entity: entity_info.clone(),
+            related: None,
+        }));
+        assert_eq!(
+            response.as_entity_info_result(),
+            Some(Some(EntityInfoResult {
+                expires: "expires".to_string(),
+                entity: entity_info,
+                related: None,
+            }))
+        );
+    }
+
+    #[test]
+    fn test_as_purchased_content_result() {
+        let response = ProviderResponsePayload::PurchasedContentResponse(PurchasedContentResult {
+            expires: "expires".to_string(),
+            total_count: 1,
+            entries: vec![],
+        });
+        assert_eq!(
+            response.as_purchased_content_result(),
+            Some(PurchasedContentResult {
+                expires: "expires".to_string(),
+                total_count: 1,
+                entries: vec![],
+            })
+        );
+    }
 }

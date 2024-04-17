@@ -258,6 +258,7 @@ impl<'de> Deserialize<'de> for FireboltPermission {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[cfg_attr(feature = "contract_tests", derive(Serialize))]
 pub struct FireboltPermissions {
     pub capabilities: Vec<FireboltPermission>,
 }
@@ -378,6 +379,8 @@ pub const CAPABILITY_UNGRANTED: i32 = -40401;
 
 pub const CAPABILITY_APP_NOT_IN_ACTIVE_STATE: i32 = -40402;
 
+pub const CAPABILITY_GRANT_PROVIDER_MISSING: i32 = -40403;
+
 impl RpcError for DenyReason {
     type E = Vec<String>;
     fn get_rpc_error_code(&self) -> i32 {
@@ -389,6 +392,7 @@ impl RpcError for DenyReason {
             Self::Ungranted => CAPABILITY_NOT_PERMITTED,
             Self::NotFound => JSON_RPC_STANDARD_ERROR_METHOD_NOT_FOUND,
             Self::AppNotInActiveState => CAPABILITY_NOT_PERMITTED,
+            Self::GrantProviderMissing => CAPABILITY_GRANT_PROVIDER_MISSING,
             _ => CAPABILITY_GET_ERROR,
         }
     }
@@ -405,6 +409,7 @@ impl RpcError for DenyReason {
             Self::AppNotInActiveState => {
                 "Capability cannot be used when app is not in foreground state due to requiring a user grant".to_string()
             }
+            Self::GrantProviderMissing => format!("Grant provider is missing for {}", caps_disp),
             _ => format!("Error with {}", caps_disp),
         }
     }
@@ -418,6 +423,7 @@ impl RpcError for DenyReason {
             Self::Ungranted => CAPABILITY_UNGRANTED,
             Self::NotFound => JSON_RPC_STANDARD_ERROR_METHOD_NOT_FOUND,
             Self::AppNotInActiveState => CAPABILITY_APP_NOT_IN_ACTIVE_STATE,
+            Self::GrantProviderMissing => CAPABILITY_GRANT_PROVIDER_MISSING,
             _ => CAPABILITY_GET_ERROR,
         }
     }
@@ -508,5 +514,233 @@ impl CapEvent {
             CapEvent::OnRevoked => "onRevoked",
         };
         variant_name.to_owned()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_firebolt_cap_short() {
+        let cap = FireboltCap::short("account:session");
+        assert_eq!(cap.as_str(), "xrn:firebolt:capability:account:session");
+    }
+
+    #[test]
+    fn test_firebolt_cap_full() {
+        let cap = FireboltCap::parse_long("xrn:firebolt:capability:account:session".to_string());
+        assert_eq!(cap, Some(FireboltCap::Short("account:session".to_string())));
+    }
+
+    #[test]
+    fn test_firebolt_cap_parse() {
+        let cap = FireboltCap::parse("xrn:firebolt:capability:account:session".to_string());
+        assert_eq!(cap, Some(FireboltCap::Short("account:session".to_string())));
+    }
+
+    #[test]
+    fn test_firebolt_cap_parse_long() {
+        let cap = FireboltCap::parse_long("xrn:firebolt:capability:account:session".to_string());
+        assert_eq!(cap, Some(FireboltCap::Short("account:session".to_string())));
+    }
+
+    #[test]
+    fn test_firebolt_cap_from_vec_string() {
+        let cap_list = vec!["account:session".to_string()];
+        let cap = FireboltCap::from_vec_string(cap_list);
+        assert_eq!(cap, vec![FireboltCap::Full("account:session".to_string())]);
+    }
+
+    #[test]
+    fn test_capability_role_as_string() {
+        let role = CapabilityRole::Use;
+        assert_eq!(role.as_string(), "use");
+    }
+
+    #[test]
+    fn test_firebolt_permission_from_role_info() {
+        let role = RoleInfo {
+            role: Some(CapabilityRole::Use),
+            capability: FireboltCap::short("account:session"),
+        };
+        let perm = FireboltPermission::from(role);
+        assert_eq!(
+            perm,
+            FireboltPermission::from(FireboltCap::short("account:session"))
+        );
+    }
+
+    #[test]
+    fn test_firebolt_permission_from_firebolt_cap() {
+        let cap = FireboltCap::short("account:session");
+        let perm = FireboltPermission::from(cap);
+        assert_eq!(
+            perm,
+            FireboltPermission::from(FireboltCap::short("account:session"))
+        );
+    }
+
+    #[test]
+    fn test_firebolt_permission_from_cap_request_rpc_request() {
+        let cap_req = CapRequestRpcRequest {
+            grants: vec![RoleInfo {
+                role: Some(CapabilityRole::Use),
+                capability: FireboltCap::short("account:session"),
+            }],
+        };
+        let perm = Vec::<FireboltPermission>::from(cap_req);
+        assert_eq!(
+            perm,
+            vec![FireboltPermission::from(FireboltCap::short(
+                "account:session"
+            ))]
+        );
+    }
+
+    #[test]
+    fn test_firebolt_permission_from_capability_set() {
+        let cap_set = CapabilitySet {
+            use_caps: Some(vec![FireboltCap::short("account:session")]),
+            manage_caps: None,
+            provide_cap: None,
+        };
+        let perm = Vec::<FireboltPermission>::from(cap_set);
+        assert_eq!(
+            perm,
+            vec![FireboltPermission::from(FireboltCap::short(
+                "account:session"
+            ))]
+        );
+    }
+
+    #[test]
+    fn test_firebolt_permission_serialize() {
+        let perm = FireboltPermission {
+            cap: FireboltCap::short("account:session"),
+            role: CapabilityRole::Use,
+        };
+        let serialized = serde_json::to_string(&perm).unwrap();
+        assert_eq!(serialized, "\"xrn:firebolt:capability:account:session\"");
+    }
+
+    #[test]
+    fn test_firebolt_permission_deserialize() {
+        let perm = "\"xrn:firebolt:capability:account:session\"";
+        let deserialized: FireboltPermission = serde_json::from_str(perm).unwrap();
+        assert_eq!(
+            deserialized,
+            FireboltPermission {
+                cap: FireboltCap::short("account:session"),
+                role: CapabilityRole::Use
+            }
+        );
+    }
+
+    #[test]
+    fn test_deny_reason_get_rpc_error_message() {
+        let caps = vec!["xrn:firebolt:capability:account:session".to_string()];
+        assert_eq!(
+            DenyReason::Unavailable.get_rpc_error_message(caps.clone()),
+            "xrn:firebolt:capability:account:session is not available"
+        );
+        assert_eq!(
+            DenyReason::Unsupported.get_rpc_error_message(caps.clone()),
+            "xrn:firebolt:capability:account:session is not supported"
+        );
+        assert_eq!(
+            DenyReason::GrantDenied.get_rpc_error_message(caps.clone()),
+            "The user denied access to xrn:firebolt:capability:account:session"
+        );
+        assert_eq!(
+            DenyReason::Unpermitted.get_rpc_error_message(caps.clone()),
+            "xrn:firebolt:capability:account:session is not permitted"
+        );
+        assert_eq!(
+            DenyReason::Ungranted.get_rpc_error_message(caps.clone()),
+            "The user did not make a grant decision for xrn:firebolt:capability:account:session"
+        );
+        assert_eq!(
+            DenyReason::NotFound.get_rpc_error_message(caps.clone()),
+            "Method not Found"
+        );
+        assert_eq!(
+            DenyReason::AppNotInActiveState.get_rpc_error_message(caps.clone()),
+            "Capability cannot be used when app is not in foreground state due to requiring a user grant"
+        );
+        assert_eq!(
+            DenyReason::GrantProviderMissing.get_rpc_error_message(caps),
+            "Grant provider is missing for xrn:firebolt:capability:account:session"
+        );
+    }
+    #[test]
+    fn test_deny_reason_get_rpc_error_code() {
+        assert_eq!(
+            DenyReason::Unavailable.get_rpc_error_code(),
+            CAPABILITY_NOT_AVAILABLE
+        );
+        assert_eq!(
+            DenyReason::Unsupported.get_rpc_error_code(),
+            CAPABILITY_NOT_SUPPORTED
+        );
+        assert_eq!(
+            DenyReason::GrantDenied.get_rpc_error_code(),
+            CAPABILITY_NOT_PERMITTED
+        );
+        assert_eq!(
+            DenyReason::Unpermitted.get_rpc_error_code(),
+            CAPABILITY_NOT_PERMITTED
+        );
+        assert_eq!(
+            DenyReason::Ungranted.get_rpc_error_code(),
+            CAPABILITY_NOT_PERMITTED
+        );
+        assert_eq!(
+            DenyReason::NotFound.get_rpc_error_code(),
+            JSON_RPC_STANDARD_ERROR_METHOD_NOT_FOUND
+        );
+        assert_eq!(
+            DenyReason::AppNotInActiveState.get_rpc_error_code(),
+            CAPABILITY_NOT_PERMITTED
+        );
+        assert_eq!(
+            DenyReason::GrantProviderMissing.get_rpc_error_code(),
+            CAPABILITY_GRANT_PROVIDER_MISSING
+        );
+    }
+    #[test]
+    fn test_deny_reason_get_observability_error_code() {
+        assert_eq!(
+            DenyReason::Unavailable.get_observability_error_code(),
+            CAPABILITY_NOT_AVAILABLE
+        );
+        assert_eq!(
+            DenyReason::Unsupported.get_observability_error_code(),
+            CAPABILITY_NOT_SUPPORTED
+        );
+        assert_eq!(
+            DenyReason::GrantDenied.get_observability_error_code(),
+            CAPABILITY_GRANT_DENIED
+        );
+        assert_eq!(
+            DenyReason::Unpermitted.get_observability_error_code(),
+            CAPABILITY_NOT_PERMITTED
+        );
+        assert_eq!(
+            DenyReason::Ungranted.get_observability_error_code(),
+            CAPABILITY_UNGRANTED
+        );
+        assert_eq!(
+            DenyReason::NotFound.get_observability_error_code(),
+            JSON_RPC_STANDARD_ERROR_METHOD_NOT_FOUND
+        );
+        assert_eq!(
+            DenyReason::AppNotInActiveState.get_observability_error_code(),
+            CAPABILITY_APP_NOT_IN_ACTIVE_STATE
+        );
+        assert_eq!(
+            DenyReason::GrantProviderMissing.get_observability_error_code(),
+            CAPABILITY_GRANT_PROVIDER_MISSING
+        );
     }
 }

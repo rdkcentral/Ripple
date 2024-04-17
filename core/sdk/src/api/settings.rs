@@ -157,6 +157,52 @@ mod tests {
     use crate::utils::test_utils::test_extn_payload_provider;
 
     #[test]
+    fn test_setting_key_to_string() {
+        let setting_key = SettingKey::VoiceGuidanceEnabled;
+        assert_eq!(setting_key.to_string(), "VoiceGuidanceEnabled");
+    }
+
+    #[test]
+    fn test_setting_key_use_capability() {
+        let setting_key = SettingKey::VoiceGuidanceEnabled;
+        assert_eq!(setting_key.use_capability(), "accessibility:voiceguidance");
+    }
+
+    #[test]
+    fn test_settings_request_param_get_alias() {
+        let alias_map = Some(
+            vec![
+                ("VoiceGuidanceEnabled".to_owned(), "Alias1".to_owned()),
+                ("ClosedCaptions".to_owned(), "Alias2".to_owned()),
+            ]
+            .into_iter()
+            .collect(),
+        );
+        let settings_request_param = SettingsRequestParam::new(
+            CallContext {
+                session_id: "test_session_id".to_string(),
+                request_id: "test_request_id".to_string(),
+                app_id: "test_app_id".to_string(),
+                call_id: 123,
+                protocol: ApiProtocol::JsonRpc,
+                method: "some method".to_string(),
+                cid: Some("test_cid".to_string()),
+                gateway_secure: true,
+            },
+            vec![SettingKey::VoiceGuidanceEnabled, SettingKey::ClosedCaptions],
+            alias_map,
+        );
+        assert_eq!(
+            settings_request_param.get_alias(&SettingKey::VoiceGuidanceEnabled),
+            "Alias1"
+        );
+        assert_eq!(
+            settings_request_param.get_alias(&SettingKey::ClosedCaptions),
+            "Alias2"
+        );
+    }
+
+    #[test]
     fn test_extn_request_settings() {
         let settings_request_param = SettingsRequestParam {
             context: CallContext {

@@ -154,7 +154,8 @@ impl From<ExtnPayload> for String {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum ExtnPayload {
     Request(ExtnRequest),
     Response(ExtnResponse),
@@ -256,7 +257,8 @@ where
     fn contract() -> RippleContract;
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum ExtnRequest {
     Config(Config),
     Rpc(RpcRequest),
@@ -359,7 +361,8 @@ impl ExtnPayloadProvider for ExtnResponse {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum ExtnEvent {
     String(String),
     Value(Value),
