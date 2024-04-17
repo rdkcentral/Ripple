@@ -1,5 +1,3 @@
-
-
 use crate::{
     api::firebolt::{
         fb_metrics::{
@@ -94,7 +92,12 @@ mod tests {
         let extn_client = ExtnClient::mock();
         let request = RippleContextUpdateRequest::MetricsContext(get_mock_metrics_context());
         extn_client.context_update(request);
-        let timer = start_service_metrics_timer(&extn_client, "package_manager_get_list".into(),None,None);
+        let timer = start_service_metrics_timer(
+            &extn_client,
+            "package_manager_get_list".into(),
+            None,
+            None,
+        );
         assert!(timer.is_some(), "Timer should not be None");
 
         let timer = timer.unwrap();
