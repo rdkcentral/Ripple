@@ -413,7 +413,9 @@ impl ThunderPackageManagerRequestProcessor {
                             state_for_event_handler.clone(),
                             operation_status.handle,
                             operation,
-                        );
+                            Some(operation_status.status),
+                        )
+                        .await;
                         let op_comp = AppOperationComplete {
                             id: operation_status.id,
                             version: operation_status.version,
@@ -480,10 +482,11 @@ impl ThunderPackageManagerRequestProcessor {
     // the event is received, the operation is added to the map upon return and removed when the event arrives. If the event occurs before
     // the thunder call returns, the operation is added when the event occurs and removed when the call returns. The active operation map
     // is used to cancel any operations that haven't completed after some time.
-    fn add_or_remove_operation(
+    async fn add_or_remove_operation(
         state: ThunderPackageManagerState,
         handle: String,
         operation: Operation,
+        status: Option<String>,
     ) {
         if state
             .active_operations
@@ -498,6 +501,15 @@ impl ThunderPackageManagerRequestProcessor {
                 .unwrap()
                 .insert(handle.clone(), operation);
             Self::start_operation_timer(state, handle, None);
+        } else {
+            let mut timer = operation.timer;
+            timer.stop();
+            stop_and_send_service_metrics_timer(
+                state.thunder_state.get_client(),
+                Some(timer),
+                status.unwrap_or("".to_string()),
+            )
+            .await;
         }
     }
 
@@ -671,12 +683,11 @@ impl ThunderPackageManagerRequestProcessor {
 
         match thunder_resp {
             Ok(handle) => {
-                let operation_timer = operation.timer.clone().stop();
-                Self::add_or_remove_operation(state.clone(), handle.clone(), operation);
-                stop_and_send_service_metrics_timer(
-                    state.thunder_state.get_client().clone(),
-                    Some(operation_timer),
-                    status.to_string(),
+                Self::add_or_remove_operation(
+                    state.clone(),
+                    handle.clone(),
+                    operation,
+                    Some(status.to_string()),
                 )
                 .await;
                 ExtnResponse::String(handle)
@@ -757,12 +768,11 @@ impl ThunderPackageManagerRequestProcessor {
 
         let extn_resp = match thunder_resp {
             Ok(handle) => {
-                let operation_timer = operation.timer.clone().stop();
-                Self::add_or_remove_operation(state.clone(), handle.clone(), operation);
-                stop_and_send_service_metrics_timer(
-                    state.thunder_state.get_client().clone(),
-                    Some(operation_timer),
-                    status.to_string(),
+                Self::add_or_remove_operation(
+                    state.clone(),
+                    handle.clone(),
+                    operation,
+                    Some(status.to_string()),
                 )
                 .await;
                 ExtnResponse::String(handle)
