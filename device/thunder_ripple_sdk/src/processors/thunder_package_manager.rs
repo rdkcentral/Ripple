@@ -499,7 +499,7 @@ impl ThunderPackageManagerRequestProcessor {
                 .lock()
                 .unwrap()
                 .insert(handle.clone(), operation);
-            Self::start_operation_timer(state, handle, None);
+            Self::start_operation_timeout_timer(state, handle, None);
         } else {
             let mut timer = operation.timer;
             timer.stop();
@@ -529,7 +529,7 @@ impl ThunderPackageManagerRequestProcessor {
         None
     }
 
-    fn start_operation_timer(
+    fn start_operation_timeout_timer(
         state: ThunderPackageManagerState,
         handle: String,
         timeout_secs: Option<u64>,
