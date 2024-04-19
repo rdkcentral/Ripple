@@ -266,7 +266,8 @@ impl RippleContract {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ContractFulfiller {
     pub contracts: Vec<RippleContract>,
 }

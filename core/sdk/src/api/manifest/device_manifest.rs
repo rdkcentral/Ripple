@@ -92,6 +92,7 @@ pub struct CapabilityConfiguration {
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct LifecycleConfiguration {
     pub app_ready_timeout_ms: u64,
@@ -119,12 +120,14 @@ pub struct DeviceManifest {
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct DistributionConfiguration {
     pub library: String,
     pub catalog: String,
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ApplicationDefaultsConfiguration {
     #[serde(rename = "xrn:firebolt:application-type:main")]
     pub main: String,
@@ -153,6 +156,7 @@ impl ApplicationDefaultsConfiguration {
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ApplicationsConfiguration {
     pub distribution: DistributionConfiguration,
     pub defaults: ApplicationDefaultsConfiguration,
@@ -287,6 +291,7 @@ pub fn default_video_dimensions() -> Vec<i32> {
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct SettingsDefaults {
     pub postal_code: String,
 }
@@ -416,6 +421,7 @@ pub enum PrivacySettingsStorageType {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct RippleFeatures {
     #[serde(default = "default_privacy_settings_storage_type")]
     pub privacy_settings_storage_type: PrivacySettingsStorageType,
@@ -644,9 +650,305 @@ impl DeviceManifest {
 }
 
 #[cfg(test)]
-mod tests {
-
+pub(crate) mod tests {
     use super::*;
+    pub trait Mockable {
+        fn mock() -> DeviceManifest
+        where
+            Self: Sized;
+    }
+    #[cfg(test)]
+    impl Mockable for DeviceManifest {
+        fn mock() -> DeviceManifest {
+            DeviceManifest {
+                configuration: RippleConfiguration {
+                    ws_configuration: WsConfiguration {
+                        enabled: true,
+                        gateway: "127.0.0.1:3473".to_string(),
+                    },
+                    internal_ws_configuration: WsConfiguration {
+                        enabled: true,
+                        gateway: "127.0.0.1:3474".to_string(),
+                    },
+                    platform: DevicePlatformType::Thunder,
+                    platform_parameters: {
+                        let mut params = HashMap::new();
+                        params.insert(
+                            "gateway".to_string(),
+                            "ws://127.0.0.1:9998/jsonrpc".to_string(),
+                        );
+                        serde_json::to_value(params).unwrap()
+                    },
+                    distribution_platform: "Generic".to_string(),
+                    distribution_id_salt: None,
+                    form_factor: "ipstb".to_string(),
+                    default_values: DefaultValues {
+                        country_code: "US".to_string(),
+                        language: "en".to_string(),
+                        locale: "en-US".to_string(),
+                        name: "Living Room".to_string(),
+                        captions: CaptionStyle {
+                            enabled: false,
+                            font_family: Some("sans-serif".to_string()),
+                            font_size: Some(1.0),
+                            font_color: Some("#ffffff".to_string()),
+                            font_edge: Some("none".to_string()),
+                            font_edge_color: Some("#7F7F7F".to_string()),
+                            font_opacity: Some(100),
+                            background_color: Some("#000000".to_string()),
+                            background_opacity: Some(12),
+                            window_color: None,
+                            window_opacity: None,
+                            text_align: Some("center".to_string()),
+                            text_align_vertical: Some("middle".to_string()),
+                        },
+                        additional_info: HashMap::new(),
+                        voice: VoiceGuidance {
+                            enabled: true,
+                            speed: 5.0,
+                        },
+                        allow_acr_collection: false,
+                        allow_app_content_ad_targeting: false,
+                        allow_business_analytics: true,
+                        allow_camera_analytics: false,
+                        allow_personalization: false,
+                        allow_primary_browse_ad_targeting: false,
+                        allow_primary_content_ad_targeting: false,
+                        allow_product_analytics: false,
+                        allow_remote_diagnostics: false,
+                        allow_resume_points: false,
+                        allow_unentitled_personalization: false,
+                        allow_unentitled_resume_points: false,
+                        allow_watch_history: false,
+                        skip_restriction: "none".to_string(),
+                        video_dimensions: vec![1920, 1080],
+                    },
+                    settings_defaults_per_app: HashMap::new(),
+                    model_friendly_names: {
+                        let mut names = HashMap::new();
+                        names.insert("RSPPI".to_string(), "Raspberry PI".to_string());
+                        names
+                    },
+                    distributor_experience_id: "0000".to_string(),
+                    distributor_services: None,
+                    exclusory: None,
+                    features: RippleFeatures {
+                        privacy_settings_storage_type: PrivacySettingsStorageType::Local,
+                        intent_validation: IntentValidation::Fail,
+                        cloud_permissions: true,
+                        catalog_uninstalls_enabled: FeatureFlag {
+                            default: false,
+                            remote_key: None,
+                        },
+                    },
+                    internal_app_id: Some("test".to_string()),
+                    saved_dir: "/opt/persistent/ripple".to_string(),
+                    data_governance: DataGovernanceConfig {
+                        policies: Vec::new(),
+                    },
+                    partner_exclusion_refresh_timeout: 43200,
+                    metrics_logging_percentage: 10,
+                },
+                capabilities: CapabilityConfiguration {
+                    supported: vec!["main".to_string()],
+                    grant_policies: None,
+                    grant_exclusion_filters: vec![GrantExclusionFilter {
+                        id: Some("test-id".to_string()),
+                        capability: Some("test-cap".to_string()),
+                        catalog: Some("test-catalog".to_string()),
+                    }],
+                    dependencies: HashMap::new(),
+                },
+                lifecycle: LifecycleConfiguration {
+                    app_ready_timeout_ms: 30000,
+                    app_finished_timeout_ms: 2000,
+                    max_loaded_apps: 5,
+                    min_available_memory_kb: 1024,
+                    prioritized: Vec::new(),
+                    emit_app_init_events_enabled: false,
+                },
+                applications: ApplicationsConfiguration {
+                    distribution: DistributionConfiguration {
+                        library: "/etc/firebolt-app-library.json".to_string(),
+                        catalog: "".to_string(),
+                    },
+                    defaults: ApplicationDefaultsConfiguration {
+                        main: "".to_string(),
+                        settings: "".to_string(),
+                        player: None,
+                    },
+                    distributor_app_aliases: HashMap::new(),
+                },
+            }
+        }
+    }
+
+    #[test]
+    fn test_get_internal_app_id() {
+        let manifest = DeviceManifest::mock();
+        let internal_app_id = manifest.get_internal_app_id();
+        assert_eq!(internal_app_id, Some("test".to_string()));
+    }
+
+    #[test]
+    fn test_get_form_factor() {
+        let manifest = DeviceManifest::mock();
+        let form_factor = manifest.get_form_factor();
+        assert_eq!(form_factor, "ipstb".to_string());
+    }
+
+    #[test]
+    fn test_get_app_library_path() {
+        let manifest = DeviceManifest::mock();
+        let app_library_path = manifest.get_app_library_path();
+        assert_eq!(
+            app_library_path,
+            "/etc/firebolt-app-library.json".to_string()
+        );
+    }
+
+    #[test]
+    fn test_get_lifecycle_policy() {
+        let manifest = DeviceManifest::mock();
+        let lifecycle_policy = manifest.get_lifecycle_policy();
+
+        assert_eq!(lifecycle_policy.app_ready_timeout_ms, 30000);
+        assert_eq!(lifecycle_policy.app_finished_timeout_ms, 2000);
+    }
+
+    #[test]
+    fn test_get_retention_policy() {
+        let manifest = DeviceManifest::mock();
+        let retention_policy = manifest.get_retention_policy();
+
+        assert_eq!(retention_policy.max_retained, 5);
+        assert_eq!(retention_policy.min_available_mem_kb, 1024);
+        assert_eq!(retention_policy.always_retained, Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_get_supported_caps() {
+        let manifest = DeviceManifest::mock();
+        let supported_caps = manifest.get_supported_caps();
+
+        assert_eq!(supported_caps, vec![FireboltCap::Full("main".to_string())]);
+    }
+
+    #[test]
+    fn test_get_caps_requiring_grant() {
+        let manifest = DeviceManifest::mock();
+        let caps_requiring_grant = manifest.get_caps_requiring_grant();
+
+        assert_eq!(caps_requiring_grant, Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_get_grant_policies() {
+        let manifest = DeviceManifest::mock();
+        let grant_policies = manifest.get_grant_policies();
+
+        assert_eq!(grant_policies, None);
+    }
+
+    #[test]
+    fn test_get_grant_exclusion_filters() {
+        let manifest = DeviceManifest::mock();
+        let grant_exclusion_filters = manifest.get_grant_exclusion_filters();
+
+        assert_eq!(
+            grant_exclusion_filters,
+            vec![GrantExclusionFilter {
+                id: Some("test-id".to_string()),
+                capability: Some("test-cap".to_string()),
+                catalog: Some("test-catalog".to_string()),
+            }]
+        );
+    }
+
+    #[test]
+    fn test_get_distributor_experience_id() {
+        let manifest = DeviceManifest::mock();
+        let distributor_experience_id = manifest.get_distributor_experience_id();
+        assert_eq!(distributor_experience_id, "0000".to_string());
+    }
+
+    #[test]
+    fn test_get_features() {
+        let manifest = DeviceManifest::mock();
+        let features = manifest.get_features();
+
+        assert_eq!(
+            features,
+            RippleFeatures {
+                privacy_settings_storage_type: PrivacySettingsStorageType::Local,
+                intent_validation: IntentValidation::Fail,
+                cloud_permissions: true,
+                catalog_uninstalls_enabled: FeatureFlag {
+                    default: false,
+                    remote_key: None,
+                },
+            }
+        );
+    }
+
+    #[test]
+    fn test_get_settings_defaults_per_app() {
+        let manifest = DeviceManifest::mock();
+        let settings_defaults_per_app = manifest.get_settings_defaults_per_app();
+
+        assert_eq!(settings_defaults_per_app, HashMap::new());
+    }
+
+    #[test]
+    fn test_get_model_friendly_names() {
+        let manifest = DeviceManifest::mock();
+        let model_friendly_names = manifest.get_model_friendly_names();
+
+        let mut expected_model_friendly_names = HashMap::new();
+        expected_model_friendly_names.insert("RSPPI".to_string(), "Raspberry PI".to_string());
+        assert_eq!(model_friendly_names, expected_model_friendly_names);
+    }
+
+    #[test]
+    fn test_get_lifecycle_configuration() {
+        let manifest = DeviceManifest::mock();
+        let lifecycle_configuration = manifest.get_lifecycle_configuration();
+
+        assert_eq!(
+            lifecycle_configuration,
+            LifecycleConfiguration {
+                app_ready_timeout_ms: 30000,
+                app_finished_timeout_ms: 2000,
+                max_loaded_apps: 5,
+                min_available_memory_kb: 1024,
+                prioritized: Vec::new(),
+                emit_app_init_events_enabled: false,
+            }
+        );
+    }
+
+    #[test]
+    fn test_get_applications_configuration() {
+        let manifest = DeviceManifest::mock();
+        let applications_configuration = manifest.get_applications_configuration();
+
+        assert_eq!(
+            applications_configuration,
+            ApplicationsConfiguration {
+                distribution: DistributionConfiguration {
+                    library: "/etc/firebolt-app-library.json".to_string(),
+                    catalog: "".to_string(),
+                },
+                defaults: ApplicationDefaultsConfiguration {
+                    main: "".to_string(),
+                    settings: "".to_string(),
+                    player: None,
+                },
+                distributor_app_aliases: HashMap::new(),
+            }
+        );
+    }
+
     #[test]
     fn check_default_features() {
         if let Ok(v) = serde_json::from_str::<RippleFeatures>("{}") {

@@ -145,7 +145,6 @@ impl RpcRouter {
         tokio::spawn(async move {
             let method = req.method.clone();
             let app_id = req.ctx.app_id.clone();
-            let session_id = req.ctx.session_id.clone();
             let start = Utc::now().timestamp_millis();
             let resp = resolve_route(methods, resources, req.clone()).await;
 
@@ -165,17 +164,23 @@ impl RpcRouter {
             if let Ok(msg) = resp {
                 let now = Utc::now().timestamp_millis();
                 let success = !msg.is_error();
-                info!(
-                    "Sending Firebolt response to app_id={} method={} fbtt={} {} {}",
-                    app_id,
-                    method,
-                    now - start,
-                    session_id,
-                    match method.contains("authentication") {
-                        true => "<auth response hidden>",
-                        false => &msg.jsonrpc_msg,
+                // log firebolt response message in RDKTelemetry 1.0 friendly format
+                let status_code = match msg.get_error_code_from_msg() {
+                    Ok(Some(code)) => {
+                        // error response
+                        code
                     }
-                );
+                    Ok(None) => {
+                        // success response
+                        1
+                    }
+                    Err(e) => {
+                        error!("Error getting error code from msg.jsonrpc_msg {:?}", e);
+                        1
+                    }
+                };
+
+                Self::log_rdk_telemetry_message(&app_id, &method, status_code, now - start);
 
                 TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start, success);
 
@@ -231,5 +236,15 @@ impl RpcRouter {
                 }
             }
         });
+    }
+
+    pub fn log_rdk_telemetry_message(app_id: &str, method: &str, status_code: i32, duration: i64) {
+        info!(
+            "Sending Firebolt response: {},{},{},{}",
+            app_id,      // appId
+            method,      // method
+            status_code, // status, 1 if pass, else the errorCode
+            duration,    // Duration
+        );
     }
 }
