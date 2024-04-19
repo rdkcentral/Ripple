@@ -1015,7 +1015,7 @@ impl ExtnRequestProcessor for ThunderPackageManagerRequestProcessor {
 /*
 RDK Telemetry  message processing/emitting
 */
-pub fn rdk_telemmetry_emit(timer: ripple_sdk::api::firebolt::fb_metrics::Timer) -> () {
+pub fn rdk_telemmetry_emit(timer: ripple_sdk::api::firebolt::fb_metrics::Timer)  {
     emit(format_timer(timer));
 }
 
@@ -1029,7 +1029,10 @@ fn format_timer(timer: ripple_sdk::api::firebolt::fb_metrics::Timer) -> String {
         .get("app_version")
         .unwrap_or(&"".to_string())
         .to_string();
-    let status = tags.get("status").unwrap_or(&"".to_string()).to_string();
+    let status = match tags.get("status") {
+        Some(value) => value,
+        None => "",
+    };
     format!(
         "{}: {},{},{},{}",
         timer.name,
@@ -1041,7 +1044,7 @@ fn format_timer(timer: ripple_sdk::api::firebolt::fb_metrics::Timer) -> String {
     .to_string()
 }
 
-fn emit(message: String) -> () {
+fn emit(message: String)  {
     ripple_sdk::log::info!("{}", message);
 }
 
