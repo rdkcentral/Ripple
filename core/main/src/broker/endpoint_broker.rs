@@ -402,7 +402,7 @@ impl BrokerOutputForwarder {
                         }
                     }
                 } else {
-                    error!("Error couldnt broker")
+                    error!("Error couldnt broker the event {:?}", v)
                 }
             }
         });

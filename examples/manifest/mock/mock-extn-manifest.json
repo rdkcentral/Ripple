@@ -123,10 +123,15 @@
                     { 
                         "matcher":"HDMIInput.*",
                         "transformer": {
-                            "HDMIInput.onAutoLowLatencyModeSignalChanged": {
-                                "module":"org.rdk.HdmiInput",
-                                "method": "gameFeatureStatusUpdate"
+                            "HDMIInput.autoLowLatencyModeCapable": {
+                                "module":"org.rdk.FireboltHdmiInput.1",
+                                "method": "autoLowLatencyModeCapable"
+                            },
+                            "HDMIInput.onAutoLowLatencyModeCapableChanged": {
+                                "module":"org.rdk.FireboltHdmiInput.1",
+                                "method": "onAutoLowLatencyModeCapableChanged"
                             }
+                            
                         }
                     }
                 ]
