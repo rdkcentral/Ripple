@@ -504,7 +504,7 @@ impl ThunderPackageManagerRequestProcessor {
             let mut timer = operation.timer;
             timer.stop();
             timer.insert_tag("status".to_string(), status.unwrap_or("".to_string()));
-            rdk_telemmetry_emit(timer);
+            rdk_telemetry_emit(timer);
         }
     }
 
@@ -1015,7 +1015,7 @@ impl ExtnRequestProcessor for ThunderPackageManagerRequestProcessor {
 /*
 RDK Telemetry  message processing/emitting
 */
-pub fn rdk_telemmetry_emit(timer: ripple_sdk::api::firebolt::fb_metrics::Timer)  {
+pub fn rdk_telemetry_emit(timer: ripple_sdk::api::firebolt::fb_metrics::Timer) {
     emit(format_timer(timer));
 }
 
@@ -1044,7 +1044,7 @@ fn format_timer(timer: ripple_sdk::api::firebolt::fb_metrics::Timer) -> String {
     .to_string()
 }
 
-fn emit(message: String)  {
+fn emit(message: String) {
     ripple_sdk::log::info!("{}", message);
 }
 
