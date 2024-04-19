@@ -9,19 +9,15 @@ use crate::{
     extn::{client::extn_client::ExtnClient, extn_client_message::ExtnResponse},
     utils::error::RippleError,
 };
+
 #[cfg(not(test))]
 use log::{debug, error};
 
 #[cfg(test)]
 use {println as debug, println as error};
-pub fn start_service_metrics_timer(
-    extn_client: &ExtnClient,
-    name: String,
-    app_id: Option<String>,
-    app_version: Option<String>,
-) -> Option<Timer> {
-    let metrics_tags =
-        get_metrics_tags(extn_client, InteractionType::Service, app_id, app_version)?;
+
+pub fn start_service_metrics_timer(extn_client: &ExtnClient, name: String) -> Option<Timer> {
+    let metrics_tags = get_metrics_tags(extn_client, InteractionType::Service, None)?;
 
     debug!("start_service_metrics_timer: {}: {:?}", name, metrics_tags);
 
@@ -92,12 +88,7 @@ mod tests {
         let extn_client = ExtnClient::mock();
         let request = RippleContextUpdateRequest::MetricsContext(get_mock_metrics_context());
         extn_client.context_update(request);
-        let timer = start_service_metrics_timer(
-            &extn_client,
-            "package_manager_get_list".into(),
-            None,
-            None,
-        );
+        let timer = start_service_metrics_timer(&extn_client, "package_manager_get_list".into());
         assert!(timer.is_some(), "Timer should not be None");
 
         let timer = timer.unwrap();
@@ -108,7 +99,7 @@ mod tests {
         );
         assert_eq!(timer.timer_type, TimerType::Remote);
 
-        let expected_tags = get_metrics_tags(&extn_client, InteractionType::Service, None, None);
+        let expected_tags = get_metrics_tags(&extn_client, InteractionType::Service, None);
         assert_eq!(
             timer.tags, expected_tags,
             "Timer tags do not match expected tags"

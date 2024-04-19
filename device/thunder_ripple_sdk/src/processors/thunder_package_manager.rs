@@ -414,8 +414,7 @@ impl ThunderPackageManagerRequestProcessor {
                             operation_status.handle,
                             operation,
                             Some(operation_status.status),
-                        )
-                        .await;
+                        );
                         let op_comp = AppOperationComplete {
                             id: operation_status.id,
                             version: operation_status.version,
@@ -482,7 +481,7 @@ impl ThunderPackageManagerRequestProcessor {
     // the event is received, the operation is added to the map upon return and removed when the event arrives. If the event occurs before
     // the thunder call returns, the operation is added when the event occurs and removed when the call returns. The active operation map
     // is used to cancel any operations that haven't completed after some time.
-    async fn add_or_remove_operation(
+    fn add_or_remove_operation(
         state: ThunderPackageManagerState,
         handle: String,
         operation: Operation,
@@ -504,12 +503,8 @@ impl ThunderPackageManagerRequestProcessor {
         } else {
             let mut timer = operation.timer;
             timer.stop();
-            stop_and_send_service_metrics_timer(
-                state.thunder_state.get_client(),
-                Some(timer),
-                status.unwrap_or("".to_string()),
-            )
-            .await;
+            timer.insert_tag("status".to_string(), status.unwrap_or("".to_string()));
+            rdk_telemmetry_emit(timer);
         }
     }
 
@@ -568,8 +563,6 @@ impl ThunderPackageManagerRequestProcessor {
         let metrics_timer = start_service_metrics_timer(
             &thunder_state.get_client(),
             ThunderMetricsTimerName::PackageManagerGetList.to_string(),
-            None,
-            None,
         );
 
         let device_response = thunder_state
@@ -651,8 +644,6 @@ impl ThunderPackageManagerRequestProcessor {
         let metrics_timer = start_service_metrics_timer(
             &state.thunder_state.get_client(),
             ThunderMetricsTimerName::PackageManagerInstall.to_string(),
-            Some(app.clone().id),
-            Some(app.clone().version),
         );
 
         let device_response = state
@@ -688,8 +679,7 @@ impl ThunderPackageManagerRequestProcessor {
                     handle.clone(),
                     operation,
                     Some(status.to_string()),
-                )
-                .await;
+                );
                 ExtnResponse::String(handle)
             }
             Err(_) => ExtnResponse::Error(RippleError::ProcessorError),
@@ -736,8 +726,6 @@ impl ThunderPackageManagerRequestProcessor {
         let metrics_timer = start_service_metrics_timer(
             &state.thunder_state.get_client(),
             ThunderMetricsTimerName::PackageManagerUninstall.to_string(),
-            Some(app.clone().id),
-            Some(app.clone().version),
         );
 
         let device_response = state
@@ -773,8 +761,7 @@ impl ThunderPackageManagerRequestProcessor {
                     handle.clone(),
                     operation,
                     Some(status.to_string()),
-                )
-                .await;
+                );
                 ExtnResponse::String(handle)
             }
             Err(_) => ExtnResponse::Error(RippleError::ProcessorError),
@@ -885,8 +872,6 @@ impl ThunderPackageManagerRequestProcessor {
         let metrics_timer = start_service_metrics_timer(
             &state.thunder_state.get_client(),
             ThunderMetricsTimerName::PackageManagerGetMetadata.to_string(),
-            None,
-            None,
         );
 
         let device_response = state
@@ -950,8 +935,6 @@ impl ThunderPackageManagerRequestProcessor {
         let metrics_timer = start_service_metrics_timer(
             &state.thunder_state.get_client(),
             ThunderMetricsTimerName::PackageManagerUninstall.to_string(),
-            None,
-            None,
         );
 
         let device_response = state
@@ -1027,5 +1010,76 @@ impl ExtnRequestProcessor for ThunderPackageManagerRequestProcessor {
                 Self::get_firebolt_permissions(state.clone(), msg, app_id).await
             }
         }
+    }
+}
+/*
+RDK Telemetry  message processing/emitting
+*/
+pub fn rdk_telemmetry_emit(timer: ripple_sdk::api::firebolt::fb_metrics::Timer) -> () {
+    emit(format_timer(timer));
+}
+
+fn format_timer(timer: ripple_sdk::api::firebolt::fb_metrics::Timer) -> String {
+    /*
+    emit - name: <appId>,<appVersion>,<status>,<duration>
+    */
+    let tags = timer.clone().tags.unwrap_or(HashMap::new());
+    let app_id = tags.get("app_id").unwrap_or(&"".to_string()).to_string();
+    let app_version = tags
+        .get("app_version")
+        .unwrap_or(&"".to_string())
+        .to_string();
+    let status = tags.get("status").unwrap_or(&"".to_string()).to_string();
+    format!(
+        "{}: {},{},{},{}",
+        timer.name,
+        app_id,
+        app_version,
+        status,
+        timer.elapsed().as_millis()
+    )
+    .to_string()
+}
+
+fn emit(message: String) -> () {
+    ripple_sdk::log::info!("{}", message);
+}
+
+#[cfg(test)]
+pub mod tests {
+    use std::{collections::HashMap, time::Duration};
+
+    use ripple_sdk::{
+        api::firebolt::fb_metrics::Timer,
+        tokio::{self, time::sleep},
+    };
+
+    use crate::processors::thunder_package_manager::format_timer;
+
+    #[tokio::test]
+    pub async fn test_format_timer_all_tags() {
+        let timer_name = "test_timer".to_string();
+        let mut tags: HashMap<String, String> = HashMap::new();
+        tags.insert("app_id".to_string(), "xumo".to_string());
+        tags.insert("app_version".to_string(), "1.2.3".to_string());
+        tags.insert("status".to_string(), "success".to_string());
+        let mut timer = Timer::start(timer_name, Some(tags), None);
+        sleep(Duration::from_millis(1000)).await;
+        timer.stop();
+        let rendered = format_timer(timer);
+        assert!(rendered.starts_with("test_timer: xumo,1.2.3,success,"));
+    }
+
+    #[tokio::test]
+    pub async fn test_format_timer_some_tags() {
+        let timer_name = "test_timer".to_string();
+
+        let mut tags: HashMap<String, String> = HashMap::new();
+        tags.insert("status".to_string(), "success".to_string());
+        let mut timer = Timer::start(timer_name, Some(tags), None);
+        sleep(Duration::from_millis(1000)).await;
+        timer.stop();
+        let rendered = format_timer(timer);
+        assert!(rendered.starts_with("test_timer: ,,success,"));
     }
 }
