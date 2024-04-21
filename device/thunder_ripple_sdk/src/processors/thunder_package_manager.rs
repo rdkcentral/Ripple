@@ -38,6 +38,7 @@ use crate::{
     },
     thunder_state::ThunderState,
 };
+use base64::{engine::general_purpose::STANDARD_NO_PAD as base64, Engine};
 use ripple_sdk::api::app_catalog::{AppCatalogRequest, AppOperationComplete, AppsUpdate};
 use ripple_sdk::api::device::device_apps::DeviceAppMetadata;
 use ripple_sdk::api::device::device_operator::{DeviceResponseMessage, DeviceSubscribeRequest};
@@ -45,6 +46,7 @@ use ripple_sdk::api::firebolt::fb_capabilities::FireboltPermissions;
 use ripple_sdk::api::observability::metrics_util::{
     start_service_metrics_timer, stop_and_send_service_metrics_timer,
 };
+
 #[cfg(not(test))]
 use ripple_sdk::log::{debug, error, info};
 use ripple_sdk::tokio;
@@ -730,7 +732,7 @@ impl ThunderPackageManagerRequestProcessor {
     }
 
     fn decode_permissions(perms_encoded: String) -> Result<FireboltPermissions, ()> {
-        let perms = base64::decode(perms_encoded);
+        let perms = base64.decode(perms_encoded);
         if let Err(e) = perms {
             error!(
                 "decode_permissions: Could not decode permissions: e={:?}",
