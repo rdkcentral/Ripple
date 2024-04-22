@@ -117,6 +117,26 @@ pub struct PrivacySettingsData {
     pub allow_watch_history: Option<bool>,
 }
 
+impl From<PrivacySettings> for PrivacySettingsData {
+    fn from(data: PrivacySettings) -> Self {
+        PrivacySettingsData {
+            allow_acr_collection: Some(data.allow_acr_collection),
+            allow_resume_points: Some(data.allow_resume_points),
+            allow_app_content_ad_targeting: Some(data.allow_app_content_ad_targeting),
+            allow_business_analytics: Some(data.allow_business_analytics),
+            allow_camera_analytics: Some(data.allow_camera_analytics),
+            allow_personalization: Some(data.allow_personalization),
+            allow_primary_browse_ad_targeting: Some(data.allow_primary_browse_ad_targeting),
+            allow_primary_content_ad_targeting: Some(data.allow_primary_content_ad_targeting),
+            allow_product_analytics: Some(data.allow_product_analytics),
+            allow_remote_diagnostics: Some(data.allow_remote_diagnostics),
+            allow_unentitled_personalization: Some(data.allow_unentitled_personalization),
+            allow_unentitled_resume_points: Some(data.allow_unentitled_resume_points),
+            allow_watch_history: Some(data.allow_watch_history),
+        }
+    }
+}
+
 impl ExtnPayloadProvider for PrivacySettingsStoreRequest {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         match payload {
