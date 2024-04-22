@@ -98,6 +98,22 @@ pub enum MediaPositionType {
     PercentageProgress(f32),
     AbsolutePosition(i32),
 }
+impl MediaPositionType {
+    pub fn as_absolute(self) -> Option<i32> {
+        match self {
+            MediaPositionType::None => None,
+            MediaPositionType::PercentageProgress(_) => None,
+            MediaPositionType::AbsolutePosition(absolute) => Some(absolute),
+        }
+    }
+    pub fn as_percentage(self) -> Option<f32> {
+        match self {
+            MediaPositionType::None => None,
+            MediaPositionType::PercentageProgress(percentage) => Some(percentage),
+            MediaPositionType::AbsolutePosition(_) => None,
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SignIn {
@@ -268,18 +284,63 @@ pub struct MediaProgress {
     pub entity_id: String,
     pub progress: Option<MediaPositionType>,
 }
+impl From<&MediaProgress> for Option<i32> {
+    fn from(progress: &MediaProgress) -> Self {
+        match progress.progress.clone() {
+            Some(prog) => prog.as_absolute(),
+            None => None,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MediaSeeking {
     pub context: BehavioralMetricContext,
     pub entity_id: String,
     pub target: Option<MediaPositionType>,
 }
+impl From<&MediaSeeking> for Option<i32> {
+    fn from(progress: &MediaSeeking) -> Self {
+        match progress.target.clone() {
+            Some(prog) => prog.as_absolute(),
+            None => None,
+        }
+    }
+}
+
+impl From<&MediaSeeking> for Option<f32> {
+    fn from(progress: &MediaSeeking) -> Self {
+        match progress.target.clone() {
+            Some(prog) => prog.as_percentage(),
+            None => None,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MediaSeeked {
     pub context: BehavioralMetricContext,
     pub entity_id: String,
     pub position: Option<MediaPositionType>,
 }
+impl From<&MediaSeeked> for Option<i32> {
+    fn from(progress: &MediaSeeked) -> Self {
+        match progress.position.clone() {
+            Some(prog) => prog.as_absolute(),
+            None => None,
+        }
+    }
+}
+
+impl From<&MediaSeeked> for Option<f32> {
+    fn from(progress: &MediaSeeked) -> Self {
+        match progress.position.clone() {
+            Some(prog) => prog.as_percentage(),
+            None => None,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MediaRateChanged {
     pub context: BehavioralMetricContext,
@@ -690,7 +751,7 @@ impl MetricsContext {
             mac_address: String::from(""),
             serial_number: String::from(""),
             account_id: String::from(""),
-            platform: String::from(""),
+            platform: String::from("entos:rdk"),
             os_name: String::from(""),
             os_ver: String::from(""),
             device_session_id: String::from(""),
