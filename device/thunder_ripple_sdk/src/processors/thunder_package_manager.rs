@@ -1023,7 +1023,7 @@ fn format_timer(timer: ripple_sdk::api::firebolt::fb_metrics::Timer) -> String {
     /*
     emit - name: <appId>,<appVersion>,<status>,<duration>
     */
-    let tags = timer.clone().tags.unwrap_or(HashMap::new());
+    let tags = timer.clone().tags.unwrap_or_default();
     let app_id = tags.get("app_id").unwrap_or(&"".to_string()).to_string();
     let app_version = tags
         .get("app_version")
