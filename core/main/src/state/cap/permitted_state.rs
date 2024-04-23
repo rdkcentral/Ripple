@@ -18,7 +18,7 @@
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
-    sync::{Arc, RwLock},
+    sync::Arc,
 };
 
 use ripple_sdk::{
@@ -38,6 +38,7 @@ use ripple_sdk::{
     extn::extn_client_message::{ExtnPayload, ExtnResponse},
     framework::{file_store::FileStore, RippleResponse},
     log::{debug, error, info},
+    parking_lot::RwLock,
     tokio,
     utils::error::RippleError,
 };
@@ -66,24 +67,24 @@ impl PermittedState {
     }
 
     fn ingest(&mut self, extend_perms: HashMap<String, Vec<FireboltPermission>>) {
-        let mut perms = self.permitted.write().unwrap();
+        let mut perms = self.permitted.write();
         perms.value.extend(extend_perms);
         perms.sync();
     }
 
     #[cfg(test)]
     pub fn set_permissions(&mut self, permissions: HashMap<String, Vec<FireboltPermission>>) {
-        let mut perms = self.permitted.write().unwrap();
+        let mut perms = self.permitted.write();
         perms.value = permissions;
         perms.sync();
     }
 
     fn get_all_permissions(&self) -> HashMap<String, Vec<FireboltPermission>> {
-        self.permitted.read().unwrap().value.clone()
+        self.permitted.read().value.clone()
     }
     fn has_cached_permissions(&self, app_id: &String) -> bool {
         // check if the app has permissions cached
-        self.permitted.read().unwrap().value.contains_key(app_id)
+        self.permitted.read().value.contains_key(app_id)
     }
     pub fn check_cap_role(&self, app_id: &str, role_info: &RoleInfo) -> Result<bool, RippleError> {
         let role = role_info

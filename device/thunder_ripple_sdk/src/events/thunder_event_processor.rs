@@ -15,11 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{
-    collections::HashMap,
-    str::FromStr,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use ripple_sdk::{
     api::{
@@ -36,6 +32,7 @@ use ripple_sdk::{
     },
     extn::extn_client_message::ExtnEvent,
     log::{debug, error, trace},
+    parking_lot::RwLock,
     serde_json::{self, Value},
     utils::error::RippleError,
 };
@@ -279,7 +276,7 @@ impl ThunderEventProcessor {
     }
 
     pub fn get_handler(&self, event: &str) -> Option<ThunderEventHandler> {
-        let event_map = self.event_map.read().unwrap();
+        let event_map = self.event_map.read();
         event_map.get(event).cloned()
     }
 
@@ -298,7 +295,7 @@ impl ThunderEventProcessor {
 
     pub fn add_event_listener(&self, app_id: String, handler: ThunderEventHandler) -> bool {
         let event_name = handler.get_id();
-        let mut event_map = self.event_map.write().unwrap();
+        let mut event_map = self.event_map.write();
         if let Some(entry) = event_map.get_mut(&event_name) {
             entry.add_listener(app_id);
             return false;
@@ -309,7 +306,7 @@ impl ThunderEventProcessor {
     }
 
     pub fn remove_event_listener(&self, event_name: String, app_id: String) -> bool {
-        let mut event_map = self.event_map.write().unwrap();
+        let mut event_map = self.event_map.write();
         if let Some(entry) = event_map.get_mut(&event_name) {
             if !entry.remove_listener(app_id) {
                 return false;
@@ -320,7 +317,7 @@ impl ThunderEventProcessor {
     }
 
     pub fn add_last_event(&self, event_name: &str, value: &ExtnEvent) {
-        let mut last_event_map = self.last_event.write().unwrap();
+        let mut last_event_map = self.last_event.write();
         last_event_map.insert(
             event_name.to_string(),
             serde_json::to_value(value.clone()).unwrap(),
@@ -329,7 +326,7 @@ impl ThunderEventProcessor {
 
     pub fn check_last_event(&self, event_name: &str, value: &ExtnEvent) -> bool {
         let ref_value = serde_json::to_value(value.clone()).unwrap();
-        let last_event_map = self.last_event.read().unwrap();
+        let last_event_map = self.last_event.read();
         if let Some(last_event) = last_event_map.get(event_name) {
             return last_event.eq(&ref_value);
         }

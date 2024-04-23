@@ -15,9 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use ripple_sdk::{
+    parking_lot::RwLock,
     tokio::sync::{mpsc, oneshot},
     uuid::Uuid,
 };

@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use ripple_sdk::{
     api::{
@@ -35,6 +35,7 @@ use ripple_sdk::{
     },
     framework::RippleResponse,
     log::error,
+    parking_lot::RwLock,
     tokio::{
         self,
         sync::{mpsc::Sender, oneshot},
@@ -129,7 +130,7 @@ impl RippleClient {
     }
 
     pub fn get_extn_client(&self) -> ExtnClient {
-        self.client.read().unwrap().clone()
+        self.client.read().clone()
     }
 
     pub async fn init(&self) {

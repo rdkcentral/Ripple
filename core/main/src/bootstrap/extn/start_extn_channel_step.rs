@@ -53,7 +53,7 @@ impl Bootstep<BootstrapState> for StartExtnChannelsStep {
     async fn setup(&self, state: BootstrapState) -> Result<(), RippleError> {
         let mut extn_ids = Vec::new();
         {
-            let mut device_channels = state.extn_state.device_channels.write().unwrap();
+            let mut device_channels = state.extn_state.device_channels.write();
             while let Some(device_channel) = device_channels.pop() {
                 let id = device_channel.extn_id.clone();
                 extn_ids.push(id);
@@ -65,7 +65,7 @@ impl Bootstep<BootstrapState> for StartExtnChannelsStep {
         }
 
         {
-            let mut deferred_channels = state.extn_state.deferred_channels.write().unwrap();
+            let mut deferred_channels = state.extn_state.deferred_channels.write();
             while let Some(deferred_channel) = deferred_channels.pop() {
                 let id = deferred_channel.extn_id.clone();
                 extn_ids.push(id);

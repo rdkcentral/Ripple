@@ -15,22 +15,22 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use ripple_sdk::api::{
-    firebolt::{
-        fb_capabilities::FireboltPermission,
-        fb_openrpc::{
-            CapabilitySet, FireboltOpenRpc, FireboltOpenRpcMethod, FireboltVersionManifest,
-            OpenRPCParser,
+use ripple_sdk::{
+    api::{
+        firebolt::{
+            fb_capabilities::FireboltPermission,
+            fb_openrpc::{
+                CapabilityPolicy, CapabilitySet, FireboltOpenRpc, FireboltOpenRpcMethod,
+                FireboltVersionManifest, OpenRPCParser,
+            },
         },
+        manifest::exclusory::{Exclusory, ExclusoryImpl},
     },
-    manifest::exclusory::{Exclusory, ExclusoryImpl},
+    log::error,
+    parking_lot::RwLock,
+    serde_json,
 };
-use ripple_sdk::log::error;
-use ripple_sdk::{api::firebolt::fb_openrpc::CapabilityPolicy, serde_json};
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Debug, Clone)]
 pub enum ApiSurface {
@@ -115,7 +115,7 @@ impl OpenRpcState {
                 ApiSurface::Firebolt => self.firebolt_cap_map.clone(),
                 ApiSurface::Ripple => self.ripple_cap_map.clone(),
             };
-            let cap_set_opt = { cap_map.read().unwrap().get(method).cloned() };
+            let cap_set_opt = { cap_map.read().get(method).cloned() };
             if let Some(cap_set) = cap_set_opt {
                 perm_list = cap_set.into_firebolt_permissions_vec();
                 result = Some(perm_list);
@@ -125,16 +125,16 @@ impl OpenRpcState {
     }
 
     pub fn get_capability_policy(&self, cap: String) -> Option<CapabilityPolicy> {
-        self.cap_policies.read().unwrap().get(&cap).cloned()
+        self.cap_policies.read().get(&cap).cloned()
     }
 
     pub fn extend_caps(&self, caps: HashMap<String, CapabilitySet>) {
-        let mut cap_map = self.firebolt_cap_map.write().unwrap();
+        let mut cap_map = self.firebolt_cap_map.write();
         cap_map.extend(caps);
     }
 
     pub fn extend_policies(&self, policies: HashMap<String, CapabilityPolicy>) {
-        let mut cap_policies = self.cap_policies.write().unwrap();
+        let mut cap_policies = self.cap_policies.write();
         cap_policies.extend(policies);
     }
 
@@ -152,7 +152,7 @@ impl OpenRpcState {
             }
         }
         {
-            let ext_rpcs = self.extended_rpc.read().unwrap();
+            let ext_rpcs = self.extended_rpc.read();
             for ext_rpc in ext_rpcs.iter() {
                 if let Some(method) = ext_rpc.methods.iter().find(|x| x.is_named(property)) {
                     // Checking if the property tag is havin x-allow-value extension.
@@ -193,7 +193,7 @@ impl OpenRpcState {
             return Some(v);
         }
         {
-            let ext_rpcs = self.extended_rpc.read().unwrap();
+            let ext_rpcs = self.extended_rpc.read();
             for ext_rpc in ext_rpcs.iter() {
                 if let Some(v) = ext_rpc
                     .methods

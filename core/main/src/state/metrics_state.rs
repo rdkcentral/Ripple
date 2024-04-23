@@ -15,10 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{
-    collections::HashSet,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashSet, sync::Arc};
 
 use jsonrpsee::tracing::debug;
 use ripple_sdk::{
@@ -32,6 +29,7 @@ use ripple_sdk::{
     chrono::{DateTime, Utc},
     extn::extn_client_message::ExtnResponse,
     log::error,
+    parking_lot::RwLock,
     utils::error::RippleError,
 };
 
@@ -54,7 +52,7 @@ pub struct MetricsState {
 impl MetricsState {
     fn send_context_update_request(platform_state: &PlatformState) {
         let extn_client = platform_state.get_client().get_extn_client();
-        let metrics_context = platform_state.metrics.context.read().unwrap().clone();
+        let metrics_context = platform_state.metrics.context.read().clone();
 
         if let Err(e) = extn_client
             .request_transient(RippleContextUpdateRequest::MetricsContext(metrics_context))
@@ -67,13 +65,13 @@ impl MetricsState {
     }
 
     pub fn get_context(&self) -> MetricsContext {
-        self.context.read().unwrap().clone()
+        self.context.read().clone()
     }
     pub fn get_privacy_settings_cache(&self) -> PrivacySettingsData {
-        self.privacy_settings_cache.read().unwrap().clone()
+        self.privacy_settings_cache.read().clone()
     }
     pub fn update_privacy_settings_cache(&self, value: &PrivacySettingsData) {
-        let mut cache = self.privacy_settings_cache.write().unwrap();
+        let mut cache = self.privacy_settings_cache.write();
         *cache = value.clone();
     }
     pub async fn initialize(state: &PlatformState) {
@@ -171,7 +169,7 @@ impl MetricsState {
 
         {
             // Time to set them
-            let mut context = state.metrics.context.write().unwrap();
+            let mut context = state.metrics.context.write();
 
             context.enabled = metrics_enabled;
 
@@ -230,7 +228,7 @@ impl MetricsState {
 
     pub async fn update_account_session(state: &PlatformState) {
         {
-            let mut context = state.metrics.context.write().unwrap();
+            let mut context = state.metrics.context.write();
             let account_session = state.session_state.get_account_session();
             if let Some(session) = account_session {
                 context.account_id = session.account_id;
@@ -246,7 +244,7 @@ impl MetricsState {
     }
 
     pub fn operational_telemetry_listener(&self, target: &str, listen: bool) {
-        let mut listeners = self.operational_telemetry_listeners.write().unwrap();
+        let mut listeners = self.operational_telemetry_listeners.write();
         if listen {
             listeners.insert(target.to_string());
         } else {
@@ -257,7 +255,6 @@ impl MetricsState {
     pub fn get_listeners(&self) -> Vec<String> {
         self.operational_telemetry_listeners
             .read()
-            .unwrap()
             .iter()
             .map(|x| x.to_owned())
             .collect()
@@ -266,7 +263,7 @@ impl MetricsState {
     pub fn update_session_id(&self, platform_state: PlatformState, value: Option<String>) {
         let value = value.unwrap_or_default();
         {
-            let mut context = self.context.write().unwrap();
+            let mut context = self.context.write();
             context.device_session_id = value;
         }
         Self::send_context_update_request(&platform_state);

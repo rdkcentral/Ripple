@@ -15,11 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{
-    collections::HashMap,
-    env, fs,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, env, fs, sync::Arc};
 
 use ripple_sdk::{
     api::{
@@ -45,6 +41,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::{AppIdentification, CallerSession},
     },
     log::{debug, error, trace, warn},
+    parking_lot::RwLock,
     serde_json::{self},
     tokio::sync::oneshot,
     utils::{error::RippleError, time_utils::Timer},
@@ -175,17 +172,16 @@ impl AppManagerState {
         path.display().to_string()
     }
     pub fn get_persisted_app_title_for_app_id(&self, app_id: &str) -> Option<String> {
-        self.app_title.read().unwrap().get(app_id).cloned()
+        self.app_title.read().get(app_id).cloned()
     }
     pub fn persist_app_title(&self, app_id: &str, title: &str) -> bool {
         {
             let _ = self
                 .app_title
                 .write()
-                .unwrap()
                 .insert(app_id.to_owned(), title.to_owned());
         }
-        let map = { self.app_title.read().unwrap().clone() };
+        let map = { self.app_title.read().clone() };
         let path = std::path::Path::new(&self.app_title_persist_path).join(APP_ID_TITLE_FILE_NAME);
         if let Ok(file) = fs::OpenOptions::new()
             .create(true)
@@ -201,17 +197,16 @@ impl AppManagerState {
         false
     }
     pub fn exists(&self, app_id: &str) -> bool {
-        self.apps.read().unwrap().contains_key(app_id)
+        self.apps.read().contains_key(app_id)
     }
 
     pub fn get_app_id_from_session_id(&self, session_id: &str) -> Option<String> {
         {
-            debug!("apps and sessions {:?}", self.apps.read().unwrap());
+            debug!("apps and sessions {:?}", self.apps.read());
         }
         if let Some((_, app)) = self
             .apps
             .read()
-            .unwrap()
             .iter()
             .find(|(_, app)| app.session_id.eq(session_id))
         {
@@ -222,14 +217,14 @@ impl AppManagerState {
     }
 
     fn set_session(&self, app_id: &str, session: AppSession) {
-        let mut apps = self.apps.write().unwrap();
+        let mut apps = self.apps.write();
         if let Some(app) = apps.get_mut(app_id) {
             app.current_session = session
         }
     }
 
     fn update_active_session(&self, app_id: &str, session: Option<String>) {
-        let mut apps = self.apps.write().unwrap();
+        let mut apps = self.apps.write();
         if let Some(app) = apps.get_mut(app_id) {
             debug!(
                 "Setting session : {{ appId:{} , session:{:?} }}",
@@ -240,33 +235,33 @@ impl AppManagerState {
     }
 
     fn set_state(&self, app_id: &str, state: LifecycleState) {
-        let mut apps = self.apps.write().unwrap();
+        let mut apps = self.apps.write();
         if let Some(app) = apps.get_mut(app_id) {
             app.state = state;
         }
     }
 
     fn insert(&self, app_id: String, app: App) {
-        let mut apps = self.apps.write().unwrap();
+        let mut apps = self.apps.write();
         let _ = apps.insert(app_id, app);
     }
 
     pub fn get(&self, app_id: &str) -> Option<App> {
-        self.apps.read().unwrap().get(app_id).cloned()
+        self.apps.read().get(app_id).cloned()
     }
 
     fn remove(&self, app_id: &str) -> Option<App> {
-        let mut apps = self.apps.write().unwrap();
+        let mut apps = self.apps.write();
         apps.remove(app_id)
     }
     fn set_internal_state(&mut self, app_id: &str, method: AppMethod) {
-        let mut apps = self.apps.write().unwrap();
+        let mut apps = self.apps.write();
         if let Some(app) = apps.get_mut(app_id) {
             app.internal_state = Some(method);
         }
     }
     fn get_internal_state(&mut self, app_id: &str) -> Option<AppMethod> {
-        let apps = self.apps.read().unwrap();
+        let apps = self.apps.read();
         if let Some(app) = apps.get(app_id) {
             app.internal_state.clone()
         } else {
@@ -274,12 +269,12 @@ impl AppManagerState {
         }
     }
     fn store_intent(&self, app_id: &str, intent: NavigationIntent) {
-        let mut intents = self.intents.write().unwrap();
+        let mut intents = self.intents.write();
         let _ = intents.insert(app_id.to_owned(), intent);
     }
 
     fn take_intent(&self, app_id: &str) -> Option<NavigationIntent> {
-        let mut intents = self.intents.write().unwrap();
+        let mut intents = self.intents.write();
         intents.remove(app_id)
     }
 }

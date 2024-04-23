@@ -46,7 +46,7 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
         "LoadExtensionsStep".into()
     }
     async fn setup(&self, state: BootstrapState) -> Result<(), RippleError> {
-        let loaded_extensions = state.extn_state.loaded_libraries.read().unwrap();
+        let loaded_extensions = state.extn_state.loaded_libraries.read();
         let mut deferred_channels: Vec<PreLoadedExtnChannel> = Vec::new();
         let mut device_channels: Vec<PreLoadedExtnChannel> = Vec::new();
         let mut jsonrpsee_extns: Methods = Methods::new();
@@ -122,13 +122,13 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
         }
 
         {
-            let mut device_channel_state = state.extn_state.device_channels.write().unwrap();
+            let mut device_channel_state = state.extn_state.device_channels.write();
             info!("{} Device channels extension loaded", device_channels.len());
             let _ = device_channel_state.extend(device_channels);
         }
 
         {
-            let mut deferred_channel_state = state.extn_state.deferred_channels.write().unwrap();
+            let mut deferred_channel_state = state.extn_state.deferred_channels.write();
             info!(
                 "{} Deferred channels extension loaded",
                 deferred_channels.len()
