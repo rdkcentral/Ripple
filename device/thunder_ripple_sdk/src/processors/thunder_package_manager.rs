@@ -1051,9 +1051,9 @@ fn emit(message: String) {
 pub mod tests {
     use super::*;
     use crate::{
-        client::thunder_client::{self, ThunderClient},
+        client::thunder_client::ThunderClient,
         processors::thunder_package_manager::{
-            format_timer, AppData, AppsOperationType, Operation, OperationStatus,
+            format_timer, AppData, AppsOperationType, Operation,
         },
     };
     use ripple_sdk::extn::mock_extension_client::*;
@@ -1062,7 +1062,6 @@ pub mod tests {
         tokio::{self, time::sleep},
         uuid::Uuid,
     };
-    use ripple_tdk::utils::test_utils::Mockable;
     use std::{collections::HashMap, time::Duration};
 
     #[tokio::test]
@@ -1093,7 +1092,6 @@ pub mod tests {
 
     #[tokio::test]
     pub async fn test_stop_operation() {
-        let status = OperationStatus::new("succeeded");
         let operation = Operation::new(
             AppsOperationType::Uninstall,
             String::from("xumo"),
@@ -1122,7 +1120,7 @@ pub mod tests {
         };
         let mut sessions: HashMap<String, Operation> = HashMap::new();
         sessions.insert("asdf".to_string(), operation.clone());
-        let mut state = ThunderPackageManagerState {
+        let state = ThunderPackageManagerState {
             thunder_state: ThunderState::new(client, thunder_client),
             active_operations: Arc::new(Mutex::new(sessions.clone())),
             operation_timeout_secs: 1,
@@ -1155,7 +1153,7 @@ pub mod tests {
         };
         let mut sessions: HashMap<String, Operation> = HashMap::new();
         sessions.insert("asdf".to_string(), operation.clone());
-        let mut state = ThunderPackageManagerState {
+        let state = ThunderPackageManagerState {
             thunder_state: ThunderState::new(client, thunder_client),
             active_operations: Arc::new(Mutex::new(HashMap::new())),
             operation_timeout_secs: 1,
