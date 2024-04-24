@@ -487,24 +487,26 @@ impl ThunderPackageManagerRequestProcessor {
         operation: Operation,
         status: Option<String>,
     ) {
-        if state
-            .active_operations
-            .lock()
-            .unwrap()
-            .remove(&handle)
-            .is_none()
-        {
-            state
-                .active_operations
-                .lock()
-                .unwrap()
-                .insert(handle.clone(), operation);
-            Self::start_operation_timeout_timer(state, handle, None);
-        } else {
-            let mut timer = operation.timer;
-            timer.stop();
-            timer.insert_tag("status".to_string(), status.unwrap_or("".to_string()));
-            rdk_telemetry_emit(timer);
+        /*
+        clone active_operations, we want an immutable view
+        */
+        let active_operations = state.active_operations.lock().unwrap().clone();
+        match active_operations.get(&handle) {
+            Some(op) => {
+                let mut timer = op.timer.clone();
+                timer.stop();
+                timer.insert_tag("status".to_string(), status.unwrap_or("".to_string()));
+                rdk_telemetry_emit(timer);
+            }
+            None => {
+                /*new operation, insert into map */
+                state
+                    .active_operations
+                    .lock()
+                    .unwrap()
+                    .insert(handle.clone(), operation);
+                Self::start_operation_timeout_timer(state, handle, None);
+            }
         }
     }
 
@@ -1050,14 +1052,21 @@ fn emit(message: String) {
 
 #[cfg(test)]
 pub mod tests {
-    use std::{collections::HashMap, time::Duration};
-
+    use super::*;
+    use crate::{
+        client::thunder_client::{self, ThunderClient},
+        processors::thunder_package_manager::{
+            format_timer, AppData, AppsOperationType, Operation, OperationStatus,
+        },
+    };
+    use ripple_sdk::extn::mock_extension_client::*;
     use ripple_sdk::{
         api::firebolt::fb_metrics::Timer,
         tokio::{self, time::sleep},
+        uuid::Uuid,
     };
-
-    use crate::processors::thunder_package_manager::format_timer;
+    use ripple_tdk::utils::test_utils::Mockable;
+    use std::{collections::HashMap, time::Duration};
 
     #[tokio::test]
     pub async fn test_format_timer_all_tags() {
@@ -1076,7 +1085,6 @@ pub mod tests {
     #[tokio::test]
     pub async fn test_format_timer_some_tags() {
         let timer_name = "test_timer".to_string();
-
         let mut tags: HashMap<String, String> = HashMap::new();
         tags.insert("status".to_string(), "success".to_string());
         let mut timer = Timer::start(timer_name, Some(tags), None);
@@ -1084,5 +1092,83 @@ pub mod tests {
         timer.stop();
         let rendered = format_timer(timer);
         assert!(rendered.starts_with("test_timer: ,,success,"));
+    }
+
+    #[tokio::test]
+    pub async fn test_stop_operation() {
+        let status = OperationStatus::new("succeeded");
+        let operation = Operation::new(
+            AppsOperationType::Uninstall,
+            String::from("xumo"),
+            AppData::new(String::from("1.2.3")),
+        );
+        sleep(Duration::from_millis(1000)).await;
+        let mut timer = operation.timer.clone();
+        timer.stop();
+        let rdk_output = format_timer(timer);
+        println!("{}", rdk_output);
+    }
+    #[tokio::test]
+    pub async fn test_add_or_remove_operation_existing_handle() {
+        let operation = Operation::new(
+            AppsOperationType::Install,
+            String::from("xumo"),
+            AppData::new(String::from("1.2.3")),
+        );
+        let client = MockExtnClient::main();
+        let thunder_client = ThunderClient {
+            sender: None,
+            pooled_sender: None,
+            id: Uuid::new_v4(),
+            plugin_manager_tx: None,
+            subscriptions: None,
+        };
+        let mut sessions: HashMap<String, Operation> = HashMap::new();
+        sessions.insert("asdf".to_string(), operation.clone());
+        let mut state = ThunderPackageManagerState {
+            thunder_state: ThunderState::new(client, thunder_client),
+            active_operations: Arc::new(Mutex::new(sessions.clone())),
+        };
+        sleep(Duration::from_millis(1000)).await;
+
+        ThunderPackageManagerRequestProcessor::add_or_remove_operation(
+            state.clone(),
+            "asdf".to_string(),
+            operation,
+            Some("success".to_string()),
+        );
+        assert!(sessions.eq(&state.active_operations.lock().unwrap().clone()));
+    }
+
+    #[tokio::test]
+    pub async fn test_add_or_remove_operation_new_handle() {
+        let operation = Operation::new(
+            AppsOperationType::Install,
+            String::from("xumo"),
+            AppData::new(String::from("1.2.3")),
+        );
+        let client = MockExtnClient::main();
+        let thunder_client = ThunderClient {
+            sender: None,
+            pooled_sender: None,
+            id: Uuid::new_v4(),
+            plugin_manager_tx: None,
+            subscriptions: None,
+        };
+        let mut sessions: HashMap<String, Operation> = HashMap::new();
+        sessions.insert("asdf".to_string(), operation.clone());
+        let mut state = ThunderPackageManagerState {
+            thunder_state: ThunderState::new(client, thunder_client),
+            active_operations: Arc::new(Mutex::new(HashMap::new())),
+        };
+        sleep(Duration::from_millis(1000)).await;
+
+        ThunderPackageManagerRequestProcessor::add_or_remove_operation(
+            state.clone(),
+            "asdf".to_string(),
+            operation,
+            Some("success".to_string()),
+        );
+        assert!(sessions.eq(&state.active_operations.lock().unwrap().clone()));
     }
 }
