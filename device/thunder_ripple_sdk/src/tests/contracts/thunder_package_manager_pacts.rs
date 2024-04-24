@@ -31,6 +31,8 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+const OPERATION_TIMEOUT_SECS: u64 = 12 * 60; // 12 minutes
+
 #[rstest(
     active_operations_some,
     op_type_progress,
@@ -156,6 +158,7 @@ async fn test_install_app(
     let tps = ThunderPackageManagerState {
         thunder_state: state,
         active_operations: Arc::new(Mutex::new(ao)),
+        operation_timeout_secs: OPERATION_TIMEOUT_SECS,
     };
 
     let resp = ThunderPackageManagerRequestProcessor::process_request(
@@ -286,6 +289,7 @@ async fn test_uninstall_app(
     let tps = ThunderPackageManagerState {
         thunder_state: state,
         active_operations: Arc::new(Mutex::new(ao)),
+        operation_timeout_secs: OPERATION_TIMEOUT_SECS,
     };
 
     let resp = ThunderPackageManagerRequestProcessor::process_request(
@@ -355,6 +359,7 @@ async fn test_get_installed_apps() {
     let tps = ThunderPackageManagerState {
         thunder_state: state,
         active_operations: Arc::new(Mutex::new(HashMap::default())),
+        operation_timeout_secs: OPERATION_TIMEOUT_SECS,
     };
 
     let resp = ThunderPackageManagerRequestProcessor::process_request(
@@ -507,6 +512,7 @@ async fn test_init() {
     let tps = ThunderPackageManagerState {
         thunder_state: state,
         active_operations: Arc::new(Mutex::new(HashMap::default())),
+        operation_timeout_secs: OPERATION_TIMEOUT_SECS,
     };
 
     let tps_for_thread = tps.clone();
@@ -641,6 +647,7 @@ async fn test_get_firebolt_permissions() {
     let tps = ThunderPackageManagerState {
         thunder_state: state,
         active_operations: Arc::new(Mutex::new(HashMap::default())),
+        operation_timeout_secs: OPERATION_TIMEOUT_SECS,
     };
 
     let resp = ThunderPackageManagerRequestProcessor::process_request(

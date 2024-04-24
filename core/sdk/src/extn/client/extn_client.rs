@@ -687,6 +687,15 @@ impl ExtnClient {
         false
     }
 
+    pub fn get_uint_config(&self, key: &str) -> Option<u64> {
+        if let Some(s) = self.sender.get_config(key) {
+            if let Ok(v) = s.parse() {
+                return Some(v);
+            }
+        }
+        None
+    }
+
     /// Method to send event to an extension based on its Id
     pub fn send_event_with_id(&self, id: &str, event: impl ExtnPayloadProvider) -> RippleResponse {
         if let Some(sender) = self.get_extn_sender_with_extn_id(id) {
@@ -1983,6 +1992,24 @@ pub mod tests {
         );
         let extn_client = ExtnClient::new(mock_rx, mock_sender);
         assert_eq!(extn_client.get_bool_config("key"), expected_value);
+    }
+
+    #[rstest(
+        config, expected_value,
+        case(Some([("key".to_string(), 1.to_string())].iter().cloned().collect::<HashMap<_, _>>()), Some(1)),
+        case(Some([("key".to_string(), 2.to_string())].iter().cloned().collect::<HashMap<_, _>>()), Some(2)),
+        case(Some(HashMap::new()), None),
+        case(None, None),
+    )]
+    fn test_get_uint_config(config: Option<HashMap<String, String>>, expected_value: Option<u64>) {
+        let (mock_sender, mock_rx) = ExtnSender::mock_with_params(
+            ExtnId::get_main_target("main".into()),
+            Vec::new(),
+            Vec::new(),
+            config,
+        );
+        let extn_client = ExtnClient::new(mock_rx, mock_sender);
+        assert_eq!(extn_client.get_uint_config("key"), expected_value);
     }
 
     #[rstest(id, extn_id, permitted,fulfills, exp_resp,
