@@ -25,7 +25,6 @@ use ripple_sdk::{
     api::{
         context::RippleContextUpdateRequest,
         device::device_info_request::{DeviceInfoRequest, DeviceResponse, FirmwareInfo},
-        distributor::distributor_privacy::PrivacySettingsData,
         firebolt::{fb_metrics::MetricsContext, fb_openrpc::FireboltSemanticVersion},
         storage_property::StorageProperty,
     },
@@ -47,7 +46,6 @@ include!(concat!(env!("OUT_DIR"), "/version.rs"));
 pub struct MetricsState {
     pub start_time: DateTime<Utc>,
     pub context: Arc<RwLock<MetricsContext>>,
-    pub privacy_settings_cache: Arc<RwLock<PrivacySettingsData>>,
     operational_telemetry_listeners: Arc<RwLock<HashSet<String>>>,
 }
 
@@ -68,13 +66,6 @@ impl MetricsState {
 
     pub fn get_context(&self) -> MetricsContext {
         self.context.read().unwrap().clone()
-    }
-    pub fn get_privacy_settings_cache(&self) -> PrivacySettingsData {
-        self.privacy_settings_cache.read().unwrap().clone()
-    }
-    pub fn update_privacy_settings_cache(&self, value: &PrivacySettingsData) {
-        let mut cache = self.privacy_settings_cache.write().unwrap();
-        *cache = value.clone();
     }
     pub async fn initialize(state: &PlatformState) {
         let metrics_percentage = state
