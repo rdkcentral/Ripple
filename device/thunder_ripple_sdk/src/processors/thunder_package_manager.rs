@@ -541,15 +541,22 @@ impl ThunderPackageManagerRequestProcessor {
         let timeout_secs = state.operation_timeout_secs;
         tokio::spawn(async move {
             tokio::time::sleep(tokio::time::Duration::from_secs(timeout_secs)).await;
-            if state
-                .active_operations
-                .lock()
-                .unwrap()
-                .remove(&handle)
-                .is_some()
-            {
-                error!("Detected incomplete operation after {} seconds, attempting to cancel: handle={}", timeout_secs, handle.clone());
-                Self::cancel_operation(state, handle).await;
+            /*
+            clone active_operations, we want an immutable view, and stop/emit timer if the operation is in the map
+            */
+            let active_operations = state.active_operations.lock().unwrap().remove(&handle);
+            match state.active_operations.lock().unwrap().remove(&handle) {
+                Some(operation) => {
+                    let mut timer = operation.timer.clone();
+                    timer.stop();
+                    timer.insert_tag("status".to_string(), "failed".to_string());
+                    rdk_telemetry_emit(timer);
+                    error!("Detected incomplete operation after {} seconds, attempting to cancel: handle={}", timeout_secs, handle.clone());
+                    Self::cancel_operation(state.clone(), handle).await;
+                }
+                None => {
+                    debug!("an attempt was made to cancel an operation that is not currently in progress. Handle {}, timeout {}",handle, timeout_secs);
+                }
             }
         });
     }
