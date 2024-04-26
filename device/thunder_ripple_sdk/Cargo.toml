@@ -31,7 +31,9 @@ contract_tests = [
     "expectest",
     "maplit",
     "test-log",
-    "home"
+    "home",
+    "tree_magic_mini",
+    "rstest"
 ]
 
 [dependencies]
@@ -52,6 +54,7 @@ base64 = "0.13.0"
 home = { version = "=0.5.5", optional = true}
 regex = "1.7.3"
 tree_magic_mini = { version = "=3.0.3", optional = true}
+rstest = { version = "0.18.2", optional = true}
 
 [dev-dependencies]
 tokio-tungstenite = { version = "0.17.1", features = ["native-tls"] }

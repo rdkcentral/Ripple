@@ -212,9 +212,72 @@ mod tests {
     };
     use crate::api::device::entertainment_data::{
         HomeIntent, InternalNavigationIntent, InternalNavigationIntentStrict,
+        NavigationIntentLoose, NavigationIntentStrict,
     };
     use crate::api::firebolt::fb_discovery::DiscoveryContext;
     use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_get_intent_some() {
+        let launch_params = LifecycleManagementLaunchParameters {
+            app_id: "test_app".to_string(),
+            intent: Some(InternalNavigationIntent::NavigationIntentLoose(
+                NavigationIntentLoose {
+                    context: DiscoveryContext::new("voice"),
+                    action: "test_action".to_string(),
+                    data: None,
+                },
+            )),
+        };
+
+        let intent = launch_params.get_intent();
+        assert_eq!(
+            intent,
+            Some(NavigationIntent::NavigationIntentLoose(
+                NavigationIntentLoose {
+                    context: DiscoveryContext::new("voice"),
+                    action: "test_action".to_string(),
+                    data: None,
+                },
+            ))
+        );
+    }
+
+    #[test]
+    fn test_get_intent_none() {
+        let launch_params = LifecycleManagementLaunchParameters {
+            app_id: "test_app".to_string(),
+            intent: None,
+        };
+
+        let intent = launch_params.get_intent();
+        assert_eq!(intent, None);
+    }
+
+    #[test]
+    fn test_get_launch_request() {
+        let launch_params = LifecycleManagementLaunchParameters {
+            app_id: "test_app".to_string(),
+            intent: Some(InternalNavigationIntent::NavigationIntentStrict(
+                InternalNavigationIntentStrict::Home(HomeIntent {
+                    context: DiscoveryContext::new("voice"),
+                }),
+            )),
+        };
+
+        let launch_request = launch_params.get_launch_request();
+        assert_eq!(
+            launch_request,
+            LaunchRequest {
+                app_id: "test_app".to_string(),
+                intent: Some(NavigationIntent::NavigationIntentStrict(
+                    NavigationIntentStrict::Home(HomeIntent {
+                        context: DiscoveryContext::new("voice"),
+                    }),
+                )),
+            }
+        );
+    }
 
     #[test]
     fn test_extn_request_lifecycle_management() {

@@ -61,7 +61,6 @@ const ONTOLOGY_PERSISTENT_STORAGE_ACCOUNT_DEVICE_MANUFACTURER: &str = "deviceMan
 pub struct MetricsState {
     pub start_time: DateTime<Utc>,
     pub context: Arc<RwLock<MetricsContext>>,
-    pub privacy_settings_cache: Arc<RwLock<PrivacySettingsData>>,
     operational_telemetry_listeners: Arc<RwLock<HashSet<String>>>,
 }
 

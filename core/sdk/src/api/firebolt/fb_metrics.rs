@@ -98,6 +98,22 @@ pub enum MediaPositionType {
     PercentageProgress(f32),
     AbsolutePosition(i32),
 }
+impl MediaPositionType {
+    pub fn as_absolute(self) -> Option<i32> {
+        match self {
+            MediaPositionType::None => None,
+            MediaPositionType::PercentageProgress(_) => None,
+            MediaPositionType::AbsolutePosition(absolute) => Some(absolute),
+        }
+    }
+    pub fn as_percentage(self) -> Option<f32> {
+        match self {
+            MediaPositionType::None => None,
+            MediaPositionType::PercentageProgress(percentage) => Some(percentage),
+            MediaPositionType::AbsolutePosition(_) => None,
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SignIn {
@@ -268,18 +284,63 @@ pub struct MediaProgress {
     pub entity_id: String,
     pub progress: Option<MediaPositionType>,
 }
+impl From<&MediaProgress> for Option<i32> {
+    fn from(progress: &MediaProgress) -> Self {
+        match progress.progress.clone() {
+            Some(prog) => prog.as_absolute(),
+            None => None,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MediaSeeking {
     pub context: BehavioralMetricContext,
     pub entity_id: String,
     pub target: Option<MediaPositionType>,
 }
+impl From<&MediaSeeking> for Option<i32> {
+    fn from(progress: &MediaSeeking) -> Self {
+        match progress.target.clone() {
+            Some(prog) => prog.as_absolute(),
+            None => None,
+        }
+    }
+}
+
+impl From<&MediaSeeking> for Option<f32> {
+    fn from(progress: &MediaSeeking) -> Self {
+        match progress.target.clone() {
+            Some(prog) => prog.as_percentage(),
+            None => None,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MediaSeeked {
     pub context: BehavioralMetricContext,
     pub entity_id: String,
     pub position: Option<MediaPositionType>,
 }
+impl From<&MediaSeeked> for Option<i32> {
+    fn from(progress: &MediaSeeked) -> Self {
+        match progress.position.clone() {
+            Some(prog) => prog.as_absolute(),
+            None => None,
+        }
+    }
+}
+
+impl From<&MediaSeeked> for Option<f32> {
+    fn from(progress: &MediaSeeked) -> Self {
+        match progress.position.clone() {
+            Some(prog) => prog.as_percentage(),
+            None => None,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MediaRateChanged {
     pub context: BehavioralMetricContext,
@@ -831,7 +892,7 @@ impl MetricsContext {
             mac_address: String::from(""),
             serial_number: String::from(""),
             account_id: None,
-            platform: String::from(""),
+            platform: String::from("entos:rdk"),
             os_name: String::from(""),
             os_ver: String::from(""),
             device_session_id: String::from(""),
@@ -1325,6 +1386,126 @@ mod tests {
         assert_eq!(
             behavioral_metric_payload.get_context(),
             new_behavioral_metric_context
+        );
+    }
+
+    #[test]
+    fn test_timer_start() {
+        let timer = Timer::start("test_timer".to_string(), None, None);
+        assert_eq!(timer.name, "test_timer");
+        assert!(timer.start.elapsed().as_millis() < 10);
+        assert_eq!(timer.stop, None);
+        assert_eq!(timer.tags, None);
+        assert_eq!(timer.time_unit, TimeUnit::Millis);
+        assert_eq!(timer.timer_type, TimerType::Local);
+    }
+
+    #[test]
+    fn test_timer_start_with_time_unit() {
+        let timer =
+            Timer::start_with_time_unit("test_timer".to_string(), None, TimeUnit::Seconds, None);
+        assert_eq!(timer.name, "test_timer");
+        assert!(timer.start.elapsed().as_secs() < 1);
+        assert_eq!(timer.stop, None);
+        assert_eq!(timer.tags, None);
+        assert_eq!(timer.time_unit, TimeUnit::Seconds);
+        assert_eq!(timer.timer_type, TimerType::Local);
+    }
+
+    #[test]
+    fn test_timer_stop() {
+        let mut timer = Timer::start("test_timer".to_string(), None, None);
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        let stopped_timer = timer.stop();
+        assert_eq!(stopped_timer.name, "test_timer");
+        assert!(stopped_timer.elapsed().as_secs() >= 1);
+        assert_eq!(stopped_timer.tags, None);
+        assert_eq!(stopped_timer.time_unit, TimeUnit::Millis);
+        assert_eq!(stopped_timer.timer_type, TimerType::Local);
+    }
+
+    #[test]
+    fn test_timer_restart() {
+        let mut timer = Timer::start("test_timer".to_string(), None, None);
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        timer.restart();
+        assert_eq!(timer.name, "test_timer");
+        assert!(timer.start.elapsed().as_secs() < 1);
+        assert_eq!(timer.stop, None);
+        assert_eq!(timer.tags, None);
+        assert_eq!(timer.time_unit, TimeUnit::Millis);
+        assert_eq!(timer.timer_type, TimerType::Local);
+    }
+
+    #[test]
+    fn test_insert_tag() {
+        let mut timer = Timer::new(
+            "test_timer".to_string(),
+            std::time::Instant::now(),
+            Some(
+                vec![("tag1".to_string(), "value1".to_string())]
+                    .into_iter()
+                    .collect(),
+            ),
+            TimeUnit::Millis,
+            None,
+        );
+
+        timer.insert_tag("tag2".to_string(), "value2".to_string());
+
+        assert_eq!(
+            timer.tags,
+            Some(
+                vec![
+                    ("tag1".to_string(), "value1".to_string()),
+                    ("tag2".to_string(), "value2".to_string())
+                ]
+                .into_iter()
+                .collect()
+            )
+        );
+    }
+
+    #[test]
+    fn test_timer_insert_tags() {
+        let mut timer = Timer::start("test_timer".to_string(), None, None);
+        let mut new_tags = HashMap::new();
+        new_tags.insert("tag_name".to_string(), "tag_value".to_string());
+        timer.insert_tags(new_tags);
+        assert_eq!(
+            timer.tags.unwrap().get("tag_name"),
+            Some(&"tag_value".to_string())
+        );
+    }
+
+    #[test]
+    fn test_timer_error() {
+        let mut timer = Timer::new(
+            "test_timer".to_string(),
+            std::time::Instant::now(),
+            Some(HashMap::new()),
+            TimeUnit::Millis,
+            None,
+        );
+        timer.error();
+        assert_eq!(timer.tags.unwrap().get("error"), Some(&"true".to_string()));
+    }
+
+    #[test]
+    fn test_timer_to_extn_request() {
+        let timer = Timer::start("test_timer".to_string(), None, None);
+        let request = timer.to_extn_request();
+        assert_eq!(request, OperationalMetricRequest::Timer(timer));
+    }
+
+    #[test]
+    fn test_fb_api_counter() {
+        let counter = fb_api_counter("test_method".to_string(), None);
+        assert_eq!(counter.name, "firebolt_rpc_call");
+        assert_eq!(counter.value, 1);
+        assert_eq!(
+            counter.tags.unwrap().get("method_name"),
+            Some(&"test_method".to_string())
         );
     }
 }

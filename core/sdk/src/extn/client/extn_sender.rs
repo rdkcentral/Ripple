@@ -80,10 +80,12 @@ impl ExtnSender {
     }
 
     pub fn check_contract_fulfillment(&self, contract: RippleContract) -> bool {
-        if self.id.is_main() {
+        if self.id.is_main() || self.fulfills.contains(&contract.as_clear_string()) {
             true
+        } else if let Ok(extn_id) = ExtnId::try_from(contract.as_clear_string()) {
+            self.id.eq(&extn_id)
         } else {
-            self.fulfills.contains(&contract.as_clear_string())
+            false
         }
     }
 
@@ -227,7 +229,7 @@ pub mod tests {
         fn mock() -> (Self, CReceiver<CExtnMessage>)
         where
             Self: Sized;
-
+        //mock main sender
         fn mock_with_params(
             id: ExtnId,
             context: Vec<String>,
@@ -237,6 +239,7 @@ pub mod tests {
         where
             Self: Sized;
 
+        // mock extn sender
         fn mock_extn(
             id: ExtnId,
             context: Vec<String>,

@@ -20,8 +20,10 @@ use crate::{
         session::{EventAdjective, PubSubAdjective, SessionAdjective},
         storage_property::StorageAdjective,
     },
+    extn::extn_id::ExtnProviderAdjective,
     utils::{error::RippleError, serde_utils::SerdeClearString},
 };
+use jsonrpsee_core::DeserializeOwned;
 use log::error;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -122,13 +124,14 @@ pub enum RippleContract {
     /// the Session information based on their policies. Used by [crate::api::session::AccountSession]
     Session(SessionAdjective),
     RippleContext,
+    ExtnProvider(ExtnProviderAdjective),
     AppCatalog,
     Apps,
     // Runtime ability for a given distributor to turn off a certian feature
     RemoteFeatureControl,
 }
 
-pub trait ContractAdjective: serde::ser::Serialize {
+pub trait ContractAdjective: serde::ser::Serialize + DeserializeOwned {
     fn as_string(&self) -> String {
         let adjective = SerdeClearString::as_clear_string(self);
         if let Some(contract) = self.get_contract().get_adjective_contract() {
@@ -185,13 +188,27 @@ impl RippleContract {
             Self::Session(adj) => Some(adj.as_string()),
             Self::PubSub(adj) => Some(adj.as_string()),
             Self::DeviceEvents(adj) => Some(adj.as_string()),
+            Self::ExtnProvider(adj) => Some(adj.id.to_string()),
             _ => None,
+        }
+    }
+
+    fn get_contract_from_adjective<T: ContractAdjective>(str: &str) -> Option<RippleContract> {
+        match serde_json::from_str::<T>(str) {
+            Ok(v) => Some(v.get_contract()),
+            Err(e) => {
+                error!("contract parser_error={:?}", e);
+                None
+            }
         }
     }
 
     pub fn from_adjective_string(contract: &str, adjective: &str) -> Option<Self> {
         let adjective = format!("\"{}\"", adjective);
         match contract {
+            "extn_provider" => {
+                return Self::get_contract_from_adjective::<ExtnProviderAdjective>(&adjective)
+            }
             "storage" => match serde_json::from_str::<StorageAdjective>(&adjective) {
                 Ok(v) => return Some(v.get_contract()),
                 Err(e) => error!("contract parser_error={:?}", e),
@@ -217,6 +234,7 @@ impl RippleContract {
         match self {
             Self::Storage(_) => Some("storage".to_owned()),
             Self::Session(_) => Some("session".to_owned()),
+            Self::ExtnProvider(_) => Some("extn_provider".to_owned()),
             Self::PubSub(_) => Some("pubsub".to_owned()),
             Self::DeviceEvents(_) => Some("device_events".to_owned()),
             _ => None,
@@ -238,9 +256,18 @@ impl RippleContract {
         }
         None
     }
+
+    pub fn is_extn_provider(&self) -> Option<String> {
+        if let RippleContract::ExtnProvider(e) = self {
+            Some(e.id.to_string())
+        } else {
+            None
+        }
+    }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ContractFulfiller {
     pub contracts: Vec<RippleContract>,
 }
