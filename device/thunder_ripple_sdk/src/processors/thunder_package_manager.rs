@@ -536,6 +536,10 @@ impl ThunderPackageManagerRequestProcessor {
         }
         None
     }
+    /*
+    2024 Apr 26 19:31:12.268372 ripple[15590]:  [INFO][thunder_ripple_sdk::processors::thunder_package_manager][thunder_comcast]-install: amazonPrime,0.0.1713210750898,failed,5010
+    2024 Apr 26 19:31:12.286119 ripple[15590]:  [INFO][thunder_ripple_sdk::processors::thunder_package_manager][thunder_comcast]-install: amazonPrime,0.0.1713210750898,Cancelled,5029
+     */
 
     fn start_operation_timeout_timer(state: ThunderPackageManagerState, handle: String) {
         let timeout_secs = state.operation_timeout_secs;
@@ -550,11 +554,7 @@ impl ThunderPackageManagerRequestProcessor {
             If the handle is still in the map after state.operation_timeout_secs, timeout has occured and cancel is needed
             */
             match active_operations.get(&handle) {
-                Some(operation) => {
-                    let mut timer = operation.timer.clone();
-                    timer.stop();
-                    timer.insert_tag("status".to_string(), "failed".to_string());
-                    rdk_telemetry_emit(timer);
+                Some(_operation) => {
                     error!("Detected incomplete operation after {} seconds, attempting to cancel: handle={}", timeout_secs, handle.clone());
                     /*remove from map, this is a needed additional map
                     operation to keep locking consistent and compiling...
