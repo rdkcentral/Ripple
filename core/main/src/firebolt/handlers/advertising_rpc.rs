@@ -151,7 +151,7 @@ pub trait Advertising {
     async fn advertising_id(
         &self,
         ctx: CallContext,
-        request: AdvertisingIdRPCRequest,
+        request: Option<AdvertisingIdRPCRequest>,
     ) -> RpcResult<AdvertisingId>;
     #[method(name = "advertising.appBundleId")]
     fn app_bundle_id(&self, ctx: CallContext) -> RpcResult<String>;
@@ -278,19 +278,23 @@ impl AdvertisingServer for AdvertisingImpl {
     async fn advertising_id(
         &self,
         ctx: CallContext,
-        request: AdvertisingIdRPCRequest,
+        request: Option<AdvertisingIdRPCRequest>,
     ) -> RpcResult<AdvertisingId> {
         if let Some(session) = self.state.session_state.get_account_session() {
+            let opts = match request {
+                Some(r) => r.options,
+                None => None,
+            };
             let payload = AdvertisingRequest::GetAdIdObject(AdIdRequestParams {
                 privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(
                     &self.state,
-                    request.options.as_ref(),
+                    opts.as_ref(),
                     &ctx.app_id,
                 )
                 .await,
                 app_id: ctx.app_id.to_owned(),
                 dist_session: session,
-                scope: get_scope_option_map(&request.options),
+                scope: get_scope_option_map(&opts),
             });
             let resp = self.state.get_client().send_extn_request(payload).await;
 
