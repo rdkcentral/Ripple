@@ -690,7 +690,6 @@ pub enum OperationalMetricPayload {
     Counter(Counter),
 }
 
-// <pca> added
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum MetricsEnvironment {
@@ -714,7 +713,6 @@ impl ToString for MetricsEnvironment {
         }
     }
 }
-// </pca>
 
 /// all the things that are provided by platform that need to
 /// be updated, and eventually in/outjected into/out of a payload
@@ -723,94 +721,6 @@ impl ToString for MetricsEnvironment {
 /// to become available
 /// This design assumes that all of the items will be available at the same times
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
-// <pca>
-// pub struct MetricsContext {
-//     pub enabled: bool,
-//     pub device_language: String,
-//     pub device_model: String,
-//     pub device_id: String,
-//     pub account_id: String,
-//     pub device_timezone: String,
-//     pub device_timezone_offset: String,
-//     pub device_name: String,
-//     pub platform: String,
-//     pub os_name: String,
-//     pub os_ver: String,
-//     pub distribution_tenant_id: String,
-//     pub device_session_id: String,
-//     pub mac_address: String,
-//     pub serial_number: String,
-//     pub firmware: String,
-//     pub ripple_version: String,
-// }
-
-// #[allow(non_camel_case_types)]
-// pub enum MetricsContextField {
-//     enabled,
-//     device_language,
-//     device_model,
-//     device_id,
-//     account_id,
-//     device_timezone,
-//     device_timezone_offset,
-//     device_name,
-//     platform,
-//     os_name,
-//     os_ver,
-//     distributor_id,
-//     session_id,
-//     mac_address,
-//     serial_number,
-//     firmware,
-//     ripple_version,
-// }
-
-// impl MetricsContext {
-//     pub fn new() -> MetricsContext {
-//         MetricsContext {
-//             enabled: false,
-//             device_language: String::from(""),
-//             device_model: String::from(""),
-//             device_id: String::from(""),
-//             device_timezone: String::from(""),
-//             device_timezone_offset: String::from(""),
-//             device_name: String::from(""),
-//             mac_address: String::from(""),
-//             serial_number: String::from(""),
-//             account_id: String::from(""),
-//             platform: String::from(""),
-//             os_name: String::from(""),
-//             os_ver: String::from(""),
-//             device_session_id: String::from(""),
-//             distribution_tenant_id: String::from(""),
-//             firmware: String::from(""),
-//             ripple_version: String::from(""),
-//         }
-//     }
-//     pub fn set(&mut self, field: MetricsContextField, value: String) {
-//         match field {
-//             MetricsContextField::enabled => self.enabled = value.parse().unwrap_or(false),
-//             MetricsContextField::device_language => self.device_language = value,
-//             MetricsContextField::device_model => self.device_model = value,
-//             MetricsContextField::device_id => self.device_id = value,
-//             MetricsContextField::account_id => self.account_id = value,
-//             MetricsContextField::device_timezone => self.device_timezone = value.parse().unwrap(),
-//             MetricsContextField::device_timezone_offset => {
-//                 self.device_timezone_offset = value.parse().unwrap()
-//             }
-//             MetricsContextField::platform => self.platform = value,
-//             MetricsContextField::os_name => self.os_name = value,
-//             MetricsContextField::os_ver => self.os_ver = value,
-//             MetricsContextField::distributor_id => self.distribution_tenant_id = value,
-//             MetricsContextField::session_id => self.device_session_id = value,
-//             MetricsContextField::mac_address => self.mac_address = value,
-//             MetricsContextField::serial_number => self.serial_number = value,
-//             MetricsContextField::device_name => self.device_name = value,
-//             MetricsContextField::firmware => self.firmware = value,
-//             MetricsContextField::ripple_version => self.ripple_version = value,
-//         };
-//     }
-// }
 pub struct MetricsContext {
     pub enabled: bool,
     pub device_language: String,
@@ -916,44 +826,7 @@ impl MetricsContext {
             authenticated: None,
         }
     }
-    // pub fn set(&mut self, field: MetricsContextField, value: String) {
-    //     match field {
-    //         MetricsContextField::enabled => self.enabled = value.parse().unwrap_or(false),
-    //         MetricsContextField::device_language => self.device_language = value,
-    //         MetricsContextField::device_model => self.device_model = value,
-    //         MetricsContextField::device_id => self.device_id = Some(value),
-    //         MetricsContextField::account_id => self.account_id = Some(value),
-    //         MetricsContextField::device_timezone => self.device_timezone = value.parse().unwrap(),
-    //         MetricsContextField::device_timezone_offset => {
-    //             self.device_timezone_offset = value.parse().unwrap()
-    //         }
-    //         MetricsContextField::platform => self.platform = value,
-    //         MetricsContextField::os_name => self.os_name = value,
-    //         MetricsContextField::os_ver => self.os_ver = value,
-    //         MetricsContextField::distributor_id => self.distribution_tenant_id = value,
-    //         MetricsContextField::session_id => self.device_session_id = value,
-    //         MetricsContextField::mac_address => self.mac_address = value,
-    //         MetricsContextField::serial_number => self.serial_number = value,
-    //         MetricsContextField::device_name => self.device_name = Some(value),
-    //         MetricsContextField::firmware => self.firmware = value,
-    //         MetricsContextField::ripple_version => self.ripple_version = value,
-    //         MetricsContextField::env => self.env = Some(value),
-    //         MetricsContextField::logger_name => self.logger_name = value,
-    //         MetricsContextField::logger_version => self.logger_version = value,
-    //         MetricsContextField::activated => self.activated = Some(value),
-    //         MetricsContextField::proposition => self.proposition = value,
-    //         MetricsContextField::retailer => self.retailer = Some(value),
-    //         MetricsContextField::jv_agent => self.jv_agent = Some(value),
-    //         MetricsContextField::coam => self.coam = Some(value),
-    //         MetricsContextField::country => self.country = Some(value),
-    //         MetricsContextField::region => self.region = Some(value),
-    //         MetricsContextField::account_type => self.account_type = Some(value),
-    //         MetricsContextField::operator => self.operator = Some(value),
-    //         MetricsContextField::account_detail_type => self.account_detail_type = Some(value),
-    //     };
-    // }
 }
-// </pca>
 
 #[async_trait]
 pub trait BehavioralMetricsService {

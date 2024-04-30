@@ -195,8 +195,6 @@ impl ThunderStorageRequestProcessor {
                                 )
                                 .await
                                 .is_ok();
-                            // <pca>
-                            //}
                             } else if let Ok(v) = serde_json::from_value(v.clone()) {
                                 return Self::respond(
                                     state.get_client(),
@@ -206,8 +204,6 @@ impl ThunderStorageRequestProcessor {
                                 .await
                                 .is_ok();
                             }
-                        //}
-                        //error!("serialization failure for Storage data");
                         } else {
                             return Self::respond(
                                 state.get_client(),

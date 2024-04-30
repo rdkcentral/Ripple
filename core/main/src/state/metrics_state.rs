@@ -82,8 +82,15 @@ impl MetricsState {
     pub fn get_context(&self) -> MetricsContext {
         self.context.read().unwrap().clone()
     }
-    // <pca>
-    fn update_cet_list(&self, privacy_settings_data: &PrivacySettingsData) {
+
+    fn get_option_string(s: String) -> Option<String> {
+        if s.len() > 0 {
+            return Some(s);
+        }
+        None
+    }
+
+    pub fn update_cet_list(&self, privacy_settings_data: &PrivacySettingsData) {
         let mut cet_list = Vec::new();
 
         if let Some(v) = privacy_settings_data.allow_business_analytics {
@@ -133,7 +140,7 @@ impl MetricsState {
         )
         .await
         {
-            Ok(resp) => Some(resp.as_value()),
+            Ok(resp) => Self::get_option_string(resp.as_value()),
             Err(e) => {
                 error!(
                     "get_persistent_store_string: Could not retrieve value: e={:?}",
@@ -162,17 +169,7 @@ impl MetricsState {
             }
         }
     }
-    // </pca>
-    pub fn get_privacy_settings_cache(&self) -> PrivacySettingsData {
-        self.privacy_settings_cache.read().unwrap().clone()
-    }
-    pub fn update_privacy_settings_cache(&self, value: &PrivacySettingsData) {
-        let mut cache = self.privacy_settings_cache.write().unwrap();
-        *cache = value.clone();
-        // <pca>
-        self.update_cet_list(value);
-        // </pca>
-    }
+
     pub async fn initialize(state: &PlatformState) {
         let metrics_percentage = state
             .get_device_manifest()
@@ -251,21 +248,6 @@ impl MetricsState {
             }
         }
 
-        // <pca>
-        // let firmware = match state
-        //     .get_client()
-        //     .send_extn_request(DeviceInfoRequest::PlatformBuildInfo)
-        //     .await
-        // {
-        //     Ok(resp) => {
-        //         if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp.payload.extract() {
-        //             info.name
-        //         } else {
-        //             String::default()
-        //         }
-        //     }
-        //     Err(_) => String::default(),
-        // };
         let mut firmware = String::default();
         let mut env = None;
 
@@ -293,12 +275,10 @@ impl MetricsState {
             _ => Some(false),
         };
 
-        // <pca> debug
         let proposition =
             Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_PROPOSITION)
                 .await
-                .unwrap_or("xsb".into());
-        // </pca>
+                .unwrap_or("Proposition.missing.from.persistent.store".into());
 
         let retailer =
             Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_RETAILER)
@@ -321,44 +301,35 @@ impl MetricsState {
             .await
             .ok();
 
-        // TODO: Not currently in PS, should it be?
         let account_type =
             Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_ACCOUNT_TYPE)
                 .await;
-        //let account_type = Some("SomeAccountType".into());
 
         let operator =
             Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_OPERATOR)
                 .await;
 
-        // TODO: Not currently in PS, should it be?
         let account_detail_type = Self::get_persistent_store_string(
             &state,
             ONTOLOGY_PERSISTENT_STORAGE_ACCOUNT_DETAIL_TYPE,
         )
         .await;
-        //let account_detail_type = Some("SomeAccountDetailType".into());
 
-        // TODO: Currently not used by ripple, needs to align with AS value somehow. Likely AS will
-        // write to PS.
         let device_type = Self::get_persistent_store_string(
             &state,
             ONTOLOGY_PERSISTENT_STORAGE_ACCOUNT_DEVICE_TYPE,
         )
         .await
-        .unwrap_or("SomeDeviceType".into());
+        .unwrap_or("Device.Type.missing.from.persistent.store".into());
 
-        // TODO: Currently not used by ripple, needs to align with AS value somehow. AS team to check
-        // the current source and possibly write to PS or let us know where they get it.
         let device_manufacturer = Self::get_persistent_store_string(
             &state,
             ONTOLOGY_PERSISTENT_STORAGE_ACCOUNT_DEVICE_MANUFACTURER,
         )
         .await
-        .unwrap_or("SomeDeviceManufacturer".into());
+        .unwrap_or("Device.Manufacturer.missing.from.persistent.store".into());
 
         let authenticated = None;
-        // </pca>
 
         {
             // Time to set them
@@ -381,10 +352,7 @@ impl MetricsState {
             context.device_language = language;
             context.os_name = os_info.name;
             context.os_ver = os_info.version.readable;
-            // <pca>
-            //context.device_name = device_name;
             context.device_name = Some(device_name);
-            // </pca>
             context.device_session_id = String::from(&state.device_session_id);
             context.firmware = firmware;
             context.ripple_version = state
@@ -396,7 +364,6 @@ impl MetricsState {
                 context.device_timezone = t;
             }
 
-            // <pca>
             context.env = env;
             context.activated = activated;
             context.proposition = proposition;
@@ -412,7 +379,6 @@ impl MetricsState {
             context.device_type = device_type;
             context.device_manufacturer = device_manufacturer;
             context.authenticated = authenticated;
-            // </pca>
         }
         {
             Self::update_account_session(state).await;
@@ -440,23 +406,6 @@ impl MetricsState {
         }
     }
 
-    // <pca>
-    // pub async fn update_account_session(state: &PlatformState) {
-    //     {
-    //         let mut context = state.metrics.context.write().unwrap();
-    //         let account_session = state.session_state.get_account_session();
-    //         if let Some(session) = account_session {
-    //             context.account_id = session.account_id;
-    //             context.device_id = session.device_id;
-    //             context.distribution_tenant_id = session.id;
-    //         } else {
-    //             context.account_id = "no.account.set".to_string();
-    //             context.device_id = "no.device_id.set".to_string();
-    //             context.distribution_tenant_id = "no.distribution_tenant_id.set".to_string();
-    //         }
-    //     }
-    //     Self::send_context_update_request(state);
-    // }
     pub async fn update_account_session(state: &PlatformState) {
         {
             let mut context = state.metrics.context.write().unwrap();
@@ -473,7 +422,6 @@ impl MetricsState {
         }
         Self::send_context_update_request(state);
     }
-    // </pca>
 
     pub fn operational_telemetry_listener(&self, target: &str, listen: bool) {
         let mut listeners = self.operational_telemetry_listeners.write().unwrap();
