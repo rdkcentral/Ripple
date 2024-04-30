@@ -127,6 +127,18 @@ impl ApiMessage {
         // currently only these json rpsee errors are used in Ripple
         self.jsonrpc_msg.contains("Custom error:") || self.jsonrpc_msg.contains("Method not found")
     }
+
+    pub fn get_error_code_from_msg(&self) -> Result<Option<i32>, serde_json::Error> {
+        let v: Value = serde_json::from_str(&self.jsonrpc_msg)?;
+
+        if let Some(error) = v.get("error") {
+            if let Some(code) = error.get("code") {
+                return Ok(Some(code.as_i64().unwrap() as i32));
+            }
+        }
+        // if there is no error code, return None
+        Ok(None)
+    }
 }
 
 #[derive(Deserialize)]
@@ -295,6 +307,227 @@ mod tests {
     use crate::utils::test_utils::test_extn_payload_provider;
 
     #[test]
+    fn test_caller_session_from_call_context() {
+        let ctx = CallContext {
+            session_id: "session123".to_string(),
+            request_id: "request123".to_string(),
+            app_id: "app123".to_string(),
+            call_id: 1,
+            protocol: ApiProtocol::Bridge,
+            method: "method123".to_string(),
+            cid: Some("cid123".to_string()),
+            gateway_secure: true,
+        };
+
+        let caller_session: CallerSession = ctx.into();
+
+        assert_eq!(caller_session.session_id, Some("session123".to_string()));
+        assert_eq!(caller_session.app_id, Some("app123".to_string()));
+    }
+
+    #[test]
+    fn test_caller_session_from_app_identification() {
+        let ctx = CallContext {
+            session_id: "session123".to_string(),
+            request_id: "request123".to_string(),
+            app_id: "app123".to_string(),
+            call_id: 1,
+            protocol: ApiProtocol::Bridge,
+            method: "method123".to_string(),
+            cid: Some("cid123".to_string()),
+            gateway_secure: true,
+        };
+
+        let app_identification: AppIdentification = ctx.into();
+        assert_eq!(app_identification.app_id, "app123".to_string());
+    }
+
+    #[test]
+    fn test_api_message_new() {
+        let api_message = ApiMessage::new(
+            ApiProtocol::Bridge,
+            "jsonrpc_msg".to_string(),
+            "request_id".to_string(),
+        );
+
+        assert_eq!(api_message.protocol, ApiProtocol::Bridge);
+        assert_eq!(api_message.jsonrpc_msg, "jsonrpc_msg".to_string());
+        assert_eq!(api_message.request_id, "request_id".to_string());
+    }
+
+    #[test]
+    fn test_call_context_new() {
+        let call_context = CallContext::new(
+            "session_id".to_string(),
+            "request_id".to_string(),
+            "app_id".to_string(),
+            1,
+            ApiProtocol::Bridge,
+            "method".to_string(),
+            Some("cid".to_string()),
+            true,
+        );
+
+        assert_eq!(call_context.session_id, "session_id".to_string());
+        assert_eq!(call_context.request_id, "request_id".to_string());
+        assert_eq!(call_context.app_id, "app_id".to_string());
+        assert_eq!(call_context.call_id, 1);
+        assert_eq!(call_context.protocol, ApiProtocol::Bridge);
+        assert_eq!(call_context.method, "method".to_string());
+        assert_eq!(call_context.cid, Some("cid".to_string()));
+        assert!(call_context.gateway_secure);
+    }
+
+    #[test]
+    fn test_get_id_with_cid() {
+        let ctx = CallContext::new(
+            "session_id".to_string(),
+            "request_id".to_string(),
+            "app_id".to_string(),
+            1,
+            ApiProtocol::Bridge,
+            "method".to_string(),
+            Some("cid".to_string()),
+            true,
+        );
+
+        let id = ctx.get_id();
+        assert_eq!(id, "cid".to_string());
+    }
+
+    #[test]
+    fn test_get_id_without_cid() {
+        let ctx = CallContext::new(
+            "session_id".to_string(),
+            "request_id".to_string(),
+            "app_id".to_string(),
+            1,
+            ApiProtocol::Bridge,
+            "method".to_string(),
+            None,
+            true,
+        );
+
+        let id = ctx.get_id();
+        assert_eq!(id, "session_id".to_string());
+    }
+
+    #[test]
+    fn test_is_errors() {
+        let api_message = ApiMessage {
+            protocol: ApiProtocol::Bridge,
+            jsonrpc_msg: "Custom error: error".to_string(),
+            request_id: "request_id".to_string(),
+        };
+
+        assert!(api_message.is_error());
+    }
+
+    #[test]
+    fn test_api_base_request_is_jsonrpc_with_jsonrpc() {
+        let base_request = ApiBaseRequest {
+            jsonrpc: Some("2.0".to_string()),
+        };
+
+        assert!(base_request.is_jsonrpc());
+    }
+
+    #[test]
+    fn test_api_base_request_is_jsonrpc_without_jsonrpc() {
+        let base_request = ApiBaseRequest { jsonrpc: None };
+
+        assert!(!base_request.is_jsonrpc());
+    }
+
+    #[test]
+    fn test_rpc_request_new() {
+        let method = String::from("test_method");
+        let params_json = String::from("test_params");
+        let ctx = CallContext::new(
+            String::from("test_session_id"),
+            String::from("test_request_id"),
+            String::from("test_app_id"),
+            123,
+            ApiProtocol::JsonRpc,
+            String::from("test_method"),
+            None,
+            true,
+        );
+
+        let rpc_request = RpcRequest::new(method.clone(), params_json.clone(), ctx.clone());
+
+        assert_eq!(rpc_request.method, method);
+        assert_eq!(rpc_request.params_json, params_json);
+        assert_eq!(rpc_request.ctx, ctx);
+    }
+
+    #[test]
+    fn test_rpc_request_prepend_ctx() {
+        let req_params = Some(json!({"param1": "value1"}));
+        let ctx = CallContext::new(
+            String::from("test_session_id"),
+            String::from("test_request_id"),
+            String::from("test_app_id"),
+            123,
+            ApiProtocol::JsonRpc,
+            String::from("test_method"),
+            None,
+            true,
+        );
+
+        let result = RpcRequest::prepend_ctx(req_params.clone(), &ctx);
+
+        let expected_result = json!([ctx, req_params]).to_string();
+        assert_eq!(result, expected_result);
+    }
+
+    // #[test]
+    // fn test_rpc_request_parse() {
+    //     let json = String::from(
+    //         r#"{"jsonrpc": "2.0", "id": 123, "method": "test_method", "params": {"param1": "value1"}}"#,
+    //     );
+    //     let app_id = String::from("test_app_id");
+    //     let session_id = String::from("test_session_id");
+    //     let request_id = String::from("test_request_id");
+    //     let cid = None;
+    //     let gateway_secure = true;
+
+    //     let result = RpcRequest::parse(json, app_id, session_id, request_id, cid, gateway_secure);
+
+    //     assert!(result.is_ok());
+    //     let rpc_request: RpcRequest = result.unwrap();
+
+    //     // Parse the `params_json` string from the `RpcRequest` into a `serde_json::Value`
+    //     let actual_params_val: Value = serde_json::from_str(&rpc_request.params_json)
+    //         .expect("Failed to parse JSON from params_json string");
+
+    //     // Define the expected JSON structure as a `serde_json::Value`
+    //     // Note: Adjust the structure below according to the actual expected content of `params_json`
+    //     let expected_params_val: Value = json!({
+    //         "app_id": rpc_request.ctx.app_id,
+    //         "call_id": rpc_request.ctx.call_id,
+    //         "cid": rpc_request.ctx.cid,
+    //         "gateway_secure": rpc_request.ctx.gateway_secure,
+    //         "method": rpc_request.ctx.method,
+    //         "protocol": rpc_request.ctx.protocol.
+    //         //"request_id": rpc_request.ctx.request_id,
+    //         "session_id": rpc_request.ctx.session_id,
+    //         "params": {
+    //             "param1": "value1"
+    //         }
+    //     });
+
+    //     // Compare the actual and expected `serde_json::Value` instances
+    //     assert_eq!(actual_params_val, expected_params_val);
+    //     assert_eq!(rpc_request.ctx.session_id, String::from("test_session_id"));
+    //     assert_eq!(rpc_request.ctx.request_id, String::from("test_request_id"));
+    //     assert_eq!(rpc_request.ctx.app_id, String::from("test_app_id"));
+    //     assert_eq!(rpc_request.ctx.protocol, ApiProtocol::JsonRpc);
+    //     assert_eq!(rpc_request.ctx.method, String::from("test_method"));
+    //     assert_eq!(rpc_request.ctx.cid, None);
+    //     assert!(rpc_request.ctx.gateway_secure);
+    // }
+    #[test]
     fn test_extn_request_rpc() {
         let call_context = CallContext {
             session_id: "test_session_id".to_string(),
@@ -314,5 +547,51 @@ mod tests {
         };
         let contract_type: RippleContract = RippleContract::Rpc;
         test_extn_payload_provider(rpc_request, contract_type);
+    }
+
+    #[test]
+    fn test_get_error_code_from_msg() {
+        let api_message = ApiMessage {
+            protocol: ApiProtocol::JsonRpc,
+            jsonrpc_msg: r#"{"jsonrpc": "2.0", "id": 123, "error": {"code": 456, "message": "error message"}}"#.to_string(),
+            request_id: "request_id".to_string(),
+        };
+
+        let result = api_message.get_error_code_from_msg();
+
+        assert!(result.is_ok());
+        let error_code = result.unwrap();
+        assert_eq!(error_code, Some(456));
+    }
+
+    #[test]
+    fn test_get_error_code_from_msg_error_code_not_present() {
+        let api_message = ApiMessage {
+            protocol: ApiProtocol::JsonRpc,
+            jsonrpc_msg: r#"{"jsonrpc": "2.0", "id": 123, "error": {"message": "error message"}}"#
+                .to_string(),
+            request_id: "request_id".to_string(),
+        };
+
+        let result = api_message.get_error_code_from_msg();
+
+        assert!(result.is_ok());
+        let error_code = result.unwrap();
+        assert_eq!(error_code, None);
+    }
+
+    #[test]
+    fn test_get_error_code_from_msg_result_present() {
+        let api_message = ApiMessage {
+            protocol: ApiProtocol::JsonRpc,
+            jsonrpc_msg: r#"{"jsonrpc": "2.0", "id": 123, "result": null}"#.to_string(),
+            request_id: "request_id".to_string(),
+        };
+
+        let result = api_message.get_error_code_from_msg();
+
+        assert!(result.is_ok());
+        let error_code = result.unwrap();
+        assert_eq!(error_code, None);
     }
 }

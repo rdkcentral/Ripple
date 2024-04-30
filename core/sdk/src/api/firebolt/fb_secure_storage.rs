@@ -80,25 +80,6 @@ pub enum SecureStorageRequest {
     Clear(SecureStorageClearRequest, AccountSession),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct SetAppRequest {
-    pub scope: StorageScope,
-    pub key: String,
-    pub value: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub options: Option<StorageOptions>,
-    pub app_id: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct RemoveAppRequest {
-    pub key: String,
-    pub scope: StorageScope,
-    pub app_id: String,
-}
-
 impl ExtnPayloadProvider for SecureStorageRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Request(ExtnRequest::SecureStorage(self.clone()))

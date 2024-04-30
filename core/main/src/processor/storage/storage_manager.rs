@@ -76,11 +76,23 @@ pub struct StorageManager;
 
 impl StorageManager {
     pub async fn get_bool(state: &PlatformState, property: StorageProperty) -> RpcResult<bool> {
+        if let Some(val) = state
+            .ripple_cache
+            .get_cached_bool_storage_property(&property)
+        {
+            return Ok(val);
+        }
         let data = property.as_data();
         match StorageManager::get_bool_from_namespace(state, data.namespace.to_string(), data.key)
             .await
         {
-            Ok(resp) => Ok(resp.as_value()),
+            Ok(StorageManagerResponse::Ok(value)) | Ok(StorageManagerResponse::NoChange(value)) => {
+                state
+                    .ripple_cache
+                    .update_cached_bool_storage_property(&property, value);
+                Ok(value)
+            }
+            Ok(StorageManagerResponse::Default(value)) => Ok(value),
             Err(_) => Err(StorageManager::get_firebolt_error(&property)),
         }
     }
@@ -93,7 +105,15 @@ impl StorageManager {
     ) -> RpcResult<()> {
         let data = property.as_data();
         debug!("Storage property: {:?} as data: {:?}", property, data);
-        if StorageManager::set_in_namespace(
+        if let Some(val) = state
+            .ripple_cache
+            .get_cached_bool_storage_property(&property)
+        {
+            if val == value {
+                return Ok(());
+            }
+        }
+        match StorageManager::set_in_namespace(
             state,
             data.namespace.to_string(),
             data.key.to_string(),
@@ -102,19 +122,16 @@ impl StorageManager {
             context,
         )
         .await
-        .is_err()
         {
-            return Err(StorageManager::get_firebolt_error(&property));
+            Ok(StorageManagerResponse::Ok(_)) | Ok(StorageManagerResponse::NoChange(_)) => {
+                state
+                    .ripple_cache
+                    .update_cached_bool_storage_property(&property, value);
+                Ok(())
+            }
+            Ok(StorageManagerResponse::Default(_)) => Ok(()),
+            Err(_) => Err(StorageManager::get_firebolt_error(&property)),
         }
-        // Update privacy settings cache if the change is for a privacy settings storage property
-        if property.is_a_privacy_setting_property() {
-            let mut privacy_settings_cache = state.metrics.get_privacy_settings_cache();
-            property.set_privacy_setting_value(&mut privacy_settings_cache, value);
-            state
-                .metrics
-                .update_privacy_settings_cache(&privacy_settings_cache);
-        }
-        Ok(())
     }
 
     pub async fn get_string(state: &PlatformState, property: StorageProperty) -> RpcResult<String> {
@@ -313,7 +330,7 @@ impl StorageManager {
     /*
     Used internally or when a custom namespace is required
      */
-    pub async fn get_bool_from_namespace(
+    async fn get_bool_from_namespace(
         state: &PlatformState,
         namespace: String,
         key: &'static str,

@@ -19,6 +19,7 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
+use crate::api::usergrant_entry::UserGrantInfo;
 use crate::{
     api::{
         session::AccountSession,
@@ -116,6 +117,26 @@ pub struct PrivacySettingsData {
     pub allow_watch_history: Option<bool>,
 }
 
+impl From<PrivacySettings> for PrivacySettingsData {
+    fn from(data: PrivacySettings) -> Self {
+        PrivacySettingsData {
+            allow_acr_collection: Some(data.allow_acr_collection),
+            allow_resume_points: Some(data.allow_resume_points),
+            allow_app_content_ad_targeting: Some(data.allow_app_content_ad_targeting),
+            allow_business_analytics: Some(data.allow_business_analytics),
+            allow_camera_analytics: Some(data.allow_camera_analytics),
+            allow_personalization: Some(data.allow_personalization),
+            allow_primary_browse_ad_targeting: Some(data.allow_primary_browse_ad_targeting),
+            allow_primary_content_ad_targeting: Some(data.allow_primary_content_ad_targeting),
+            allow_product_analytics: Some(data.allow_product_analytics),
+            allow_remote_diagnostics: Some(data.allow_remote_diagnostics),
+            allow_unentitled_personalization: Some(data.allow_unentitled_personalization),
+            allow_unentitled_resume_points: Some(data.allow_unentitled_resume_points),
+            allow_watch_history: Some(data.allow_watch_history),
+        }
+    }
+}
+
 impl ExtnPayloadProvider for PrivacySettingsStoreRequest {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         match payload {
@@ -165,7 +186,6 @@ impl ExtnPayloadProvider for PrivacySettingsData {
         {
             return Some(settings);
         }
-
         None
     }
 
@@ -288,6 +308,7 @@ impl ExtnPayloadProvider for ExclusionPolicy {
 pub enum DataEventType {
     Watched,
     BusinessIntelligence,
+    Unknown,
 }
 
 impl FromStr for DataEventType {
@@ -295,15 +316,92 @@ impl FromStr for DataEventType {
     fn from_str(input: &str) -> Result<DataEventType, Self::Err> {
         match input {
             "Watch_History" => Ok(DataEventType::Watched),
-            _ => Err(()),
+            "Product_Analytics" => Ok(DataEventType::BusinessIntelligence),
+            _ => Ok(DataEventType::Unknown),
         }
     }
+}
+
+pub struct AppSetting {
+    pub app_id: Option<String>,
+    pub value: Option<bool>,
+}
+
+pub type UserGrants = Vec<UserGrantInfo>;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum PrivacyResponse {
+    None,
+    Bool(bool),
+    Settings(PrivacySettings),
+    Exclusions(ExclusionPolicy),
+    Grants(UserGrants),
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_get_session_get_property() {
+        let params = GetPropertyParams {
+            setting: PrivacySetting::AppDataCollection("test_app_data_collection".to_string()),
+            dist_session: AccountSession {
+                id: "test_session_id".to_string(),
+                token: "test_token".to_string(),
+                account_id: "test_account_id".to_string(),
+                device_id: "test_device_id".to_string(),
+            },
+        };
+        let request = PrivacyCloudRequest::GetProperty(params.clone());
+        let session = request.get_session();
+        assert_eq!(session, params.dist_session);
+    }
+
+    #[test]
+    fn test_get_session_get_properties() {
+        let session = AccountSession {
+            id: "test_session_id".to_string(),
+            token: "test_token".to_string(),
+            account_id: "test_account_id".to_string(),
+            device_id: "test_device_id".to_string(),
+        };
+        let request = PrivacyCloudRequest::GetProperties(session.clone());
+        let result = request.get_session();
+        assert_eq!(result, session);
+    }
+
+    #[test]
+    fn test_get_session_set_property() {
+        let params = SetPropertyParams {
+            setting: PrivacySetting::AppDataCollection("test_app_data_collection".to_string()),
+            value: true,
+            dist_session: AccountSession {
+                id: "test_session_id".to_string(),
+                token: "test_token".to_string(),
+                account_id: "test_account_id".to_string(),
+                device_id: "test_device_id".to_string(),
+            },
+        };
+        let request = PrivacyCloudRequest::SetProperty(params.clone());
+        let session = request.get_session();
+        assert_eq!(session, params.dist_session);
+    }
+
+    #[test]
+    fn test_get_session_get_partner_exclusions() {
+        let session = AccountSession {
+            id: "test_session_id".to_string(),
+            token: "test_token".to_string(),
+            account_id: "test_account_id".to_string(),
+            device_id: "test_device_id".to_string(),
+        };
+
+        let request = PrivacyCloudRequest::GetPartnerExclusions(session.clone());
+        let result = request.get_session();
+        assert_eq!(result, session);
+    }
 
     #[test]
     fn test_extn_request_privacy_cloud() {
