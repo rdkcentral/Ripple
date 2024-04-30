@@ -25,11 +25,12 @@ use ripple_sdk::{
     api::{
         context::{ActivationStatus, RippleContextUpdateRequest},
         device::device_info_request::{DeviceInfoRequest, DeviceResponse, FirmwareInfo},
-        distributor::distributor_privacy::PrivacySettingsData,
+        distributor::distributor_privacy::{DataEventType, PrivacySettingsData},
         firebolt::{
             fb_metrics::{MetricsContext, MetricsEnvironment},
             fb_openrpc::FireboltSemanticVersion,
         },
+        manifest::device_manifest::DataGovernanceConfig,
         storage_property::StorageProperty,
     },
     chrono::{DateTime, Utc},
@@ -46,16 +47,16 @@ use super::platform_state::PlatformState;
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
-const ONTOLOGY_PERSISTENT_STORAGE_NAMESPACE: &str = "accountProfile";
-const ONTOLOGY_PERSISTENT_STORAGE_KEY_PROPOSITION: &str = "proposition";
-const ONTOLOGY_PERSISTENT_STORAGE_KEY_RETAILER: &str = "retailer";
-const ONTOLOGY_PERSISTENT_STORAGE_KEY_JVAGENT: &str = "jvagent";
-const ONTOLOGY_PERSISTENT_STORAGE_KEY_COAM: &str = "coam";
-const ONTOLOGY_PERSISTENT_STORAGE_KEY_ACCOUNT_TYPE: &str = "accountType";
-const ONTOLOGY_PERSISTENT_STORAGE_KEY_OPERATOR: &str = "operator";
-const ONTOLOGY_PERSISTENT_STORAGE_ACCOUNT_DETAIL_TYPE: &str = "detailType";
-const ONTOLOGY_PERSISTENT_STORAGE_ACCOUNT_DEVICE_TYPE: &str = "deviceType";
-const ONTOLOGY_PERSISTENT_STORAGE_ACCOUNT_DEVICE_MANUFACTURER: &str = "deviceManufacturer";
+const PERSISTENT_STORAGE_NAMESPACE: &str = "accountProfile";
+const PERSISTENT_STORAGE_KEY_PROPOSITION: &str = "proposition";
+const PERSISTENT_STORAGE_KEY_RETAILER: &str = "retailer";
+const PERSISTENT_STORAGE_KEY_JVAGENT: &str = "jvagent";
+const PERSISTENT_STORAGE_KEY_COAM: &str = "coam";
+const PERSISTENT_STORAGE_KEY_ACCOUNT_TYPE: &str = "accountType";
+const PERSISTENT_STORAGE_KEY_OPERATOR: &str = "operator";
+const PERSISTENT_STORAGE_ACCOUNT_DETAIL_TYPE: &str = "detailType";
+const PERSISTENT_STORAGE_ACCOUNT_DEVICE_TYPE: &str = "deviceType";
+const PERSISTENT_STORAGE_ACCOUNT_DEVICE_MANUFACTURER: &str = "deviceManufacturer";
 
 #[derive(Debug, Clone, Default)]
 pub struct MetricsState {
@@ -90,40 +91,73 @@ impl MetricsState {
         None
     }
 
-    pub fn update_cet_list(&self, privacy_settings_data: &PrivacySettingsData) {
-        let mut cet_list = Vec::new();
-
-        if let Some(v) = privacy_settings_data.allow_business_analytics {
-            if v {
-                cet_list.push(String::from("dataPlatform:cet:xvp:analytics:business"));
+    pub fn update_data_governance_tags(
+        &self,
+        platform_state: &PlatformState,
+        privacy_settings_data: &PrivacySettingsData,
+    ) {
+        fn update_tags(
+            data_governance_config: &DataGovernanceConfig,
+            data: Option<bool>,
+            tags: &mut Vec<String>,
+            data_event_type: DataEventType,
+            storage_property: StorageProperty,
+        ) {
+            if let Some(true) = data {
+                if let Some(policy) = data_governance_config.get_policy(data_event_type) {
+                    if let Some(setting_tag) = policy
+                        .setting_tags
+                        .iter()
+                        .find(|t| t.setting == storage_property)
+                    {
+                        for tag in setting_tag.tags.clone() {
+                            tags.push(tag);
+                        }
+                    }
+                }
             }
         }
 
-        if let Some(v) = privacy_settings_data.allow_resume_points {
-            if v {
-                cet_list.push(String::from(
-                    "dataPlatform:cet:xvp:personalization:continueWatching",
-                ));
-            }
-        }
+        let mut governance_tags: Vec<String> = Vec::new();
+        let data_governance_config = platform_state
+            .get_device_manifest()
+            .configuration
+            .data_governance;
 
-        if let Some(v) = privacy_settings_data.allow_personalization {
-            if v {
-                cet_list.push(String::from(
-                    "dataPlatform:cet:xvp:personalization:recommendation",
-                ));
-            }
-        }
+        update_tags(
+            &data_governance_config,
+            privacy_settings_data.allow_business_analytics,
+            &mut governance_tags,
+            DataEventType::BusinessIntelligence,
+            StorageProperty::AllowBusinessAnalytics,
+        );
 
-        if let Some(v) = privacy_settings_data.allow_product_analytics {
-            if v {
-                cet_list.push(String::from("dataPlatform:cet:xvp:analytics"));
-            }
-        }
+        update_tags(
+            &data_governance_config,
+            privacy_settings_data.allow_resume_points,
+            &mut governance_tags,
+            DataEventType::Watched,
+            StorageProperty::AllowWatchHistory,
+        );
 
-        //let mut context = self.context.write().unwrap();
-        self.context.write().unwrap().cet_list = if !cet_list.is_empty() {
-            Some(cet_list)
+        update_tags(
+            &data_governance_config,
+            privacy_settings_data.allow_personalization,
+            &mut governance_tags,
+            DataEventType::BusinessIntelligence,
+            StorageProperty::AllowPersonalization,
+        );
+
+        update_tags(
+            &data_governance_config,
+            privacy_settings_data.allow_product_analytics,
+            &mut governance_tags,
+            DataEventType::BusinessIntelligence,
+            StorageProperty::AllowProductAnalytics,
+        );
+
+        self.context.write().unwrap().data_governance_tags = if !governance_tags.is_empty() {
+            Some(governance_tags)
         } else {
             None
         };
@@ -135,7 +169,7 @@ impl MetricsState {
     ) -> Option<String> {
         match StorageManager::get_string_from_namespace(
             state,
-            ONTOLOGY_PERSISTENT_STORAGE_NAMESPACE.to_string(),
+            PERSISTENT_STORAGE_NAMESPACE.to_string(),
             key,
         )
         .await
@@ -154,7 +188,7 @@ impl MetricsState {
     async fn get_persistent_store_bool(state: &PlatformState, key: &'static str) -> Option<bool> {
         match StorageManager::get_bool_from_namespace(
             state,
-            ONTOLOGY_PERSISTENT_STORAGE_NAMESPACE.to_string(),
+            PERSISTENT_STORAGE_NAMESPACE.to_string(),
             key,
         )
         .await
@@ -276,22 +310,19 @@ impl MetricsState {
         };
 
         let proposition =
-            Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_PROPOSITION)
+            Self::get_persistent_store_string(&state, PERSISTENT_STORAGE_KEY_PROPOSITION)
                 .await
                 .unwrap_or("Proposition.missing.from.persistent.store".into());
 
         let retailer =
-            Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_RETAILER)
-                .await;
+            Self::get_persistent_store_string(&state, PERSISTENT_STORAGE_KEY_RETAILER).await;
 
         let jv_agent =
-            Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_JVAGENT)
-                .await;
+            Self::get_persistent_store_string(&state, PERSISTENT_STORAGE_KEY_JVAGENT).await;
 
         let platform = proposition.clone();
 
-        let coam =
-            Self::get_persistent_store_bool(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_COAM).await;
+        let coam = Self::get_persistent_store_bool(&state, PERSISTENT_STORAGE_KEY_COAM).await;
 
         let country = StorageManager::get_string(&state, StorageProperty::CountryCode)
             .await
@@ -302,29 +333,22 @@ impl MetricsState {
             .ok();
 
         let account_type =
-            Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_ACCOUNT_TYPE)
-                .await;
+            Self::get_persistent_store_string(&state, PERSISTENT_STORAGE_KEY_ACCOUNT_TYPE).await;
 
         let operator =
-            Self::get_persistent_store_string(&state, ONTOLOGY_PERSISTENT_STORAGE_KEY_OPERATOR)
-                .await;
+            Self::get_persistent_store_string(&state, PERSISTENT_STORAGE_KEY_OPERATOR).await;
 
-        let account_detail_type = Self::get_persistent_store_string(
-            &state,
-            ONTOLOGY_PERSISTENT_STORAGE_ACCOUNT_DETAIL_TYPE,
-        )
-        .await;
+        let account_detail_type =
+            Self::get_persistent_store_string(&state, PERSISTENT_STORAGE_ACCOUNT_DETAIL_TYPE).await;
 
-        let device_type = Self::get_persistent_store_string(
-            &state,
-            ONTOLOGY_PERSISTENT_STORAGE_ACCOUNT_DEVICE_TYPE,
-        )
-        .await
-        .unwrap_or("Device.Type.missing.from.persistent.store".into());
+        let device_type =
+            Self::get_persistent_store_string(&state, PERSISTENT_STORAGE_ACCOUNT_DEVICE_TYPE)
+                .await
+                .unwrap_or("Device.Type.missing.from.persistent.store".into());
 
         let device_manufacturer = Self::get_persistent_store_string(
             &state,
-            ONTOLOGY_PERSISTENT_STORAGE_ACCOUNT_DEVICE_MANUFACTURER,
+            PERSISTENT_STORAGE_ACCOUNT_DEVICE_MANUFACTURER,
         )
         .await
         .unwrap_or("Device.Manufacturer.missing.from.persistent.store".into());
