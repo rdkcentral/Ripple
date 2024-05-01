@@ -39,7 +39,7 @@ ripple_sdk = { workspace = true, features = ["full"] }
 jsonrpsee = { workspace = true, features = ["macros", "ws-server"] }
 futures-channel.workspace = true
 futures.workspace = true
-tokio-tungstenite.workspace = true
+tokio-tungstenite = { workspace = true, features = ["handshake"] }
 querystring.workspace = true
 serde.workspace = true
 regex.workspace = true
