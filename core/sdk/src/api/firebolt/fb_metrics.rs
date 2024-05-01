@@ -966,6 +966,7 @@ impl ToString for InteractionType {
 pub enum Tag {
     Type,
     App,
+    AppVersion,
     Firmware,
     Status,
     RippleVersion,
@@ -977,6 +978,7 @@ impl Tag {
         match self {
             Tag::Type => "type".into(),
             Tag::App => "app".into(),
+            Tag::AppVersion => "app_version".into(),
             Tag::Firmware => "firmware".into(),
             Tag::Status => "status".into(),
             Tag::RippleVersion => "ripple".into(),
