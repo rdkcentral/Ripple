@@ -291,13 +291,13 @@ pub struct SignInRequestParams {
     pub is_signed_in: bool, /*true for signIn, false for signOut */
 }
 
-#[derive(Debug, Clone)]
-pub enum DiscoveryAccountLinkRequest {
-    EntitlementsAccountLink(EntitlementsAccountLinkRequestParams),
-    MediaEventAccountLink(MediaEventsAccountLinkRequestParams),
-    LaunchPadAccountLink(LaunchPadAccountLinkRequestParams),
-    SignIn(SignInRequestParams),
-}
+//#[derive(Debug, Clone)]
+//pub enum DiscoveryAccountLinkRequest {
+//    EntitlementsAccountLink(EntitlementsAccountLinkRequestParams),
+//    MediaEventAccountLink(MediaEventsAccountLinkRequestParams),
+//    LaunchPadAccountLink(LaunchPadAccountLinkRequestParams),
+//    SignIn(SignInRequestParams),
+//}
 
 pub const PROGRESS_UNIT_SECONDS: &str = "Seconds";
 pub const PROGRESS_UNIT_PERCENT: &str = "Percent";
