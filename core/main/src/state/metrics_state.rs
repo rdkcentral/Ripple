@@ -85,7 +85,7 @@ impl MetricsState {
     }
 
     fn get_option_string(s: String) -> Option<String> {
-        if s.len() > 0 {
+        if !s.is_empty() {
             return Some(s);
         }
         None
@@ -310,44 +310,44 @@ impl MetricsState {
         };
 
         let proposition =
-            Self::get_persistent_store_string(&state, PERSISTENT_STORAGE_KEY_PROPOSITION)
+            Self::get_persistent_store_string(state, PERSISTENT_STORAGE_KEY_PROPOSITION)
                 .await
                 .unwrap_or("Proposition.missing.from.persistent.store".into());
 
         let retailer =
-            Self::get_persistent_store_string(&state, PERSISTENT_STORAGE_KEY_RETAILER).await;
+            Self::get_persistent_store_string(state, PERSISTENT_STORAGE_KEY_RETAILER).await;
 
         let jv_agent =
-            Self::get_persistent_store_string(&state, PERSISTENT_STORAGE_KEY_JVAGENT).await;
+            Self::get_persistent_store_string(state, PERSISTENT_STORAGE_KEY_JVAGENT).await;
 
         let platform = proposition.clone();
 
-        let coam = Self::get_persistent_store_bool(&state, PERSISTENT_STORAGE_KEY_COAM).await;
+        let coam = Self::get_persistent_store_bool(state, PERSISTENT_STORAGE_KEY_COAM).await;
 
-        let country = StorageManager::get_string(&state, StorageProperty::CountryCode)
+        let country = StorageManager::get_string(state, StorageProperty::CountryCode)
             .await
             .ok();
 
-        let region = StorageManager::get_string(&state, StorageProperty::Locality)
+        let region = StorageManager::get_string(state, StorageProperty::Locality)
             .await
             .ok();
 
         let account_type =
-            Self::get_persistent_store_string(&state, PERSISTENT_STORAGE_KEY_ACCOUNT_TYPE).await;
+            Self::get_persistent_store_string(state, PERSISTENT_STORAGE_KEY_ACCOUNT_TYPE).await;
 
         let operator =
-            Self::get_persistent_store_string(&state, PERSISTENT_STORAGE_KEY_OPERATOR).await;
+            Self::get_persistent_store_string(state, PERSISTENT_STORAGE_KEY_OPERATOR).await;
 
         let account_detail_type =
-            Self::get_persistent_store_string(&state, PERSISTENT_STORAGE_ACCOUNT_DETAIL_TYPE).await;
+            Self::get_persistent_store_string(state, PERSISTENT_STORAGE_ACCOUNT_DETAIL_TYPE).await;
 
         let device_type =
-            Self::get_persistent_store_string(&state, PERSISTENT_STORAGE_ACCOUNT_DEVICE_TYPE)
+            Self::get_persistent_store_string(state, PERSISTENT_STORAGE_ACCOUNT_DEVICE_TYPE)
                 .await
                 .unwrap_or("Device.Type.missing.from.persistent.store".into());
 
         let device_manufacturer = Self::get_persistent_store_string(
-            &state,
+            state,
             PERSISTENT_STORAGE_ACCOUNT_DEVICE_MANUFACTURER,
         )
         .await
@@ -377,7 +377,7 @@ impl MetricsState {
             context.os_name = os_info.name;
             context.os_ver = os_info.version.readable;
             context.device_name = Some(device_name);
-            context.device_session_id = String::from(&state.device_session_id);
+            context.device_session_id = state.device_session_id.clone().into();
             context.firmware = firmware;
             context.ripple_version = state
                 .version
