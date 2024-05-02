@@ -117,28 +117,9 @@ impl DataGovernance {
                     .collect();
                 tags.extend(tags_to_add);
             } else {
-                // check if the privacy setting property is avaiale in cache
-                let mut privacy_settings_cache = state.metrics.get_privacy_settings_cache();
-                let val_opt = tag
-                    .setting
-                    .get_privacy_setting_value(&privacy_settings_cache);
-
-                let val = match val_opt {
-                    Some(v) => v,
-                    None => {
-                        // get the value from storage manager and update the privacy settings cache in metrics state
-                        let tmp_val = StorageManager::get_bool(state, tag.setting.clone())
-                            .await
-                            .unwrap_or(false);
-                        tag.setting
-                            .set_privacy_setting_value(&mut privacy_settings_cache, tmp_val);
-                        state
-                            .metrics
-                            .update_privacy_settings_cache(&privacy_settings_cache);
-                        tmp_val
-                    }
-                };
-
+                let val = StorageManager::get_bool(state, tag.setting.clone())
+                    .await
+                    .unwrap_or(false);
                 if val == tag.enforcement_value {
                     let tags_to_add: HashSet<DataTagInfo> = tag
                         .tags

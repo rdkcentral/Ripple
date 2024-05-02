@@ -42,6 +42,7 @@ use ripple_sdk::api::app_catalog::{AppCatalogRequest, AppOperationComplete, Apps
 use ripple_sdk::api::device::device_apps::DeviceAppMetadata;
 use ripple_sdk::api::device::device_operator::{DeviceResponseMessage, DeviceSubscribeRequest};
 use ripple_sdk::api::firebolt::fb_capabilities::FireboltPermissions;
+use ripple_sdk::api::firebolt::fb_metrics::{Timer, TimerType};
 use ripple_sdk::api::observability::metrics_util::{
     start_service_metrics_timer, stop_and_send_service_metrics_timer,
 };
@@ -61,12 +62,13 @@ use {println as info, println as debug, println as error};
 use super::thunder_telemetry::{ThunderMetricsTimerName, ThunderResponseStatus};
 
 // TODO: If/when ripple supports selectable download speeds we'll probably want multiple configurable values or compute this based on throughput.
-pub const OPERATION_TIMEOUT_SECS: u64 = 6 * 60; // 6 minutes
+const DEFAULT_OPERATION_TIMEOUT_SECS: u64 = 12 * 60; // 12 minutes
 
 #[derive(Debug, Clone)]
 pub struct ThunderPackageManagerState {
     pub(crate) thunder_state: ThunderState,
     pub(crate) active_operations: Arc<Mutex<HashMap<String, Operation>>>,
+    pub(crate) operation_timeout_secs: u64,
 }
 
 #[derive(Debug)]
@@ -178,11 +180,12 @@ impl AppData {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Operation {
     durable_app_id: String,
     operation_type: AppsOperationType,
     app_data: AppData,
+    timer: Timer,
 }
 
 impl Operation {
@@ -191,10 +194,18 @@ impl Operation {
         durable_app_id: String,
         app_data: AppData,
     ) -> Operation {
+        let mut tags: HashMap<String, String> = HashMap::new();
+        tags.insert("app_id".to_string(), durable_app_id.clone());
+        tags.insert("app_version".to_string(), app_data.clone().version);
         Operation {
-            operation_type,
+            operation_type: operation_type.clone(),
             durable_app_id,
             app_data,
+            timer: Timer::start(
+                operation_type.to_string(),
+                Some(tags),
+                Some(TimerType::Remote),
+            ),
         }
     }
 }
@@ -274,6 +285,14 @@ impl FromStr for AppsOperationType {
         }
     }
 }
+impl ToString for AppsOperationType {
+    fn to_string(&self) -> String {
+        match self {
+            AppsOperationType::Install => "install".to_string(),
+            AppsOperationType::Uninstall => "uninstall".to_string(),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppsOperationStatus {
@@ -341,10 +360,16 @@ fn get_string_field(
 
 impl ThunderPackageManagerRequestProcessor {
     pub fn new(thunder_state: ThunderState) -> ThunderPackageManagerRequestProcessor {
+        let operation_timeout_secs = thunder_state
+            .get_client()
+            .get_uint_config("pm_operation_timeout_secs")
+            .unwrap_or(DEFAULT_OPERATION_TIMEOUT_SECS);
+
         ThunderPackageManagerRequestProcessor {
             state: ThunderPackageManagerState {
                 thunder_state,
                 active_operations: Arc::new(Mutex::new(HashMap::default())),
+                operation_timeout_secs,
             },
             streamer: DefaultExtnStreamer::new(),
         }
@@ -394,6 +419,7 @@ impl ThunderPackageManagerRequestProcessor {
                             state_for_event_handler.clone(),
                             operation_status.handle,
                             operation,
+                            Some(operation_status.status),
                         );
                         let op_comp = AppOperationComplete {
                             id: operation_status.id,
@@ -465,20 +491,28 @@ impl ThunderPackageManagerRequestProcessor {
         state: ThunderPackageManagerState,
         handle: String,
         operation: Operation,
+        status: Option<String>,
     ) {
-        if state
-            .active_operations
-            .lock()
-            .unwrap()
-            .remove(&handle)
-            .is_none()
-        {
-            state
-                .active_operations
-                .lock()
-                .unwrap()
-                .insert(handle.clone(), operation);
-            Self::start_operation_timer(state, handle, None);
+        /*
+        clone active_operations, we want an immutable view
+        */
+        let active_operations = state.active_operations.lock().unwrap().clone();
+        match active_operations.get(&handle) {
+            Some(op) => {
+                let mut timer = op.timer.clone();
+                timer.stop();
+                timer.insert_tag("status".to_string(), status.unwrap_or("".to_string()));
+                rdk_telemetry_emit(timer);
+            }
+            None => {
+                /*new operation, insert into map */
+                state
+                    .active_operations
+                    .lock()
+                    .unwrap()
+                    .insert(handle.clone(), operation);
+                Self::start_operation_timeout_timer(state, handle);
+            }
         }
     }
 
@@ -502,31 +536,42 @@ impl ThunderPackageManagerRequestProcessor {
         }
         None
     }
+    /*
+    2024 Apr 26 19:31:12.268372 ripple[15590]:  [INFO][thunder_ripple_sdk::processors::thunder_package_manager][thunder_comcast]-install: amazonPrime,0.0.1713210750898,failed,5010
+    2024 Apr 26 19:31:12.286119 ripple[15590]:  [INFO][thunder_ripple_sdk::processors::thunder_package_manager][thunder_comcast]-install: amazonPrime,0.0.1713210750898,Cancelled,5029
+     */
 
-    fn start_operation_timer(
-        state: ThunderPackageManagerState,
-        handle: String,
-        timeout_secs: Option<u64>,
-    ) {
+    fn start_operation_timeout_timer(state: ThunderPackageManagerState, handle: String) {
+        let timeout_secs = state.operation_timeout_secs;
         tokio::spawn(async move {
-            tokio::time::sleep(tokio::time::Duration::from_secs(
-                timeout_secs.unwrap_or(OPERATION_TIMEOUT_SECS),
-            ))
-            .await;
-            if state
-                .active_operations
-                .lock()
-                .unwrap()
-                .remove(&handle)
-                .is_some()
-            {
-                error!(
-                    "Detected incomplete operation, attempting to cancel: handle={}",
-                    handle.clone()
-                );
+            tokio::time::sleep(tokio::time::Duration::from_secs(timeout_secs)).await;
+            /*
+            clone active_operations, we want an immutable view, and stop/emit timer if the operation is in the map
+            */
 
-                Self::cancel_operation(state, handle).await;
-            }
+            let active_operations = state.active_operations.lock().unwrap().clone();
+            /*
+            If the handle is still in the map after state.operation_timeout_secs, timeout has occured and cancel is needed
+            */
+            match active_operations.get(&handle) {
+                Some(_operation) => {
+                    error!("Detected incomplete operation after {} seconds, attempting to cancel: handle={}", timeout_secs, handle.clone());
+                    /*remove from map, this is a needed additional map
+                    operation to keep locking consistent and compiling...
+                    */
+                    let _ = state
+                        .active_operations
+                        .lock()
+                        .unwrap()
+                        .clone()
+                        .remove(&handle);
+
+                    Self::cancel_operation(state.clone(), handle).await;
+                }
+                None => {
+                    debug!("an attempt was made to cancel an operation that is not currently in progress. Handle {}, timeout {}",handle, timeout_secs);
+                }
+            };
         });
     }
 
@@ -603,6 +648,14 @@ impl ThunderPackageManagerRequestProcessor {
 
             return ExtnResponse::String(handle);
         }
+        /*
+        setup operation at higher scope to allow it to time itself
+        */
+        let operation = Operation::new(
+            AppsOperationType::Install,
+            app.clone().id,
+            AppData::new(app.clone().version),
+        );
 
         let method: String = ThunderPlugin::PackageManager.method("install");
         let request = InstallAppRequest::new(app.clone());
@@ -640,12 +693,13 @@ impl ThunderPackageManagerRequestProcessor {
 
         match thunder_resp {
             Ok(handle) => {
-                let operation = Operation::new(
-                    AppsOperationType::Install,
-                    app.id,
-                    AppData::new(app.version),
+                Self::add_or_remove_operation(
+                    state.clone(),
+                    handle.clone(),
+                    operation,
+                    Some(status.to_string()),
                 );
-                Self::add_or_remove_operation(state.clone(), handle.clone(), operation);
+
                 ExtnResponse::String(handle)
             }
             Err(_) => ExtnResponse::Error(RippleError::ProcessorError),
@@ -665,7 +719,8 @@ impl ThunderPackageManagerRequestProcessor {
         ) {
             info!(
                 "uninstall_app: Uninstallation already in progress: app={}, version={}",
-                app.id, app.version
+                app.clone().id,
+                app.clone().version
             );
 
             return Self::respond(
@@ -676,6 +731,14 @@ impl ThunderPackageManagerRequestProcessor {
             .await
             .is_ok();
         }
+        /*
+        instansiate operation here to start timing
+        */
+        let operation = Operation::new(
+            AppsOperationType::Uninstall,
+            app.clone().clone().id,
+            AppData::new(app.clone().version),
+        );
 
         let method: String = ThunderPlugin::PackageManager.method("uninstall");
         let request = UninstallAppRequest::new(app.clone());
@@ -713,12 +776,12 @@ impl ThunderPackageManagerRequestProcessor {
 
         let extn_resp = match thunder_resp {
             Ok(handle) => {
-                let operation = Operation::new(
-                    AppsOperationType::Uninstall,
-                    app.id,
-                    AppData::new(app.version),
+                Self::add_or_remove_operation(
+                    state.clone(),
+                    handle.clone(),
+                    operation,
+                    Some(status.to_string()),
                 );
-                Self::add_or_remove_operation(state.clone(), handle.clone(), operation);
                 ExtnResponse::String(handle)
             }
             Err(_) => ExtnResponse::Error(RippleError::ProcessorError),
@@ -967,5 +1030,163 @@ impl ExtnRequestProcessor for ThunderPackageManagerRequestProcessor {
                 Self::get_firebolt_permissions(state.clone(), msg, app_id).await
             }
         }
+    }
+}
+/*
+RDK Telemetry  message processing/emitting
+*/
+pub fn rdk_telemetry_emit(timer: ripple_sdk::api::firebolt::fb_metrics::Timer) {
+    emit(format_timer(timer));
+}
+
+fn format_timer(timer: ripple_sdk::api::firebolt::fb_metrics::Timer) -> String {
+    /*
+    emit - name: <appId>,<appVersion>,<status>,<duration>
+    */
+    let tags = timer.clone().tags.unwrap_or_default();
+    let app_id = tags.get("app_id").unwrap_or(&"".to_string()).to_string();
+    let app_version = tags
+        .get("app_version")
+        .unwrap_or(&"".to_string())
+        .to_string();
+    let status = match tags.get("status") {
+        Some(value) => value,
+        None => "",
+    };
+    format!(
+        "{}: {},{},{},{}",
+        timer.name,
+        app_id,
+        app_version,
+        status,
+        timer.elapsed().as_millis()
+    )
+    .to_string()
+}
+
+fn emit(message: String) {
+    ripple_sdk::log::info!("{}", message);
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use crate::{
+        client::thunder_client::ThunderClient,
+        processors::thunder_package_manager::{
+            format_timer, AppData, AppsOperationType, Operation,
+        },
+    };
+    use ripple_sdk::extn::mock_extension_client::*;
+    use ripple_sdk::{
+        api::firebolt::fb_metrics::Timer,
+        tokio::{self, time::sleep},
+        uuid::Uuid,
+    };
+    use std::{collections::HashMap, time::Duration};
+
+    #[tokio::test]
+    pub async fn test_format_timer_all_tags() {
+        let timer_name = "test_timer".to_string();
+        let mut tags: HashMap<String, String> = HashMap::new();
+        tags.insert("app_id".to_string(), "xumo".to_string());
+        tags.insert("app_version".to_string(), "1.2.3".to_string());
+        tags.insert("status".to_string(), "success".to_string());
+        let mut timer = Timer::start(timer_name, Some(tags), None);
+        sleep(Duration::from_millis(1000)).await;
+        timer.stop();
+        let rendered = format_timer(timer);
+        assert!(rendered.starts_with("test_timer: xumo,1.2.3,success,"));
+    }
+
+    #[tokio::test]
+    pub async fn test_format_timer_some_tags() {
+        let timer_name = "test_timer".to_string();
+        let mut tags: HashMap<String, String> = HashMap::new();
+        tags.insert("status".to_string(), "success".to_string());
+        let mut timer = Timer::start(timer_name, Some(tags), None);
+        sleep(Duration::from_millis(1000)).await;
+        timer.stop();
+        let rendered = format_timer(timer);
+        assert!(rendered.starts_with("test_timer: ,,success,"));
+    }
+
+    #[tokio::test]
+    pub async fn test_stop_operation() {
+        let operation = Operation::new(
+            AppsOperationType::Uninstall,
+            String::from("xumo"),
+            AppData::new(String::from("1.2.3")),
+        );
+        sleep(Duration::from_millis(1000)).await;
+        let mut timer = operation.timer.clone();
+        timer.stop();
+        let rdk_output = format_timer(timer);
+        println!("{}", rdk_output);
+    }
+    #[tokio::test]
+    pub async fn test_add_or_remove_operation_existing_handle() {
+        let operation = Operation::new(
+            AppsOperationType::Install,
+            String::from("xumo"),
+            AppData::new(String::from("1.2.3")),
+        );
+        let client = MockExtnClient::main();
+        let thunder_client = ThunderClient {
+            sender: None,
+            pooled_sender: None,
+            id: Uuid::new_v4(),
+            plugin_manager_tx: None,
+            subscriptions: None,
+        };
+        let mut sessions: HashMap<String, Operation> = HashMap::new();
+        sessions.insert("asdf".to_string(), operation.clone());
+        let state = ThunderPackageManagerState {
+            thunder_state: ThunderState::new(client, thunder_client),
+            active_operations: Arc::new(Mutex::new(sessions.clone())),
+            operation_timeout_secs: 1,
+        };
+        sleep(Duration::from_millis(1000)).await;
+
+        ThunderPackageManagerRequestProcessor::add_or_remove_operation(
+            state.clone(),
+            "asdf".to_string(),
+            operation,
+            Some("success".to_string()),
+        );
+        assert!(sessions.eq(&state.active_operations.lock().unwrap().clone()));
+    }
+
+    #[tokio::test]
+    pub async fn test_add_or_remove_operation_new_handle() {
+        let operation = Operation::new(
+            AppsOperationType::Install,
+            String::from("xumo"),
+            AppData::new(String::from("1.2.3")),
+        );
+        let client = MockExtnClient::main();
+        let thunder_client = ThunderClient {
+            sender: None,
+            pooled_sender: None,
+            id: Uuid::new_v4(),
+            plugin_manager_tx: None,
+            subscriptions: None,
+        };
+        let mut sessions: HashMap<String, Operation> = HashMap::new();
+        sessions.insert("asdf".to_string(), operation.clone());
+        let state = ThunderPackageManagerState {
+            thunder_state: ThunderState::new(client, thunder_client),
+            active_operations: Arc::new(Mutex::new(HashMap::new())),
+            operation_timeout_secs: 1,
+        };
+        sleep(Duration::from_millis(1000)).await;
+
+        ThunderPackageManagerRequestProcessor::add_or_remove_operation(
+            state.clone(),
+            "asdf".to_string(),
+            operation,
+            Some("success".to_string()),
+        );
+        assert!(sessions.eq(&state.active_operations.lock().unwrap().clone()));
     }
 }
