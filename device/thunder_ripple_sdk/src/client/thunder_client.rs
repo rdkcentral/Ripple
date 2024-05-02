@@ -279,12 +279,15 @@ impl ThunderClient {
         let subscription_res = client
             .subscribe_to_method::<Value>(subscribe_method.as_str())
             .await;
-        if let Err(e) = subscription_res {
-            error!("Failed to setup subscriber in jsonrpsee client, {}", e);
-            // Maybe this method signature should change to propagate the error up
-            return;
-        }
-        let mut subscription = subscription_res.unwrap();
+
+        let mut subscription = match subscription_res {
+            Ok(subscription) => subscription,
+            Err(e) => {
+                error!("Failed to setup subscriber in jsonrpsee client, {}", e);
+                // Maybe this method signature should change to propagate the error up
+                return;
+            }
+        };
         let params = ThunderRegisterParams {
             event: thunder_message.event_name.clone(),
             id: format!("client.{}.events", thunder_message.module.clone()),

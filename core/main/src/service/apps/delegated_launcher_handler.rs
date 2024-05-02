@@ -767,12 +767,11 @@ impl DelegatedLauncherHandler {
         emit_event: bool,
     ) {
         let app_id = session.app.id.clone();
-        let app_opt = platform_state.app_manager_state.get(&app_id);
-        if app_opt.is_none() {
-            return;
-        }
-        // safe to unwrap here as app_opt is not None
-        let app = app_opt.unwrap();
+        let app = match platform_state.app_manager_state.get(&app_id) {
+            Some(app) => app,
+            None => return,
+        };
+
         if app.active_session_id.is_none() {
             platform_state
                 .app_manager_state
@@ -898,8 +897,8 @@ impl DelegatedLauncherHandler {
             "get the list of grant policies from device manifest file:{:?}",
             grant_polices_map_opt
         );
-        grant_polices_map_opt.as_ref()?;
-        let grant_polices_map = grant_polices_map_opt.unwrap();
+
+        let grant_polices_map = grant_polices_map_opt?;
         //Filter out the caps only that has evaluate at
         let mut final_perms: Vec<FireboltPermission> = app_perms
             .into_iter()
