@@ -25,9 +25,14 @@ use crate::{
         extn_client_message::ExtnMessage,
         extn_id::ExtnId,
     },
-    log::error,
     tokio::sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
 };
+
+#[cfg(not(test))]
+use log::error;
+
+#[cfg(test)]
+use println as error;
 
 #[derive(Debug, Clone)]
 pub struct WaitForState {
@@ -51,6 +56,14 @@ impl WaitForStatusReadyEventProcessor {
         WaitForStatusReadyEventProcessor {
             state: WaitForState { capability, sender },
             streamer: DefaultExtnStreamer::new(),
+        }
+    }
+
+    #[cfg(test)]
+    fn clone_with_state(&self, new_state: WaitForState) -> Self {
+        WaitForStatusReadyEventProcessor {
+            state: new_state,
+            streamer: DefaultExtnStreamer::new(), // Assuming DefaultExtnStreamer is also cloneable
         }
     }
 }
@@ -82,12 +95,208 @@ impl ExtnEventProcessor for WaitForStatusReadyEventProcessor {
         if msg.requestor.to_string().eq(&state.capability.to_string()) {
             if let ExtnStatus::Ready = extracted_message {
                 if state.sender.send(ExtnStatus::Ready).await.is_err() {
-                    error!("Failure to wait status message")
+                    error!("Failure to wait status message");
                 }
                 return Some(true);
             }
         }
 
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        api::config::Config,
+        extn::{
+            extn_client_message::{ExtnPayload, ExtnRequest},
+            extn_id::ExtnClassId,
+        },
+        framework::ripple_contract::RippleContract,
+        tokio::time::Duration,
+    };
+
+    #[tokio::test]
+    async fn test_wait_for_status_ready_event_processor() {
+        // Create a channel for sending ExtnStatus
+        let (status_sender, mut status_receiver) = tokio::sync::mpsc::channel::<ExtnStatus>(1);
+
+        // Create a WaitForStatusReadyEventProcessor
+        let capability = ExtnId::new_channel(ExtnClassId::Device, "info".to_string());
+        let wait_processor =
+            WaitForStatusReadyEventProcessor::new(capability.clone(), status_sender);
+
+        // Clone the sender for the inner DefaultExtnStreamer
+        let sender_clone = wait_processor.sender();
+
+        // Simulate an ExtnMessage indicating Ready status
+        let ready_message = ExtnMessage {
+            id: "test_id".to_string(),
+            requestor: ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
+            target: RippleContract::Internal,
+            target_id: Some(ExtnId::get_main_target("main".into())),
+            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
+            callback: None,
+            ts: Some(1234567890),
+        };
+
+        // Clone ready_message before moving it into the closure
+        let ready_message_clone = ready_message.clone();
+
+        // Use tokio::spawn to run the async function concurrently
+        tokio::spawn(async move {
+            // Sleep for a short duration before sending the Ready message
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            sender_clone
+                .send(ready_message_clone)
+                .await
+                .expect("Failed to send ready message");
+        });
+
+        // Simulate processing of the ExtnMessage
+        let processing_result = WaitForStatusReadyEventProcessor::process_event(
+            wait_processor.get_state(),
+            ready_message,
+            ExtnStatus::Ready,
+        )
+        .await;
+
+        // Check if the status_sender received the Ready status
+        let received_status = status_receiver.recv().await;
+        assert_eq!(received_status, Some(ExtnStatus::Ready));
+
+        // Check if the processing result is `Some(true)`
+        assert_eq!(processing_result, Some(true));
+    }
+
+    #[tokio::test]
+    async fn test_wait_for_status_ready_event_processor_no_matching_capability_or_status() {
+        // Create a channel for sending ExtnStatus
+        let (status_sender, mut status_receiver) = tokio::sync::mpsc::channel::<ExtnStatus>(1);
+
+        // Create a WaitForStatusReadyEventProcessor with a specific capability
+        let capability = ExtnId::new_channel(ExtnClassId::Device, "info".to_string());
+        let wait_processor =
+            WaitForStatusReadyEventProcessor::new(capability.clone(), status_sender);
+
+        // Simulate an ExtnMessage with a different capability and different status
+        let invalid_message = ExtnMessage {
+            id: "test_id".to_string(),
+            requestor: ExtnId::new_channel(ExtnClassId::Device, "other".to_string()),
+            target: RippleContract::Internal,
+            target_id: Some(ExtnId::get_main_target("main".into())),
+            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
+            callback: None,
+            ts: Some(1234567890),
+        };
+
+        // Simulate an ExtnMessage with a different capability and different status
+        let wait_processor_clone = wait_processor.clone_with_state(wait_processor.get_state());
+        let invalid_message_clone = invalid_message.clone();
+
+        // Use tokio::spawn to run the async function concurrently
+        tokio::spawn(async move {
+            // Sleep for a short duration before sending the message
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            wait_processor
+                .sender()
+                .send(invalid_message.clone())
+                .await
+                .expect("Failed to send invalid message");
+        });
+
+        // Simulate processing of the ExtnMessage
+        let processing_result = WaitForStatusReadyEventProcessor::process_event(
+            wait_processor_clone.get_state().clone(),
+            invalid_message_clone,
+            ExtnStatus::Error,
+        )
+        .await;
+
+        // Check if the status_sender did not receive any status
+        let received_status =
+            tokio::time::timeout(Duration::from_secs(5), status_receiver.recv()).await;
+
+        // Check if the received status is an error with the Elapsed variant
+        assert!(matches!(received_status, Err(_elapsed)));
+
+        // Check if the processing result is None because neither capability nor status matched
+        assert_eq!(processing_result, None);
+    }
+
+    #[tokio::test]
+    async fn test_wait_for_status_ready_event_processor_no_matching_capability() {
+        // Create a channel for sending ExtnStatus
+        let (status_sender, mut status_receiver) = tokio::sync::mpsc::channel::<ExtnStatus>(1);
+
+        // Create a WaitForStatusReadyEventProcessor with a specific capability
+        let capability = ExtnId::new_channel(ExtnClassId::Device, "info".to_string());
+        let wait_processor =
+            WaitForStatusReadyEventProcessor::new(capability.clone(), status_sender);
+
+        // Simulate an ExtnMessage with a different capability and Ready status
+        let ready_message = ExtnMessage {
+            id: "test_id".to_string(),
+            requestor: ExtnId::new_channel(ExtnClassId::Device, "other".to_string()),
+            target: RippleContract::Internal,
+            target_id: Some(ExtnId::get_main_target("main".into())),
+            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
+            callback: None,
+            ts: Some(1234567890),
+        };
+
+        // Simulate processing of the ExtnMessage
+        let processing_result = WaitForStatusReadyEventProcessor::process_event(
+            wait_processor.get_state().clone(),
+            ready_message.clone(),
+            ExtnStatus::Ready,
+        )
+        .await;
+
+        // Check if the status_sender did not receive any status
+        let _received_status =
+            tokio::time::timeout(Duration::from_secs(5), status_receiver.recv()).await;
+
+        // Check if the processing result is None because capability did not match
+        assert_eq!(processing_result, None);
+    }
+
+    #[tokio::test]
+    async fn test_wait_for_status_ready_event_processor_no_matching_status() {
+        // Create a channel for sending ExtnStatus
+        let (status_sender, mut status_receiver) = tokio::sync::mpsc::channel::<ExtnStatus>(1);
+
+        // Create a WaitForStatusReadyEventProcessor with a specific capability
+        let capability = ExtnId::new_channel(ExtnClassId::Device, "info".to_string());
+        let wait_processor =
+            WaitForStatusReadyEventProcessor::new(capability.clone(), status_sender);
+
+        // Simulate an ExtnMessage with the correct capability but different status
+        let invalid_message = ExtnMessage {
+            id: "test_id".to_string(),
+            requestor: ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
+            target: RippleContract::Internal,
+            target_id: Some(ExtnId::get_main_target("main".into())),
+            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
+            callback: None,
+            ts: Some(1234567890),
+        };
+
+        // Simulate processing of the ExtnMessage
+        let processing_result = WaitForStatusReadyEventProcessor::process_event(
+            wait_processor.get_state().clone(),
+            invalid_message.clone(),
+            ExtnStatus::Error,
+        )
+        .await;
+
+        // Check if the status_sender did not receive any status
+        let _received_status =
+            tokio::time::timeout(Duration::from_secs(5), status_receiver.recv()).await;
+
+        // Check if the processing result is None because status did not match
+        assert_eq!(processing_result, None);
     }
 }

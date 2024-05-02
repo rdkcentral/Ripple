@@ -131,12 +131,14 @@ impl ExtnPayloadProvider for AdvertisingResponse {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct GetAdConfig {
     pub options: AdConfig,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "lowercase")]
 pub enum Environment {
     #[default]
@@ -154,6 +156,7 @@ impl fmt::Display for Environment {
 }
 
 #[derive(Deserialize, Serialize, Debug, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct AdConfig {
     #[serde(default)]
@@ -179,6 +182,28 @@ impl Default for GetAdConfig {
 mod tests {
     use super::*;
     use crate::utils::test_utils::test_extn_payload_provider;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case(Environment::Prod, "prod")]
+    #[case(Environment::Test, "test")]
+    fn test_display_impl(#[case] environment: Environment, #[case] expected_output: &str) {
+        let result = format!("{}", environment);
+        assert_eq!(result, expected_output);
+    }
+
+    #[test]
+    fn test_default() {
+        let default_config = GetAdConfig::default();
+        let expected_config = GetAdConfig {
+            options: AdConfig {
+                environment: Environment::Prod,
+                coppa: Some(false),
+                authentication_entity: Some("".to_owned()),
+            },
+        };
+        assert_eq!(default_config, expected_config);
+    }
 
     #[test]
     fn test_extn_payload_provider_for_advertising_request() {

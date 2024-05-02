@@ -144,6 +144,26 @@ impl ExtnPayloadProvider for DeviceEventRequest {
 mod tests {
     use super::*;
     use crate::utils::test_utils::test_extn_payload_provider;
+    use rstest::rstest;
+
+    #[rstest(input, expected,
+            case("device.onHdcpChanged", Ok(DeviceEvent::InputChanged)),
+            case("localization.onTimeZoneChanged", Ok(DeviceEvent::TimeZoneChanged)),
+            case("invalid_event", Err(())),
+        )]
+    fn test_from_str(input: &str, expected: Result<DeviceEvent, ()>) {
+        assert_eq!(DeviceEvent::from_str(input), expected);
+    }
+
+    #[rstest]
+    #[case(
+        DeviceEventCallback::FireboltAppEvent("app_event".to_string()),
+        "app_event"
+    )]
+    #[case(DeviceEventCallback::ExtnEvent, "internal")]
+    fn test_get_id(#[case] callback: DeviceEventCallback, #[case] expected_id: &str) {
+        assert_eq!(callback.get_id(), expected_id);
+    }
 
     #[test]
     fn test_extn_request_device_event() {

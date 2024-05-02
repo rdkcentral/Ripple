@@ -32,6 +32,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum DeviceRequest {
     DeviceInfo(DeviceInfoRequest),
     Browser(BrowserRequest),
@@ -93,7 +94,7 @@ impl std::fmt::Display for AudioProfile {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct AccountToken {
     pub token: String,
     pub expires: u64,
@@ -106,7 +107,7 @@ pub struct DeviceVersionResponse {
     pub os: FireboltSemanticVersion,
     pub debug: String,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct NetworkResponse {
     pub state: NetworkState,
     #[serde(rename = "type")]
@@ -162,7 +163,7 @@ impl FromStr for NetworkType {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct HDCPStatus {
     pub is_connected: bool,
@@ -250,7 +251,7 @@ impl FromStr for PowerState {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemPowerState {
     pub power_state: PowerState,
@@ -320,6 +321,70 @@ impl ExtnPayloadProvider for VoiceGuidanceState {
 mod tests {
     use super::*;
     use crate::utils::test_utils::test_extn_payload_provider;
+    use rstest::rstest;
+
+    #[rstest]
+    fn test_system_power_state_default() {
+        let default_state = SystemPowerState::default();
+        assert_eq!(default_state.power_state, PowerState::Standby);
+        assert_eq!(default_state.current_power_state, PowerState::Standby);
+    }
+
+    #[rstest]
+    #[case("STANDBY", PowerState::Standby)]
+    #[case("ON", PowerState::On)]
+    fn test_power_state_from_str(#[case] s: &str, #[case] expected: PowerState) {
+        assert_eq!(PowerState::from_str(s), Ok(expected));
+    }
+
+    #[test]
+    fn test_power_state_from_str_invalid() {
+        assert_eq!(PowerState::from_str("INVALID"), Err(()));
+    }
+
+    #[rstest]
+    #[case("WIFI", NetworkType::Wifi)]
+    #[case("ETHERNET", NetworkType::Ethernet)]
+    #[case("HYBRID", NetworkType::Hybrid)]
+    fn test_network_type_from_str(#[case] input: &str, #[case] expected: NetworkType) {
+        let result = NetworkType::from_str(input);
+        assert_eq!(result, Ok(expected));
+    }
+
+    #[test]
+    fn test_network_type_from_str_invalid() {
+        assert_eq!(NetworkType::from_str("INVALID"), Err(()));
+    }
+
+    #[rstest]
+    #[case("CONNECTED", NetworkState::Connected)]
+    #[case("DISCONNECTED", NetworkState::Disconnected)]
+    fn test_network_state_from_str(#[case] input: &str, #[case] expected: NetworkState) {
+        let result = NetworkState::from_str(input);
+        assert_eq!(result, Ok(expected));
+    }
+
+    #[rstest]
+    fn test_resolution_dimension(
+        #[values(
+            (Resolution::Resolution480, vec![720, 480]),
+            (Resolution::Resolution1080, vec![1920, 1080]),
+            (Resolution::Resolution2160, vec![3840, 2160]),
+        )]
+        resolution: (Resolution, Vec<i32>),
+    ) {
+        let (res, expected) = resolution;
+        assert_eq!(res.dimension(), expected);
+    }
+
+    #[rstest]
+    #[case(AudioProfile::Stereo, "stereo")]
+    #[case(AudioProfile::DolbyDigital5_1, "dolbyDigital5.1")]
+    #[case(AudioProfile::DolbyDigital7_1Plus, "dolbyDigital7.1+")]
+    fn test_audio_profile_fmt(#[case] audio_profile: AudioProfile, #[case] expected_result: &str) {
+        let formatted = format!("{}", audio_profile);
+        assert_eq!(formatted, expected_result);
+    }
 
     #[test]
     fn test_language_serializer() {

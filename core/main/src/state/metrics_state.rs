@@ -24,14 +24,14 @@ use jsonrpsee::tracing::debug;
 use ripple_sdk::{
     api::{
         context::RippleContextUpdateRequest,
-        device::device_info_request::{DeviceInfoRequest, DeviceResponse},
-        distributor::distributor_privacy::PrivacySettingsData,
+        device::device_info_request::{DeviceInfoRequest, DeviceResponse, FirmwareInfo},
         firebolt::{fb_metrics::MetricsContext, fb_openrpc::FireboltSemanticVersion},
         storage_property::StorageProperty,
     },
     chrono::{DateTime, Utc},
     extn::extn_client_message::ExtnResponse,
     log::error,
+    utils::error::RippleError,
 };
 
 use rand::Rng;
@@ -46,7 +46,6 @@ include!(concat!(env!("OUT_DIR"), "/version.rs"));
 pub struct MetricsState {
     pub start_time: DateTime<Utc>,
     pub context: Arc<RwLock<MetricsContext>>,
-    pub privacy_settings_cache: Arc<RwLock<PrivacySettingsData>>,
     operational_telemetry_listeners: Arc<RwLock<HashSet<String>>>,
 }
 
@@ -67,13 +66,6 @@ impl MetricsState {
 
     pub fn get_context(&self) -> MetricsContext {
         self.context.read().unwrap().clone()
-    }
-    pub fn get_privacy_settings_cache(&self) -> PrivacySettingsData {
-        self.privacy_settings_cache.read().unwrap().clone()
-    }
-    pub fn update_privacy_settings_cache(&self, value: &PrivacySettingsData) {
-        let mut cache = self.privacy_settings_cache.write().unwrap();
-        *cache = value.clone();
     }
     pub async fn initialize(state: &PlatformState) {
         let metrics_percentage = state
@@ -127,8 +119,15 @@ impl MetricsState {
             Err(_) => "no.language.set".to_string(),
         };
 
-        let os_ver = Self::get_os_ver_from_firebolt(state).await;
-        debug!("got os_ver={}", &os_ver);
+        let os_info = match Self::get_os_info_from_firebolt(state).await {
+            Ok(info) => info,
+            Err(_) => FirmwareInfo {
+                name: "no.os.name.set".into(),
+                version: FireboltSemanticVersion::new(0, 0, 0, "no.os.ver.set".into()),
+            },
+        };
+
+        debug!("got os_info={:?}", &os_info);
 
         let mut device_name = "no.device.name.set".to_string();
         if let Ok(resp) = StorageManager::get_string(state, StorageProperty::DeviceName).await {
@@ -180,11 +179,15 @@ impl MetricsState {
             }
 
             context.device_language = language;
-            context.os_ver = os_ver;
+            context.os_name = os_info.name;
+            context.os_ver = os_info.version.readable;
             context.device_name = device_name;
             context.device_session_id = String::from(&state.device_session_id);
             context.firmware = firmware;
-            context.ripple_version = SEMVER.into();
+            context.ripple_version = state
+                .version
+                .clone()
+                .unwrap_or(String::from(SEMVER_LIGHTWEIGHT));
 
             if let Some(t) = timezone {
                 context.device_timezone = t;
@@ -197,24 +200,23 @@ impl MetricsState {
         Self::send_context_update_request(state);
     }
 
-    async fn get_os_ver_from_firebolt(platform_state: &PlatformState) -> String {
-        let mut os = FireboltSemanticVersion::new(0, 0, 0, "".to_string());
-
-        if let Ok(val) = platform_state
+    async fn get_os_info_from_firebolt(
+        platform_state: &PlatformState,
+    ) -> Result<FirmwareInfo, RippleError> {
+        match platform_state
             .get_client()
-            .send_extn_request(DeviceInfoRequest::Version)
+            .send_extn_request(DeviceInfoRequest::FirmwareInfo)
             .await
         {
-            if let Some(DeviceResponse::FirmwareInfo(value)) = val.payload.extract() {
-                os = value;
+            Ok(message) => {
+                if let Some(DeviceResponse::FirmwareInfo(info)) = message.payload.extract() {
+                    Ok(info)
+                } else {
+                    Err(RippleError::InvalidOutput)
+                }
             }
+            Err(e) => Err(e),
         }
-        let os_ver: String = if !os.readable.is_empty() {
-            os.readable.to_string()
-        } else {
-            "no.os.ver.set".to_string()
-        };
-        os_ver
     }
 
     pub async fn update_account_session(state: &PlatformState) {

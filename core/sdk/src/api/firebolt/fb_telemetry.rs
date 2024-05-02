@@ -23,7 +23,9 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
-use super::fb_metrics::{Counter, ErrorParams, ErrorType, Param, SystemErrorParams, Timer};
+use super::fb_metrics::{
+    Counter, ErrorParams, ErrorType, FlatMapValue, Param, SystemErrorParams, Timer,
+};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppLoadStart {
@@ -59,7 +61,7 @@ pub struct TelemetryAppError {
     pub code: String,
     pub description: String,
     pub visible: bool,
-    pub parameters: Option<HashMap<String, String>>,
+    pub parameters: Option<HashMap<String, FlatMapValue>>,
     pub ripple_session_id: String,
 }
 
@@ -77,7 +79,7 @@ impl From<ErrorParams> for TelemetryAppError {
     }
 }
 
-fn get_params(error_params: Option<Vec<Param>>) -> Option<HashMap<String, String>> {
+fn get_params(error_params: Option<Vec<Param>>) -> Option<HashMap<String, FlatMapValue>> {
     error_params.map(|params| {
         params
             .into_iter()
@@ -202,4 +204,96 @@ pub enum OperationalMetricRequest {
     UnSubscribe,
     Counter(Counter),
     Timer(Timer),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_telemetry_app_error_from_error_params() {
+        let error_params = ErrorParams {
+            error_type: ErrorType::network,
+            code: String::from("123"),
+            description: String::from("Network error"),
+            visible: true,
+            parameters: Some(vec![
+                Param {
+                    name: String::from("param1"),
+                    value: FlatMapValue::String(String::from("value1")),
+                },
+                Param {
+                    name: String::from("param2"),
+                    value: FlatMapValue::Boolean(true),
+                },
+            ]),
+        };
+
+        let expected = TelemetryAppError {
+            app_id: String::from(""),
+            error_type: String::from("network"),
+            code: String::from("123"),
+            description: String::from("Network error"),
+            visible: true,
+            parameters: Some(
+                vec![
+                    (
+                        String::from("param1"),
+                        FlatMapValue::String(String::from("value1")),
+                    ),
+                    (String::from("param2"), FlatMapValue::Boolean(true)),
+                ]
+                .into_iter()
+                .collect(),
+            ),
+            ripple_session_id: String::from(""),
+        };
+
+        let result: TelemetryAppError = error_params.into();
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_get_params() {
+        let error_params = Some(vec![
+            Param {
+                name: String::from("param1"),
+                value: FlatMapValue::String(String::from("value1")),
+            },
+            Param {
+                name: String::from("param2"),
+                value: FlatMapValue::Boolean(true),
+            },
+        ]);
+
+        let expected = Some(
+            vec![
+                (
+                    String::from("param1"),
+                    FlatMapValue::String(String::from("value1")),
+                ),
+                (String::from("param2"), FlatMapValue::Boolean(true)),
+            ]
+            .into_iter()
+            .collect(),
+        );
+
+        let result = get_params(error_params);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_get_error_type() {
+        assert_eq!(get_error_type(ErrorType::network), String::from("network"));
+        assert_eq!(get_error_type(ErrorType::media), String::from("media"));
+        assert_eq!(
+            get_error_type(ErrorType::restriction),
+            String::from("restriction")
+        );
+        assert_eq!(
+            get_error_type(ErrorType::entitlement),
+            String::from("entitlement")
+        );
+        assert_eq!(get_error_type(ErrorType::other), String::from("other"));
+    }
 }

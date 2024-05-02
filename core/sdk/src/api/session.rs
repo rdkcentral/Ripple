@@ -83,14 +83,14 @@ impl ExtnPayloadProvider for AccountSessionRequest {
 }
 
 #[repr(C)]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AccountSessionResponse {
     AccountSession(AccountSession),
     AccountSessionToken(AccountToken),
 }
 
 #[repr(C)]
-#[derive(Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Default)]
 pub struct AccountSession {
     pub id: String,
     pub token: String,

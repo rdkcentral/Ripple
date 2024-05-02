@@ -35,6 +35,8 @@ pub enum RippleError {
     NoResponse,
     InvalidAccess,
     Permission(DenyReason),
+    ServiceError,
+    NotAvailable,
 }
 impl std::fmt::Display for RippleError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -53,6 +55,8 @@ impl std::fmt::Display for RippleError {
             RippleError::NoResponse => write!(f, "NoResponse"),
             RippleError::InvalidAccess => write!(f, "InvalidAccess"),
             RippleError::Permission(p) => write!(f, "Permission {}", p),
+            RippleError::ServiceError => write!(f, "ServiceError"),
+            RippleError::NotAvailable => write!(f, "NotAvailable"),
         }
     }
 }

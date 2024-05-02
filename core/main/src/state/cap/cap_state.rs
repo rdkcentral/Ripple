@@ -184,7 +184,7 @@ impl CapState {
 
                 // Step 3: Get Capability info for each app based on context available in listener
                 if let Ok(r) = Self::get_cap_info(ps, cc, &request.get_caps()).await {
-                    if let Some(cap_info) = r.get(0) {
+                    if let Some(cap_info) = r.first() {
                         if let Ok(data) = serde_json::to_value(cap_info) {
                             debug!("data={:?}", data);
                             // Step 4: Send exclusive cap info data for each listener
@@ -356,7 +356,7 @@ mod tests {
         )
         .await
         {
-            let cap = v.get(0).unwrap();
+            let cap = v.first().unwrap();
             assert!(cap.supported);
             assert!(cap.available);
             assert!(cap._use.permitted);
@@ -376,7 +376,7 @@ mod tests {
         )
         .await
         {
-            let cap = v.get(0).unwrap();
+            let cap = v.first().unwrap();
             assert!(!cap.supported);
             assert!(!cap.available);
             assert!(!cap._use.permitted);
