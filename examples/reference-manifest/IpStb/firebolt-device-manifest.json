@@ -1,4 +1,4 @@
-{
+  {
   "configuration": {
     "ws_configuration": {
       "enabled": true,
@@ -49,9 +49,6 @@
             "*"
           ],
           "refui": [
-            "*"
-          ],
-          "comcast.test.firecert": [
             "*"
           ]
         }
