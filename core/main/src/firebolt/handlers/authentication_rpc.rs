@@ -164,7 +164,7 @@ impl AuthenticationImpl {
                 let context = PlatformTokenContext {
                     app_id: ctx.app_id,
                     content_provider: cp_id,
-                    device_session_id: (&self.platform_state.device_session_id).into(),
+                    device_session_id: self.platform_state.device_session_id.clone().into(),
                     app_session_id: ctx.session_id.clone(),
                     dist_session,
                 };
