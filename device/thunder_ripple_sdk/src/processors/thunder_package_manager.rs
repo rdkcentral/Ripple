@@ -38,7 +38,7 @@ use crate::{
     },
     thunder_state::ThunderState,
 };
-use base64::{engine::general_purpose::STANDARD_NO_PAD as base64, Engine};
+use base64::{engine::general_purpose::STANDARD as base64, Engine};
 use ripple_sdk::api::app_catalog::{AppCatalogRequest, AppOperationComplete, AppsUpdate};
 use ripple_sdk::api::device::device_apps::DeviceAppMetadata;
 use ripple_sdk::api::device::device_operator::{DeviceResponseMessage, DeviceSubscribeRequest};

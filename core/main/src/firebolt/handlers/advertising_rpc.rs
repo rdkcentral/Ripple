@@ -21,7 +21,7 @@ use crate::{
     state::platform_state::PlatformState,
     utils::rpc_utils::{rpc_add_event_listener_with_decorator, rpc_err},
 };
-use base64::{engine::general_purpose::STANDARD_NO_PAD as base64, Engine};
+use base64::{engine::general_purpose::STANDARD as base64, Engine};
 use jsonrpsee::{
     core::{async_trait, Error, RpcResult},
     proc_macros::rpc,

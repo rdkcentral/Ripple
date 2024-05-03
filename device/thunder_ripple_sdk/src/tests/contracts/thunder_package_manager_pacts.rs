@@ -25,7 +25,7 @@ use crate::{
     },
     thunder_state::ThunderState,
 };
-use base64::{engine::general_purpose::STANDARD_NO_PAD as base64, Engine};
+use base64::{engine::general_purpose::STANDARD as base64, Engine};
 use pact_consumer::mock_server::StartMockServerAsync;
 use rstest::rstest;
 use serde_json::json;
