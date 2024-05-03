@@ -967,11 +967,10 @@ impl DelegatedLauncherHandler {
 
     pub async fn emit_completed(platform_state: &PlatformState, app_id: &String) {
         platform_state.session_state.clear_pending_session(app_id);
-        let app_opt = platform_state.app_manager_state.get(app_id);
-        if app_opt.is_none() {
-            return;
-        }
-        let app = app_opt.unwrap();
+        let app = match platform_state.app_manager_state.get(app_id) {
+            Some(app) => app,
+            None => return,
+        };
         let sr = SessionResponse::Completed(Self::to_completed_session(&app));
         AppEvents::emit(
             platform_state,
@@ -1072,13 +1071,14 @@ impl DelegatedLauncherHandler {
     ) -> Result<AppManagerResponse, AppError> {
         debug!("set_state: entry: app_id={}, state={:?}", app_id, state);
         let am_state = &self.platform_state.app_manager_state;
-        let app = am_state.get(app_id);
-        if app.is_none() {
-            warn!("appid:{} Not found", app_id);
-            return Err(AppError::NotFound);
-        }
+        let app = match am_state.get(app_id) {
+            Some(app) => app,
+            None => {
+                warn!("appid:{} Not found", app_id);
+                return Err(AppError::NotFound);
+            }
+        };
 
-        let app = app.unwrap();
         let previous_state = app.state;
 
         if previous_state == state {
@@ -1123,12 +1123,13 @@ impl DelegatedLauncherHandler {
     }
 
     fn ready_check(&self, app_id: &str) -> AppResponse {
-        let app = self.platform_state.app_manager_state.get(app_id);
-        if app.is_none() {
-            warn!("appid:{} Not found", app_id);
-            return Err(AppError::NotFound);
-        }
-        let app = app.unwrap();
+        let app = match self.platform_state.app_manager_state.get(app_id) {
+            Some(app) => app,
+            None => {
+                warn!("appid:{} Not found", app_id);
+                return Err(AppError::NotFound);
+            }
+        };
         match app.state {
             LifecycleState::Initializing => Ok(AppManagerResponse::None),
             _ => Err(AppError::UnexpectedState),
@@ -1136,12 +1137,13 @@ impl DelegatedLauncherHandler {
     }
 
     fn finished_check(&self, app_id: &str) -> AppResponse {
-        let app = self.platform_state.app_manager_state.get(app_id);
-        if app.is_none() {
-            warn!("appid:{} Not found", app_id);
-            return Err(AppError::NotFound);
-        }
-        let app = app.unwrap();
+        let app = match self.platform_state.app_manager_state.get(app_id) {
+            Some(app) => app,
+            None => {
+                warn!("appid:{} Not found", app_id);
+                return Err(AppError::NotFound);
+            }
+        };
         match app.state {
             LifecycleState::Unloading => Ok(AppManagerResponse::None),
             _ => Err(AppError::UnexpectedState),

@@ -238,12 +238,17 @@ impl ContainerManager {
         let item = state.container_state.get_prev_stack();
         let top_container = item.ok_or(ContainerError::NotFound)?;
 
-        let p = state
-            .container_state
-            .get_container_by_name(&top_container)
-            .unwrap();
-        let properties = p.clone();
-        let view_id = properties.view_id;
+        let p = match state.container_state.get_container_by_name(&top_container) {
+            Some(p) => p,
+            None => {
+                error!(
+                    "focus_top_container: Container not found:  name={}",
+                    top_container
+                );
+                return Err(ContainerError::NotFound);
+            }
+        };
+        let view_id = p.view_id;
         if ViewManager::set_visibility(state, view_id, true)
             .await
             .is_err()
@@ -295,7 +300,13 @@ impl ContainerManager {
 
         Self::focus_top_container(state).await.ok();
         let mut next_props = None;
-        let name = state.container_state.get_prev_stack().unwrap();
+        let name = match state.container_state.get_prev_stack() {
+            Some(n) => n,
+            None => {
+                error!("send_to_back: Container name not found");
+                return Err(ContainerError::NotFound);
+            }
+        };
         if let Some(n) = state.container_state.get_container_by_name(&name) {
             next_props = Some(n);
         }

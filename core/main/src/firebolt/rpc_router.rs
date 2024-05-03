@@ -205,12 +205,13 @@ impl RpcRouter {
         req: RpcRequest,
         extn_msg: ExtnMessage,
     ) {
-        if extn_msg.callback.is_none() {
-            // The caller of this function already checks this adding it here none the less.
-            error!("No valid callbacks")
-        }
-
-        let callback = extn_msg.clone().callback.unwrap();
+        let callback = match extn_msg.clone().callback {
+            Some(cb) => cb,
+            None => {
+                error!("No valid callbacks");
+                return;
+            }
+        };
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
         tokio::spawn(async move {

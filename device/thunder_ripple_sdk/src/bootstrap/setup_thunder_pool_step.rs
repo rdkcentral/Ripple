@@ -53,15 +53,21 @@ impl ThunderPoolStep {
         )
         .await;
 
-        let controller_pool = controller_pool.unwrap();
-        if let Err(e) = controller_pool {
-            error!("Fatal Thunder Unavailability Error: Ripple connection with Thunder is intermittent causing bootstrap errors.");
-            let _ = state.extn_client.event(ExtnStatus::Error);
-            return Err(e);
-        }
+        let controller_pool = match controller_pool {
+            Ok(Ok(thunder_client)) => thunder_client,
+            Ok(Err(e)) => {
+                error!("Fatal Thunder Unavailability Error: Ripple connection with Thunder is intermittent causing bootstrap errors.");
+                let _ = state.extn_client.event(ExtnStatus::Error);
+                return Err(e);
+            }
+            Err(_) => {
+                error!("Timed out waiting for starting ThunderClientPool.");
+                let _ = state.extn_client.event(ExtnStatus::Error);
+                return Err(RippleError::BootstrapError);
+            }
+        };
 
         info!("Received Controller pool");
-        let controller_pool = controller_pool.unwrap();
         let expected_plugins = state.plugin_param.clone();
         let tc = Box::new(controller_pool);
         let (plugin_manager_tx, failed_plugins) =
@@ -99,14 +105,15 @@ impl ThunderPoolStep {
         )
         .await;
 
-        if client.is_err() {
-            if let Err(e) = client {
+        let client = match client {
+            Ok(client) => client,
+            Err(e) => {
+                error!("Fatal Thunder Unavailability Error: Ripple connection with Thunder is intermittent causing bootstrap errors.");
                 let _ = state.extn_client.event(ExtnStatus::Error);
                 return Err(e);
             }
-        }
+        };
 
-        let client = client.unwrap();
         info!("Thunder client connected successfully");
 
         let extn_client = state.extn_client.clone();

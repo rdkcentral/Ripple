@@ -63,11 +63,10 @@ impl FireboltGatekeeper {
         if !secure {
             api_surface.push(ApiSurface::Ripple);
         }
-        let perm_based_on_spec_opt = platform_state
+        let perm_based_on_spec = platform_state
             .open_rpc_state
-            .get_perms_for_method(method, api_surface);
+            .get_perms_for_method(method, api_surface)?;
 
-        let perm_based_on_spec = perm_based_on_spec_opt?;
         if perm_based_on_spec.is_empty() {
             return Some(perm_based_on_spec);
         }

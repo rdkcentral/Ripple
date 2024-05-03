@@ -233,12 +233,13 @@ impl AppEvents {
         event_context: Option<Value>,
         decorator: Option<Box<dyn AppEventDecorator + Send + Sync>>,
     ) {
-        let session = state.session_state.get_session(&call_ctx);
-        if session.is_none() {
-            error!("No open sessions for id '{:?}'", call_ctx.session_id);
-            return;
-        }
-        let session = session.unwrap();
+        let session = match state.session_state.get_session(&call_ctx) {
+            Some(session) => session,
+            None => {
+                error!("No open sessions for id '{:?}'", call_ctx.session_id);
+                return;
+            }
+        };
         let app_events_state = &state.app_events_state;
         let mut listeners = app_events_state.listeners.write().unwrap();
         let event_ctx_string = event_context.map(|x| x.to_string());
