@@ -50,7 +50,7 @@ include!(concat!(env!("OUT_DIR"), "/version.rs"));
 const PERSISTENT_STORAGE_NAMESPACE: &str = "accountProfile";
 const PERSISTENT_STORAGE_KEY_PROPOSITION: &str = "proposition";
 const PERSISTENT_STORAGE_KEY_RETAILER: &str = "retailer";
-const PERSISTENT_STORAGE_KEY_JVAGENT: &str = "jvagent";
+const PERSISTENT_STORAGE_KEY_PRIMARY_PROVIDER: &str = "jvagent";
 const PERSISTENT_STORAGE_KEY_COAM: &str = "coam";
 const PERSISTENT_STORAGE_KEY_ACCOUNT_TYPE: &str = "accountType";
 const PERSISTENT_STORAGE_KEY_OPERATOR: &str = "operator";
@@ -317,8 +317,8 @@ impl MetricsState {
         let retailer =
             Self::get_persistent_store_string(state, PERSISTENT_STORAGE_KEY_RETAILER).await;
 
-        let jv_agent =
-            Self::get_persistent_store_string(state, PERSISTENT_STORAGE_KEY_JVAGENT).await;
+        let primary_provider =
+            Self::get_persistent_store_string(state, PERSISTENT_STORAGE_KEY_PRIMARY_PROVIDER).await;
 
         let platform = proposition.clone();
 
@@ -392,7 +392,7 @@ impl MetricsState {
             context.activated = activated;
             context.proposition = proposition;
             context.retailer = retailer;
-            context.jv_agent = jv_agent;
+            context.primary_provider = primary_provider;
             context.platform = platform;
             context.coam = coam;
             context.country = country;

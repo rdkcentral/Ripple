@@ -85,7 +85,7 @@ mod tests {
             activated: None,
             proposition: "test_proposition".to_string(),
             retailer: None,
-            jv_agent: None,
+            primary_provider: None,
             coam: None,
             country: None,
             region: None,
