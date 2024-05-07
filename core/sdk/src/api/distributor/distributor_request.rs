@@ -23,7 +23,8 @@ use super::{
     distributor_permissions::PermissionRequest,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum DistributorRequest {
     Permission(PermissionRequest),
     Discovery(DiscoveryRequest),

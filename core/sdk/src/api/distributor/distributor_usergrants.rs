@@ -60,6 +60,8 @@ impl ExtnPayloadProvider for UserGrantsCloudStoreRequest {
     }
 }
 
+pub type UserGrants = Vec<UserGrantInfo>;
+
 #[cfg(test)]
 mod tests {
     use super::*;
