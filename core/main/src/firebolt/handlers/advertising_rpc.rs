@@ -14,12 +14,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-
 use crate::{
+    firebolt::rpc::RippleRPCProvider,
+    processor::storage::storage_manager::StorageManager,
     service::apps::app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
-    utils::rpc_utils::rpc_add_event_listener_with_decorator,
+    state::platform_state::PlatformState,
+    utils::rpc_utils::{rpc_add_event_listener_with_decorator, rpc_err},
 };
-use base64::encode;
+use base64::{engine::general_purpose::STANDARD as base64, Engine};
 use jsonrpsee::{
     core::{async_trait, Error, RpcResult},
     proc_macros::rpc,
@@ -46,11 +48,6 @@ use ripple_sdk::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-
-use crate::{
-    firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManager,
-    state::platform_state::PlatformState, utils::rpc_utils::rpc_err,
-};
 
 use super::{
     capabilities_rpc::is_permitted,
@@ -406,7 +403,8 @@ impl AdvertisingServer for AdvertisingImpl {
             }
         };
 
-        let privacy_data_enc = encode(serde_json::to_string(&privacy_data).unwrap_or_default());
+        let privacy_data_enc =
+            base64.encode(serde_json::to_string(&privacy_data).unwrap_or_default());
 
         let ad_framework_config = AdvertisingFrameworkConfig {
             ad_server_url: ad_config.ad_server_url,
@@ -447,7 +445,7 @@ impl AdvertisingServer for AdvertisingImpl {
 
     async fn device_attributes(&self, ctx: CallContext) -> RpcResult<Value> {
         let afc = self.config(ctx.clone(), Default::default()).await?;
-        let buff = base64::decode(afc.device_ad_attributes).unwrap_or_default();
+        let buff = base64.decode(afc.device_ad_attributes).unwrap_or_default();
         match String::from_utf8(buff) {
             Ok(mut b_string) => {
                 /*
