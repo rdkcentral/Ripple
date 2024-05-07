@@ -77,7 +77,7 @@ impl AuthenticationServer for AuthenticationImpl {
                     }));
                 }
             }
-            TokenType::Root => self.token(TokenType::Root, ctx).await,
+            TokenType::Root => self.get_root_token().await,
             TokenType::Device => self.token(TokenType::Device, ctx).await,
             TokenType::Distributor => {
                 let cap = FireboltCap::Short("token:session".into());
@@ -98,8 +98,8 @@ impl AuthenticationServer for AuthenticationImpl {
         }
     }
 
-    async fn root(&self, ctx: CallContext) -> RpcResult<String> {
-        match self.token(TokenType::Root, ctx).await {
+    async fn root(&self, _ctx: CallContext) -> RpcResult<String> {
+        match self.get_root_token().await {
             Ok(r) => Ok(r.value),
             Err(e) => Err(e),
         }
@@ -201,6 +201,41 @@ impl AuthenticationImpl {
                     .await
             }
         };
+        match resp {
+            Ok(payload) => match payload.payload.extract().unwrap() {
+                ExtnResponse::Token(t) => Ok(TokenResult {
+                    value: t.value,
+                    expires: t.expires,
+                    _type: token_type,
+                    scope: None,
+                    expires_in: None,
+                    token_type: None,
+                }),
+                e => Err(jsonrpsee::core::Error::Custom(format!(
+                    "unknown error getting {:?} token {:?}",
+                    token_type, e
+                ))),
+            },
+
+            Err(_e) => Err(jsonrpsee::core::Error::Custom(format!(
+                "Ripple Error getting {:?} token",
+                token_type
+            ))),
+        }
+    }
+
+    async fn get_root_token(&self) -> RpcResult<TokenResult> {
+        let token_type = TokenType::Root;
+        let resp = self
+            .platform_state
+            .get_client()
+            .send_extn_request(SessionTokenRequest {
+                token_type,
+                options: Vec::new(),
+                context: None,
+            })
+            .await;
+
         match resp {
             Ok(payload) => match payload.payload.extract().unwrap() {
                 ExtnResponse::Token(t) => Ok(TokenResult {

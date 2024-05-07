@@ -19,7 +19,13 @@ use crate::state::platform_state::PlatformState;
 use ripple_sdk::{
     api::{
         distributor::distributor_privacy::{PrivacySettingsData, PrivacySettingsStoreRequest},
-        storage_property::StorageProperty,
+        storage_property::StorageProperty::{
+            self, AllowAcrCollection, AllowAppContentAdTargeting, AllowBusinessAnalytics,
+            AllowCameraAnalytics, AllowPersonalization, AllowPrimaryBrowseAdTargeting,
+            AllowPrimaryContentAdTargeting, AllowProductAnalytics, AllowRemoteDiagnostics,
+            AllowResumePoints, AllowUnentitledPersonalization, AllowUnentitledResumePoints,
+            AllowWatchHistory,
+        },
     },
     async_trait::async_trait,
     extn::{
@@ -119,193 +125,70 @@ impl StorePrivacySettingsProcessor {
         privacy_settings_data: PrivacySettingsData,
     ) -> bool {
         let mut err = false;
-        if let Some(allow_acr_collection) = privacy_settings_data.allow_acr_collection {
-            let res = StorageManager::set_bool(
-                state,
-                StorageProperty::AllowAcrCollection,
-                allow_acr_collection,
-                None,
-            )
-            .await;
-            if let Err(e) = res {
-                error!("Unable to set property allow_resume_points error: {:?}", e);
-                err = true;
-            }
+        macro_rules! set_property {
+            ($property:ident, $value:expr) => {
+                if let Some(value) = $value {
+                    let res = StorageManager::set_bool(state, $property, value, None).await;
+                    if let Err(e) = res {
+                        error!("Unable to set property {:?} error: {:?}", $property, e);
+                        err = true;
+                    }
+                }
+            };
         }
-        if let Some(allow_resume_points) = privacy_settings_data.allow_resume_points {
-            let res = StorageManager::set_bool(
-                state,
-                StorageProperty::AllowResumePoints,
-                allow_resume_points,
-                None,
-            )
-            .await;
-            if let Err(e) = res {
-                error!("Unable to set property allow_resume_points error: {:?}", e);
-                err = true;
-            }
-        }
-        if let Some(allow_app_content_ad_targeting) =
+
+        set_property!(
+            AllowAcrCollection,
+            privacy_settings_data.allow_acr_collection
+        );
+        set_property!(AllowResumePoints, privacy_settings_data.allow_resume_points);
+        set_property!(
+            AllowAppContentAdTargeting,
             privacy_settings_data.allow_app_content_ad_targeting
-        {
-            let res = StorageManager::set_bool(
-                state,
-                StorageProperty::AllowAppContentAdTargeting,
-                allow_app_content_ad_targeting,
-                None,
-            )
-            .await;
-            if let Err(e) = res {
-                error!(
-                    "Unable to set property allow_primary_browse_ad_targetting: {:?}",
-                    e
-                );
-                err = true;
-            }
+        );
+
+        // business analytics is a special case, if it is not set, we set it to true
+        if privacy_settings_data.allow_business_analytics.is_none() {
+            set_property!(AllowBusinessAnalytics, Some(true));
+        } else {
+            set_property!(
+                AllowBusinessAnalytics,
+                privacy_settings_data.allow_business_analytics
+            );
         }
-        if let Some(allow_camera_analytics) = privacy_settings_data.allow_camera_analytics {
-            let res = StorageManager::set_bool(
-                state,
-                StorageProperty::AllowCameraAnalytics,
-                allow_camera_analytics,
-                None,
-            )
-            .await;
-            if let Err(e) = res {
-                error!(
-                    "Unable to set property allow_primary_browse_ad_targetting: {:?}",
-                    e
-                );
-                err = true;
-            }
-        }
-        if let Some(allow_personalization) = privacy_settings_data.allow_personalization {
-            let res = StorageManager::set_bool(
-                state,
-                StorageProperty::AllowPersonalization,
-                allow_personalization,
-                None,
-            )
-            .await;
-            if let Err(e) = res {
-                error!("Unable to set property allow_resume_points error: {:?}", e);
-                err = true;
-            }
-        }
-        if let Some(allow_primary_browse_ad_targeting) =
+        set_property!(
+            AllowCameraAnalytics,
+            privacy_settings_data.allow_camera_analytics
+        );
+        set_property!(
+            AllowPersonalization,
+            privacy_settings_data.allow_personalization
+        );
+        set_property!(
+            AllowPrimaryBrowseAdTargeting,
             privacy_settings_data.allow_primary_browse_ad_targeting
-        {
-            let res = StorageManager::set_bool(
-                state,
-                StorageProperty::AllowPrimaryBrowseAdTargeting,
-                allow_primary_browse_ad_targeting,
-                None,
-            )
-            .await;
-            if let Err(e) = res {
-                error!(
-                    "Unable to set property allow_primary_browse_ad_targetting: {:?}",
-                    e
-                );
-                err = true;
-            }
-        }
-        if let Some(allow_primary_content_ad_targeting) =
+        );
+        set_property!(
+            AllowPrimaryContentAdTargeting,
             privacy_settings_data.allow_primary_content_ad_targeting
-        {
-            let res = StorageManager::set_bool(
-                state,
-                StorageProperty::AllowPrimaryContentAdTargeting,
-                allow_primary_content_ad_targeting,
-                None,
-            )
-            .await;
-            if let Err(e) = res {
-                error!(
-                    "Unable to set property allow_primary_browse_ad_targetting: {:?}",
-                    e
-                );
-                err = true;
-            }
-        }
-        if let Some(allow_product_analytics) = privacy_settings_data.allow_product_analytics {
-            let res = StorageManager::set_bool(
-                state,
-                StorageProperty::AllowProductAnalytics,
-                allow_product_analytics,
-                None,
-            )
-            .await;
-            if let Err(e) = res {
-                error!("Unable to set property allow_resume_points error: {:?}", e);
-                err = true;
-            }
-        }
-        if let Some(allow_remote_diagnostics) = privacy_settings_data.allow_remote_diagnostics {
-            let res = StorageManager::set_bool(
-                state,
-                StorageProperty::AllowRemoteDiagnostics,
-                allow_remote_diagnostics,
-                None,
-            )
-            .await;
-            if let Err(e) = res {
-                error!(
-                    "Unable to set property allow_primary_browse_ad_targetting: {:?}",
-                    e
-                );
-                err = true;
-            }
-        }
-        if let Some(allow_unentitled_personalization) =
+        );
+        set_property!(
+            AllowProductAnalytics,
+            privacy_settings_data.allow_product_analytics
+        );
+        set_property!(
+            AllowRemoteDiagnostics,
+            privacy_settings_data.allow_remote_diagnostics
+        );
+        set_property!(
+            AllowUnentitledPersonalization,
             privacy_settings_data.allow_unentitled_personalization
-        {
-            let res = StorageManager::set_bool(
-                state,
-                StorageProperty::AllowUnentitledPersonalization,
-                allow_unentitled_personalization,
-                None,
-            )
-            .await;
-            if let Err(e) = res {
-                error!(
-                    "Unable to set property allow_primary_browse_ad_targetting: {:?}",
-                    e
-                );
-                err = true;
-            }
-        }
-        if let Some(allow_unentitled_resume_points) =
+        );
+        set_property!(
+            AllowUnentitledResumePoints,
             privacy_settings_data.allow_unentitled_resume_points
-        {
-            let res = StorageManager::set_bool(
-                state,
-                StorageProperty::AllowUnentitledResumePoints,
-                allow_unentitled_resume_points,
-                None,
-            )
-            .await;
-            if let Err(e) = res {
-                error!("Unable to set property allow_resume_points error: {:?}", e);
-                err = true;
-            }
-        }
-        if let Some(allow_watch_history) = privacy_settings_data.allow_watch_history {
-            let res = StorageManager::set_bool(
-                state,
-                StorageProperty::AllowWatchHistory,
-                allow_watch_history,
-                None,
-            )
-            .await;
-            if let Err(e) = res {
-                error!(
-                    "Unable to set property allow_primary_browse_ad_targetting: {:?}",
-                    e
-                );
-                err = true;
-            }
-        }
+        );
+        set_property!(AllowWatchHistory, privacy_settings_data.allow_watch_history);
 
         if err {
             return Self::handle_error(
