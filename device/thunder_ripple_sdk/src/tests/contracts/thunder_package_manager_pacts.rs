@@ -25,6 +25,7 @@ use crate::{
     },
     thunder_state::ThunderState,
 };
+use base64::{engine::general_purpose::STANDARD as base64, Engine};
 use pact_consumer::mock_server::StartMockServerAsync;
 use rstest::rstest;
 use serde_json::json;
@@ -578,7 +579,7 @@ async fn test_get_firebolt_permissions() {
         capabilities: vec![fp.clone()],
     };
     let encoded_perms =
-        base64::encode(serde_json::to_string(&firebolt_perms).expect("Serialization failed"));
+        base64.encode(serde_json::to_string(&firebolt_perms).expect("Serialization failed"));
     let metadata_response = json!({
         "metadata": {
             "appname": "firecertApp",
