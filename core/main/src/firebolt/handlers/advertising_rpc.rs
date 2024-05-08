@@ -14,12 +14,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-
 use crate::{
+    firebolt::rpc::RippleRPCProvider,
+    processor::storage::storage_manager::StorageManager,
     service::apps::app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
-    utils::rpc_utils::rpc_add_event_listener_with_decorator,
+    state::platform_state::PlatformState,
+    utils::rpc_utils::{rpc_add_event_listener_with_decorator, rpc_err},
 };
-use base64::encode;
+use base64::{engine::general_purpose::STANDARD as base64, Engine};
 use jsonrpsee::{
     core::{async_trait, Error, RpcResult},
     proc_macros::rpc,
@@ -46,11 +48,6 @@ use ripple_sdk::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-
-use crate::{
-    firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManager,
-    state::platform_state::PlatformState, utils::rpc_utils::rpc_err,
-};
 
 use super::{
     capabilities_rpc::is_permitted,
@@ -151,7 +148,7 @@ pub trait Advertising {
     async fn advertising_id(
         &self,
         ctx: CallContext,
-        request: AdvertisingIdRPCRequest,
+        request: Option<AdvertisingIdRPCRequest>,
     ) -> RpcResult<AdvertisingId>;
     #[method(name = "advertising.appBundleId")]
     fn app_bundle_id(&self, ctx: CallContext) -> RpcResult<String>;
@@ -278,19 +275,23 @@ impl AdvertisingServer for AdvertisingImpl {
     async fn advertising_id(
         &self,
         ctx: CallContext,
-        request: AdvertisingIdRPCRequest,
+        request: Option<AdvertisingIdRPCRequest>,
     ) -> RpcResult<AdvertisingId> {
         if let Some(session) = self.state.session_state.get_account_session() {
+            let opts = match request {
+                Some(r) => r.options,
+                None => None,
+            };
             let payload = AdvertisingRequest::GetAdIdObject(AdIdRequestParams {
                 privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(
                     &self.state,
-                    request.options.as_ref(),
+                    opts.as_ref(),
                     &ctx.app_id,
                 )
                 .await,
                 app_id: ctx.app_id.to_owned(),
                 dist_session: session,
-                scope: get_scope_option_map(&request.options),
+                scope: get_scope_option_map(&opts),
             });
             let resp = self.state.get_client().send_extn_request(payload).await;
 
@@ -402,7 +403,8 @@ impl AdvertisingServer for AdvertisingImpl {
             }
         };
 
-        let privacy_data_enc = encode(serde_json::to_string(&privacy_data).unwrap_or_default());
+        let privacy_data_enc =
+            base64.encode(serde_json::to_string(&privacy_data).unwrap_or_default());
 
         let ad_framework_config = AdvertisingFrameworkConfig {
             ad_server_url: ad_config.ad_server_url,
@@ -443,7 +445,7 @@ impl AdvertisingServer for AdvertisingImpl {
 
     async fn device_attributes(&self, ctx: CallContext) -> RpcResult<Value> {
         let afc = self.config(ctx.clone(), Default::default()).await?;
-        let buff = base64::decode(afc.device_ad_attributes).unwrap_or_default();
+        let buff = base64.decode(afc.device_ad_attributes).unwrap_or_default();
         match String::from_utf8(buff) {
             Ok(mut b_string) => {
                 /*
