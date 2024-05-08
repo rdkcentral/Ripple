@@ -690,6 +690,30 @@ pub enum OperationalMetricPayload {
     Counter(Counter),
 }
 
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum MetricsEnvironment {
+    Prod,
+    Dev,
+    Test,
+}
+
+impl Default for MetricsEnvironment {
+    fn default() -> Self {
+        Self::Prod
+    }
+}
+
+impl ToString for MetricsEnvironment {
+    fn to_string(&self) -> String {
+        match self {
+            MetricsEnvironment::Prod => "prod".into(),
+            MetricsEnvironment::Dev => "dev".into(),
+            MetricsEnvironment::Test => "test".into(),
+        }
+    }
+}
+
 /// all the things that are provided by platform that need to
 /// be updated, and eventually in/outjected into/out of a payload
 /// These items may (or may not) be available when the ripple
@@ -701,11 +725,11 @@ pub struct MetricsContext {
     pub enabled: bool,
     pub device_language: String,
     pub device_model: String,
-    pub device_id: String,
-    pub account_id: String,
+    pub device_id: Option<String>,
+    pub account_id: Option<String>,
     pub device_timezone: String,
     pub device_timezone_offset: String,
-    pub device_name: String,
+    pub device_name: Option<String>,
     pub platform: String,
     pub os_name: String,
     pub os_ver: String,
@@ -715,6 +739,21 @@ pub struct MetricsContext {
     pub serial_number: String,
     pub firmware: String,
     pub ripple_version: String,
+    pub env: Option<String>,
+    pub data_governance_tags: Option<Vec<String>>,
+    pub activated: Option<bool>,
+    pub proposition: String,
+    pub retailer: Option<String>,
+    pub primary_provider: Option<String>,
+    pub coam: Option<bool>,
+    pub country: Option<String>,
+    pub region: Option<String>,
+    pub account_type: Option<String>,
+    pub operator: Option<String>,
+    pub account_detail_type: Option<String>,
+    pub device_type: String,
+    pub device_manufacturer: String,
+    pub authenticated: Option<bool>,
 }
 
 #[allow(non_camel_case_types)]
@@ -736,6 +775,18 @@ pub enum MetricsContextField {
     serial_number,
     firmware,
     ripple_version,
+    env,
+    cet_list,
+    activated,
+    proposition,
+    retailer,
+    primary_provider,
+    coam,
+    country,
+    region,
+    account_type,
+    operator,
+    account_detail_type,
 }
 
 impl MetricsContext {
@@ -744,13 +795,13 @@ impl MetricsContext {
             enabled: false,
             device_language: String::from(""),
             device_model: String::from(""),
-            device_id: String::from(""),
+            device_id: None,
             device_timezone: String::from(""),
             device_timezone_offset: String::from(""),
-            device_name: String::from(""),
+            device_name: None,
             mac_address: String::from(""),
             serial_number: String::from(""),
-            account_id: String::from(""),
+            account_id: None,
             platform: String::from("entos:rdk"),
             os_name: String::from(""),
             os_ver: String::from(""),
@@ -758,30 +809,22 @@ impl MetricsContext {
             distribution_tenant_id: String::from(""),
             firmware: String::from(""),
             ripple_version: String::from(""),
+            env: None,
+            data_governance_tags: None,
+            activated: None,
+            proposition: String::from(""),
+            retailer: None,
+            primary_provider: None,
+            coam: None,
+            country: None,
+            region: None,
+            account_type: None,
+            operator: None,
+            account_detail_type: None,
+            device_type: String::from(""),
+            device_manufacturer: String::from(""),
+            authenticated: None,
         }
-    }
-    pub fn set(&mut self, field: MetricsContextField, value: String) {
-        match field {
-            MetricsContextField::enabled => self.enabled = value.parse().unwrap_or(false),
-            MetricsContextField::device_language => self.device_language = value,
-            MetricsContextField::device_model => self.device_model = value,
-            MetricsContextField::device_id => self.device_id = value,
-            MetricsContextField::account_id => self.account_id = value,
-            MetricsContextField::device_timezone => self.device_timezone = value.parse().unwrap(),
-            MetricsContextField::device_timezone_offset => {
-                self.device_timezone_offset = value.parse().unwrap()
-            }
-            MetricsContextField::platform => self.platform = value,
-            MetricsContextField::os_name => self.os_name = value,
-            MetricsContextField::os_ver => self.os_ver = value,
-            MetricsContextField::distributor_id => self.distribution_tenant_id = value,
-            MetricsContextField::session_id => self.device_session_id = value,
-            MetricsContextField::mac_address => self.mac_address = value,
-            MetricsContextField::serial_number => self.serial_number = value,
-            MetricsContextField::device_name => self.device_name = value,
-            MetricsContextField::firmware => self.firmware = value,
-            MetricsContextField::ripple_version => self.ripple_version = value,
-        };
     }
 }
 
@@ -1065,11 +1108,11 @@ mod tests {
                 enabled: true,
                 device_language: "en".to_string(),
                 device_model: "iPhone".to_string(),
-                device_id: "test_device_id".to_string(),
-                account_id: "test_account_id".to_string(),
+                device_id: Some("test_device_id".to_string()),
+                account_id: Some("test_account_id".to_string()),
                 device_timezone: "GMT".to_string(),
                 device_timezone_offset: "+0:00".to_string(),
-                device_name: "TestDevice".to_string(),
+                device_name: Some("TestDevice".to_string()),
                 platform: "iOS".to_string(),
                 os_name: "test_os_name".to_string(),
                 os_ver: "14.0".to_string(),
@@ -1079,6 +1122,21 @@ mod tests {
                 serial_number: "test_serial_number".to_string(),
                 firmware: "test_firmware".to_string(),
                 ripple_version: "test_ripple_version".to_string(),
+                env: Some("test_env".to_string()),
+                data_governance_tags: None,
+                activated: None,
+                proposition: "test_proposition".to_string(),
+                retailer: None,
+                primary_provider: None,
+                coam: None,
+                country: None,
+                region: None,
+                account_type: None,
+                operator: None,
+                account_detail_type: None,
+                device_type: "test_device_type".to_string(),
+                device_manufacturer: "test_device_manufacturer".to_string(),
+                authenticated: None,
             }),
             payload: BehavioralMetricPayload::Ready(ready_payload),
             session: AccountSession {
