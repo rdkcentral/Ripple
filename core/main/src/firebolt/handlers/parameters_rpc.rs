@@ -25,17 +25,17 @@ use ripple_sdk::{
         apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
         device::entertainment_data::NavigationIntent,
         gateway::rpc_gateway_api::CallContext,
+        storage_property::StorageProperty,
     },
     tokio::sync::oneshot,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState,
-    utils::rpc_utils::rpc_await_oneshot,
+    firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManager,
+    state::platform_state::PlatformState, utils::rpc_utils::rpc_await_oneshot,
 };
 
-use super::privacy_rpc;
 
 #[derive(Serialize, Debug, Clone)]
 pub struct AppInitParameters {
@@ -93,8 +93,19 @@ impl ParametersServer for ParametersImpl {
             .send_app_request(app_request);
         let resp = rpc_await_oneshot(app_resp_rx).await?;
         if let AppManagerResponse::LaunchRequest(launch_req) = resp? {
+            let country_code =
+                StorageManager::get_string(&self.platform_state, StorageProperty::CountryCode)
+                    .await
+                    .unwrap_or_default();
+
+            let us_privacy = if country_code == "US" {
+                privacy_data.get(privacy_rpc::US_PRIVACY_KEY).cloned()
+            } else {
+                None
+            };
+
             return Ok(AppInitParameters {
-                us_privacy: privacy_data.get(privacy_rpc::US_PRIVACY_KEY).cloned(),
+                us_privacy,
                 lmt: privacy_data
                     .get(privacy_rpc::LMT_KEY)
                     .and_then(|x| x.parse::<u16>().ok()),
