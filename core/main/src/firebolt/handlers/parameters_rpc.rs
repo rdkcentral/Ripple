@@ -36,6 +36,7 @@ use crate::{
     state::platform_state::PlatformState, utils::rpc_utils::rpc_await_oneshot,
 };
 
+use super::privacy_rpc;
 
 #[derive(Serialize, Debug, Clone)]
 pub struct AppInitParameters {
