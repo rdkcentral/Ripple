@@ -20,6 +20,7 @@ use ripple_sdk::{
     async_channel::{unbounded, Receiver as CReceiver, Sender as CSender},
     extn::ffi::ffi_message::CExtnMessage,
     framework::bootstrap::TransientChannel,
+    log::{info, warn},
     tokio::sync::mpsc::{self, Receiver, Sender},
     utils::error::RippleError,
 };
@@ -34,6 +35,7 @@ use crate::{
 
 use super::{extn_state::ExtnState, platform_state::PlatformState};
 
+use env_file_reader::read_file;
 #[derive(Debug, Clone)]
 pub struct ChannelsState {
     gateway_channel: TransientChannel<FireboltGatewayCommand>,
@@ -47,6 +49,7 @@ impl ChannelsState {
         let (gateway_tx, gateway_tr) = mpsc::channel(32);
         let (app_req_tx, app_req_tr) = mpsc::channel(32);
         let (ctx, ctr) = unbounded();
+
         ChannelsState {
             gateway_channel: TransientChannel::new(gateway_tx, gateway_tr),
             app_req_channel: TransientChannel::new(app_req_tx, app_req_tr),
@@ -107,9 +110,45 @@ impl BootstrapState {
                 .expect("Valid app manifest");
         let extn_manifest = LoadExtnManifestStep::get_manifest();
         let extn_state = ExtnState::new(channels_state.clone(), extn_manifest.clone());
-        let platform_state =
-            PlatformState::new(extn_manifest, device_manifest, client, app_manifest_result);
+        let platform_state = PlatformState::new(
+            extn_manifest,
+            device_manifest,
+            client,
+            app_manifest_result,
+            ripple_version_from_etc(),
+        );
 
+        fn ripple_version_from_etc() -> Option<String> {
+            /*
+            read /etc/rippleversion
+            */
+            static RIPPLE_VER_FILE_DEFAULT: &str = "/etc/rippleversion.txt";
+            static RIPPLE_VER_VAR_NAME_DEFAULT: &str = "RIPPLE_VER";
+            let version_file_name = std::env::var("RIPPLE_VERSIONS_FILE")
+                .unwrap_or(RIPPLE_VER_FILE_DEFAULT.to_string());
+            let version_var_name = std::env::var("RIPPLE_VERSIONS_VAR")
+                .unwrap_or(RIPPLE_VER_VAR_NAME_DEFAULT.to_string());
+
+            match read_file(version_file_name.clone()) {
+                Ok(env_vars) => {
+                    if let Some(version) = env_vars.get(&version_var_name) {
+                        info!(
+                            "Printing ripple version from rippleversion.txt {:?}",
+                            version.clone()
+                        );
+                        return Some(version.clone());
+                    }
+                }
+                Err(err) => {
+                    warn!(
+                        "error reading versions from {}, err={:?}",
+                        version_file_name, err
+                    );
+                }
+            }
+            warn!("error reading versions from {}", version_file_name,);
+            None
+        }
         Ok(BootstrapState {
             platform_state,
             channels_state,

@@ -24,6 +24,7 @@ members = [
     "core/main",
     "core/launcher",
     "device/thunder",
+    "device/mock_device",
     "distributor/general",
     "examples/rpc_extn",
     "examples/tm_extn",
@@ -32,3 +33,27 @@ members = [
 
 [workspace.package]
 version = "1.1.0"
+
+[workspace.dependencies]
+base64 = { version = "0.21.5", default-features = false }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+futures = { version = "0.3.21", default-features = false }
+futures-channel = { version = "0.3.21", default-features = false }
+jsonrpsee = { version = "0.9.0", default-features = false }
+querystring = { version = "1.1.0", default-features = false }
+regex = { version = "1.10.4", features = ["std"], default-features = false }
+serde_json = { version = "1.0", default-features = false}
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.37.0", default-features = false }
+tokio-tungstenite = { version = "0.20.1", default-features = false }
+url = { version = "2.2.2", default-features = false}
+urlencoding = { version = "2.1.0", default-features = false}
+uuid = { version = "1.1.2", default-features = false }
+ripple_sdk = { path = "./core/sdk" }
+
+[profile.release]
+strip=true
+opt-level="z"
+codegen-units=1
+lto=true
+panic="abort"
