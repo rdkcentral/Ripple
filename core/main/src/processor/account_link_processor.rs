@@ -72,13 +72,13 @@ impl AccountLinkProcessor {
         ctx: CallContext,
         is_signed_in: bool,
     ) -> bool {
-        if state.session_state.get_account_session().is_none() {
-            error!("No account session found");
-            return false;
-        }
-
-        // safe to unwrap as we have checked for None above
-        let session = state.session_state.get_account_session().unwrap();
+        let session = match state.session_state.get_account_session() {
+            Some(session) => session,
+            None => {
+                error!("No account session found");
+                return false;
+            }
+        };
 
         let payload = DiscoveryRequest::SignIn(SignInRequestParams {
             session_info: SessionParams {
@@ -116,12 +116,13 @@ impl AccountLinkProcessor {
         ctx: CallContext,
         request: ContentAccessRequest,
     ) -> bool {
-        if state.session_state.get_account_session().is_none() {
-            error!("No account session found");
-            return false;
-        }
-        // safe to unwrap as we have checked for None above
-        let session = state.session_state.get_account_session().unwrap();
+        let session = match state.session_state.get_account_session() {
+            Some(session) => session,
+            None => {
+                error!("No account session found");
+                return false;
+            }
+        };
 
         // If both entitlement & availability are None return EmptyResult
         if request.ids.availabilities.is_none() && request.ids.entitlements.is_none() {
@@ -191,12 +192,13 @@ impl AccountLinkProcessor {
         msg: ExtnMessage,
         ctx: CallContext,
     ) -> bool {
-        if state.session_state.get_account_session().is_none() {
-            error!("No account session found");
-            return false;
-        }
-        // safe to unwrap as we have checked for None above
-        let session = state.session_state.get_account_session().unwrap();
+        let session = match state.session_state.get_account_session() {
+            Some(session) => session,
+            None => {
+                error!("No account session found");
+                return false;
+            }
+        };
 
         let payload = DiscoveryRequest::ClearContent(ClearContentSetParams {
             session_info: SessionParams {

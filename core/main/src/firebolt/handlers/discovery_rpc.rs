@@ -495,7 +495,7 @@ impl DiscoveryServer for DiscoveryImpl {
     ) -> RpcResult<bool> {
         info!("Discovery.watchNext");
         let watched_info = WatchedInfo {
-            entity_id: watch_next_info.identifiers.entity_id.unwrap(),
+            entity_id: watch_next_info.identifiers.entity_id.unwrap_or_default(),
             progress: 1.0,
             completed: Some(false),
             watched_on: None,
