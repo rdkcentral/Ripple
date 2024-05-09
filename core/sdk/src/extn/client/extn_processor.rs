@@ -15,17 +15,20 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use super::extn_client::ExtnClient;
 use crate::{
     extn::extn_client_message::{ExtnMessage, ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     framework::{ripple_contract::RippleContract, RippleResponse},
     utils::error::RippleError,
 };
 use async_trait::async_trait;
+#[cfg(not(test))]
 use log::{debug, error, trace};
 use std::fmt::Debug;
 use tokio::sync::mpsc::{self, Receiver as MReceiver, Sender as MSender};
 
-use super::extn_client::ExtnClient;
+#[cfg(test)]
+use {println as trace, println as debug, println as error};
 
 #[derive(Debug)]
 pub struct DefaultExtnStreamer {
@@ -46,6 +49,21 @@ impl DefaultExtnStreamer {
 impl Default for DefaultExtnStreamer {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Prerequisites {
+    pub need_internet: bool,
+    pub need_activation: bool,
+}
+
+impl Prerequisites {
+    pub fn new(need_internet: bool, need_activation: bool) -> Self {
+        Prerequisites {
+            need_internet,
+            need_activation,
+        }
     }
 }
 
@@ -71,7 +89,7 @@ pub trait ExtnStreamer {
 /// 2. Have a STATE which is bound by [Clone]
 /// 3. Provide a Sender and Receiver
 pub trait ExtnStreamProcessor: Send + Sync + 'static {
-    type VALUE: ExtnPayloadProvider;
+    type VALUE: ExtnPayloadProvider + Debug;
     type STATE: Clone + Send + Sync;
     fn get(payload: ExtnPayload) -> Option<Self::VALUE> {
         Self::VALUE::get_from_payload(payload)
@@ -86,6 +104,9 @@ pub trait ExtnStreamProcessor: Send + Sync + 'static {
         Self::VALUE::contract()
     }
     fn sender(&self) -> MSender<ExtnMessage>;
+    fn get_prerequisites(&self) -> Prerequisites {
+        Prerequisites::default()
+    }
 }
 
 #[macro_export]
@@ -154,10 +175,9 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     ///
     /// # Returns
     ///
-    /// `Option<bool>` -> Used by [ExtnClient] to handle post processing
-    /// None - means not processed
-    /// Some(true) - Successful processing with status success
-    /// Some(false) - Successful processing with status error
+    /// `bool` -> Used by [ExtnClient] to handle post processing
+    /// `true` - Successful processing with status success
+    /// `false` - Successful processing with status error
     async fn process_request(
         state: Self::STATE,
         msg: ExtnMessage,
@@ -167,6 +187,21 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     /// For [ExtnRequestProcessor] each implementor should return an instance of [ExtnClient]
     /// This is necessary for the processor to intenally log and delegate errors.
     fn get_client(&self) -> ExtnClient;
+
+    fn needs_internet(&self) -> bool {
+        false
+    }
+
+    fn has_internet(&self) -> bool {
+        self.get_client().has_internet()
+    }
+
+    fn check_prerequisties(prereq: &Prerequisites, client: &ExtnClient) -> bool {
+        match (prereq.need_internet, client.has_internet()) {
+            (true, true) | (false, _) => true,
+            (true, false) => false,
+        }
+    }
 
     fn check_message_type(message: &ExtnMessage) -> bool {
         message.payload.is_request()
@@ -184,7 +219,7 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     }
 
     async fn ack(mut extn_client: ExtnClient, request: ExtnMessage) -> RippleResponse {
-        return extn_client.send_message(request.ack()).await;
+        extn_client.send_message(request.ack()).await
     }
 
     async fn run(&mut self) {
@@ -195,11 +230,18 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
         let extn_client = self.get_client();
         let mut receiver = self.receiver();
         let state = self.get_state();
+        let prereq = self.get_prerequisites();
         tokio::spawn(async move {
             while let Some(msg) = receiver.recv().await {
                 let extracted_message = Self::get(msg.clone().payload);
                 if extracted_message.is_none() {
                     Self::handle_error(extn_client.clone(), msg, RippleError::ParseError).await;
+                } else if !Self::check_prerequisties(&prereq, &extn_client) {
+                    error!(
+                        "Prerequsties not statisfied: {:?}. Not processing request: {:?} by ",
+                        prereq, extracted_message
+                    );
+                    Self::handle_error(extn_client.clone(), msg, RippleError::ProcessorError).await;
                 } else if !Self::process_request(
                     state.clone(),
                     msg.clone(),
@@ -296,16 +338,15 @@ pub mod tests {
     use crate::utils::mock_utils::{
         get_mock_message, get_mock_request, MockEvent, MockRequest, PayloadType,
     };
-    use async_channel::unbounded;
     use chrono::Utc;
     use log::info;
     use rstest::rstest;
-    use std::collections::HashMap;
     use uuid::Uuid;
 
     #[derive(Debug, Clone)]
     pub struct MockState {
         pub(crate) client: ExtnClient,
+        pub(crate) contracts: Vec<RippleContract>,
     }
 
     impl MockState {
@@ -327,10 +368,18 @@ pub mod tests {
     }
 
     impl MockEventProcessor {
+        pub fn new_v1(client: ExtnClient, contracts: Vec<RippleContract>) -> Self {
+            MockEventProcessor {
+                state: MockState { client, contracts },
+                streamer: DefaultExtnStreamer::new(),
+            }
+        }
+
         pub fn new() -> Self {
             MockEventProcessor {
                 state: MockState {
                     client: ExtnClient::mock(),
+                    contracts: Vec::new(),
                 },
                 streamer: DefaultExtnStreamer::new(),
             }
@@ -384,10 +433,22 @@ pub mod tests {
     }
 
     impl MockRequestProcessor {
+        pub fn new_v1(client: ExtnClient, contracts: Vec<RippleContract>) -> Self {
+            MockRequestProcessor {
+                state: MockState { client, contracts },
+                streamer: DefaultExtnStreamer::new(),
+            }
+        }
+
         pub fn new() -> Self {
             MockRequestProcessor {
                 state: MockState {
                     client: ExtnClient::mock(),
+                    contracts: vec![
+                        RippleContract::Internal,
+                        RippleContract::Session(SessionAdjective::Device),
+                        RippleContract::DeviceEvents(EventAdjective::Input),
+                    ],
                 },
                 streamer: DefaultExtnStreamer::new(),
             }
@@ -412,21 +473,15 @@ pub mod tests {
         }
 
         fn fulfills_mutiple(&self) -> Option<Vec<RippleContract>> {
-            Some(vec![
-                RippleContract::Internal,
-                RippleContract::Session(SessionAdjective::Device),
-                RippleContract::DeviceEvents(EventAdjective::Input),
-            ])
+            Some(self.state.contracts.clone())
         }
     }
 
     #[async_trait]
     impl ExtnRequestProcessor for MockRequestProcessor {
         async fn process_request(state: MockState, msg: ExtnMessage, val: Self::VALUE) -> bool {
-            info!("processing request");
             let expected_response = val.expected_response;
 
-            // TODO - test with Boolean, String, complex struct
             if let Some(resp) = expected_response {
                 info!("**** process_request: msg: {:?}, resp: {:?}", msg, resp);
                 Self::respond(state.client.clone(), msg, resp).await.is_ok()
@@ -445,13 +500,17 @@ pub mod tests {
     #[tokio::test]
     async fn test_process_request() {
         let extn_client = ExtnClient::mock();
-        let state = MockState {
-            client: extn_client.clone(),
-        };
         let msg = get_mock_message(PayloadType::Request);
 
-        let result =
-            MockRequestProcessor::process_request(state, msg.clone(), get_mock_request()).await;
+        let result = MockRequestProcessor::process_request(
+            MockState {
+                client: extn_client,
+                contracts: vec![RippleContract::Internal],
+            },
+            msg.clone(),
+            get_mock_request(),
+        )
+        .await;
         assert!(result);
     }
 
@@ -574,6 +633,7 @@ pub mod tests {
     async fn test_event_handle_error() {
         let state = MockState {
             client: ExtnClient::mock(),
+            contracts: vec![RippleContract::Internal],
         };
         let msg = get_mock_message(PayloadType::Event);
         let error = RippleError::ProcessorError;
@@ -595,18 +655,12 @@ pub mod tests {
     #[rstest(exp_resp, case(Some(ExtnResponse::Boolean(true))))]
     #[tokio::test(flavor = "multi_thread")]
     async fn test_request_processor_run(exp_resp: Option<ExtnResponse>) {
-        let (s, receiver) = unbounded();
-        let mock_sender = ExtnSender::new(
-            s.clone(),
-            ExtnId::get_main_target("main".into()),
-            vec!["context".to_string()],
-            vec!["fulfills".to_string()],
-            Some(HashMap::new()),
-        );
+        let (mock_sender, receiver) = ExtnSender::mock();
         let mut extn_client = ExtnClient::new(receiver, mock_sender.clone());
         let processor = MockRequestProcessor {
             state: MockState {
                 client: extn_client.clone(),
+                contracts: vec![RippleContract::Internal],
             },
             streamer: DefaultExtnStreamer::new(),
         };
@@ -670,17 +724,12 @@ pub mod tests {
     )]
     #[tokio::test]
     async fn test_event_processor_run(exp_resp: Option<ExtnResponse>) {
-        let (mock_sender, receiver) = ExtnSender::mock_with_params(
-            ExtnId::get_main_target("main".into()),
-            vec!["config".to_string()],
-            vec!["permissions".to_string()],
-            Some(HashMap::new()),
-        );
-
-        let mut extn_client = ExtnClient::new(receiver, mock_sender);
+        let (mock_sender, mock_rx) = ExtnSender::mock();
+        let mut extn_client = ExtnClient::new(mock_rx, mock_sender.clone());
         let processor = MockEventProcessor {
             state: MockState {
                 client: extn_client.clone(),
+                contracts: vec![RippleContract::Internal],
             },
             streamer: DefaultExtnStreamer::new(),
         };
@@ -688,16 +737,15 @@ pub mod tests {
         extn_client.add_event_processor(processor);
         let extn_client_for_thread = extn_client.clone();
 
-        let (s, _receiver) = unbounded();
         extn_client.clone().add_sender(
             ExtnId::get_main_target("main".into()),
             ExtnSymbol {
                 id: "id".to_string(),
                 uses: vec!["uses".to_string()],
-                fulfills: vec!["fulfills".to_string()],
+                fulfills: Vec::new(),
                 config: None,
             },
-            s,
+            mock_sender.tx,
         );
 
         tokio::spawn(async move {

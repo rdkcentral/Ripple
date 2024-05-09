@@ -18,10 +18,14 @@
 use std::collections::HashMap;
 
 use async_channel::Sender as CSender;
+#[cfg(not(test))]
 use log::error;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt::Debug;
+
+#[cfg(test)]
+use println as error;
 
 use crate::{
     api::{
@@ -151,6 +155,7 @@ impl From<ExtnPayload> for String {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum ExtnPayload {
     Request(ExtnRequest),
     Response(ExtnResponse),
@@ -176,6 +181,14 @@ impl ExtnPayload {
 
     pub fn as_response(&self) -> Option<ExtnResponse> {
         if let ExtnPayload::Response(r) = self.clone() {
+            Some(r)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_request(&self) -> Option<ExtnRequest> {
+        if let ExtnPayload::Request(r) = self.clone() {
             Some(r)
         } else {
             None
@@ -245,6 +258,7 @@ where
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum ExtnRequest {
     Config(Config),
     Rpc(RpcRequest),
@@ -280,7 +294,25 @@ pub enum ExtnRequest {
     AppCatalog(AppCatalogRequest),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+impl ExtnPayloadProvider for ExtnRequest {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(self.clone())
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        if let ExtnPayload::Request(r) = payload {
+            return Some(r);
+        }
+
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::Internal
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExtnResponse {
     None(()),
     String(String),
@@ -330,6 +362,7 @@ impl ExtnPayloadProvider for ExtnResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum ExtnEvent {
     String(String),
     Value(Value),
@@ -358,5 +391,183 @@ impl ExtnPayloadProvider for ExtnEvent {
 
     fn contract() -> RippleContract {
         RippleContract::Internal
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::extn::{
+        extn_client_message::{ExtnEvent, ExtnId, ExtnRequest, ExtnResponse},
+        extn_id::ExtnClassId,
+    };
+    use rstest::rstest;
+
+    #[test]
+    fn test_extract_response() {
+        let response_payload = ExtnPayload::Response(ExtnResponse::String("Response".to_string()));
+        let extracted_response: Option<ExtnResponse> = response_payload.extract();
+        assert_eq!(
+            extracted_response,
+            Some(ExtnResponse::String("Response".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_extract_event() {
+        let event_payload = ExtnPayload::Event(ExtnEvent::String("Event".to_string()));
+        let extracted_event: Option<ExtnEvent> = event_payload.extract();
+        assert_eq!(
+            extracted_event,
+            Some(ExtnEvent::String("Event".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_is_request() {
+        let request_payload = ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName));
+        assert!(request_payload.is_request());
+        assert!(!request_payload.is_response());
+        assert!(!request_payload.is_event());
+    }
+
+    #[test]
+    fn test_is_response() {
+        let response_payload = ExtnPayload::Response(ExtnResponse::String("Response".to_string()));
+        assert!(!response_payload.is_request());
+        assert!(response_payload.is_response());
+        assert!(!response_payload.is_event());
+    }
+
+    #[test]
+    fn test_is_event() {
+        let event_payload = ExtnPayload::Event(ExtnEvent::String("Event".to_string()));
+        assert!(!event_payload.is_request());
+        assert!(!event_payload.is_response());
+        assert!(event_payload.is_event());
+    }
+
+    #[test]
+    fn test_as_response() {
+        let response_payload = ExtnPayload::Response(ExtnResponse::String("Response".to_string()));
+        let extracted_response: Option<ExtnResponse> = response_payload.as_response();
+        assert_eq!(
+            extracted_response,
+            Some(ExtnResponse::String("Response".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_as_response_with_non_response_payload() {
+        let request_payload = ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName));
+        let extracted_response: Option<ExtnResponse> = request_payload.as_response();
+        assert_eq!(extracted_response, None);
+    }
+
+    #[test]
+    fn test_extn_message_get_response() {
+        let requestor = ExtnId::new_channel(ExtnClassId::Device, "info".into());
+        let target = RippleContract::DeviceInfo;
+        let payload = ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName));
+        let message = ExtnMessage {
+            id: "123".to_string(),
+            requestor,
+            target,
+            target_id: None,
+            payload,
+            callback: None,
+            ts: None,
+        };
+
+        let response = ExtnResponse::String("Response".to_string());
+        let response_message = message.get_response(response).unwrap();
+
+        assert_eq!(
+            response_message.payload,
+            ExtnPayload::Response(ExtnResponse::String("Response".to_string()))
+        );
+    }
+
+    #[rstest(
+        json_string,
+        expected_response,
+        case(
+            r#"{"Response":{"String":"Response"}}"#,
+            Ok(ExtnPayload::Response(ExtnResponse::String("Response".to_string())))
+        ),
+        case(
+            r#"{"Response":"Response"}"#,
+            Err(RippleError::ParseError)
+        )
+    )]
+    fn test_extn_payload_try_from(
+        json_string: &str,
+        expected_response: Result<ExtnPayload, RippleError>,
+    ) {
+        let payload_result = ExtnPayload::try_from(json_string.to_string());
+        assert_eq!(payload_result, expected_response);
+    }
+
+    #[tokio::test]
+    async fn test_ack() {
+        // Create a sample ExtnMessage for testing
+        let original_message = ExtnMessage {
+            id: "test_id".to_string(),
+            requestor: ExtnId::get_main_target("main".into()),
+            target: RippleContract::Internal,
+            target_id: Some(ExtnId::get_main_target("main".into())),
+            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
+            callback: None,
+            ts: Some(1234567890),
+        };
+
+        // Clone the original message and call ack method
+        let ack_message = original_message.ack();
+
+        // Check if the generated ack_message has the expected properties
+        assert_eq!(ack_message.id, "test_id");
+        assert_eq!(
+            ack_message.requestor,
+            ExtnId::get_main_target("main".into())
+        );
+        assert_eq!(ack_message.target, RippleContract::Internal);
+        assert_eq!(
+            ack_message.target_id,
+            Some(ExtnId::get_main_target("main".into()))
+        );
+        assert_eq!(
+            ack_message.payload,
+            ExtnPayload::Response(ExtnResponse::None(()))
+        );
+        assert!(ack_message.callback.is_none());
+        assert!(ack_message.ts.is_none());
+    }
+
+    #[test]
+    fn test_get_extn_payload() {
+        let event_payload = ExtnEvent::String("Event".to_string());
+        let extn_payload = event_payload.get_extn_payload();
+        assert_eq!(extn_payload, ExtnPayload::Event(event_payload));
+    }
+
+    #[test]
+    fn test_get_from_payload_with_valid_payload() {
+        let event_payload = ExtnEvent::String("Event".to_string());
+        let extn_payload = ExtnPayload::Event(event_payload.clone());
+        let extracted_event: Option<ExtnEvent> = ExtnEvent::get_from_payload(extn_payload);
+        assert_eq!(extracted_event, Some(event_payload));
+    }
+
+    #[test]
+    fn test_get_from_payload_with_invalid_payload() {
+        let response_payload = ExtnPayload::Response(ExtnResponse::String("Response".to_string()));
+        let extracted_event: Option<ExtnEvent> = ExtnEvent::get_from_payload(response_payload);
+        assert_eq!(extracted_event, None);
+    }
+
+    #[test]
+    fn test_contract() {
+        let expected_contract = RippleContract::Internal;
+        assert_eq!(ExtnEvent::contract(), expected_contract);
     }
 }

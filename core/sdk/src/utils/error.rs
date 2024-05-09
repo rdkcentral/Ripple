@@ -35,6 +35,8 @@ pub enum RippleError {
     NoResponse,
     InvalidAccess,
     Permission(DenyReason),
+    ServiceError,
+    NotAvailable,
 }
 impl std::fmt::Display for RippleError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -53,21 +55,23 @@ impl std::fmt::Display for RippleError {
             RippleError::NoResponse => write!(f, "NoResponse"),
             RippleError::InvalidAccess => write!(f, "InvalidAccess"),
             RippleError::Permission(p) => write!(f, "Permission {}", p),
+            RippleError::ServiceError => write!(f, "ServiceError"),
+            RippleError::NotAvailable => write!(f, "NotAvailable"),
         }
     }
 }
 
 #[cfg(feature = "rpc")]
-impl From<RippleError> for jsonrpsee_core::Error {
+impl From<RippleError> for jsonrpsee::core::Error {
     fn from(value: RippleError) -> Self {
-        jsonrpsee_core::Error::Custom(format!("{}", value))
+        jsonrpsee::core::Error::Custom(format!("{}", value))
     }
 }
 #[cfg(all(test, feature = "rpc"))]
 mod tests {
     use super::*;
-    fn custom_error_match(expected: &str, error: jsonrpsee_core::Error) {
-        if let jsonrpsee_core::Error::Custom(e) = error {
+    fn custom_error_match(expected: &str, error: jsonrpsee::core::Error) {
+        if let jsonrpsee::core::Error::Custom(e) = error {
             assert_eq!(expected, e);
         } else {
             unreachable!("{}", " non error passed");

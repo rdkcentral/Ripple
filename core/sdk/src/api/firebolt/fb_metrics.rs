@@ -98,6 +98,22 @@ pub enum MediaPositionType {
     PercentageProgress(f32),
     AbsolutePosition(i32),
 }
+impl MediaPositionType {
+    pub fn as_absolute(self) -> Option<i32> {
+        match self {
+            MediaPositionType::None => None,
+            MediaPositionType::PercentageProgress(_) => None,
+            MediaPositionType::AbsolutePosition(absolute) => Some(absolute),
+        }
+    }
+    pub fn as_percentage(self) -> Option<f32> {
+        match self {
+            MediaPositionType::None => None,
+            MediaPositionType::PercentageProgress(percentage) => Some(percentage),
+            MediaPositionType::AbsolutePosition(_) => None,
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SignIn {
@@ -268,18 +284,63 @@ pub struct MediaProgress {
     pub entity_id: String,
     pub progress: Option<MediaPositionType>,
 }
+impl From<&MediaProgress> for Option<i32> {
+    fn from(progress: &MediaProgress) -> Self {
+        match progress.progress.clone() {
+            Some(prog) => prog.as_absolute(),
+            None => None,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MediaSeeking {
     pub context: BehavioralMetricContext,
     pub entity_id: String,
     pub target: Option<MediaPositionType>,
 }
+impl From<&MediaSeeking> for Option<i32> {
+    fn from(progress: &MediaSeeking) -> Self {
+        match progress.target.clone() {
+            Some(prog) => prog.as_absolute(),
+            None => None,
+        }
+    }
+}
+
+impl From<&MediaSeeking> for Option<f32> {
+    fn from(progress: &MediaSeeking) -> Self {
+        match progress.target.clone() {
+            Some(prog) => prog.as_percentage(),
+            None => None,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MediaSeeked {
     pub context: BehavioralMetricContext,
     pub entity_id: String,
     pub position: Option<MediaPositionType>,
 }
+impl From<&MediaSeeked> for Option<i32> {
+    fn from(progress: &MediaSeeked) -> Self {
+        match progress.position.clone() {
+            Some(prog) => prog.as_absolute(),
+            None => None,
+        }
+    }
+}
+
+impl From<&MediaSeeked> for Option<f32> {
+    fn from(progress: &MediaSeeked) -> Self {
+        match progress.position.clone() {
+            Some(prog) => prog.as_percentage(),
+            None => None,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MediaRateChanged {
     pub context: BehavioralMetricContext,
@@ -488,6 +549,20 @@ pub enum TimeUnit {
     Millis,
     Seconds,
 }
+/*
+Type to indicate if the timer is local or remote, used for bucket sizing in downstreams
+*/
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub enum TimerType {
+    /*
+    Local metrics are generated for local, on device service calls
+    */
+    Local,
+    /*
+    Remote metrics are generated for remote, off device service calls
+    */
+    Remote,
+}
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Timer {
     pub name: String,
@@ -497,17 +572,29 @@ pub struct Timer {
     pub stop: Option<std::time::Instant>,
     pub tags: Option<HashMap<String, String>>,
     pub time_unit: TimeUnit,
+    pub timer_type: TimerType,
 }
 impl Timer {
-    pub fn start(name: String, tags: Option<HashMap<String, String>>) -> Timer {
-        Timer::new(name, std::time::Instant::now(), tags, TimeUnit::Millis)
+    pub fn start(
+        name: String,
+        tags: Option<HashMap<String, String>>,
+        timer_type: Option<TimerType>,
+    ) -> Timer {
+        Timer::new(
+            name,
+            std::time::Instant::now(),
+            tags,
+            TimeUnit::Millis,
+            timer_type,
+        )
     }
     pub fn start_with_time_unit(
         name: String,
         tags: Option<HashMap<String, String>>,
         time_unit: TimeUnit,
+        timer_type: Option<TimerType>,
     ) -> Timer {
-        Timer::new(name, std::time::Instant::now(), tags, time_unit)
+        Timer::new(name, std::time::Instant::now(), tags, time_unit, timer_type)
     }
 
     pub fn new(
@@ -515,6 +602,7 @@ impl Timer {
         start: std::time::Instant,
         tags: Option<HashMap<String, String>>,
         time_unit: TimeUnit,
+        timer_type: Option<TimerType>,
     ) -> Timer {
         Timer {
             name,
@@ -522,6 +610,8 @@ impl Timer {
             stop: None,
             tags,
             time_unit,
+            /*most will probably be local, so default as such*/
+            timer_type: timer_type.unwrap_or(TimerType::Local),
         }
     }
 
@@ -617,6 +707,7 @@ pub struct MetricsContext {
     pub device_timezone_offset: String,
     pub device_name: String,
     pub platform: String,
+    pub os_name: String,
     pub os_ver: String,
     pub distribution_tenant_id: String,
     pub device_session_id: String,
@@ -637,6 +728,7 @@ pub enum MetricsContextField {
     device_timezone_offset,
     device_name,
     platform,
+    os_name,
     os_ver,
     distributor_id,
     session_id,
@@ -645,6 +737,7 @@ pub enum MetricsContextField {
     firmware,
     ripple_version,
 }
+
 impl MetricsContext {
     pub fn new() -> MetricsContext {
         MetricsContext {
@@ -658,7 +751,8 @@ impl MetricsContext {
             mac_address: String::from(""),
             serial_number: String::from(""),
             account_id: String::from(""),
-            platform: String::from(""),
+            platform: String::from("entos:rdk"),
+            os_name: String::from(""),
             os_ver: String::from(""),
             device_session_id: String::from(""),
             distribution_tenant_id: String::from(""),
@@ -678,6 +772,7 @@ impl MetricsContext {
                 self.device_timezone_offset = value.parse().unwrap()
             }
             MetricsContextField::platform => self.platform = value,
+            MetricsContextField::os_name => self.os_name = value,
             MetricsContextField::os_ver => self.os_ver = value,
             MetricsContextField::distributor_id => self.distribution_tenant_id = value,
             MetricsContextField::session_id => self.device_session_id = value,
@@ -828,6 +923,7 @@ impl ToString for InteractionType {
 pub enum Tag {
     Type,
     App,
+    AppVersion,
     Firmware,
     Status,
     RippleVersion,
@@ -839,6 +935,7 @@ impl Tag {
         match self {
             Tag::Type => "type".into(),
             Tag::App => "app".into(),
+            Tag::AppVersion => "app_version".into(),
             Tag::Firmware => "firmware".into(),
             Tag::Status => "status".into(),
             Tag::RippleVersion => "ripple".into(),
@@ -851,8 +948,8 @@ pub fn get_metrics_tags(
     extn_client: &ExtnClient,
     interaction_type: InteractionType,
     app_id: Option<String>,
-) -> HashMap<String, String> {
-    let metrics_context = extn_client.get_metrics_context();
+) -> Option<HashMap<String, String>> {
+    let metrics_context = extn_client.get_metrics_context()?;
     let mut tags: HashMap<String, String> = HashMap::new();
 
     tags.insert(Tag::Type.key(), interaction_type.to_string());
@@ -879,7 +976,7 @@ pub fn get_metrics_tags(
 
     tags.insert(Tag::Features.key(), features_str);
 
-    tags
+    Some(tags)
 }
 
 #[cfg(test)]
@@ -932,7 +1029,7 @@ mod tests {
     }
     #[test]
     pub fn test_timer() {
-        let mut timer = super::Timer::start("test".to_string(), None);
+        let mut timer = super::Timer::start("test".to_string(), None, None);
         std::thread::sleep(std::time::Duration::from_millis(101));
         timer.stop();
         assert!(timer.elapsed().as_millis() > 100);
@@ -974,6 +1071,7 @@ mod tests {
                 device_timezone_offset: "+0:00".to_string(),
                 device_name: "TestDevice".to_string(),
                 platform: "iOS".to_string(),
+                os_name: "test_os_name".to_string(),
                 os_ver: "14.0".to_string(),
                 distribution_tenant_id: "test_distribution_tenant_id".to_string(),
                 device_session_id: "test_device_session_id".to_string(),
@@ -1120,6 +1218,126 @@ mod tests {
         assert_eq!(
             behavioral_metric_payload.get_context(),
             new_behavioral_metric_context
+        );
+    }
+
+    #[test]
+    fn test_timer_start() {
+        let timer = Timer::start("test_timer".to_string(), None, None);
+        assert_eq!(timer.name, "test_timer");
+        assert!(timer.start.elapsed().as_millis() < 10);
+        assert_eq!(timer.stop, None);
+        assert_eq!(timer.tags, None);
+        assert_eq!(timer.time_unit, TimeUnit::Millis);
+        assert_eq!(timer.timer_type, TimerType::Local);
+    }
+
+    #[test]
+    fn test_timer_start_with_time_unit() {
+        let timer =
+            Timer::start_with_time_unit("test_timer".to_string(), None, TimeUnit::Seconds, None);
+        assert_eq!(timer.name, "test_timer");
+        assert!(timer.start.elapsed().as_secs() < 1);
+        assert_eq!(timer.stop, None);
+        assert_eq!(timer.tags, None);
+        assert_eq!(timer.time_unit, TimeUnit::Seconds);
+        assert_eq!(timer.timer_type, TimerType::Local);
+    }
+
+    #[test]
+    fn test_timer_stop() {
+        let mut timer = Timer::start("test_timer".to_string(), None, None);
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        let stopped_timer = timer.stop();
+        assert_eq!(stopped_timer.name, "test_timer");
+        assert!(stopped_timer.elapsed().as_secs() >= 1);
+        assert_eq!(stopped_timer.tags, None);
+        assert_eq!(stopped_timer.time_unit, TimeUnit::Millis);
+        assert_eq!(stopped_timer.timer_type, TimerType::Local);
+    }
+
+    #[test]
+    fn test_timer_restart() {
+        let mut timer = Timer::start("test_timer".to_string(), None, None);
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        timer.restart();
+        assert_eq!(timer.name, "test_timer");
+        assert!(timer.start.elapsed().as_secs() < 1);
+        assert_eq!(timer.stop, None);
+        assert_eq!(timer.tags, None);
+        assert_eq!(timer.time_unit, TimeUnit::Millis);
+        assert_eq!(timer.timer_type, TimerType::Local);
+    }
+
+    #[test]
+    fn test_insert_tag() {
+        let mut timer = Timer::new(
+            "test_timer".to_string(),
+            std::time::Instant::now(),
+            Some(
+                vec![("tag1".to_string(), "value1".to_string())]
+                    .into_iter()
+                    .collect(),
+            ),
+            TimeUnit::Millis,
+            None,
+        );
+
+        timer.insert_tag("tag2".to_string(), "value2".to_string());
+
+        assert_eq!(
+            timer.tags,
+            Some(
+                vec![
+                    ("tag1".to_string(), "value1".to_string()),
+                    ("tag2".to_string(), "value2".to_string())
+                ]
+                .into_iter()
+                .collect()
+            )
+        );
+    }
+
+    #[test]
+    fn test_timer_insert_tags() {
+        let mut timer = Timer::start("test_timer".to_string(), None, None);
+        let mut new_tags = HashMap::new();
+        new_tags.insert("tag_name".to_string(), "tag_value".to_string());
+        timer.insert_tags(new_tags);
+        assert_eq!(
+            timer.tags.unwrap().get("tag_name"),
+            Some(&"tag_value".to_string())
+        );
+    }
+
+    #[test]
+    fn test_timer_error() {
+        let mut timer = Timer::new(
+            "test_timer".to_string(),
+            std::time::Instant::now(),
+            Some(HashMap::new()),
+            TimeUnit::Millis,
+            None,
+        );
+        timer.error();
+        assert_eq!(timer.tags.unwrap().get("error"), Some(&"true".to_string()));
+    }
+
+    #[test]
+    fn test_timer_to_extn_request() {
+        let timer = Timer::start("test_timer".to_string(), None, None);
+        let request = timer.to_extn_request();
+        assert_eq!(request, OperationalMetricRequest::Timer(timer));
+    }
+
+    #[test]
+    fn test_fb_api_counter() {
+        let counter = fb_api_counter("test_method".to_string(), None);
+        assert_eq!(counter.name, "firebolt_rpc_call");
+        assert_eq!(counter.value, 1);
+        assert_eq!(
+            counter.tags.unwrap().get("method_name"),
+            Some(&"test_method".to_string())
         );
     }
 }

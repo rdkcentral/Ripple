@@ -24,6 +24,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum DistributorRequest {
     Permission(PermissionRequest),
     Discovery(DiscoveryRequest),

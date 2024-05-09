@@ -16,7 +16,8 @@
 //
 
 use crate::state::platform_state::PlatformState;
-use ripple_sdk::api::context::RippleContextUpdateRequest;
+use ripple_sdk::api::config::FEATURE_CLOUD_PERMISSIONS;
+use ripple_sdk::api::context::{FeatureUpdate, RippleContextUpdateRequest};
 use ripple_sdk::api::device::device_events::{
     DeviceEvent, DeviceEventCallback, DeviceEventRequest,
 };
@@ -26,7 +27,7 @@ use ripple_sdk::api::device::device_request::{
 };
 use ripple_sdk::api::session::{AccountSessionRequest, AccountSessionResponse};
 use ripple_sdk::extn::extn_client_message::ExtnResponse;
-use ripple_sdk::log::{error, warn};
+use ripple_sdk::log::{debug, error, warn};
 use ripple_sdk::tokio;
 
 pub struct ContextManager;
@@ -47,6 +48,7 @@ impl ContextManager {
         }
 
         // Setup the Internet Status listener
+        debug!("Subscribing for change in Internet connection Status");
         if ps
             .get_client()
             .send_extn_request(DeviceEventRequest {
@@ -92,6 +94,14 @@ impl ContextManager {
 
         // Asynchronously get context and update the state
         tokio::spawn(async move {
+            // Set default cloud permissions value
+            ps_c.get_client().get_extn_client().context_update(
+                RippleContextUpdateRequest::UpdateFeatures(vec![FeatureUpdate::new(
+                    FEATURE_CLOUD_PERMISSIONS.into(),
+                    ps_c.get_device_manifest().get_features().cloud_permissions,
+                )]),
+            );
+
             // Get Initial power state
             if let Ok(resp) = ps_c
                 .get_client()
@@ -110,6 +120,7 @@ impl ContextManager {
                 }
             }
 
+            debug!("Getting the current status of internet connection");
             // Get Internet Connection state
             if let Ok(resp) = ps_c
                 .get_client()
@@ -118,12 +129,21 @@ impl ContextManager {
                 ))
                 .await
             {
+                ripple_sdk::log::debug!("[RIPPLE CONTEXT] Sending OnInternetConnected request");
                 if let Some(DeviceResponse::InternetConnectionStatus(s)) =
                     resp.payload.extract::<DeviceResponse>()
                 {
+                    ripple_sdk::log::debug!(
+                        "[RIPPLE CONTEXT] OnInternetConnected response: {:?}",
+                        s
+                    );
                     ps_c.get_client()
                         .get_extn_client()
                         .context_update(RippleContextUpdateRequest::InternetStatus(s));
+                } else {
+                    ripple_sdk::log::debug!(
+                        "[RIPPLE CONTEXT] OnInternetConnected response was NONE"
+                    );
                 }
             }
 

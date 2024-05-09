@@ -24,7 +24,8 @@ use crate::{
 
 use super::device_request::DeviceRequest;
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "lowercase")]
 pub struct BrowserProps {
     pub user_agent: Option<String>,
@@ -43,7 +44,8 @@ impl BrowserProps {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct BrowserLaunchParams {
     pub uri: String,
     pub browser_name: String,
@@ -81,7 +83,8 @@ pub struct BrowserNameRequestParams {
     pub instances: usize,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum BrowserRequest {
     Start(BrowserLaunchParams),
     Destroy(BrowserDestroyParams),
@@ -110,10 +113,10 @@ impl ExtnPayloadProvider for BrowserRequest {
 mod tests {
     use super::*;
     use crate::utils::test_utils::test_extn_payload_provider;
+    use rstest::rstest;
 
-    #[test]
-    fn test_extn_payload_provider_for_browser_request_start() {
-        let start_params = BrowserLaunchParams {
+    fn get_mock_browser_launch_params() -> BrowserLaunchParams {
+        BrowserLaunchParams {
             uri: String::from("https://example.com"),
             browser_name: String::from("chrome"),
             _type: String::from("web"),
@@ -125,14 +128,49 @@ mod tests {
             y: 0,
             w: 800,
             h: 600,
-            properties: Some(BrowserProps {
-                user_agent: Some(String::from("Mozilla/5.0")),
-                http_cookie_accept_policy: Some(String::from("all")),
-                local_storage_enabled: Some(true),
-                languages: Some(String::from("en-US")),
-                headers: Some(String::from("custom-headers")),
-            }),
+            properties: None,
+        }
+    }
+
+    #[rstest]
+    #[case(
+        true,
+        Some(BrowserProps {
+            local_storage_enabled: Some(true),
+            ..Default::default()
+        })
+    )]
+    #[case(
+        false,
+        Some(BrowserProps {
+            local_storage_enabled: Some(false),
+            ..Default::default()
+        })
+    )]
+    #[case(false, None)]
+    fn test_is_local_storage_enabled(
+        #[case] expected_result: bool,
+        #[case] properties: Option<BrowserProps>,
+    ) {
+        if properties.is_some() {
+            assert_eq!(
+                properties.clone().unwrap().is_local_storage_enabled(),
+                expected_result
+            );
+        }
+
+        let browser_params = BrowserLaunchParams {
+            properties,
+            ..get_mock_browser_launch_params()
         };
+
+        let result = browser_params.is_local_storage_enabled();
+        assert_eq!(result, expected_result);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_browser_request_start() {
+        let start_params = get_mock_browser_launch_params();
 
         let browser_start_request = BrowserRequest::Start(start_params);
 

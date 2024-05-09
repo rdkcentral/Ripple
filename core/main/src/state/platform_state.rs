@@ -48,7 +48,7 @@ use crate::{
 
 use super::{
     cap::cap_state::CapState, metrics_state::MetricsState, openrpc_state::OpenRpcState,
-    session_state::SessionState,
+    ripple_cache::RippleCache, session_state::SessionState,
 };
 
 /// Platform state encapsulates the internal state of the Ripple Main application.
@@ -103,6 +103,8 @@ pub struct PlatformState {
     pub data_governance: DataGovernanceState,
     pub metrics: MetricsState,
     pub device_session_id: DeviceSessionIdentifier,
+    pub ripple_cache: RippleCache,
+    pub version: Option<String>,
 }
 
 impl PlatformState {
@@ -111,9 +113,9 @@ impl PlatformState {
         manifest: DeviceManifest,
         client: RippleClient,
         app_library: Vec<AppLibraryEntry>,
+        version: Option<String>,
     ) -> PlatformState {
         let exclusory = ExclusoryImpl::get(&manifest);
-
         Self {
             extn_manifest,
             cap_state: CapState::new(manifest.clone()),
@@ -129,6 +131,8 @@ impl PlatformState {
             data_governance: DataGovernanceState::default(),
             metrics: MetricsState::default(),
             device_session_id: DeviceSessionIdentifier::default(),
+            ripple_cache: RippleCache::default(),
+            version,
         }
     }
 
@@ -236,6 +240,7 @@ mod tests {
                 manifest,
                 RippleClient::new(ChannelsState::new()),
                 vec![],
+                None,
             )
         }
     }

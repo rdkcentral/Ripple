@@ -110,3 +110,101 @@ impl AppLibrary {
         map
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn get_default_apps() -> Vec<AppLibraryEntry> {
+        vec![
+            AppLibraryEntry {
+                app_id: "app1".to_string(),
+                boot_state: BootState::Foreground,
+                manifest: AppManifestLoad::Embedded(AppManifest::default()),
+            },
+            AppLibraryEntry {
+                app_id: "app2".to_string(),
+                boot_state: BootState::Unloaded,
+                manifest: AppManifestLoad::Embedded(AppManifest::default()),
+            },
+        ]
+    }
+
+    #[test]
+    fn test_new_app_library_state() {
+        let default_apps = get_default_apps();
+
+        let app_library_state = AppLibraryState::new(default_apps.clone());
+        assert_eq!(app_library_state.default_apps, default_apps);
+
+        let providers = AppLibrary::generate_provider_map(&default_apps);
+        assert_eq!(app_library_state.providers, providers);
+    }
+
+    #[test]
+    fn test_get_all_apps() {
+        let default_apps = get_default_apps();
+        let app_library_state = AppLibraryState::new(default_apps.clone());
+        assert_eq!(app_library_state.get_all_apps(), default_apps);
+    }
+
+    #[test]
+    fn test_get_default_app() {
+        let default_apps = get_default_apps();
+        let app_library_state = AppLibraryState::new(default_apps);
+
+        assert_eq!(
+            app_library_state.get_default_app(),
+            Some(AppLibraryEntry {
+                app_id: "app1".to_string(),
+                boot_state: BootState::Foreground,
+                manifest: AppManifestLoad::Embedded(AppManifest::default()),
+            })
+        );
+    }
+
+    #[test]
+    fn test_get_provider() {
+        let default_apps = get_default_apps();
+        let mut app_library_state = AppLibraryState::new(default_apps);
+        app_library_state
+            .providers
+            .insert("cap1".to_string(), "app1".to_string());
+        app_library_state
+            .providers
+            .insert("cap2".to_string(), "app2".to_string());
+
+        assert_eq!(
+            AppLibrary::get_provider(&app_library_state, "cap1".to_string()),
+            Some("app1".to_string())
+        );
+
+        assert_eq!(
+            AppLibrary::get_provider(&app_library_state, "cap2".to_string()),
+            Some("app2".to_string())
+        );
+
+        assert_eq!(
+            AppLibrary::get_provider(&app_library_state, "cap3".to_string()),
+            None
+        );
+    }
+
+    #[test]
+    fn test_get_manifest() {
+        let default_apps = get_default_apps();
+        let app_library_state = AppLibraryState::new(default_apps);
+
+        assert_eq!(
+            AppLibrary::get_manifest(&app_library_state, "app1"),
+            Some(AppManifest::default())
+        );
+
+        assert_eq!(
+            AppLibrary::get_manifest(&app_library_state, "app2"),
+            Some(AppManifest::default())
+        );
+
+        assert_eq!(AppLibrary::get_manifest(&app_library_state, "app3"), None);
+    }
+}

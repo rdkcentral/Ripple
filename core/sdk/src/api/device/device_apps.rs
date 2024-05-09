@@ -18,6 +18,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    api::app_catalog::AppMetadata,
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
 };
@@ -27,8 +28,8 @@ use super::device_request::DeviceRequest;
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AppsRequest {
     Init,
-    GetApps(Option<String>),
-    InstallApp(AppMetadata),
+    GetInstalledApps(Option<String>),
+    InstallApp(DeviceAppMetadata),
     UninstallApp(InstalledApp),
     GetFireboltPermissions(String),
 }
@@ -40,7 +41,7 @@ pub struct InstalledApp {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct AppMetadata {
+pub struct DeviceAppMetadata {
     pub id: String,
     pub title: String,
     pub version: String,
@@ -48,20 +49,32 @@ pub struct AppMetadata {
     pub data: Option<String>,
 }
 
-impl AppMetadata {
+impl DeviceAppMetadata {
     pub fn new(
         id: String,
         title: String,
         version: String,
         uri: String,
         data: Option<String>,
-    ) -> AppMetadata {
-        AppMetadata {
+    ) -> DeviceAppMetadata {
+        DeviceAppMetadata {
             id,
             title,
             version,
             uri,
             data,
+        }
+    }
+}
+
+impl From<AppMetadata> for DeviceAppMetadata {
+    fn from(value: AppMetadata) -> Self {
+        DeviceAppMetadata {
+            id: value.id,
+            title: value.title,
+            version: value.version,
+            uri: value.uri,
+            data: value.data,
         }
     }
 }
@@ -91,7 +104,7 @@ mod tests {
 
     #[test]
     fn test_extn_payload_provider_for_apps_request_get_apps() {
-        let get_apps_request = AppsRequest::GetApps(Some(String::from("filter_criteria")));
+        let get_apps_request = AppsRequest::GetInstalledApps(Some(String::from("filter_criteria")));
 
         let contract_type: RippleContract = RippleContract::Apps;
         test_extn_payload_provider(get_apps_request, contract_type);

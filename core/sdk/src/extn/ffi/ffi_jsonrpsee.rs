@@ -17,7 +17,7 @@
 
 use crate::{api::apps::AppError, extn::client::extn_sender::ExtnSender};
 use async_channel::Receiver as CReceiver;
-use jsonrpsee_core::server::rpc_module::Methods;
+use jsonrpsee::core::server::rpc_module::Methods;
 use libloading::{Library, Symbol};
 use log::{debug, error};
 
@@ -60,8 +60,8 @@ pub unsafe fn load_jsonrpsee_methods(lib: &Library) -> Option<Box<JsonRpseeExtnB
     None
 }
 
-impl From<AppError> for jsonrpsee_core::Error {
+impl From<AppError> for jsonrpsee::core::Error {
     fn from(err: AppError) -> Self {
-        jsonrpsee_core::Error::Custom(format!("Internal failure: {:?}", err))
+        jsonrpsee::core::Error::Custom(format!("Internal failure: {:?}", err))
     }
 }

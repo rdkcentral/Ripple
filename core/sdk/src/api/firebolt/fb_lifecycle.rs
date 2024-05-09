@@ -79,3 +79,77 @@ impl LifecycleState {
 pub struct CloseRequest {
     pub reason: CloseReason,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_from() {
+        assert_eq!(
+            AppLifecycleState::Initializing,
+            AppLifecycleState::from(&LifecycleState::Initializing)
+        );
+        assert_eq!(
+            AppLifecycleState::Foreground,
+            AppLifecycleState::from(&LifecycleState::Foreground)
+        );
+        assert_eq!(
+            AppLifecycleState::Background,
+            AppLifecycleState::from(&LifecycleState::Background)
+        );
+        assert_eq!(
+            AppLifecycleState::Inactive,
+            AppLifecycleState::from(&LifecycleState::Inactive)
+        );
+        assert_eq!(
+            AppLifecycleState::Suspended,
+            AppLifecycleState::from(&LifecycleState::Suspended)
+        );
+        assert_eq!(
+            AppLifecycleState::NotRunning,
+            AppLifecycleState::from(&LifecycleState::Unloading)
+        );
+    }
+
+    #[test]
+    fn test_as_string() {
+        assert_eq!("initializing", LifecycleState::Initializing.as_string());
+        assert_eq!("inactive", LifecycleState::Inactive.as_string());
+        assert_eq!("foreground", LifecycleState::Foreground.as_string());
+        assert_eq!("background", LifecycleState::Background.as_string());
+        assert_eq!("unloading", LifecycleState::Unloading.as_string());
+        assert_eq!("suspended", LifecycleState::Suspended.as_string());
+    }
+
+    #[test]
+    fn test_as_event() {
+        const LIFECYCLE_EVENT_ON_INACTIVE: &str = "lifecycle.onInactive";
+        const LIFECYCLE_EVENT_ON_FOREGROUND: &str = "lifecycle.onForeground";
+        const LIFECYCLE_EVENT_ON_BACKGROUND: &str = "lifecycle.onBackground";
+        const LIFECYCLE_EVENT_ON_UNLOADING: &str = "lifecycle.onUnloading";
+        const LIFECYCLE_EVENT_ON_SUSPENDED: &str = "lifecycle.onSuspended";
+
+        assert_eq!("none", LifecycleState::Initializing.as_event());
+        assert_eq!(
+            LIFECYCLE_EVENT_ON_INACTIVE,
+            LifecycleState::Inactive.as_event()
+        );
+        assert_eq!(
+            LIFECYCLE_EVENT_ON_FOREGROUND,
+            LifecycleState::Foreground.as_event()
+        );
+        assert_eq!(
+            LIFECYCLE_EVENT_ON_BACKGROUND,
+            LifecycleState::Background.as_event()
+        );
+        assert_eq!(
+            LIFECYCLE_EVENT_ON_UNLOADING,
+            LifecycleState::Unloading.as_event()
+        );
+        assert_eq!(
+            LIFECYCLE_EVENT_ON_SUSPENDED,
+            LifecycleState::Suspended.as_event()
+        );
+    }
+}

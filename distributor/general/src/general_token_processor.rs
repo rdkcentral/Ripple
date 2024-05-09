@@ -33,21 +33,21 @@ use ripple_sdk::{
     framework::ripple_contract::RippleContract,
 };
 
-pub struct DistributorTokenProcessor {
+pub struct GeneralTokenProcessor {
     client: ExtnClient,
     streamer: DefaultExtnStreamer,
 }
 
-impl DistributorTokenProcessor {
-    pub fn new(client: ExtnClient) -> DistributorTokenProcessor {
-        DistributorTokenProcessor {
+impl GeneralTokenProcessor {
+    pub fn new(client: ExtnClient) -> GeneralTokenProcessor {
+        GeneralTokenProcessor {
             client,
             streamer: DefaultExtnStreamer::new(),
         }
     }
 }
 
-impl ExtnStreamProcessor for DistributorTokenProcessor {
+impl ExtnStreamProcessor for GeneralTokenProcessor {
     type STATE = ExtnClient;
     type VALUE = SessionTokenRequest;
 
@@ -80,7 +80,7 @@ impl ExtnStreamProcessor for DistributorTokenProcessor {
 }
 
 #[async_trait]
-impl ExtnRequestProcessor for DistributorTokenProcessor {
+impl ExtnRequestProcessor for GeneralTokenProcessor {
     fn get_client(&self) -> ExtnClient {
         self.client.clone()
     }

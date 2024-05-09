@@ -8,6 +8,7 @@ use crate::{
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AppCatalogRequest {
     CheckForUpdates,
+    GetCatalog,
 }
 
 impl ExtnPayloadProvider for AppCatalogRequest {
@@ -27,7 +28,7 @@ impl ExtnPayloadProvider for AppCatalogRequest {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct AppMetadata {
     pub id: String,
     pub title: String,
@@ -58,14 +59,35 @@ impl AppMetadata {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub struct AppsUpdate {
-    pub apps: Vec<AppMetadata>,
+pub struct AppsCatalogUpdate {
+    pub old_catalog: Option<Vec<AppMetadata>>,
+    pub new_catalog: Vec<AppMetadata>,
 }
 
-impl AppsUpdate {
-    pub fn new(apps: Vec<AppMetadata>) -> AppsUpdate {
-        AppsUpdate { apps }
+impl AppsCatalogUpdate {
+    pub fn new(
+        old_catalog: Option<Vec<AppMetadata>>,
+        new_catalog: Vec<AppMetadata>,
+    ) -> AppsCatalogUpdate {
+        AppsCatalogUpdate {
+            old_catalog,
+            new_catalog,
+        }
     }
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub enum AppsUpdate {
+    InstallComplete(AppOperationComplete),
+    UninstallComplete(AppOperationComplete),
+    AppsCatalogUpdate(AppsCatalogUpdate),
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct AppOperationComplete {
+    pub id: String,
+    pub version: String,
+    pub success: bool,
 }
 
 impl ExtnPayloadProvider for AppsUpdate {
@@ -77,12 +99,11 @@ impl ExtnPayloadProvider for AppsUpdate {
         if let ExtnPayload::Event(ExtnEvent::AppsUpdate(apps_update)) = payload {
             return Some(apps_update);
         }
-
         None
     }
 
     fn contract() -> RippleContract {
-        RippleContract::AppCatalog
+        RippleContract::Apps
     }
 }
 
@@ -100,8 +121,9 @@ mod tests {
 
     #[test]
     fn test_extn_payload_provider_for_apps_update() {
-        let apps_update = AppsUpdate {
-            apps: vec![AppMetadata {
+        let apps_update = AppsUpdate::AppsCatalogUpdate(AppsCatalogUpdate {
+            old_catalog: None,
+            new_catalog: vec![AppMetadata {
                 id: String::from("app1"),
                 title: String::from("App 1"),
                 version: String::from("1.0"),
@@ -109,8 +131,8 @@ mod tests {
                 data: Some(String::from("app1_data")),
                 install_priority: 9999,
             }],
-        };
-        let contract_type: RippleContract = RippleContract::AppCatalog;
+        });
+        let contract_type: RippleContract = RippleContract::Apps;
         test_extn_payload_provider(apps_update, contract_type);
     }
 }

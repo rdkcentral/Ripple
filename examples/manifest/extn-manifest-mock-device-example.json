@@ -1,0 +1,98 @@
+{
+    "default_path": "/usr/lib/rust/",
+    "default_extension": "so",
+    "timeout": 2000,
+    "extns": [
+        {
+            "path": "libthunder",
+            "symbols": [
+                {
+                    "id": "ripple:channel:device:thunder",
+                    "uses": [
+                        "config"
+                    ],
+                    "fulfills": [
+                        "device_info",
+                        "window_manager",
+                        "browser",
+                        "wifi",
+                        "device_events",
+                        "device_persistence",
+                        "remote_accessory"
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "libdistributor_general",
+            "symbols": [
+                {
+                    "id": "ripple:channel:distributor:general",
+                    "uses": [
+                        "config"
+                    ],
+                    "fulfills": [
+                        "permissions",
+                        "account_session",
+                        "secure_storage",
+                        "advertising",
+                        "privacy_settings",
+                        "metrics",
+                        "session_token",
+                        "discovery",
+                        "media_events"
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "libmock_device",
+            "symbols": [
+                {
+                    "id": "ripple:channel:device:mock_device",
+                    "config": {
+                        "mock_data_file": "mock-device.json"
+                    },
+                    "uses": [
+                        "config"
+                    ],
+                    "fulfills": [
+                    ]
+                },
+                {
+                    "id": "ripple:extn:jsonrpsee:mock_device",
+                    "uses": [
+                    ],
+                    "fulfills": [
+                        "json_rpsee"
+                    ]
+                }
+            ]
+        }
+    ],
+    "required_contracts": [
+        "rpc",
+        "lifecycle_management",
+        "device_info",
+        "window_manager",
+        "browser",
+        "permissions",
+        "account_session",
+        "wifi",
+        "device_events",
+        "device_persistence",
+        "remote_accessory",
+        "secure_storage",
+        "advertising",
+        "privacy_settings",
+        "session_token",
+        "metrics",
+        "discovery",
+        "media_events"
+    ],
+    "rpc_aliases": {
+        "device.model": [
+            "custom.model"
+        ]
+    }
+}
