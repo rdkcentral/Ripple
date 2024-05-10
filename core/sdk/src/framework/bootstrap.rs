@@ -84,10 +84,11 @@ impl<T> TransientChannel<T> {
 
     pub fn get_receiver(&self) -> Result<Receiver<T>, RippleError> {
         let mut tr = self.tr.write().unwrap();
-        if tr.is_some() {
-            return Ok(tr.take().unwrap());
-        }
 
-        Err(RippleError::InvalidAccess)
+        if let Some(receiver) = tr.take() {
+            Ok(receiver)
+        } else {
+            Err(RippleError::InvalidAccess)
+        }
     }
 }

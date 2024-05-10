@@ -446,9 +446,8 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     async fn get_serial_number(state: &CachedState) -> String {
-        let response: String;
         match state.get_serial_number() {
-            Some(value) => response = value,
+            Some(value) => value,
             None => {
                 let resp = state
                     .get_thunder_client()
@@ -459,16 +458,16 @@ impl ThunderDeviceInfoRequestProcessor {
                     .await;
                 info!("{}", resp.message);
 
-                let serial_number_option = resp.message["serialNumber"].as_str();
-                if serial_number_option.is_none() {
-                    response = "".to_string();
-                } else {
-                    response = serial_number_option.unwrap().to_string();
-                    state.update_serial_number(response.clone())
-                }
+                resp.message["serialNumber"].as_str().map_or_else(
+                    || "".to_string(),
+                    |serial_number| {
+                        let serial_number = serial_number.to_string();
+                        state.update_serial_number(serial_number.clone());
+                        serial_number
+                    },
+                )
             }
         }
-        response
     }
 
     async fn serial_number(state: CachedState, req: ExtnMessage) -> bool {

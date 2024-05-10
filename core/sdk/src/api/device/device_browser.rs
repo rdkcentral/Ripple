@@ -37,10 +37,7 @@ pub struct BrowserProps {
 
 impl BrowserProps {
     pub fn is_local_storage_enabled(&self) -> bool {
-        if self.local_storage_enabled.is_some() {
-            return self.local_storage_enabled.unwrap();
-        }
-        false
+        self.local_storage_enabled.unwrap_or(false)
     }
 }
 
@@ -64,10 +61,11 @@ pub struct BrowserLaunchParams {
 
 impl BrowserLaunchParams {
     pub fn is_local_storage_enabled(&self) -> bool {
-        if self.properties.is_some() {
-            return self.properties.clone().unwrap().is_local_storage_enabled();
+        if let Some(properties) = &self.properties {
+            properties.is_local_storage_enabled()
+        } else {
+            false
         }
-        false
     }
 }
 
