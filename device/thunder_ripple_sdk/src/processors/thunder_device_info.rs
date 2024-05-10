@@ -1123,24 +1123,30 @@ impl ThunderDeviceInfoRequestProcessor {
                 )
                 .await
                 .is_ok();
-            } else if let Some(tz) = Self::get_timezone_and_offset(&state).await {
-                let cloned_state = state.clone();
-                let cloned_tz = tz.clone();
-                cloned_state
-                    .get_client()
-                    .context_update(RippleContextUpdateRequest::TimeZone(TimeZone {
-                        time_zone: cloned_tz.time_zone,
-                        offset: cloned_tz.offset,
-                    }));
-                return Self::respond(
-                    state.get_client(),
-                    req,
-                    ExtnResponse::TimezoneWithOffset(tz.time_zone, tz.offset),
-                )
-                .await
-                .is_ok();
             }
         }
+
+        // If timezone or offset is None or empty
+        if let Some(tz) = Self::get_timezone_and_offset(&state).await {
+            let cloned_state = state.clone();
+            let cloned_tz = tz.clone();
+
+            cloned_state
+                .get_client()
+                .context_update(RippleContextUpdateRequest::TimeZone(TimeZone {
+                    time_zone: cloned_tz.time_zone,
+                    offset: cloned_tz.offset,
+                }));
+
+            return Self::respond(
+                state.get_client(),
+                req,
+                ExtnResponse::TimezoneWithOffset(tz.time_zone, tz.offset),
+            )
+            .await
+            .is_ok();
+        }
+
         error!("get_timezone_offset: Unsupported timezone");
         Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
     }
