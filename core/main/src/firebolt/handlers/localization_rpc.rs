@@ -498,18 +498,21 @@ impl LocalizationServer for LocalizationImpl {
         _ctx: CallContext,
         set_request: TimezoneProperty,
     ) -> RpcResult<()> {
-        let resp = self
+        let resp = match self
             .platform_state
             .get_client()
             .send_extn_request(DeviceInfoRequest::GetAvailableTimezones)
-            .await;
-
-        if let Err(_e) = resp {
-            return Err(jsonrpsee::core::Error::Custom(String::from(
-                "timezone_set: error response TBD",
-            )));
-        }
-        if let Some(ExtnResponse::AvailableTimezones(timezones)) = resp.unwrap().payload.extract() {
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                error!("timezone_set: error response TBD: {:?}", e);
+                return Err(jsonrpsee::core::Error::Custom(String::from(
+                    "timezone_set: error response TBD",
+                )));
+            }
+        };
+        if let Some(ExtnResponse::AvailableTimezones(timezones)) = resp.payload.extract() {
             if !timezones.contains(&set_request.value) {
                 error!(
                     "timezone_set: Unsupported timezone: tz={}",

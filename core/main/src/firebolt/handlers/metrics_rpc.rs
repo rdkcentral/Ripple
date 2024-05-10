@@ -542,7 +542,8 @@ impl MetricsServer for MetricsImpl {
         ctx: CallContext,
         media_seeked_params: MediaSeekedParams,
     ) -> RpcResult<bool> {
-        let position = convert_to_media_position_type(media_seeked_params.position).unwrap();
+        let position = convert_to_media_position_type(media_seeked_params.position)
+            .unwrap_or(MediaPositionType::None);
         let media_seeked = BehavioralMetricPayload::MediaSeeked(MediaSeeked {
             context: ctx.clone().into(),
             entity_id: media_seeked_params.entity_id,

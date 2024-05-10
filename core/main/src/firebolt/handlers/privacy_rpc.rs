@@ -525,8 +525,16 @@ impl PrivacyImpl {
             }
             PrivacySettingsStorageType::Cloud => {
                 if let Some(dist_session) = platform_state.session_state.get_account_session() {
+                    let setting = match property.as_privacy_setting() {
+                        Some(s) => s,
+                        None => {
+                            return Err(jsonrpsee::core::Error::Custom(
+                                "Property is not a privacy setting".to_owned(),
+                            ))
+                        }
+                    };
                     let request = PrivacyCloudRequest::GetProperty(GetPropertyParams {
-                        setting: property.as_privacy_setting().unwrap(),
+                        setting,
                         dist_session,
                     });
                     if let Ok(resp) = platform_state.get_client().send_extn_request(request).await {
