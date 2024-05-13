@@ -1146,7 +1146,7 @@ pub mod tests {
             operation,
             Some("success".to_string()),
         );
-        assert!(sessions.eq(&state.active_operations.lock().unwrap().clone()));
+        assert!(state.active_operations.lock().unwrap().is_empty());
     }
 
     #[tokio::test]
