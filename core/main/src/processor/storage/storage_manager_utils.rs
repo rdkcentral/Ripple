@@ -50,7 +50,7 @@ fn get_value(resp: Result<ExtnResponse, RippleError>) -> Result<Value, Error> {
             Ok(value) => Ok(value),
             Err(_) => Ok(Value::String(str_val)), // An actual string was stored, return it as a Value.
         },
-        Err(_) => Err(storage_error()),
+        _ => Err(storage_error()),
     }
 }
 
