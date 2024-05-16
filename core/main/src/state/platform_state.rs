@@ -74,9 +74,9 @@ impl Default for DeviceSessionIdentifier {
         }
     }
 }
-impl From<&DeviceSessionIdentifier> for String {
-    fn from(device_session_identifier: &DeviceSessionIdentifier) -> Self {
-        device_session_identifier.device_session_id.to_string()
+impl From<DeviceSessionIdentifier> for String {
+    fn from(device_session_identifier: DeviceSessionIdentifier) -> Self {
+        String::from(device_session_identifier.device_session_id)
     }
 }
 impl From<String> for DeviceSessionIdentifier {
