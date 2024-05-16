@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use jsonrpsee_core::Error;
+use jsonrpsee::core::Error;
 
 pub fn rpc_err(msg: impl Into<String>) -> Error {
     Error::Custom(msg.into())

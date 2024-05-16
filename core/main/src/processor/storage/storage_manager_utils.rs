@@ -28,12 +28,12 @@ fn storage_error() -> jsonrpsee::core::Error {
 }
 
 fn get_storage_data(resp: Result<ExtnResponse, RippleError>) -> Result<Option<StorageData>, Error> {
-    if resp.is_err() {
-        return Err(storage_error());
-    }
-    match resp.unwrap() {
-        ExtnResponse::StorageData(storage_data) => Ok(Some(storage_data)),
-        _ => Ok(None),
+    match resp {
+        Ok(response) => match response {
+            ExtnResponse::StorageData(storage_data) => Ok(Some(storage_data)),
+            _ => Ok(None),
+        },
+        Err(_) => Err(storage_error()),
     }
 }
 
@@ -49,14 +49,16 @@ fn get_value(resp: Result<ExtnResponse, RippleError>) -> Result<Value, Error> {
     //     Some(value) => Ok(value),
     //     None => Err(storage_error()),
     // }
-
-    match resp.unwrap() {
-        ExtnResponse::Value(value) => Ok(value),
-        ExtnResponse::String(str_val) => match serde_json::from_str(&str_val) {
-            Ok(value) => Ok(value),
-            Err(_) => Err(storage_error()),
+    match resp {
+        Ok(resp) => match resp {
+            ExtnResponse::Value(value) => Ok(value),
+            ExtnResponse::String(str_val) => match serde_json::from_str(&str_val) {
+                Ok(value) => Ok(value),
+                Err(_) => Err(storage_error()),
+            },
+            _ => Err(storage_error()),
         },
-        _ => Err(storage_error()),
+        Err(_) => Err(storage_error()),
     }
 }
 

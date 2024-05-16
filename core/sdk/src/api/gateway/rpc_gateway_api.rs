@@ -237,24 +237,16 @@ impl RpcRequest {
         cid: Option<String>,
         gateway_secure: bool,
     ) -> Result<RpcRequest, RequestParseError> {
-        let parsed_res = serde_json::from_str(&json);
-        if parsed_res.is_err() {
-            return Err(RequestParseError {});
-        }
-        let parsed: serde_json::Value = parsed_res.unwrap();
-        let base_res = serde_json::from_value(parsed.clone());
-        if base_res.is_err() {
-            return Err(RequestParseError {});
-        }
-        let base: ApiBaseRequest = base_res.unwrap();
+        let parsed =
+            serde_json::from_str::<serde_json::Value>(&json).map_err(|_| RequestParseError {})?;
+        let base = serde_json::from_value::<ApiBaseRequest>(parsed.clone())
+            .map_err(|_| RequestParseError {})?;
         if !base.is_jsonrpc() {
             return Err(RequestParseError {});
         }
-        let jsonrpc_req_res = serde_json::from_value(parsed);
-        if jsonrpc_req_res.is_err() {
-            return Err(RequestParseError {});
-        }
-        let jsonrpc_req: JsonRpcApiRequest = jsonrpc_req_res.unwrap();
+        let jsonrpc_req = serde_json::from_value::<JsonRpcApiRequest>(parsed)
+            .map_err(|_| RequestParseError {})?;
+
         let id = jsonrpc_req.id.unwrap_or(0);
         let method = FireboltOpenRpcMethod::name_with_lowercase_module(&jsonrpc_req.method);
         let ctx = CallContext::new(

@@ -446,9 +446,8 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     async fn get_serial_number(state: &CachedState) -> String {
-        let response: String;
         match state.get_serial_number() {
-            Some(value) => response = value,
+            Some(value) => value,
             None => {
                 let resp = state
                     .get_thunder_client()
@@ -459,16 +458,16 @@ impl ThunderDeviceInfoRequestProcessor {
                     .await;
                 info!("{}", resp.message);
 
-                let serial_number_option = resp.message["serialNumber"].as_str();
-                if serial_number_option.is_none() {
-                    response = "".to_string();
-                } else {
-                    response = serial_number_option.unwrap().to_string();
-                    state.update_serial_number(response.clone())
-                }
+                resp.message["serialNumber"].as_str().map_or_else(
+                    || "".to_string(),
+                    |serial_number| {
+                        let serial_number = serial_number.to_string();
+                        state.update_serial_number(serial_number.clone());
+                        serial_number
+                    },
+                )
             }
         }
-        response
     }
 
     async fn serial_number(state: CachedState, req: ExtnMessage) -> bool {
@@ -1123,24 +1122,30 @@ impl ThunderDeviceInfoRequestProcessor {
                 )
                 .await
                 .is_ok();
-            } else if let Some(tz) = Self::get_timezone_and_offset(&state).await {
-                let cloned_state = state.clone();
-                let cloned_tz = tz.clone();
-                cloned_state
-                    .get_client()
-                    .context_update(RippleContextUpdateRequest::TimeZone(TimeZone {
-                        time_zone: cloned_tz.time_zone,
-                        offset: cloned_tz.offset,
-                    }));
-                return Self::respond(
-                    state.get_client(),
-                    req,
-                    ExtnResponse::TimezoneWithOffset(tz.time_zone, tz.offset),
-                )
-                .await
-                .is_ok();
             }
         }
+
+        // If timezone or offset is None or empty
+        if let Some(tz) = Self::get_timezone_and_offset(&state).await {
+            let cloned_state = state.clone();
+            let cloned_tz = tz.clone();
+
+            cloned_state
+                .get_client()
+                .context_update(RippleContextUpdateRequest::TimeZone(TimeZone {
+                    time_zone: cloned_tz.time_zone,
+                    offset: cloned_tz.offset,
+                }));
+
+            return Self::respond(
+                state.get_client(),
+                req,
+                ExtnResponse::TimezoneWithOffset(tz.time_zone, tz.offset),
+            )
+            .await
+            .is_ok();
+        }
+
         error!("get_timezone_offset: Unsupported timezone");
         Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
     }

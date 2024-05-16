@@ -63,11 +63,10 @@ impl FireboltGatekeeper {
         if !secure {
             api_surface.push(ApiSurface::Ripple);
         }
-        let perm_based_on_spec_opt = platform_state
+        let perm_based_on_spec = platform_state
             .open_rpc_state
-            .get_perms_for_method(method, api_surface);
-        perm_based_on_spec_opt.as_ref()?;
-        let perm_based_on_spec = perm_based_on_spec_opt.unwrap();
+            .get_perms_for_method(method, api_surface)?;
+
         if perm_based_on_spec.is_empty() {
             return Some(perm_based_on_spec);
         }
@@ -78,15 +77,13 @@ impl FireboltGatekeeper {
     }
     // TODO return Deny Reason into ripple error
     pub async fn gate(state: PlatformState, request: RpcRequest) -> Result<(), DenyReasonWithCap> {
-        let caps_opt =
-            Self::get_resolved_caps_for_method(&state, &request.method, request.ctx.gateway_secure);
-        if caps_opt.is_none() {
-            return Err(DenyReasonWithCap {
-                reason: DenyReason::NotFound,
-                caps: Vec::new(),
-            });
-        }
-        let caps = caps_opt.unwrap();
+        let caps =
+            Self::get_resolved_caps_for_method(&state, &request.method, request.ctx.gateway_secure)
+                .ok_or(DenyReasonWithCap {
+                    reason: DenyReason::NotFound,
+                    caps: Vec::new(),
+                })?;
+
         if caps.is_empty() {
             // Couldnt find any capabilities for the method
             trace!(
