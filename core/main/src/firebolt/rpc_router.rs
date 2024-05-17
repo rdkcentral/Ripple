@@ -205,12 +205,13 @@ impl RpcRouter {
         req: RpcRequest,
         extn_msg: ExtnMessage,
     ) {
-        if extn_msg.callback.is_none() {
-            // The caller of this function already checks this adding it here none the less.
-            error!("No valid callbacks")
-        }
-
-        let callback = extn_msg.clone().callback.unwrap();
+        let callback = match extn_msg.clone().callback {
+            Some(cb) => cb,
+            None => {
+                error!("No valid callbacks");
+                return;
+            }
+        };
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
         tokio::spawn(async move {
@@ -218,13 +219,14 @@ impl RpcRouter {
                 let r: SResult<JsonRpcApiResponse> = serde_json::from_str(&msg.jsonrpc_msg);
 
                 if let Ok(resp) = r {
-                    let response_value = if resp.result.is_some() {
-                        resp.result.unwrap()
-                    } else if resp.error.is_some() {
-                        resp.error.unwrap()
+                    let response_value = if let Some(result) = resp.result {
+                        result
+                    } else if let Some(error) = resp.error {
+                        error
                     } else {
                         serde_json::to_value(RippleError::InvalidOutput).unwrap()
                     };
+
                     let return_value = ExtnResponse::Value(response_value);
                     if let Ok(response) = extn_msg.get_response(return_value) {
                         if let Err(e) = callback.try_send(response.into()) {

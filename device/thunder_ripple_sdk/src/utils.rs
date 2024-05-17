@@ -33,10 +33,11 @@ pub fn get_audio_profile_from_value(value: Value) -> HashMap<AudioProfile, bool>
     hm.insert(AudioProfile::DolbyDigital7_1Plus, false);
     hm.insert(AudioProfile::DolbyAtmos, false);
 
-    if value.get("supportedAudioFormat").is_none() {
-        return hm;
-    }
-    let supported_profiles = value["supportedAudioFormat"].as_array().unwrap();
+    let supported_profiles = match value.get("supportedAudioFormat") {
+        Some(profiles) => profiles.as_array().unwrap(),
+        None => return hm,
+    };
+
     for profile in supported_profiles {
         let profile_name = profile.as_str().unwrap();
         match profile_name {

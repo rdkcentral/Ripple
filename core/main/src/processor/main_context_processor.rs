@@ -240,12 +240,12 @@ impl MainContextProcessor {
         // internet_state: &InternetConnectionStatus,
     ) {
         debug!("handling internet connection change: {:?}", internet_state);
-        if internet_state.is_some()
-            && !matches!(
-                internet_state.as_ref().unwrap(),
-                InternetConnectionStatus::FullyConnected
-            )
-        {
+        let internet_state = match internet_state {
+            Some(state) => state,
+            None => return,
+        };
+
+        if matches!(internet_state, InternetConnectionStatus::FullyConnected) {
             //Send request to start internet monitoring.
             if let Err(err) = state
                 .get_client()
@@ -258,8 +258,12 @@ impl MainContextProcessor {
     }
     fn handle_power_state(state: &PlatformState, power_state: &Option<SystemPowerState>) {
         // fn handle_power_state(state: &PlatformState, power_state: &SystemPowerState) {
-        if (power_state.is_some()
-            && !matches!(power_state.as_ref().unwrap().power_state, PowerState::On))
+        let power_state = match power_state {
+            Some(state) => state,
+            None => return,
+        };
+
+        if matches!(power_state.power_state, PowerState::On)
             && Self::handle_power_active_cleanup(state)
         {
             // if power_state.power_state != PowerState::On && Self::handle_power_active_cleanup(state) {

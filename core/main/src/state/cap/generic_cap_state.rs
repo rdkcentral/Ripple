@@ -107,10 +107,17 @@ impl GenericCapState {
         Ok(())
     }
 
+    /*
+     * Actually we are not maintaining the available capability list.
+     * We are maintaining only non-available list.
+     * The notion is all supported caps are intrinsically available
+     * unless made as unavailable during initialization.
+     */
     pub fn check_available(
         &self,
         request: &Vec<FireboltPermission>,
     ) -> Result<(), DenyReasonWithCap> {
+        self.check_supported(request)?;
         let not_available = self.not_available.read().unwrap();
         let mut result: Vec<FireboltCap> = Vec::new();
         for fb_perm in request {
@@ -133,7 +140,6 @@ impl GenericCapState {
         &self,
         permissions: &Vec<FireboltPermission>,
     ) -> Result<(), DenyReasonWithCap> {
-        self.check_supported(permissions)?;
         self.check_available(permissions)
     }
 
