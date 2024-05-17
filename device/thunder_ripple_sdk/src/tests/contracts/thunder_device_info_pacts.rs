@@ -128,9 +128,9 @@ async fn test_device_get_model() {
     );
     result.insert(
         "stbTimestamp".into(),
-        ContractMatcher::MatchDateTime(
-            "EEE dd MMM yyyy HH:mm:ss a z".into(),
-            "Thu 09 Jan 2020 04:04:24 AM UTC".into(),
+        ContractMatcher::MatchRegex(
+            "^\\w{3} \\d{1,2} \\w{3} (?:\\d{2})?\\d{2} \\d{2}:\\d{2}:\\d{2} UTC$".into(),
+            "Wed 01 Jan 2024 02:45:28 UTC".into(),
         ),
     );
     result.insert("success".into(), ContractMatcher::MatchBool(true));
@@ -624,23 +624,34 @@ async fn test_device_get_make() {
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_device_get_video_resolution() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
-
-    let mut result = HashMap::new();
-    result.insert(
-        "currentResolution".into(),
-        ContractMatcher::MatchType("1080p".into()),
-    );
-    result.insert("success".into(), ContractMatcher::MatchBool(true));
     pact_builder_async
         .synchronous_message_interaction(
-            "A request to get the device video resolution",
+            "A request to get the current resolution on the selected video display port",
             |mut i| async move {
-                i.contents_from(get_pact!(
-                    "org.rdk.DisplaySettings.1.getCurrentResolution",
-                    ContractResult { result }
-                ))
+                i.contents_from(json!({
+                    "pact:content-type": "application/json",
+                    "request": {
+                        "jsonrpc": "matching(type, '2.0')",
+                        "id": "matching(integer, 3)",
+                        "method": "org.rdk.DisplaySettings.1.getCurrentResolution"
+                    },
+                    "requestMetadata": {
+                        "path": "/jsonrpc"
+                    },
+                    "response": [{
+                        "jsonrpc": "matching(type, '2.0')",
+                        "id": "matching(integer, 0)",
+                        "result": {
+                            "resolution": {"regex": "1080p\\d*"},
+                            "w": "matching(integer, 1920)",
+                            "h": "matching(integer, 1080)",
+                            "progressive": true,
+                            "success": true
+                        }
+                    }]
+                }))
                 .await;
-                i.test_name("get_device_video_resolution");
+                i.test_name("get_device_current_video_resolution");
                 i
             },
         )
@@ -790,34 +801,42 @@ async fn test_device_get_available_timezone() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
     pact_builder_async
-        .synchronous_message_interaction("A request to get the device available timezone", |mut i| async move {
+    .synchronous_message_interaction(
+        "A request to get the device available timezone",
+        |mut i| async move {
             i.contents_from(json!({
                 "pact:content-type": "application/json",
-                "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 0)", "method": "org.rdk.System.1.getTimeZones"},
+                "request": {
+                    "jsonrpc": "matching(type, '2.0')",
+                    "id": "matching(integer, 1)",
+                    "method": "org.rdk.System.1.getTimeZones"
+                },
                 "requestMetadata": {
-                    "path": "/jsonrpc",
+                    "path": "/jsonrpc"
                 },
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 0)",
-                    "result":  {
+                    "result": {
                         "zoneinfo": {
-                            "EST": "matching(datetime, 'EEE MMM d HH:mm:ss yyyy z', 'Thu Nov 5 15:21:17 2020 EST')",
+                            "EST": {"regex": "^\\w{3} \\w{3}  ?\\d{1,2} \\d{2}:\\d{2}:\\d{2} \\d{4} EST$"},
                             "America": {
-                                "New_York": "matching(datetime, 'EEE MMM d HH:mm:ss yyyy z', 'Thu Nov 5 15:21:17 2020 EST')",
-                                "Los_Angeles": "matching (datetime, 'EEE MMM d HH:mm:ss yyyy z', 'Thu Nov 5 12:21:17 2020 PST')"
+                                "New_York": {"regex": "^\\w{3} \\w{3}  ?\\d{1,2} \\d{2}:\\d{2}:\\d{2} \\d{4} EDT$"},
+                                "Los_Angeles": {"regex": "^\\w{3} \\w{3}  ?\\d{1,2} \\d{2}:\\d{2}:\\d{2} \\d{4} PDT$"}
                             },
                             "Europe": {
-                                "London": "matching(datetime, 'EEE MMM d HH:mm:ss yyyy z', 'Thu Nov 5 14:21:17 2020 CST')"
+                                "London": {"regex": "^\\w{3} \\w{3}  ?\\d{1,2} \\d{2}:\\d{2}:\\d{2} \\d{4} BST$"}
                             }
                         },
-                        "success": "matching(boolean, true)"
+                        "success": {"type": "boolean", "value": true}
                     }
                 }]
             })).await;
             i.test_name("get_device_available_timezone");
             i
-        }).await;
+        }
+    )
+    .await;
 
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
