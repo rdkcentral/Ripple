@@ -23,9 +23,14 @@ use std::{
 use jsonrpsee::tracing::debug;
 use ripple_sdk::{
     api::{
-        context::RippleContextUpdateRequest,
+        context::{ActivationStatus, RippleContextUpdateRequest},
         device::device_info_request::{DeviceInfoRequest, DeviceResponse, FirmwareInfo},
-        firebolt::{fb_metrics::MetricsContext, fb_openrpc::FireboltSemanticVersion},
+        distributor::distributor_privacy::{DataEventType, PrivacySettingsData},
+        firebolt::{
+            fb_metrics::{MetricsContext, MetricsEnvironment},
+            fb_openrpc::FireboltSemanticVersion,
+        },
+        manifest::device_manifest::DataGovernanceConfig,
         storage_property::StorageProperty,
     },
     chrono::{DateTime, Utc},
@@ -41,6 +46,17 @@ use crate::processor::storage::storage_manager::StorageManager;
 use super::platform_state::PlatformState;
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
+
+const PERSISTENT_STORAGE_NAMESPACE: &str = "accountProfile";
+const PERSISTENT_STORAGE_KEY_PROPOSITION: &str = "proposition";
+const PERSISTENT_STORAGE_KEY_RETAILER: &str = "retailer";
+const PERSISTENT_STORAGE_KEY_PRIMARY_PROVIDER: &str = "jvagent";
+const PERSISTENT_STORAGE_KEY_COAM: &str = "coam";
+const PERSISTENT_STORAGE_KEY_ACCOUNT_TYPE: &str = "accountType";
+const PERSISTENT_STORAGE_KEY_OPERATOR: &str = "operator";
+const PERSISTENT_STORAGE_ACCOUNT_DETAIL_TYPE: &str = "detailType";
+const PERSISTENT_STORAGE_ACCOUNT_DEVICE_TYPE: &str = "deviceType";
+const PERSISTENT_STORAGE_ACCOUNT_DEVICE_MANUFACTURER: &str = "deviceManufacturer";
 
 #[derive(Debug, Clone, Default)]
 pub struct MetricsState {
@@ -67,6 +83,127 @@ impl MetricsState {
     pub fn get_context(&self) -> MetricsContext {
         self.context.read().unwrap().clone()
     }
+
+    fn get_option_string(s: String) -> Option<String> {
+        if !s.is_empty() {
+            return Some(s);
+        }
+        None
+    }
+
+    pub fn update_data_governance_tags(
+        &self,
+        platform_state: &PlatformState,
+        privacy_settings_data: &PrivacySettingsData,
+    ) {
+        fn update_tags(
+            data_governance_config: &DataGovernanceConfig,
+            data: Option<bool>,
+            tags: &mut Vec<String>,
+            data_event_type: DataEventType,
+            storage_property: StorageProperty,
+        ) {
+            if let Some(true) = data {
+                if let Some(policy) = data_governance_config.get_policy(data_event_type) {
+                    if let Some(setting_tag) = policy
+                        .setting_tags
+                        .iter()
+                        .find(|t| t.setting == storage_property)
+                    {
+                        for tag in setting_tag.tags.clone() {
+                            tags.push(tag);
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut governance_tags: Vec<String> = Vec::new();
+        let data_governance_config = platform_state
+            .get_device_manifest()
+            .configuration
+            .data_governance;
+
+        update_tags(
+            &data_governance_config,
+            privacy_settings_data.allow_business_analytics,
+            &mut governance_tags,
+            DataEventType::BusinessIntelligence,
+            StorageProperty::AllowBusinessAnalytics,
+        );
+
+        update_tags(
+            &data_governance_config,
+            privacy_settings_data.allow_resume_points,
+            &mut governance_tags,
+            DataEventType::Watched,
+            StorageProperty::AllowWatchHistory,
+        );
+
+        update_tags(
+            &data_governance_config,
+            privacy_settings_data.allow_personalization,
+            &mut governance_tags,
+            DataEventType::BusinessIntelligence,
+            StorageProperty::AllowPersonalization,
+        );
+
+        update_tags(
+            &data_governance_config,
+            privacy_settings_data.allow_product_analytics,
+            &mut governance_tags,
+            DataEventType::BusinessIntelligence,
+            StorageProperty::AllowProductAnalytics,
+        );
+
+        self.context.write().unwrap().data_governance_tags = if !governance_tags.is_empty() {
+            Some(governance_tags)
+        } else {
+            None
+        };
+    }
+
+    async fn get_persistent_store_string(
+        state: &PlatformState,
+        key: &'static str,
+    ) -> Option<String> {
+        match StorageManager::get_string_from_namespace(
+            state,
+            PERSISTENT_STORAGE_NAMESPACE.to_string(),
+            key,
+        )
+        .await
+        {
+            Ok(resp) => Self::get_option_string(resp.as_value()),
+            Err(e) => {
+                error!(
+                    "get_persistent_store_string: Could not retrieve value: e={:?}",
+                    e
+                );
+                None
+            }
+        }
+    }
+
+    async fn get_persistent_store_bool(state: &PlatformState, key: &'static str) -> Option<bool> {
+        match StorageManager::get_bool_from_namespace(
+            state,
+            PERSISTENT_STORAGE_NAMESPACE.to_string(),
+            key,
+        )
+        .await
+        {
+            Ok(resp) => Some(resp.as_value()),
+            Err(e) => {
+                error!(
+                    "get_persistent_store_bool: Could not retrieve value: e={:?}",
+                    e
+                );
+                None
+            }
+        }
+    }
+
     pub async fn initialize(state: &PlatformState) {
         let metrics_percentage = state
             .get_device_manifest()
@@ -145,20 +282,78 @@ impl MetricsState {
             }
         }
 
-        let firmware = match state
+        let mut firmware = String::default();
+        let mut env = None;
+
+        match state
             .get_client()
             .send_extn_request(DeviceInfoRequest::PlatformBuildInfo)
             .await
         {
             Ok(resp) => {
                 if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp.payload.extract() {
-                    info.name
-                } else {
-                    String::default()
+                    firmware = info.name;
+                    env = if info.debug {
+                        Some(MetricsEnvironment::Dev.to_string())
+                    } else {
+                        Some(MetricsEnvironment::Prod.to_string())
+                    };
                 }
             }
-            Err(_) => String::default(),
+            Err(_) => env = None,
         };
+
+        let activated = match state.get_client().get_extn_client().get_activation_status() {
+            Some(ActivationStatus::Activated) => Some(true),
+            None => None,
+            _ => Some(false),
+        };
+
+        let proposition =
+            Self::get_persistent_store_string(state, PERSISTENT_STORAGE_KEY_PROPOSITION)
+                .await
+                .unwrap_or("Proposition.missing.from.persistent.store".into());
+
+        let retailer =
+            Self::get_persistent_store_string(state, PERSISTENT_STORAGE_KEY_RETAILER).await;
+
+        let primary_provider =
+            Self::get_persistent_store_string(state, PERSISTENT_STORAGE_KEY_PRIMARY_PROVIDER).await;
+
+        let platform = proposition.clone();
+
+        let coam = Self::get_persistent_store_bool(state, PERSISTENT_STORAGE_KEY_COAM).await;
+
+        let country = StorageManager::get_string(state, StorageProperty::CountryCode)
+            .await
+            .ok();
+
+        let region = StorageManager::get_string(state, StorageProperty::Locality)
+            .await
+            .ok();
+
+        let account_type =
+            Self::get_persistent_store_string(state, PERSISTENT_STORAGE_KEY_ACCOUNT_TYPE).await;
+
+        let operator =
+            Self::get_persistent_store_string(state, PERSISTENT_STORAGE_KEY_OPERATOR).await;
+
+        let account_detail_type =
+            Self::get_persistent_store_string(state, PERSISTENT_STORAGE_ACCOUNT_DETAIL_TYPE).await;
+
+        let device_type =
+            Self::get_persistent_store_string(state, PERSISTENT_STORAGE_ACCOUNT_DEVICE_TYPE)
+                .await
+                .unwrap_or("Device.Type.missing.from.persistent.store".into());
+
+        let device_manufacturer = Self::get_persistent_store_string(
+            state,
+            PERSISTENT_STORAGE_ACCOUNT_DEVICE_MANUFACTURER,
+        )
+        .await
+        .unwrap_or("Device.Manufacturer.missing.from.persistent.store".into());
+
+        let authenticated = None;
 
         {
             // Time to set them
@@ -181,8 +376,8 @@ impl MetricsState {
             context.device_language = language;
             context.os_name = os_info.name;
             context.os_ver = os_info.version.readable;
-            context.device_name = device_name;
-            context.device_session_id = String::from(&state.device_session_id);
+            context.device_name = Some(device_name);
+            context.device_session_id = state.device_session_id.clone().into();
             context.firmware = firmware;
             context.ripple_version = state
                 .version
@@ -192,6 +387,22 @@ impl MetricsState {
             if let Some(t) = timezone {
                 context.device_timezone = t;
             }
+
+            context.env = env;
+            context.activated = activated;
+            context.proposition = proposition;
+            context.retailer = retailer;
+            context.primary_provider = primary_provider;
+            context.platform = platform;
+            context.coam = coam;
+            context.country = country;
+            context.region = region;
+            context.account_type = account_type;
+            context.operator = operator;
+            context.account_detail_type = account_detail_type;
+            context.device_type = device_type;
+            context.device_manufacturer = device_manufacturer;
+            context.authenticated = authenticated;
         }
         {
             Self::update_account_session(state).await;
@@ -224,12 +435,12 @@ impl MetricsState {
             let mut context = state.metrics.context.write().unwrap();
             let account_session = state.session_state.get_account_session();
             if let Some(session) = account_session {
-                context.account_id = session.account_id;
-                context.device_id = session.device_id;
+                context.account_id = Some(session.account_id);
+                context.device_id = Some(session.device_id);
                 context.distribution_tenant_id = session.id;
             } else {
-                context.account_id = "no.account.set".to_string();
-                context.device_id = "no.device_id.set".to_string();
+                context.account_id = None;
+                context.device_id = None;
                 context.distribution_tenant_id = "no.distribution_tenant_id.set".to_string();
             }
         }
