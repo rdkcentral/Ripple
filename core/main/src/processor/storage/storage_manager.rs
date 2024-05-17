@@ -383,20 +383,7 @@ impl StorageManager {
             .await
         {
             Ok(_) => {
-                if let Some(events) = event_names {
-                    let val = value.clone();
-                    for event in events.iter() {
-                        let state_for_event = state.clone();
-                        let result = val.clone();
-                        let ctx = context.clone();
-                        let evt = String::from(*event);
-                        tokio::spawn(async move {
-                            debug!("set_in_namespace: Sending event {:?} ctx {:?}", evt, ctx);
-                            AppEvents::emit_with_context(&state_for_event, &evt, &result, ctx)
-                                .await;
-                        });
-                    }
-                }
+                StorageManager::notify(state, value.clone(), event_names, context).await;
                 Ok(StorageManagerResponse::Ok(()))
             }
             Err(_) => Err(StorageManagerError::WriteError),
@@ -473,13 +460,28 @@ impl StorageManager {
     }
 
     pub async fn delete_key(state: &PlatformState, property: StorageProperty) -> RpcResult<()> {
+        let mut result = Ok(());
         let data = property.as_data();
-        if let Err(_err) =
-            StorageManager::delete(state, &data.namespace.to_string(), &data.key.to_string()).await
+
+        if let Ok(ExtnResponse::StorageData(_)) =
+            StorageManager::get(state, &data.namespace.to_string(), &data.key.to_string()).await
         {
-            return Err(StorageManager::get_firebolt_error(&property));
+            result = match StorageManager::delete(
+                state,
+                &data.namespace.to_string(),
+                &data.key.to_string(),
+            )
+            .await
+            {
+                Ok(_) => {
+                    StorageManager::notify(state, Value::Null, data.event_names, None).await;
+                    Ok(())
+                }
+                Err(_) => Err(StorageManager::get_firebolt_error(&property)),
+            }
         }
-        Ok(())
+
+        result
     }
 
     async fn get(
@@ -575,5 +577,26 @@ impl StorageManager {
         storage_to_vec_string_rpc_result(
             StorageManager::get(state, &data.namespace.to_string(), &data.key.to_string()).await,
         )
+    }
+
+    async fn notify(
+        state: &PlatformState,
+        value: Value,
+        event_names: Option<&'static [&'static str]>,
+        context: Option<Value>,
+    ) {
+        if let Some(events) = event_names {
+            let val = value.clone();
+            for event in events.iter() {
+                let state_for_event = state.clone();
+                let result = val.clone();
+                let ctx = context.clone();
+                let evt = String::from(*event);
+                tokio::spawn(async move {
+                    debug!("notify: Sending event {:?} ctx {:?}", evt, ctx);
+                    AppEvents::emit_with_context(&state_for_event, &evt, &result, ctx).await;
+                });
+            }
+        }
     }
 }
