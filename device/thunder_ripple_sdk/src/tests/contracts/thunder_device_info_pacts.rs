@@ -819,13 +819,13 @@ async fn test_device_get_available_timezone() {
                     "id": "matching(integer, 0)",
                     "result": {
                         "zoneinfo": {
-                            "EST": {"regex": "^\\w{3} \\w{3}  ?\\d{1,2} \\d{2}:\\d{2}:\\d{2} \\d{4} EST$"},
+                            "EST": {"regex": r"^\w{3} \w{3} {0,2}\d{1,2} \d{2}:\d{2}:\d{2} \d{4} EST$"},
                             "America": {
-                                "New_York": {"regex": "^\\w{3} \\w{3}  ?\\d{1,2} \\d{2}:\\d{2}:\\d{2} \\d{4} EDT$"},
-                                "Los_Angeles": {"regex": "^\\w{3} \\w{3}  ?\\d{1,2} \\d{2}:\\d{2}:\\d{2} \\d{4} PDT$"}
+                                "New_York": {"regex": r"^\w{3} \w{3} {0,2}\d{1,2} \d{2}:\d{2}:\d{2} \d{4} EDT$"},
+                                "Los_Angeles": {"regex": r"^\w{3} \w{3} {0,2}\d{1,2} \d{2}:\d{2}:\d{2} \d{4} PDT$"}
                             },
                             "Europe": {
-                                "London": {"regex": "^\\w{3} \\w{3}  ?\\d{1,2} \\d{2}:\\d{2}:\\d{2} \\d{4} BST$"}
+                                "London": {"regex": r"^\w{3} \w{3} {0,2}\d{1,2} \d{2}:\d{2}:\d{2} \d{4} BST$"}
                             }
                         },
                         "success": {"type": "boolean", "value": true}
