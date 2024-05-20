@@ -81,7 +81,7 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
                         // Lets Main know that the distributor channel is ready
                         let _ = client.event(ExtnStatus::Ready);
                         while let Some(v) = tr.recv().await {
-                            if let Err(e) = socket.write_message(Message::Text(v)) {
+                            if let Err(e) = socket.send(Message::Text(v)) {
                                 error!("Error sending to socket {:?}", e);
                             }
                         }

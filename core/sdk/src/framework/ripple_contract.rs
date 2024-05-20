@@ -23,7 +23,7 @@ use crate::{
     extn::extn_id::ExtnProviderAdjective,
     utils::{error::RippleError, serde_utils::SerdeClearString},
 };
-use jsonrpsee_core::DeserializeOwned;
+use jsonrpsee::core::DeserializeOwned;
 use log::error;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

@@ -180,8 +180,8 @@ impl GrantPolicies {
     pub fn get_policy(&self, permission: &FireboltPermission) -> Option<GrantPolicy> {
         match permission.role {
             CapabilityRole::Use => {
-                if let Some(value) = &self.use_ {
-                    return Some(value.clone());
+                if let Some(use_) = &self.use_ {
+                    return Some(use_.clone());
                 }
             }
             CapabilityRole::Manage => {

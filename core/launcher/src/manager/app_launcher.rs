@@ -276,15 +276,18 @@ impl AppLauncher {
         let entry = state
             .app_launcher_state
             .get_app_by_id(&state_change.container_props.name);
-        if entry.is_none() {
-            error!(
-                "on_app_state_change: app_id={} Not found",
-                state_change.container_props.name
-            );
-            return;
-        }
-        // safe to unwrap
-        let app = entry.unwrap();
+
+        let app = match entry {
+            Some(app) => app,
+            None => {
+                error!(
+                    "on_app_state_change: app_id={} Not found",
+                    state_change.container_props.name
+                );
+                return;
+            }
+        };
+
         let app_id = app.container_props.name.clone();
 
         ContainerManager::on_state_changed(state, state_change.clone()).await;
@@ -609,17 +612,10 @@ impl AppLauncher {
         state: &LauncherState,
         request: LaunchRequest,
     ) -> Result<AppManagerResponse, AppError> {
-        let resp = AppLibrary::get_manifest(&state.config.app_library_state, &request.app_id);
-        if resp.is_none() {
-            return Err(AppError::NotFound);
-        }
-        // safe to unwrap
-        let app_manifest = resp.unwrap();
-
-        let app_type = get_app_type(&app_manifest);
-        if app_type.is_none() {
-            return Err(AppError::NotSupported);
-        }
+        let app_manifest =
+            AppLibrary::get_manifest(&state.config.app_library_state, &request.app_id)
+                .ok_or(AppError::NotFound)?;
+        let app_type = get_app_type(&app_manifest).ok_or(AppError::NotSupported)?;
         let instances = state.app_launcher_state.get_active_instances(&app_manifest);
         let bnrp = BrowserNameRequestParams {
             name: app_manifest.name.clone(),
@@ -629,17 +625,13 @@ impl AppLauncher {
 
         let response = state
             .send_extn_request(BrowserRequest::GetBrowserName(bnrp))
-            .await;
-        if response.is_err() {
+            .await
+            .map_err(|_| AppError::NotSupported)?;
+        let callsign = if let Some(ExtnResponse::String(callsign)) = response.payload.extract() {
+            callsign
+        } else {
             return Err(AppError::NotSupported);
-        }
-
-        let callsign =
-            if let Some(ExtnResponse::String(callsign)) = response.unwrap().payload.extract() {
-                callsign
-            } else {
-                return Err(AppError::NotSupported);
-            };
+        };
 
         let intent = request
             .intent
@@ -657,15 +649,13 @@ impl AppLauncher {
             callsign.clone(),
             intent.clone(),
         )
-        .await;
-        if modified_url.is_err() {
-            return Err(AppError::IoError);
-        }
+        .await
+        .map_err(|_| AppError::IoError)?;
 
         let launch_params = LaunchParams {
-            uri: modified_url.unwrap_or_default(),
+            uri: modified_url,
             browser_name: callsign,
-            _type: app_type.unwrap_or_default(),
+            _type: app_type,
             name: app_manifest.name.to_string(),
             suspend: false,
             requires_focus: true,
@@ -827,12 +817,10 @@ impl AppLauncher {
     ) -> Result<AppManagerResponse, AppError> {
         debug!("destroy: entry: app_id={}", app_id);
 
-        if state.app_launcher_state.get_app_by_id(app_id).is_none() {
+        let app = state.app_launcher_state.remove_app(app_id).ok_or_else(|| {
             error!("destroy app_id={} Not found", app_id);
-            return Err(AppError::NotFound);
-        }
-
-        let app = state.app_launcher_state.remove_app(app_id).unwrap();
+            AppError::NotFound
+        })?;
         let view_id = app.container_props.view_id;
 
         let resp = ViewManager::release_view(state, view_id).await;
