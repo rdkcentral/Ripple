@@ -495,25 +495,18 @@ impl ThunderPackageManagerRequestProcessor {
         operation: Operation,
         status: Option<String>,
     ) {
-        /*
-        clone active_operations, we want an immutable view
-        */
-        let active_operations = state.active_operations.lock().unwrap().clone();
+        let mut active_operations = state.active_operations.lock().unwrap();
         match active_operations.get(&handle) {
             Some(op) => {
                 let mut timer = op.timer.clone();
                 timer.stop();
                 timer.insert_tag("status".to_string(), status.unwrap_or("".to_string()));
                 rdk_telemetry_emit(timer);
+                active_operations.remove(&handle);
             }
             None => {
-                /*new operation, insert into map */
-                state
-                    .active_operations
-                    .lock()
-                    .unwrap()
-                    .insert(handle.clone(), operation);
-                Self::start_operation_timeout_timer(state, handle);
+                active_operations.insert(handle.clone(), operation);
+                Self::start_operation_timeout_timer(state.clone(), handle);
             }
         }
     }
@@ -550,7 +543,6 @@ impl ThunderPackageManagerRequestProcessor {
             /*
             clone active_operations, we want an immutable view, and stop/emit timer if the operation is in the map
             */
-
             let active_operations = state.active_operations.lock().unwrap().clone();
             /*
             If the handle is still in the map after state.operation_timeout_secs, timeout has occured and cancel is needed
@@ -1156,7 +1148,7 @@ pub mod tests {
             operation,
             Some("success".to_string()),
         );
-        assert!(sessions.eq(&state.active_operations.lock().unwrap().clone()));
+        assert!(state.active_operations.lock().unwrap().is_empty());
     }
 
     #[tokio::test]

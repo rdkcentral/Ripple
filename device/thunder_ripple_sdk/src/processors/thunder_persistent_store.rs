@@ -195,9 +195,24 @@ impl ThunderStorageRequestProcessor {
                                 )
                                 .await
                                 .is_ok();
+                            } else if let Ok(v) = serde_json::from_value(v.clone()) {
+                                return Self::respond(
+                                    state.get_client(),
+                                    req.clone(),
+                                    ExtnResponse::Value(v),
+                                )
+                                .await
+                                .is_ok();
                             }
+                        } else {
+                            return Self::respond(
+                                state.get_client(),
+                                req.clone(),
+                                ExtnResponse::String(value_resp.value),
+                            )
+                            .await
+                            .is_ok();
                         }
-                        error!("serialization failure for Storage data");
                     } else {
                         error!("success failure response from thunder");
                     }
