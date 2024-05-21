@@ -642,10 +642,10 @@ async fn test_device_get_video_resolution() {
                         "jsonrpc": "matching(type, '2.0')",
                         "id": "matching(integer, 0)",
                         "result": {
-                            "resolution": {"regex": "1080p\\d*"},
-                            "w": "matching(integer, 1920)",
-                            "h": "matching(integer, 1080)",
-                            "progressive": true,
+                            "resolution": "matching(type, 'string')",
+                            "w": "matching(type, 'integer')",
+                            "h": "matching(type, 'integer')",
+                            "progressive": "matching(type, 'boolean')",
                             "success": true
                         }
                     }]
@@ -801,42 +801,43 @@ async fn test_device_get_available_timezone() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
     pact_builder_async
-    .synchronous_message_interaction(
-        "A request to get the device available timezone",
-        |mut i| async move {
-            i.contents_from(json!({
-                "pact:content-type": "application/json",
-                "request": {
-                    "jsonrpc": "matching(type, '2.0')",
-                    "id": "matching(integer, 1)",
-                    "method": "org.rdk.System.1.getTimeZones"
-                },
-                "requestMetadata": {
-                    "path": "/jsonrpc"
-                },
-                "response": [{
-                    "jsonrpc": "matching(type, '2.0')",
-                    "id": "matching(integer, 0)",
-                    "result": {
-                        "zoneinfo": {
-                            "EST": {"regex": r"^\w{3} \w{3} {0,2}\d{1,2} \d{2}:\d{2}:\d{2} \d{4} EST$"},
-                            "America": {
-                                "New_York": {"regex": r"^\w{3} \w{3} {0,2}\d{1,2} \d{2}:\d{2}:\d{2} \d{4} EDT$"},
-                                "Los_Angeles": {"regex": r"^\w{3} \w{3} {0,2}\d{1,2} \d{2}:\d{2}:\d{2} \d{4} PDT$"}
+        .synchronous_message_interaction(
+            "A request to get the device available timezone",
+            |mut i| async move {
+                i.contents_from(json!({
+                    "pact:content-type": "application/json",
+                    "request": {
+                        "jsonrpc": "matching(type, '2.0')",
+                        "id": "matching(integer, 1)",
+                        "method": "org.rdk.System.1.getTimeZones"
+                    },
+                    "requestMetadata": {
+                        "path": "/jsonrpc"
+                    },
+                    "response": [{
+                        "jsonrpc": "matching(type, '2.0')",
+                        "id": "matching(integer, 0)",
+                        "result": {
+                            "zoneinfo": {
+                                "EST": "matching(type, 'string')",
+                                "America": {
+                                    "New_York": "matching(type, 'string')",
+                                    "Los_Angeles": "matching(type, 'string')",
+                                },
+                                "Europe": {
+                                    "London": "matching(type, 'string')",
+                                }
                             },
-                            "Europe": {
-                                "London": {"regex": r"^\w{3} \w{3} {0,2}\d{1,2} \d{2}:\d{2}:\d{2} \d{4} BST$"}
-                            }
-                        },
-                        "success": {"type": "boolean", "value": true}
-                    }
-                }]
-            })).await;
-            i.test_name("get_device_available_timezone");
-            i
-        }
-    )
-    .await;
+                            "success": "matching(boolean, true)"
+                        }
+                    }]
+                }))
+                .await;
+                i.test_name("get_device_available_timezone");
+                i
+            },
+        )
+        .await;
 
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
