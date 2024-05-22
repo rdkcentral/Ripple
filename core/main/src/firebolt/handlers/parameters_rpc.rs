@@ -95,19 +95,8 @@ impl ParametersServer for ParametersImpl {
             .send_app_request(app_request);
         let resp = rpc_await_oneshot(app_resp_rx).await?;
         if let AppManagerResponse::LaunchRequest(launch_req) = resp? {
-            let country_code =
-                StorageManager::get_string(&self.platform_state, StorageProperty::CountryCode)
-                    .await
-                    .unwrap_or_default();
-
-            let us_privacy = if country_code == "US" {
-                privacy_data.get(privacy_rpc::US_PRIVACY_KEY).cloned()
-            } else {
-                None
-            };
-
             return Ok(AppInitParameters {
-                us_privacy,
+                us_privacy: privacy_data.get(privacy_rpc::US_PRIVACY_KEY).cloned(),
                 lmt: privacy_data
                     .get(privacy_rpc::LMT_KEY)
                     .and_then(|x| x.parse::<u16>().ok()),

@@ -363,10 +363,6 @@ impl AdvertisingServer for AdvertisingImpl {
             .await
             .unwrap_or_default();
 
-        if country_code != "US" {
-            privacy_data.remove(privacy_rpc::US_PRIVACY_KEY);
-        };
-
         privacy_data.insert("pdt".into(), "gdp:v1".into());
 
         let coppa = match config.options.coppa {
