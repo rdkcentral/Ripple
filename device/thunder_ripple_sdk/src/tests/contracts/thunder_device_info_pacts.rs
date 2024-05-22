@@ -643,9 +643,9 @@ async fn test_device_get_video_resolution() {
                         "id": "matching(integer, 0)",
                         "result": {
                             "resolution": "matching(type, 'string')",
-                            "w": "matching(type, 'integer')",
-                            "h": "matching(type, 'integer')",
-                            "progressive": "matching(type, 'boolean')",
+                            "w": "matching(integer, 1920)",
+                            "h": "matching(integer, 1080)",
+                            "progressive": "matching(boolean, true)",
                             "success": true
                         }
                     }]
