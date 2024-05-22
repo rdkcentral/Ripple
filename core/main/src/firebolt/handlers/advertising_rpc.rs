@@ -363,7 +363,7 @@ impl AdvertisingServer for AdvertisingImpl {
             .await
             .unwrap_or_default();
 
-        let us_privacy = if country_code != "US" {
+        if country_code != "US" {
             privacy_data.remove(privacy_rpc::US_PRIVACY_KEY);
         };
 
