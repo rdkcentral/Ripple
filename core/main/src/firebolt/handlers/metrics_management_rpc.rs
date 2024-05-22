@@ -107,7 +107,7 @@ impl MetricsManagementServer for MetricsManagementImpl {
             if key.as_str() == "deviceSessionId" {
                 self.state.metrics.update_session_id(
                     self.state.clone(),
-                    Some(String::from(&self.state.device_session_id)),
+                    Some(self.state.device_session_id.clone().into()),
                 );
             }
         }
