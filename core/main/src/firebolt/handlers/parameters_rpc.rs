@@ -25,15 +25,14 @@ use ripple_sdk::{
         apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
         device::entertainment_data::NavigationIntent,
         gateway::rpc_gateway_api::CallContext,
-        storage_property::StorageProperty,
     },
     tokio::sync::oneshot,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManager,
-    state::platform_state::PlatformState, utils::rpc_utils::rpc_await_oneshot,
+    firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState,
+    utils::rpc_utils::rpc_await_oneshot,
 };
 
 use super::privacy_rpc;
