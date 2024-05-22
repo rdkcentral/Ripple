@@ -359,10 +359,6 @@ impl AdvertisingServer for AdvertisingImpl {
         )
         .await;
 
-        let country_code = StorageManager::get_string(&self.state, StorageProperty::CountryCode)
-            .await
-            .unwrap_or_default();
-
         privacy_data.insert("pdt".into(), "gdp:v1".into());
 
         let coppa = match config.options.coppa {

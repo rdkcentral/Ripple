@@ -87,14 +87,12 @@ impl AllowAppContentAdTargetingSettings {
         &self,
         platform_state: &PlatformState,
     ) -> HashMap<String, String> {
-        let _country_code =
-            StorageManager::get_string(platform_state, StorageProperty::CountryCode)
-                .await
-                .unwrap_or_default();
+        let country_code = StorageManager::get_string(platform_state, StorageProperty::CountryCode)
+            .await
+            .unwrap_or_default();
 
         [
-            (_country_code == "US")
-                .then(|| (US_PRIVACY_KEY.to_owned(), self.us_privacy.to_owned())),
+            (country_code == "US").then(|| (US_PRIVACY_KEY.to_owned(), self.us_privacy.to_owned())),
             Some((LMT_KEY.to_owned(), self.lmt.to_owned())),
         ]
         .into_iter()
