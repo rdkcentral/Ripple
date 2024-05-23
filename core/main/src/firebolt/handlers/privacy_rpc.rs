@@ -83,11 +83,21 @@ impl AllowAppContentAdTargetingSettings {
         }
     }
 
-    pub fn get_allow_app_content_ad_targeting_settings(&self) -> HashMap<String, String> {
-        HashMap::from([
-            (US_PRIVACY_KEY.to_owned(), self.us_privacy.to_owned()),
-            (LMT_KEY.to_owned(), self.lmt.to_owned()),
-        ])
+    pub async fn get_allow_app_content_ad_targeting_settings(
+        &self,
+        platform_state: &PlatformState,
+    ) -> HashMap<String, String> {
+        let country_code = StorageManager::get_string(platform_state, StorageProperty::CountryCode)
+            .await
+            .unwrap_or_default();
+
+        [
+            (country_code == "US").then(|| (US_PRIVACY_KEY.to_owned(), self.us_privacy.to_owned())),
+            Some((LMT_KEY.to_owned(), self.lmt.to_owned())),
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
     }
 }
 impl Default for AllowAppContentAdTargetingSettings {
@@ -301,7 +311,8 @@ pub async fn get_allow_app_content_ad_targeting_settings(
             .await
             .unwrap_or(true),
     )
-    .get_allow_app_content_ad_targeting_settings()
+    .get_allow_app_content_ad_targeting_settings(platform_state)
+    .await
 }
 
 #[derive(Debug)]
