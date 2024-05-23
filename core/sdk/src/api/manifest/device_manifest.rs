@@ -375,6 +375,8 @@ impl Default for DefaultValues {
             video_dimensions: default_video_dimensions(),
             media_progress_as_watched_events: false,
             accessibility_audio_description_settings: false,
+            accessibility_audio_description_settings:
+                default_accessibility_audio_description_settings(),
         }
     }
 }
