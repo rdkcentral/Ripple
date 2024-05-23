@@ -272,6 +272,8 @@ pub struct DefaultValues {
     pub skip_restriction: String,
     #[serde(default = "default_video_dimensions")]
     pub video_dimensions: Vec<i32>,
+    #[serde(default = "default_accessibility_audio_description_settings")]
+    pub accessibility_audio_description_settings: bool,
 }
 
 fn additional_info_default() -> HashMap<String, String> {
@@ -290,6 +292,9 @@ pub fn default_video_dimensions() -> Vec<i32> {
     vec![1920, 1080]
 }
 
+pub fn default_accessibility_audio_description_settings() -> bool {
+    false
+}
 #[derive(Deserialize, Debug, Clone, Default)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct SettingsDefaults {
@@ -372,6 +377,7 @@ impl Default for DefaultValues {
             allow_watch_history: false,
             skip_restriction: "none".to_string(),
             video_dimensions: default_video_dimensions(),
+            accessibility_audio_description_settings: false,
         }
     }
 }
@@ -722,6 +728,7 @@ pub(crate) mod tests {
                         allow_watch_history: false,
                         skip_restriction: "none".to_string(),
                         video_dimensions: vec![1920, 1080],
+                        accessibility_audio_description_settings: false,
                     },
                     settings_defaults_per_app: HashMap::new(),
                     model_friendly_names: {
