@@ -268,6 +268,8 @@ pub struct DefaultValues {
     pub video_dimensions: Vec<i32>,
     #[serde(default, rename = "mediaProgressAsWatchedEvents")]
     pub media_progress_as_watched_events: bool,
+    #[serde(default = "default_accessibility_audio_description_settings")]
+    pub accessibility_audio_description_settings: bool,
 }
 
 fn additional_info_default() -> HashMap<String, String> {
@@ -286,6 +288,9 @@ pub fn default_video_dimensions() -> Vec<i32> {
     vec![1920, 1080]
 }
 
+pub fn default_accessibility_audio_description_settings() -> bool {
+    false
+}
 #[derive(Deserialize, Debug, Clone, Default)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct SettingsDefaults {
@@ -369,6 +374,7 @@ impl Default for DefaultValues {
             skip_restriction: "none".to_string(),
             video_dimensions: default_video_dimensions(),
             media_progress_as_watched_events: false,
+            accessibility_audio_description_settings: false,
         }
     }
 }
@@ -709,6 +715,7 @@ pub(crate) mod tests {
                         video_dimensions: vec![1920, 1080],
                         // setting the value to true to simulate manifest override
                         media_progress_as_watched_events: true,
+                        accessibility_audio_description_settings: false,
                     },
                     settings_defaults_per_app: HashMap::new(),
                     model_friendly_names: {

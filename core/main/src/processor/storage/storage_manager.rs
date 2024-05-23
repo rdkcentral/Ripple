@@ -76,12 +76,14 @@ pub struct StorageManager;
 
 impl StorageManager {
     pub async fn get_bool(state: &PlatformState, property: StorageProperty) -> RpcResult<bool> {
+        println!("^^^^ get bool 1");
         if let Some(val) = state
             .ripple_cache
             .get_cached_bool_storage_property(&property)
         {
             return Ok(val);
         }
+        println!("^^^^ get bool 2");
         let data = property.as_data();
         match StorageManager::get_bool_from_namespace(state, data.namespace.to_string(), data.key)
             .await
