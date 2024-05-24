@@ -272,7 +272,7 @@ pub struct DefaultValues {
     pub skip_restriction: String,
     #[serde(default = "default_video_dimensions")]
     pub video_dimensions: Vec<i32>,
-    #[serde(default)]
+    #[serde(default, rename = "mediaProgressAsWatchedEvents")]
     pub media_progress_as_watched_events: bool,
 }
 
@@ -986,19 +986,42 @@ pub(crate) mod tests {
     #[test]
     fn test_media_progress_as_watched_events() {
         let manifest = DeviceManifest::mock();
-        assert_eq!(
+        assert!(
             manifest
                 .configuration
                 .default_values
-                .media_progress_as_watched_events,
-            true
+                .media_progress_as_watched_events
         );
     }
 
     #[test]
     fn test_default_media_progress_as_watched_events() {
-        let default_values = serde_json::from_str::<DefaultValues>("{}").unwrap();
-        // check if the value of media_progress_as_watched_events is false
-        assert_eq!(default_values.media_progress_as_watched_events, false);
+        // create DefaultValues object by providing only the required fields
+        let default_values = serde_json::from_str::<DefaultValues>(
+            r#"{
+            "country_code": "US",
+            "language": "en",
+            "locale": "en-US",
+            "name": "Living Room"
+        }"#,
+        )
+        .unwrap();
+        assert!(!default_values.media_progress_as_watched_events);
+    }
+
+    #[test]
+    fn test_media_progress_as_watched_events_override() {
+        // create DefaultValues object by providing the required fields and mediaProgressAsWatchedEvents
+        let default_values = serde_json::from_str::<DefaultValues>(
+            r#"{
+            "country_code": "US",
+            "language": "en",
+            "locale": "en-US",
+            "name": "Living Room",
+            "mediaProgressAsWatchedEvents": true
+        }"#,
+        )
+        .unwrap();
+        assert!(default_values.media_progress_as_watched_events);
     }
 }
