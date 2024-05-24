@@ -1012,12 +1012,11 @@ pub(crate) mod tests {
     #[test]
     fn test_accessibility_audio_desc_settings_default_value() {
         let manifest = DeviceManifest::mock();
-        assert_eq!(
-            manifest
+        assert!(
+            !manifest
                 .configuration
                 .default_values
-                .accessibility_audio_description_settings,
-            false
+                .accessibility_audio_description_settings
         );
     }
 }
