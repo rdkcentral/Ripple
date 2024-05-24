@@ -268,7 +268,7 @@ pub struct DefaultValues {
     pub video_dimensions: Vec<i32>,
     #[serde(default, rename = "mediaProgressAsWatchedEvents")]
     pub media_progress_as_watched_events: bool,
-    #[serde(default = "default_accessibility_audio_description_settings")]
+    #[serde(default)]
     pub accessibility_audio_description_settings: bool,
 }
 
@@ -288,9 +288,6 @@ pub fn default_video_dimensions() -> Vec<i32> {
     vec![1920, 1080]
 }
 
-pub fn default_accessibility_audio_description_settings() -> bool {
-    false
-}
 #[derive(Deserialize, Debug, Clone, Default)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct SettingsDefaults {
@@ -374,9 +371,7 @@ impl Default for DefaultValues {
             skip_restriction: "none".to_string(),
             video_dimensions: default_video_dimensions(),
             media_progress_as_watched_events: false,
-            accessibility_audio_description_settings: false,
-            accessibility_audio_description_settings:
-                default_accessibility_audio_description_settings(),
+            accessibility_audio_description_settings: false
         }
     }
 }
@@ -1012,5 +1007,17 @@ pub(crate) mod tests {
         )
         .unwrap();
         assert!(default_values.media_progress_as_watched_events);
+    }
+
+    #[test]
+    fn test_accessibility_audio_desc_settings_default_value() {
+        let manifest = DeviceManifest::mock();
+        assert_eq!(
+            manifest
+                .configuration
+                .default_values
+                .accessibility_audio_description_settings,
+            false
+        );
     }
 }
