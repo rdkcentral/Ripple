@@ -47,7 +47,6 @@ pub enum Config {
     WebSocketGatewayHost,
     InternalWebSocketEnabled,
     InternalWebSocketGatewayHost,
-    Platform,
     PlatformParameters,
     Caps,
     DpabPlatform,
