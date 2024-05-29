@@ -18,8 +18,8 @@
 use crate::processor::storage::storage_manager::StorageManager;
 use crate::service::apps::app_events::AppEventDecorator;
 use crate::{
-    firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManagerError,
-    service::apps::app_events::AppEvents, state::platform_state::PlatformState,
+    firebolt::rpc::RippleRPCProvider, service::apps::app_events::AppEvents,
+    state::platform_state::PlatformState,
 };
 use jsonrpsee::{
     core::{async_trait, RpcResult},
@@ -83,13 +83,24 @@ impl AllowAppContentAdTargetingSettings {
         }
     }
 
-    pub fn get_allow_app_content_ad_targeting_settings(&self) -> HashMap<String, String> {
-        HashMap::from([
-            (US_PRIVACY_KEY.to_owned(), self.us_privacy.to_owned()),
-            (LMT_KEY.to_owned(), self.lmt.to_owned()),
-        ])
+    pub async fn get_allow_app_content_ad_targeting_settings(
+        &self,
+        platform_state: &PlatformState,
+    ) -> HashMap<String, String> {
+        let country_code = StorageManager::get_string(platform_state, StorageProperty::CountryCode)
+            .await
+            .unwrap_or_default();
+
+        [
+            (country_code == "US").then(|| (US_PRIVACY_KEY.to_owned(), self.us_privacy.to_owned())),
+            Some((LMT_KEY.to_owned(), self.lmt.to_owned())),
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
     }
 }
+
 impl Default for AllowAppContentAdTargetingSettings {
     fn default() -> Self {
         Self {
@@ -278,7 +289,7 @@ pub async fn get_allow_app_content_ad_targeting_settings(
     scope_option: Option<&ScopeOption>,
     caller_app: &String,
 ) -> HashMap<String, String> {
-    let mut data = StorageProperty::AllowAppContentAdTargeting.as_data();
+    let mut data = StorageProperty::AllowAppContentAdTargeting;
     if let Some(scope_opt) = scope_option {
         if let Some(scope) = &scope_opt.scope {
             let primary_app = platform_state
@@ -288,27 +299,21 @@ pub async fn get_allow_app_content_ad_targeting_settings(
                 .main;
             if primary_app == *caller_app.to_string() {
                 if scope._type.as_string() == "browse" {
-                    data = StorageProperty::AllowPrimaryBrowseAdTargeting.as_data();
+                    data = StorageProperty::AllowPrimaryBrowseAdTargeting;
                 } else if scope._type.as_string() == "content" {
-                    data = StorageProperty::AllowPrimaryContentAdTargeting.as_data();
+                    data = StorageProperty::AllowPrimaryContentAdTargeting;
                 }
             }
         }
     }
-    match StorageManager::get_bool_from_namespace(
-        platform_state,
-        data.namespace.to_string(),
-        data.key,
+
+    AllowAppContentAdTargetingSettings::new(
+        StorageManager::get_bool(platform_state, data)
+            .await
+            .unwrap_or(true),
     )
+    .get_allow_app_content_ad_targeting_settings(platform_state)
     .await
-    {
-        Ok(resp) => AllowAppContentAdTargetingSettings::new(resp.as_value())
-            .get_allow_app_content_ad_targeting_settings(),
-        Err(StorageManagerError::NotFound) => AllowAppContentAdTargetingSettings::default()
-            .get_allow_app_content_ad_targeting_settings(),
-        _ => AllowAppContentAdTargetingSettings::new(true)
-            .get_allow_app_content_ad_targeting_settings(),
-    }
 }
 
 #[derive(Debug)]
@@ -532,8 +537,16 @@ impl PrivacyImpl {
             }
             PrivacySettingsStorageType::Cloud => {
                 if let Some(dist_session) = platform_state.session_state.get_account_session() {
+                    let setting = match property.as_privacy_setting() {
+                        Some(s) => s,
+                        None => {
+                            return Err(jsonrpsee::core::Error::Custom(
+                                "Property is not a privacy setting".to_owned(),
+                            ))
+                        }
+                    };
                     let request = PrivacyCloudRequest::GetProperty(GetPropertyParams {
-                        setting: property.as_privacy_setting().unwrap(),
+                        setting,
                         dist_session,
                     });
                     if let Ok(resp) = platform_state.get_client().send_extn_request(request).await {

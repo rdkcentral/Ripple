@@ -90,12 +90,14 @@ impl ThunderClientPool {
             while let Some(cmd) = r.recv().await {
                 match cmd {
                     ThunderPoolCommand::ThunderMessage(msg) => {
-                        let c_opt = pool.get_client(&msg);
-                        if c_opt.is_none() {
-                            error!("Thunder pool had no clients!");
-                            return;
-                        }
-                        let c = c_opt.unwrap();
+                        let c = match pool.get_client(&msg) {
+                            Some(client) => client,
+                            None => {
+                                error!("Thunder pool had no clients!");
+                                return;
+                            }
+                        };
+
                         let (resp_tx, resp_rx) = oneshot::channel::<DeviceResponseMessage>();
                         c.in_use.to_owned().store(true, Ordering::Relaxed);
                         let msg_with_intercept = msg.clone(resp_tx);
@@ -239,6 +241,13 @@ mod tests {
                             tx,
                             PluginActivatedResult::Ready,
                             "ReactivatePluginState",
+                        );
+                    }
+                    PluginManagerCommand::WaitForActivationForDynamicPlugin { callsign: _, tx } => {
+                        oneshot_send_and_log(
+                            tx,
+                            PluginActivatedResult::Ready,
+                            "WaitForActivationForDynamic",
                         );
                     }
                 }

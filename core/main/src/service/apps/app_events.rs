@@ -138,14 +138,14 @@ impl EventListener {
         event_name: &str,
         result: &Value,
     ) -> Result<Value, AppEventDecorationError> {
-        if self.decorator.is_none() {
-            return Ok(result.clone());
+        match &self.decorator {
+            Some(decorator) => {
+                decorator
+                    .decorate(state, &self.call_ctx, event_name, result)
+                    .await
+            }
+            None => Ok(result.clone()),
         }
-        self.decorator
-            .as_ref()
-            .unwrap()
-            .decorate(state, &self.call_ctx, event_name, result)
-            .await
     }
 }
 
@@ -233,12 +233,13 @@ impl AppEvents {
         event_context: Option<Value>,
         decorator: Option<Box<dyn AppEventDecorator + Send + Sync>>,
     ) {
-        let session = state.session_state.get_session(&call_ctx);
-        if session.is_none() {
-            error!("No open sessions for id '{:?}'", call_ctx.session_id);
-            return;
-        }
-        let session = session.unwrap();
+        let session = match state.session_state.get_session(&call_ctx) {
+            Some(session) => session,
+            None => {
+                error!("No open sessions for id '{:?}'", call_ctx.session_id);
+                return;
+            }
+        };
         let app_events_state = &state.app_events_state;
         let mut listeners = app_events_state.listeners.write().unwrap();
         let event_ctx_string = event_context.map(|x| x.to_string());

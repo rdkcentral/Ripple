@@ -186,39 +186,29 @@ impl TryFrom<String> for ExtnId {
     type Error = RippleError;
 
     fn try_from(cap: String) -> Result<Self, Self::Error> {
-        let c_a = cap.split(':');
-        if c_a.count() > 3 {
-            let c_a: Vec<&str> = cap.split(':').collect();
-            match c_a.first().unwrap().to_lowercase().as_str() {
-                "ripple" => {}
-                _ => return Err(RippleError::ParseError),
-            }
-            let _type = ExtnType::get(c_a.get(1).unwrap());
-            if _type.is_none() {
-                return Err(RippleError::ParseError);
-            }
-            let _type = _type.unwrap();
+        let c_a = cap.split(':').collect::<Vec<_>>();
 
-            let class = ExtnClassId::get(c_a.get(2).unwrap());
-            if class.is_none() {
-                return Err(RippleError::ParseError);
-            }
-            let class = class.unwrap();
-
-            let service = c_a.get(3);
-            if service.is_none() {
-                return Err(RippleError::ParseError);
-            }
-            let service = String::from(*service.unwrap());
-
-            return Ok(ExtnId {
-                _type,
-                class,
-                service,
-            });
+        match c_a
+            .first()
+            .ok_or(RippleError::ParseError)?
+            .to_lowercase()
+            .as_str()
+        {
+            "ripple" => {}
+            _ => return Err(RippleError::ParseError),
         }
 
-        Err(RippleError::ParseError)
+        let _type = ExtnType::get(c_a.get(1).ok_or(RippleError::ParseError)?)
+            .ok_or(RippleError::ParseError)?;
+        let class = ExtnClassId::get(c_a.get(2).ok_or(RippleError::ParseError)?)
+            .ok_or(RippleError::ParseError)?;
+        let service = c_a.get(3).ok_or(RippleError::ParseError)?;
+
+        Ok(ExtnId {
+            _type,
+            class,
+            service: String::from(*service),
+        })
     }
 }
 

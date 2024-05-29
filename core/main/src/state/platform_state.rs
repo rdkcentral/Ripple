@@ -49,7 +49,7 @@ use crate::{
 
 use super::{
     cap::cap_state::CapState, metrics_state::MetricsState, openrpc_state::OpenRpcState,
-    session_state::SessionState,
+    ripple_cache::RippleCache, session_state::SessionState,
 };
 
 /// Platform state encapsulates the internal state of the Ripple Main application.
@@ -75,8 +75,8 @@ impl Default for DeviceSessionIdentifier {
         }
     }
 }
-impl From<&DeviceSessionIdentifier> for String {
-    fn from(device_session_identifier: &DeviceSessionIdentifier) -> Self {
+impl From<DeviceSessionIdentifier> for String {
+    fn from(device_session_identifier: DeviceSessionIdentifier) -> Self {
         device_session_identifier.device_session_id.to_string()
     }
 }
@@ -104,6 +104,7 @@ pub struct PlatformState {
     pub data_governance: DataGovernanceState,
     pub metrics: MetricsState,
     pub device_session_id: DeviceSessionIdentifier,
+    pub ripple_cache: RippleCache,
     pub version: Option<String>,
     pub endpoint_state: EndpointBrokerState,
 }
@@ -134,6 +135,7 @@ impl PlatformState {
             data_governance: DataGovernanceState::default(),
             metrics: MetricsState::default(),
             device_session_id: DeviceSessionIdentifier::default(),
+            ripple_cache: RippleCache::default(),
             version,
             endpoint_state: EndpointBrokerState::get(broker_sender),
         }

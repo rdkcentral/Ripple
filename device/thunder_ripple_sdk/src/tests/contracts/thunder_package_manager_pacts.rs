@@ -25,11 +25,14 @@ use crate::{
     },
     thunder_state::ThunderState,
 };
+use base64::{engine::general_purpose::STANDARD as base64, Engine};
 use pact_consumer::mock_server::StartMockServerAsync;
 use rstest::rstest;
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+
+const OPERATION_TIMEOUT_SECS: u64 = 12 * 60; // 12 minutes
 
 #[rstest(
     active_operations_some,
@@ -156,6 +159,7 @@ async fn test_install_app(
     let tps = ThunderPackageManagerState {
         thunder_state: state,
         active_operations: Arc::new(Mutex::new(ao)),
+        operation_timeout_secs: OPERATION_TIMEOUT_SECS,
     };
 
     let resp = ThunderPackageManagerRequestProcessor::process_request(
@@ -286,6 +290,7 @@ async fn test_uninstall_app(
     let tps = ThunderPackageManagerState {
         thunder_state: state,
         active_operations: Arc::new(Mutex::new(ao)),
+        operation_timeout_secs: OPERATION_TIMEOUT_SECS,
     };
 
     let resp = ThunderPackageManagerRequestProcessor::process_request(
@@ -355,6 +360,7 @@ async fn test_get_installed_apps() {
     let tps = ThunderPackageManagerState {
         thunder_state: state,
         active_operations: Arc::new(Mutex::new(HashMap::default())),
+        operation_timeout_secs: OPERATION_TIMEOUT_SECS,
     };
 
     let resp = ThunderPackageManagerRequestProcessor::process_request(
@@ -507,6 +513,7 @@ async fn test_init() {
     let tps = ThunderPackageManagerState {
         thunder_state: state,
         active_operations: Arc::new(Mutex::new(HashMap::default())),
+        operation_timeout_secs: OPERATION_TIMEOUT_SECS,
     };
 
     let tps_for_thread = tps.clone();
@@ -572,7 +579,7 @@ async fn test_get_firebolt_permissions() {
         capabilities: vec![fp.clone()],
     };
     let encoded_perms =
-        base64::encode(serde_json::to_string(&firebolt_perms).expect("Serialization failed"));
+        base64.encode(serde_json::to_string(&firebolt_perms).expect("Serialization failed"));
     let metadata_response = json!({
         "metadata": {
             "appname": "firecertApp",
@@ -641,6 +648,7 @@ async fn test_get_firebolt_permissions() {
     let tps = ThunderPackageManagerState {
         thunder_state: state,
         active_operations: Arc::new(Mutex::new(HashMap::default())),
+        operation_timeout_secs: OPERATION_TIMEOUT_SECS,
     };
 
     let resp = ThunderPackageManagerRequestProcessor::process_request(
