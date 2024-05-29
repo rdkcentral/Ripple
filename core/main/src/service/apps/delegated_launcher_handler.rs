@@ -1089,6 +1089,27 @@ impl DelegatedLauncherHandler {
             return Err(AppError::UnexpectedState);
         }
 
+        // validate other transition cases
+        if self
+            .platform_state
+            .get_device_manifest()
+            .configuration
+            .default_values
+            .lifecycle_transition_validate
+        {
+            info!(
+                "Calling is_valid_lifecycle_transition for app_id:{} prev state:{:?} state{:?}",
+                app_id, previous_state, state
+            );
+            if !Self::is_valid_lifecycle_transition(previous_state, state) {
+                warn!(
+                    "set_state app_id:{} prev state:{:?} state{:?} Cannot transition",
+                    app_id, previous_state, state
+                );
+                return Err(AppError::UnexpectedState);
+            }
+        }
+
         if state == LifecycleState::Inactive || state == LifecycleState::Unloading {
             self.platform_state.clone().cap_state.grant_state.custom_delete_entries(app_id.into(), |grant_entry| -> bool {
                 !(matches!(&grant_entry.lifespan, Some(entry_lifespan) if entry_lifespan == &GrantLifespan::AppActive))
@@ -1285,6 +1306,21 @@ impl DelegatedLauncherHandler {
                     None => Err(AppError::NotFound),
                 }
             }
+        }
+    }
+
+    fn is_valid_lifecycle_transition(from: LifecycleState, to: LifecycleState) -> bool {
+        match to {
+            LifecycleState::Suspended | LifecycleState::Unloading => {
+                from == LifecycleState::Inactive
+            }
+            LifecycleState::Foreground => {
+                from == LifecycleState::Inactive || from == LifecycleState::Background
+            }
+            // Not do the state transition when from and to are the same
+            _ if from == to => false,
+            // Allowing all other transitions
+            _ => true,
         }
     }
 }

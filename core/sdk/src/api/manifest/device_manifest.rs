@@ -272,6 +272,8 @@ pub struct DefaultValues {
     pub skip_restriction: String,
     #[serde(default = "default_video_dimensions")]
     pub video_dimensions: Vec<i32>,
+    #[serde(default)]
+    pub lifecycle_transition_validate: bool,
 }
 
 fn additional_info_default() -> HashMap<String, String> {
@@ -372,6 +374,7 @@ impl Default for DefaultValues {
             allow_watch_history: false,
             skip_restriction: "none".to_string(),
             video_dimensions: default_video_dimensions(),
+            lifecycle_transition_validate: false,
         }
     }
 }
@@ -722,6 +725,7 @@ pub(crate) mod tests {
                         allow_watch_history: false,
                         skip_restriction: "none".to_string(),
                         video_dimensions: vec![1920, 1080],
+                        lifecycle_transition_validate: true,
                     },
                     settings_defaults_per_app: HashMap::new(),
                     model_friendly_names: {
@@ -976,5 +980,47 @@ pub(crate) mod tests {
                 PrivacySettingsStorageType::Local
             ));
         }
+    }
+
+    #[test]
+    fn test_lifecycle_transition_validate() {
+        let manifest = DeviceManifest::mock();
+        assert!(
+            manifest
+                .configuration
+                .default_values
+                .lifecycle_transition_validate
+        );
+    }
+
+    #[test]
+    fn test_default_lifecycle_transition_validate() {
+        // create DefaultValues object by providing only the required fields
+        let default_values = serde_json::from_str::<DefaultValues>(
+            r#"{
+            "country_code": "US",
+            "language": "en",
+            "locale": "en-US",
+            "name": "Living Room"
+        }"#,
+        )
+        .unwrap();
+        assert!(!default_values.lifecycle_transition_validate);
+    }
+
+    #[test]
+    fn test_lifecycle_transition_validate_override() {
+        // create DefaultValues object by providing the required fields and lifecycle_transition_validate
+        let default_values = serde_json::from_str::<DefaultValues>(
+            r#"{
+            "country_code": "US",
+            "language": "en",
+            "locale": "en-US",
+            "name": "Living Room",
+            "lifecycle_transition_validate": true
+        }"#,
+        )
+        .unwrap();
+        assert!(default_values.lifecycle_transition_validate);
     }
 }
