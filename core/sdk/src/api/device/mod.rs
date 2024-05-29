@@ -15,8 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use serde::Deserialize;
-
 pub mod device_accessibility_data;
 pub mod device_accessory;
 pub mod device_apps;
