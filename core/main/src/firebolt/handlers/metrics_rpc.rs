@@ -40,7 +40,7 @@ use ripple_sdk::{
         },
         gateway::rpc_gateway_api::CallContext,
     },
-    log::trace,
+    log::{error, trace},
 };
 
 use serde::Deserialize;
@@ -519,24 +519,27 @@ impl MetricsServer for MetricsImpl {
             .media_progress_as_watched_events
             && progress != MediaPositionType::None
         {
-            let request = WatchedRequest {
-                context: ctx.clone(),
-                info: WatchedInfo {
-                    entity_id: media_progress_params.entity_id.clone(),
-                    progress: media_progress_params
-                        .progress
-                        .expect("progress shall not be None at this point"),
-                    completed: None,
-                    watched_on: None,
-                },
-                unit: None,
-            };
+            if let Some(p) = media_progress_params.progress {
+                let request = WatchedRequest {
+                    context: ctx.clone(),
+                    info: WatchedInfo {
+                        entity_id: media_progress_params.entity_id.clone(),
+                        progress: p,
+                        completed: None,
+                        watched_on: None,
+                    },
+                    unit: None,
+                };
 
-            let _ = self
-                .state
-                .get_client()
-                .send_extn_request(AccountLinkRequest::Watched(request))
-                .await;
+                if let Err(e) = self
+                    .state
+                    .get_client()
+                    .send_extn_request(AccountLinkRequest::Watched(request))
+                    .await
+                {
+                    error!("Error sending watched event: {:?}", e);
+                }
+            }
         }
 
         let media_progress = BehavioralMetricPayload::MediaProgress(MediaProgress {
