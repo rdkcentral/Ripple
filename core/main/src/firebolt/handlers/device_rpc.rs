@@ -198,7 +198,8 @@ pub async fn get_device_id(state: &PlatformState) -> RpcResult<String> {
 pub async fn get_uid(state: &PlatformState, app_id: String) -> RpcResult<String> {
     let property =
         StorageProperty::CustomProperty(app_id.clone().into(), "fireboltDeviceUid".into());
-    let uid_result = StorageManager::get_string(state, property.clone()).await;
+    let uid_result =
+        StorageManager::get_string(state, property.clone(), Some("device".to_string())).await;
 
     if let Ok(uid) = uid_result {
         Ok(uid)
@@ -209,7 +210,14 @@ pub async fn get_uid(state: &PlatformState, app_id: String) -> RpcResult<String>
 
         if app_migrated.is_some() {
             let uid = Uuid::new_v4().to_string();
-            StorageManager::set_string(state, property, uid.clone(), None, None).await?;
+            StorageManager::set_string(
+                state,
+                property,
+                uid.clone(),
+                None,
+                Some("device".to_string()),
+            )
+            .await?;
             Ok(uid)
         } else if let Ok(device_id) = get_device_id(state).await {
             if state.supports_encoding() {
@@ -230,7 +238,7 @@ pub async fn get_uid(state: &PlatformState, app_id: String) -> RpcResult<String>
                             property,
                             enc_device_id.clone(),
                             None,
-                            None,
+                            Some("device".to_string()),
                         )
                         .await?;
                         state
@@ -274,7 +282,7 @@ pub async fn set_device_name(state: &PlatformState, prop: SetStringProperty) -> 
 }
 
 pub async fn get_device_name(state: &PlatformState) -> RpcResult<String> {
-    StorageManager::get_string(state, StorageProperty::DeviceName).await
+    StorageManager::get_string(state, StorageProperty::DeviceName, None).await
 }
 
 #[derive(Debug)]

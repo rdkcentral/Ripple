@@ -135,13 +135,17 @@ impl StorageManager {
         }
     }
 
-    pub async fn get_string(state: &PlatformState, property: StorageProperty) -> RpcResult<String> {
+    pub async fn get_string(
+        state: &PlatformState,
+        property: StorageProperty,
+        scope: Option<String>,
+    ) -> RpcResult<String> {
         let data = property.as_data();
         match StorageManager::get_string_from_namespace(
             state,
             data.namespace.to_string(),
             data.key,
-            None,
+            scope,
         )
         .await
         {
@@ -154,7 +158,7 @@ impl StorageManager {
         state: &PlatformState,
         property: StorageProperty,
     ) -> RpcResult<HashMap<String, Value>> {
-        match StorageManager::get_string(state, property.clone()).await {
+        match StorageManager::get_string(state, property.clone(), None).await {
             Ok(raw_value) => match serde_json::from_str(&raw_value) {
                 Ok(raw_map) => {
                     let the_map: HashMap<String, serde_json::Value> = raw_map;

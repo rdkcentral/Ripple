@@ -252,10 +252,11 @@ impl MetricsState {
             }
         }
 
-        let language = match StorageManager::get_string(state, StorageProperty::Language).await {
-            Ok(resp) => resp,
-            Err(_) => "no.language.set".to_string(),
-        };
+        let language =
+            match StorageManager::get_string(state, StorageProperty::Language, None).await {
+                Ok(resp) => resp,
+                Err(_) => "no.language.set".to_string(),
+            };
 
         let os_info = match Self::get_os_info_from_firebolt(state).await {
             Ok(info) => info,
@@ -268,7 +269,8 @@ impl MetricsState {
         debug!("got os_info={:?}", &os_info);
 
         let mut device_name = "no.device.name.set".to_string();
-        if let Ok(resp) = StorageManager::get_string(state, StorageProperty::DeviceName).await {
+        if let Ok(resp) = StorageManager::get_string(state, StorageProperty::DeviceName, None).await
+        {
             device_name = resp;
         }
 
@@ -325,11 +327,11 @@ impl MetricsState {
 
         let coam = Self::get_persistent_store_bool(state, PERSISTENT_STORAGE_KEY_COAM).await;
 
-        let country = StorageManager::get_string(state, StorageProperty::CountryCode)
+        let country = StorageManager::get_string(state, StorageProperty::CountryCode, None)
             .await
             .ok();
 
-        let region = StorageManager::get_string(state, StorageProperty::Locality)
+        let region = StorageManager::get_string(state, StorageProperty::Locality, None)
             .await
             .ok();
 
