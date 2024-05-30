@@ -1,0 +1,56 @@
+{
+    "endpoints": {
+        "thunder": {
+            "protocol": "thunder",
+            "uri": "ws://127.0.0.1:9998/jsonrpc"
+        }
+    },
+    "rules": {
+        "localization.countryCode": {
+            "alias": "org.rdk.System.getTerritory",
+            "transform": {
+                "response": ".territory"
+            }
+        },
+        "localization.setCountryCode": {
+            "alias": "org.rdk.System.setTerritory",
+            "transform": {
+                "request": "if .value=\"IT\" then { territory: \"ITA\", \"region\"=\"EU-IT\" } else  { territory: \"GBR\", \"region\"=\"GB-EN\" } end",
+                "response": "if .success then null else { code: -32100, message: \"couldnt set timezone\" } end"
+            }
+        },
+        "localization.onCountryCodeChanged": {
+            "alias": "org.rdk.System.onTerritoryChanged",
+            "transform": {
+                "event": "if .newTerritory=\"ITA\" then { territory: \"ITA\", \"region\"=\"EU-IT\" } else  { territory: \"GBR\", \"region\"=\"GB-EN\" } end"
+            }
+        },
+        "secureStorage.get": {
+            "alias": "org.rdk.PersistentStore.getValue",
+            "transform": {
+                "request": "{ namespace: $context.appid, scope: .scope, key: .key }"
+            }
+        },
+        "secureStorage.set": {
+            "alias": "org.rdk.PersistentStore.setValue",
+            "transform": {
+                "request": "{ namespace: $context.appid, scope: .scope, key: .key, value: .value, ttl: options.ttl  }",
+                "response": "if .success then null else { code: -32100, message: \"couldnt set timezone\" } end"
+            }
+        },
+        "secureStorage.remove": {
+            "alias": "org.rdk.PersistentStore.deleteKey",
+            "transform": {
+                "request": "{ namespace: $context.appid, scope: .scope, key: .key }",
+                "response": "if .success then null else { code: -32100, message: \"couldnt set timezone\" } end"
+            }
+        },
+        "secureStorage.clear": {
+            "alias": "org.rdk.PersistentStore.deleteNamespace",
+            "transform": {
+                "request": "{ namespace: $context.appid, scope: .scope}",
+                "response": "if .success then null else { code: -32100, message: \"couldnt set timezone\" } end"
+            }
+        }
+    }
+}

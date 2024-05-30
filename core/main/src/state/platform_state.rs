@@ -22,7 +22,7 @@ use ripple_sdk::{
             app_library::AppLibraryState,
             device_manifest::{AppLibraryEntry, DeviceManifest},
             exclusory::ExclusoryImpl,
-            extn_manifest::{ExtnManifest, PassthroughEndpoint},
+            extn_manifest::ExtnManifest,
         },
         protocol::BridgeProtocolRequest,
         session::SessionAdjective,
@@ -35,7 +35,7 @@ use ripple_sdk::{
 use std::collections::HashMap;
 
 use crate::{
-    broker::endpoint_broker::EndpointBrokerState,
+    broker::{endpoint_broker::EndpointBrokerState, rules_engine::RuleEngine},
     firebolt::rpc_router::RouterState,
     service::{
         apps::{
@@ -119,7 +119,7 @@ impl PlatformState {
     ) -> PlatformState {
         let exclusory = ExclusoryImpl::get(&manifest);
         let broker_sender = client.get_broker_sender();
-
+        let rule_engine = RuleEngine::build(&extn_manifest);
         Self {
             extn_manifest,
             cap_state: CapState::new(manifest.clone()),
@@ -137,7 +137,7 @@ impl PlatformState {
             device_session_id: DeviceSessionIdentifier::default(),
             ripple_cache: RippleCache::default(),
             version,
-            endpoint_state: EndpointBrokerState::get(broker_sender),
+            endpoint_state: EndpointBrokerState::get(broker_sender, rule_engine),
         }
     }
 
@@ -217,14 +217,6 @@ impl PlatformState {
     pub fn supports_rfc(&self) -> bool {
         let contract = RippleContract::RemoteFeatureControl.as_clear_string();
         self.extn_manifest.required_contracts.contains(&contract)
-    }
-
-    pub fn get_endpoints(&self) -> Vec<PassthroughEndpoint> {
-        if let Some(rpcs) = self.extn_manifest.clone().passthrough_rpcs {
-            rpcs.endpoints
-        } else {
-            Vec::new()
-        }
     }
 }
 

@@ -14,15 +14,13 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-use super::endpoint_broker::{
-    BrokerCallback, BrokerOutput, BrokerRequest, BrokerSender, EndpointBroker,
+use super::{
+    endpoint_broker::{BrokerCallback, BrokerOutput, BrokerRequest, BrokerSender, EndpointBroker},
+    rules_engine::RuleEndpoint,
 };
 use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::{
-    api::{
-        gateway::rpc_gateway_api::JsonRpcApiResponse, manifest::extn_manifest::PassthroughEndpoint,
-        session::AccountSession,
-    },
+    api::gateway::rpc_gateway_api::JsonRpcApiResponse,
     log::{debug, error, info},
     tokio::{self, net::TcpStream, sync::mpsc},
     utils::error::RippleError,
@@ -52,7 +50,7 @@ pub struct ThunderBroker {
 }
 
 impl ThunderBroker {
-    fn start(endpoint: PassthroughEndpoint, callback: BrokerCallback) -> Self {
+    fn start(endpoint: RuleEndpoint, callback: BrokerCallback) -> Self {
         let (tx, mut tr) = mpsc::channel(10);
         let sender = BrokerSender { sender: tx };
         let subscription_map = Arc::new(RwLock::new(HashMap::new()));
@@ -124,14 +122,17 @@ impl ThunderBroker {
         }
         new_response
     }
+
+    fn get_callsign_and_method_from_alias(alias: &str) -> (String, Option<&str>) {
+        let mut collection: Vec<&str> = alias.split('.').collect();
+        let method = collection.pop();
+        let callsign = collection.join(".");
+        (callsign, method)
+    }
 }
 
 impl EndpointBroker for ThunderBroker {
-    fn get_broker(
-        _: Option<AccountSession>,
-        endpoint: PassthroughEndpoint,
-        callback: BrokerCallback,
-    ) -> Self {
+    fn get_broker(endpoint: RuleEndpoint, callback: BrokerCallback) -> Self {
         Self::start(endpoint, callback)
     }
 
@@ -144,83 +145,68 @@ impl EndpointBroker for ThunderBroker {
         rpc_request: &super::endpoint_broker::BrokerRequest,
     ) -> Result<Vec<String>, RippleError> {
         let mut requests = Vec::new();
-        if let Some(transformer) = &rpc_request.transformer {
-            let rpc = rpc_request.clone().rpc;
-            let id = rpc.ctx.call_id;
-            let app_id = rpc.ctx.app_id;
-            if rpc_request.rpc.is_subscription() {
-                let listen = rpc_request.rpc.is_listening();
-                let notif_id = {
-                    let mut sub_map = self.subscription_map.write().unwrap();
+        let rpc = rpc_request.clone().rpc;
+        let id = rpc.ctx.call_id;
+        let app_id = rpc.ctx.app_id;
+        let (callsign, method) = Self::get_callsign_and_method_from_alias(&rpc_request.rule.alias);
+        if method.is_none() {
+            return Err(RippleError::InvalidInput);
+        }
+        let method = method.unwrap();
+        if rpc_request.rpc.is_subscription() {
+            let listen = rpc_request.rpc.is_listening();
+            let notif_id = {
+                let mut sub_map = self.subscription_map.write().unwrap();
 
-                    if listen {
-                        if let Some(cleanup) = sub_map.insert(app_id, rpc_request.clone()) {
-                            requests.push(json!({
+                if listen {
+                    if let Some(cleanup) = sub_map.insert(app_id, rpc_request.clone()) {
+                        requests.push(
+                            json!({
                                 "jsonrpc": "2.0",
                                 "id": cleanup.rpc.ctx.call_id,
-                                "method": format!("{}.{}", transformer.module, "unregister".to_owned()),
+                                "method": format!("{}.{}", callsign, "unregister".to_owned()),
                                 "params": {
-                                    "event": transformer.method.clone(),
+                                    "event": method,
                                     "id": format!("{}", cleanup.rpc.ctx.call_id)
                                 }
-                            }).to_string())
-                        }
-                        id
-                    } else if let Some(v) = sub_map.remove(&app_id) {
-                        v.rpc.ctx.call_id
-                    } else {
-                        id
+                            })
+                            .to_string(),
+                        )
                     }
-                };
-                requests.push(
-                    json!({
-                        "jsonrpc": "2.0",
-                        "id": id,
-                        "method": format!("{}.{}", transformer.module, match listen {
-                            true => "register",
-                            false => "unregister"
-                        }),
-                        "params": json!({
-                            "event": transformer.method.clone(),
-                            "id": format!("{}", notif_id)
-                        })
+                    id
+                } else if let Some(v) = sub_map.remove(&app_id) {
+                    v.rpc.ctx.call_id
+                } else {
+                    id
+                }
+            };
+            requests.push(
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "method": format!("{}.{}", callsign, match listen {
+                        true => "register",
+                        false => "unregister"
+                    }),
+                    "params": json!({
+                        "event": method,
+                        "id": format!("{}", notif_id)
                     })
-                    .to_string(),
-                )
-            } else {
-                requests.push(
-                    json!({
-                        "jsonrpc": "2.0",
-                        "id": id,
-                        "method": format!("{}.{}", transformer.module, transformer.method),
-                        "params": rpc_request.rpc.params_json
-                    })
-                    .to_string(),
-                )
-            }
+                })
+                .to_string(),
+            )
         } else {
-            let rpc = rpc_request.rpc.clone();
-            if let Some(params) = rpc_request.rpc.get_params() {
-                requests.push(
-                    json!({
-                        "jsonrpc": "2.0",
-                        "id": rpc.ctx.call_id,
-                        "method": rpc.method,
-                        "params": params
-                    })
-                    .to_string(),
-                )
-            } else {
-                requests.push(
-                    json!({
-                        "jsonrpc": "2.0",
-                        "id": rpc.ctx.call_id,
-                        "method": rpc.method,
-                    })
-                    .to_string(),
-                )
-            }
+            requests.push(
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "method": rpc_request.rule.alias.clone(),
+                    "params": rpc_request.rpc.params_json
+                })
+                .to_string(),
+            )
         }
+
         Ok(requests)
     }
 

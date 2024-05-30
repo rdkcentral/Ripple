@@ -16,5 +16,6 @@
 //
 pub mod endpoint_broker;
 pub mod http_broker;
+pub mod rules_engine;
 pub mod thunder_broker;
 pub mod websocket_broker;

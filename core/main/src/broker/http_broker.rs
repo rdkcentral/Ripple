@@ -15,41 +15,39 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use hyper::{Body, Client, HeaderMap, Method, Request, Uri};
+use hyper::{Body, Client, Method, Request, Uri};
 use ripple_sdk::{
-    api::{manifest::extn_manifest::PassthroughEndpoint, session::AccountSession},
     log::error,
     tokio::{self, sync::mpsc},
 };
 
-use super::endpoint_broker::{BrokerCallback, BrokerSender, EndpointBroker};
+use super::{
+    endpoint_broker::{BrokerCallback, BrokerSender, EndpointBroker},
+    rules_engine::RuleEndpoint,
+};
 
 pub struct HttpBroker {
     sender: BrokerSender,
 }
 
 impl EndpointBroker for HttpBroker {
-    fn get_broker(
-        session: Option<AccountSession>,
-        endpoint: PassthroughEndpoint,
-        callback: BrokerCallback,
-    ) -> Self {
+    fn get_broker(endpoint: RuleEndpoint, callback: BrokerCallback) -> Self {
         let (tx, mut tr) = mpsc::channel(10);
         let broker = BrokerSender { sender: tx };
 
         let uri: Uri = endpoint.url.parse().unwrap();
-        let mut headers = HeaderMap::new();
-        headers.insert("Content-Type", "application/json".parse().unwrap());
-        if let Some(auth) = &endpoint.authentication {
-            if auth.to_lowercase().contains("bearer") {
-                if let Some(session) = session {
-                    headers.insert(
-                        "Authorization",
-                        format!("Bearer {}", session.token).parse().unwrap(),
-                    );
-                }
-            }
-        }
+        // let mut headers = HeaderMap::new();
+        // headers.insert("Content-Type", "application/json".parse().unwrap());
+        // if let Some(auth) = &endpoint.authentication {
+        //     if auth.to_lowercase().contains("bearer") {
+        //         if let Some(session) = session {
+        //             headers.insert(
+        //                 "Authorization",
+        //                 format!("Bearer {}", session.token).parse().unwrap(),
+        //             );
+        //         }
+        //     }
+        // }
 
         let client = Client::new();
         tokio::spawn(async move {
@@ -60,7 +58,7 @@ impl EndpointBroker for HttpBroker {
                     let (mut parts, body) = http_request.into_parts();
                     parts.method = Method::POST;
                     parts.uri = uri.clone();
-                    parts.headers = headers.clone();
+                    //parts.headers = headers.clone();
 
                     let http_request = Request::from_parts(parts, body);
                     if let Ok(v) = client.request(http_request).await {

@@ -15,10 +15,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use super::endpoint_broker::{BrokerCallback, BrokerSender, EndpointBroker};
+use super::{
+    endpoint_broker::{BrokerCallback, BrokerSender, EndpointBroker},
+    rules_engine::RuleEndpoint,
+};
 use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::{
-    api::{manifest::extn_manifest::PassthroughEndpoint, session::AccountSession},
     log::{debug, error, info},
     tokio::{self, net::TcpStream, sync::mpsc},
 };
@@ -40,7 +42,7 @@ fn extract_tcp_port(url: &str) -> String {
 }
 
 impl WebsocketBroker {
-    fn start(endpoint: PassthroughEndpoint, callback: BrokerCallback) -> Self {
+    fn start(endpoint: RuleEndpoint, callback: BrokerCallback) -> Self {
         let (tx, mut tr) = mpsc::channel(10);
         let broker = BrokerSender { sender: tx };
         tokio::spawn(async move {
@@ -98,11 +100,7 @@ impl WebsocketBroker {
 }
 
 impl EndpointBroker for WebsocketBroker {
-    fn get_broker(
-        _: Option<AccountSession>,
-        endpoint: PassthroughEndpoint,
-        callback: BrokerCallback,
-    ) -> Self {
+    fn get_broker(endpoint: RuleEndpoint, callback: BrokerCallback) -> Self {
         Self::start(endpoint, callback)
     }
 

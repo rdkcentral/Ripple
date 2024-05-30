@@ -36,15 +36,31 @@ impl Bootstep<BootstrapState> for StartCommunicationBroker {
         if let Ok(rx) = state.channels_state.get_broker_receiver() {
             BrokerOutputForwarder::start_forwarder(ps.clone(), rx)
         }
+        // Setup the endpoints from the manifests
+        let mut endpoint_state = ps.endpoint_state;
+        endpoint_state.build_thunder_endpoint();
+        Ok(())
+    }
+}
+
+pub struct StartOtherBrokers;
+
+#[async_trait]
+impl Bootstep<BootstrapState> for StartOtherBrokers {
+    fn get_name(&self) -> String {
+        "StartOtherBrokers".into()
+    }
+
+    async fn setup(&self, state: BootstrapState) -> Result<(), RippleError> {
+        let ps = state.platform_state.clone();
+        // Start the Broker Reciever
+        if let Ok(rx) = state.channels_state.get_broker_receiver() {
+            BrokerOutputForwarder::start_forwarder(ps.clone(), rx)
+        }
         let session = ps.session_state.get_account_session();
         // Setup the endpoints from the manifests
         let mut endpoint_state = ps.endpoint_state;
-
-        state
-            .platform_state
-            .get_endpoints()
-            .iter()
-            .for_each(|x| endpoint_state.add_endpoint_broker(x, session.clone()));
+        endpoint_state.build_other_endpoints(session);
         Ok(())
     }
 }

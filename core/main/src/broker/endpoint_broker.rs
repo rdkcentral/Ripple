@@ -15,13 +15,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use jaq_interpret::{Ctx, FilterT, ParseCtx, RcIter, Val};
 use ripple_sdk::{
     api::{
         firebolt::fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
         gateway::rpc_gateway_api::{ApiMessage, CallContext, JsonRpcApiResponse, RpcRequest},
-        manifest::extn_manifest::{
-            PassthroughEndpoint, PassthroughProtocol, PassthroughTransformer,
-        },
         session::AccountSession,
     },
     framework::RippleResponse,
@@ -31,7 +29,6 @@ use ripple_sdk::{
         sync::mpsc::{Receiver, Sender},
     },
     utils::error::RippleError,
-    uuid::Uuid,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -43,14 +40,13 @@ use std::{
     },
 };
 
-use crate::{
-    firebolt::firebolt_gateway::JsonRpcError,
-    state::platform_state::PlatformState,
-    utils::rpc_utils::{get_base_method, is_wildcard_method},
-};
+use crate::{firebolt::firebolt_gateway::JsonRpcError, state::platform_state::PlatformState};
 
 use super::{
-    http_broker::HttpBroker, thunder_broker::ThunderBroker, websocket_broker::WebsocketBroker,
+    http_broker::HttpBroker,
+    rules_engine::{Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine},
+    thunder_broker::ThunderBroker,
+    websocket_broker::WebsocketBroker,
 };
 
 #[derive(Clone, Debug)]
@@ -61,7 +57,7 @@ pub struct BrokerSender {
 #[derive(Clone, Debug)]
 pub struct BrokerRequest {
     pub rpc: RpcRequest,
-    pub transformer: Option<PassthroughTransformer>,
+    pub rule: Rule,
 }
 
 /// BrokerCallback will be used by the communication broker to send the firebolt response
@@ -148,24 +144,22 @@ impl BrokerSender {
 #[derive(Debug, Clone)]
 pub struct EndpointBrokerState {
     endpoint_map: Arc<RwLock<HashMap<String, BrokerSender>>>,
-    rpc_hash: Arc<RwLock<HashMap<String, String>>>,
     callback: BrokerCallback,
-    request_map: Arc<RwLock<HashMap<u64, RpcRequest>>>,
-    transformer_map: Arc<RwLock<HashMap<String, PassthroughTransformer>>>,
+    request_map: Arc<RwLock<HashMap<u64, BrokerRequest>>>,
+    rule_engine: RuleEngine,
 }
 
 impl EndpointBrokerState {
-    pub fn get(tx: Sender<BrokerOutput>) -> Self {
+    pub fn get(tx: Sender<BrokerOutput>, rule_engine: RuleEngine) -> Self {
         Self {
             endpoint_map: Arc::new(RwLock::new(HashMap::new())),
-            rpc_hash: Arc::new(RwLock::new(HashMap::new())),
             callback: BrokerCallback { sender: tx },
             request_map: Arc::new(RwLock::new(HashMap::new())),
-            transformer_map: Arc::new(RwLock::new(HashMap::new())),
+            rule_engine,
         }
     }
 
-    fn get_request(&self, id: u64) -> Result<RpcRequest, RippleError> {
+    fn get_request(&self, id: u64) -> Result<BrokerRequest, RippleError> {
         if let Some(v) = self.request_map.read().unwrap().get(&id).cloned() {
             // cleanup if the request is not a subscription
             Ok(v)
@@ -174,76 +168,59 @@ impl EndpointBrokerState {
         }
     }
 
-    fn update_request(&self, rpc_request: &RpcRequest) -> BrokerRequest {
+    fn update_request(&self, rpc_request: &RpcRequest, rule: Rule) -> BrokerRequest {
         ATOMIC_ID.fetch_add(1, Ordering::Relaxed);
         let id = ATOMIC_ID.load(Ordering::Relaxed);
         let mut rpc_request_c = rpc_request.clone();
         {
             let mut request_map = self.request_map.write().unwrap();
-            let _ = request_map.insert(id, rpc_request.clone());
+            let _ = request_map.insert(
+                id,
+                BrokerRequest {
+                    rpc: rpc_request.clone(),
+                    rule: rule.clone(),
+                },
+            );
         }
 
         rpc_request_c.ctx.call_id = id;
-        self.get_broker_request(&rpc_request_c)
+        self.get_broker_request(&rpc_request_c, rule)
     }
 
-    /// Method which sets up the broker from the manifests
-    pub fn add_endpoint_broker(
-        &mut self,
-        endpoint: &PassthroughEndpoint,
-        session: Option<AccountSession>,
-    ) {
-        let uuid = Uuid::new_v4().to_string();
-        for rpc in &endpoint.rpcs {
-            if let Some(base_method) = is_wildcard_method(rpc) {
-                {
-                    let mut rpc_hash = self.rpc_hash.write().unwrap();
-                    rpc_hash.insert(base_method, uuid.clone());
-                }
-            } else {
-                {
-                    let mut rpc_hash = self.rpc_hash.write().unwrap();
-                    rpc_hash.insert(rpc.clone().matcher.to_lowercase(), uuid.clone());
-                }
-            }
-
-            if let Some(transformer) = &rpc.transformer {
-                let updated_key_transformer: HashMap<String, PassthroughTransformer> = transformer
-                    .iter()
-                    .map(|(k, v)| (k.to_lowercase(), v.clone()))
-                    .collect();
-                {
-                    self.transformer_map
-                        .write()
-                        .unwrap()
-                        .extend(updated_key_transformer);
-                }
-            }
+    pub fn build_thunder_endpoint(&mut self) {
+        if let Some(endpoint) = self.rule_engine.rules.endpoints.get("thunder").cloned() {
+            let mut endpoint_map = self.endpoint_map.write().unwrap();
+            endpoint_map.insert(
+                "thunder".to_owned(),
+                ThunderBroker::get_broker(endpoint.clone(), self.callback.clone()).get_sender(),
+            );
         }
-        match &endpoint.protocol {
-            PassthroughProtocol::Websocket => {
-                let mut endpoint_map = self.endpoint_map.write().unwrap();
-                endpoint_map.insert(
-                    uuid,
-                    WebsocketBroker::get_broker(session, endpoint.clone(), self.callback.clone())
+    }
+
+    pub fn build_other_endpoints(&mut self, session: Option<AccountSession>) {
+        for (key, endpoint) in self.rule_engine.rules.endpoints.clone() {
+            match endpoint.protocol {
+                RuleEndpointProtocol::Http => {
+                    let mut endpoint_map = self.endpoint_map.write().unwrap();
+                    endpoint_map.insert(
+                        key,
+                        HttpBroker::get_broker_with_session(
+                            endpoint.clone(),
+                            self.callback.clone(),
+                            session.clone(),
+                        )
                         .get_sender(),
-                );
-            }
-            PassthroughProtocol::Http => {
-                let mut endpoint_map = self.endpoint_map.write().unwrap();
-                endpoint_map.insert(
-                    uuid,
-                    HttpBroker::get_broker(session, endpoint.clone(), self.callback.clone())
-                        .get_sender(),
-                );
-            }
-            PassthroughProtocol::Thunder => {
-                let mut endpoint_map = self.endpoint_map.write().unwrap();
-                endpoint_map.insert(
-                    uuid,
-                    ThunderBroker::get_broker(session, endpoint.clone(), self.callback.clone())
-                        .get_sender(),
-                );
+                    );
+                }
+                RuleEndpointProtocol::Websocket => {
+                    let mut endpoint_map = self.endpoint_map.write().unwrap();
+                    endpoint_map.insert(
+                        key,
+                        WebsocketBroker::get_broker(endpoint.clone(), self.callback.clone())
+                            .get_sender(),
+                    );
+                }
+                _ => {}
             }
         }
     }
@@ -254,57 +231,47 @@ impl EndpointBrokerState {
         }
     }
 
-    fn get_hash(&self, hash: &str) -> Option<String> {
-        {
-            self.rpc_hash.read().unwrap().get(hash).cloned()
-        }
-    }
-
-    /// Critical method which checks if the given method is brokered or
-    /// provided by Ripple Implementation
-    fn brokered_method(&self, method: &str) -> Option<BrokerSender> {
-        let method_lower_case = method.to_lowercase();
-        if let Some(hash) = self.get_hash(&get_base_method(&method_lower_case)) {
-            self.get_sender(&hash)
-        } else if let Some(hash) = self.get_hash(&method_lower_case) {
-            self.get_sender(&hash)
-        } else {
-            None
-        }
-    }
-
     /// Main handler method whcih checks for brokerage and then sends the request for
     /// asynchronous processing
     pub fn handle_brokerage(&self, rpc_request: RpcRequest) -> bool {
         let callback = self.callback.clone();
-        if let Some(broker) = self.brokered_method(&rpc_request.method) {
-            let updated_request = self.update_request(&rpc_request);
-            tokio::spawn(async move {
-                if let Err(e) = broker.send(updated_request.clone()).await {
-                    // send some rpc error
-                    callback.send_error(updated_request, e).await
+        let mut broker_sender = None;
+        let mut found_rule = None;
+        if let Some(rule) = self.rule_engine.get_rule(&rpc_request) {
+            let _ = found_rule.insert(rule.clone());
+            if let Some(endpoint) = rule.endpoint {
+                if let Some(endpoint) = self.get_sender(&endpoint) {
+                    let _ = broker_sender.insert(endpoint);
                 }
-            });
-            true
-        } else {
-            false
+            } else if let Some(endpoint) = self.get_sender("thunder") {
+                let _ = broker_sender.insert(endpoint);
+            }
         }
+
+        if broker_sender.is_none() || found_rule.is_none() {
+            return false;
+        }
+        let rule = found_rule.unwrap();
+        let broker = broker_sender.unwrap();
+        let updated_request = self.update_request(&rpc_request, rule);
+        tokio::spawn(async move {
+            if let Err(e) = broker.send(updated_request.clone()).await {
+                // send some rpc error
+                callback.send_error(updated_request, e).await
+            }
+        });
+        true
     }
 
-    // Get the transformer(if any) for a given method
-    pub fn get_transformer(&self, rpc_request: &RpcRequest) -> Option<PassthroughTransformer> {
-        self.transformer_map
-            .read()
-            .unwrap()
-            .get(&rpc_request.method.to_lowercase())
-            .cloned()
+    pub fn get_rule(&self, rpc_request: &RpcRequest) -> Option<Rule> {
+        self.rule_engine.get_rule(rpc_request)
     }
 
     // Get Broker Request from rpc_request
-    pub fn get_broker_request(&self, rpc_request: &RpcRequest) -> BrokerRequest {
+    pub fn get_broker_request(&self, rpc_request: &RpcRequest, rule: Rule) -> BrokerRequest {
         BrokerRequest {
             rpc: rpc_request.clone(),
-            transformer: self.get_transformer(rpc_request),
+            rule,
         }
     }
 }
@@ -312,11 +279,18 @@ impl EndpointBrokerState {
 /// Trait which contains all the abstract methods for a Endpoint Broker
 /// There could be Websocket or HTTP protocol implementations of the given trait
 pub trait EndpointBroker {
-    fn get_broker(
-        session: Option<AccountSession>,
-        endpoint: PassthroughEndpoint,
+    fn get_broker_with_session(
+        endpoint: RuleEndpoint,
         callback: BrokerCallback,
-    ) -> Self;
+        _: Option<AccountSession>,
+    ) -> Self
+    where
+        Self: Sized,
+    {
+        Self::get_broker(endpoint, callback)
+    }
+
+    fn get_broker(endpoint: RuleEndpoint, callback: BrokerCallback) -> Self;
     fn get_sender(&self) -> BrokerSender;
 
     fn prepare_request(&self, rpc_request: &BrokerRequest) -> Result<Vec<String>, RippleError> {
@@ -327,7 +301,7 @@ pub trait EndpointBroker {
     /// Adds BrokerContext to a given request used by the Broker Implementations
     /// just before sending the data through the protocol
     fn update_request(rpc_request: &BrokerRequest) -> Result<String, RippleError> {
-        if let Ok(v) = Self::add_context(&rpc_request.rpc) {
+        if let Ok(v) = Self::apply_rule(rpc_request) {
             let id = rpc_request.rpc.ctx.call_id;
             let method = rpc_request.rpc.ctx.method.clone();
             return Ok(json!({
@@ -342,13 +316,16 @@ pub trait EndpointBroker {
     }
 
     /// Generic method which takes the given parameters from RPC request and adds context
-    fn add_context(rpc_request: &RpcRequest) -> Result<Value, RippleError> {
-        if let Ok(params) =
-            serde_json::from_str::<Vec<HashMap<String, Value>>>(&rpc_request.params_json)
-        {
-            if let Some(mut last) = params.last().cloned() {
-                let context: BrokerContext = rpc_request.clone().ctx.into();
-                let _ = last.insert("_ctx".into(), serde_json::to_value(context).unwrap());
+    fn apply_rule(rpc_request: &BrokerRequest) -> Result<Value, RippleError> {
+        if let Ok(mut params) = serde_json::from_str::<Vec<Value>>(&rpc_request.rpc.params_json) {
+            if let Some(last) = params.pop() {
+                if let Some(filter) = rpc_request
+                    .rule
+                    .transform
+                    .get_filter(super::rules_engine::RuleTransformType::Request)
+                {
+                    return jq_compile(last, &filter);
+                }
                 return Ok(serde_json::to_value(&last).unwrap());
             }
         }
@@ -377,13 +354,16 @@ impl BrokerOutputForwarder {
     pub fn start_forwarder(platform_state: PlatformState, mut rx: Receiver<BrokerOutput>) {
         tokio::spawn(async move {
             while let Some(mut v) = rx.recv().await {
+                let mut is_event = false;
                 let id = if let Some(e) = v.get_event() {
+                    is_event = true;
                     Some(e)
                 } else {
                     v.data.id
                 };
                 if let Some(id) = id {
-                    if let Ok(rpc_request) = platform_state.endpoint_state.get_request(id) {
+                    if let Ok(broker_request) = platform_state.endpoint_state.get_request(id) {
+                        let rpc_request = broker_request.rpc;
                         let session_id = rpc_request.ctx.get_id();
                         if let Some(session) = platform_state
                             .session_state
@@ -391,6 +371,27 @@ impl BrokerOutputForwarder {
                         {
                             let request_id = rpc_request.ctx.call_id;
                             v.data.id = Some(request_id);
+                            if let Some(result) = v.data.result.clone() {
+                                if is_event {
+                                    if let Some(filter) = broker_request
+                                        .rule
+                                        .transform
+                                        .get_filter(super::rules_engine::RuleTransformType::Event)
+                                    {
+                                        if let Ok(r) = jq_compile(result, &filter) {
+                                            v.data.result = Some(r);
+                                        }
+                                    }
+                                } else if let Some(filter) = broker_request
+                                    .rule
+                                    .transform
+                                    .get_filter(super::rules_engine::RuleTransformType::Response)
+                                {
+                                    if let Ok(r) = jq_compile(result, &filter) {
+                                        v.data.result = Some(r);
+                                    }
+                                }
+                            }
                             let message = ApiMessage {
                                 request_id: request_id.to_string(),
                                 protocol: rpc_request.ctx.protocol,
@@ -409,24 +410,50 @@ impl BrokerOutputForwarder {
     }
 }
 
+fn jq_compile(input: Value, filter: &str) -> Result<Value, RippleError> {
+    println!("Jq rule {}  input {:?}", filter, input);
+    // start out only from core filters,
+    // which do not include filters in the standard library
+    // such as `map`, `select` etc.
+    let mut defs = ParseCtx::new(Vec::new());
+
+    // parse the filter
+    let (f, errs) = jaq_parse::parse(filter, jaq_parse::main());
+    assert_eq!(errs, Vec::new());
+
+    // compile the filter in the context of the given definitions
+    let f = defs.compile(f.unwrap());
+    assert!(defs.errs.is_empty());
+
+    let inputs = RcIter::new(core::iter::empty());
+
+    // iterator over the output values
+    let mut out = f.run((Ctx::new([], &inputs), Val::from(input)));
+
+    if let Some(Ok(v)) = out.next() {
+        return Ok(Value::from(v));
+    }
+    Err(RippleError::ParseError)
+}
+
 #[cfg(test)]
 mod tests {
     use ripple_sdk::{tokio::sync::mpsc::channel, Mockable};
+
+    use crate::broker::rules_engine::RuleTransform;
 
     use super::*;
     mod endpoint_broker {
         use ripple_sdk::{api::gateway::rpc_gateway_api::RpcRequest, Mockable};
 
-        use crate::broker::{endpoint_broker::EndpointBroker, websocket_broker::WebsocketBroker};
-
         #[test]
         fn test_update_context() {
-            let request = RpcRequest::mock();
+            let _request = RpcRequest::mock();
 
-            if let Ok(v) = WebsocketBroker::add_context(&request) {
-                println!("_ctx {}", v);
-                //assert!(v.get("_ctx").unwrap().as_u64().unwrap().eq(&1));
-            }
+            // if let Ok(v) = WebsocketBroker::add_context(&request) {
+            //     println!("_ctx {}", v);
+            //     //assert!(v.get("_ctx").unwrap().as_u64().unwrap().eq(&1));
+            // }
         }
     }
 
@@ -439,7 +466,11 @@ mod tests {
             .send_error(
                 BrokerRequest {
                     rpc: RpcRequest::mock(),
-                    transformer: None,
+                    rule: Rule {
+                        alias: "somecallsign.method".to_owned(),
+                        transform: RuleTransform::default(),
+                        endpoint: None,
+                    },
                 },
                 RippleError::InvalidInput,
             )
@@ -477,16 +508,37 @@ mod tests {
             api::gateway::rpc_gateway_api::RpcRequest, tokio::sync::mpsc::channel, Mockable,
         };
 
+        use crate::broker::rules_engine::{Rule, RuleEngine, RuleSet, RuleTransform};
+
         use super::EndpointBrokerState;
 
         #[test]
         fn get_request() {
             let (tx, _) = channel(2);
-            let state = EndpointBrokerState::get(tx);
+            let state = EndpointBrokerState::get(
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+            );
             let mut request = RpcRequest::mock();
-            state.update_request(&request);
+            state.update_request(
+                &request,
+                Rule {
+                    alias: "somecallsign.method".to_owned(),
+                    transform: RuleTransform::default(),
+                    endpoint: None,
+                },
+            );
             request.ctx.call_id = 2;
-            state.update_request(&request);
+            state.update_request(
+                &request,
+                Rule {
+                    alias: "somecallsign.method".to_owned(),
+                    transform: RuleTransform::default(),
+                    endpoint: None,
+                },
+            );
             assert!(state.get_request(2).is_ok());
             assert!(state.get_request(1).is_ok());
         }

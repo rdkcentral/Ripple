@@ -33,49 +33,7 @@ pub struct ExtnManifest {
     pub required_contracts: Vec<String>,
     pub rpc_aliases: HashMap<String, Vec<String>>,
     pub timeout: Option<u64>,
-    pub passthrough_rpcs: Option<PassthroughRpcs>,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-#[cfg_attr(test, derive(PartialEq))]
-pub struct PassthroughRpcs {
-    pub endpoints: Vec<PassthroughEndpoint>,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-#[cfg_attr(test, derive(PartialEq))]
-pub struct PassthroughEndpoint {
-    pub url: String,
-    pub protocol: PassthroughProtocol,
-    pub rpcs: Vec<PassthroughRpc>,
-    pub authentication: Option<String>,
-    pub token: Option<String>,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(test, derive(PartialEq))]
-pub struct PassthroughRpc {
-    pub matcher: String,
-    pub transformer: Option<HashMap<String, PassthroughTransformer>>,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(test, derive(PartialEq))]
-pub struct PassthroughTransformer {
-    pub module: String,
-    pub method: String,
-    pub version: Option<u32>,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "lowercase")]
-#[cfg_attr(test, derive(PartialEq))]
-pub enum PassthroughProtocol {
-    Websocket,
-    Http,
-    Thunder,
+    pub rules_path: Vec<String>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -230,7 +188,7 @@ mod tests {
                 required_contracts: vec![],
                 rpc_aliases: HashMap::new(),
                 timeout: Some(5000),
-                passthrough_rpcs: None,
+                rules_path: Vec::new(),
             }
         }
     }
@@ -295,7 +253,7 @@ mod tests {
             required_contracts: vec![],
             rpc_aliases: HashMap::new(),
             timeout: None,
-            passthrough_rpcs: None,
+            rules_path: Vec::new(),
         };
 
         assert_eq!(

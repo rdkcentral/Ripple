@@ -113,29 +113,5 @@
         "device.model": [
             "custom.model"
         ]
-    },
-    "passthrough_rpcs": {
-        "endpoints": [
-           {
-	            "url": "ws://127.0.0.1:9998/jsonrpc",
-	            "protocol": "thunder",
-                "rpcs": [
-                    { 
-                        "matcher":"HDMIInput.*",
-                        "transformer": {
-                            "HDMIInput.autoLowLatencyModeCapable": {
-                                "module":"org.rdk.FireboltHdmiInput.1",
-                                "method": "autoLowLatencyModeCapable"
-                            },
-                            "HDMIInput.onAutoLowLatencyModeCapableChanged": {
-                                "module":"org.rdk.FireboltHdmiInput.1",
-                                "method": "onAutoLowLatencyModeCapableChanged"
-                            }
-                            
-                        }
-                    }
-                ]
-	        }
-        ]
     }
 }
