@@ -541,7 +541,7 @@ impl StorageManager {
         key: &String,
         scope: Option<String>,
     ) -> Result<ExtnResponse, RippleError> {
-        debug!("**** delete: namespace={}, key={}", namespace, key);
+        debug!("delete: namespace={}, key={}", namespace, key);
         let data = DeleteStorageProperty {
             namespace: namespace.clone(),
             key: key.clone(),

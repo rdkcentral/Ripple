@@ -28,7 +28,6 @@ use crate::{
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
-    tracing::debug,
     types::error::CallError,
     RpcModule,
 };
@@ -202,7 +201,6 @@ pub async fn get_uid(state: &PlatformState, app_id: String) -> RpcResult<String>
     let uid_result = StorageManager::get_string(state, property.clone()).await;
 
     if let Ok(uid) = uid_result {
-        debug!("UID from storage manager");
         Ok(uid)
     } else {
         let app_migrated = state
@@ -212,7 +210,6 @@ pub async fn get_uid(state: &PlatformState, app_id: String) -> RpcResult<String>
         if app_migrated.is_some() {
             let uid = Uuid::new_v4().to_string();
             StorageManager::set_string(state, property, uid.clone(), None, None).await?;
-            debug!("rand UID & save in thunder ps");
             Ok(uid)
         } else if let Ok(device_id) = get_device_id(state).await {
             if state.supports_encoding() {
@@ -239,7 +236,6 @@ pub async fn get_uid(state: &PlatformState, app_id: String) -> RpcResult<String>
                         state
                             .app_manager_state
                             .persist_migrated_state(&app_id.clone(), "device.uid".to_string());
-                        debug!("sha encoded UID & save in thunder ps & file");
                         return Ok(enc_device_id);
                     }
                 }
