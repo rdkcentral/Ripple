@@ -359,7 +359,7 @@ impl ClosedcaptionsImpl {
         value: SetPropertyOpt<String>,
     ) -> RpcResult<()> {
         match value.value {
-            Some(val) => StorageManager::set_string(ps, property, val, None).await,
+            Some(val) => StorageManager::set_string(ps, property, val, None, None).await,
             None => StorageManager::delete_key(ps, property).await,
         }
     }

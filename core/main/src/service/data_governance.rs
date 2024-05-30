@@ -186,6 +186,7 @@ impl DataGovernance {
                             StorageProperty::PartnerExclusions,
                             res,
                             None,
+                            None,
                         )
                         .await
                         .is_ok();

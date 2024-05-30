@@ -496,6 +496,7 @@ impl AdvertisingServer for AdvertisingImpl {
             StorageProperty::SkipRestriction,
             String::from(set_request.value.as_string()),
             None,
+            None,
         )
         .await
     }

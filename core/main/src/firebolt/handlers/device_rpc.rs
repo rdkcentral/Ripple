@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, env, time::Duration};
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
@@ -28,6 +28,8 @@ use crate::{
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
+    tracing::debug,
+    types::error::CallError,
     RpcModule,
 };
 use ripple_sdk::{
@@ -47,6 +49,7 @@ use ripple_sdk::{
         },
         distributor::distributor_encoder::EncoderRequest,
         firebolt::{
+            fb_capabilities::CAPABILITY_NOT_SUPPORTED,
             fb_general::{ListenRequest, ListenerResponse},
             fb_openrpc::FireboltSemanticVersion,
         },
@@ -59,6 +62,7 @@ use ripple_sdk::{
     extn::extn_client_message::ExtnResponse,
     log::error,
     tokio::time::timeout,
+    uuid::Uuid,
 };
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
@@ -193,26 +197,61 @@ pub async fn get_device_id(state: &PlatformState) -> RpcResult<String> {
 }
 
 pub async fn get_uid(state: &PlatformState, app_id: String) -> RpcResult<String> {
-    if let Ok(device_id) = get_device_id(state).await {
-        if state.supports_encoding() {
-            if let Ok(resp) = state
-                .get_client()
-                .send_extn_request(EncoderRequest {
-                    reference: device_id.clone(),
-                    scope: app_id,
-                })
-                .await
-            {
-                if let Some(ExtnResponse::String(enc_device_id)) =
-                    resp.payload.extract::<ExtnResponse>()
+    let property =
+        StorageProperty::CustomProperty(app_id.clone().into(), "fireboltDeviceUid".into());
+    let uid_result = StorageManager::get_string(state, property.clone()).await;
+
+    if let Ok(uid) = uid_result {
+        debug!("UID from storage manager");
+        Ok(uid)
+    } else {
+        let app_migrated = state
+            .app_manager_state
+            .get_persisted_migrated_state_for_app_id(&app_id.clone());
+
+        if app_migrated.is_some() {
+            let uid = Uuid::new_v4().to_string();
+            StorageManager::set_string(state, property, uid.clone(), None, None).await?;
+            debug!("rand UID & save in thunder ps");
+            Ok(uid)
+        } else if let Ok(device_id) = get_device_id(state).await {
+            if state.supports_encoding() {
+                if let Ok(resp) = state
+                    .get_client()
+                    .send_extn_request(EncoderRequest {
+                        // Specify the request details here
+                        reference: device_id.clone(),
+                        scope: app_id.clone(),
+                    })
+                    .await
                 {
-                    return Ok(enc_device_id);
+                    if let Some(ExtnResponse::String(enc_device_id)) =
+                        resp.payload.extract::<ExtnResponse>()
+                    {
+                        StorageManager::set_string(
+                            state,
+                            property,
+                            enc_device_id.clone(),
+                            None,
+                            None,
+                        )
+                        .await?;
+                        state
+                            .app_manager_state
+                            .persist_migrated_state(&app_id.clone(), "device.uid".to_string());
+                        debug!("sha encoded UID & save in thunder ps & file");
+                        return Ok(enc_device_id);
+                    }
                 }
             }
+            return Err(jsonrpsee::core::Error::Call(CallError::Custom {
+                code: CAPABILITY_NOT_SUPPORTED,
+                message: "capability device:uid is not supported".to_string(),
+                data: None,
+            }));
+        } else {
+            return Err(rpc_err("parse error"));
         }
-        Ok(device_id)
-    } else {
-        Err(rpc_err("parse error"))
     }
 }
 
@@ -235,7 +274,7 @@ pub async fn get_ll_mac_addr(state: PlatformState) -> RpcResult<String> {
 }
 
 pub async fn set_device_name(state: &PlatformState, prop: SetStringProperty) -> RpcResult<()> {
-    StorageManager::set_string(state, StorageProperty::DeviceName, prop.value, None).await
+    StorageManager::set_string(state, StorageProperty::DeviceName, prop.value, None, None).await
 }
 
 pub async fn get_device_name(state: &PlatformState) -> RpcResult<String> {

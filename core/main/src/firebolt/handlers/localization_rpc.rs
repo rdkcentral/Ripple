@@ -193,8 +193,13 @@ impl LocalizationImpl {
         match StorageManager::get_string(state, StorageProperty::PostalCode).await {
             Ok(resp) => Some(resp),
             Err(_) => {
-                match StorageManager::get_string_from_namespace(state, app_id, KEY_POSTAL_CODE)
-                    .await
+                match StorageManager::get_string_from_namespace(
+                    state,
+                    app_id,
+                    KEY_POSTAL_CODE,
+                    None,
+                )
+                .await
                 {
                     Ok(resp) => Some(resp.as_value()),
                     Err(_) => None,
@@ -245,6 +250,7 @@ impl LocalizationServer for LocalizationImpl {
             StorageProperty::Locality,
             set_request.value,
             None,
+            None,
         )
         .await
     }
@@ -277,6 +283,7 @@ impl LocalizationServer for LocalizationImpl {
             StorageProperty::CountryCode,
             set_request.value,
             None,
+            None,
         )
         .await
     }
@@ -308,6 +315,7 @@ impl LocalizationServer for LocalizationImpl {
             &self.platform_state,
             StorageProperty::Language,
             set_request.value,
+            None,
             None,
         )
         .await
@@ -346,6 +354,7 @@ impl LocalizationServer for LocalizationImpl {
             StorageProperty::PostalCode,
             set_request.value,
             None,
+            None,
         )
         .await
     }
@@ -374,6 +383,7 @@ impl LocalizationServer for LocalizationImpl {
             StorageProperty::Locale,
             set_request.value,
             None,
+            None,
         )
         .await
     }
@@ -401,6 +411,7 @@ impl LocalizationServer for LocalizationImpl {
             &self.platform_state,
             StorageProperty::LatLon,
             set_request.value,
+            None,
             None,
         )
         .await
@@ -441,6 +452,7 @@ impl LocalizationServer for LocalizationImpl {
             &self.platform_state,
             StorageProperty::AdditionalInfo,
             set_request.value,
+            None,
             None,
         )
         .await

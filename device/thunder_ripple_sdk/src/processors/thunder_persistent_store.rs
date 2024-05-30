@@ -92,6 +92,7 @@ impl ThunderStorageRequestProcessor {
             json!({
                 "namespace": data.namespace,
                 "key": data.key,
+                "scope": data.scope.unwrap_or_default(),
             })
             .to_string(),
         ));
@@ -165,6 +166,7 @@ impl ThunderStorageRequestProcessor {
             serde_json::to_string(&json!({
                 "namespace": data.namespace,
                 "key": data.key,
+                "scope": data.scope.unwrap_or_default(),
             }))
             .unwrap(),
         ));
@@ -234,6 +236,7 @@ impl ThunderStorageRequestProcessor {
                 "namespace": data.namespace,
                 "key": data.key,
                 "value": data.data,
+                "scope": data.scope.unwrap_or_default(),
             }))
             .unwrap(),
         ));
