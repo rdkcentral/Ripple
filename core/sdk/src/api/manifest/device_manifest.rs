@@ -235,6 +235,9 @@ pub struct DefaultValues {
     pub country_code: String,
     pub language: String,
     pub locale: String,
+    // <pca>
+    #[serde(default = "name_default")]
+    // </pca>
     pub name: String,
     #[serde(default = "captions_default")]
     pub captions: CaptionStyle,
@@ -273,6 +276,12 @@ pub struct DefaultValues {
     #[serde(default = "default_video_dimensions")]
     pub video_dimensions: Vec<i32>,
 }
+
+// <pca>
+pub fn name_default() -> String {
+    "Living Room".to_string()
+}
+// </pca>
 
 fn additional_info_default() -> HashMap<String, String> {
     HashMap::default()
@@ -353,7 +362,10 @@ impl Default for DefaultValues {
             country_code: "US".to_string(),
             language: "en".to_string(),
             locale: "en-US".to_string(),
-            name: "Living Room".to_string(),
+            // <pca>
+            //name: "Living Room".to_string(),
+            name: name_default(),
+            // </pca>
             captions: captions_default(),
             voice: voice_guidance_default(),
             additional_info: additional_info_default(),

@@ -28,8 +28,8 @@ members = [
     "distributor/general",
     "examples/rpc_extn",
     "examples/tm_extn",
-    "openrpc_validator"
-]
+    "openrpc_validator",
+    "tools/device_manifest_validator"]
 
 [workspace.package]
 version = "1.1.0"
