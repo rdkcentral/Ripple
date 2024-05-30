@@ -1,3 +1,5 @@
+[workspace]
+
 [package]
 name = "device_manifest_validator"
 edition = "2021"

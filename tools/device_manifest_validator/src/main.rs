@@ -16,6 +16,8 @@ fn main() {
 
     let default_manifest = DeviceManifest::default();
 
+    println!("Manifest: {:?}", manifest);
+
     // if manifest.field1 == default_manifest.field1 {
     //     println!("field1 has the default value");
     // }
