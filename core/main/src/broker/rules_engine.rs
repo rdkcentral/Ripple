@@ -98,16 +98,30 @@ pub struct RuleEngine {
 }
 
 impl RuleEngine {
+    fn build_path(path: &str, default_path: &str) -> String {
+        if path.starts_with('/') {
+            path.to_owned()
+        } else {
+            format!("{}{}", default_path, path)
+        }
+    }
+
     pub fn build(extn_manifest: &ExtnManifest) -> Self {
         let mut engine = RuleEngine::default();
         for path in extn_manifest.rules_path.iter() {
-            if let Some(p) = Path::new(path).to_str() {
+            if let Some(p) =
+                Path::new(Self::build_path(path, &extn_manifest.default_path).as_str()).to_str()
+            {
                 if let Ok(contents) = fs::read_to_string(p) {
                     if let Ok((path, rule_set)) = Self::load_from_content(contents) {
                         debug!("Rules loaded from path={}", path);
                         engine.rules.append(rule_set)
+                    } else {
+                        warn!("invalid rule found in path {}", path)
                     }
                 }
+            } else {
+                warn!("invalid rule path {}", path)
             }
         }
         engine
