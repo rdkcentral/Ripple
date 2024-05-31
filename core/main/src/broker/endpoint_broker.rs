@@ -22,8 +22,9 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::{ApiMessage, CallContext, JsonRpcApiResponse, RpcRequest},
         session::AccountSession,
     },
+    chrono::Utc,
     framework::RippleResponse,
-    log::error,
+    log::{debug, error, info},
     tokio::{
         self,
         sync::mpsc::{Receiver, Sender},
@@ -301,32 +302,49 @@ pub trait EndpointBroker {
     /// Adds BrokerContext to a given request used by the Broker Implementations
     /// just before sending the data through the protocol
     fn update_request(rpc_request: &BrokerRequest) -> Result<String, RippleError> {
-        if let Ok(v) = Self::apply_rule(rpc_request) {
+        if let Ok(v) = Self::apply_request_rule(rpc_request) {
             let id = rpc_request.rpc.ctx.call_id;
-            let method = rpc_request.rpc.ctx.method.clone();
-            return Ok(json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "method": method,
-                "params": v
-            })
-            .to_string());
+            let method = rpc_request.rule.alias.clone();
+            if let Value::Null = v {
+                return Ok(json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "method": method
+                })
+                .to_string());
+            } else {
+                return Ok(json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "method": method,
+                    "params": v
+                })
+                .to_string());
+            }
         }
         Err(RippleError::MissingInput)
     }
 
     /// Generic method which takes the given parameters from RPC request and adds context
-    fn apply_rule(rpc_request: &BrokerRequest) -> Result<Value, RippleError> {
+    fn apply_request_rule(rpc_request: &BrokerRequest) -> Result<Value, RippleError> {
         if let Ok(mut params) = serde_json::from_str::<Vec<Value>>(&rpc_request.rpc.params_json) {
-            if let Some(last) = params.pop() {
-                if let Some(filter) = rpc_request
-                    .rule
-                    .transform
-                    .get_filter(super::rules_engine::RuleTransformType::Request)
-                {
-                    return jq_compile(last, &filter);
+            if params.len() > 1 {
+                if let Some(last) = params.pop() {
+                    if let Some(filter) = rpc_request
+                        .rule
+                        .transform
+                        .get_filter(super::rules_engine::RuleTransformType::Request)
+                    {
+                        return jq_compile(
+                            last,
+                            &filter,
+                            format!("{}_request", rpc_request.rpc.ctx.method),
+                        );
+                    }
+                    return Ok(serde_json::to_value(&last).unwrap());
                 }
-                return Ok(serde_json::to_value(&last).unwrap());
+            } else {
+                return Ok(Value::Null);
             }
         }
         Err(RippleError::ParseError)
@@ -378,7 +396,11 @@ impl BrokerOutputForwarder {
                                         .transform
                                         .get_filter(super::rules_engine::RuleTransformType::Event)
                                     {
-                                        if let Ok(r) = jq_compile(result, &filter) {
+                                        if let Ok(r) = jq_compile(
+                                            result,
+                                            &filter,
+                                            format!("{}_event", rpc_request.ctx.method),
+                                        ) {
                                             v.data.result = Some(r);
                                         }
                                     }
@@ -387,8 +409,16 @@ impl BrokerOutputForwarder {
                                     .transform
                                     .get_filter(super::rules_engine::RuleTransformType::Response)
                                 {
-                                    if let Ok(r) = jq_compile(result, &filter) {
-                                        v.data.result = Some(r);
+                                    if let Ok(r) = jq_compile(
+                                        result,
+                                        &filter,
+                                        format!("{}_response", rpc_request.ctx.method),
+                                    ) {
+                                        if r.to_string().to_lowercase().contains("null") {
+                                            v.data.result = Some(Value::Null)
+                                        } else {
+                                            v.data.result = Some(r);
+                                        }
                                     }
                                 }
                             }
@@ -410,8 +440,9 @@ impl BrokerOutputForwarder {
     }
 }
 
-fn jq_compile(input: Value, filter: &str) -> Result<Value, RippleError> {
-    println!("Jq rule {}  input {:?}", filter, input);
+fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value, RippleError> {
+    debug!("Jq rule {}  input {:?}", filter, input);
+    let start = Utc::now().timestamp_millis();
     // start out only from core filters,
     // which do not include filters in the standard library
     // such as `map`, `select` etc.
@@ -419,11 +450,20 @@ fn jq_compile(input: Value, filter: &str) -> Result<Value, RippleError> {
 
     // parse the filter
     let (f, errs) = jaq_parse::parse(filter, jaq_parse::main());
-    assert_eq!(errs, Vec::new());
+    if !errs.is_empty() {
+        error!("Error in rule {:?}", errs);
+        return Err(RippleError::RuleError);
+    }
 
     // compile the filter in the context of the given definitions
     let f = defs.compile(f.unwrap());
-    assert!(defs.errs.is_empty());
+    if !defs.errs.is_empty() {
+        error!("Error in rule {}", reference);
+        for (err, _) in defs.errs {
+            error!("reference={} {}", reference, err);
+        }
+        return Err(RippleError::RuleError);
+    }
 
     let inputs = RcIter::new(core::iter::empty());
 
@@ -431,8 +471,14 @@ fn jq_compile(input: Value, filter: &str) -> Result<Value, RippleError> {
     let mut out = f.run((Ctx::new([], &inputs), Val::from(input)));
 
     if let Some(Ok(v)) = out.next() {
+        info!(
+            "Ripple Gateway Rule Processing Time: {},{}",
+            reference,
+            Utc::now().timestamp_millis() - start
+        );
         return Ok(Value::from(v));
     }
+
     Err(RippleError::ParseError)
 }
 

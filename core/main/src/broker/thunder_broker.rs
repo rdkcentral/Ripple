@@ -195,16 +195,8 @@ impl EndpointBroker for ThunderBroker {
                 })
                 .to_string(),
             )
-        } else {
-            requests.push(
-                json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "method": rpc_request.rule.alias.clone(),
-                    "params": rpc_request.rpc.params_json
-                })
-                .to_string(),
-            )
+        } else if let Ok(request) = Self::update_request(rpc_request) {
+            requests.push(request)
         }
 
         Ok(requests)

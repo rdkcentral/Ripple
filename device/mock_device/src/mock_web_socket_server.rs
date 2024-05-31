@@ -360,8 +360,14 @@ impl MockWebSocketServer {
             if v.len() == 1 {
                 return v.first().cloned();
             } else if let Some(params) = &req.params {
+                let mut new_params = params.clone();
+                if req.method.ends_with(".register") {
+                    if let Some(v) = params.get("event").cloned() {
+                        new_params = json!({"event": v})
+                    }
+                }
                 for response in v {
-                    if response.get_key(params).is_some() {
+                    if response.get_key(&new_params).is_some() {
                         return Some(response);
                     }
                 }

@@ -70,10 +70,15 @@ pub struct RuleTransform {
 impl RuleTransform {
     pub fn apply_context(&mut self, rpc_request: &RpcRequest) {
         if let Some(value) = self.request.take() {
+            debug!("Check if value contains {}", value);
             if value.contains("$context.appId") {
-                let _ = value.replace("$context.appId", &rpc_request.ctx.method);
+                debug!("has context");
+                let new_value = value.replace("$context.appId", &rpc_request.ctx.app_id);
+                debug!("changed value {}", new_value);
+                let _ = self.request.insert(new_value);
+            } else {
+                let _ = self.request.insert(value);
             }
-            let _ = self.request.insert(value);
         }
     }
 
@@ -107,18 +112,22 @@ impl RuleEngine {
     }
 
     pub fn build(extn_manifest: &ExtnManifest) -> Self {
+        debug!("building rules engine {:?}", extn_manifest.rules_path);
         let mut engine = RuleEngine::default();
         for path in extn_manifest.rules_path.iter() {
-            if let Some(p) =
-                Path::new(Self::build_path(path, &extn_manifest.default_path).as_str()).to_str()
-            {
+            let path_for_rule = Self::build_path(path, &extn_manifest.default_path);
+            debug!("loading rule {}", path_for_rule);
+            if let Some(p) = Path::new(&path_for_rule).to_str() {
                 if let Ok(contents) = fs::read_to_string(p) {
+                    debug!("Rule content {}", contents);
                     if let Ok((path, rule_set)) = Self::load_from_content(contents) {
                         debug!("Rules loaded from path={}", path);
                         engine.rules.append(rule_set)
                     } else {
                         warn!("invalid rule found in path {}", path)
                     }
+                } else {
+                    warn!("path for the rule is invalid {}", path)
                 }
             } else {
                 warn!("invalid rule path {}", path)
@@ -131,7 +140,7 @@ impl RuleEngine {
         match serde_json::from_str::<RuleSet>(&contents) {
             Ok(manifest) => Ok((contents, manifest)),
             Err(err) => {
-                warn!("{:?} could not load device manifest", err);
+                warn!("{:?} could not load rule", err);
                 Err(RippleError::InvalidInput)
             }
         }
