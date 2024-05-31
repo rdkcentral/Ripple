@@ -75,6 +75,9 @@ pub const KEY_PARTNER_EXCLUSIONS: &str = "partnerExclusions";
 pub const KEY_SKIP_RESTRICTION: &str = "skipRestriction";
 pub const KEY_AUDIO_DESCRIPTION_ENABLED: &str = "audioDescriptionEnabled";
 pub const KEY_PREFERRED_AUDIO_LANGUAGES: &str = "preferredAudioLanguages";
+pub const KEY_FIREBOLT_DEVICE_UID: &str = "fireboltDeviceUid";
+
+pub const SCOPE_DEVICE: &str = "device";
 
 pub const EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED: &str =
     "accessibility.onClosedCaptionsSettingsChanged";

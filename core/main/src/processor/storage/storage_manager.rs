@@ -141,7 +141,7 @@ impl StorageManager {
         scope: Option<String>,
     ) -> RpcResult<String> {
         let data = property.as_data();
-        match StorageManager::get_string_from_namespace(
+        let result = match StorageManager::get_string_from_namespace(
             state,
             data.namespace.to_string(),
             data.key,
@@ -151,7 +151,15 @@ impl StorageManager {
         {
             Ok(resp) => Ok(resp.as_value()),
             Err(_) => Err(StorageManager::get_firebolt_error(&property)),
+        };
+
+        // Reclaim memory
+        if let StorageProperty::CustomProperty(namespace, key) = property {
+            let _ = namespace;
+            let _ = key;
         }
+
+        result
     }
 
     pub async fn get_map(
@@ -246,7 +254,7 @@ impl StorageManager {
         scope: Option<String>,
     ) -> RpcResult<()> {
         let data = property.as_data();
-        if StorageManager::set_in_namespace(
+        let result = if StorageManager::set_in_namespace(
             state,
             data.namespace.to_string(),
             data.key.to_string(),
@@ -258,9 +266,18 @@ impl StorageManager {
         .await
         .is_err()
         {
-            return Err(StorageManager::get_firebolt_error(&property));
+            Err(StorageManager::get_firebolt_error(&property))
+        } else {
+            Ok(())
+        };
+
+        // Reclaim memory
+        if let StorageProperty::CustomProperty(namespace, key) = property {
+            let _ = namespace;
+            let _ = key;
         }
-        Ok(())
+
+        result
     }
 
     pub async fn get_number_as_u32(
@@ -569,11 +586,19 @@ impl StorageManager {
 
     pub fn get_firebolt_error(property: &StorageProperty) -> jsonrpsee::core::Error {
         let data = property.as_data();
-        jsonrpsee::core::Error::Call(CallError::Custom {
+        let error = jsonrpsee::core::Error::Call(CallError::Custom {
             code: CAPABILITY_NOT_AVAILABLE,
             message: format!("{}.{} is not available", data.namespace, data.key),
             data: None,
-        })
+        });
+
+        // Reclaim memory
+        if let StorageProperty::CustomProperty(namespace, key) = property {
+            let _ = namespace;
+            let _ = key;
+        }
+
+        error
     }
 
     pub async fn set_vec_string(
