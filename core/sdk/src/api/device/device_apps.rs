@@ -33,9 +33,6 @@ pub enum AppsRequest {
     InstallApp(DeviceAppMetadata),
     UninstallApp(InstalledApp),
     GetFireboltPermissions(String),
-    _RefreshSession(AccountSession),
-    CheckForUpdates,
-    _GetCatalog,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -99,6 +96,10 @@ impl ExtnPayloadProvider for AppsRequest {
     fn contract() -> RippleContract {
         RippleContract::Apps
     }
+}
+
+pub enum AppCatalogPoll {
+    CheckForUpdates
 }
 
 #[cfg(test)]
