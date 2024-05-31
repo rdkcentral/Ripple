@@ -168,22 +168,23 @@ impl EndpointBrokerState {
     }
 
     fn get_request(&self, id: u64) -> Result<BrokerRequest, RippleError> {
-        if let Some(v) = self.request_map.read().unwrap().get(&id).cloned() {
-            // cleanup if the request is not a subscription
-            if !v.rpc.is_subscription() {
-                let _ = self.request_map.write().unwrap().remove(&id);
-            }
-            Ok(v)
-        } else {
-            Err(RippleError::InvalidInput)
+        let result = { self.request_map.read().unwrap().get(&id).cloned() };
+        if result.is_none() {
+            return Err(RippleError::InvalidInput);
         }
+
+        let result = result.unwrap();
+        if !result.rpc.is_subscription() {
+            let _ = self.request_map.write().unwrap().remove(&id);
+        }
+        Ok(result)
     }
 
     fn get_extn_message(&self, id: u64) -> Result<ExtnMessage, RippleError> {
-        if let Some(v) = self.extension_request_map.write().unwrap().remove(&id) {
-            Ok(v)
-        } else {
-            Err(RippleError::InvalidInput)
+        let result = { self.extension_request_map.write().unwrap().remove(&id) };
+        match result {
+            Some(v) => Ok(v),
+            None => Err(RippleError::NotAvailable),
         }
     }
 
