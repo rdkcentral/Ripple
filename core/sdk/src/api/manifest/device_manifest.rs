@@ -26,10 +26,7 @@ use std::{
 
 use crate::{
     api::{
-        device::{
-            device_user_grants_data::{GrantExclusionFilter, GrantPolicies},
-            DevicePlatformType,
-        },
+        device::device_user_grants_data::{GrantExclusionFilter, GrantPolicies},
         distributor::distributor_privacy::DataEventType,
         firebolt::fb_capabilities::{FireboltCap, FireboltPermission},
         storage_property::StorageProperty,
@@ -45,9 +42,7 @@ pub const METRICS_LOGGING_PERCENTAGE_DEFAULT: u32 = 10;
 pub struct RippleConfiguration {
     pub ws_configuration: WsConfiguration,
     pub internal_ws_configuration: WsConfiguration,
-    pub platform: DevicePlatformType,
     pub platform_parameters: Value,
-    pub distribution_platform: String,
     pub distribution_id_salt: Option<IdSalt>,
     pub form_factor: String,
     #[serde(default)]
@@ -123,7 +118,6 @@ pub struct DeviceManifest {
 #[cfg_attr(test, derive(PartialEq))]
 pub struct DistributionConfiguration {
     pub library: String,
-    pub catalog: String,
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
@@ -513,9 +507,7 @@ impl Default for RippleConfiguration {
         Self {
             ws_configuration: Default::default(),
             internal_ws_configuration: Default::default(),
-            platform: DevicePlatformType::Thunder,
             platform_parameters: Value::Null,
-            distribution_platform: Default::default(),
             distribution_id_salt: None,
             form_factor: Default::default(),
             default_values: DefaultValues::default(),
@@ -554,14 +546,6 @@ impl DeviceManifest {
                 Err(RippleError::InvalidInput)
             }
         }
-    }
-
-    /// Provides the device platform information from the device manifest
-    /// as this value is read from a file loaded dynamically during runtime the response
-    /// provided will always be a result which can have an error. Handler should panic if
-    /// no valid platform type is provided.
-    pub fn get_device_platform(&self) -> DevicePlatformType {
-        self.configuration.platform.clone()
     }
 
     pub fn get_web_socket_enabled(&self) -> bool {
@@ -673,7 +657,6 @@ pub(crate) mod tests {
                         enabled: true,
                         gateway: "127.0.0.1:3474".to_string(),
                     },
-                    platform: DevicePlatformType::Thunder,
                     platform_parameters: {
                         let mut params = HashMap::new();
                         params.insert(
@@ -682,7 +665,6 @@ pub(crate) mod tests {
                         );
                         serde_json::to_value(params).unwrap()
                     },
-                    distribution_platform: "Generic".to_string(),
                     distribution_id_salt: None,
                     form_factor: "ipstb".to_string(),
                     default_values: DefaultValues {
@@ -775,7 +757,6 @@ pub(crate) mod tests {
                 applications: ApplicationsConfiguration {
                     distribution: DistributionConfiguration {
                         library: "/etc/firebolt-app-library.json".to_string(),
-                        catalog: "".to_string(),
                     },
                     defaults: ApplicationDefaultsConfiguration {
                         main: "".to_string(),
@@ -942,7 +923,6 @@ pub(crate) mod tests {
             ApplicationsConfiguration {
                 distribution: DistributionConfiguration {
                     library: "/etc/firebolt-app-library.json".to_string(),
-                    catalog: "".to_string(),
                 },
                 defaults: ApplicationDefaultsConfiguration {
                     main: "".to_string(),
