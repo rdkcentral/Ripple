@@ -8,11 +8,9 @@
       "enabled": true,
       "gateway": "127.0.0.1:3474"
     },
-    "platform": "Thunder",
     "platform_parameters": {
       "gateway": "ws://127.0.0.1:9998/jsonrpc"
     },
-    "distribution_platform": "Generic",
     "distribution_tenant": "reference",
     "form_factor": "ipstb",
     "default_values": {
@@ -129,8 +127,7 @@
   },
   "applications": {
     "distribution": {
-      "library": "/etc/firebolt-app-library.json",
-      "catalog": ""
+      "library": "/etc/firebolt-app-library.json"
     },
     "defaults": {
       "xrn:firebolt:application-type:main": "",
