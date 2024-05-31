@@ -266,6 +266,8 @@ pub struct DefaultValues {
     pub skip_restriction: String,
     #[serde(default = "default_video_dimensions")]
     pub video_dimensions: Vec<i32>,
+    #[serde(default, rename = "mediaProgressAsWatchedEvents")]
+    pub media_progress_as_watched_events: bool,
 }
 
 fn additional_info_default() -> HashMap<String, String> {
@@ -366,6 +368,7 @@ impl Default for DefaultValues {
             allow_watch_history: false,
             skip_restriction: "none".to_string(),
             video_dimensions: default_video_dimensions(),
+            media_progress_as_watched_events: false,
         }
     }
 }
@@ -704,6 +707,8 @@ pub(crate) mod tests {
                         allow_watch_history: false,
                         skip_restriction: "none".to_string(),
                         video_dimensions: vec![1920, 1080],
+                        // setting the value to true to simulate manifest override
+                        media_progress_as_watched_events: true,
                     },
                     settings_defaults_per_app: HashMap::new(),
                     model_friendly_names: {
@@ -956,5 +961,47 @@ pub(crate) mod tests {
                 PrivacySettingsStorageType::Local
             ));
         }
+    }
+
+    #[test]
+    fn test_media_progress_as_watched_events() {
+        let manifest = DeviceManifest::mock();
+        assert!(
+            manifest
+                .configuration
+                .default_values
+                .media_progress_as_watched_events
+        );
+    }
+
+    #[test]
+    fn test_default_media_progress_as_watched_events() {
+        // create DefaultValues object by providing only the required fields
+        let default_values = serde_json::from_str::<DefaultValues>(
+            r#"{
+            "country_code": "US",
+            "language": "en",
+            "locale": "en-US",
+            "name": "Living Room"
+        }"#,
+        )
+        .unwrap();
+        assert!(!default_values.media_progress_as_watched_events);
+    }
+
+    #[test]
+    fn test_media_progress_as_watched_events_override() {
+        // create DefaultValues object by providing the required fields and mediaProgressAsWatchedEvents
+        let default_values = serde_json::from_str::<DefaultValues>(
+            r#"{
+            "country_code": "US",
+            "language": "en",
+            "locale": "en-US",
+            "name": "Living Room",
+            "mediaProgressAsWatchedEvents": true
+        }"#,
+        )
+        .unwrap();
+        assert!(default_values.media_progress_as_watched_events);
     }
 }
