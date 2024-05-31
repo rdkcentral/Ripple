@@ -33,9 +33,9 @@ pub enum AppsRequest {
     InstallApp(DeviceAppMetadata),
     UninstallApp(InstalledApp),
     GetFireboltPermissions(String),
-    RefreshSession(AccountSession),
+    _RefreshSession(AccountSession),
     CheckForUpdates,
-    GetCatalog,
+    _GetCatalog,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
