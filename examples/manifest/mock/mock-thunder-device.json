@@ -73,29 +73,5 @@
                     }
                 ]
             }
-        ],
-        "org.rdk.FireboltHdmiInput.1.register": [
-            {
-                "params": {
-                    "event":"onAutoLowLatencyModeCapableChanged",
-                    "id":"client.org.rdk.FireboltHdmiInput.events"
-                },
-                "result": 0,
-                "events": [
-                    {
-                        "delay": 0,
-                        "data": {
-                            "port": "HDMI1",
-                            "enabled": true
-                        }
-
-                    }
-                ]
-            }
-        ],
-        "org.rdk.FireboltHdmiInput.1.autoLowLatencyModeCapable": [
-            {
-                "result": true
-            }
         ]
     }

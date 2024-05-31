@@ -59,6 +59,7 @@ impl ThunderBroker {
             subscription_map,
         };
         let broker_c = broker.clone();
+        let callback_for_sender = callback.clone();
         tokio::spawn(async move {
             info!("Broker Endpoint url {}", endpoint.url);
             let url = url::Url::parse(&endpoint.url).unwrap();
@@ -99,15 +100,16 @@ impl ThunderBroker {
                     },
                     Some(request) = tr.recv() => {
                         debug!("Got request from receiver for broker {:?}", request);
-                        if let Ok(updated_request) = broker_c.prepare_request(&request) {
-                            debug!("Sending request to broker {:?}", updated_request);
-                            for r in updated_request {
-                                let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
-                            let _flush = ws_tx.flush().await;
+                        match broker_c.prepare_request(&request) {
+                            Ok(updated_request) => {
+                                debug!("Sending request to broker {:?}", updated_request);
+                                for r in updated_request {
+                                    let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
+                                let _flush = ws_tx.flush().await;
+                                }
                             }
-
+                            Err(e) => callback_for_sender.send_error(request,e).await
                         }
-
                     }
                 }
             }
@@ -195,7 +197,8 @@ impl EndpointBroker for ThunderBroker {
                 })
                 .to_string(),
             )
-        } else if let Ok(request) = Self::update_request(rpc_request) {
+        } else {
+            let request = Self::update_request(rpc_request)?;
             requests.push(request)
         }
 

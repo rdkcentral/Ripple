@@ -15,16 +15,17 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use jaq_interpret::{Ctx, FilterT, ParseCtx, RcIter, Val};
 use ripple_sdk::{
     api::{
         firebolt::fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
-        gateway::rpc_gateway_api::{ApiMessage, CallContext, JsonRpcApiResponse, RpcRequest},
+        gateway::rpc_gateway_api::{
+            ApiMessage, ApiProtocol, CallContext, JsonRpcApiResponse, RpcRequest,
+        },
         session::AccountSession,
     },
-    chrono::Utc,
+    extn::extn_client_message::ExtnMessage,
     framework::RippleResponse,
-    log::{debug, error, info},
+    log::error,
     tokio::{
         self,
         sync::mpsc::{Receiver, Sender},
@@ -41,11 +42,15 @@ use std::{
     },
 };
 
-use crate::{firebolt::firebolt_gateway::JsonRpcError, state::platform_state::PlatformState};
+use crate::{
+    firebolt::firebolt_gateway::JsonRpcError,
+    state::platform_state::PlatformState,
+    utils::router_utils::{return_api_message_for_transport, return_extn_response},
+};
 
 use super::{
     http_broker::HttpBroker,
-    rules_engine::{Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine},
+    rules_engine::{jq_compile, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine},
     thunder_broker::ThunderBroker,
     websocket_broker::WebsocketBroker,
 };
@@ -72,7 +77,7 @@ static ATOMIC_ID: AtomicU64 = AtomicU64::new(0);
 
 impl BrokerCallback {
     /// Default method used for sending errors via the BrokerCallback
-    async fn send_error(&self, request: BrokerRequest, error: RippleError) {
+    pub async fn send_error(&self, request: BrokerRequest, error: RippleError) {
         let value = serde_json::to_value(JsonRpcError {
             code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
             message: format!("Error with {:?}", error),
@@ -147,6 +152,7 @@ pub struct EndpointBrokerState {
     endpoint_map: Arc<RwLock<HashMap<String, BrokerSender>>>,
     callback: BrokerCallback,
     request_map: Arc<RwLock<HashMap<u64, BrokerRequest>>>,
+    extension_request_map: Arc<RwLock<HashMap<u64, ExtnMessage>>>,
     rule_engine: RuleEngine,
 }
 
@@ -156,6 +162,7 @@ impl EndpointBrokerState {
             endpoint_map: Arc::new(RwLock::new(HashMap::new())),
             callback: BrokerCallback { sender: tx },
             request_map: Arc::new(RwLock::new(HashMap::new())),
+            extension_request_map: Arc::new(RwLock::new(HashMap::new())),
             rule_engine,
         }
     }
@@ -163,13 +170,29 @@ impl EndpointBrokerState {
     fn get_request(&self, id: u64) -> Result<BrokerRequest, RippleError> {
         if let Some(v) = self.request_map.read().unwrap().get(&id).cloned() {
             // cleanup if the request is not a subscription
+            if !v.rpc.is_subscription() {
+                let _ = self.request_map.write().unwrap().remove(&id);
+            }
             Ok(v)
         } else {
             Err(RippleError::InvalidInput)
         }
     }
 
-    fn update_request(&self, rpc_request: &RpcRequest, rule: Rule) -> BrokerRequest {
+    fn get_extn_message(&self, id: u64) -> Result<ExtnMessage, RippleError> {
+        if let Some(v) = self.extension_request_map.write().unwrap().remove(&id) {
+            Ok(v)
+        } else {
+            Err(RippleError::InvalidInput)
+        }
+    }
+
+    fn update_request(
+        &self,
+        rpc_request: &RpcRequest,
+        rule: Rule,
+        extn_message: Option<ExtnMessage>,
+    ) -> BrokerRequest {
         ATOMIC_ID.fetch_add(1, Ordering::Relaxed);
         let id = ATOMIC_ID.load(Ordering::Relaxed);
         let mut rpc_request_c = rpc_request.clone();
@@ -182,6 +205,11 @@ impl EndpointBrokerState {
                     rule: rule.clone(),
                 },
             );
+        }
+
+        if extn_message.is_some() {
+            let mut extn_map = self.extension_request_map.write().unwrap();
+            let _ = extn_map.insert(id, extn_message.unwrap());
         }
 
         rpc_request_c.ctx.call_id = id;
@@ -234,7 +262,11 @@ impl EndpointBrokerState {
 
     /// Main handler method whcih checks for brokerage and then sends the request for
     /// asynchronous processing
-    pub fn handle_brokerage(&self, rpc_request: RpcRequest) -> bool {
+    pub fn handle_brokerage(
+        &self,
+        rpc_request: RpcRequest,
+        extn_message: Option<ExtnMessage>,
+    ) -> bool {
         let callback = self.callback.clone();
         let mut broker_sender = None;
         let mut found_rule = None;
@@ -254,7 +286,7 @@ impl EndpointBrokerState {
         }
         let rule = found_rule.unwrap();
         let broker = broker_sender.unwrap();
-        let updated_request = self.update_request(&rpc_request, rule);
+        let updated_request = self.update_request(&rpc_request, rule, extn_message);
         tokio::spawn(async move {
             if let Err(e) = broker.send(updated_request.clone()).await {
                 // send some rpc error
@@ -302,30 +334,28 @@ pub trait EndpointBroker {
     /// Adds BrokerContext to a given request used by the Broker Implementations
     /// just before sending the data through the protocol
     fn update_request(rpc_request: &BrokerRequest) -> Result<String, RippleError> {
-        if let Ok(v) = Self::apply_request_rule(rpc_request) {
-            let id = rpc_request.rpc.ctx.call_id;
-            let method = rpc_request.rule.alias.clone();
-            if let Value::Null = v {
-                return Ok(json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "method": method
-                })
-                .to_string());
-            } else {
-                return Ok(json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "method": method,
-                    "params": v
-                })
-                .to_string());
-            }
+        let v = Self::apply_request_rule(rpc_request)?;
+        let id = rpc_request.rpc.ctx.call_id;
+        let method = rpc_request.rule.alias.clone();
+        if let Value::Null = v {
+            Ok(json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "method": method
+            })
+            .to_string())
+        } else {
+            Ok(json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "method": method,
+                "params": v
+            })
+            .to_string())
         }
-        Err(RippleError::MissingInput)
     }
 
-    /// Generic method which takes the given parameters from RPC request and adds context
+    /// Generic method which takes the given parameters from RPC request and adds rules using rule engine
     fn apply_request_rule(rpc_request: &BrokerRequest) -> Result<Value, RippleError> {
         if let Ok(mut params) = serde_json::from_str::<Vec<Value>>(&rpc_request.rpc.params_json) {
             if params.len() > 1 {
@@ -424,11 +454,26 @@ impl BrokerOutputForwarder {
                             }
                             let message = ApiMessage {
                                 request_id: request_id.to_string(),
-                                protocol: rpc_request.ctx.protocol,
+                                protocol: rpc_request.ctx.protocol.clone(),
                                 jsonrpc_msg: serde_json::to_string(&v.data).unwrap(),
                             };
-                            if let Err(e) = session.send_json_rpc(message).await {
-                                error!("Error while responding back message {:?}", e)
+
+                            match rpc_request.ctx.protocol.clone() {
+                                ApiProtocol::Extn => {
+                                    if let Ok(v) =
+                                        platform_state.endpoint_state.get_extn_message(id)
+                                    {
+                                        return_extn_response(message, v)
+                                    }
+                                }
+                                _ => {
+                                    return_api_message_for_transport(
+                                        session,
+                                        message,
+                                        platform_state.clone(),
+                                    )
+                                    .await
+                                }
                             }
                         }
                     }
@@ -438,48 +483,6 @@ impl BrokerOutputForwarder {
             }
         });
     }
-}
-
-fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value, RippleError> {
-    debug!("Jq rule {}  input {:?}", filter, input);
-    let start = Utc::now().timestamp_millis();
-    // start out only from core filters,
-    // which do not include filters in the standard library
-    // such as `map`, `select` etc.
-    let mut defs = ParseCtx::new(Vec::new());
-
-    // parse the filter
-    let (f, errs) = jaq_parse::parse(filter, jaq_parse::main());
-    if !errs.is_empty() {
-        error!("Error in rule {:?}", errs);
-        return Err(RippleError::RuleError);
-    }
-
-    // compile the filter in the context of the given definitions
-    let f = defs.compile(f.unwrap());
-    if !defs.errs.is_empty() {
-        error!("Error in rule {}", reference);
-        for (err, _) in defs.errs {
-            error!("reference={} {}", reference, err);
-        }
-        return Err(RippleError::RuleError);
-    }
-
-    let inputs = RcIter::new(core::iter::empty());
-
-    // iterator over the output values
-    let mut out = f.run((Ctx::new([], &inputs), Val::from(input)));
-
-    if let Some(Ok(v)) = out.next() {
-        info!(
-            "Ripple Gateway Rule Processing Time: {},{}",
-            reference,
-            Utc::now().timestamp_millis() - start
-        );
-        return Ok(Value::from(v));
-    }
-
-    Err(RippleError::ParseError)
 }
 
 #[cfg(test)]
@@ -575,6 +578,7 @@ mod tests {
                     transform: RuleTransform::default(),
                     endpoint: None,
                 },
+                None,
             );
             request.ctx.call_id = 2;
             state.update_request(
@@ -584,6 +588,7 @@ mod tests {
                     transform: RuleTransform::default(),
                     endpoint: None,
                 },
+                None,
             );
             assert!(state.get_request(2).is_ok());
             assert!(state.get_request(1).is_ok());

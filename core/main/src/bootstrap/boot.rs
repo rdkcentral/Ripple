@@ -47,16 +47,17 @@ use super::{
 ///
 /// # Steps
 ///
-/// 1. [SetupExtnClientStep] - Initializes the extn client to start the Inter process communication backbone
-/// 2. [LoadExtensionMetadataStep] - Loads the Extn metadata from the So files
-/// 3. [LoadExtensionsStep] - Loads the Extensions in to [crate::state::extn_state::ExtnState]
-/// 4. [StartExtnChannelsStep] - Starts the Device channel extension
-/// 5. [StartAppManagerStep] - Starts the App Manager and other supporting services
-/// 6. [LoadDistributorValuesStep] - Loads the values from distributor like Session
-/// 7. [CheckLauncherStep] - Checks the presence of launcher extension and starts default app
-/// 8. [StartWsStep] - Starts the Websocket to accept external and internal connections
-/// 9. [StartCommunicationBroker] - Starts the broker which supports External Firebolt Implementations
-/// 10. [FireboltGatewayStep] - Starts the firebolt gateway and blocks the thread to keep it alive till interruption.
+/// 1. [StartCommunicationBroker] - Initialize the communication broker to create Thunder broker if rules are setup.
+/// 2. [SetupExtnClientStep] - Initializes the extn client to start the Inter process communication backbone
+/// 3. [LoadExtensionMetadataStep] - Loads the Extn metadata from the So files
+/// 4. [LoadExtensionsStep] - Loads the Extensions in to [crate::state::extn_state::ExtnState]
+/// 5. [StartExtnChannelsStep] - Starts the Device channel extension
+/// 6. [StartAppManagerStep] - Starts the App Manager and other supporting services
+/// 7. [LoadDistributorValuesStep] - Loads the values from distributor like Session
+/// 8. [StartOtherBrokers] - Start Other brokers if they are setup in endpoints for rules
+/// 9. [CheckLauncherStep] - Checks the presence of launcher extension and starts default app
+/// 10. [StartWsStep] - Starts the Websocket to accept external and internal connections
+/// 11. [FireboltGatewayStep] - Starts the firebolt gateway and blocks the thread to keep it alive till interruption.
 
 ///
 pub async fn boot(state: BootstrapState) -> RippleResponse {

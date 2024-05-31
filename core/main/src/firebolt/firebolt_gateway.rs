@@ -174,7 +174,7 @@ impl FireboltGateway {
                 Ok(_) => {
                     if !platform_state
                         .endpoint_state
-                        .handle_brokerage(request_c.clone())
+                        .handle_brokerage(request_c.clone(), extn_msg.clone())
                     {
                         // Route
                         match request.clone().ctx.protocol {

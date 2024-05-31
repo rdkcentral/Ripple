@@ -14,11 +14,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
+use jaq_interpret::{Ctx, FilterT, ParseCtx, RcIter, Val};
 use ripple_sdk::api::{
     gateway::rpc_gateway_api::RpcRequest, manifest::extn_manifest::ExtnManifest,
 };
 use ripple_sdk::{
-    log::{debug, warn},
+    chrono::Utc,
+    log::{debug, error, info, warn},
+    serde_json::Value,
     utils::error::RippleError,
 };
 use serde::Deserialize;
@@ -157,4 +160,46 @@ impl RuleEngine {
         }
         None
     }
+}
+
+pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value, RippleError> {
+    debug!("Jq rule {}  input {:?}", filter, input);
+    let start = Utc::now().timestamp_millis();
+    // start out only from core filters,
+    // which do not include filters in the standard library
+    // such as `map`, `select` etc.
+    let mut defs = ParseCtx::new(Vec::new());
+
+    // parse the filter
+    let (f, errs) = jaq_parse::parse(filter, jaq_parse::main());
+    if !errs.is_empty() {
+        error!("Error in rule {:?}", errs);
+        return Err(RippleError::RuleError);
+    }
+
+    // compile the filter in the context of the given definitions
+    let f = defs.compile(f.unwrap());
+    if !defs.errs.is_empty() {
+        error!("Error in rule {}", reference);
+        for (err, _) in defs.errs {
+            error!("reference={} {}", reference, err);
+        }
+        return Err(RippleError::RuleError);
+    }
+
+    let inputs = RcIter::new(core::iter::empty());
+
+    // iterator over the output values
+    let mut out = f.run((Ctx::new([], &inputs), Val::from(input)));
+
+    if let Some(Ok(v)) = out.next() {
+        info!(
+            "Ripple Gateway Rule Processing Time: {},{}",
+            reference,
+            Utc::now().timestamp_millis() - start
+        );
+        return Ok(Value::from(v));
+    }
+
+    Err(RippleError::ParseError)
 }

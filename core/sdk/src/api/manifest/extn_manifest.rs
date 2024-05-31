@@ -33,6 +33,7 @@ pub struct ExtnManifest {
     pub required_contracts: Vec<String>,
     pub rpc_aliases: HashMap<String, Vec<String>>,
     pub timeout: Option<u64>,
+    #[serde(default)]
     pub rules_path: Vec<String>,
 }
 
