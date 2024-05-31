@@ -19,7 +19,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     api::app_catalog::AppMetadata,
-    api::session::AccountSession,
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
 };
