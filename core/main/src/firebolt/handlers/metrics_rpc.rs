@@ -25,8 +25,10 @@ use std::collections::HashMap;
 
 use ripple_sdk::{
     api::{
+        account_link::{AccountLinkRequest, WatchedRequest},
         firebolt::{
             fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+            fb_discovery::WatchedInfo,
             fb_metrics::{
                 self, hashmap_to_param_vec, Action, BehavioralMetricContext,
                 BehavioralMetricPayload, CategoryType, ErrorParams, FlatMapValue,
@@ -38,7 +40,7 @@ use ripple_sdk::{
         },
         gateway::rpc_gateway_api::CallContext,
     },
-    log::trace,
+    log::{error, trace},
 };
 
 use serde::Deserialize;
@@ -508,6 +510,38 @@ impl MetricsServer for MetricsImpl {
         media_progress_params: MediaProgressParams,
     ) -> RpcResult<bool> {
         let progress = convert_to_media_position_type(media_progress_params.progress)?;
+
+        if self
+            .state
+            .get_device_manifest()
+            .configuration
+            .default_values
+            .media_progress_as_watched_events
+            && progress != MediaPositionType::None
+        {
+            if let Some(p) = media_progress_params.progress {
+                let request = WatchedRequest {
+                    context: ctx.clone(),
+                    info: WatchedInfo {
+                        entity_id: media_progress_params.entity_id.clone(),
+                        progress: p,
+                        completed: None,
+                        watched_on: None,
+                    },
+                    unit: None,
+                };
+
+                if let Err(e) = self
+                    .state
+                    .get_client()
+                    .send_extn_request(AccountLinkRequest::Watched(request))
+                    .await
+                {
+                    error!("Error sending watched event: {:?}", e);
+                }
+            }
+        }
+
         let media_progress = BehavioralMetricPayload::MediaProgress(MediaProgress {
             context: ctx.clone().into(),
             entity_id: media_progress_params.entity_id,
