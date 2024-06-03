@@ -40,8 +40,11 @@ pub const METRICS_LOGGING_PERCENTAGE_DEFAULT: u32 = 10;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct RippleConfiguration {
+    #[serde(default = "ws_configuration_default")]
     pub ws_configuration: WsConfiguration,
+    #[serde(default = "ws_configuration_internal_default")]
     pub internal_ws_configuration: WsConfiguration,
+    #[serde(default = "platform_parameters_default")]
     pub platform_parameters: Value,
     pub distribution_id_salt: Option<IdSalt>,
     pub form_factor: String,
@@ -90,13 +93,34 @@ pub struct CapabilityConfiguration {
 #[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct LifecycleConfiguration {
+    #[serde(default = "lc_config_app_ready_timeout_ms_default")]
     pub app_ready_timeout_ms: u64,
+    #[serde(default = "lc_config_app_finished_timeout_ms_default")]
     pub app_finished_timeout_ms: u64,
+    #[serde(default = "lc_config_max_loaded_apps_default")]
     pub max_loaded_apps: u64,
+    #[serde(default = "lc_config_min_available_memory_kb_default")]
     pub min_available_memory_kb: u64,
+    #[serde(default)]
     pub prioritized: Vec<String>,
     #[serde(default)]
     pub emit_app_init_events_enabled: bool,
+}
+
+pub fn lc_config_app_ready_timeout_ms_default() -> u64 {
+    DEFAULT_LIFECYCLE_POLICY.app_ready_timeout_ms
+}
+
+pub fn lc_config_app_finished_timeout_ms_default() -> u64 {
+    DEFAULT_LIFECYCLE_POLICY.app_finished_timeout_ms
+}
+
+pub fn lc_config_max_loaded_apps_default() -> u64 {
+    DEFAULT_RENTENTION_POLICY_MAX_RETAINED
+}
+
+pub fn lc_config_min_available_memory_kb_default() -> u64 {
+    DEFAULT_RENTENTION_POLICY_MIN_AVAILABLE_MEM_KB
 }
 
 impl LifecycleConfiguration {
@@ -110,14 +134,23 @@ impl LifecycleConfiguration {
 pub struct DeviceManifest {
     pub configuration: RippleConfiguration,
     pub capabilities: CapabilityConfiguration,
+    #[serde(default)]
     pub lifecycle: LifecycleConfiguration,
     pub applications: ApplicationsConfiguration,
 }
 
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Deserialize, Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct DistributionConfiguration {
     pub library: String,
+}
+
+impl Default for DistributionConfiguration {
+    fn default() -> Self {
+        DistributionConfiguration {
+            library: "/etc/firebolt-app-library.json".into(),
+        }
+    }
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
@@ -152,6 +185,7 @@ impl ApplicationDefaultsConfiguration {
 #[derive(Deserialize, Debug, Clone, Default)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct ApplicationsConfiguration {
+    #[serde(default)]
     pub distribution: DistributionConfiguration,
     pub defaults: ApplicationDefaultsConfiguration,
     #[serde(default)]
@@ -162,6 +196,25 @@ pub struct ApplicationsConfiguration {
 pub struct WsConfiguration {
     pub enabled: bool,
     pub gateway: String,
+}
+
+pub fn ws_configuration_default() -> WsConfiguration {
+    WsConfiguration {
+        enabled: true,
+        gateway: "127.0.0.1:3473".into(),
+    }
+}
+
+pub fn ws_configuration_internal_default() -> WsConfiguration {
+    WsConfiguration {
+        enabled: true,
+        gateway: "127.0.0.1:3474".into(),
+    }
+}
+
+pub fn platform_parameters_default() -> Value {
+    serde_json::to_value(HashMap::from([("gateway", "ws://127.0.0.1:9998/jsonrpc")]))
+        .unwrap_or(Value::Null)
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
@@ -193,6 +246,9 @@ pub const DEFAULT_LIFECYCLE_POLICY: LifecyclePolicy = LifecyclePolicy {
     app_ready_timeout_ms: 30000,
     app_finished_timeout_ms: 2000,
 };
+
+pub const DEFAULT_RENTENTION_POLICY_MAX_RETAINED: u64 = 5;
+pub const DEFAULT_RENTENTION_POLICY_MIN_AVAILABLE_MEM_KB: u64 = 1024;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct IdSalt {
@@ -226,12 +282,13 @@ pub enum AppManifestLoad {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DefaultValues {
+    #[serde(default = "country_code_default")]
     pub country_code: String,
+    #[serde(default = "language_default")]
     pub language: String,
+    #[serde(default = "locale_default")]
     pub locale: String,
-    // <pca>
     #[serde(default = "name_default")]
-    // </pca>
     pub name: String,
     #[serde(default = "captions_default")]
     pub captions: CaptionStyle,
@@ -271,11 +328,9 @@ pub struct DefaultValues {
     pub video_dimensions: Vec<i32>,
 }
 
-// <pca>
 pub fn name_default() -> String {
     "Living Room".to_string()
 }
-// </pca>
 
 fn additional_info_default() -> HashMap<String, String> {
     HashMap::default()
@@ -331,7 +386,9 @@ pub struct CaptionStyle {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct VoiceGuidance {
+    #[serde(default)]
     pub enabled: bool,
+    #[serde(default = "voice_guidance_speed_default")]
     pub speed: f32,
 }
 
@@ -353,13 +410,10 @@ pub enum AppLauncherMode {
 impl Default for DefaultValues {
     fn default() -> Self {
         DefaultValues {
-            country_code: "US".to_string(),
-            language: "en".to_string(),
-            locale: "en-US".to_string(),
-            // <pca>
-            //name: "Living Room".to_string(),
+            country_code: country_code_default(),
+            language: language_default(),
+            locale: locale_default(),
             name: name_default(),
-            // </pca>
             captions: captions_default(),
             voice: voice_guidance_default(),
             additional_info: additional_info_default(),
@@ -380,6 +434,18 @@ impl Default for DefaultValues {
             video_dimensions: default_video_dimensions(),
         }
     }
+}
+
+fn country_code_default() -> String {
+    "US".to_string()
+}
+
+fn language_default() -> String {
+    "en".to_string()
+}
+
+fn locale_default() -> String {
+    "en-US".to_string()
 }
 
 fn captions_default() -> CaptionStyle {
@@ -405,6 +471,10 @@ fn voice_guidance_default() -> VoiceGuidance {
         enabled: false,
         speed: 5.0,
     }
+}
+
+fn voice_guidance_speed_default() -> f32 {
+    5.0
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -450,7 +520,7 @@ fn default_saved_dir() -> String {
     String::from("/opt/persistent/ripple")
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone, Default)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DataGovernanceConfig {
     policies: Vec<DataGovernancePolicy>,
 }
@@ -461,6 +531,89 @@ impl DataGovernanceConfig {
             .iter()
             .find(|p| p.data_type == data_type)
             .cloned()
+    }
+}
+
+impl Default for DataGovernanceConfig {
+    fn default() -> Self {
+        DataGovernanceConfig {
+            policies: vec![
+                DataGovernancePolicy::new(
+                    DataEventType::Watched,
+                    vec![
+                        DataGovernanceSettingTag::new(
+                            StorageProperty::AllowPersonalization,
+                            false,
+                            HashSet::from([
+                                "dataPlatform:cet:xvp:personalization:recommendation".into()
+                            ]),
+                        ),
+                        DataGovernanceSettingTag::new(
+                            StorageProperty::AllowResumePoints,
+                            false,
+                            HashSet::from([
+                                "dataPlatform:cet:xvp:personalization:continueWatching".into(),
+                            ]),
+                        ),
+                        DataGovernanceSettingTag::new(
+                            StorageProperty::AllowWatchHistory,
+                            false,
+                            HashSet::from([
+                                "dataPlatform:cet:xvp:personalization:continueWatching".into(),
+                            ]),
+                        ),
+                        DataGovernanceSettingTag::new(
+                            StorageProperty::AllowProductAnalytics,
+                            false,
+                            HashSet::from(["dataPlatform:cet:xvp:analytics".into()]),
+                        ),
+                        DataGovernanceSettingTag::new(
+                            StorageProperty::AllowBusinessAnalytics,
+                            false,
+                            HashSet::from(["dataPlatform:cet:xvp:analytics:business".into()]),
+                        ),
+                    ],
+                    false,
+                ),
+                DataGovernancePolicy::new(
+                    DataEventType::BusinessIntelligence,
+                    vec![
+                        DataGovernanceSettingTag::new(
+                            StorageProperty::AllowPersonalization,
+                            false,
+                            HashSet::from([
+                                "dataPlatform:cet:xvp:personalization:recommendation".into()
+                            ]),
+                        ),
+                        DataGovernanceSettingTag::new(
+                            StorageProperty::AllowResumePoints,
+                            false,
+                            HashSet::from([
+                                "dataPlatform:cet:xvp:personalization:continueWatching".into(),
+                            ]),
+                        ),
+                        DataGovernanceSettingTag::new(
+                            StorageProperty::AllowWatchHistory,
+                            false,
+                            HashSet::from([
+                                "dataPlatform:cet:xvp:personalization:continueWatching".into(),
+                            ]),
+                        ),
+                        DataGovernanceSettingTag::new(
+                            StorageProperty::AllowProductAnalytics,
+                            false,
+                            HashSet::from(["dataPlatform:cet:xvp:analytics".into()]),
+                        ),
+                        DataGovernanceSettingTag::new(
+                            StorageProperty::AllowBusinessAnalytics,
+                            false,
+                            HashSet::from(["dataPlatform:cet:xvp:analytics:business".into()]),
+                        ),
+                    ],
+                    false,
+                ),
+            ],
+        }
     }
 }
 
@@ -503,12 +656,36 @@ pub struct DataGovernancePolicy {
     pub drop_on_all_tags: bool,
 }
 
+impl DataGovernancePolicy {
+    pub fn new(
+        data_type: DataEventType,
+        setting_tags: Vec<DataGovernanceSettingTag>,
+        drop_on_all_tags: bool,
+    ) -> Self {
+        DataGovernancePolicy {
+            data_type,
+            setting_tags,
+            drop_on_all_tags,
+        }
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DataGovernanceSettingTag {
     pub setting: StorageProperty,
     #[serde(default = "default_enforcement_value")]
     pub enforcement_value: bool,
     pub tags: HashSet<String>,
+}
+
+impl DataGovernanceSettingTag {
+    pub fn new(setting: StorageProperty, enforcement_value: bool, tags: HashSet<String>) -> Self {
+        DataGovernanceSettingTag {
+            setting,
+            enforcement_value,
+            tags,
+        }
+    }
 }
 
 impl Default for RippleConfiguration {
