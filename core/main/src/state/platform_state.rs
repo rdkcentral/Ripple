@@ -137,7 +137,7 @@ impl PlatformState {
             device_session_id: DeviceSessionIdentifier::default(),
             ripple_cache: RippleCache::default(),
             version,
-            endpoint_state: EndpointBrokerState::get(broker_sender, rule_engine),
+            endpoint_state: EndpointBrokerState::new(broker_sender, rule_engine),
         }
     }
 

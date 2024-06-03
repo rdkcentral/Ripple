@@ -157,7 +157,7 @@ pub struct EndpointBrokerState {
 }
 
 impl EndpointBrokerState {
-    pub fn get(tx: Sender<BrokerOutput>, rule_engine: RuleEngine) -> Self {
+    pub fn new(tx: Sender<BrokerOutput>, rule_engine: RuleEngine) -> Self {
         Self {
             endpoint_map: Arc::new(RwLock::new(HashMap::new())),
             callback: BrokerCallback { sender: tx },
@@ -565,7 +565,7 @@ mod tests {
         #[test]
         fn get_request() {
             let (tx, _) = channel(2);
-            let state = EndpointBrokerState::get(
+            let state = EndpointBrokerState::new(
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
