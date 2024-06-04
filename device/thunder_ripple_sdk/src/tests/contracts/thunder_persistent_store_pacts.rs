@@ -70,7 +70,6 @@ async fn test_device_set_persistent_value(with_scope: bool) {
                     "params": {"namespace": "matching(type, 'testNamespace')", 
                         "key": "matching(type, 'testKey')", 
                         "value": {"update_time":r"matching(type, '2023-07-20T14:20:06.477058+00:00')","value":"matching(type, 'testValue1')"},
-                        "scope": scope,
                     }
                 },
                 "requestMetadata": {
