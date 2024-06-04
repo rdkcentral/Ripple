@@ -55,10 +55,10 @@ async fn test_device_set_persistent_value(with_scope: bool) {
         .using_plugin("websockets", None)
         .await;
 
-    let mut scope = "matching(type, '')".to_string();
-    if with_scope {
-        scope = "matching(type, 'testScope')".to_string();
-    }
+    // let mut scope = "matching(type, '')".to_string();
+    // if with_scope {
+    //     scope = "matching(type, 'testScope')".to_string();
+    // }
 
     pact_builder_async
         .synchronous_message_interaction("A request to set the persistent value in device", |mut i| async move {
