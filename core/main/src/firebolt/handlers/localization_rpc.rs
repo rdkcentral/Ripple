@@ -190,7 +190,7 @@ pub struct LocalizationImpl {
 
 impl LocalizationImpl {
     pub async fn postal_code(state: &PlatformState, app_id: String) -> Option<String> {
-        match StorageManager::get_string(state, StorageProperty::PostalCode, None).await {
+        match StorageManager::get_string(state, StorageProperty::PostalCode).await {
             Ok(resp) => Some(resp),
             Err(_) => {
                 match StorageManager::get_string_from_namespace(
@@ -237,7 +237,7 @@ impl LocalizationImpl {
 #[async_trait]
 impl LocalizationServer for LocalizationImpl {
     async fn locality(&self, _ctx: CallContext) -> RpcResult<String> {
-        StorageManager::get_string(&self.platform_state, StorageProperty::Locality, None).await
+        StorageManager::get_string(&self.platform_state, StorageProperty::Locality).await
     }
 
     async fn locality_set(
@@ -249,7 +249,6 @@ impl LocalizationServer for LocalizationImpl {
             &self.platform_state,
             StorageProperty::Locality,
             set_request.value,
-            None,
             None,
         )
         .await
@@ -270,7 +269,7 @@ impl LocalizationServer for LocalizationImpl {
     }
 
     async fn country_code(&self, _ctx: CallContext) -> RpcResult<String> {
-        StorageManager::get_string(&self.platform_state, StorageProperty::CountryCode, None).await
+        StorageManager::get_string(&self.platform_state, StorageProperty::CountryCode).await
     }
 
     async fn country_code_set(
@@ -282,7 +281,6 @@ impl LocalizationServer for LocalizationImpl {
             &self.platform_state,
             StorageProperty::CountryCode,
             set_request.value,
-            None,
             None,
         )
         .await
@@ -303,7 +301,7 @@ impl LocalizationServer for LocalizationImpl {
     }
 
     async fn language(&self, _ctx: CallContext) -> RpcResult<String> {
-        StorageManager::get_string(&self.platform_state, StorageProperty::Language, None).await
+        StorageManager::get_string(&self.platform_state, StorageProperty::Language).await
     }
 
     async fn language_set(
@@ -315,7 +313,6 @@ impl LocalizationServer for LocalizationImpl {
             &self.platform_state,
             StorageProperty::Language,
             set_request.value,
-            None,
             None,
         )
         .await
@@ -354,7 +351,6 @@ impl LocalizationServer for LocalizationImpl {
             StorageProperty::PostalCode,
             set_request.value,
             None,
-            None,
         )
         .await
     }
@@ -374,7 +370,7 @@ impl LocalizationServer for LocalizationImpl {
     }
 
     async fn locale(&self, _ctx: CallContext) -> RpcResult<String> {
-        StorageManager::get_string(&self.platform_state, StorageProperty::Locale, None).await
+        StorageManager::get_string(&self.platform_state, StorageProperty::Locale).await
     }
 
     async fn locale_set(&self, _ctx: CallContext, set_request: SetStringProperty) -> RpcResult<()> {
@@ -382,7 +378,6 @@ impl LocalizationServer for LocalizationImpl {
             &self.platform_state,
             StorageProperty::Locale,
             set_request.value,
-            None,
             None,
         )
         .await
@@ -403,7 +398,7 @@ impl LocalizationServer for LocalizationImpl {
     }
 
     async fn latlon(&self, _ctx: CallContext) -> RpcResult<String> {
-        StorageManager::get_string(&self.platform_state, StorageProperty::LatLon, None).await
+        StorageManager::get_string(&self.platform_state, StorageProperty::LatLon).await
     }
 
     async fn latlon_set(&self, _ctx: CallContext, set_request: SetStringProperty) -> RpcResult<()> {
@@ -411,7 +406,6 @@ impl LocalizationServer for LocalizationImpl {
             &self.platform_state,
             StorageProperty::LatLon,
             set_request.value,
-            None,
             None,
         )
         .await
@@ -433,8 +427,7 @@ impl LocalizationServer for LocalizationImpl {
 
     async fn additional_info(&self, _ctx: CallContext) -> RpcResult<HashMap<String, String>> {
         let json_str =
-            StorageManager::get_string(&self.platform_state, StorageProperty::AdditionalInfo, None)
-                .await;
+            StorageManager::get_string(&self.platform_state, StorageProperty::AdditionalInfo).await;
         match json_str {
             Ok(s) => {
                 let deserialized = serde_json::from_str::<HashMap<String, String>>(&s).unwrap();
@@ -453,7 +446,6 @@ impl LocalizationServer for LocalizationImpl {
             &self.platform_state,
             StorageProperty::AdditionalInfo,
             set_request.value,
-            None,
             None,
         )
         .await

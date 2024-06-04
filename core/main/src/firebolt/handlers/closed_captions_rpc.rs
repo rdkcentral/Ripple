@@ -328,7 +328,7 @@ impl ClosedcaptionsImpl {
     }
 
     pub async fn get_string(ps: &PlatformState, property: SP) -> RpcResult<Option<String>> {
-        match StorageManager::get_string(ps, property, None).await {
+        match StorageManager::get_string(ps, property).await {
             Ok(val) => Ok(Some(val)),
             Err(_err) => {
                 //err=Call(Custom { code: -50300, message: "ClosedCaptions.fontFamily is not available", data: None })
@@ -359,7 +359,7 @@ impl ClosedcaptionsImpl {
         value: SetPropertyOpt<String>,
     ) -> RpcResult<()> {
         match value.value {
-            Some(val) => StorageManager::set_string(ps, property, val, None, None).await,
+            Some(val) => StorageManager::set_string(ps, property, val, None).await,
             None => StorageManager::delete_key(ps, property).await,
         }
     }

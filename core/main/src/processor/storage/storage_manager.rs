@@ -23,7 +23,7 @@ use ripple_sdk::{
             SetStorageProperty, StorageData,
         },
         firebolt::fb_capabilities::CAPABILITY_NOT_AVAILABLE,
-        storage_property::StorageProperty,
+        storage_property::{StorageProperty, StoragePropertyData},
     },
     extn::extn_client_message::ExtnResponse,
     log::debug,
@@ -135,38 +135,39 @@ impl StorageManager {
         }
     }
 
-    pub async fn get_string(
-        state: &PlatformState,
-        property: StorageProperty,
-        scope: Option<String>,
-    ) -> RpcResult<String> {
+    pub async fn get_string(state: &PlatformState, property: StorageProperty) -> RpcResult<String> {
         let data = property.as_data();
-        let result = match StorageManager::get_string_from_namespace(
+        match StorageManager::get_string_from_namespace(
             state,
             data.namespace.to_string(),
             data.key,
-            scope,
+            None,
         )
         .await
         {
             Ok(resp) => Ok(resp.as_value()),
             Err(_) => Err(StorageManager::get_firebolt_error(&property)),
-        };
-
-        // Reclaim memory
-        if let StorageProperty::CustomProperty(namespace, key) = property {
-            let _ = namespace;
-            let _ = key;
         }
+    }
 
-        result
+    pub async fn get_string_for_scope(
+        state: &PlatformState,
+        data: &StoragePropertyData,
+    ) -> RpcResult<String> {
+        let namespace = data.namespace.clone();
+        let scope = data.scope.clone();
+
+        StorageManager::get_string_from_namespace(state, namespace, data.key, scope)
+            .await
+            .map(|resp| resp.as_value())
+            .map_err(|_| StorageManager::get_firebolt_error_namespace(&data.namespace, data.key))
     }
 
     pub async fn get_map(
         state: &PlatformState,
         property: StorageProperty,
     ) -> RpcResult<HashMap<String, Value>> {
-        match StorageManager::get_string(state, property.clone(), None).await {
+        match StorageManager::get_string(state, property.clone()).await {
             Ok(raw_value) => match serde_json::from_str(&raw_value) {
                 Ok(raw_map) => {
                     let the_map: HashMap<String, serde_json::Value> = raw_map;
@@ -193,7 +194,6 @@ impl StorageManager {
                     property.clone(),
                     serde_json::to_string(&mutant).unwrap(),
                     None,
-                    None,
                 )
                 .await
                 {
@@ -208,7 +208,6 @@ impl StorageManager {
                     state,
                     property.clone(),
                     serde_json::to_string(&map).unwrap(),
-                    None,
                     None,
                 )
                 .await
@@ -234,7 +233,6 @@ impl StorageManager {
                     property.clone(),
                     serde_json::to_string(&mutant).unwrap(),
                     None,
-                    None,
                 )
                 .await
                 {
@@ -251,15 +249,14 @@ impl StorageManager {
         property: StorageProperty,
         value: String,
         context: Option<Value>,
-        scope: Option<String>,
     ) -> RpcResult<()> {
         let data = property.as_data();
-        let result = if StorageManager::set_in_namespace(
+        if StorageManager::set_in_namespace(
             state,
             data.namespace.to_string(),
             data.key.to_string(),
             json!(value),
-            scope,
+            None,
             data.event_names,
             context,
         )
@@ -269,15 +266,36 @@ impl StorageManager {
             Err(StorageManager::get_firebolt_error(&property))
         } else {
             Ok(())
-        };
-
-        // Reclaim memory
-        if let StorageProperty::CustomProperty(namespace, key) = property {
-            let _ = namespace;
-            let _ = key;
         }
+    }
 
-        result
+    pub async fn set_string_for_scope(
+        state: &PlatformState,
+        data: &StoragePropertyData,
+        context: Option<Value>,
+    ) -> RpcResult<()> {
+        let namespace = data.namespace.clone();
+        let value = data.value.clone();
+        let scope = data.scope.clone();
+
+        if StorageManager::set_in_namespace(
+            state,
+            namespace.clone(),
+            data.key.into(),
+            json!(value),
+            scope,
+            None,
+            context,
+        )
+        .await
+        .is_err()
+        {
+            Err(StorageManager::get_firebolt_error_namespace(
+                &namespace, data.key,
+            ))
+        } else {
+            Ok(())
+        }
     }
 
     pub async fn get_number_as_u32(
@@ -586,19 +604,22 @@ impl StorageManager {
 
     pub fn get_firebolt_error(property: &StorageProperty) -> jsonrpsee::core::Error {
         let data = property.as_data();
-        let error = jsonrpsee::core::Error::Call(CallError::Custom {
+        jsonrpsee::core::Error::Call(CallError::Custom {
             code: CAPABILITY_NOT_AVAILABLE,
             message: format!("{}.{} is not available", data.namespace, data.key),
             data: None,
-        });
+        })
+    }
 
-        // Reclaim memory
-        if let StorageProperty::CustomProperty(namespace, key) = property {
-            let _ = namespace;
-            let _ = key;
-        }
-
-        error
+    pub fn get_firebolt_error_namespace(
+        namespace: &String,
+        key: &'static str,
+    ) -> jsonrpsee::core::Error {
+        jsonrpsee::core::Error::Call(CallError::Custom {
+            code: CAPABILITY_NOT_AVAILABLE,
+            message: format!("{}.{} is not available", namespace, key),
+            data: None,
+        })
     }
 
     pub async fn set_vec_string(

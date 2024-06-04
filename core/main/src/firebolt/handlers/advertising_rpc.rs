@@ -191,7 +191,6 @@ async fn get_advertisting_policy(platform_state: &PlatformState) -> AdvertisingP
         skip_restriction: StorageManager::get_string(
             platform_state,
             StorageProperty::SkipRestriction,
-            None,
         )
         .await
         .unwrap_or_else(|_| String::from(NONE)),
@@ -232,7 +231,7 @@ impl AppEventDecorator for AdvertisingSetRestrictionEventDecorator {
         _val_in: &Value,
     ) -> Result<Value, AppEventDecorationError> {
         Ok(serde_json::to_value(
-            StorageManager::get_string(ps, StorageProperty::SkipRestriction, None)
+            StorageManager::get_string(ps, StorageProperty::SkipRestriction)
                 .await
                 .unwrap_or_else(|_| String::from(NONE)),
         )?)
@@ -497,14 +496,13 @@ impl AdvertisingServer for AdvertisingImpl {
             StorageProperty::SkipRestriction,
             String::from(set_request.value.as_string()),
             None,
-            None,
         )
         .await
     }
 
     async fn advertising_skip_restriction(&self, _ctx: CallContext) -> RpcResult<String> {
         Ok(
-            StorageManager::get_string(&self.state, StorageProperty::SkipRestriction, None)
+            StorageManager::get_string(&self.state, StorageProperty::SkipRestriction)
                 .await
                 .unwrap_or_else(|_| String::from(NONE)),
         )

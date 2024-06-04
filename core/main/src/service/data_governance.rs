@@ -186,7 +186,6 @@ impl DataGovernance {
                             StorageProperty::PartnerExclusions,
                             res,
                             None,
-                            None,
                         )
                         .await
                         .is_ok();
@@ -205,8 +204,7 @@ impl DataGovernance {
             return Ok(excl);
         }
 
-        let resp =
-            StorageManager::get_string(state, StorageProperty::PartnerExclusions, None).await;
+        let resp = StorageManager::get_string(state, StorageProperty::PartnerExclusions).await;
         debug!("StorageProperty::PartnerExclusions resp={:?}", resp);
 
         if let Ok(res) = resp {

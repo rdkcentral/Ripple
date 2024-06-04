@@ -432,6 +432,14 @@ const PROPERTY_CC_PREFERRED_LANGUAGES: PropertyData = PropertyData {
     ]),
 };
 
+#[derive(Debug, Clone)]
+pub struct StoragePropertyData {
+    pub namespace: String,
+    pub key: &'static str,
+    pub value: String,
+    pub scope: Option<String>,
+}
+
 #[derive(Debug)]
 pub struct PropertyData {
     pub namespace: &'static str,
@@ -481,7 +489,6 @@ pub enum StorageProperty {
     AudioDescriptionEnabled,
     PreferredAudioLanguages,
     CCPreferredLanguages,
-    CustomProperty(Box<str>, Box<str>),
 }
 
 impl StorageProperty {
@@ -551,11 +558,6 @@ impl StorageProperty {
             StorageProperty::AudioDescriptionEnabled => PROPERTY_AUDIO_DESCRIPTION_ENABLED,
             StorageProperty::PreferredAudioLanguages => PROPERTY_PREFERRED_AUDIO_LANGUAGES,
             StorageProperty::CCPreferredLanguages => PROPERTY_CC_PREFERRED_LANGUAGES,
-            StorageProperty::CustomProperty(namespace, key) => PropertyData {
-                namespace: Box::leak(namespace.clone()),
-                key: Box::leak(key.clone()),
-                event_names: None,
-            },
         }
     }
 

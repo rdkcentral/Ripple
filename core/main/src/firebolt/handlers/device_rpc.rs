@@ -55,8 +55,8 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::CallContext,
         session::{AccountSessionRequest, ProvisionRequest},
         storage_property::{
-            StorageProperty, EVENT_DEVICE_DEVICE_NAME_CHANGED, EVENT_DEVICE_NAME_CHANGED,
-            KEY_FIREBOLT_DEVICE_UID, SCOPE_DEVICE,
+            StorageProperty, StoragePropertyData, EVENT_DEVICE_DEVICE_NAME_CHANGED,
+            EVENT_DEVICE_NAME_CHANGED, KEY_FIREBOLT_DEVICE_UID, SCOPE_DEVICE,
         },
     },
     extn::extn_client_message::ExtnResponse,
@@ -198,13 +198,15 @@ pub async fn get_device_id(state: &PlatformState) -> RpcResult<String> {
 }
 
 pub async fn get_uid(state: &PlatformState, app_id: String) -> RpcResult<String> {
-    let property =
-        StorageProperty::CustomProperty(app_id.clone().into(), KEY_FIREBOLT_DEVICE_UID.into());
+    let data = StoragePropertyData {
+        scope: Some(SCOPE_DEVICE.to_string()),
+        key: KEY_FIREBOLT_DEVICE_UID, // Static string literal
+        namespace: app_id.clone(),
+        value: String::new(),
+    };
 
-    // get the UID from storage
-    if let Ok(uid) =
-        StorageManager::get_string(state, property.clone(), Some(SCOPE_DEVICE.to_string())).await
-    {
+    // Attempt to get the UID from storage
+    if let Ok(uid) = StorageManager::get_string_for_scope(state, &data).await {
         return Ok(uid);
     }
 
@@ -214,30 +216,23 @@ pub async fn get_uid(state: &PlatformState, app_id: String) -> RpcResult<String>
         .get_persisted_migrated_state_for_app_id(&app_id)
         .is_some()
     {
-        // generate a new UID and store it
         let uid = Uuid::new_v4().to_string();
-        StorageManager::set_string(
-            state,
-            property,
-            uid.clone(),
-            None,
-            Some(SCOPE_DEVICE.to_string()),
-        )
-        .await?;
+        let mut new_data = data.clone();
+        new_data.value = uid.clone();
+        StorageManager::set_string_for_scope(state, &new_data, None).await?;
         return Ok(uid);
     }
 
-    // get the device ID
+    // Fetch and handle the device ID
     let device_id = get_device_id(state)
         .await
         .map_err(|_| rpc_err("parse error"))?;
-
     // check if the state supports encoding
     if state.supports_encoding() {
         let response = state
             .get_client()
             .send_extn_request(EncoderRequest {
-                reference: device_id.clone(),
+                reference: device_id,
                 scope: app_id.clone(),
             })
             .await;
@@ -246,14 +241,9 @@ pub async fn get_uid(state: &PlatformState, app_id: String) -> RpcResult<String>
             if let Some(ExtnResponse::String(enc_device_id)) =
                 resp.payload.extract::<ExtnResponse>()
             {
-                StorageManager::set_string(
-                    state,
-                    property,
-                    enc_device_id.clone(),
-                    None,
-                    Some(SCOPE_DEVICE.to_string()),
-                )
-                .await?;
+                let mut new_data = data.clone();
+                new_data.value = enc_device_id.clone();
+                StorageManager::set_string_for_scope(state, &new_data, None).await?;
                 state
                     .app_manager_state
                     .persist_migrated_state(&app_id, DEVICE_UID.to_string());
@@ -288,11 +278,11 @@ pub async fn get_ll_mac_addr(state: PlatformState) -> RpcResult<String> {
 }
 
 pub async fn set_device_name(state: &PlatformState, prop: SetStringProperty) -> RpcResult<()> {
-    StorageManager::set_string(state, StorageProperty::DeviceName, prop.value, None, None).await
+    StorageManager::set_string(state, StorageProperty::DeviceName, prop.value, None).await
 }
 
 pub async fn get_device_name(state: &PlatformState) -> RpcResult<String> {
-    StorageManager::get_string(state, StorageProperty::DeviceName, None).await
+    StorageManager::get_string(state, StorageProperty::DeviceName).await
 }
 
 #[derive(Debug)]
