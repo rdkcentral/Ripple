@@ -371,7 +371,7 @@ impl Default for DefaultValues {
             skip_restriction: "none".to_string(),
             video_dimensions: default_video_dimensions(),
             media_progress_as_watched_events: false,
-            accessibility_audio_description_settings: false
+            accessibility_audio_description_settings: false,
         }
     }
 }
