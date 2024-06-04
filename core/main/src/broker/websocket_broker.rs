@@ -15,6 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use crate::utils::rpc_utils::extract_tcp_port;
+
 use super::{
     endpoint_broker::{BrokerCallback, BrokerSender, EndpointBroker},
     rules_engine::RuleEndpoint,
@@ -29,16 +31,6 @@ use tokio_tungstenite::client_async;
 
 pub struct WebsocketBroker {
     sender: BrokerSender,
-}
-
-fn extract_tcp_port(url: &str) -> String {
-    let url_split: Vec<&str> = url.split("://").collect();
-    if let Some(domain) = url_split.get(1) {
-        let domain_split: Vec<&str> = domain.split('/').collect();
-        domain_split.first().unwrap().to_string()
-    } else {
-        url.to_owned()
-    }
 }
 
 impl WebsocketBroker {

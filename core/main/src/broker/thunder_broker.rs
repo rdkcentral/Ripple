@@ -1,3 +1,5 @@
+use crate::utils::rpc_utils::extract_tcp_port;
+
 // Copyright 2023 Comcast Cable Communications Management, LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,16 +35,6 @@ use std::{
 };
 use tokio_tungstenite::client_async;
 
-fn extract_tcp_port(url: &str) -> String {
-    let url_split: Vec<&str> = url.split("://").collect();
-    if let Some(domain) = url_split.get(1) {
-        let domain_split: Vec<&str> = domain.split('/').collect();
-        domain_split.first().unwrap().to_string()
-    } else {
-        url.to_owned()
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct ThunderBroker {
     sender: BrokerSender,
@@ -65,12 +57,19 @@ impl ThunderBroker {
             let url = url::Url::parse(&endpoint.url).unwrap();
             let port = extract_tcp_port(&endpoint.url);
             info!("Url host str {}", url.host_str().unwrap());
+            let mut index = 0;
             //let tcp_url = url.host_str()
             let tcp = loop {
                 if let Ok(v) = TcpStream::connect(&port).await {
                     break v;
                 } else {
-                    error!("Broker Wait for a sec and retry {}", port);
+                    if (index % 10).eq(&0) {
+                        error!(
+                            "Thunder Broker failed with retry for last {} secs in {}",
+                            index, port
+                        );
+                    }
+                    index += 1;
                     tokio::time::sleep(Duration::from_secs(1)).await;
                 }
             };
