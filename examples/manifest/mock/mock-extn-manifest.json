@@ -113,24 +113,5 @@
         "device.model": [
             "custom.model"
         ]
-    },
-    "passthrough_rpcs": {
-        "endpoints": [
-           {
-	            "url": "ws://127.0.0.1:9998/jsonrpc",
-	            "protocol": "thunder",
-                "rpcs": [
-                    { 
-                        "matcher":"HDMIInput.*",
-                        "transformer": {
-                            "HDMIInput.onAutoLowLatencyModeSignalChanged": {
-                                "module":"org.rdk.HdmiInput",
-                                "method": "gameFeatureStatusUpdate"
-                            }
-                        }
-                    }
-                ]
-	        }
-        ]
     }
 }
