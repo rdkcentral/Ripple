@@ -46,7 +46,7 @@ serde_json = { version = "1.0", default-features = false}
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.37.0", default-features = false }
 tokio-tungstenite = { version = "0.20.1", default-features = false }
-url = { version = "2.2.2", default-features = false}
+url = { version = "=2.5.0", default-features = false}
 urlencoding = { version = "2.1.0", default-features = false}
 uuid = { version = "1.1.2", default-features = false }
 ripple_sdk = { path = "./core/sdk" }

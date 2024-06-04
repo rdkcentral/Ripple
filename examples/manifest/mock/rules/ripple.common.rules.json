@@ -1,0 +1,57 @@
+{
+    "endpoints": {
+        "thunder": {
+            "protocol": "thunder",
+            "url": "ws://127.0.0.1:9998/jsonrpc"
+        }
+    },
+    "rules": {
+        "localization.countryCode": {
+            "alias": "org.rdk.System.getTerritory",
+            "transform": {
+                "response": "if .territory == \"ITA\" then \"IT\" elif .territory==\"GBR\" then \"UK\" else \"US\" end"
+            }
+        },
+        "localization.setCountryCode": {
+            "alias": "org.rdk.System.setTerritory",
+            "transform": {
+                "request": "if .value==\"IT\" then { territory: \"ITA\", \"region\":\"EU-IT\" } else  { territory: \"GBR\", \"region\":\"GB-EN\" } end",
+                "response": "if .success then \"null\" else { code: -32100, message: \"couldnt set countrycode\" } end"
+            }
+        },
+        "localization.onCountryCodeChanged": {
+            "alias": "org.rdk.System.onTerritoryChanged",
+            "transform": {
+                "event": "if .newTerritory==\"ITA\" then \"IT\" else  \"UK\" end"
+            }
+        },
+        "securestorage.get": {
+            "alias": "org.rdk.PersistentStore.1.getValue",
+            "transform": {
+                "request": "{ namespace: \"$context.appId\", scope: .scope, key: .key }",
+                "response": ".value"
+            }
+        },
+        "securestorage.set": {
+            "alias": "org.rdk.PersistentStore.1.setValue",
+            "transform": {
+                "request": "{ namespace: \"$context.appId\", scope: .scope, key: .key, value: .value }",
+                "response": "if .success then \"null\" else { code: -32100, message: \"couldnt set timezone\" } end"
+            }
+        },
+        "secureStorage.remove": {
+            "alias": "org.rdk.PersistentStore.1.deleteKey",
+            "transform": {
+                "request": "{ namespace: \"$context.appId\", scope: .scope, key: .key }",
+                "response": "if .success then \"null\" else { code: -32100, message: \"couldnt set timezone\" } end"
+            }
+        },
+        "secureStorage.clear": {
+            "alias": "org.rdk.PersistentStore.1.deleteNamespace",
+            "transform": {
+                "request": "{ namespace: \"$context.appId\", scope: .scope}",
+                "response": "if .success then \"null\" else { code: -32100, message: \"couldnt set timezone\" } end"
+            }
+        }
+    }
+}

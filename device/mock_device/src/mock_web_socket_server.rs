@@ -326,14 +326,15 @@ impl MockWebSocketServer {
                         data: json!({"jsonrpc": "2.0", "id": id, "result": [{"state": "activated"}]}),
                     }]);
                 } else if let Some(v) = self.responses_for_key_v2(&request) {
-                    if v.params.is_some() {
-                        if let Ok(t) = serde_json::from_value::<ThunderRegisterParams>(
-                            v.clone().params.unwrap(),
-                        ) {
-                            return Some(v.get_all(Some(id), Some(t)));
+                    if v.events.is_some() {
+                        if let Some(params) = request.params {
+                            if let Ok(t) =
+                                serde_json::from_value::<ThunderRegisterParams>(params.clone())
+                            {
+                                return Some(v.get_all(Some(id), Some(t)));
+                            }
                         }
                     }
-
                     return Some(v.get_all(Some(id), None));
                 }
                 return Some(vec![ResponseSink {
@@ -359,8 +360,14 @@ impl MockWebSocketServer {
             if v.len() == 1 {
                 return v.first().cloned();
             } else if let Some(params) = &req.params {
+                let mut new_params = params.clone();
+                if req.method.ends_with(".register") {
+                    if let Some(v) = params.get("event").cloned() {
+                        new_params = json!({"event": v})
+                    }
+                }
                 for response in v {
-                    if response.get_key(params).is_some() {
+                    if response.get_key(&new_params).is_some() {
                         return Some(response);
                     }
                 }

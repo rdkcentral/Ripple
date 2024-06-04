@@ -100,6 +100,7 @@ impl AllowAppContentAdTargetingSettings {
         .collect()
     }
 }
+
 impl Default for AllowAppContentAdTargetingSettings {
     fn default() -> Self {
         Self {
