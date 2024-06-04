@@ -55,38 +55,54 @@ async fn test_device_set_persistent_value(with_scope: bool) {
         .using_plugin("websockets", None)
         .await;
 
-    // let mut scope = "matching(type, '')".to_string();
-    // if with_scope {
-    //     scope = "matching(type, 'testScope')".to_string();
-    // }
+    let scope = if with_scope {
+        "matching(type, 'testScope')"
+    } else {
+        "matching(type, '')"
+    };
+
+    let mut request_params = json!({
+        "namespace": "matching(type, 'testNamespace')",
+        "key": "matching(type, 'testKey')",
+        "value": {
+            "update_time": "matching(type, '2023-07-20T14:20:06.477058+00:00')",
+            "value": "matching(type, 'testValue1')"
+        }
+    });
+
+    if with_scope {
+        request_params["scope"] = json!(scope);
+    }
 
     pact_builder_async
-        .synchronous_message_interaction("A request to set the persistent value in device", |mut i| async move {
-            i.contents_from(json!({
-                "pact:content-type": "application/json",
-                "request": {"jsonrpc": "matching(type, '2.0')", 
-                    "id": "matching(integer, 0)", 
-                    "method": "org.rdk.PersistentStore.1.setValue", 
-                    "params": {"namespace": "matching(type, 'testNamespace')", 
-                        "key": "matching(type, 'testKey')", 
-                        "value": {"update_time":r"matching(type, '2023-07-20T14:20:06.477058+00:00')","value":"matching(type, 'testValue1')"},
-                    }
-                },
-                "requestMetadata": {
-                    "path": "/jsonrpc"
-                },
-                "response": [{
-                    "jsonrpc": "matching(type, '2.0')",
-                    "id": "matching(integer, 0)",
-                    "result": {
-                        "success": "matching(boolean, true)"
-                    }
-                }]
-            })).await;
-            i.test_name("set_device_stored_persistent_value");
+        .synchronous_message_interaction(
+            "A request to set the persistent value in device",
+            |mut i| async move {
+                i.contents_from(json!({
+                    "pact:content-type": "application/json",
+                    "request": {"jsonrpc": "matching(type, '2.0')",
+                        "id": "matching(integer, 0)",
+                        "method": "org.rdk.PersistentStore.1.setValue",
+                        "params": request_params,
+                    },
+                    "requestMetadata": {
+                        "path": "/jsonrpc"
+                    },
+                    "response": [{
+                        "jsonrpc": "matching(type, '2.0')",
+                        "id": "matching(integer, 0)",
+                        "result": {
+                            "success": "matching(boolean, true)"
+                        }
+                    }]
+                }))
+                .await;
+                i.test_name("set_device_stored_persistent_value");
 
-            i
-        }).await;
+                i
+            },
+        )
+        .await;
 
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
