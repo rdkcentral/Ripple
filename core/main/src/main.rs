@@ -23,6 +23,7 @@ use ripple_sdk::{
 };
 use state::bootstrap_state::BootstrapState;
 pub mod bootstrap;
+pub mod broker;
 pub mod firebolt;
 pub mod processor;
 pub mod service;

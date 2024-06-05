@@ -46,6 +46,7 @@ impl ParamResponse {
     pub fn get_key(&self, key: &Value) -> Option<Self> {
         match &self.params {
             Some(v) => {
+                debug!("get_key check {:?}={:?}", v, key);
                 if v.eq(key) {
                     return Some(self.clone());
                 }
