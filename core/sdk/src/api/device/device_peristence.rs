@@ -75,6 +75,7 @@ pub struct SetF32Property {
 pub struct GetStorageProperty {
     pub namespace: String,
     pub key: String,
+    pub scope: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -82,6 +83,7 @@ pub struct SetStorageProperty {
     pub namespace: String,
     pub key: String,
     pub data: StorageData,
+    pub scope: Option<String>,
 }
 
 pub type DeleteStorageProperty = GetStorageProperty;
@@ -121,6 +123,7 @@ mod tests {
         let get_request = GetStorageProperty {
             namespace: String::from("example_namespace"),
             key: String::from("example_key"),
+            scope: None,
         };
 
         let device_persistence_get_request = DevicePersistenceRequest::Get(get_request);
