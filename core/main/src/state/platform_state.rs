@@ -35,6 +35,7 @@ use ripple_sdk::{
 use std::collections::HashMap;
 
 use crate::{
+    broker::{endpoint_broker::EndpointBrokerState, rules_engine::RuleEngine},
     firebolt::rpc_router::RouterState,
     service::{
         apps::{
@@ -105,6 +106,7 @@ pub struct PlatformState {
     pub device_session_id: DeviceSessionIdentifier,
     pub ripple_cache: RippleCache,
     pub version: Option<String>,
+    pub endpoint_state: EndpointBrokerState,
 }
 
 impl PlatformState {
@@ -116,6 +118,8 @@ impl PlatformState {
         version: Option<String>,
     ) -> PlatformState {
         let exclusory = ExclusoryImpl::get(&manifest);
+        let broker_sender = client.get_broker_sender();
+        let rule_engine = RuleEngine::build(&extn_manifest);
         Self {
             extn_manifest,
             cap_state: CapState::new(manifest.clone()),
@@ -133,6 +137,7 @@ impl PlatformState {
             device_session_id: DeviceSessionIdentifier::default(),
             ripple_cache: RippleCache::default(),
             version,
+            endpoint_state: EndpointBrokerState::new(broker_sender, rule_engine),
         }
     }
 
