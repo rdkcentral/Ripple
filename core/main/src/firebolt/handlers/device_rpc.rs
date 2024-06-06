@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, env, time::Duration};
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
@@ -28,6 +28,7 @@ use crate::{
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
+    types::error::CallError,
     RpcModule,
 };
 use ripple_sdk::{
@@ -46,19 +47,25 @@ use ripple_sdk::{
             },
         },
         distributor::distributor_encoder::EncoderRequest,
-        firebolt::fb_general::{ListenRequest, ListenerResponse},
+        firebolt::{
+            fb_capabilities::CAPABILITY_NOT_SUPPORTED,
+            fb_general::{ListenRequest, ListenerResponse},
+        },
         gateway::rpc_gateway_api::CallContext,
         session::{AccountSessionRequest, ProvisionRequest},
         storage_property::{
-            StorageProperty, EVENT_DEVICE_DEVICE_NAME_CHANGED, EVENT_DEVICE_NAME_CHANGED,
+            StorageProperty, StoragePropertyData, EVENT_DEVICE_DEVICE_NAME_CHANGED,
+            EVENT_DEVICE_NAME_CHANGED, KEY_FIREBOLT_DEVICE_UID, SCOPE_DEVICE,
         },
     },
     extn::extn_client_message::ExtnResponse,
     log::error,
     tokio::time::timeout,
+    uuid::Uuid,
 };
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
+pub const DEVICE_UID: &str = "device.uid";
 
 // #[derive(Serialize, Clone, Debug, Deserialize)]
 // #[serde(rename_all = "camelCase")]
@@ -190,27 +197,65 @@ pub async fn get_device_id(state: &PlatformState) -> RpcResult<String> {
 }
 
 pub async fn get_uid(state: &PlatformState, app_id: String) -> RpcResult<String> {
-    if let Ok(device_id) = get_device_id(state).await {
-        if state.supports_encoding() {
-            if let Ok(resp) = state
-                .get_client()
-                .send_extn_request(EncoderRequest {
-                    reference: device_id.clone(),
-                    scope: app_id,
-                })
-                .await
+    let data = StoragePropertyData {
+        scope: Some(SCOPE_DEVICE.to_string()),
+        key: KEY_FIREBOLT_DEVICE_UID, // Static string literal
+        namespace: app_id.clone(),
+        value: String::new(),
+    };
+
+    // Attempt to get the UID from storage
+    if let Ok(uid) = StorageManager::get_string_for_scope(state, &data).await {
+        return Ok(uid);
+    }
+
+    // check if the app has been migrated
+    if state
+        .app_manager_state
+        .get_persisted_migrated_state_for_app_id(&app_id)
+        .is_some()
+    {
+        let uid = Uuid::new_v4().to_string();
+        let mut new_data = data.clone();
+        new_data.value = uid.clone();
+        StorageManager::set_string_for_scope(state, &new_data, None).await?;
+        return Ok(uid);
+    }
+
+    // Fetch and handle the device ID
+    let device_id = get_device_id(state)
+        .await
+        .map_err(|_| rpc_err("parse error"))?;
+    // check if the state supports encoding
+    if state.supports_encoding() {
+        let response = state
+            .get_client()
+            .send_extn_request(EncoderRequest {
+                reference: device_id,
+                scope: app_id.clone(),
+            })
+            .await;
+
+        if let Ok(resp) = response {
+            if let Some(ExtnResponse::String(enc_device_id)) =
+                resp.payload.extract::<ExtnResponse>()
             {
-                if let Some(ExtnResponse::String(enc_device_id)) =
-                    resp.payload.extract::<ExtnResponse>()
-                {
-                    return Ok(enc_device_id);
-                }
+                let mut new_data = data.clone();
+                new_data.value = enc_device_id.clone();
+                StorageManager::set_string_for_scope(state, &new_data, None).await?;
+                state
+                    .app_manager_state
+                    .persist_migrated_state(&app_id, DEVICE_UID.to_string());
+                return Ok(enc_device_id);
             }
         }
-        Ok(device_id)
-    } else {
-        Err(rpc_err("parse error"))
     }
+
+    Err(jsonrpsee::core::Error::Call(CallError::Custom {
+        code: CAPABILITY_NOT_SUPPORTED,
+        message: "capability device:uid is not supported".to_string(),
+        data: None,
+    }))
 }
 
 pub async fn get_ll_mac_addr(state: PlatformState) -> RpcResult<String> {

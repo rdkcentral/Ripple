@@ -23,7 +23,7 @@ use ripple_sdk::{
             SetStorageProperty, StorageData,
         },
         firebolt::fb_capabilities::CAPABILITY_NOT_AVAILABLE,
-        storage_property::StorageProperty,
+        storage_property::{StorageProperty, StoragePropertyData},
     },
     extn::extn_client_message::ExtnResponse,
     log::debug,
@@ -118,6 +118,7 @@ impl StorageManager {
             data.namespace.to_string(),
             data.key.to_string(),
             json!(value),
+            None,
             data.event_names,
             context,
         )
@@ -136,12 +137,30 @@ impl StorageManager {
 
     pub async fn get_string(state: &PlatformState, property: StorageProperty) -> RpcResult<String> {
         let data = property.as_data();
-        match StorageManager::get_string_from_namespace(state, data.namespace.to_string(), data.key)
-            .await
+        match StorageManager::get_string_from_namespace(
+            state,
+            data.namespace.to_string(),
+            data.key,
+            None,
+        )
+        .await
         {
             Ok(resp) => Ok(resp.as_value()),
             Err(_) => Err(StorageManager::get_firebolt_error(&property)),
         }
+    }
+
+    pub async fn get_string_for_scope(
+        state: &PlatformState,
+        data: &StoragePropertyData,
+    ) -> RpcResult<String> {
+        let namespace = data.namespace.clone();
+        let scope = data.scope.clone();
+
+        StorageManager::get_string_from_namespace(state, namespace, data.key, scope)
+            .await
+            .map(|resp| resp.as_value())
+            .map_err(|_| StorageManager::get_firebolt_error_namespace(&data.namespace, data.key))
     }
 
     pub async fn get_map(
@@ -237,15 +256,46 @@ impl StorageManager {
             data.namespace.to_string(),
             data.key.to_string(),
             json!(value),
+            None,
             data.event_names,
             context,
         )
         .await
         .is_err()
         {
-            return Err(StorageManager::get_firebolt_error(&property));
+            Err(StorageManager::get_firebolt_error(&property))
+        } else {
+            Ok(())
         }
-        Ok(())
+    }
+
+    pub async fn set_string_for_scope(
+        state: &PlatformState,
+        data: &StoragePropertyData,
+        context: Option<Value>,
+    ) -> RpcResult<()> {
+        let namespace = data.namespace.clone();
+        let value = data.value.clone();
+        let scope = data.scope.clone();
+
+        if StorageManager::set_in_namespace(
+            state,
+            namespace.clone(),
+            data.key.into(),
+            json!(value),
+            scope,
+            None,
+            context,
+        )
+        .await
+        .is_err()
+        {
+            Err(StorageManager::get_firebolt_error_namespace(
+                &namespace, data.key,
+            ))
+        } else {
+            Ok(())
+        }
     }
 
     pub async fn get_number_as_u32(
@@ -293,6 +343,7 @@ impl StorageManager {
             data.namespace.to_string(),
             data.key.to_string(),
             json!(value),
+            None,
             data.event_names,
             context,
         )
@@ -316,6 +367,7 @@ impl StorageManager {
             data.namespace.to_string(),
             data.key.to_string(),
             json!(value),
+            None,
             data.event_names,
             context,
         )
@@ -336,7 +388,7 @@ impl StorageManager {
         key: &'static str,
     ) -> Result<StorageManagerResponse<bool>, StorageManagerError> {
         debug!("get_bool: namespace={}, key={}", namespace, key);
-        let resp = StorageManager::get(state, &namespace, &key.to_string()).await;
+        let resp = StorageManager::get(state, &namespace, &key.to_string(), None).await;
         match storage_to_bool_rpc_result(resp) {
             Ok(value) => Ok(StorageManagerResponse::Ok(value)),
             Err(_) => {
@@ -356,11 +408,12 @@ impl StorageManager {
         namespace: String,
         key: String,
         value: Value,
+        scope: Option<String>,
         event_names: Option<&'static [&'static str]>,
         context: Option<Value>,
     ) -> Result<StorageManagerResponse<()>, StorageManagerError> {
         if let Ok(ExtnResponse::StorageData(storage_data)) =
-            StorageManager::get(state, &namespace, &key).await
+            StorageManager::get(state, &namespace, &key, scope.clone()).await
         {
             if storage_data.value.eq(&value) {
                 return Ok(StorageManagerResponse::NoChange(()));
@@ -375,6 +428,7 @@ impl StorageManager {
             namespace,
             key,
             data: StorageData::new(value.clone()),
+            scope,
         };
 
         match state
@@ -397,9 +451,10 @@ impl StorageManager {
         state: &PlatformState,
         namespace: String,
         key: &'static str,
+        scope: Option<String>,
     ) -> Result<StorageManagerResponse<String>, StorageManagerError> {
         debug!("get_string: namespace={}, key={}", namespace, key);
-        let resp = StorageManager::get(state, &namespace, &key.to_string()).await;
+        let resp = StorageManager::get(state, &namespace, &key.to_string(), scope).await;
         match storage_to_string_rpc_result(resp) {
             Ok(value) => Ok(StorageManagerResponse::Ok(value)),
             Err(_) => {
@@ -420,7 +475,7 @@ impl StorageManager {
         key: &'static str,
     ) -> Result<StorageManagerResponse<u32>, StorageManagerError> {
         debug!("get_string: namespace={}, key={}", namespace, key);
-        let resp = StorageManager::get(state, &namespace, &key.to_string()).await;
+        let resp = StorageManager::get(state, &namespace, &key.to_string(), None).await;
         match storage_to_u32_rpc_result(resp) {
             Ok(value) => Ok(StorageManagerResponse::Ok(value)),
             Err(_) => {
@@ -446,7 +501,7 @@ impl StorageManager {
             "get_number_as_f32_from_namespace: namespace={}, key={}",
             namespace, key
         );
-        let resp = StorageManager::get(state, &namespace, &key.to_string()).await;
+        let resp = StorageManager::get(state, &namespace, &key.to_string(), None).await;
 
         storage_to_f32_rpc_result(resp).map_or_else(
             |_| {
@@ -463,13 +518,19 @@ impl StorageManager {
         let mut result = Ok(());
         let data = property.as_data();
 
-        if let Ok(ExtnResponse::StorageData(_)) =
-            StorageManager::get(state, &data.namespace.to_string(), &data.key.to_string()).await
+        if let Ok(ExtnResponse::StorageData(_)) = StorageManager::get(
+            state,
+            &data.namespace.to_string(),
+            &data.key.to_string(),
+            None,
+        )
+        .await
         {
             result = match StorageManager::delete(
                 state,
                 &data.namespace.to_string(),
                 &data.key.to_string(),
+                None,
             )
             .await
             {
@@ -488,11 +549,13 @@ impl StorageManager {
         state: &PlatformState,
         namespace: &String,
         key: &String,
+        scope: Option<String>,
     ) -> Result<ExtnResponse, RippleError> {
         debug!("get: namespace={}, key={}", namespace, key);
         let data = GetStorageProperty {
             namespace: namespace.clone(),
             key: key.clone(),
+            scope,
         };
         let result = state
             .get_client()
@@ -511,15 +574,17 @@ impl StorageManager {
         }
     }
 
-    async fn delete(
+    pub async fn delete(
         state: &PlatformState,
         namespace: &String,
         key: &String,
+        scope: Option<String>,
     ) -> Result<ExtnResponse, RippleError> {
         debug!("delete: namespace={}, key={}", namespace, key);
         let data = DeleteStorageProperty {
             namespace: namespace.clone(),
             key: key.clone(),
+            scope,
         };
         let result = state
             .get_client()
@@ -546,6 +611,17 @@ impl StorageManager {
         })
     }
 
+    pub fn get_firebolt_error_namespace(
+        namespace: &String,
+        key: &'static str,
+    ) -> jsonrpsee::core::Error {
+        jsonrpsee::core::Error::Call(CallError::Custom {
+            code: CAPABILITY_NOT_AVAILABLE,
+            message: format!("{}.{} is not available", namespace, key),
+            data: None,
+        })
+    }
+
     pub async fn set_vec_string(
         state: &PlatformState,
         property: StorageProperty,
@@ -558,6 +634,7 @@ impl StorageManager {
             data.namespace.to_string(),
             data.key.to_string(),
             json!(value),
+            None,
             data.event_names,
             context,
         )
@@ -575,7 +652,13 @@ impl StorageManager {
     ) -> RpcResult<Vec<String>> {
         let data = property.as_data();
         storage_to_vec_string_rpc_result(
-            StorageManager::get(state, &data.namespace.to_string(), &data.key.to_string()).await,
+            StorageManager::get(
+                state,
+                &data.namespace.to_string(),
+                &data.key.to_string(),
+                None,
+            )
+            .await,
         )
     }
 

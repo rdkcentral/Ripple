@@ -33,6 +33,8 @@ pub struct ExtnManifest {
     pub required_contracts: Vec<String>,
     pub rpc_aliases: HashMap<String, Vec<String>>,
     pub timeout: Option<u64>,
+    #[serde(default)]
+    pub rules_path: Vec<String>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -187,6 +189,7 @@ mod tests {
                 required_contracts: vec![],
                 rpc_aliases: HashMap::new(),
                 timeout: Some(5000),
+                rules_path: Vec::new(),
             }
         }
     }
@@ -251,6 +254,7 @@ mod tests {
             required_contracts: vec![],
             rpc_aliases: HashMap::new(),
             timeout: None,
+            rules_path: Vec::new(),
         };
 
         assert_eq!(
