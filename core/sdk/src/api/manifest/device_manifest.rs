@@ -270,6 +270,8 @@ pub struct DefaultValues {
     pub lifecycle_transition_validate: bool,
     #[serde(default, rename = "mediaProgressAsWatchedEvents")]
     pub media_progress_as_watched_events: bool,
+    #[serde(default)]
+    pub accessibility_audio_description_settings: bool,
 }
 
 fn additional_info_default() -> HashMap<String, String> {
@@ -372,6 +374,7 @@ impl Default for DefaultValues {
             video_dimensions: default_video_dimensions(),
             lifecycle_transition_validate: false,
             media_progress_as_watched_events: false,
+            accessibility_audio_description_settings: false,
         }
     }
 }
@@ -713,6 +716,7 @@ pub(crate) mod tests {
                         // setting the value to true to simulate manifest override
                         lifecycle_transition_validate: true,
                         media_progress_as_watched_events: true,
+                        accessibility_audio_description_settings: false,
                     },
                     settings_defaults_per_app: HashMap::new(),
                     model_friendly_names: {
@@ -1049,5 +1053,16 @@ pub(crate) mod tests {
         )
         .unwrap();
         assert!(default_values.lifecycle_transition_validate);
+    }
+
+    #[test]
+    fn test_accessibility_audio_desc_settings_default_value() {
+        let manifest = DeviceManifest::mock();
+        assert!(
+            !manifest
+                .configuration
+                .default_values
+                .accessibility_audio_description_settings
+        );
     }
 }

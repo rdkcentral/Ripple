@@ -94,6 +94,10 @@ use crate::{
 };
 
 const APP_ID_TITLE_FILE_NAME: &str = "appInfo.json";
+const MIGRATED_APPS_FILE_NAME: &str = "migrations.json";
+const APP_ID_TITLE_DIR_NAME: &str = "app_info";
+const MIGRATED_APPS_DIR_NAME: &str = "apps";
+
 #[derive(Debug, Clone)]
 pub struct App {
     pub initial_session: AppSession,
@@ -115,68 +119,115 @@ pub struct AppManagerState {
     // This is a map <app_id, app_title>
     app_title: Arc<RwLock<HashMap<String, String>>>,
     app_title_persist_path: String,
+    // This is a map <app_id, app_migrated_state>
+    migrated_apps: Arc<RwLock<HashMap<String, Vec<String>>>>,
+    migrated_apps_persist_path: String,
 }
 
 impl AppManagerState {
     pub fn new(saved_dir: &str) -> Self {
-        let persist_path = Self::get_storage_path(saved_dir);
-        let persisted_app_titles = AppManagerState::load_persisted_app_titles(&persist_path);
+        let app_title_persist_path = Self::get_storage_path(saved_dir, APP_ID_TITLE_DIR_NAME);
+        let persisted_app_titles =
+            Self::load_persisted_data::<String>(&app_title_persist_path, APP_ID_TITLE_FILE_NAME);
+
+        let migrated_apps_persist_path = Self::get_storage_path(saved_dir, MIGRATED_APPS_DIR_NAME);
+        let persisted_migrated_apps = Self::load_persisted_data::<Vec<String>>(
+            &migrated_apps_persist_path,
+            MIGRATED_APPS_FILE_NAME,
+        );
+
         AppManagerState {
             apps: Arc::new(RwLock::new(HashMap::new())),
             intents: Arc::new(RwLock::new(HashMap::new())),
             app_title: Arc::new(RwLock::new(persisted_app_titles)),
-            app_title_persist_path: persist_path,
+            app_title_persist_path,
+            migrated_apps: Arc::new(RwLock::new(persisted_migrated_apps)),
+            migrated_apps_persist_path,
         }
     }
-    fn restore_app_info_from_storage(storage_path: &str) -> Result<Value, String> {
-        let file_path = std::path::Path::new(storage_path).join(APP_ID_TITLE_FILE_NAME);
 
+    fn restore_data_from_storage(storage_path: &str, file_name: &str) -> Result<Value, String> {
+        let file_path = std::path::Path::new(storage_path).join(file_name);
         let file = fs::OpenOptions::new()
             .read(true)
             .open(file_path)
-            .map_err(|error| format!("Failed to open AppInfo storage file: {}", error))?;
+            .map_err(|error| format!("Failed to open storage file: {}", error))?;
 
         let data: Value = serde_json::from_reader(&file)
-            .map_err(|error| format!("Failed to read data from AppInfo storage file: {}", error))?;
+            .map_err(|error| format!("Failed to read data from storage file: {}", error))?;
         Ok(data)
     }
-    fn load_persisted_app_titles(storage_path: &str) -> HashMap<String, String> {
+
+    fn load_persisted_data<T>(storage_path: &str, file_name: &str) -> HashMap<String, T>
+    where
+        T: serde::de::DeserializeOwned,
+    {
         // let storage_path = Self::get_storage_path(saved_dir);
-        let stored_value_res = Self::restore_app_info_from_storage(storage_path);
+        let stored_value_res = Self::restore_data_from_storage(storage_path, file_name);
         if let Ok(stored_value) = stored_value_res {
-            let map_res: Result<HashMap<String, String>, _> = serde_json::from_value(stored_value);
+            let map_res: Result<HashMap<String, T>, _> = serde_json::from_value(stored_value);
             map_res.unwrap_or_default()
         } else {
             HashMap::new()
         }
     }
-    fn get_storage_path(saved_dir: &str) -> String {
-        let mut path = std::path::Path::new(saved_dir).join("app_info");
+
+    fn get_storage_path(saved_dir: &str, dir_name: &str) -> String {
+        let mut path = std::path::Path::new(saved_dir).join(dir_name);
         if !path.exists() {
             if let Err(err) = fs::create_dir_all(path.clone()) {
                 error!(
-                    "Could not create directory {} for persisting app info err: {:?}, using /tmp/app_info/",
+                    "Could not create directory {} for persisting data err: {:?}, using /tmp/{}/",
                     path.display().to_string(),
-                    err
+                    err,
+                    dir_name
                 );
-                path =
-                    std::path::Path::new(&env::temp_dir().display().to_string()).join("app_info");
+
+                path = std::path::Path::new(&env::temp_dir().display().to_string()).join(dir_name);
+
                 if let Err(err) = fs::create_dir_all(path.clone()) {
                     error!(
-                        "Could not create directory {} for persisting app info err: {:?}, app title will persist in /tmp/",
+                        "Could not create directory {} for persisting data err: {:?}, data will persist in /tmp/",
                         path.display(),
                         err
                     );
-                } else {
                     path = std::path::Path::new("/tmp").to_path_buf();
                 }
             }
         }
+
         path.display().to_string()
     }
+
+    fn persist_data<T>(
+        &self,
+        data: &Arc<RwLock<HashMap<String, T>>>,
+        persist_path: &str,
+        file_name: &str,
+    ) -> bool
+    where
+        T: serde::Serialize + std::fmt::Debug,
+    {
+        let map = { data.read().unwrap() };
+        let path = std::path::Path::new(persist_path).join(file_name);
+        if let Ok(file) = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(path)
+        {
+            return serde_json::to_writer_pretty(&file, &serde_json::to_value(&*map).unwrap())
+                .is_ok();
+        } else {
+            error!("unable to create file: {}:", file_name);
+        }
+        false
+    }
+
     pub fn get_persisted_app_title_for_app_id(&self, app_id: &str) -> Option<String> {
         self.app_title.read().unwrap().get(app_id).cloned()
     }
+
     pub fn persist_app_title(&self, app_id: &str, title: &str) -> bool {
         {
             let _ = self
@@ -185,21 +236,30 @@ impl AppManagerState {
                 .unwrap()
                 .insert(app_id.to_owned(), title.to_owned());
         }
-        let map = { self.app_title.read().unwrap().clone() };
-        let path = std::path::Path::new(&self.app_title_persist_path).join(APP_ID_TITLE_FILE_NAME);
-        if let Ok(file) = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(path)
-        {
-            return serde_json::to_writer_pretty(&file, &serde_json::to_value(map).unwrap())
-                .is_ok();
-        } else {
-            error!("unable to create file: {}:", APP_ID_TITLE_FILE_NAME);
-        }
-        false
+        self.persist_data(
+            &self.app_title,
+            &self.app_title_persist_path,
+            APP_ID_TITLE_FILE_NAME,
+        )
     }
+
+    pub fn get_persisted_migrated_state_for_app_id(&self, app_id: &str) -> Option<Vec<String>> {
+        self.migrated_apps.read().unwrap().get(app_id).cloned()
+    }
+
+    pub fn persist_migrated_state(&self, app_id: &str, state: String) -> bool {
+        {
+            let mut migrated_apps = self.migrated_apps.write().unwrap();
+            let entry = migrated_apps.entry(app_id.to_owned()).or_default();
+            entry.push(state);
+        }
+        self.persist_data(
+            &self.migrated_apps,
+            &self.migrated_apps_persist_path,
+            MIGRATED_APPS_FILE_NAME,
+        )
+    }
+
     pub fn exists(&self, app_id: &str) -> bool {
         self.apps.read().unwrap().contains_key(app_id)
     }
