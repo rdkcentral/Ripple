@@ -193,8 +193,13 @@ impl LocalizationImpl {
         match StorageManager::get_string(state, StorageProperty::PostalCode).await {
             Ok(resp) => Some(resp),
             Err(_) => {
-                match StorageManager::get_string_from_namespace(state, app_id, KEY_POSTAL_CODE)
-                    .await
+                match StorageManager::get_string_from_namespace(
+                    state,
+                    app_id,
+                    KEY_POSTAL_CODE,
+                    None,
+                )
+                .await
                 {
                     Ok(resp) => Some(resp.as_value()),
                     Err(_) => None,
