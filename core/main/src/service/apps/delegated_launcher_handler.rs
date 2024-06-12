@@ -1376,6 +1376,8 @@ impl DelegatedLauncherHandler {
         }
 
         match (from, to) {
+            // Allow transitioning from initializing to only Inactive
+            (LifecycleState::Initializing, _) => to == LifecycleState::Inactive,
             // An app MUST NOT be transitioned to Suspended, or Unloaded (i.e. not running anymore)
             // from any state other than Inactive
             (_, LifecycleState::Suspended | LifecycleState::Unloading) => {
@@ -1412,6 +1414,35 @@ mod tests {
         assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
             LifecycleState::Foreground,
             LifecycleState::Foreground
+        ),);
+    }
+
+    #[test]
+    fn test_transition_from_initializing() {
+        // Initializing to Inactive
+        assert!(DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Initializing,
+            LifecycleState::Inactive
+        ),);
+        // Initializing to Foreground
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Initializing,
+            LifecycleState::Foreground
+        ),);
+        // Initializing to Background
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Initializing,
+            LifecycleState::Background
+        ),);
+        // Initializing to Suspended
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Initializing,
+            LifecycleState::Suspended
+        ),);
+        // Initializing to Unloading
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Initializing,
+            LifecycleState::Unloading
         ),);
     }
 
