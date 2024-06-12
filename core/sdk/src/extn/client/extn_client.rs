@@ -596,7 +596,26 @@ impl ExtnClient {
         Err(RippleError::ExtnError)
     }
 
+    pub async fn main_internal_request(
+        &mut self,
+        payload: impl ExtnPayloadProvider,
+    ) -> Result<ExtnMessage, RippleError> {
+        if !self.sender.get_cap().is_main() {
             return Err(RippleError::InvalidAccess)
+        }
+
+        let id = uuid::Uuid::new_v4().to_string();
+        let (tx, rx) = oneshot::channel();
+        add_single_processor(id.clone(), Some(tx), self.response_processors.clone());
+        let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
+        self.sender.send_request(id, payload, other_sender, Some(self.sender.tx.clone()))?;
+        if let Ok(r) = rx.await {
+            return Ok(r);
+        }
+
+        Err(RippleError::ExtnError)
+    }
+
     ///
     /// Same as request except will inspect the response payload for errors
     /// and place error in the returned result instead of in the payload
