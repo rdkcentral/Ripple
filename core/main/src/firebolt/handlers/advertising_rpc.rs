@@ -357,7 +357,7 @@ impl AdvertisingServer for AdvertisingImpl {
             &self.state,
             None,
             &durable_app_id,
-            &ctx
+            &ctx,
         )
         .await;
 

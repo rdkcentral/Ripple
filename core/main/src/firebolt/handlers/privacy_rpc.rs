@@ -100,19 +100,19 @@ impl AllowAppContentAdTargetingSettings {
             .main_internal_request(rpc_request.clone())
             .await;
 
-            let country_code = if let Ok(res) = resp.clone() {
-                if let Some(ExtnResponse::Value(val)) = res.payload.extract::<ExtnResponse>() {
-                    match from_value::<String>(val) {
-                        Ok(v) => v,
-                        Err(_) => "US".to_owned(),
-                    }
-                } else {
-                    "US".to_owned()
+        let country_code = if let Ok(res) = resp.clone() {
+            if let Some(ExtnResponse::Value(val)) = res.payload.extract::<ExtnResponse>() {
+                match from_value::<String>(val) {
+                    Ok(v) => v,
+                    Err(_) => "US".to_owned(),
                 }
             } else {
                 "US".to_owned()
-            };
-        
+            }
+        } else {
+            "US".to_owned()
+        };
+
         [
             (country_code == "US").then(|| (US_PRIVACY_KEY.to_owned(), self.us_privacy.to_owned())),
             Some((LMT_KEY.to_owned(), self.lmt.to_owned())),
