@@ -50,7 +50,6 @@ use ripple_sdk::{
         firebolt::{
             fb_capabilities::CAPABILITY_NOT_SUPPORTED,
             fb_general::{ListenRequest, ListenerResponse},
-            fb_openrpc::FireboltSemanticVersion,
         },
         gateway::rpc_gateway_api::CallContext,
         session::{AccountSessionRequest, ProvisionRequest},
@@ -355,15 +354,6 @@ impl DeviceServer for DeviceImpl {
     }
 
     async fn version(&self, ctx: CallContext) -> RpcResult<DeviceVersionResponse> {
-        let mut os = FireboltSemanticVersion::new(
-            env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap(),
-            env!("CARGO_PKG_VERSION_MINOR").parse().unwrap(),
-            env!("CARGO_PKG_VERSION_PATCH").parse().unwrap(),
-            "".to_string(),
-        );
-
-        os.readable = format!("Firebolt OS v{}", env!("CARGO_PKG_VERSION"));
-
         let firmware_info = self.firmware_info(ctx).await?;
         let open_rpc_state = self.state.clone().open_rpc_state;
         let api = open_rpc_state.get_open_rpc().info;
@@ -375,14 +365,11 @@ impl DeviceServer for DeviceImpl {
             api,
             firmware: firmware_info.version,
             os: os_ver,
-            debug: format!(
-                "{} ({})",
-                env!("CARGO_PKG_VERSION"),
-                self.state
-                    .version
-                    .clone()
-                    .unwrap_or(String::from(SEMVER_LIGHTWEIGHT))
-            ),
+            debug: self
+                .state
+                .version
+                .clone()
+                .unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string()),
         })
     }
 
