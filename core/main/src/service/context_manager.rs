@@ -47,21 +47,6 @@ impl ContextManager {
             warn!("No processor to set Session Token changed listener")
         }
 
-        // Setup the Internet Status listener
-        debug!("Subscribing for change in Internet connection Status");
-        if ps
-            .get_client()
-            .send_extn_request(DeviceEventRequest {
-                event: DeviceEvent::InternetConnectionStatusChanged,
-                subscribe: true,
-                callback_type: DeviceEventCallback::ExtnEvent,
-            })
-            .await
-            .is_err()
-        {
-            warn!("No processor to set Internet status listener")
-        }
-
         // Setup the Power status listener
         if ps
             .get_client()
@@ -120,33 +105,6 @@ impl ContextManager {
                 }
             }
 
-            debug!("Getting the current status of internet connection");
-            // Get Internet Connection state
-            if let Ok(resp) = ps_c
-                .get_client()
-                .send_extn_request(DeviceInfoRequest::OnInternetConnected(
-                    OnInternetConnectedRequest { timeout: 1000 },
-                ))
-                .await
-            {
-                ripple_sdk::log::debug!("[RIPPLE CONTEXT] Sending OnInternetConnected request");
-                if let Some(DeviceResponse::InternetConnectionStatus(s)) =
-                    resp.payload.extract::<DeviceResponse>()
-                {
-                    ripple_sdk::log::debug!(
-                        "[RIPPLE CONTEXT] OnInternetConnected response: {:?}",
-                        s
-                    );
-                    ps_c.get_client()
-                        .get_extn_client()
-                        .context_update(RippleContextUpdateRequest::InternetStatus(s));
-                } else {
-                    ripple_sdk::log::debug!(
-                        "[RIPPLE CONTEXT] OnInternetConnected response was NONE"
-                    );
-                }
-            }
-
             // Get Initial TimeZone
             if let Ok(resp) = ps_c
                 .get_client()
@@ -178,6 +136,50 @@ impl ContextManager {
                     ps_c.get_client()
                         .get_extn_client()
                         .context_update(RippleContextUpdateRequest::Token(account_token));
+                }
+            }
+
+            // Setup the Internet Status listener.
+            // Moved Network plugin subscribe request to a seperate task to avoid blocking the main bootstrap thread.
+            // This is required since Network plugin is taking a little longer than expected time for activation under certain scenarios.
+            debug!("Subscribing for change in Internet connection Status");
+            if ps_c
+                .get_client()
+                .send_extn_request(DeviceEventRequest {
+                    event: DeviceEvent::InternetConnectionStatusChanged,
+                    subscribe: true,
+                    callback_type: DeviceEventCallback::ExtnEvent,
+                })
+                .await
+                .is_err()
+            {
+                warn!("No processor to set Internet status listener")
+            }
+
+            debug!("Getting the current status of internet connection");
+            // Get Internet Connection state
+            if let Ok(resp) = ps_c
+                .get_client()
+                .send_extn_request(DeviceInfoRequest::OnInternetConnected(
+                    OnInternetConnectedRequest { timeout: 1000 },
+                ))
+                .await
+            {
+                ripple_sdk::log::debug!("[RIPPLE CONTEXT] Sending OnInternetConnected request");
+                if let Some(DeviceResponse::InternetConnectionStatus(s)) =
+                    resp.payload.extract::<DeviceResponse>()
+                {
+                    ripple_sdk::log::debug!(
+                        "[RIPPLE CONTEXT] OnInternetConnected response: {:?}",
+                        s
+                    );
+                    ps_c.get_client()
+                        .get_extn_client()
+                        .context_update(RippleContextUpdateRequest::InternetStatus(s));
+                } else {
+                    ripple_sdk::log::debug!(
+                        "[RIPPLE CONTEXT] OnInternetConnected response was NONE"
+                    );
                 }
             }
         });
