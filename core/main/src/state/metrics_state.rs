@@ -171,6 +171,7 @@ impl MetricsState {
             state,
             PERSISTENT_STORAGE_NAMESPACE.to_string(),
             key,
+            None,
         )
         .await
         {

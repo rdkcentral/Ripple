@@ -87,14 +87,19 @@ impl ThunderStorageRequestProcessor {
         req: ExtnMessage,
         data: DeleteStorageProperty,
     ) -> bool {
+        let mut params_json = json!({
+            "namespace": data.namespace,
+            "key": data.key,
+        });
+        if let Some(scope) = data.scope {
+            params_json
+                .as_object_mut()
+                .unwrap()
+                .insert("scope".to_string(), json!(scope));
+        }
+
+        let params = Some(DeviceChannelParams::Json(params_json.to_string()));
         let thunder_method = ThunderPlugin::PersistentStorage.method("deleteKey");
-        let params = Some(DeviceChannelParams::Json(
-            json!({
-                "namespace": data.namespace,
-                "key": data.key,
-            })
-            .to_string(),
-        ));
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -102,15 +107,17 @@ impl ThunderStorageRequestProcessor {
                 params,
             })
             .await;
-        let response = match response.message["success"].as_bool() {
-            Some(v) => ExtnResponse::Boolean(v),
-            None => ExtnResponse::Error(RippleError::InvalidOutput),
-        };
-        info!("thunder : {:?}", response);
 
-        Self::respond(state.get_client(), req, response)
-            .await
-            .is_ok()
+        match response.message["success"].as_bool() {
+            Some(success) => {
+                let response = ExtnResponse::Boolean(success);
+                info!("thunder : {:?}", response);
+                Self::respond(state.get_client(), req, response)
+                    .await
+                    .is_ok()
+            }
+            None => false,
+        }
     }
 
     #[allow(dead_code)]
@@ -161,14 +168,20 @@ impl ThunderStorageRequestProcessor {
     }
 
     async fn get_value(state: ThunderState, req: ExtnMessage, data: GetStorageProperty) -> bool {
-        let params = Some(DeviceChannelParams::Json(
-            serde_json::to_string(&json!({
-                "namespace": data.namespace,
-                "key": data.key,
-            }))
-            .unwrap(),
-        ));
+        let mut params_json = json!({
+            "namespace": data.namespace,
+            "key": data.key,
+        });
+        if let Some(scope) = data.scope {
+            params_json
+                .as_object_mut()
+                .unwrap()
+                .insert("scope".to_string(), json!(scope));
+        }
 
+        let params = Some(DeviceChannelParams::Json(
+            serde_json::to_string(&params_json).unwrap(),
+        ));
         let thunder_method = ThunderPlugin::PersistentStorage.method("getValue");
         let response = state
             .get_thunder_client()
@@ -229,15 +242,21 @@ impl ThunderStorageRequestProcessor {
     }
 
     async fn set_value(state: ThunderState, req: ExtnMessage, data: SetStorageProperty) -> bool {
-        let params = Some(DeviceChannelParams::Json(
-            serde_json::to_string(&json!({
-                "namespace": data.namespace,
-                "key": data.key,
-                "value": data.data,
-            }))
-            .unwrap(),
-        ));
+        let mut params_json = json!({
+            "namespace": data.namespace,
+            "key": data.key,
+            "value": data.data,
+        });
+        if let Some(scope) = data.scope {
+            params_json
+                .as_object_mut()
+                .unwrap()
+                .insert("scope".to_string(), json!(scope));
+        }
 
+        let params = Some(DeviceChannelParams::Json(
+            serde_json::to_string(&params_json).unwrap(),
+        ));
         let thunder_method = ThunderPlugin::PersistentStorage.method("setValue");
         let response = state
             .get_thunder_client()
@@ -247,6 +266,7 @@ impl ThunderStorageRequestProcessor {
             })
             .await;
         info!("{}", response.message);
+
         let response = match response.message["success"].as_bool() {
             Some(v) => ExtnResponse::Boolean(v),
             None => ExtnResponse::Error(RippleError::InvalidOutput),
