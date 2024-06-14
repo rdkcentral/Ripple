@@ -40,7 +40,7 @@ const CONTROLLER_CFG: Cfg = Cfg::new("Controller", false, true);
 const DEVICE_INFO_CFG: Cfg = Cfg::new("DeviceInfo", true, false);
 const DISPLAY_SETTINGS_CFG: Cfg = Cfg::new("org.rdk.DisplaySettings", true, false);
 const HDCP_CFG: Cfg = Cfg::new("org.rdk.HdcpProfile", true, false);
-const NETWORK_CFG: Cfg = Cfg::new("org.rdk.Network", true, false);
+const NETWORK_CFG: Cfg = Cfg::new("org.rdk.Network", false, false);
 const PERSISTENT_STORAGE_CFG: Cfg = Cfg::new("org.rdk.PersistentStore", false, false);
 const RDKSHELL_CFG: Cfg = Cfg::new("org.rdk.RDKShell", false, false);
 const REMOTE_CONTROL_CFG: Cfg = Cfg::new("org.rdk.RemoteControl", false, false);
@@ -48,7 +48,7 @@ const SYSTEM_CFG: Cfg = Cfg::new("org.rdk.System", true, false);
 const WIFI_CFG: Cfg = Cfg::new("org.rdk.Wifi", false, false);
 const LOCATION_SYNC: Cfg = Cfg::new("LocationSync", false, false);
 const TTS_CFG: Cfg = Cfg::new("org.rdk.TextToSpeech", false, true);
-const TELEMETRY_CFG: Cfg = Cfg::new("org.rdk.Telemetry", true, false);
+const TELEMETRY_CFG: Cfg = Cfg::new("org.rdk.Telemetry", false, false);
 const PACKAGE_MANAGER_CFG: Cfg = Cfg::new("org.rdk.PackageManager", false, false);
 
 impl ThunderPlugin {
@@ -158,7 +158,7 @@ mod tests {
     }
     #[test]
     fn test_thunder_plugin_activates() {
-        assert_eq!(ThunderPlugin::activate_on_boot_plugins().len(), 6);
+        assert_eq!(ThunderPlugin::activate_on_boot_plugins().len(), 4);
         assert_eq!(ThunderPlugin::expect_activated_plugins().len(), 2);
     }
     #[test]
