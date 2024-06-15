@@ -98,7 +98,7 @@ impl ExtnPayloadProvider for AppsRequest {
 }
 
 pub enum AppCatalogPoll {
-    CheckForUpdates
+    CheckForUpdates,
 }
 
 #[cfg(test)]
