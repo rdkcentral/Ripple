@@ -240,7 +240,7 @@ impl AccountLinkProcessor {
             app_resp_tx,
         );
         if let Err(e) = platform_state.get_client().send_app_request(app_request) {
-            error!("Send error for set_state {:?}", e);
+            error!("Send error for AppMethod::GetAppContentCatalog {:?}", e);
             return Err(RippleError::ProcessorError);
         }
         let resp = rpc_await_oneshot(app_resp_rx).await;
