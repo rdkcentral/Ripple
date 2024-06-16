@@ -596,6 +596,37 @@ impl ExtnClient {
         Err(RippleError::ExtnError)
     }
 
+    /// Subscribe method which accepts a impl [ExtnPayloadProvider] and a [MSender<ExtnMessage>]
+    /// As part of the subscription process it will automatically callback the Sender with the value recieved from the Publisher
+    pub async fn subscribe(
+        &mut self,
+        payload: impl ExtnPayloadProvider,
+        sender: MSender<ExtnMessage>,
+    ) -> RippleResponse {
+        add_vec_stream_processor(
+            payload.get_contract().as_clear_string(),
+            sender,
+            self.event_processors.clone(),
+        );
+        self.request_transient(payload)
+    }
+
+    // Unsubscribe is an antonym for subscribe accepts a impl [ExtnPayLoadProvider] and a [MSender<ExtnMessage]
+    pub async fn unsubscribe(
+        &mut self,
+        payload: impl ExtnPayloadProvider,
+        sender: MSender<ExtnMessage>,
+    ) -> RippleResponse {
+        if sender.is_closed() {
+            // send the unsubscription payload to the subscriber
+            self.request_transient(payload)
+        } else {
+            // if sender is closed automatically it gets cleaned up from event processors
+            error!("Expect sender to be closed before unsubscription");
+            Err(RippleError::InvalidInput)
+        }
+    }
+
     ///
     /// Same as request except will inspect the response payload for errors
     /// and place error in the returned result instead of in the payload
