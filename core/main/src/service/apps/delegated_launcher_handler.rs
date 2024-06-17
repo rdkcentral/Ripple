@@ -1149,6 +1149,27 @@ impl DelegatedLauncherHandler {
             return Err(AppError::UnexpectedState);
         }
 
+        // validate other transition cases
+        if self
+            .platform_state
+            .get_device_manifest()
+            .configuration
+            .default_values
+            .lifecycle_transition_validate
+        {
+            info!(
+                "Calling is_valid_lifecycle_transition for app_id:{} prev state:{:?} state{:?}",
+                app_id, previous_state, state
+            );
+            if !Self::is_valid_lifecycle_transition(previous_state, state) {
+                warn!(
+                    "set_state app_id:{} prev state:{:?} state{:?} Cannot transition",
+                    app_id, previous_state, state
+                );
+                return Err(AppError::UnexpectedState);
+            }
+        }
+
         if state == LifecycleState::Inactive || state == LifecycleState::Unloading {
             self.platform_state.clone().cap_state.grant_state.custom_delete_entries(app_id.into(), |grant_entry| -> bool {
                 !(matches!(&grant_entry.lifespan, Some(entry_lifespan) if entry_lifespan == &GrantLifespan::AppActive))
@@ -1346,5 +1367,226 @@ impl DelegatedLauncherHandler {
                 }
             }
         }
+    }
+
+    fn is_valid_lifecycle_transition(from: LifecycleState, to: LifecycleState) -> bool {
+        // Early exit, Not do the state transition when from and to States are the same
+        if from == to {
+            return false;
+        }
+
+        match (from, to) {
+            // Allow transitioning from initializing to only Inactive
+            (LifecycleState::Initializing, _) => to == LifecycleState::Inactive,
+            // An app MUST NOT be transitioned to Suspended, or Unloaded (i.e. not running anymore)
+            // from any state other than Inactive
+            (_, LifecycleState::Suspended | LifecycleState::Unloading) => {
+                from == LifecycleState::Inactive
+            }
+            // An app MUST NOT be transitioned (or immediate set to) Foreground
+            // without going through either Inactive or Background
+            (_, LifecycleState::Foreground) => {
+                from == LifecycleState::Inactive || from == LifecycleState::Background
+            }
+            // Transition from Suspended to only Inactive is allowed
+            (LifecycleState::Suspended, LifecycleState::Inactive) => true,
+            (LifecycleState::Suspended, _) => false,
+            // Do not allow transition to initializing from any other state.
+            (_, LifecycleState::Initializing) => false,
+            // No more state transitions are allowed from Unloading
+            (LifecycleState::Unloading, _) => false,
+            // Allow any other state transition
+            _ => true,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_same_state_transition() {
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Inactive,
+            LifecycleState::Inactive
+        ),);
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Foreground,
+            LifecycleState::Foreground
+        ),);
+    }
+
+    #[test]
+    fn test_transition_from_initializing() {
+        // Initializing to Inactive
+        assert!(DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Initializing,
+            LifecycleState::Inactive
+        ),);
+        // Initializing to Foreground
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Initializing,
+            LifecycleState::Foreground
+        ),);
+        // Initializing to Background
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Initializing,
+            LifecycleState::Background
+        ),);
+        // Initializing to Suspended
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Initializing,
+            LifecycleState::Suspended
+        ),);
+        // Initializing to Unloading
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Initializing,
+            LifecycleState::Unloading
+        ),);
+    }
+
+    #[test]
+    fn test_transition_from_inactive() {
+        // Inactive to Background
+        assert!(DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Inactive,
+            LifecycleState::Background
+        ),);
+        // Inactive to Foreground
+        assert!(DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Inactive,
+            LifecycleState::Foreground
+        ),);
+        // Inactive to Suspended
+        assert!(DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Inactive,
+            LifecycleState::Suspended
+        ),);
+        // Inactive to Unloading
+        assert!(DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Inactive,
+            LifecycleState::Unloading
+        ),);
+        // Inactive to Initializing
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Inactive,
+            LifecycleState::Initializing
+        ),);
+    }
+
+    #[test]
+    fn test_transition_from_foreground() {
+        // Foreground to Background
+        assert!(DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Foreground,
+            LifecycleState::Background
+        ),);
+        // Foreground to Inactive
+        assert!(DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Foreground,
+            LifecycleState::Inactive
+        ),);
+        // Foreground to Suspended
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Foreground,
+            LifecycleState::Suspended
+        ),);
+        // Foreground to Unloading
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Foreground,
+            LifecycleState::Unloading
+        ),);
+        // Foreground to Initializing
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Foreground,
+            LifecycleState::Initializing
+        ),);
+    }
+
+    #[test]
+    fn test_transition_from_background() {
+        // Background to Foreground
+        assert!(DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Background,
+            LifecycleState::Foreground
+        ),);
+        // Background to Inactive
+        assert!(DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Background,
+            LifecycleState::Inactive
+        ),);
+        // Background to Suspended
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Background,
+            LifecycleState::Suspended
+        ),);
+        // Background to Unloading
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Background,
+            LifecycleState::Unloading
+        ),);
+        // Background to Initializing
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Background,
+            LifecycleState::Initializing
+        ),);
+    }
+
+    #[test]
+    fn test_transition_from_suspended() {
+        // Suspended to Inactive
+        assert!(DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Suspended,
+            LifecycleState::Inactive
+        ),);
+        // Suspended to Foreground
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Suspended,
+            LifecycleState::Foreground
+        ),);
+        // Suspended to Background
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Suspended,
+            LifecycleState::Background
+        ),);
+        // Suspended to Unloading
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Suspended,
+            LifecycleState::Unloading
+        ),);
+        // Suspended to Initializing
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Suspended,
+            LifecycleState::Initializing
+        ),);
+    }
+    #[test]
+    fn test_transition_from_unloading() {
+        // Unloading to Inactive
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Unloading,
+            LifecycleState::Inactive
+        ),);
+        // Unloading to Foreground
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Unloading,
+            LifecycleState::Foreground
+        ),);
+        // Unloading to Background
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Unloading,
+            LifecycleState::Background
+        ),);
+        // Unloading to Suspended
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Unloading,
+            LifecycleState::Suspended
+        ),);
+        // Unloading to Initializing
+        assert!(!DelegatedLauncherHandler::is_valid_lifecycle_transition(
+            LifecycleState::Unloading,
+            LifecycleState::Initializing
+        ),);
     }
 }
