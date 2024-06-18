@@ -17,26 +17,219 @@
 
 use ripple_sdk::api::{
     firebolt::{
-        fb_capabilities::FireboltPermission,
+        fb_capabilities::{FireboltCap, FireboltPermission},
         fb_openrpc::{
             CapabilitySet, FireboltOpenRpc, FireboltOpenRpcMethod, FireboltVersionManifest,
             OpenRPCParser,
         },
+        provider::ProviderAttributes,
     },
     manifest::exclusory::{Exclusory, ExclusoryImpl},
 };
 use ripple_sdk::log::error;
 use ripple_sdk::{api::firebolt::fb_openrpc::CapabilityPolicy, serde_json};
+use serde_json::Value;
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
 };
+use tokio_tungstenite::tungstenite::http::method;
 
 #[derive(Debug, Clone)]
 pub enum ApiSurface {
     Firebolt,
     Ripple,
 }
+
+// <pca>
+#[derive(Debug, Clone, Default)]
+// pub struct ProviderSet {
+//     pub provides: Option<FireboltCap>,
+//     // <pca> Will need for request validation
+//     //pub request: Option<Value>,
+//     // </pca>
+//     pub response: Option<Value>,
+//     pub response_for: Option<String>,
+//     pub error: Option<Value>,
+//     pub error_for: Option<String>,
+//     pub allow_focus: Option<bool>,
+//     pub focus_for: Option<String>,
+//     pub attributes: Option<ProviderAttributes>,
+// }
+
+// impl ProviderSet {
+//     pub fn new() -> ProviderSet {
+//         ProviderSet {
+//             provides: None,
+//             response: None,
+//             response_for: None,
+//             error: None,
+//             error_for: None,
+//             allow_focus: None,
+//             focus_for: None,
+//             attributes: None,
+//         }
+//     }
+// }
+pub struct ProviderSet {
+    pub request: Option<FireboltOpenRpcMethod>,
+    pub focus: Option<FireboltOpenRpcMethod>,
+    pub response: Option<FireboltOpenRpcMethod>,
+    pub error: Option<FireboltOpenRpcMethod>,
+    pub attributes: Option<&'static ProviderAttributes>,
+}
+
+impl ProviderSet {
+    pub fn new() -> ProviderSet {
+        ProviderSet::default()
+    }
+
+    pub fn set_attributes(&mut self, attributes: &'static ProviderAttributes) {
+        self.attributes = Some(attributes);
+    }
+}
+
+// pub fn build_provider_sets(
+//     openrpc_methods: &Vec<FireboltOpenRpcMethod>,
+// ) -> HashMap<String, ProviderSet> {
+//     let mut provider_sets = HashMap::default();
+
+//     println!("*** _DEBUG: build_provider_sets: entry");
+
+//     for method in openrpc_methods {
+//         let mut has_x_provides = None;
+
+//         println!(
+//             "*** _DEBUG: build_provider_sets: method.name={:?}",
+//             method.name
+//         );
+
+//         if let Some(tags) = &method.tags {
+//             let mut has_event = false;
+//             let mut has_caps = false;
+//             let mut has_x_allow_focus_for = false;
+//             let mut has_x_response_for = false;
+//             let mut has_x_error_for = false;
+
+//             for tag in tags {
+//                 println!("*** _DEBUG: build_provider_sets: tag={:?}", tag);
+//                 if tag.name.eq("event") {
+//                     has_event = true;
+//                 } else if tag.name.eq("capabilities") {
+//                     has_caps = true;
+//                     has_x_provides = tag.get_provides();
+//                     has_x_allow_focus_for |= tag.allow_focus_for.is_some();
+//                     has_x_response_for |= tag.response_for.is_some();
+//                     has_x_error_for |= tag.error_for.is_some();
+//                 }
+//             }
+
+//             if let Some(p) = has_x_provides {
+//                 let mut provider_set = ProviderSet::new();
+
+//                 if has_event && has_caps {
+//                     provider_set.request = Some(method.clone());
+//                 }
+//                 if has_x_allow_focus_for {
+//                     provider_set.focus = Some(method.clone());
+//                 }
+//                 if has_x_response_for {
+//                     provider_set.response = Some(method.clone());
+//                 }
+//                 if has_x_error_for {
+//                     provider_set.error = Some(method.clone());
+//                 }
+
+//                 let module: Vec<&str> = method.name.split('.').collect();
+//                 provider_set.attributes = ProviderAttributes::get(&module[0]);
+
+//                 println!(
+//                     "*** _DEBUG: build_provider_sets: provider_set={:?}",
+//                     provider_set
+//                 );
+
+//                 provider_sets.insert(p.as_str(), provider_set.to_owned());
+//             }
+//         }
+//     }
+//     provider_sets
+// }
+pub fn build_provider_sets(
+    openrpc_methods: &Vec<FireboltOpenRpcMethod>,
+) -> HashMap<String, ProviderSet> {
+    let mut provider_sets = HashMap::default();
+
+    println!("*** _DEBUG: build_provider_sets: entry");
+
+    for method in openrpc_methods {
+        let mut has_x_provides = None;
+
+        // <pca> debug
+        if !method.name.starts_with("AcknowledgeChallenge.") {
+            continue;
+        }
+        // </pca>
+
+        println!(
+            "*** _DEBUG: build_provider_sets: method.name={:?}",
+            method.name
+        );
+
+        if let Some(tags) = &method.tags {
+            let mut has_event = false;
+            let mut has_caps = false;
+            let mut has_x_allow_focus_for = false;
+            let mut has_x_response_for = false;
+            let mut has_x_error_for = false;
+
+            for tag in tags {
+                println!("*** _DEBUG: build_provider_sets: tag={:?}", tag);
+                if tag.name.eq("event") {
+                    has_event = true;
+                } else if tag.name.eq("capabilities") {
+                    has_caps = true;
+                    has_x_provides = tag.get_provides();
+                    has_x_allow_focus_for |= tag.allow_focus_for.is_some();
+                    has_x_response_for |= tag.response_for.is_some();
+                    has_x_error_for |= tag.error_for.is_some();
+                }
+            }
+
+            if let Some(p) = has_x_provides {
+                //let mut provider_set = ProviderSet::new();
+                let mut provider_set = provider_sets
+                    .get(&p.as_str())
+                    .unwrap_or(&ProviderSet::new())
+                    .clone();
+
+                if has_event && has_caps {
+                    provider_set.request = Some(method.clone());
+                }
+                if has_x_allow_focus_for {
+                    provider_set.focus = Some(method.clone());
+                }
+                if has_x_response_for {
+                    provider_set.response = Some(method.clone());
+                }
+                if has_x_error_for {
+                    provider_set.error = Some(method.clone());
+                }
+
+                let module: Vec<&str> = method.name.split('.').collect();
+                provider_set.attributes = ProviderAttributes::get(&module[0]);
+
+                println!(
+                    "*** _DEBUG: build_provider_sets: provider_set={:?}",
+                    provider_set
+                );
+
+                provider_sets.insert(p.as_str(), provider_set.to_owned());
+            }
+        }
+    }
+    provider_sets
+}
+// </pca>
 
 #[derive(Debug, Clone)]
 pub struct OpenRpcState {
@@ -46,6 +239,9 @@ pub struct OpenRpcState {
     ripple_cap_map: Arc<RwLock<HashMap<String, CapabilitySet>>>,
     cap_policies: Arc<RwLock<HashMap<String, CapabilityPolicy>>>,
     extended_rpc: Arc<RwLock<Vec<FireboltOpenRpc>>>,
+    // <pca>
+    provider_map: Arc<RwLock<HashMap<String, ProviderSet>>>,
+    // </pca>
 }
 
 impl OpenRpcState {
@@ -74,8 +270,15 @@ impl OpenRpcState {
             ripple_cap_map: Arc::new(RwLock::new(ripple_open_rpc.get_methods_caps())),
             exclusory,
             cap_policies: Arc::new(RwLock::new(version_manifest.capabilities)),
-            open_rpc: firebolt_open_rpc,
+            // <pca>
+            //open_rpc: firebolt_open_rpc,
+            open_rpc: firebolt_open_rpc.clone(),
+            // </pca>
             extended_rpc: Arc::new(RwLock::new(Vec::new())),
+            // <pca>
+            //provider_map: Arc::new(RwLock::new(firebolt_open_rpc.get_methods_provider_set())),
+            provider_map: Arc::new(RwLock::new(build_provider_sets(&firebolt_open_rpc.methods))),
+            // </pca>
         }
     }
 
@@ -122,6 +325,7 @@ impl OpenRpcState {
                 result = Some(perm_list);
             }
         }
+        println!("*** _DEBUG: get_perms_for_method: result={:?}", result);
         result
     }
 
@@ -221,4 +425,10 @@ impl OpenRpcState {
     pub fn get_open_rpc(&self) -> FireboltOpenRpc {
         self.open_rpc.clone()
     }
+
+    // <pca>
+    pub fn get_provider_map(&self) -> HashMap<String, ProviderSet> {
+        self.provider_map.read().unwrap().clone()
+    }
+    // </pca>
 }

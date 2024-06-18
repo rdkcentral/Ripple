@@ -20,7 +20,10 @@
 pub mod handlers {
     pub mod accessory_rpc;
     pub mod account_rpc;
-    pub mod acknowledge_rpc;
+    // <pca>
+    //pub mod acknowledge_rpc;
+    pub mod provider_registrar;
+    // </pca>
     pub mod advertising_rpc;
     pub mod audio_description_rpc;
     pub mod authentication_rpc;

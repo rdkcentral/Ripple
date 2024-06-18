@@ -19,6 +19,7 @@ use std::collections::{HashMap, HashSet};
 
 use log::{debug, warn};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use super::fb_capabilities::{
     CapRequestRpcRequest, CapabilityRole, DenyReason, DenyReasonWithCap, FireboltCap,
@@ -314,6 +315,20 @@ pub struct FireboltOpenRpcTag {
     pub allow_value: Option<bool>,
     #[serde(rename = "x-setter-for")]
     pub setter_for: Option<String>,
+    // <pca>
+    #[serde(rename = "x-response")]
+    pub response: Option<Value>,
+    #[serde(rename = "x-response-for")]
+    pub response_for: Option<String>,
+    #[serde(rename = "x-error")]
+    pub error: Option<Value>,
+    #[serde(rename = "x-error-for")]
+    pub error_for: Option<String>,
+    #[serde(rename = "x-allow-focus")]
+    pub allow_focus: Option<bool>,
+    #[serde(rename = "x-allow-focus-for")]
+    pub allow_focus_for: Option<String>,
+    // </pca>
 }
 
 impl FireboltOpenRpcTag {
@@ -331,7 +346,10 @@ impl FireboltOpenRpcTag {
         None
     }
 
-    fn get_provides(&self) -> Option<FireboltCap> {
+    // <pca>
+    //fn get_provides(&self) -> Option<FireboltCap> {
+    pub fn get_provides(&self) -> Option<FireboltCap> {
+        // </pca>
         if let Some(caps) = self.provides.clone() {
             return Some(FireboltCap::Full(caps));
         }
@@ -371,6 +389,13 @@ impl FireboltOpenRpcMethod {
             method.to_string()
         }
     }
+
+    // <pca>
+    pub fn get_module(&self) -> &str {
+        let parts: Vec<&str> = self.name.split('.').collect();
+        parts[0]
+    }
+    // </pca>
 
     pub fn is_named(&self, method_name: &str) -> bool {
         FireboltOpenRpcMethod::name_with_lowercase_module(&self.name)

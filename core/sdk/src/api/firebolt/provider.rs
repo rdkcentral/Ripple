@@ -15,6 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::any::type_name;
+
 use serde::{Deserialize, Serialize};
 
 use crate::api::device::entertainment_data::{
@@ -39,6 +41,35 @@ pub enum ProviderRequestPayload {
     PurchasedContentRequest(PurchasedContentParameters),
     Generic(String),
 }
+
+// <pca>
+//#[derive(Debug, Clone, Serialize, Copy)]
+#[derive(Debug, Clone, Serialize)]
+
+pub enum ProviderResponsePayloadType {
+    ChallengeResponse,
+    ChallengeError,
+    PinChallengeResponse,
+    KeyboardResult,
+    EntityInfoResponse,
+    PurchasedContentResponse,
+}
+
+impl ToString for ProviderResponsePayloadType {
+    fn to_string(&self) -> String {
+        match self {
+            ProviderResponsePayloadType::ChallengeResponse => "ChallengeResponse".into(),
+            ProviderResponsePayloadType::ChallengeError => "ChallengeError".into(),
+            ProviderResponsePayloadType::PinChallengeResponse => "PinChallengeResponse".into(),
+            ProviderResponsePayloadType::KeyboardResult => "KeyboardResult".into(),
+            ProviderResponsePayloadType::EntityInfoResponse => "EntityInfoResponse".into(),
+            ProviderResponsePayloadType::PurchasedContentResponse => {
+                "PurchasedContentResponse".into()
+            }
+        }
+    }
+}
+// </pca>
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -98,6 +129,33 @@ impl ProviderResponsePayload {
     }
 }
 
+// <pca>
+impl ToString for ProviderResponsePayload {
+    fn to_string(&self) -> String {
+        match self {
+            ProviderResponsePayload::ChallengeResponse(_) => {
+                ProviderResponsePayloadType::ChallengeResponse.to_string()
+            }
+            ProviderResponsePayload::ChallengeError(_) => {
+                ProviderResponsePayloadType::ChallengeError.to_string()
+            }
+            ProviderResponsePayload::PinChallengeResponse(_) => {
+                ProviderResponsePayloadType::PinChallengeResponse.to_string()
+            }
+            ProviderResponsePayload::KeyboardResult(_) => {
+                ProviderResponsePayloadType::KeyboardResult.to_string()
+            }
+            ProviderResponsePayload::EntityInfoResponse(_) => {
+                ProviderResponsePayloadType::EntityInfoResponse.to_string()
+            }
+            ProviderResponsePayload::PurchasedContentResponse(_) => {
+                ProviderResponsePayloadType::PurchasedContentResponse.to_string()
+            }
+        }
+    }
+}
+// </pca>
+
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderRequest {
@@ -125,6 +183,39 @@ pub struct ExternalProviderResponse<T> {
     pub correlation_id: String,
     pub result: T,
 }
+
+// <pca>
+//#[derive(Debug, Clone, Serialize, Copy)]
+#[derive(Debug, Clone, Serialize)]
+
+pub struct ProviderAttributes {
+    pub event: &'static str,
+    //pub response_type: &'static str,
+    pub response_payload_type: ProviderResponsePayloadType,
+    //pub error_type: &'static str,
+    pub error_payload_type: ProviderResponsePayloadType,
+    pub capability: &'static str,
+    pub method: &'static str,
+}
+
+impl ProviderAttributes {
+    pub fn get(module: &str) -> Option<&'static ProviderAttributes> {
+        println!("*** _DEBUG: ProviderAttributes::get: name={}", module);
+        match module {
+            "AcknowledgeChallenge" => Some(&ACKNOWLEDGE_CHALLENGE_ATTRIBS),
+            _ => None,
+        }
+    }
+}
+
+pub const ACKNOWLEDGE_CHALLENGE_ATTRIBS: ProviderAttributes = ProviderAttributes {
+    event: ACK_CHALLENGE_EVENT,
+    response_payload_type: ProviderResponsePayloadType::ChallengeResponse,
+    error_payload_type: ProviderResponsePayloadType::ChallengeError,
+    capability: ACK_CHALLENGE_CAPABILITY,
+    method: "challenge",
+};
+// </pca>
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[cfg_attr(test, derive(PartialEq))]

@@ -170,6 +170,8 @@ impl FireboltGateway {
             let start = Utc::now().timestamp_millis();
             let result = FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await;
 
+            println!("FireboltGateway::handle: result={:?}", result);
+
             match result {
                 Ok(_) => {
                     if !platform_state

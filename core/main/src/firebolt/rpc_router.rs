@@ -84,13 +84,22 @@ async fn resolve_route(
     req: RpcRequest,
 ) -> Result<ApiMessage, RippleError> {
     info!("Routing {}", req.method);
+    println!(
+        "*** _DEBUG: Routing {}: resources={:?}",
+        req.method, resources
+    );
     let id = Id::Number(req.ctx.call_id);
     let (sink_tx, mut sink_rx) = futures_channel::mpsc::unbounded::<String>();
     let sink = MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES);
     let mut method_executors = Vec::new();
     let params = Params::new(Some(req.params_json.as_str()));
+    println!("*** _DEBUG: resolve_route: methods: {:?}", methods);
     match methods.method_with_name(&req.method) {
         None => {
+            println!(
+                "*** _DEBUG: resolve_route: method not found: {:?}",
+                req.method
+            );
             sink.send_error(id, ErrorCode::MethodNotFound.into());
         }
         Some((name, method)) => match &method.inner() {
@@ -107,6 +116,8 @@ async fn resolve_route(
                     let sink = sink.clone();
                     let id = id.into_owned();
                     let params = params.into_owned();
+
+                    println!("*** _DEBUG: resolve_route: params={:?}", params);
 
                     let fut = async move {
                         (callback)(id, params, sink, 1, Some(guard)).await;
@@ -145,6 +156,10 @@ impl RpcRouter {
             let method = req.method.clone();
             let app_id = req.ctx.app_id.clone();
             let start = Utc::now().timestamp_millis();
+            println!(
+                "*** _DEBUG: RpcRouter::route: method={}: Calling resolve_route",
+                method
+            );
             let resp = resolve_route(methods, resources, req.clone()).await;
 
             let status = match resp.clone() {
@@ -196,6 +211,7 @@ impl RpcRouter {
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
         tokio::spawn(async move {
+            println!("*** _DEBUG: route_extn_protocol: Calling resolve_route");
             if let Ok(msg) = resolve_route(methods, resources, req).await {
                 return_extn_response(msg, extn_msg);
             }

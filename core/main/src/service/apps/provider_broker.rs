@@ -117,6 +117,15 @@ impl ProviderResult {
 }
 
 impl ProviderBroker {
+    // <pca>
+    pub fn get_method(capability: &str) -> Option<String> {
+        match capability {
+            ACK_CHALLENGE_CAPABILITY => Some("challenge".into()),
+            _ => None,
+        }
+    }
+    // </pca>
+
     pub async fn register_or_unregister_provider(
         pst: &PlatformState,
         capability: String,
@@ -140,7 +149,10 @@ impl ProviderBroker {
         }
     }
 
-    pub async fn unregister_provider(
+    // <pca>
+    //pub async fn unregister_provider(
+    async fn unregister_provider(
+        // </pca>
         pst: &PlatformState,
         capability: String,
         method: String,
@@ -160,7 +172,10 @@ impl ProviderBroker {
         // TODO Add permissions
     }
 
-    pub async fn register_provider(
+    // <pca>
+    //pub async fn register_provider(
+    async fn register_provider(
+        // </pca>
         pst: &PlatformState,
         capability: String,
         method: String,
@@ -329,6 +344,31 @@ impl ProviderBroker {
             }
         }
     }
+
+    // <pca> added
+    // pub async fn new_provider_response<T>(pst: &PlatformState, resp: NewProviderResponse<T>) {
+    //     debug!("new_provider_response: entry");
+    //     let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
+    //     match active_sessions.remove(&resp.correlation_id) {
+    //         Some(session) => {
+    //             oneshot_send_and_log(session.caller.tx, resp.result, "ProviderResponse");
+    //             if session.focused {
+    //                 let app_id = session.provider.provider.app_id;
+    //                 let event = LifecycleManagementEventRequest::Provide(
+    //                     LifecycleManagementProviderEvent::Remove(app_id),
+    //                 );
+    //                 let client = pst.clone().get_client();
+    //                 if let Err(e) = client.send_event(event) {
+    //                     error!("send event error {:?}", e);
+    //                 }
+    //             }
+    //         }
+    //         None => {
+    //             error!("Ignored provider response because there was no active session waiting")
+    //         }
+    //     }
+    // }
+    // </pca>
 
     fn cleanup_caps_for_unregister(pst: &PlatformState, session_id: String) -> Vec<String> {
         let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
