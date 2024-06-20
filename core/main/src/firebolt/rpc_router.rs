@@ -93,7 +93,6 @@ async fn resolve_route(
     let sink = MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES);
     let mut method_executors = Vec::new();
     let params = Params::new(Some(req.params_json.as_str()));
-    println!("*** _DEBUG: resolve_route: methods: {:?}", methods);
     match methods.method_with_name(&req.method) {
         None => {
             println!(

@@ -17,7 +17,7 @@
 
 use std::{
     any::{Any, TypeId},
-    backtrace::Backtrace,
+    backtrace::{self, Backtrace},
     collections::HashMap,
     sync::Arc,
 };
@@ -30,7 +30,7 @@ use crate::{
 use futures_channel::mpsc::{self, Sender};
 use jsonrpsee::{
     core::{server::rpc_module::Methods, Error, RpcResult},
-    types::Params,
+    types::{error::CallError, Params},
     RpcModule,
 };
 use ripple_sdk::{
@@ -136,6 +136,11 @@ impl ProviderRegistrar {
                                     let request: ListenRequest = params_sequence.next().unwrap();
                                     let listening = request.listen;
 
+                                    println!(
+                                        "*** _DEBUG: backtrace: {}",
+                                        Backtrace::force_capture()
+                                    );
+
                                     ProviderBroker::register_or_unregister_provider(
                                         &platform_state,
                                         attributes.capability.into(),
@@ -177,7 +182,7 @@ impl ProviderRegistrar {
                                         request,
                                     )
                                     .await;
-                                    Ok(None)
+                                    Ok(None) as RpcResult<Option<()>>
                                 },
                             )
                             .unwrap();
@@ -197,21 +202,69 @@ impl ProviderRegistrar {
                                     let mut params_sequence = params.sequence();
                                     let call_context: CallContext = params_sequence.next().unwrap();
 
-                                    // <pca> YAH: Make this generic using ProviderAttributes </pca>
-                                    let resp: ExternalProviderResponse<ChallengeResponse> =
-                                        params_sequence.next().unwrap();
+                                    let provider_repsonse;
+                                    let response_param = params_sequence.next();
+                                    let resp: Result<ExternalProviderResponse<ChallengeResponse>, CallError> = response_param;
+                                    if let Ok(r) = resp {
+                                        // if let Ok(challenge_response) = r.downcast::<ExternalProviderResponse<ChallengeResponse>>() {
+                                        //     println!("*** _DEBUG: response: downcasted to ExternalProviderResponse<ChallengeResponse>");
+                                        // } else {
+                                        //     println!("*** _DEBUG: response: downcast failed");
+                                        // }
+                                        println!("*** _DEBUG: response: Got ExternalProviderResponse<ChallengeResponse>");
+                                        provider_repsonse = ProviderResponse {
+                                            correlation_id: r.correlation_id,
+                                            result: ProviderResponsePayload::ChallengeResponse(r.result),
+                                        };
 
-                                    ProviderBroker::provider_response(
-                                        &platform_state,
-                                        ProviderResponse {
-                                            correlation_id: resp.correlation_id,
-                                            result: ProviderResponsePayload::ChallengeResponse(
-                                                resp.result,
-                                            ),
-                                        },
-                                    )
-                                    .await;
-                                    Ok(None)
+                                        ProviderBroker::provider_response(
+                                            &platform_state,
+                                            ProviderResponse {
+                                                correlation_id: resp.correlation_id,
+                                                result: ProviderResponsePayload::ChallengeResponse(
+                                                    resp.result,
+                                                ),
+                                            },
+                                        )
+                                        .await;
+                                    } else {
+                                        println!("*** _DEBUG: response: Unexpected response type");
+                                    }
+
+                                    // let resp: ExternalProviderResponse<ChallengeResponse> =
+                                    //     params_sequence.next().unwrap();
+
+                                    // let resp: ExternalProviderResponse = params_sequence.next();
+
+                                    // match resp {
+                                    //     Ok(r) => {
+                                    //         if let Ok(r) = resp
+                                    //     .downcast::<ExternalProviderResponse<ChallengeResponse>>()
+                                    // {
+                                    //     println!(
+                                    //         "*** _DEBUG: response: downcasted to ChallengeResponse"
+                                    //     );
+                                    // } else {
+                                    //     println!("*** _DEBUG: response: downcast failed");
+                                    // }
+                                    //     }
+                                    //     Err(e) => {
+                                    //         println!("*** _DEBUG: response: error={}", e);
+                                    //     }
+                                    // }
+
+                                    // ProviderBroker::provider_response(
+                                    //     &platform_state,
+                                    //     ProviderResponse {
+                                    //         correlation_id: resp.correlation_id,
+                                    //         result: ProviderResponsePayload::ChallengeResponse(
+                                    //             resp.result,
+                                    //         ),
+                                    //     },
+                                    // )
+                                    // .await;
+
+                                    Ok(None) as RpcResult<Option<()>>
                                 },
                             )
                             .unwrap();
