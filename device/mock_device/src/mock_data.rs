@@ -273,8 +273,8 @@ mod tests {
             .data
             .get("error")
             .unwrap()
-            .as_array()
-            .unwrap()[0]
+            //.as_array()
+            //.unwrap()[0]
             .get("code")
             .unwrap()
             .as_i64()
