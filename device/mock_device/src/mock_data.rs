@@ -79,7 +79,7 @@ impl ParamResponse {
         if let Some(e) = self.error.clone() {
             sink_responses.push(ResponseSink {
                 delay: 0,
-                data: json!({"jsonrpc": "2.0", "id": id, "error": [e]}),
+                data: json!({"jsonrpc": "2.0", "id": id, "error": e}),
             });
         } else if let Some(v) = self.result.clone() {
             sink_responses.push(ResponseSink {

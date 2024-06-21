@@ -420,36 +420,43 @@ impl BrokerOutputForwarder {
                         {
                             let request_id = rpc_request.ctx.call_id;
                             v.data.id = Some(request_id);
-                            if let Some(result) = v.data.result.clone() {
-                                if is_event {
-                                    if let Some(filter) = broker_request
-                                        .rule
-                                        .transform
-                                        .get_filter(super::rules_engine::RuleTransformType::Event)
-                                    {
-                                        if let Ok(r) = jq_compile(
-                                            result,
-                                            &filter,
-                                            format!("{}_event", rpc_request.ctx.method),
-                                        ) {
-                                            v.data.result = Some(r);
-                                        }
-                                    }
-                                } else if let Some(filter) = broker_request
+
+                            let mut jv: Value = Value::Null;
+                            if v.data.result.is_some() {
+                                jv = v.data.result.clone().unwrap();
+                            } else if v.data.error.is_some() {
+                                jv = v.data.error.clone().unwrap();
+                            }
+
+                            if is_event {
+                                if let Some(filter) = broker_request
                                     .rule
                                     .transform
-                                    .get_filter(super::rules_engine::RuleTransformType::Response)
+                                    .get_filter(super::rules_engine::RuleTransformType::Event)
                                 {
                                     if let Ok(r) = jq_compile(
-                                        result,
+                                        jv,
                                         &filter,
-                                        format!("{}_response", rpc_request.ctx.method),
+                                        format!("{}_event", rpc_request.ctx.method),
                                     ) {
-                                        if r.to_string().to_lowercase().contains("null") {
-                                            v.data.result = Some(Value::Null)
-                                        } else {
-                                            v.data.result = Some(r);
-                                        }
+                                        v.data.result = Some(r);
+                                    }
+                                }
+                            } else if let Some(filter) = broker_request
+                                .rule
+                                .transform
+                                .get_filter(super::rules_engine::RuleTransformType::Response)
+                            {
+                                if let Ok(r) = jq_compile(
+                                    jv,
+                                    &filter,
+                                    format!("{}_response", rpc_request.ctx.method),
+                                ) {
+                                    if r.to_string().to_lowercase().contains("null") {
+                                        v.data.result = Some(Value::Null);
+                                        v.data.error = None;
+                                    } else {
+                                        v.data.result = Some(r);
                                     }
                                 }
                             }
