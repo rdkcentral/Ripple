@@ -66,6 +66,8 @@ pub mod tests {
         pub mod thunder_persistent_store_pacts;
         pub mod thunder_remote_pacts;
         pub mod thunder_wifi_pacts;
+        pub mod thunder_window_manager_pacts;
+        pub mod thunder_controller_pacts;
     }
     pub mod mock_thunder_controller;
     pub mod thunder_client_pool_test_utility;

@@ -56,7 +56,7 @@ pub struct PluginStateChangeEvent {
 
 #[derive(Debug, Serialize)]
 pub struct ThunderActivatePluginParams {
-    callsign: String,
+    pub callsign: String,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Serialize, Clone)]
