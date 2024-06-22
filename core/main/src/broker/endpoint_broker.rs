@@ -421,12 +421,13 @@ impl BrokerOutputForwarder {
                             let request_id = rpc_request.ctx.call_id;
                             v.data.id = Some(request_id);
 
-                            let mut jv: Value = Value::Null;
-                            if v.data.result.is_some() {
-                                jv = v.data.result.clone().unwrap();
-                            } else if v.data.error.is_some() {
-                                jv = v.data.error.clone().unwrap();
-                            }
+                            let jv: Value = if let Some(result) = v.data.clone().result {
+                                result
+                            } else if let Some(error) = v.data.clone().error {
+                                error
+                            } else {
+                                Value::Null
+                            };
 
                             if is_event {
                                 if let Some(filter) = broker_request
