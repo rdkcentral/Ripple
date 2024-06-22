@@ -256,11 +256,32 @@ impl ProviderRegistrar {
                     // Register error function
                     if let Some(method) = provider_set.error.clone() {
                         let error_method = method.name.clone().leak();
+
+                        println!("*** _DEBUG: error_method={}", error_method);
+
                         rpc_module
-                            .register_async_method(error_method, |_params, _ctx| async {
-                                println!("*** _DEBUG: error: entry");
-                                Ok(())
-                            })
+                            .register_async_method(
+                                error_method,
+                                move |params, platform_state| async move {
+                                    let mut params_sequence = params.sequence();
+                                    let call_context: CallContext = params_sequence.next().unwrap();
+
+                                    if let Some(provider_response) =
+                                        ProviderRegistrar::get_provider_response(
+                                            attributes.error_payload_type.clone(),
+                                            params_sequence,
+                                        )
+                                    {
+                                        ProviderBroker::provider_response(
+                                            &platform_state,
+                                            provider_response,
+                                        )
+                                        .await;
+                                    }
+
+                                    Ok(None) as RpcResult<Option<()>>
+                                },
+                            )
                             .unwrap();
                     }
 
