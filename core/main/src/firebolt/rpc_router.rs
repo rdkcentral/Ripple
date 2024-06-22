@@ -78,6 +78,58 @@ impl Default for RouterState {
     }
 }
 
+// <pca>
+// async fn resolve_route(
+//     methods: Methods,
+//     resources: Resources,
+//     req: RpcRequest,
+// ) -> Result<ApiMessage, RippleError> {
+//     info!("Routing {}", req.method);
+//     let id = Id::Number(req.ctx.call_id);
+//     let (sink_tx, mut sink_rx) = futures_channel::mpsc::unbounded::<String>();
+//     let sink = MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES);
+//     let mut method_executors = Vec::new();
+//     let params = Params::new(Some(req.params_json.as_str()));
+//     match methods.method_with_name(&req.method) {
+//         None => {
+//             sink.send_error(id, ErrorCode::MethodNotFound.into());
+//         }
+//         Some((name, method)) => match &method.inner() {
+//             MethodKind::Sync(callback) => match method.claim(name, &resources) {
+//                 Ok(_guard) => {
+//                     (callback)(id, params, &sink);
+//                 }
+//                 Err(_) => {
+//                     sink.send_error(id, ErrorCode::MethodNotFound.into());
+//                 }
+//             },
+//             MethodKind::Async(callback) => match method.claim(name, &resources) {
+//                 Ok(guard) => {
+//                     let sink = sink.clone();
+//                     let id = id.into_owned();
+//                     let params = params.into_owned();
+//                     let fut = async move {
+//                         (callback)(id, params, sink, 1, Some(guard)).await;
+//                     };
+//                     method_executors.push(fut);
+//                 }
+//                 Err(e) => {
+//                     error!("{:?}", e);
+//                     sink.send_error(id, ErrorCode::MethodNotFound.into());
+//                 }
+//             },
+//             _ => {
+//                 error!("Unsupported method call");
+//             }
+//         },
+//     }
+
+//     join_all(method_executors).await;
+//     if let Some(r) = sink_rx.next().await {
+//         return Ok(ApiMessage::new(req.ctx.protocol, r, req.ctx.request_id));
+//     }
+//     Err(RippleError::InvalidOutput)
+// }
 async fn resolve_route(
     methods: Methods,
     resources: Resources,
@@ -101,37 +153,44 @@ async fn resolve_route(
             );
             sink.send_error(id, ErrorCode::MethodNotFound.into());
         }
-        Some((name, method)) => match &method.inner() {
-            MethodKind::Sync(callback) => match method.claim(name, &resources) {
-                Ok(_guard) => {
-                    (callback)(id, params, &sink);
-                }
-                Err(_) => {
-                    sink.send_error(id, ErrorCode::MethodNotFound.into());
-                }
-            },
-            MethodKind::Async(callback) => match method.claim(name, &resources) {
-                Ok(guard) => {
-                    let sink = sink.clone();
-                    let id = id.into_owned();
-                    let params = params.into_owned();
+        Some((name, method)) => {
+            println!(
+                "*** _DEBUG: resolve_route: method found: {:?}, name={:?}",
+                method, name
+            );
+            // <pca> Inject FB call metadata in here? </pca>
+            match &method.inner() {
+                MethodKind::Sync(callback) => match method.claim(name, &resources) {
+                    Ok(_guard) => {
+                        (callback)(id, params, &sink);
+                    }
+                    Err(_) => {
+                        sink.send_error(id, ErrorCode::MethodNotFound.into());
+                    }
+                },
+                MethodKind::Async(callback) => match method.claim(name, &resources) {
+                    Ok(guard) => {
+                        let sink = sink.clone();
+                        let id = id.into_owned();
+                        let params = params.into_owned();
 
-                    println!("*** _DEBUG: resolve_route: params={:?}", params);
+                        println!("*** _DEBUG: resolve_route: params={:?}", params);
 
-                    let fut = async move {
-                        (callback)(id, params, sink, 1, Some(guard)).await;
-                    };
-                    method_executors.push(fut);
+                        let fut = async move {
+                            (callback)(id, params, sink, 1, Some(guard)).await;
+                        };
+                        method_executors.push(fut);
+                    }
+                    Err(e) => {
+                        error!("{:?}", e);
+                        sink.send_error(id, ErrorCode::MethodNotFound.into());
+                    }
+                },
+                _ => {
+                    error!("Unsupported method call");
                 }
-                Err(e) => {
-                    error!("{:?}", e);
-                    sink.send_error(id, ErrorCode::MethodNotFound.into());
-                }
-            },
-            _ => {
-                error!("Unsupported method call");
             }
-        },
+        }
     }
 
     join_all(method_executors).await;
@@ -140,6 +199,7 @@ async fn resolve_route(
     }
     Err(RippleError::InvalidOutput)
 }
+// </pca>
 
 impl RpcRouter {
     pub async fn route(

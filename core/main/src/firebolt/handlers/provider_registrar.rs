@@ -17,7 +17,6 @@
 
 use std::{
     any::{Any, TypeId},
-    backtrace::{self, Backtrace},
     collections::HashMap,
     sync::Arc,
 };
@@ -30,7 +29,7 @@ use crate::{
 use futures_channel::mpsc::{self, Sender};
 use jsonrpsee::{
     core::{server::rpc_module::Methods, Error, RpcResult},
-    types::{error::CallError, Params},
+    types::{error::CallError, Params, ParamsSequence},
     RpcModule,
 };
 use ripple_sdk::{
@@ -40,14 +39,15 @@ use ripple_sdk::{
             fb_openrpc::FireboltOpenRpcMethod,
             fb_pin::PinChallengeResponse,
             provider::{
-                ChallengeError, ChallengeResponse, ExternalProviderResponse, FocusRequest,
+                self, ChallengeError, ChallengeResponse, ExternalProviderResponse, FocusRequest,
                 ProviderAttributes, ProviderResponse, ProviderResponsePayload,
-                ACKNOWLEDGE_CHALLENGE_ATTRIBS, ACK_CHALLENGE_CAPABILITY, ACK_CHALLENGE_EVENT,
+                ProviderResponsePayloadType, ACKNOWLEDGE_CHALLENGE_ATTRIBS,
+                ACK_CHALLENGE_CAPABILITY, ACK_CHALLENGE_EVENT,
             },
         },
         gateway::rpc_gateway_api::CallContext,
     },
-    log::debug,
+    log::{debug, error},
 };
 use serde_json::json;
 
@@ -109,6 +109,43 @@ impl Provider {
 pub struct ProviderRegistrar;
 
 impl ProviderRegistrar {
+    fn get_provider_response(
+        payload_type: ProviderResponsePayloadType,
+        mut params_sequence: ParamsSequence,
+    ) -> Option<ProviderResponse> {
+        match payload_type {
+            ProviderResponsePayloadType::ChallengeResponse => {
+                let external_provider_response: Result<
+                    ExternalProviderResponse<ChallengeResponse>,
+                    CallError,
+                > = params_sequence.next();
+
+                if let Ok(r) = external_provider_response {
+                    return Some(ProviderResponse {
+                        correlation_id: r.correlation_id,
+                        result: ProviderResponsePayload::ChallengeResponse(r.result),
+                    });
+                }
+            }
+            ProviderResponsePayloadType::PinChallengeResponse => {
+                let external_provider_response: Result<
+                    ExternalProviderResponse<PinChallengeResponse>,
+                    CallError,
+                > = params_sequence.next();
+
+                if let Ok(r) = external_provider_response {
+                    return Some(ProviderResponse {
+                        correlation_id: r.correlation_id,
+                        result: ProviderResponsePayload::PinChallengeResponse(r.result),
+                    });
+                }
+            }
+            _ => error!("get_provider_response: Unsupported payload type"),
+        }
+
+        None
+    }
+
     pub fn register(platform_state: &PlatformState, mut methods: &mut Methods) {
         let provider_map = platform_state.open_rpc_state.get_provider_map();
         for provides in provider_map.clone().keys() {
@@ -135,11 +172,6 @@ impl ProviderRegistrar {
                                     let call_context: CallContext = params_sequence.next().unwrap();
                                     let request: ListenRequest = params_sequence.next().unwrap();
                                     let listening = request.listen;
-
-                                    println!(
-                                        "*** _DEBUG: backtrace: {}",
-                                        Backtrace::force_capture()
-                                    );
 
                                     ProviderBroker::register_or_unregister_provider(
                                         &platform_state,
@@ -202,67 +234,18 @@ impl ProviderRegistrar {
                                     let mut params_sequence = params.sequence();
                                     let call_context: CallContext = params_sequence.next().unwrap();
 
-                                    let provider_repsonse;
-                                    let response_param = params_sequence.next();
-                                    let resp: Result<ExternalProviderResponse<ChallengeResponse>, CallError> = response_param;
-                                    if let Ok(r) = resp {
-                                        // if let Ok(challenge_response) = r.downcast::<ExternalProviderResponse<ChallengeResponse>>() {
-                                        //     println!("*** _DEBUG: response: downcasted to ExternalProviderResponse<ChallengeResponse>");
-                                        // } else {
-                                        //     println!("*** _DEBUG: response: downcast failed");
-                                        // }
-                                        println!("*** _DEBUG: response: Got ExternalProviderResponse<ChallengeResponse>");
-                                        provider_repsonse = ProviderResponse {
-                                            correlation_id: r.correlation_id,
-                                            result: ProviderResponsePayload::ChallengeResponse(r.result),
-                                        };
-
+                                    if let Some(provider_response) =
+                                        ProviderRegistrar::get_provider_response(
+                                            attributes.response_payload_type.clone(),
+                                            params_sequence,
+                                        )
+                                    {
                                         ProviderBroker::provider_response(
                                             &platform_state,
-                                            ProviderResponse {
-                                                correlation_id: resp.correlation_id,
-                                                result: ProviderResponsePayload::ChallengeResponse(
-                                                    resp.result,
-                                                ),
-                                            },
+                                            provider_response,
                                         )
                                         .await;
-                                    } else {
-                                        println!("*** _DEBUG: response: Unexpected response type");
                                     }
-
-                                    // let resp: ExternalProviderResponse<ChallengeResponse> =
-                                    //     params_sequence.next().unwrap();
-
-                                    // let resp: ExternalProviderResponse = params_sequence.next();
-
-                                    // match resp {
-                                    //     Ok(r) => {
-                                    //         if let Ok(r) = resp
-                                    //     .downcast::<ExternalProviderResponse<ChallengeResponse>>()
-                                    // {
-                                    //     println!(
-                                    //         "*** _DEBUG: response: downcasted to ChallengeResponse"
-                                    //     );
-                                    // } else {
-                                    //     println!("*** _DEBUG: response: downcast failed");
-                                    // }
-                                    //     }
-                                    //     Err(e) => {
-                                    //         println!("*** _DEBUG: response: error={}", e);
-                                    //     }
-                                    // }
-
-                                    // ProviderBroker::provider_response(
-                                    //     &platform_state,
-                                    //     ProviderResponse {
-                                    //         correlation_id: resp.correlation_id,
-                                    //         result: ProviderResponsePayload::ChallengeResponse(
-                                    //             resp.result,
-                                    //         ),
-                                    //     },
-                                    // )
-                                    // .await;
 
                                     Ok(None) as RpcResult<Option<()>>
                                 },
