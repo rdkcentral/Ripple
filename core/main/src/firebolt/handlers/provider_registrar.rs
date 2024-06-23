@@ -37,72 +37,80 @@ use ripple_sdk::{
         firebolt::{
             fb_general::{ListenRequest, ListenerResponse},
             fb_openrpc::FireboltOpenRpcMethod,
-            fb_pin::PinChallengeResponse,
+            fb_pin::{PinChallengeResponse, PIN_CHALLENGE_CAPABILITY, PIN_CHALLENGE_EVENT},
             provider::{
                 self, ChallengeError, ChallengeResponse, ExternalProviderResponse, FocusRequest,
-                ProviderAttributes, ProviderResponse, ProviderResponsePayload,
-                ProviderResponsePayloadType, ACKNOWLEDGE_CHALLENGE_ATTRIBS,
-                ACK_CHALLENGE_CAPABILITY, ACK_CHALLENGE_EVENT,
+                ProviderResponse, ProviderResponsePayload, ACK_CHALLENGE_CAPABILITY,
+                ACK_CHALLENGE_EVENT,
             },
         },
         gateway::rpc_gateway_api::CallContext,
     },
     log::{debug, error},
 };
+use serde::Serialize;
 use serde_json::json;
 
-#[derive(Debug)]
-pub struct Provider {
-    pub platform_state: PlatformState,
-    capability: String,
-    event: &'static str,
+#[derive(Debug, Clone, Serialize)]
+
+pub struct ProviderAttributes {
+    pub event: &'static str,
+    pub response_payload_type: ProviderResponsePayloadType,
+    pub error_payload_type: ProviderResponsePayloadType,
+    pub capability: &'static str,
+    pub method: &'static str,
 }
 
-impl Provider {
-    pub fn new(platform_state: PlatformState, capability: String, event: &'static str) -> Provider {
-        Provider {
-            platform_state,
-            capability,
-            event,
+impl ProviderAttributes {
+    pub fn get(module: &str) -> Option<&'static ProviderAttributes> {
+        println!("*** _DEBUG: ProviderAttributes::get: name={}", module);
+        match module {
+            "AcknowledgeChallenge" => Some(&ACKNOWLEDGE_CHALLENGE_ATTRIBS),
+            "PinChallenge" => Some(&PIN_CHALLENGE_ATTRIBS),
+            _ => None,
         }
     }
+}
 
-    async fn on_request(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        let listen = request.listen;
-        debug!("on_request: request={:?}", request);
-        ProviderBroker::register_or_unregister_provider(
-            &self.platform_state,
-            self.capability.clone(),
-            ProviderBroker::get_method(&self.capability).unwrap_or_default(),
-            self.event,
-            ctx,
-            request,
-        )
-        .await;
+pub const ACKNOWLEDGE_CHALLENGE_ATTRIBS: ProviderAttributes = ProviderAttributes {
+    event: ACK_CHALLENGE_EVENT,
+    response_payload_type: ProviderResponsePayloadType::ChallengeResponse,
+    error_payload_type: ProviderResponsePayloadType::ChallengeError,
+    capability: ACK_CHALLENGE_CAPABILITY,
+    method: "challenge",
+};
 
-        Ok(ListenerResponse {
-            listening: listen,
-            event: self.event.into(),
-        })
-    }
+pub const PIN_CHALLENGE_ATTRIBS: ProviderAttributes = ProviderAttributes {
+    event: PIN_CHALLENGE_EVENT,
+    response_payload_type: ProviderResponsePayloadType::PinChallengeResponse,
+    error_payload_type: ProviderResponsePayloadType::ChallengeError,
+    capability: PIN_CHALLENGE_CAPABILITY,
+    method: "challenge",
+};
 
-    async fn response(&self, _ctx: CallContext, resp: ProviderResponse) -> RpcResult<Option<()>> {
-        ProviderBroker::provider_response(&self.platform_state, resp).await;
-        return Ok(None);
-    }
+#[derive(Debug, Clone, Serialize)]
 
-    async fn error(&self, _ctx: CallContext, resp: ProviderResponse) -> RpcResult<Option<()>> {
-        ProviderBroker::provider_response(&self.platform_state, resp).await;
-        return Ok(None);
-    }
+pub enum ProviderResponsePayloadType {
+    ChallengeResponse,
+    ChallengeError,
+    PinChallengeResponse,
+    KeyboardResult,
+    EntityInfoResponse,
+    PurchasedContentResponse,
+}
 
-    async fn focus(&self, ctx: CallContext, request: FocusRequest) -> RpcResult<Option<()>> {
-        ProviderBroker::focus(&self.platform_state, ctx, self.capability.clone(), request).await;
-        Ok(None)
+impl ToString for ProviderResponsePayloadType {
+    fn to_string(&self) -> String {
+        match self {
+            ProviderResponsePayloadType::ChallengeResponse => "ChallengeResponse".into(),
+            ProviderResponsePayloadType::ChallengeError => "ChallengeError".into(),
+            ProviderResponsePayloadType::PinChallengeResponse => "PinChallengeResponse".into(),
+            ProviderResponsePayloadType::KeyboardResult => "KeyboardResult".into(),
+            ProviderResponsePayloadType::EntityInfoResponse => "EntityInfoResponse".into(),
+            ProviderResponsePayloadType::PurchasedContentResponse => {
+                "PurchasedContentResponse".into()
+            }
+        }
     }
 }
 

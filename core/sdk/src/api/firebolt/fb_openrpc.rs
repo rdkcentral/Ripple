@@ -390,13 +390,6 @@ impl FireboltOpenRpcMethod {
         }
     }
 
-    // <pca>
-    pub fn get_module(&self) -> &str {
-        let parts: Vec<&str> = self.name.split('.').collect();
-        parts[0]
-    }
-    // </pca>
-
     pub fn is_named(&self, method_name: &str) -> bool {
         FireboltOpenRpcMethod::name_with_lowercase_module(&self.name)
             == FireboltOpenRpcMethod::name_with_lowercase_module(method_name)

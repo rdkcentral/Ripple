@@ -22,7 +22,6 @@ use ripple_sdk::api::{
             CapabilitySet, FireboltOpenRpc, FireboltOpenRpcMethod, FireboltVersionManifest,
             OpenRPCParser,
         },
-        provider::ProviderAttributes,
     },
     manifest::exclusory::{Exclusory, ExclusoryImpl},
 };
@@ -35,6 +34,8 @@ use std::{
 };
 use tokio_tungstenite::tungstenite::http::method;
 
+use crate::firebolt::handlers::provider_registrar::ProviderAttributes;
+
 #[derive(Debug, Clone)]
 pub enum ApiSurface {
     Firebolt,
@@ -43,34 +44,6 @@ pub enum ApiSurface {
 
 // <pca>
 #[derive(Debug, Clone, Default)]
-// pub struct ProviderSet {
-//     pub provides: Option<FireboltCap>,
-//     // <pca> Will need for request validation
-//     //pub request: Option<Value>,
-//     // </pca>
-//     pub response: Option<Value>,
-//     pub response_for: Option<String>,
-//     pub error: Option<Value>,
-//     pub error_for: Option<String>,
-//     pub allow_focus: Option<bool>,
-//     pub focus_for: Option<String>,
-//     pub attributes: Option<ProviderAttributes>,
-// }
-
-// impl ProviderSet {
-//     pub fn new() -> ProviderSet {
-//         ProviderSet {
-//             provides: None,
-//             response: None,
-//             response_for: None,
-//             error: None,
-//             error_for: None,
-//             allow_focus: None,
-//             focus_for: None,
-//             attributes: None,
-//         }
-//     }
-// }
 pub struct ProviderSet {
     pub request: Option<FireboltOpenRpcMethod>,
     pub focus: Option<FireboltOpenRpcMethod>,
@@ -89,71 +62,6 @@ impl ProviderSet {
     }
 }
 
-// pub fn build_provider_sets(
-//     openrpc_methods: &Vec<FireboltOpenRpcMethod>,
-// ) -> HashMap<String, ProviderSet> {
-//     let mut provider_sets = HashMap::default();
-
-//     println!("*** _DEBUG: build_provider_sets: entry");
-
-//     for method in openrpc_methods {
-//         let mut has_x_provides = None;
-
-//         println!(
-//             "*** _DEBUG: build_provider_sets: method.name={:?}",
-//             method.name
-//         );
-
-//         if let Some(tags) = &method.tags {
-//             let mut has_event = false;
-//             let mut has_caps = false;
-//             let mut has_x_allow_focus_for = false;
-//             let mut has_x_response_for = false;
-//             let mut has_x_error_for = false;
-
-//             for tag in tags {
-//                 println!("*** _DEBUG: build_provider_sets: tag={:?}", tag);
-//                 if tag.name.eq("event") {
-//                     has_event = true;
-//                 } else if tag.name.eq("capabilities") {
-//                     has_caps = true;
-//                     has_x_provides = tag.get_provides();
-//                     has_x_allow_focus_for |= tag.allow_focus_for.is_some();
-//                     has_x_response_for |= tag.response_for.is_some();
-//                     has_x_error_for |= tag.error_for.is_some();
-//                 }
-//             }
-
-//             if let Some(p) = has_x_provides {
-//                 let mut provider_set = ProviderSet::new();
-
-//                 if has_event && has_caps {
-//                     provider_set.request = Some(method.clone());
-//                 }
-//                 if has_x_allow_focus_for {
-//                     provider_set.focus = Some(method.clone());
-//                 }
-//                 if has_x_response_for {
-//                     provider_set.response = Some(method.clone());
-//                 }
-//                 if has_x_error_for {
-//                     provider_set.error = Some(method.clone());
-//                 }
-
-//                 let module: Vec<&str> = method.name.split('.').collect();
-//                 provider_set.attributes = ProviderAttributes::get(&module[0]);
-
-//                 println!(
-//                     "*** _DEBUG: build_provider_sets: provider_set={:?}",
-//                     provider_set
-//                 );
-
-//                 provider_sets.insert(p.as_str(), provider_set.to_owned());
-//             }
-//         }
-//     }
-//     provider_sets
-// }
 pub fn build_provider_sets(
     openrpc_methods: &Vec<FireboltOpenRpcMethod>,
 ) -> HashMap<String, ProviderSet> {
@@ -164,8 +72,11 @@ pub fn build_provider_sets(
     for method in openrpc_methods {
         let mut has_x_provides = None;
 
-        // <pca> debug
-        if !method.name.starts_with("AcknowledgeChallenge.") {
+        // <pca>
+        // Only generically build provider sets for AcknowledgeChallenge and PinChallenge methods for now.
+        if !method.name.starts_with("AcknowledgeChallenge.")
+            && !method.name.starts_with("PinChallenge.")
+        {
             continue;
         }
         // </pca>
@@ -196,7 +107,6 @@ pub fn build_provider_sets(
             }
 
             if let Some(p) = has_x_provides {
-                //let mut provider_set = ProviderSet::new();
                 let mut provider_set = provider_sets
                     .get(&p.as_str())
                     .unwrap_or(&ProviderSet::new())

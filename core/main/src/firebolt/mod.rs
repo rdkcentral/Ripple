@@ -22,7 +22,6 @@ pub mod handlers {
     pub mod account_rpc;
     // <pca>
     //pub mod acknowledge_rpc;
-    pub mod provider_registrar;
     // </pca>
     pub mod advertising_rpc;
     pub mod audio_description_rpc;
@@ -38,7 +37,9 @@ pub mod handlers {
     pub mod metrics_management_rpc;
     pub mod metrics_rpc;
     pub mod parameters_rpc;
-    pub mod pin_rpc;
+    // <pca>
+    //pub mod pin_rpc;
+    // </pca>
     pub mod privacy_rpc;
     pub mod profile_rpc;
     pub mod second_screen_rpc;
@@ -46,6 +47,9 @@ pub mod handlers {
     pub mod user_grants_rpc;
     pub mod voice_guidance_rpc;
     pub mod wifi_rpc;
+    // <pca>
+    pub mod provider_registrar;
+    // </pca>
 }
 pub mod firebolt_gatekeeper;
 pub mod firebolt_gateway;
