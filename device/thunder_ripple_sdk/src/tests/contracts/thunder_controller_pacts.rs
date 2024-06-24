@@ -191,7 +191,6 @@ async fn test_display_settings_plugin_status() {
     );
 
     let thunder_client = initialize_thunder_client(server_url.clone()).await;
-
     let _resp: DeviceResponseMessage = perform_device_call_request(
         thunder_client,
         "Controller.1.status@org.rdk.DisplaySettings",
