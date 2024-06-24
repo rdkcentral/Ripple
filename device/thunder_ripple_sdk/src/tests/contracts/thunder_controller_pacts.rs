@@ -1,11 +1,11 @@
 use crate::client::plugin_manager::ThunderActivatePluginParams;
+use crate::client::thunder_client_pool::ThunderClientPool;
 use crate::ripple_sdk::{
     serde_json::{self},
     tokio,
 };
 use crate::tests::contracts::contract_utils::*;
 use crate::thunder_state::ThunderConnectionState;
-use crate::{client::thunder_client_pool::ThunderClientPool, thunder_state::ThunderState};
 use pact_consumer::mock_server::StartMockServerAsync;
 use ripple_sdk::api::device::device_operator::{
     DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
@@ -45,7 +45,7 @@ async fn test_register_state_change_event() {
             .unwrap();
 
     let r = json!({"event": "statechange", "id": "client.Controller.1.events"});
-    let resp = thunder_client
+    let _resp = thunder_client
         .clone()
         .call(DeviceCallRequest {
             method: "Controller.1.register".to_string(),
@@ -100,7 +100,7 @@ async fn test_device_info_plugin_status() {
             .await
             .unwrap();
 
-    let resp: DeviceResponseMessage = thunder_client
+    let _resp: DeviceResponseMessage = thunder_client
         .clone()
         .call(DeviceCallRequest {
             method: "Controller.1.status@DeviceInfo".to_string(),
@@ -143,7 +143,7 @@ async fn test_device_info_plugin_state() {
     let r = ThunderActivatePluginParams {
         callsign: "DeviceInfo".to_string(),
     };
-    let resp = thunder_client
+    let _resp = thunder_client
         .clone()
         .call(DeviceCallRequest {
             method: "Controller.1.activate".to_string(),
@@ -198,7 +198,7 @@ async fn test_display_settings_plugin_status() {
             .await
             .unwrap();
 
-    let resp: DeviceResponseMessage = thunder_client
+    let _resp: DeviceResponseMessage = thunder_client
         .clone()
         .call(DeviceCallRequest {
             method: "Controller.1.status@org.rdk.DisplaySettings".to_string(),
@@ -241,7 +241,7 @@ async fn test_activate_display_settings_plugin() {
     let r = ThunderActivatePluginParams {
         callsign: "org.rdk.DisplaySettings".to_string(),
     };
-    let resp = thunder_client
+    let _resp = thunder_client
         .clone()
         .call(DeviceCallRequest {
             method: "Controller.1.activate".to_string(),
@@ -296,7 +296,7 @@ async fn test_status_org_rdk_system() {
             .await
             .unwrap();
 
-    let resp: DeviceResponseMessage = thunder_client
+    let _resp: DeviceResponseMessage = thunder_client
         .clone()
         .call(DeviceCallRequest {
             method: "Controller.1.status@org.rdk.System".to_string(),
@@ -339,7 +339,7 @@ async fn test_activate_org_rdk_system() {
     let r = ThunderActivatePluginParams {
         callsign: "org.rdk.System".to_string(),
     };
-    let resp = thunder_client
+    let _resp = thunder_client
         .clone()
         .call(DeviceCallRequest {
             method: "Controller.1.activate".to_string(),
@@ -394,7 +394,7 @@ async fn test_status_org_rdk_hdcp_profile() {
             .await
             .unwrap();
 
-    let resp: DeviceResponseMessage = thunder_client
+    let _resp: DeviceResponseMessage = thunder_client
         .clone()
         .call(DeviceCallRequest {
             method: "Controller.1.status@org.rdk.HdcpProfile".to_string(),
@@ -437,7 +437,7 @@ async fn test_activate_org_rdk_hdcp_profile() {
     let r = ThunderActivatePluginParams {
         callsign: "org.rdk.HdcpProfile".to_string(),
     };
-    let resp = thunder_client
+    let _resp = thunder_client
         .clone()
         .call(DeviceCallRequest {
             method: "Controller.1.activate".to_string(),
@@ -494,7 +494,7 @@ async fn test_status_org_rdk_telemetry() {
             .await
             .unwrap();
 
-    let resp: DeviceResponseMessage = thunder_client
+    let _resp: DeviceResponseMessage = thunder_client
         .clone()
         .call(DeviceCallRequest {
             method: "Controller.1.status@org.rdk.Telemetry".to_string(),
@@ -537,7 +537,7 @@ async fn test_activate_org_rdk_telemetry() {
     let r = ThunderActivatePluginParams {
         callsign: "org.rdk.Telemetry".to_string(),
     };
-    let resp = thunder_client
+    let _resp = thunder_client
         .clone()
         .call(DeviceCallRequest {
             method: "Controller.1.activate".to_string(),
