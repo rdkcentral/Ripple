@@ -60,3 +60,4 @@ rstest = { version = "0.18.2", optional = true}
 [dev-dependencies]
 tokio-tungstenite = { workspace = true, features = ["native-tls"] }
 ripple_sdk = { path = "../../core/sdk", features=["tdk"]}
+ripple_eos_test_utils = { path = "../../../ripple-eos-test-utils"}
