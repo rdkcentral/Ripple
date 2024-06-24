@@ -414,6 +414,7 @@ impl BrokerOutputForwarder {
                     if let Ok(broker_request) = platform_state.endpoint_state.get_request(id) {
                         let rpc_request = broker_request.rpc;
                         let session_id = rpc_request.ctx.get_id();
+                        let is_subscription = rpc_request.is_subscription();
                         if let Some(session) = platform_state
                             .session_state
                             .get_session_for_connection_id(&session_id)
@@ -435,6 +436,11 @@ impl BrokerOutputForwarder {
                                             v.data.result = Some(r);
                                         }
                                     }
+                                } else if is_subscription {
+                                    v.data.result = Some(json!({
+                                        "listening" : rpc_request.is_listening(),
+                                        "event" : rpc_request.ctx.method
+                                    }))
                                 } else if let Some(filter) = broker_request
                                     .rule
                                     .transform
