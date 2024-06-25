@@ -14,6 +14,7 @@ use ripple_sdk::api::device::device_operator::{
     DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
 };
 
+use crate::mock_websocket_server;
 use pact_consumer::mock_server::StartMockServerAsync;
 use pact_consumer::prelude::*;
 use std::sync::Arc;
@@ -42,7 +43,7 @@ async fn perform_device_call_request(
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_register_state_change_event() {
-    ripple_eos_test_utils::mock_websocket_server!(
+    mock_websocket_server!(
         builder,
         server,
         server_url,
@@ -72,13 +73,12 @@ async fn test_register_state_change_event() {
         )),
     )
     .await;
-    ripple_eos_test_utils::pact_cleanup!(server);
 }
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_device_info_plugin_status() {
-    ripple_eos_test_utils::mock_websocket_server!(
+    mock_websocket_server!(
         builder,
         server,
         server_url,
@@ -114,13 +114,12 @@ async fn test_device_info_plugin_status() {
 
     let _resp: DeviceResponseMessage =
         perform_device_call_request(thunder_client, "Controller.1.status@DeviceInfo", None).await;
-    ripple_eos_test_utils::pact_cleanup!(server);
 }
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_device_info_plugin_state() {
-    ripple_eos_test_utils::mock_websocket_server!(
+    mock_websocket_server!(
         builder,
         server,
         server_url,
@@ -152,13 +151,12 @@ async fn test_device_info_plugin_state() {
         )),
     )
     .await;
-    ripple_eos_test_utils::pact_cleanup!(server);
 }
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_display_settings_plugin_status() {
-    ripple_eos_test_utils::mock_websocket_server!(
+    mock_websocket_server!(
         builder,
         server,
         server_url,
@@ -197,13 +195,12 @@ async fn test_display_settings_plugin_status() {
         None,
     )
     .await;
-    ripple_eos_test_utils::pact_cleanup!(server);
 }
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_activate_display_settings_plugin() {
-    ripple_eos_test_utils::mock_websocket_server!(
+    mock_websocket_server!(
         builder,
         server,
         server_url,
@@ -235,13 +232,12 @@ async fn test_activate_display_settings_plugin() {
         )),
     )
     .await;
-    ripple_eos_test_utils::pact_cleanup!(server);
 }
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_status_org_rdk_system() {
-    ripple_eos_test_utils::mock_websocket_server!(
+    mock_websocket_server!(
         builder,
         server,
         server_url,
@@ -278,13 +274,12 @@ async fn test_status_org_rdk_system() {
     let _resp: DeviceResponseMessage =
         perform_device_call_request(thunder_client, "Controller.1.status@org.rdk.System", None)
             .await;
-    ripple_eos_test_utils::pact_cleanup!(server);
 }
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_activate_org_rdk_system() {
-    ripple_eos_test_utils::mock_websocket_server!(
+    mock_websocket_server!(
         builder,
         server,
         server_url,
@@ -316,13 +311,12 @@ async fn test_activate_org_rdk_system() {
         )),
     )
     .await;
-    ripple_eos_test_utils::pact_cleanup!(server);
 }
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_status_org_rdk_hdcp_profile() {
-    ripple_eos_test_utils::mock_websocket_server!(
+    mock_websocket_server!(
         builder,
         server,
         server_url,
@@ -362,13 +356,12 @@ async fn test_status_org_rdk_hdcp_profile() {
         None,
     )
     .await;
-    ripple_eos_test_utils::pact_cleanup!(server);
 }
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_activate_org_rdk_hdcp_profile() {
-    ripple_eos_test_utils::mock_websocket_server!(
+    mock_websocket_server!(
         builder,
         server,
         server_url,
@@ -400,13 +393,12 @@ async fn test_activate_org_rdk_hdcp_profile() {
         )),
     )
     .await;
-    ripple_eos_test_utils::pact_cleanup!(server);
 }
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_status_org_rdk_telemetry() {
-    ripple_eos_test_utils::mock_websocket_server!(
+    mock_websocket_server!(
         builder,
         server,
         server_url,
@@ -452,7 +444,7 @@ async fn test_status_org_rdk_telemetry() {
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_activate_org_rdk_telemetry() {
-    ripple_eos_test_utils::mock_websocket_server!(
+    mock_websocket_server!(
         builder,
         server,
         server_url,
@@ -482,5 +474,4 @@ async fn test_activate_org_rdk_telemetry() {
         )),
     )
     .await;
-    ripple_eos_test_utils::pact_cleanup!(server);
 }
