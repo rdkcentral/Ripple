@@ -7,7 +7,6 @@ use crate::{
         serde_json::{self, json},
         tokio,
     },
-    tests::contracts::contract_utils::*,
     thunder_state::ThunderConnectionState,
 };
 use ripple_sdk::api::device::device_operator::{
