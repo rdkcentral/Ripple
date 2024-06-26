@@ -47,29 +47,21 @@ impl ThunderPoolStep {
             warn!("Pool size of 1 is not recommended, there will be no dedicated connection for Controller events");
             return Err(RippleError::BootstrapError);
         }
-        let controller_pool = ripple_sdk::tokio::time::timeout(
-            Duration::from_secs(10),
-            ThunderClientPool::start(url.clone(), None, thunder_connection_state.clone(), 1),
-        )
-        .await;
+        let result =
+            ThunderClientPool::start(url.clone(), None, thunder_connection_state.clone(), 1).await;
 
-        let controller_pool = match controller_pool {
-            Ok(Ok(thunder_client)) => thunder_client,
-            Ok(Err(e)) => {
+        let thunder_client = match result {
+            Ok(tc) => tc,
+            Err(e) => {
                 error!("Fatal Thunder Unavailability Error: Ripple connection with Thunder is intermittent causing bootstrap errors.");
                 let _ = state.extn_client.event(ExtnStatus::Error);
                 return Err(e);
-            }
-            Err(_) => {
-                error!("Timed out waiting for starting ThunderClientPool.");
-                let _ = state.extn_client.event(ExtnStatus::Error);
-                return Err(RippleError::BootstrapError);
             }
         };
 
         info!("Received Controller pool");
         let expected_plugins = state.plugin_param.clone();
-        let tc = Box::new(controller_pool);
+        let tc = Box::new(thunder_client);
         let (plugin_manager_tx, failed_plugins) =
             PluginManager::start(tc, expected_plugins.clone()).await;
 
