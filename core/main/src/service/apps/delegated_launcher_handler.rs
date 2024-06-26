@@ -109,6 +109,7 @@ pub struct App {
     pub internal_state: Option<AppMethod>,
     pub app_id: String,
     pub is_app_init_params_invoked: bool,
+    pub ready: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -444,6 +445,10 @@ impl DelegatedLauncherHandler {
                     if let Err(e) = self.ready_check(&app_id) {
                         resp = Err(e)
                     } else {
+                        let apps = self.platform_state.app_manager_state.apps.clone();
+                        if let Some(app) = apps.write().unwrap().get_mut(app_id.as_str()) {
+                            app.ready = true
+                        }
                         self.send_app_init_events(app_id.as_str()).await;
                         resp = self
                             .send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Ready(
@@ -928,6 +933,7 @@ impl DelegatedLauncherHandler {
             internal_state: None,
             app_id: app_id.clone(),
             is_app_init_params_invoked: false,
+            ready: false,
         };
         platform_state
             .app_manager_state
@@ -1161,6 +1167,13 @@ impl DelegatedLauncherHandler {
                 "Calling is_valid_lifecycle_transition for app_id:{} prev state:{:?} state{:?}",
                 app_id, previous_state, state
             );
+            if !app.ready {
+                warn!(
+                    "set_state app_id:{} app is not ready Cannot transition",
+                    app_id
+                );
+                return Err(AppError::AppNotReady);
+            }
             if !Self::is_valid_lifecycle_transition(previous_state, state) {
                 warn!(
                     "set_state app_id:{} prev state:{:?} state{:?} Cannot transition",
