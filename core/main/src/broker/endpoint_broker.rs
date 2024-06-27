@@ -602,11 +602,11 @@ mod tests {
                 None,
             );
 
-            // Hardcoding the id to 1 or 2 to here will not work as the atomic id is shared
-            // across all tests
+            // Hardcoding the id here will be a problem as multiple tests uses the atomic id and there is no guarantee
+            // that this test case would always be the first one to run
             // Revisit this test case, to make it more robust
-            //assert!(state.get_request(2).is_ok());
-            //assert!(state.get_request(1).is_ok());
+            // assert!(state.get_request(2).is_ok());
+            // assert!(state.get_request(1).is_ok());
         }
     }
 }
