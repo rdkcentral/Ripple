@@ -17,11 +17,13 @@
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
-    time::Duration,
 };
 
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::JsonRpcApiResponse, log::info, utils::error::RippleError,
+    api::gateway::rpc_gateway_api::JsonRpcApiResponse,
+    chrono::{DateTime, Duration, Utc},
+    log::info,
+    utils::error::RippleError,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -31,7 +33,7 @@ use crate::broker::endpoint_broker::{
 };
 
 // defautl timeout for plugin activation in seconds
-const DEFAULT_PLUGIN_ACTIVATION_TIMEOUT: u64 = 8;
+const DEFAULT_PLUGIN_ACTIVATION_TIMEOUT: i64 = 8;
 
 // As per thunder 4_4 documentation, the statechange event is published under the method "client.events.1.statechange"
 // But it didn't work, most probably a documentation issue.
@@ -114,13 +116,13 @@ impl State {
 #[derive(Debug, Clone)]
 pub struct ThunderPluginState {
     pub state: State,
-    pub last_attempt_time: Duration,
+    pub activation_timestamp: DateTime<Utc>,
     pub pending_requests: Vec<BrokerRequest>,
 }
 #[derive(Debug, Clone)]
 pub struct StatusManager {
     pub status: Arc<RwLock<HashMap<String, ThunderPluginState>>>,
-    pub active_plugins_request: Arc<RwLock<HashMap<u64, String>>>,
+    pub inprogress_plugins_request: Arc<RwLock<HashMap<u64, String>>>,
 }
 
 impl Default for StatusManager {
@@ -133,7 +135,7 @@ impl StatusManager {
     pub fn new() -> Self {
         Self {
             status: Arc::new(RwLock::new(HashMap::new())),
-            active_plugins_request: Arc::new(RwLock::new(HashMap::new())),
+            inprogress_plugins_request: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -152,14 +154,14 @@ impl StatusManager {
                 plugin_name,
                 ThunderPluginState {
                     state,
-                    last_attempt_time: Duration::from_secs(0),
+                    activation_timestamp: Utc::now(),
                     pending_requests: Vec::new(),
                 },
             );
         }
     }
 
-    pub fn add_request_to_pending(&self, plugin_name: String, request: BrokerRequest) {
+    pub fn add_broker_request_to_pending_list(&self, plugin_name: String, request: BrokerRequest) {
         let mut status = self.status.write().unwrap();
         if let Some(plugin_state) = status.get_mut(&plugin_name) {
             plugin_state.pending_requests.push(request);
@@ -168,26 +170,32 @@ impl StatusManager {
                 plugin_name.clone(),
                 ThunderPluginState {
                     state: State::Unknown,
-                    last_attempt_time: Duration::from_secs(0),
+                    activation_timestamp: Utc::now(),
                     pending_requests: vec![request],
                 },
             );
         }
-        // update the last seen time
+        // update the time stamp
         if let Some(plugin_state) = status.get_mut(&plugin_name) {
-            plugin_state.last_attempt_time = Duration::from_secs(0);
+            plugin_state.activation_timestamp = Utc::now();
         }
     }
 
     // clear all pending requests for the given plugin and return the list of requests to the caller
     // Also return a flag to indicate if activation time has expired.
-    pub fn retrive_pending_request(&self, plugin_name: String) -> (Vec<BrokerRequest>, bool) {
+    pub fn retrive_pending_broker_request(
+        &self,
+        plugin_name: String,
+    ) -> (Vec<BrokerRequest>, bool) {
         let mut status = self.status.write().unwrap();
         if let Some(plugin_state) = status.get_mut(&plugin_name) {
             let pending_requests = plugin_state.pending_requests.clone();
             plugin_state.pending_requests.clear();
             // check if the activation time has expired.
-            if plugin_state.last_attempt_time.as_secs() > DEFAULT_PLUGIN_ACTIVATION_TIMEOUT {
+            let now = Utc::now();
+            if now - plugin_state.activation_timestamp
+                > Duration::seconds(DEFAULT_PLUGIN_ACTIVATION_TIMEOUT)
+            {
                 return (pending_requests, true);
             } else {
                 return (pending_requests, false);
@@ -196,7 +204,7 @@ impl StatusManager {
         (Vec::new(), false)
     }
 
-    pub fn get_pending_requests(&self, plugin_name: String) -> Vec<BrokerRequest> {
+    pub fn get_all_pending_broker_requests(&self, plugin_name: String) -> Vec<BrokerRequest> {
         let status = self.status.read().unwrap();
         if let Some(plugin_state) = status.get(&plugin_name) {
             plugin_state.pending_requests.clone()
@@ -205,17 +213,10 @@ impl StatusManager {
         }
     }
 
-    pub fn clear_pending_requests(&self, plugin_name: String) {
+    pub fn clear_all_pending_broker_requests(&self, plugin_name: String) {
         let mut status = self.status.write().unwrap();
         if let Some(plugin_state) = status.get_mut(&plugin_name) {
             plugin_state.pending_requests.clear();
-        }
-    }
-
-    pub fn update_pending_requests(&self, plugin_name: String, requests: Vec<BrokerRequest>) {
-        let mut status = self.status.write().unwrap();
-        if let Some(plugin_state) = status.get_mut(&plugin_name) {
-            plugin_state.pending_requests = requests;
         }
     }
 
@@ -237,8 +238,8 @@ impl StatusManager {
             })
         })
         .to_string();
-        // Add this request to the active_plugins_request
-        self.add_active_thunder_request(id, request.clone());
+        // Add this request to the inprogress_plugins_request
+        self.add_thunder_request_to_inprogress_list(id, request.clone());
         request
     }
 
@@ -252,8 +253,8 @@ impl StatusManager {
             "method": format!("{}status@{}", controller_call_sign, plugin_name),
         })
         .to_string();
-        // Add this request to the active_plugins_request
-        self.add_active_thunder_request(id, request.clone());
+        // Add this request to the inprogress_plugins_request
+        self.add_thunder_request_to_inprogress_list(id, request.clone());
         request
     }
 
@@ -271,14 +272,14 @@ impl StatusManager {
             })
         })
         .to_string();
-        // Add this request to the active_plugins_request
-        self.add_active_thunder_request(id, request.clone());
+        // Add this request to the inprogress_plugins_request
+        self.add_thunder_request_to_inprogress_list(id, request.clone());
         request
     }
 
-    fn add_active_thunder_request(&self, id: u64, request: String) {
-        let mut active_plugins_request = self.active_plugins_request.write().unwrap();
-        active_plugins_request.insert(id, request);
+    fn add_thunder_request_to_inprogress_list(&self, id: u64, request: String) {
+        let mut inprogress_plugins_request = self.inprogress_plugins_request.write().unwrap();
+        inprogress_plugins_request.insert(id, request);
     }
 
     pub async fn is_controller_response(
@@ -310,7 +311,8 @@ impl StatusManager {
 
                 if event.state.is_activated() {
                     // get the pending BrokerRequest and process.
-                    let (pending_requests, expired) = self.retrive_pending_request(event.callsign);
+                    let (pending_requests, expired) =
+                        self.retrive_pending_broker_request(event.callsign);
                     if !pending_requests.is_empty() {
                         for pending_request in pending_requests {
                             if expired {
@@ -331,8 +333,8 @@ impl StatusManager {
         }
 
         if let Some(id) = data.id {
-            let active_plugins_request = self.active_plugins_request.read().unwrap();
-            return active_plugins_request.contains_key(&id);
+            let inprogress_plugins_request = self.inprogress_plugins_request.read().unwrap();
+            return inprogress_plugins_request.contains_key(&id);
         }
 
         false
@@ -354,7 +356,7 @@ impl StatusManager {
             None => return,
         };
 
-        let (pending_requests, expired) = self.retrive_pending_request(callsign.to_string());
+        let (pending_requests, expired) = self.retrive_pending_broker_request(callsign.to_string());
 
         if result.is_null() {
             self.update_status(callsign.to_string(), State::Activated);
@@ -405,7 +407,7 @@ impl StatusManager {
 
                 if status.to_state().is_activated() {
                     let (pending_requests, expired) =
-                        self.retrive_pending_request(callsign.to_string());
+                        self.retrive_pending_broker_request(callsign.to_string());
 
                     for pending_request in pending_requests {
                         if expired {
@@ -447,7 +449,8 @@ impl StatusManager {
         self.update_status(plugin_name.to_string(), state.clone());
 
         if state.is_unavailable() {
-            let (pending_requests, _) = self.retrive_pending_request(plugin_name.to_string());
+            let (pending_requests, _) =
+                self.retrive_pending_broker_request(plugin_name.to_string());
 
             for pending_request in pending_requests {
                 callback
@@ -457,9 +460,9 @@ impl StatusManager {
         }
     }
 
-    pub fn get_request_from_active_plugins_request(&self, id: u64) -> Option<String> {
-        let active_plugins_request = self.active_plugins_request.read().unwrap();
-        active_plugins_request.get(&id).cloned()
+    pub fn get_from_inprogress_plugins_request_list(&self, id: u64) -> Option<String> {
+        let inprogress_plugins_request = self.inprogress_plugins_request.read().unwrap();
+        inprogress_plugins_request.get(&id).cloned()
     }
 
     pub async fn handle_controller_response(
@@ -478,7 +481,7 @@ impl StatusManager {
             None => return,
         };
 
-        let request = match self.get_request_from_active_plugins_request(id) {
+        let request = match self.get_from_inprogress_plugins_request_list(id) {
             Some(request) => request,
             None => return,
         };
@@ -496,17 +499,22 @@ impl StatusManager {
             info!("StatusManger Received response for register request");
         }
 
-        let mut active_plugins_request = self.active_plugins_request.write().unwrap();
-        active_plugins_request.remove(&id);
+        let mut inprogress_plugins_request = self.inprogress_plugins_request.write().unwrap();
+        inprogress_plugins_request.remove(&id);
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use ripple_sdk::tokio::{
-        self,
-        sync::mpsc::{self, channel},
+    use ripple_sdk::{
+        api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
+        tokio::{
+            self,
+            sync::mpsc::{self, channel},
+        },
     };
+
+    use crate::broker::rules_engine::{Rule, RuleTransform};
 
     use super::*;
 
@@ -592,4 +600,67 @@ mod tests {
         let status = status_manager.get_status("TestPlugin".to_string());
         assert_eq!(status.unwrap().state, State::Missing);
     }
+
+    /*
+    // Uncomment and use the following unit test only for local testing. Not use as part of the CI/CD pipeline.
+    #[tokio::test]
+    async fn test_expired_request() {
+        let status_manager = StatusManager::new();
+        let (tx, _tr) = mpsc::channel(10);
+        let broker = BrokerSender { sender: tx };
+
+        let (tx_1, _tr_1) = channel(2);
+        let callback = BrokerCallback { sender: tx_1 };
+
+        let data = JsonRpcApiResponse {
+            id: Some(1),
+            jsonrpc: "2.0".to_string(),
+            result: Some(serde_json::json!(null)),
+            error: None,
+            method: None,
+            params: None,
+        };
+        let request = r#"{"jsonrpc":"2.0","id":1,"method":"Controller.1.activate","params":{"callsign":"TestPlugin"}}"#;
+        status_manager
+            .on_activate_response(broker, callback, &data, request)
+            .await;
+        let status = status_manager.get_status("TestPlugin".to_string());
+        assert_eq!(status.unwrap().state, State::Activated);
+
+        let ctx = CallContext::new(
+            "session_id".to_string(),
+            "request_id".to_string(),
+            "app_id".to_string(),
+            1,
+            ApiProtocol::Bridge,
+            "method".to_string(),
+            Some("cid".to_string()),
+            true,
+        );
+
+        // Add a request to the pending list
+        let request = BrokerRequest {
+            rpc: RpcRequest {
+                ctx,
+                params_json: "".to_string(),
+                method: "TestPlugin".to_string(),
+            },
+            rule: Rule {
+                alias: "TestPlugin".to_string(),
+                transform: RuleTransform::default(),
+                endpoint: None,
+            },
+        };
+        status_manager.add_broker_request_to_pending_list("TestPlugin".to_string(), request);
+
+        // Sleep for 10 seconds to expire the request
+        tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+
+        // Check if the request is expired
+        let (pending_requests, expired) =
+            status_manager.retrive_pending_broker_request("TestPlugin".to_string());
+        assert_eq!(expired, true);
+        assert_eq!(pending_requests.len(), 1);
+    }
+    */
 }

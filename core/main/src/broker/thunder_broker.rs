@@ -190,7 +190,7 @@ impl EndpointBroker for ThunderBroker {
             Some(v) => v.clone(),
             None => {
                 self.status_manager
-                    .add_request_to_pending(callsign.clone(), rpc_request.clone());
+                    .add_broker_request_to_pending_list(callsign.clone(), rpc_request.clone());
                 // PluginState is not available with StateManager,  create an internal thunder request to activate the plugin
                 let request = self
                     .status_manager
@@ -202,7 +202,7 @@ impl EndpointBroker for ThunderBroker {
 
         if status.state.is_missing() {
             /*self.status_manager
-            .add_request_to_pending(callsign.clone(), rpc_request.clone());*/
+            .add_broker_request_to_pending_list(callsign.clone(), rpc_request.clone());*/
             error!("Plugin {} is missing", callsign);
             return Err(RippleError::ServiceError);
         }
@@ -215,7 +215,7 @@ impl EndpointBroker for ThunderBroker {
         if !status.state.is_activated() {
             // add the broker request to pending list
             self.status_manager
-                .add_request_to_pending(callsign.clone(), rpc_request.clone());
+                .add_broker_request_to_pending_list(callsign.clone(), rpc_request.clone());
             // create an internal thunder request to activate the plugin
             let request = self
                 .status_manager
