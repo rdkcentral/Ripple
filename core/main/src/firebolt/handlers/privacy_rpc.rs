@@ -27,21 +27,18 @@ use jsonrpsee::{
     types::error::CallError,
     RpcModule,
 };
-use ripple_sdk::api::distributor::distributor_privacy::PrivacySettingsStoreRequest;
-use ripple_sdk::api::firebolt::fb_capabilities::FireboltCap;
-use ripple_sdk::extn::extn_client_message::ExtnPayload;
 use ripple_sdk::{
     api::{
         device::device_peristence::SetBoolProperty,
         distributor::distributor_privacy::{
             ContentListenRequest, GetPropertyParams, PrivacyCloudRequest, PrivacySettings,
-            SetPropertyParams,
+            PrivacySettingsStoreRequest, SetPropertyParams,
         },
         firebolt::{
-            fb_capabilities::{CapabilityRole, RoleInfo, CAPABILITY_NOT_AVAILABLE},
+            fb_capabilities::{CapabilityRole, FireboltCap, RoleInfo, CAPABILITY_NOT_AVAILABLE},
             fb_general::{ListenRequest, ListenerResponse},
         },
-        gateway::rpc_gateway_api::CallContext,
+        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
         storage_property::{
             StorageProperty, EVENT_ALLOW_ACR_COLLECTION_CHANGED,
             EVENT_ALLOW_APP_CONTENT_AD_TARGETING_CHANGED, EVENT_ALLOW_CAMERA_ANALYTICS_CHANGED,
@@ -52,15 +49,15 @@ use ripple_sdk::{
             EVENT_ALLOW_UNENTITLED_RESUME_POINTS_CHANGED, EVENT_ALLOW_WATCH_HISTORY_CHANGED,
         },
     },
+    extn::extn_client_message::ExtnPayload,
     extn::extn_client_message::ExtnResponse,
     log::debug,
-    serde_json::json,
+    serde_json::{from_value, json},
 };
-
-use std::collections::HashMap;
 
 use super::advertising_rpc::ScopeOption;
 use super::capabilities_rpc::is_granted;
+use std::collections::HashMap;
 
 pub const US_PRIVACY_KEY: &str = "us_privacy";
 pub const LMT_KEY: &str = "lmt";
@@ -86,10 +83,35 @@ impl AllowAppContentAdTargetingSettings {
     pub async fn get_allow_app_content_ad_targeting_settings(
         &self,
         platform_state: &PlatformState,
+        ctx: &CallContext,
     ) -> HashMap<String, String> {
-        let country_code = StorageManager::get_string(platform_state, StorageProperty::CountryCode)
-            .await
-            .unwrap_or_default();
+        let mut new_ctx = ctx.clone();
+        new_ctx.protocol = ApiProtocol::Extn;
+
+        let rpc_request = RpcRequest {
+            ctx: new_ctx.clone(),
+            method: "localization.countryCode".into(),
+            params_json: RpcRequest::prepend_ctx(None, &new_ctx),
+        };
+
+        let resp = platform_state
+            .get_client()
+            .get_extn_client()
+            .main_internal_request(rpc_request.clone())
+            .await;
+
+        let country_code = if let Ok(res) = resp.clone() {
+            if let Some(ExtnResponse::Value(val)) = res.payload.extract::<ExtnResponse>() {
+                match from_value::<String>(val) {
+                    Ok(v) => v,
+                    Err(_) => "US".to_owned(),
+                }
+            } else {
+                "US".to_owned()
+            }
+        } else {
+            "US".to_owned()
+        };
 
         [
             (country_code == "US").then(|| (US_PRIVACY_KEY.to_owned(), self.us_privacy.to_owned())),
@@ -288,6 +310,7 @@ pub async fn get_allow_app_content_ad_targeting_settings(
     platform_state: &PlatformState,
     scope_option: Option<&ScopeOption>,
     caller_app: &String,
+    ctx: &CallContext,
 ) -> HashMap<String, String> {
     let mut data = StorageProperty::AllowAppContentAdTargeting;
     if let Some(scope_opt) = scope_option {
@@ -312,7 +335,7 @@ pub async fn get_allow_app_content_ad_targeting_settings(
             .await
             .unwrap_or(true),
     )
-    .get_allow_app_content_ad_targeting_settings(platform_state)
+    .get_allow_app_content_ad_targeting_settings(platform_state, ctx)
     .await
 }
 

@@ -287,6 +287,7 @@ impl AdvertisingServer for AdvertisingImpl {
                     &self.state,
                     opts.as_ref(),
                     &ctx.app_id,
+                    &ctx,
                 )
                 .await,
                 app_id: ctx.app_id.to_owned(),
@@ -356,6 +357,7 @@ impl AdvertisingServer for AdvertisingImpl {
             &self.state,
             None,
             &durable_app_id,
+            &ctx,
         )
         .await;
 
