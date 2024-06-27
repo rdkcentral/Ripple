@@ -183,7 +183,7 @@ impl StatusManager {
 
     // clear all pending requests for the given plugin and return the list of requests to the caller
     // Also return a flag to indicate if activation time has expired.
-    pub fn retrive_pending_broker_request(
+    pub fn retrive_pending_broker_requests(
         &self,
         plugin_name: String,
     ) -> (Vec<BrokerRequest>, bool) {
@@ -312,7 +312,7 @@ impl StatusManager {
                 if event.state.is_activated() {
                     // get the pending BrokerRequest and process.
                     let (pending_requests, expired) =
-                        self.retrive_pending_broker_request(event.callsign);
+                        self.retrive_pending_broker_requests(event.callsign);
                     if !pending_requests.is_empty() {
                         for pending_request in pending_requests {
                             if expired {
@@ -356,7 +356,8 @@ impl StatusManager {
             None => return,
         };
 
-        let (pending_requests, expired) = self.retrive_pending_broker_request(callsign.to_string());
+        let (pending_requests, expired) =
+            self.retrive_pending_broker_requests(callsign.to_string());
 
         if result.is_null() {
             self.update_status(callsign.to_string(), State::Activated);
@@ -407,7 +408,7 @@ impl StatusManager {
 
                 if status.to_state().is_activated() {
                     let (pending_requests, expired) =
-                        self.retrive_pending_broker_request(callsign.to_string());
+                        self.retrive_pending_broker_requests(callsign.to_string());
 
                     for pending_request in pending_requests {
                         if expired {
@@ -450,7 +451,7 @@ impl StatusManager {
 
         if state.is_unavailable() {
             let (pending_requests, _) =
-                self.retrive_pending_broker_request(plugin_name.to_string());
+                self.retrive_pending_broker_requests(plugin_name.to_string());
 
             for pending_request in pending_requests {
                 callback
@@ -507,14 +508,14 @@ impl StatusManager {
 #[cfg(test)]
 mod tests {
     use ripple_sdk::{
-        api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
+        //api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
         tokio::{
             self,
             sync::mpsc::{self, channel},
         },
     };
 
-    use crate::broker::rules_engine::{Rule, RuleTransform};
+    //use crate::broker::rules_engine::{Rule, RuleTransform};
 
     use super::*;
 
@@ -658,7 +659,7 @@ mod tests {
 
         // Check if the request is expired
         let (pending_requests, expired) =
-            status_manager.retrive_pending_broker_request("TestPlugin".to_string());
+            status_manager.retrive_pending_broker_requests("TestPlugin".to_string());
         assert_eq!(expired, true);
         assert_eq!(pending_requests.len(), 1);
     }
