@@ -30,7 +30,14 @@ use crate::broker::endpoint_broker::{
     BrokerCallback, BrokerRequest, BrokerSender, EndpointBrokerState,
 };
 
-const DEFAULT_PLUGIN_ACTIVATION_TIMEOUT: u64 = 5;
+// defautl timeout for plugin activation in seconds
+const DEFAULT_PLUGIN_ACTIVATION_TIMEOUT: u64 = 8;
+
+// As per thunder 4_4 documentation, the statechange event is published under the method "client.events.1.statechange"
+// But it didn't work, most probably a documentation issue.
+// const STATE_CHANGE_EVENT_METHOD: &str = "client.events.1.statechange";
+
+const STATE_CHANGE_EVENT_METHOD: &str = "client.Controller.1.events.statechange";
 
 #[derive(Debug, Deserialize, PartialEq, Serialize, Clone)]
 pub struct Status {
@@ -286,7 +293,8 @@ impl StatusManager {
         };
 
         if let Some(method) = data.method {
-            if method == "client.events.1.statechange" {
+            info!("is_controller_response Method: {:?}", method);
+            if method == STATE_CHANGE_EVENT_METHOD {
                 // intercept the statechange event and update plugin status.
                 let params = match data.params {
                     Some(params) => params,

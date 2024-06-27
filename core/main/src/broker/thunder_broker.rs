@@ -62,17 +62,21 @@ impl ThunderBroker {
             let mut index = 0;
             //let tcp_url = url.host_str()
             let tcp = loop {
-                if let Ok(v) = TcpStream::connect(&port).await {
-                    break v;
-                } else {
-                    if (index % 10).eq(&0) {
-                        error!(
-                            "Thunder Broker failed with retry for last {} secs in {}",
-                            index, port
-                        );
+                let resp = TcpStream::connect(&port).await;
+                match resp {
+                    Ok(v) => {
+                        break v;
                     }
-                    index += 1;
-                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    Err(e) => {
+                        if (index % 10).eq(&0) {
+                            error!(
+                                "Thunder Broker failed with retry for last {} secs in {} {:?}",
+                                index, port, e
+                            );
+                        }
+                        index += 1;
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                    }
                 }
             };
 
@@ -129,7 +133,7 @@ impl ThunderBroker {
                             Err(e) => {
                                 match e {
                                     RippleError::ServiceNotReady => {
-                                        info!("Thunder Service not ready, adding request to pending {:?}", request);
+                                        info!("Thunder Service not ready, request is now in pending list {:?}", request);
                                     },
                                     _ =>
                                 callback_for_sender.send_error(request,e).await
