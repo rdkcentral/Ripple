@@ -21,7 +21,7 @@ use std::{
 };
 
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::JsonRpcApiResponse, log::info, utils::error::RippleError, tokio,
+    api::gateway::rpc_gateway_api::JsonRpcApiResponse, log::info, tokio, utils::error::RippleError,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -348,13 +348,8 @@ impl StatusManager {
                         }
                     }
                 } else if let Some(_e) = &data.error {
-                    Self::on_thunder_error_response(
-                        self,
-                        callback,
-                        data,
-                        &plugin_name.to_string(),
-                    )
-                    .await;
+                    Self::on_thunder_error_response(self, callback, data, &plugin_name.to_string())
+                        .await;
                 }
             }
         }
@@ -462,7 +457,7 @@ impl StatusManager {
     ) {
         if let Ok(data) = serde_json::from_slice::<JsonRpcApiResponse>(result) {
             if let Some(id) = data.id {
-                if let Some(request) = self.get_request_from_active_plugins_request(id){
+                if let Some(request) = self.get_request_from_active_plugins_request(id) {
                     if request.contains("Controller.1.activate") {
                         // move this to spawned task
                         let state_mgr = StatusManager {
@@ -471,7 +466,9 @@ impl StatusManager {
                         };
                         //let request_c = request.clone();
                         tokio::spawn(async move {
-                            state_mgr.on_activate_response(sender, callback, &data, &request).await;
+                            state_mgr
+                                .on_activate_response(sender, callback, &data, &request)
+                                .await;
                         });
                         //Self::on_activate_response(self, sender, callback, &data, request).await;
                     } else if request.contains("Controller.1.status@") {
