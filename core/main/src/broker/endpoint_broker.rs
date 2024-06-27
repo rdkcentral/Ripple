@@ -188,6 +188,11 @@ impl EndpointBrokerState {
         }
     }
 
+    pub fn get_next_id() -> u64 {
+        ATOMIC_ID.fetch_add(1, Ordering::Relaxed);
+        ATOMIC_ID.load(Ordering::Relaxed)
+    }
+
     fn update_request(
         &self,
         rpc_request: &RpcRequest,

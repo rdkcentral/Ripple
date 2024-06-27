@@ -1,5 +1,3 @@
-use crate::utils::rpc_utils::extract_tcp_port;
-
 // Copyright 2023 Comcast Cable Communications Management, LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +17,9 @@ use crate::utils::rpc_utils::extract_tcp_port;
 use super::{
     endpoint_broker::{BrokerCallback, BrokerOutput, BrokerRequest, BrokerSender, EndpointBroker},
     rules_engine::RuleEndpoint,
+    thunder::thunder_plugins_status_mgr::StatusManager,
 };
+use crate::utils::rpc_utils::extract_tcp_port;
 use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse,
@@ -39,6 +39,7 @@ use tokio_tungstenite::client_async;
 pub struct ThunderBroker {
     sender: BrokerSender,
     subscription_map: Arc<RwLock<HashMap<String, BrokerRequest>>>,
+    status_manager: StatusManager,
 }
 
 impl ThunderBroker {
@@ -49,6 +50,7 @@ impl ThunderBroker {
         let broker = Self {
             sender,
             subscription_map,
+            status_manager: StatusManager::new(),
         };
         let broker_c = broker.clone();
         let callback_for_sender = callback.clone();
@@ -77,6 +79,18 @@ impl ThunderBroker {
             let (stream, _) = client_async(url, tcp).await.unwrap();
             let (mut ws_tx, mut ws_rx) = stream.split();
 
+            // send the first request to the broker. This is the controller statechange subscription request
+            let request = broker_c
+                .status_manager
+                .generate_state_change_subscribe_request();
+
+            let _feed = ws_tx
+                .feed(tokio_tungstenite::tungstenite::Message::Text(
+                    request.to_string(),
+                ))
+                .await;
+            let _flush = ws_tx.flush().await;
+
             tokio::pin! {
                 let read = ws_rx.next();
             }
@@ -86,8 +100,13 @@ impl ThunderBroker {
                         match value {
                             Ok(v) => {
                                 if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
-                                    // send the incoming text without context back to the sender
-                                    Self::handle_response(t.as_bytes(),callback.clone())
+                                    if broker_c.status_manager.is_controller_response(broker_c.get_sender(), callback.clone(), t.as_bytes()).await {
+                                        broker_c.status_manager.handle_controller_response(broker_c.get_sender(), callback.clone(), t.as_bytes()).await;
+                                    }
+                                    else {
+                                        // send the incoming text without context back to the sender
+                                        Self::handle_response(t.as_bytes(),callback.clone())
+                                    }
                                 }
                             },
                             Err(e) => {
@@ -107,8 +126,16 @@ impl ThunderBroker {
                                 let _flush = ws_tx.flush().await;
                                 }
                             }
-                            Err(e) => callback_for_sender.send_error(request,e).await
+                            Err(e) => {
+                                match e {
+                                    RippleError::ServiceNotReady => {
+                                        info!("Thunder Service not ready, adding request to pending {:?}", request);
+                                    },
+                                    _ =>
+                                callback_for_sender.send_error(request,e).await
+                            }
                         }
+                    }
                     }
                 }
             }
@@ -153,6 +180,46 @@ impl EndpointBroker for ThunderBroker {
         if method.is_none() {
             return Err(RippleError::InvalidInput);
         }
+        // TBD: Move these changes to a separate method
+        // check if the plugin is activated.
+        let status = match self.status_manager.get_status(callsign.clone()) {
+            Some(v) => v.clone(),
+            None => {
+                self.status_manager
+                    .add_request_to_pending(callsign.clone(), rpc_request.clone());
+                // PluginState is not available with StateManager,  create an internal thunder request to activate the plugin
+                let request = self
+                    .status_manager
+                    .generate_plugin_status_request(callsign.clone());
+                requests.push(request.to_string());
+                return Ok(requests);
+            }
+        };
+
+        if status.state.is_missing() {
+            /*self.status_manager
+            .add_request_to_pending(callsign.clone(), rpc_request.clone());*/
+            error!("Plugin {} is missing", callsign);
+            return Err(RippleError::ServiceError);
+        }
+
+        if status.state.is_activating() {
+            info!("Plugin {} is activating", callsign);
+            return Err(RippleError::ServiceNotReady);
+        }
+
+        if !status.state.is_activated() {
+            // add the broker request to pending list
+            self.status_manager
+                .add_request_to_pending(callsign.clone(), rpc_request.clone());
+            // create an internal thunder request to activate the plugin
+            let request = self
+                .status_manager
+                .generate_plugin_activation_request(callsign.clone());
+            requests.push(request.to_string());
+            return Ok(requests);
+        }
+
         let method = method.unwrap();
         if rpc_request.rpc.is_subscription() {
             let listen = rpc_request.rpc.is_listening();
