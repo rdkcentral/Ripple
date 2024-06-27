@@ -17,7 +17,9 @@ use crate::utils::rpc_utils::extract_tcp_port;
 // SPDX-License-Identifier: Apache-2.0
 //
 use super::{
-    endpoint_broker::{BrokerCallback, BrokerOutput, BrokerRequest, BrokerSender, EndpointBroker},
+    endpoint_broker::{
+        BrokerCallback, BrokerCleaner, BrokerOutput, BrokerRequest, BrokerSender, EndpointBroker,
+    },
     rules_engine::RuleEndpoint,
 };
 use futures_util::{SinkExt, StreamExt};
@@ -38,19 +40,25 @@ use tokio_tungstenite::client_async;
 #[derive(Debug, Clone)]
 pub struct ThunderBroker {
     sender: BrokerSender,
-    subscription_map: Arc<RwLock<HashMap<String, BrokerRequest>>>,
+    subscription_map: Arc<RwLock<HashMap<String, Vec<BrokerRequest>>>>,
+    cleaner: BrokerCleaner,
 }
 
 impl ThunderBroker {
     fn start(endpoint: RuleEndpoint, callback: BrokerCallback) -> Self {
         let (tx, mut tr) = mpsc::channel(10);
+        let (c_tx, mut c_tr) = mpsc::channel(2);
         let sender = BrokerSender { sender: tx };
         let subscription_map = Arc::new(RwLock::new(HashMap::new()));
         let broker = Self {
             sender,
             subscription_map,
+            cleaner: BrokerCleaner {
+                cleaner: Some(c_tx.clone()),
+            },
         };
         let broker_c = broker.clone();
+        let broker_for_cleanup = broker.clone();
         let callback_for_sender = callback.clone();
         tokio::spawn(async move {
             info!("Broker Endpoint url {}", endpoint.url);
@@ -87,7 +95,7 @@ impl ThunderBroker {
                             Ok(v) => {
                                 if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
                                     // send the incoming text without context back to the sender
-                                    Self::handle_response(t.as_bytes(),callback.clone())
+                                    Self::handle_jsonrpc_response(t.as_bytes(),callback.clone())
                                 }
                             },
                             Err(e) => {
@@ -104,11 +112,27 @@ impl ThunderBroker {
                                 debug!("Sending request to broker {:?}", updated_request);
                                 for r in updated_request {
                                     let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
-                                let _flush = ws_tx.flush().await;
+                                    let _flush = ws_tx.flush().await;
                                 }
                             }
                             Err(e) => callback_for_sender.send_error(request,e).await
                         }
+                    },
+                    Some(cleanup_request) = c_tr.recv() => {
+                        let value = {
+                            broker_for_cleanup.subscription_map.write().unwrap().remove(&cleanup_request)
+                        };
+                        if let Some(mut cleanup) = value {
+                            let sender = broker_for_cleanup.get_sender();
+                            while let Some(mut v) = cleanup.pop() {
+                                v.rpc = v.rpc.get_unsubscribe();
+                                if (sender.send(v).await).is_err() {
+                                    error!("Cleanup Error for {}",&cleanup_request);
+                                }
+                            }
+
+                        }
+
                     }
                 }
             }
@@ -130,6 +154,24 @@ impl ThunderBroker {
         let callsign = collection.join(".");
         (callsign, method)
     }
+
+    fn subscribe(&self, request: &BrokerRequest) -> Option<BrokerRequest> {
+        let mut sub_map = self.subscription_map.write().unwrap();
+        let app_id = &request.rpc.ctx.session_id;
+        let method = &request.rpc.ctx.method;
+        let listen = request.rpc.is_listening();
+        let mut response = None;
+        if let Some(mut v) = sub_map.remove(app_id) {
+            if let Some(i) = v.iter().position(|x| x.rpc.ctx.method.contains(method)) {
+                let _ = response.insert(v.remove(i));
+            }
+            if listen {
+                v.push(request.clone());
+            }
+            let _ = sub_map.insert(app_id.clone(), v);
+        }
+        response
+    }
 }
 
 impl EndpointBroker for ThunderBroker {
@@ -141,6 +183,10 @@ impl EndpointBroker for ThunderBroker {
         self.sender.clone()
     }
 
+    fn get_cleaner(&self) -> BrokerCleaner {
+        self.cleaner.clone()
+    }
+
     fn prepare_request(
         &self,
         rpc_request: &super::endpoint_broker::BrokerRequest,
@@ -148,55 +194,48 @@ impl EndpointBroker for ThunderBroker {
         let mut requests = Vec::new();
         let rpc = rpc_request.clone().rpc;
         let id = rpc.ctx.call_id;
-        let app_id = rpc.ctx.app_id;
         let (callsign, method) = Self::get_callsign_and_method_from_alias(&rpc_request.rule.alias);
         if method.is_none() {
             return Err(RippleError::InvalidInput);
         }
         let method = method.unwrap();
+        // Below chunk of code is basically for subscription where thunder needs some special care based on
+        // the JsonRpc specification
         if rpc_request.rpc.is_subscription() {
             let listen = rpc_request.rpc.is_listening();
-            let notif_id = {
-                let mut sub_map = self.subscription_map.write().unwrap();
-
-                if listen {
-                    if let Some(cleanup) = sub_map.insert(app_id, rpc_request.clone()) {
-                        requests.push(
-                            json!({
-                                "jsonrpc": "2.0",
-                                "id": cleanup.rpc.ctx.call_id,
-                                "method": format!("{}.{}", callsign, "unregister".to_owned()),
-                                "params": {
-                                    "event": method,
-                                    "id": format!("{}", cleanup.rpc.ctx.call_id)
-                                }
-                            })
-                            .to_string(),
-                        )
-                    }
-                    id
-                } else if let Some(v) = sub_map.remove(&app_id) {
-                    v.rpc.ctx.call_id
-                } else {
-                    id
-                }
-            };
-            requests.push(
-                json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "method": format!("{}.{}", callsign, match listen {
-                        true => "register",
-                        false => "unregister"
-                    }),
-                    "params": json!({
-                        "event": method,
-                        "id": format!("{}", notif_id)
+            // If there was an existing app and method combo for the same subscription just unregister that
+            if let Some(cleanup) = self.subscribe(rpc_request) {
+                requests.push(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": cleanup.rpc.ctx.call_id,
+                        "method": format!("{}.unregister", callsign),
+                        "params": {
+                            "event": method,
+                            "id": format!("{}", cleanup.rpc.ctx.call_id)
+                        }
                     })
-                })
-                .to_string(),
-            )
+                    .to_string(),
+                )
+            }
+
+            // Given unregistration is already performed by previous step just do registration
+            if listen {
+                requests.push(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "method": format!("{}.register", callsign),
+                        "params": json!({
+                            "event": method,
+                            "id": format!("{}", id)
+                        })
+                    })
+                    .to_string(),
+                )
+            }
         } else {
+            // Simple request and response handling
             let request = Self::update_request(rpc_request)?;
             requests.push(request)
         }
@@ -206,7 +245,7 @@ impl EndpointBroker for ThunderBroker {
 
     /// Default handler method for the broker to remove the context and send it back to the
     /// client for consumption
-    fn handle_response(result: &[u8], callback: BrokerCallback) {
+    fn handle_jsonrpc_response(result: &[u8], callback: BrokerCallback) {
         let mut final_result = Err(RippleError::ParseError);
         if let Ok(data) = serde_json::from_slice::<JsonRpcApiResponse>(result) {
             let updated_data = Self::update_response(&data);

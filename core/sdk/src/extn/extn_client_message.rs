@@ -125,6 +125,28 @@ impl ExtnMessage {
         }
     }
 
+    /// This method can be used to create [ExtnEvent] payload message from a given [ExtnRequest]
+    /// payload.
+    ///
+    /// Note: If used in a processor this method can be safely unwrapped
+    pub fn get_event(&self, event: ExtnEvent) -> Result<ExtnMessage, RippleError> {
+        match self.payload {
+            ExtnPayload::Request(_) => Ok(ExtnMessage {
+                callback: self.callback.clone(),
+                id: self.id.clone(),
+                payload: ExtnPayload::Event(event),
+                requestor: self.requestor.clone(),
+                target: self.target.clone(),
+                target_id: self.target_id.clone(),
+                ts: None,
+            }),
+            _ => {
+                error!("can only event for a request message");
+                Err(RippleError::InvalidInput)
+            }
+        }
+    }
+
     pub fn ack(&self) -> ExtnMessage {
         ExtnMessage {
             id: self.id.clone(),

@@ -23,7 +23,7 @@ use ripple_sdk::{
         },
         session::AccountSession,
     },
-    extn::extn_client_message::ExtnMessage,
+    extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
     log::error,
     tokio::{
@@ -61,9 +61,33 @@ pub struct BrokerSender {
 }
 
 #[derive(Clone, Debug)]
+pub struct BrokerCleaner {
+    pub cleaner: Option<Sender<String>>,
+}
+
+impl BrokerCleaner {
+    async fn cleanup_session(&self, appid: &str) {
+        if let Some(cleaner) = self.cleaner.clone() {
+            if let Err(e) = cleaner.send(appid.to_owned()).await {
+                error!("Couldnt cleanup {} {:?}", appid, e)
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct BrokerRequest {
     pub rpc: RpcRequest,
     pub rule: Rule,
+}
+
+impl BrokerRequest {
+    pub fn new(rpc_request: &RpcRequest, rule: Rule) -> BrokerRequest {
+        BrokerRequest {
+            rpc: rpc_request.clone(),
+            rule,
+        }
+    }
 }
 
 /// BrokerCallback will be used by the communication broker to send the firebolt response
@@ -154,6 +178,7 @@ pub struct EndpointBrokerState {
     request_map: Arc<RwLock<HashMap<u64, BrokerRequest>>>,
     extension_request_map: Arc<RwLock<HashMap<u64, ExtnMessage>>>,
     rule_engine: RuleEngine,
+    cleaner_list: Arc<RwLock<Vec<BrokerCleaner>>>,
 }
 
 impl EndpointBrokerState {
@@ -164,6 +189,7 @@ impl EndpointBrokerState {
             request_map: Arc::new(RwLock::new(HashMap::new())),
             extension_request_map: Arc::new(RwLock::new(HashMap::new())),
             rule_engine,
+            cleaner_list: Arc::new(RwLock::new(Vec::new())),
         }
     }
 
@@ -180,11 +206,20 @@ impl EndpointBrokerState {
         Ok(result)
     }
 
-    fn get_extn_message(&self, id: u64) -> Result<ExtnMessage, RippleError> {
-        let result = { self.extension_request_map.write().unwrap().remove(&id) };
-        match result {
-            Some(v) => Ok(v),
-            None => Err(RippleError::NotAvailable),
+    fn get_extn_message(&self, id: u64, is_event: bool) -> Result<ExtnMessage, RippleError> {
+        if is_event {
+            let v = { self.extension_request_map.read().unwrap().get(&id).cloned() };
+            if let Some(v1) = v {
+                Ok(v1)
+            } else {
+                Err(RippleError::NotAvailable)
+            }
+        } else {
+            let result = { self.extension_request_map.write().unwrap().remove(&id) };
+            match result {
+                Some(v) => Ok(v),
+                None => Err(RippleError::NotAvailable),
+            }
         }
     }
 
@@ -214,16 +249,18 @@ impl EndpointBrokerState {
         }
 
         rpc_request_c.ctx.call_id = id;
-        self.get_broker_request(&rpc_request_c, rule)
+        BrokerRequest::new(&rpc_request_c, rule)
     }
 
     pub fn build_thunder_endpoint(&mut self) {
         if let Some(endpoint) = self.rule_engine.rules.endpoints.get("thunder").cloned() {
             let mut endpoint_map = self.endpoint_map.write().unwrap();
-            endpoint_map.insert(
-                "thunder".to_owned(),
-                ThunderBroker::get_broker(endpoint.clone(), self.callback.clone()).get_sender(),
-            );
+            let thunder_broker = ThunderBroker::get_broker(endpoint.clone(), self.callback.clone());
+            endpoint_map.insert("thunder".to_owned(), thunder_broker.get_sender());
+            {
+                let mut cleaner_list = self.cleaner_list.write().unwrap();
+                cleaner_list.push(thunder_broker.get_cleaner());
+            }
         }
     }
 
@@ -243,12 +280,17 @@ impl EndpointBrokerState {
                     );
                 }
                 RuleEndpointProtocol::Websocket => {
-                    let mut endpoint_map = self.endpoint_map.write().unwrap();
-                    endpoint_map.insert(
-                        key,
-                        WebsocketBroker::get_broker(endpoint.clone(), self.callback.clone())
-                            .get_sender(),
-                    );
+                    let ws_broker =
+                        WebsocketBroker::get_broker(endpoint.clone(), self.callback.clone());
+                    {
+                        let mut endpoint_map = self.endpoint_map.write().unwrap();
+                        endpoint_map.insert(key, ws_broker.get_sender());
+                    }
+
+                    {
+                        let mut cleaner_list = self.cleaner_list.write().unwrap();
+                        cleaner_list.push(ws_broker.get_cleaner())
+                    }
                 }
                 _ => {}
             }
@@ -301,11 +343,11 @@ impl EndpointBrokerState {
         self.rule_engine.get_rule(rpc_request)
     }
 
-    // Get Broker Request from rpc_request
-    pub fn get_broker_request(&self, rpc_request: &RpcRequest, rule: Rule) -> BrokerRequest {
-        BrokerRequest {
-            rpc: rpc_request.clone(),
-            rule,
+    // Method to cleanup all subscription on App termination
+    pub async fn cleanup_for_app(&self, app_id: &str) {
+        let cleaners = { self.cleaner_list.read().unwrap().clone() };
+        for cleaner in cleaners {
+            cleaner.cleanup_session(app_id).await
         }
     }
 }
@@ -383,7 +425,7 @@ pub trait EndpointBroker {
 
     /// Default handler method for the broker to remove the context and send it back to the
     /// client for consumption
-    fn handle_response(result: &[u8], callback: BrokerCallback) {
+    fn handle_jsonrpc_response(result: &[u8], callback: BrokerCallback) {
         let mut final_result = Err(RippleError::ParseError);
         if let Ok(data) = serde_json::from_slice::<JsonRpcApiResponse>(result) {
             final_result = Ok(BrokerOutput { data });
@@ -394,6 +436,41 @@ pub trait EndpointBroker {
             error!("Bad broker response {}", String::from_utf8_lossy(result));
         }
     }
+
+    fn handle_non_jsonrpc_response(
+        data: &[u8],
+        callback: BrokerCallback,
+        request: &BrokerRequest,
+    ) -> RippleResponse {
+        // find if its event
+        let method = if request.rpc.is_subscription() {
+            Some(format!(
+                "{}.{}",
+                request.rpc.ctx.call_id, request.rpc.ctx.method
+            ))
+        } else {
+            None
+        };
+        let parse_result = serde_json::from_slice::<Value>(data);
+        if parse_result.is_err() {
+            return Err(RippleError::ParseError);
+        }
+        let result = Some(parse_result.unwrap());
+        // build JsonRpcApiResponse
+        let data = JsonRpcApiResponse {
+            jsonrpc: "2.0".to_owned(),
+            id: Some(request.rpc.ctx.call_id),
+            method,
+            result,
+            error: None,
+            params: None,
+        };
+        let output = BrokerOutput { data };
+        tokio::spawn(async move { callback.sender.send(output).await });
+        Ok(())
+    }
+
+    fn get_cleaner(&self) -> BrokerCleaner;
 }
 
 /// Forwarder gets the BrokerOutput and forwards the response to the gateway.
@@ -414,6 +491,7 @@ impl BrokerOutputForwarder {
                     if let Ok(broker_request) = platform_state.endpoint_state.get_request(id) {
                         let rpc_request = broker_request.rpc;
                         let session_id = rpc_request.ctx.get_id();
+                        let is_subscription = rpc_request.is_subscription();
                         if let Some(session) = platform_state
                             .session_state
                             .get_session_for_connection_id(&session_id)
@@ -435,6 +513,11 @@ impl BrokerOutputForwarder {
                                             v.data.result = Some(r);
                                         }
                                     }
+                                } else if is_subscription {
+                                    v.data.result = Some(json!({
+                                        "listening" : rpc_request.is_listening(),
+                                        "event" : rpc_request.ctx.method
+                                    }))
                                 } else if let Some(filter) = broker_request
                                     .rule
                                     .transform
@@ -461,10 +544,27 @@ impl BrokerOutputForwarder {
 
                             match rpc_request.ctx.protocol.clone() {
                                 ApiProtocol::Extn => {
-                                    if let Ok(v) =
-                                        platform_state.endpoint_state.get_extn_message(id)
+                                    if let Ok(extn_message) =
+                                        platform_state.endpoint_state.get_extn_message(id, is_event)
                                     {
-                                        return_extn_response(message, v)
+                                        if is_event {
+                                            if let Ok(event) =
+                                                extn_message.get_event(ExtnEvent::Value(
+                                                    serde_json::to_value(v.data).unwrap(),
+                                                ))
+                                            {
+                                                if let Err(e) = platform_state
+                                                    .get_client()
+                                                    .get_extn_client()
+                                                    .send_message(event)
+                                                    .await
+                                                {
+                                                    error!("couldnt send back event {:?}", e)
+                                                }
+                                            }
+                                        } else {
+                                            return_extn_response(message, extn_message)
+                                        }
                                     }
                                 }
                                 _ => {

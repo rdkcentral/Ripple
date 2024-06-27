@@ -18,7 +18,7 @@
 use crate::utils::rpc_utils::extract_tcp_port;
 
 use super::{
-    endpoint_broker::{BrokerCallback, BrokerSender, EndpointBroker},
+    endpoint_broker::{BrokerCallback, BrokerCleaner, BrokerSender, EndpointBroker},
     rules_engine::RuleEndpoint,
 };
 use futures_util::{SinkExt, StreamExt};
@@ -31,6 +31,7 @@ use tokio_tungstenite::client_async;
 
 pub struct WebsocketBroker {
     sender: BrokerSender,
+    cleaner: BrokerCleaner,
 }
 
 impl WebsocketBroker {
@@ -38,57 +39,102 @@ impl WebsocketBroker {
         let (tx, mut tr) = mpsc::channel(10);
         let broker = BrokerSender { sender: tx };
         tokio::spawn(async move {
-            info!("Broker Endpoint url {}", endpoint.url);
-            let url = url::Url::parse(&endpoint.url).unwrap();
-            let port = extract_tcp_port(&endpoint.url);
-            info!("Url host str {}", url.host_str().unwrap());
-            //let tcp_url = url.host_str()
-            let tcp = loop {
-                if let Ok(v) = TcpStream::connect(&port).await {
-                    break v;
-                } else {
-                    error!("Broker Wait for a sec and retry {}", port);
-                    tokio::time::sleep(Duration::from_secs(1)).await;
+            if endpoint.jsonrpc {
+                let (url, tcp) = connect(&endpoint.url, None).await;
+
+                let (stream, _) = client_async(url, tcp).await.unwrap();
+                let (mut ws_tx, mut ws_rx) = stream.split();
+
+                tokio::pin! {
+                    let read = ws_rx.next();
                 }
-            };
-
-            let (stream, _) = client_async(url, tcp).await.unwrap();
-            let (mut ws_tx, mut ws_rx) = stream.split();
-
-            tokio::pin! {
-                let read = ws_rx.next();
-            }
-            loop {
-                tokio::select! {
-                    Some(value) = &mut read => {
-                        match value {
-                            Ok(v) => {
-                                if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
-                                    // send the incoming text without context back to the sender
-                                    Self::handle_response(t.as_bytes(),callback.clone())
+                loop {
+                    tokio::select! {
+                        Some(value) = &mut read => {
+                            match value {
+                                Ok(v) => {
+                                    if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
+                                        // send the incoming text without context back to the sender
+                                        Self::handle_jsonrpc_response(t.as_bytes(),callback.clone())
+                                    }
+                                },
+                                Err(e) => {
+                                    error!("Broker Websocket error on read {:?}", e);
+                                    break false
                                 }
-                            },
-                            Err(e) => {
-                                error!("Broker Websocket error on read {:?}", e);
-                                break false
                             }
-                        }
 
-                    },
-                    Some(request) = tr.recv() => {
-                        debug!("Got request from receiver for broker {:?}", request);
-                        if let Ok(updated_request) = Self::update_request(&request) {
-                            debug!("Sending request to broker {}", updated_request);
-                             let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(updated_request)).await;
-                            let _flush = ws_tx.flush().await;
-                        }
+                        },
+                        Some(request) = tr.recv() => {
+                            debug!("Got request from receiver for broker {:?}", request);
+                            if let Ok(updated_request) = Self::update_request(&request) {
+                                debug!("Sending request to broker {}", updated_request);
+                                let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(updated_request)).await;
+                                let _flush = ws_tx.flush().await;
+                            }
 
+                        }
                     }
                 }
+            } else {
+                while let Some(v) = tr.recv().await {
+                    let request_c = v.clone();
+                    let callback_c = callback.clone();
+                    let url = endpoint.url.clone();
+                    tokio::spawn(async move {
+                        let (final_url, tcp) = connect(&url, Some(v.rule.alias)).await;
+
+                        let (stream, _) = client_async(final_url, tcp).await.unwrap();
+                        let (_, ws_rx) = stream.split();
+
+                        let _ = ws_rx
+                            .for_each(|message| async {
+                                if let Ok(tokio_tungstenite::tungstenite::Message::Text(t)) =
+                                    message
+                                {
+                                    // send the incoming text without context back to the sender
+                                    if let Err(e) = Self::handle_non_jsonrpc_response(
+                                        t.as_bytes(),
+                                        callback_c.clone(),
+                                        &request_c,
+                                    ) {
+                                        error!("error forwarding {}", e);
+                                    }
+                                }
+                            })
+                            .await;
+                    });
+                }
+                true
             }
         });
-        Self { sender: broker }
+        Self {
+            sender: broker,
+            cleaner: BrokerCleaner { cleaner: None },
+        }
     }
+}
+
+async fn connect(endpoint: &str, alias: Option<String>) -> (url::Url, TcpStream) {
+    info!("Broker Endpoint url {}", endpoint);
+    let url_path = if let Some(a) = alias {
+        format!("{}{}", endpoint, a)
+    } else {
+        endpoint.to_owned()
+    };
+    let url = url::Url::parse(&url_path).unwrap();
+    let port = extract_tcp_port(endpoint);
+    info!("Url host str {}", url.host_str().unwrap());
+    //let tcp_url = url.host_str()
+    let tcp = loop {
+        if let Ok(v) = TcpStream::connect(&port).await {
+            break v;
+        } else {
+            error!("Broker Wait for a sec and retry {}", port);
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+    };
+    (url, tcp)
 }
 
 impl EndpointBroker for WebsocketBroker {
@@ -98,5 +144,9 @@ impl EndpointBroker for WebsocketBroker {
 
     fn get_sender(&self) -> BrokerSender {
         self.sender.clone()
+    }
+
+    fn get_cleaner(&self) -> BrokerCleaner {
+        self.cleaner.clone()
     }
 }
