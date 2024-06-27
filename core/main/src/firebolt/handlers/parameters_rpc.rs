@@ -85,6 +85,7 @@ impl ParametersServer for ParametersImpl {
             &self.platform_state,
             None,
             &ctx.app_id.to_string(),
+            &ctx,
         )
         .await;
 
