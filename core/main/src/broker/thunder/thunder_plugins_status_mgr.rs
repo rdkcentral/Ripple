@@ -46,7 +46,7 @@ pub struct ThunderError {
 }
 
 impl ThunderError {
-    pub fn get_plugin_state(&self) -> State {
+    pub fn get_state(&self) -> State {
         match self.message.as_str() {
             "ERROR_INPROGRESS" | "ERROR_PENDING_CONDITIONS" => State::InProgress,
             "ERROR_UNKNOWN_KEY" => State::Missing,
@@ -56,7 +56,7 @@ impl ThunderError {
 }
 
 impl Status {
-    pub fn to_plugin_state(&self) -> State {
+    pub fn to_state(&self) -> State {
         match self.state.as_str() {
             "activated" | "resumed" | "suspended" => State::Activated,
             "deactivated" => State::Deactivated,
@@ -393,9 +393,9 @@ impl StatusManager {
 
         for status in status_res {
             if status.callsign == callsign {
-                self.update_status(callsign.to_string(), status.to_plugin_state());
+                self.update_status(callsign.to_string(), status.to_state());
 
-                if status.to_plugin_state().is_activated() {
+                if status.to_state().is_activated() {
                     let (pending_requests, expired) =
                         self.retrive_pending_request(callsign.to_string());
 
@@ -435,7 +435,7 @@ impl StatusManager {
             Err(_) => return,
         };
 
-        let state = thunder_error.get_plugin_state();
+        let state = thunder_error.get_state();
         self.update_status(plugin_name.to_string(), state.clone());
 
         if state.is_unavailable() {
@@ -493,9 +493,13 @@ impl StatusManager {
     }
 }
 
-// Add unit test for generate_state_change_subscribe_request
 #[cfg(test)]
 mod tests {
+    use ripple_sdk::tokio::{
+        self,
+        sync::mpsc::{self, channel},
+    };
+
     use super::*;
 
     #[test]
@@ -504,5 +508,80 @@ mod tests {
         let request = status_manager.generate_state_change_subscribe_request();
         assert!(request.contains("register"));
         assert!(request.contains("statechange"));
+    }
+
+    #[tokio::test]
+    async fn test_on_activate_response() {
+        let status_manager = StatusManager::new();
+        let (tx, _tr) = mpsc::channel(10);
+        let broker = BrokerSender { sender: tx };
+
+        let (tx_1, _tr_1) = channel(2);
+        let callback = BrokerCallback { sender: tx_1 };
+
+        let data = JsonRpcApiResponse {
+            id: Some(1),
+            jsonrpc: "2.0".to_string(),
+            result: Some(serde_json::json!(null)),
+            error: None,
+            method: None,
+            params: None,
+        };
+        let request = r#"{"jsonrpc":"2.0","id":1,"method":"Controller.1.activate","params":{"callsign":"TestPlugin"}}"#;
+        status_manager
+            .on_activate_response(broker, callback, &data, request)
+            .await;
+        let status = status_manager.get_status("TestPlugin".to_string());
+        assert_eq!(status.unwrap().state, State::Activated);
+    }
+
+    #[tokio::test]
+    async fn test_on_status_response() {
+        let status_manager = StatusManager::new();
+        let (tx, _tr) = mpsc::channel(10);
+        let broker = BrokerSender { sender: tx };
+
+        let (tx_1, _tr_1) = channel(2);
+        let callback = BrokerCallback { sender: tx_1 };
+
+        let data = JsonRpcApiResponse {
+            id: Some(1),
+            jsonrpc: "2.0".to_string(),
+            result: Some(
+                serde_json::json!([{"callsign":"TestPlugin","state":"activated","startmode":"auto"}]),
+            ),
+            error: None,
+            method: None,
+            params: None,
+        };
+        let request = r#"{"jsonrpc":"2.0","id":1,"method":"Controller.1.status@TestPlugin"}"#;
+        status_manager
+            .on_status_response(broker, callback, &data, request)
+            .await;
+        let status = status_manager.get_status("TestPlugin".to_string());
+        assert_eq!(status.unwrap().state, State::Activated);
+    }
+
+    #[tokio::test]
+    async fn test_on_thunder_error_response() {
+        let status_manager = StatusManager::new();
+
+        let (tx_1, _tr_1) = channel(2);
+        let callback = BrokerCallback { sender: tx_1 };
+
+        let data = JsonRpcApiResponse {
+            id: Some(1),
+            jsonrpc: "2.0".to_string(),
+            result: None,
+            error: Some(serde_json::json!({"code":1,"message":"ERROR_UNKNOWN_KEY"})),
+            method: None,
+            params: None,
+        };
+        let plugin_name = "TestPlugin".to_string();
+        status_manager
+            .on_thunder_error_response(callback, &data, &plugin_name)
+            .await;
+        let status = status_manager.get_status("TestPlugin".to_string());
+        assert_eq!(status.unwrap().state, State::Missing);
     }
 }
