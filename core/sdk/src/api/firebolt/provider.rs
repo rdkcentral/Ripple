@@ -42,6 +42,33 @@ pub enum ProviderRequestPayload {
     Generic(String),
 }
 
+// <pca>
+#[derive(Debug, Clone, Serialize)]
+pub enum ProviderResponsePayloadType {
+    ChallengeResponse,
+    ChallengeError,
+    PinChallengeResponse,
+    KeyboardResult,
+    EntityInfoResponse,
+    PurchasedContentResponse,
+}
+
+impl ToString for ProviderResponsePayloadType {
+    fn to_string(&self) -> String {
+        match self {
+            ProviderResponsePayloadType::ChallengeResponse => "ChallengeResponse".into(),
+            ProviderResponsePayloadType::ChallengeError => "ChallengeError".into(),
+            ProviderResponsePayloadType::PinChallengeResponse => "PinChallengeResponse".into(),
+            ProviderResponsePayloadType::KeyboardResult => "KeyboardResult".into(),
+            ProviderResponsePayloadType::EntityInfoResponse => "EntityInfoResponse".into(),
+            ProviderResponsePayloadType::PurchasedContentResponse => {
+                "PurchasedContentResponse".into()
+            }
+        }
+    }
+}
+// </pca>
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 #[serde(untagged)]

@@ -29,7 +29,7 @@ use ripple_sdk::{
         firebolt::{
             fb_general::{ListenRequest, ListenerResponse},
             fb_openrpc::FireboltOpenRpcMethod,
-            fb_pin::{PinChallengeResponse, PIN_CHALLENGE_CAPABILITY, PIN_CHALLENGE_EVENT},
+            fb_pin::PinChallengeResponse,
             provider::{
                 ChallengeResponse, ExternalProviderResponse, FocusRequest, ProviderResponse,
                 ProviderResponsePayload, ProviderResponsePayloadType,

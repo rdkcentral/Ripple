@@ -22,6 +22,7 @@ use ripple_sdk::api::{
             CapabilitySet, FireboltOpenRpc, FireboltOpenRpcMethod, FireboltSemanticVersion,
             FireboltVersionManifest, OpenRPCParser,
         },
+        provider::ProviderAttributes,
     },
     manifest::exclusory::{Exclusory, ExclusoryImpl},
 };
@@ -33,8 +34,6 @@ use std::{
 };
 
 use openrpc_validator::FireboltOpenRpc as FireboltOpenRpcValidator;
-
-use crate::firebolt::handlers::provider_registrar::ProviderAttributes;
 
 #[derive(Debug, Clone)]
 pub enum ApiSurface {
