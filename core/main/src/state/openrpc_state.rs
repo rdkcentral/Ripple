@@ -110,7 +110,7 @@ pub fn build_provider_sets(
                 }
 
                 let module: Vec<&str> = method.name.split('.').collect();
-                provider_set.attributes = ProviderAttributes::get(&module[0]);
+                provider_set.attributes = ProviderAttributes::get(module[0]);
 
                 provider_sets.insert(p.as_str(), provider_set.to_owned());
             }

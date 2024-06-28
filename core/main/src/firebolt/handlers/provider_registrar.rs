@@ -95,7 +95,7 @@ impl ProviderRegistrar {
         let provider_map = platform_state.open_rpc_state.get_provider_map();
         for provides in provider_map.clone().keys() {
             if let Some(provider_set) = provider_map.get(provides) {
-                if let Some(attributes) = provider_set.attributes.clone() {
+                if let Some(attributes) = provider_set.attributes {
                     let rpc_module_context = RpcModuleContext::new(platform_state.clone());
                     let mut rpc_module = RpcModule::new(rpc_module_context.clone());
 
@@ -219,7 +219,7 @@ impl ProviderRegistrar {
 
                     //methods.merge(rpc_module.clone()).ok();
                     methods
-                        .merge(register_aliases(&platform_state, rpc_module))
+                        .merge(register_aliases(platform_state, rpc_module))
                         .ok();
                 }
             }
