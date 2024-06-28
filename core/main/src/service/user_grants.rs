@@ -1970,8 +1970,8 @@ mod tests {
                         PIN_CHALLENGE_EVENT,
                     },
                     provider::{
-                        ChallengeResponse, ExternalProviderRequest,
-                        ProviderResponse, ACK_CHALLENGE_CAPABILITY, ACK_CHALLENGE_EVENT,
+                        ChallengeResponse, ExternalProviderRequest, ProviderResponse,
+                        ACK_CHALLENGE_CAPABILITY, ACK_CHALLENGE_EVENT,
                     },
                 },
                 gateway::rpc_gateway_api::CallContext,
