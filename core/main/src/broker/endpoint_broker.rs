@@ -446,16 +446,24 @@ impl BrokerOutputForwarder {
                                     .transform
                                     .get_filter(super::rules_engine::RuleTransformType::Response)
                                 {
-                                    if let Ok(r) = jq_compile(
-                                        result,
+                                    match jq_compile(
+                                        result.clone(),
                                         &filter,
                                         format!("{}_response", rpc_request.ctx.method),
                                     ) {
-                                        if r.to_string().to_lowercase().contains("null") {
-                                            v.data.result = Some(Value::Null)
-                                        } else {
-                                            v.data.result = Some(r);
+                                        Ok(r) => {
+                                            if r.to_string().to_lowercase().contains("null") {
+                                                v.data.error = None;
+                                                v.data.result = Some(Value::Null);
+                                            } else if result.get("success").is_some() {
+                                                v.data.result = Some(r);
+                                                v.data.error = None;
+                                            } else {
+                                                v.data.error = Some(r);
+                                                v.data.result = None;
+                                            }
                                         }
+                                        Err(e) => error!("jq_compile error {:?}", e),
                                     }
                                 }
                             }
