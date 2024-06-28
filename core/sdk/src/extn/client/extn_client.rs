@@ -23,6 +23,7 @@ use std::{
 
 use async_channel::{bounded, Receiver as CReceiver, Sender as CSender};
 use chrono::Utc;
+use log::warn;
 #[cfg(not(test))]
 use log::{debug, error, info, trace};
 
@@ -455,7 +456,11 @@ impl ExtnClient {
         let read_processor = processor.clone();
         {
             let processors = read_processor.read().unwrap();
-            let v = processors.get(&id_c).cloned();
+            let v = if let Some(id_proc) = processors.get(&msg.id).cloned() {
+                Some(id_proc)
+            } else {
+                processors.get(&id_c).cloned()
+            };
             if let Some(v) = v {
                 for (index, s) in v.iter().enumerate() {
                     if !s.is_closed() {
@@ -470,6 +475,8 @@ impl ExtnClient {
                         gc_sender_indexes.push(index);
                     }
                 }
+            } else {
+                warn!("No valid processors for the event {:?}", msg)
             }
         };
 
@@ -602,24 +609,24 @@ impl ExtnClient {
         &mut self,
         payload: impl ExtnPayloadProvider,
         sender: MSender<ExtnMessage>,
-    ) -> RippleResponse {
-        add_vec_stream_processor(
-            payload.get_contract().as_clear_string(),
-            sender,
-            self.event_processors.clone(),
-        );
-        self.request_transient(payload)
+    ) -> Result<String, RippleError> {
+        let id = self.request_transient(payload)?;
+        add_vec_stream_processor(id.clone(), sender, self.event_processors.clone());
+        Ok(id)
     }
 
     // Unsubscribe is an antonym for subscribe accepts a impl [ExtnPayLoadProvider] and a [MSender<ExtnMessage]
     pub async fn unsubscribe(
         &mut self,
+        id: String,
         payload: impl ExtnPayloadProvider,
         sender: MSender<ExtnMessage>,
     ) -> RippleResponse {
+        remove_processor(id, self.event_processors.clone());
         if sender.is_closed() {
             // send the unsubscription payload to the subscriber
-            self.request_transient(payload)
+            self.request_transient(payload)?;
+            Ok(())
         } else {
             // if sender is closed automatically it gets cleaned up from event processors
             error!("Expect sender to be closed before unsubscription");
@@ -713,10 +720,15 @@ impl ExtnClient {
     ///
     /// # Arguments
     /// `payload` - impl [ExtnPayloadProvider]
-    pub fn request_transient(&self, payload: impl ExtnPayloadProvider) -> RippleResponse {
+    pub fn request_transient(
+        &self,
+        payload: impl ExtnPayloadProvider,
+    ) -> Result<String, RippleError> {
         let id = uuid::Uuid::new_v4().to_string();
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
-        self.sender.send_request(id, payload, other_sender, None)
+        self.sender
+            .send_request(id.clone(), payload, other_sender, None)?;
+        Ok(id)
     }
 
     pub fn get_stack_size(&self) -> Option<ExtnStackSize> {

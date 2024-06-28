@@ -481,101 +481,90 @@ impl BrokerOutputForwarder {
         tokio::spawn(async move {
             while let Some(mut v) = rx.recv().await {
                 let mut is_event = false;
+                // First validate the id check if it could be an event
                 let id = if let Some(e) = v.get_event() {
                     is_event = true;
                     Some(e)
                 } else {
                     v.data.id
                 };
+
                 if let Some(id) = id {
                     if let Ok(broker_request) = platform_state.endpoint_state.get_request(id) {
-                        let rpc_request = broker_request.rpc;
+                        let rpc_request = broker_request.rpc.clone();
                         let session_id = rpc_request.ctx.get_id();
                         let is_subscription = rpc_request.is_subscription();
-                        if let Some(session) = platform_state
+                        if let Some(result) = v.data.result.clone() {
+                            if is_event {
+                                apply_rule_for_event(
+                                    &broker_request,
+                                    &result,
+                                    &rpc_request,
+                                    &mut v,
+                                );
+                            } else if is_subscription {
+                                v.data.result = Some(json!({
+                                    "listening" : rpc_request.is_listening(),
+                                    "event" : rpc_request.ctx.method
+                                }))
+                            } else if let Some(filter) = broker_request
+                                .rule
+                                .transform
+                                .get_filter(super::rules_engine::RuleTransformType::Response)
+                            {
+                                if let Ok(r) = jq_compile(
+                                    result,
+                                    &filter,
+                                    format!("{}_response", rpc_request.ctx.method),
+                                ) {
+                                    if r.to_string().to_lowercase().contains("null") {
+                                        v.data.result = Some(Value::Null)
+                                    } else {
+                                        v.data.result = Some(r);
+                                    }
+                                }
+                            }
+                        }
+
+                        let request_id = rpc_request.ctx.call_id;
+                        v.data.id = Some(request_id);
+
+                        let message = ApiMessage {
+                            request_id: request_id.to_string(),
+                            protocol: rpc_request.ctx.protocol.clone(),
+                            jsonrpc_msg: serde_json::to_string(&v.data).unwrap(),
+                        };
+                        if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
+                            if let Ok(extn_message) =
+                                platform_state.endpoint_state.get_extn_message(id, is_event)
+                            {
+                                if is_event {
+                                    if let Ok(event) = extn_message.get_event(ExtnEvent::Value(
+                                        serde_json::to_value(v.data).unwrap(),
+                                    )) {
+                                        if let Err(e) = platform_state
+                                            .get_client()
+                                            .get_extn_client()
+                                            .send_message(event)
+                                            .await
+                                        {
+                                            error!("couldnt send back event {:?}", e)
+                                        }
+                                    }
+                                } else {
+                                    return_extn_response(message, extn_message)
+                                }
+                            }
+                        } else if let Some(session) = platform_state
                             .session_state
                             .get_session_for_connection_id(&session_id)
                         {
-                            let request_id = rpc_request.ctx.call_id;
-                            v.data.id = Some(request_id);
-                            if let Some(result) = v.data.result.clone() {
-                                if is_event {
-                                    if let Some(filter) = broker_request
-                                        .rule
-                                        .transform
-                                        .get_filter(super::rules_engine::RuleTransformType::Event)
-                                    {
-                                        if let Ok(r) = jq_compile(
-                                            result,
-                                            &filter,
-                                            format!("{}_event", rpc_request.ctx.method),
-                                        ) {
-                                            v.data.result = Some(r);
-                                        }
-                                    }
-                                } else if is_subscription {
-                                    v.data.result = Some(json!({
-                                        "listening" : rpc_request.is_listening(),
-                                        "event" : rpc_request.ctx.method
-                                    }))
-                                } else if let Some(filter) = broker_request
-                                    .rule
-                                    .transform
-                                    .get_filter(super::rules_engine::RuleTransformType::Response)
-                                {
-                                    if let Ok(r) = jq_compile(
-                                        result,
-                                        &filter,
-                                        format!("{}_response", rpc_request.ctx.method),
-                                    ) {
-                                        if r.to_string().to_lowercase().contains("null") {
-                                            v.data.result = Some(Value::Null)
-                                        } else {
-                                            v.data.result = Some(r);
-                                        }
-                                    }
-                                }
-                            }
-                            let message = ApiMessage {
-                                request_id: request_id.to_string(),
-                                protocol: rpc_request.ctx.protocol.clone(),
-                                jsonrpc_msg: serde_json::to_string(&v.data).unwrap(),
-                            };
-
-                            match rpc_request.ctx.protocol.clone() {
-                                ApiProtocol::Extn => {
-                                    if let Ok(extn_message) =
-                                        platform_state.endpoint_state.get_extn_message(id, is_event)
-                                    {
-                                        if is_event {
-                                            if let Ok(event) =
-                                                extn_message.get_event(ExtnEvent::Value(
-                                                    serde_json::to_value(v.data).unwrap(),
-                                                ))
-                                            {
-                                                if let Err(e) = platform_state
-                                                    .get_client()
-                                                    .get_extn_client()
-                                                    .send_message(event)
-                                                    .await
-                                                {
-                                                    error!("couldnt send back event {:?}", e)
-                                                }
-                                            }
-                                        } else {
-                                            return_extn_response(message, extn_message)
-                                        }
-                                    }
-                                }
-                                _ => {
-                                    return_api_message_for_transport(
-                                        session,
-                                        message,
-                                        platform_state.clone(),
-                                    )
-                                    .await
-                                }
-                            }
+                            return_api_message_for_transport(
+                                session,
+                                message,
+                                platform_state.clone(),
+                            )
+                            .await
                         }
                     }
                 } else {
@@ -583,6 +572,27 @@ impl BrokerOutputForwarder {
                 }
             }
         });
+    }
+}
+
+fn apply_rule_for_event(
+    broker_request: &BrokerRequest,
+    result: &Value,
+    rpc_request: &RpcRequest,
+    v: &mut BrokerOutput,
+) {
+    if let Some(filter) = broker_request
+        .rule
+        .transform
+        .get_filter(super::rules_engine::RuleTransformType::Event)
+    {
+        if let Ok(r) = jq_compile(
+            result.clone(),
+            &filter,
+            format!("{}_event", rpc_request.ctx.method),
+        ) {
+            v.data.result = Some(r);
+        }
     }
 }
 
