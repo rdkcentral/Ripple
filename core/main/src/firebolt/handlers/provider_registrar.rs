@@ -94,16 +94,8 @@ impl ProviderRegistrar {
     pub fn register(platform_state: &PlatformState, methods: &mut Methods) {
         let provider_map = platform_state.open_rpc_state.get_provider_map();
         for provides in provider_map.clone().keys() {
-            println!(
-                "*** _DEBUG: ProviderRegistrar::register: provides={}",
-                provides
-            );
             if let Some(provider_set) = provider_map.get(provides) {
                 if let Some(attributes) = provider_set.attributes.clone() {
-                    println!(
-                        "*** _DEBUG: ProviderRegistrar::register: attributes={:?}",
-                        attributes
-                    );
                     let rpc_module_context = RpcModuleContext::new(platform_state.clone());
                     let mut rpc_module = RpcModule::new(rpc_module_context.clone());
 
@@ -112,17 +104,10 @@ impl ProviderRegistrar {
                         let request_method =
                             FireboltOpenRpcMethod::name_with_lowercase_module(&method.name).leak();
 
-                        println!(
-                            "*** _DEBUG: ProviderRegistrar::register: request_method={}",
-                            request_method
-                        );
-
                         rpc_module
                             .register_async_method(
                                 request_method,
                                 move |params, context| async move {
-                                    println!("*** _DEBUG: async callback: params={:?}", params);
-
                                     let mut params_sequence = params.sequence();
                                     let call_context: CallContext = params_sequence.next().unwrap();
                                     let request: ListenRequest = params_sequence.next().unwrap();
@@ -152,8 +137,6 @@ impl ProviderRegistrar {
                         let focus_method =
                             FireboltOpenRpcMethod::name_with_lowercase_module(&method.name).leak();
 
-                        println!("*** _DEBUG: focus_method={}", focus_method);
-
                         rpc_module
                             .register_async_method(
                                 focus_method,
@@ -179,8 +162,6 @@ impl ProviderRegistrar {
                     if let Some(method) = provider_set.response.clone() {
                         let response_method =
                             FireboltOpenRpcMethod::name_with_lowercase_module(&method.name).leak();
-
-                        println!("*** _DEBUG: response_method={}", response_method);
 
                         rpc_module
                             .register_async_method(
@@ -210,8 +191,6 @@ impl ProviderRegistrar {
                     // Register error function
                     if let Some(method) = provider_set.error.clone() {
                         let error_method = method.name.clone().leak();
-
-                        println!("*** _DEBUG: error_method={}", error_method);
 
                         rpc_module
                             .register_async_method(

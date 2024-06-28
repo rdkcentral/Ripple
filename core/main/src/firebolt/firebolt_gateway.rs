@@ -172,14 +172,12 @@ impl FireboltGateway {
             request_c.ctx.app_id.clone(),
         );
 
-        // <pca> 2
         let open_rpc_state = self.state.platform_state.open_rpc_state.clone();
-        // </pca>
 
         tokio::spawn(async move {
             let start = Utc::now().timestamp_millis();
 
-            // <pca> 2
+            // Validate incoming request parameters.
             if let Err(error_string) = validate_request(open_rpc_state, &request_c) {
                 let now = Utc::now().timestamp_millis();
 
@@ -206,7 +204,6 @@ impl FireboltGateway {
                 send_json_rpc_error(&platform_state, &request, json_rpc_error).await;
                 return;
             }
-            //</pca>
 
             let result = FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await;
 
@@ -276,42 +273,6 @@ impl FireboltGateway {
                     );
 
                     let caps = e.caps.iter().map(|x| x.as_str()).collect();
-                    // <pca> 2
-                    // let err = JsonRpcMessage {
-                    //     jsonrpc: TwoPointZero {},
-                    //     id: request.ctx.call_id,
-                    //     error: Some(JsonRpcError {
-                    //         code: deny_reason.get_rpc_error_code(),
-                    //         message: deny_reason.get_rpc_error_message(caps),
-                    //         data: None,
-                    //     }),
-                    // };
-
-                    // let msg = serde_json::to_string(&err).unwrap();
-
-                    // let api_msg = ApiMessage::new(
-                    //     request.clone().ctx.protocol,
-                    //     msg,
-                    //     request.clone().ctx.request_id,
-                    // );
-                    // if let Some(session) = platform_state
-                    //     .clone()
-                    //     .session_state
-                    //     .get_session(&request.ctx)
-                    // {
-                    //     match session.get_transport() {
-                    //         EffectiveTransport::Websocket => {
-                    //             if let Err(e) = session.send_json_rpc(api_msg).await {
-                    //                 error!("Error while responding back message {:?}", e)
-                    //             }
-                    //         }
-                    //         EffectiveTransport::Bridge(id) => {
-                    //             if let Err(e) = platform_state.send_to_bridge(id, api_msg).await {
-                    //                 error!("Error while responding back message {:?}", e)
-                    //             }
-                    //         }
-                    //     }
-                    // }
                     let json_rpc_error = JsonRpcError {
                         code: deny_reason.get_rpc_error_code(),
                         message: deny_reason.get_rpc_error_message(caps),
@@ -319,16 +280,13 @@ impl FireboltGateway {
                     };
 
                     send_json_rpc_error(&platform_state, &request, json_rpc_error).await;
-                    // </pca>
                 }
             }
         });
     }
 }
 
-// <pca> 2
 fn validate_request(open_rpc_state: OpenRpcState, request: &RpcRequest) -> Result<(), String> {
-    println!("*** _DEBUG: validate_request: request={:?}", request);
     let major_version = open_rpc_state.get_version().major.to_string();
     let openrpc_validator = open_rpc_state.get_openrpc_validator();
 
@@ -405,4 +363,3 @@ async fn send_json_rpc_error(
         );
     }
 }
-// </pca>

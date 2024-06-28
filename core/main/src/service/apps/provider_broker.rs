@@ -117,16 +117,6 @@ impl ProviderResult {
 }
 
 impl ProviderBroker {
-    // <pca> added
-    // pub fn get_method(capability: &str) -> Option<String> {
-    //     match capability {
-    //         ACK_CHALLENGE_CAPABILITY => Some("challenge".into()),
-    //         PIN_CHALLENGE_CAPABILITY => Some("challenge".into()),
-    //         _ => None,
-    //     }
-    // }
-    // </pca>
-
     pub async fn register_or_unregister_provider(
         pst: &PlatformState,
         capability: String,
@@ -150,10 +140,7 @@ impl ProviderBroker {
         }
     }
 
-    // <pca>
-    //pub async fn unregister_provider(
     async fn unregister_provider(
-        // </pca>
         pst: &PlatformState,
         capability: String,
         method: String,
@@ -173,10 +160,7 @@ impl ProviderBroker {
         // TODO Add permissions
     }
 
-    // <pca>
-    //pub async fn register_provider(
     async fn register_provider(
-        // </pca>
         pst: &PlatformState,
         capability: String,
         method: String,

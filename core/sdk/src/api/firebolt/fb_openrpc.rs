@@ -315,7 +315,6 @@ pub struct FireboltOpenRpcTag {
     pub allow_value: Option<bool>,
     #[serde(rename = "x-setter-for")]
     pub setter_for: Option<String>,
-    // <pca>
     #[serde(rename = "x-response")]
     pub response: Option<Value>,
     #[serde(rename = "x-response-for")]
@@ -328,7 +327,6 @@ pub struct FireboltOpenRpcTag {
     pub allow_focus: Option<bool>,
     #[serde(rename = "x-allow-focus-for")]
     pub allow_focus_for: Option<String>,
-    // </pca>
 }
 
 impl FireboltOpenRpcTag {
@@ -346,10 +344,7 @@ impl FireboltOpenRpcTag {
         None
     }
 
-    // <pca>
-    //fn get_provides(&self) -> Option<FireboltCap> {
     pub fn get_provides(&self) -> Option<FireboltCap> {
-        // </pca>
         if let Some(caps) = self.provides.clone() {
             return Some(FireboltCap::Full(caps));
         }

@@ -24,20 +24,7 @@ impl FireboltOpenRpc {
         serde_json::from_str(&data).expect("JSON does not have correct format.")
     }
 
-    // <pca>
-    // #[allow(dead_code)]
-    // pub fn get_method_by_name(&self, name: &str) -> Option<RpcMethod> {
-    //     for spec in self.apis.values() {
-    //         for m in &spec.methods {
-    //             if m.name == name {
-    //                 return Some(m.clone());
-    //             }
-    //         }
-    //     }
-    //     None
-    // }
     pub fn get_method_by_name(&self, name: &str) -> Option<RpcMethod> {
-        println!("*** _DEBUG: get_method_by_name: name={}", name);
         for spec in self.apis.values() {
             for m in &spec.methods {
                 if m.name.to_ascii_lowercase() == name.to_ascii_lowercase() {
@@ -47,21 +34,7 @@ impl FireboltOpenRpc {
         }
         None
     }
-    // </pca>
 
-    // <pca>
-    // pub fn params_validator(
-    //     &self,
-    //     version: String,
-    //     request: &JsonRpcRequest,
-    // ) -> Result<JSONSchema, ValidationError> {
-    //     if let Some(spec) = self.apis.get(&version) {
-    //         let open_rpc_spec: OpenRpcSpec = spec.clone().into();
-    //         open_rpc_spec.params_validator(request)
-    //     } else {
-    //         Err(ValidationError::SpecVersionNotFound)
-    //     }
-    // }
     pub fn params_validator(
         &self,
         version: String,
@@ -74,7 +47,6 @@ impl FireboltOpenRpc {
             Err(ValidationError::SpecVersionNotFound)
         }
     }
-    // </pca>
 
     pub fn result_validator(
         &self,
@@ -122,18 +94,6 @@ pub struct OpenRpcSpec {
 }
 
 impl OpenRpcSpec {
-    // <pca>
-    // pub fn params_validator(
-    //     &self,
-    //     request: &JsonRpcRequest,
-    // ) -> Result<JSONSchema, ValidationError> {
-    //     let method = self.methods.iter().find(|m| m.name == request.method);
-    //     if let Some(m) = method {
-    //         m.params_validator(self.additional_schemas.clone())
-    //     } else {
-    //         Err(ValidationError::MethodNotFound)
-    //     }
-    // }
     pub fn params_validator(&self, method: &str) -> Result<JSONSchema, ValidationError> {
         let method = self.methods.iter().find(|m| m.name == method);
         if let Some(m) = method {
@@ -142,7 +102,6 @@ impl OpenRpcSpec {
             Err(ValidationError::MethodNotFound)
         }
     }
-    // </pca>
 
     pub fn result_validator(&self, method: String) -> Result<JSONSchema, ValidationError> {
         let rpc_method = self.methods.iter().find(|m| m.name == method);
@@ -318,12 +277,9 @@ pub mod tests {
                         params: example_json,
                     };
                     // validate params
-                    // <pca>
-                    //let validator = open_rpc_spec.params_validator(request).unwrap();
                     let validator = open_rpc_spec
                         .params_validator(&request.method.clone())
                         .unwrap();
-                    // </pca>
                     let res = validator.validate(&request.params);
                     assert_valid(&method.name, res);
 
@@ -342,24 +298,18 @@ pub mod tests {
             method: method.into(),
             params: serde_json::from_str(valid_params).unwrap(),
         };
-        // <pca>
-        //let validator = rpc.params_validator("1".into(), &valid_req).unwrap();
         let validator = rpc
             .params_validator("1".into(), &valid_req.method.clone())
             .unwrap();
-        // </pca>
         assert_valid(method, validator.validate(&valid_req.params));
 
         let invalid_req = JsonRpcRequest {
             method: method.into(),
             params: serde_json::from_str(invalid_params).unwrap(),
         };
-        // <pca>
-        //let validator = rpc.params_validator("1".into(), &invalid_req).unwrap();
         let validator = rpc
             .params_validator("1".into(), &invalid_req.method.clone())
             .unwrap();
-        // </pca>
         assert!(
             validator.validate(&invalid_req.params).is_err(),
             "{} should have failed validation with {}",

@@ -248,15 +248,10 @@ impl FireboltWs {
             );
         });
         while let Some(msg) = receiver.next().await {
-            // <pca> 2 Ground zero for the websocket message handling
             match msg {
                 Ok(msg) => {
                     if msg.is_text() && !msg.is_empty() {
                         let req_text = String::from(msg.to_text().unwrap());
-                        println!(
-                            "*** _DEBUG: Websocket message received: req_text: {}",
-                            req_text
-                        );
                         let req_id = Uuid::new_v4().to_string();
                         if let Ok(request) = RpcRequest::parse(
                             req_text.clone(),

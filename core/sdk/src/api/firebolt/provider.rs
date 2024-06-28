@@ -42,7 +42,6 @@ pub enum ProviderRequestPayload {
     Generic(String),
 }
 
-// <pca>
 #[derive(Debug, Clone, Serialize)]
 pub enum ProviderResponsePayloadType {
     ChallengeResponse,
@@ -67,7 +66,6 @@ impl ToString for ProviderResponsePayloadType {
         }
     }
 }
-// </pca>
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -155,7 +153,6 @@ pub struct ExternalProviderResponse<T> {
     pub result: T,
 }
 
-// <pca>
 #[derive(Debug, Clone, Serialize)]
 
 pub struct ProviderAttributes {
@@ -192,7 +189,6 @@ pub const PIN_CHALLENGE_ATTRIBS: ProviderAttributes = ProviderAttributes {
     capability: PIN_CHALLENGE_CAPABILITY,
     method: "challenge",
 };
-// </pca>
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[cfg_attr(test, derive(PartialEq))]

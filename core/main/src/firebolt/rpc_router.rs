@@ -78,7 +78,6 @@ impl Default for RouterState {
     }
 }
 
-// <pca>
 async fn resolve_route(
     methods: Methods,
     resources: Resources,
@@ -130,69 +129,8 @@ async fn resolve_route(
     }
     Err(RippleError::InvalidOutput)
 }
-// async fn resolve_route(
-//     methods: Methods,
-//     resources: Resources,
-//     req: RpcRequest,
-// ) -> Result<ApiMessage, RippleError> {
-//     info!("Routing {}", req.method);
-//     let id = Id::Number(req.ctx.call_id);
-//     let (sink_tx, mut sink_rx) = futures_channel::mpsc::unbounded::<String>();
-//     let sink = MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES);
-//     let mut method_executors = Vec::new();
-//     let params = Params::new(Some(req.params_json.as_str()));
-//     match methods.method_with_name(&req.method) {
-//         None => {
-//             sink.send_error(id, ErrorCode::MethodNotFound.into());
-//         }
-//         Some((name, method)) => {
-//             println!(
-//                 "*** _DEBUG: resolve_route: method found: {:?}, name={:?}",
-//                 method, name
-//             );
-//             match &method.inner() {
-//                 MethodKind::Sync(callback) => match method.claim(name, &resources) {
-//                     Ok(_guard) => {
-//                         (callback)(id, params, &sink);
-//                     }
-//                     Err(_) => {
-//                         sink.send_error(id, ErrorCode::MethodNotFound.into());
-//                     }
-//                 },
-//                 MethodKind::Async(callback) => match method.claim(name, &resources) {
-//                     Ok(guard) => {
-//                         let sink = sink.clone();
-//                         let id = id.into_owned();
-//                         let params = params.into_owned();
-
-//                         println!("*** _DEBUG: resolve_route: params={:?}", params);
-
-//                     let fut = async move {
-//                         (callback)(id, params, sink, 1, Some(guard)).await;
-//                     };
-//                     method_executors.push(fut);
-//                 }
-//                 Err(e) => {
-//                     error!("{:?}", e);
-//                     sink.send_error(id, ErrorCode::MethodNotFound.into());
-//                 }
-//             },
-//             _ => {
-//                 error!("Unsupported method call");
-//             }
-//         },
-//     }
-
-//     join_all(method_executors).await;
-//     if let Some(r) = sink_rx.next().await {
-//         return Ok(ApiMessage::new(req.ctx.protocol, r, req.ctx.request_id));
-//     }
-//     Err(RippleError::InvalidOutput)
-// }
-// </pca>
 
 impl RpcRouter {
-    // <pca> 2
     pub async fn route(
         state: PlatformState,
         req: RpcRequest,
@@ -248,87 +186,6 @@ impl RpcRouter {
             }
         });
     }
-    // pub async fn route(
-    //     state: PlatformState,
-    //     req: RpcRequest,
-    //     session: Session,
-    //     timer: Option<Timer>,
-    // ) {
-    //     let methods = state.router_state.get_methods();
-    //     let resources = state.router_state.resources.clone();
-    //     let major_version = state.open_rpc_state.get_version().major.to_string();
-
-    //     tokio::spawn(async move {
-    //         let method = req.method.clone();
-    //         let app_id = req.ctx.app_id.clone();
-    //         let start = Utc::now().timestamp_millis();
-    //         println!(
-    //             "*** _DEBUG: RpcRouter::route: method={}: Calling resolve_route",
-    //             method
-    //         );
-
-    //         let openrpc_validator = state.open_rpc_state.get_openrpc_validator();
-
-    //         if let Some(rpc_method) = openrpc_validator.get_method_by_name(&method) {
-    //             let validator = openrpc_validator
-    //                 .params_validator(major_version, &rpc_method.name)
-    //                 .unwrap();
-
-    //             if let Ok(params) = serde_json::from_str::<Vec<serde_json::Value>>(&req.params_json)
-    //             {
-    //                 let result = validator.validate(&params[1]);
-    //                 println!(
-    //                     "*** _DEBUG: RpcRouter::route: result is_ok={}",
-    //                     result.is_ok()
-    //                 );
-    //             }
-    //         } else {
-    //             error!("route: Method not found in OpenRPC validator: {}", method);
-    //         }
-
-    //         let resp = resolve_route(methods, resources, req.clone()).await;
-
-    //         let status = match resp.clone() {
-    //             Ok(msg) => {
-    //                 if msg.is_error() {
-    //                     msg.jsonrpc_msg
-    //                 } else {
-    //                     "0".into()
-    //                 }
-    //             }
-    //             Err(e) => format!("{}", e),
-    //         };
-
-    //         TelemetryBuilder::stop_and_send_firebolt_metrics_timer(&state, timer, status).await;
-
-    //         if let Ok(msg) = resp {
-    //             let now = Utc::now().timestamp_millis();
-    //             let success = !msg.is_error();
-    //             // log firebolt response message in RDKTelemetry 1.0 friendly format
-    //             let status_code = match msg.get_error_code_from_msg() {
-    //                 Ok(Some(code)) => {
-    //                     // error response
-    //                     code
-    //                 }
-    //                 Ok(None) => {
-    //                     // success response
-    //                     1
-    //                 }
-    //                 Err(e) => {
-    //                     error!("Error getting error code from msg.jsonrpc_msg {:?}", e);
-    //                     1
-    //                 }
-    //             };
-
-    //             Self::log_rdk_telemetry_message(&app_id, &method, status_code, now - start);
-
-    //             TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start, success);
-
-    //             return_api_message_for_transport(session, msg, state).await;
-    //         }
-    //     });
-    // }
-    // </pca>
 
     pub async fn route_extn_protocol(
         state: &PlatformState,

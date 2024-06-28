@@ -48,18 +48,16 @@ pub struct FireboltGatewayStep;
 impl FireboltGatewayStep {
     async fn init_handlers(&self, state: PlatformState, extn_methods: Methods) -> Methods {
         let mut methods = Methods::new();
-        // <pca>
+
+        // TODO: Ultimately this should be able to register all provider below, for now just does
+        // AcknowledgeChallenge and PinChallenge.
         ProviderRegistrar::register(&state, &mut methods);
-        // </pca>
+
         let _ = methods.merge(DeviceRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(WifiRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(LifecycleRippleProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(CapRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(KeyboardRPCProvider::provide_with_alias(state.clone()));
-        // <pca>
-        //let _ = methods.merge(AckRPCProvider::provide_with_alias(state.clone()));
-        //let _ = methods.merge(PinRPCProvider::provide_with_alias(state.clone()));
-        // </pca>
         let _ = methods.merge(ClosedcaptionsRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(VoiceguidanceRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(LocalizationRPCProvider::provide_with_alias(state.clone()));
@@ -79,10 +77,6 @@ impl FireboltGatewayStep {
         let _ = methods.merge(AudioDescriptionRPCProvider::provide_with_alias(
             state.clone(),
         ));
-
-        // <pca>
-        ProviderRegistrar::register(&state, &mut methods);
-        // </pca>
 
         // LCM Api(s) not required for internal launcher
         if !state.has_internal_launcher() {

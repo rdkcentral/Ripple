@@ -41,7 +41,6 @@ pub enum ApiSurface {
     Ripple,
 }
 
-// <pca>
 #[derive(Debug, Clone, Default)]
 pub struct ProviderSet {
     pub request: Option<FireboltOpenRpcMethod>,
@@ -62,24 +61,15 @@ pub fn build_provider_sets(
 ) -> HashMap<String, ProviderSet> {
     let mut provider_sets = HashMap::default();
 
-    println!("*** _DEBUG: build_provider_sets: entry");
-
     for method in openrpc_methods {
         let mut has_x_provides = None;
 
-        // <pca> debug
         // Only build provider sets for AcknowledgeChallenge and PinChallenge methods for now
         if !method.name.starts_with("AcknowledgeChallenge.")
             && !method.name.starts_with("PinChallenge.")
         {
             continue;
         }
-        // </pca>
-
-        println!(
-            "*** _DEBUG: build_provider_sets: method.name={:?}",
-            method.name
-        );
 
         if let Some(tags) = &method.tags {
             let mut has_event = false;
@@ -89,7 +79,6 @@ pub fn build_provider_sets(
             let mut has_x_error_for = false;
 
             for tag in tags {
-                println!("*** _DEBUG: build_provider_sets: tag={:?}", tag);
                 if tag.name.eq("event") {
                     has_event = true;
                 } else if tag.name.eq("capabilities") {
@@ -123,18 +112,12 @@ pub fn build_provider_sets(
                 let module: Vec<&str> = method.name.split('.').collect();
                 provider_set.attributes = ProviderAttributes::get(&module[0]);
 
-                println!(
-                    "*** _DEBUG: build_provider_sets: provider_set={:?}",
-                    provider_set
-                );
-
                 provider_sets.insert(p.as_str(), provider_set.to_owned());
             }
         }
     }
     provider_sets
 }
-// </pca>
 
 #[derive(Debug, Clone)]
 pub struct OpenRpcState {
@@ -144,12 +127,8 @@ pub struct OpenRpcState {
     ripple_cap_map: Arc<RwLock<HashMap<String, CapabilitySet>>>,
     cap_policies: Arc<RwLock<HashMap<String, CapabilityPolicy>>>,
     extended_rpc: Arc<RwLock<Vec<FireboltOpenRpc>>>,
-    // <pca>
     provider_map: Arc<RwLock<HashMap<String, ProviderSet>>>,
-    // </pca>
-    // <pca> 2
     openrpc_validator: Arc<RwLock<FireboltOpenRpcValidator>>,
-    // </pca>
 }
 
 impl OpenRpcState {
@@ -173,29 +152,19 @@ impl OpenRpcState {
         let mut ripple_open_rpc: FireboltOpenRpc = FireboltOpenRpc::default();
         Self::load_additional_rpc(&mut ripple_open_rpc, ripple_rpc_file);
 
-        // <pca> 2
         let openrpc_validator = FireboltOpenRpcValidator::expect_from_file_path(
             "core/main/src/state/firebolt-open-rpc.json",
         );
-        // </pca>
 
         OpenRpcState {
             firebolt_cap_map: Arc::new(RwLock::new(firebolt_open_rpc.get_methods_caps())),
             ripple_cap_map: Arc::new(RwLock::new(ripple_open_rpc.get_methods_caps())),
             exclusory,
             cap_policies: Arc::new(RwLock::new(version_manifest.capabilities)),
-            // <pca>
-            //open_rpc: firebolt_open_rpc,
             open_rpc: firebolt_open_rpc.clone(),
-            // </pca>
             extended_rpc: Arc::new(RwLock::new(Vec::new())),
-            // <pca>
-            //provider_map: Arc::new(RwLock::new(firebolt_open_rpc.get_methods_provider_set())),
             provider_map: Arc::new(RwLock::new(build_provider_sets(&firebolt_open_rpc.methods))),
-            // </pca>
-            // <pca> 2
             openrpc_validator: Arc::new(RwLock::new(openrpc_validator)),
-            // </pca>
         }
     }
 
@@ -242,7 +211,6 @@ impl OpenRpcState {
                 result = Some(perm_list);
             }
         }
-        println!("*** _DEBUG: get_perms_for_method: result={:?}", result);
         result
     }
 
@@ -343,7 +311,6 @@ impl OpenRpcState {
         self.open_rpc.clone()
     }
 
-    // <pca>
     pub fn get_provider_map(&self) -> HashMap<String, ProviderSet> {
         self.provider_map.read().unwrap().clone()
     }
@@ -355,5 +322,4 @@ impl OpenRpcState {
     pub fn get_openrpc_validator(&self) -> FireboltOpenRpcValidator {
         self.openrpc_validator.read().unwrap().clone()
     }
-    // </pca>
 }
