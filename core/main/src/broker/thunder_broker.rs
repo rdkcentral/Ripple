@@ -120,6 +120,8 @@ impl ThunderBroker {
         let mut new_response = response.clone();
         if response.params.is_some() {
             new_response.result = response.params.clone();
+        } else if response.error.is_some() {
+            new_response.result = response.error.clone();
         }
         new_response
     }
