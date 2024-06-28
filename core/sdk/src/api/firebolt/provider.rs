@@ -42,35 +42,6 @@ pub enum ProviderRequestPayload {
     Generic(String),
 }
 
-// <pca>
-//#[derive(Debug, Clone, Serialize, Copy)]
-#[derive(Debug, Clone, Serialize)]
-
-pub enum ProviderResponsePayloadType {
-    ChallengeResponse,
-    ChallengeError,
-    PinChallengeResponse,
-    KeyboardResult,
-    EntityInfoResponse,
-    PurchasedContentResponse,
-}
-
-impl ToString for ProviderResponsePayloadType {
-    fn to_string(&self) -> String {
-        match self {
-            ProviderResponsePayloadType::ChallengeResponse => "ChallengeResponse".into(),
-            ProviderResponsePayloadType::ChallengeError => "ChallengeError".into(),
-            ProviderResponsePayloadType::PinChallengeResponse => "PinChallengeResponse".into(),
-            ProviderResponsePayloadType::KeyboardResult => "KeyboardResult".into(),
-            ProviderResponsePayloadType::EntityInfoResponse => "EntityInfoResponse".into(),
-            ProviderResponsePayloadType::PurchasedContentResponse => {
-                "PurchasedContentResponse".into()
-            }
-        }
-    }
-}
-// </pca>
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 #[serde(untagged)]
@@ -128,33 +99,6 @@ impl ProviderResponsePayload {
         }
     }
 }
-
-// <pca>
-impl ToString for ProviderResponsePayload {
-    fn to_string(&self) -> String {
-        match self {
-            ProviderResponsePayload::ChallengeResponse(_) => {
-                ProviderResponsePayloadType::ChallengeResponse.to_string()
-            }
-            ProviderResponsePayload::ChallengeError(_) => {
-                ProviderResponsePayloadType::ChallengeError.to_string()
-            }
-            ProviderResponsePayload::PinChallengeResponse(_) => {
-                ProviderResponsePayloadType::PinChallengeResponse.to_string()
-            }
-            ProviderResponsePayload::KeyboardResult(_) => {
-                ProviderResponsePayloadType::KeyboardResult.to_string()
-            }
-            ProviderResponsePayload::EntityInfoResponse(_) => {
-                ProviderResponsePayloadType::EntityInfoResponse.to_string()
-            }
-            ProviderResponsePayload::PurchasedContentResponse(_) => {
-                ProviderResponsePayloadType::PurchasedContentResponse.to_string()
-            }
-        }
-    }
-}
-// </pca>
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

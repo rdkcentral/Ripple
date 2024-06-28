@@ -80,6 +80,10 @@ impl FireboltGatewayStep {
             state.clone(),
         ));
 
+        // <pca>
+        ProviderRegistrar::register(&state, &mut methods);
+        // </pca>
+
         // LCM Api(s) not required for internal launcher
         if !state.has_internal_launcher() {
             let _ = methods.merge(LifecycleManagementProvider::provide_with_alias(state));

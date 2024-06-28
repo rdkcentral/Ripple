@@ -22,7 +22,6 @@ use ripple_sdk::api::{
             CapabilitySet, FireboltOpenRpc, FireboltOpenRpcMethod, FireboltSemanticVersion,
             FireboltVersionManifest, OpenRPCParser,
         },
-        provider::ProviderAttributes,
     },
     manifest::exclusory::{Exclusory, ExclusoryImpl},
 };
@@ -35,6 +34,8 @@ use std::{
 
 use openrpc_validator::FireboltOpenRpc as FireboltOpenRpcValidator;
 
+use crate::firebolt::handlers::provider_registrar::ProviderAttributes;
+
 #[derive(Debug, Clone)]
 pub enum ApiSurface {
     Firebolt,
@@ -43,34 +44,6 @@ pub enum ApiSurface {
 
 // <pca>
 #[derive(Debug, Clone, Default)]
-// pub struct ProviderSet {
-//     pub provides: Option<FireboltCap>,
-//     // <pca> Will need for request validation
-//     //pub request: Option<Value>,
-//     // </pca>
-//     pub response: Option<Value>,
-//     pub response_for: Option<String>,
-//     pub error: Option<Value>,
-//     pub error_for: Option<String>,
-//     pub allow_focus: Option<bool>,
-//     pub focus_for: Option<String>,
-//     pub attributes: Option<ProviderAttributes>,
-// }
-
-// impl ProviderSet {
-//     pub fn new() -> ProviderSet {
-//         ProviderSet {
-//             provides: None,
-//             response: None,
-//             response_for: None,
-//             error: None,
-//             error_for: None,
-//             allow_focus: None,
-//             focus_for: None,
-//             attributes: None,
-//         }
-//     }
-// }
 pub struct ProviderSet {
     pub request: Option<FireboltOpenRpcMethod>,
     pub focus: Option<FireboltOpenRpcMethod>,

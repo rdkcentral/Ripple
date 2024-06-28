@@ -136,10 +136,6 @@ async fn resolve_route(
     req: RpcRequest,
 ) -> Result<ApiMessage, RippleError> {
     info!("Routing {}", req.method);
-    println!(
-        "*** _DEBUG: Routing {}: resources={:?}",
-        req.method, resources
-    );
     let id = Id::Number(req.ctx.call_id);
     let (sink_tx, mut sink_rx) = futures_channel::mpsc::unbounded::<String>();
     let sink = MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES);
@@ -147,10 +143,6 @@ async fn resolve_route(
     let params = Params::new(Some(req.params_json.as_str()));
     match methods.method_with_name(&req.method) {
         None => {
-            println!(
-                "*** _DEBUG: resolve_route: method not found: {:?}",
-                req.method
-            );
             sink.send_error(id, ErrorCode::MethodNotFound.into());
         }
         Some((name, method)) => {
@@ -175,21 +167,20 @@ async fn resolve_route(
 
                         println!("*** _DEBUG: resolve_route: params={:?}", params);
 
-                        let fut = async move {
-                            (callback)(id, params, sink, 1, Some(guard)).await;
-                        };
-                        method_executors.push(fut);
-                    }
-                    Err(e) => {
-                        error!("{:?}", e);
-                        sink.send_error(id, ErrorCode::MethodNotFound.into());
-                    }
-                },
-                _ => {
-                    error!("Unsupported method call");
+                    let fut = async move {
+                        (callback)(id, params, sink, 1, Some(guard)).await;
+                    };
+                    method_executors.push(fut);
                 }
+                Err(e) => {
+                    error!("{:?}", e);
+                    sink.send_error(id, ErrorCode::MethodNotFound.into());
+                }
+            },
+            _ => {
+                error!("Unsupported method call");
             }
-        }
+        },
     }
 
     join_all(method_executors).await;
@@ -347,7 +338,6 @@ impl RpcRouter {
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
         tokio::spawn(async move {
-            println!("*** _DEBUG: route_extn_protocol: Calling resolve_route");
             if let Ok(msg) = resolve_route(methods, resources, req).await {
                 return_extn_response(msg, extn_msg);
             }
