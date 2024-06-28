@@ -117,12 +117,11 @@ impl ThunderBroker {
     }
 
     fn update_response(response: &JsonRpcApiResponse) -> JsonRpcApiResponse {
-        // response=JsonRpcApiResponse { jsonrpc: "2.0", id: Some(1), result: None, error: Some(Object {"code": Number(43)}), method: None, params: None }
         let mut new_response = response.clone();
         if response.params.is_some() {
             new_response.result = response.params.clone();
-            //} else if response.error.is_some() {
-            //    new_response.error = response.error.clone();
+        } else if response.error.is_some() {
+            new_response.result = response.error.clone();
         }
         new_response
     }

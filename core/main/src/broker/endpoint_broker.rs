@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use jaq_interpret::Val;
 use ripple_sdk::{
     api::{
         firebolt::fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
@@ -24,7 +23,6 @@ use ripple_sdk::{
         },
         session::AccountSession,
     },
-    chrono::OutOfRange,
     extn::extn_client_message::ExtnMessage,
     framework::RippleResponse,
     log::error,
@@ -423,59 +421,50 @@ impl BrokerOutputForwarder {
                         {
                             let request_id = rpc_request.ctx.call_id;
                             v.data.id = Some(request_id);
-
-                            let mut success = true;
-                            let jv: Value = if let Some(result) = v.data.clone().result {
-                                result
-                            } else if let Some(error) = v.data.clone().error {
-                                success = false;
-                                error
-                            } else {
-                                Value::Null
-                            };
-
-                            if is_event {
-                                if let Some(filter) = broker_request
-                                    .rule
-                                    .transform
-                                    .get_filter(super::rules_engine::RuleTransformType::Event)
-                                {
-                                    if let Ok(r) = jq_compile(
-                                        jv,
-                                        &filter,
-                                        format!("{}_event", rpc_request.ctx.method),
-                                    ) {
-                                        v.data.result = Some(r);
-                                    }
-                                }
-                            } else if is_subscription {
-                                v.data.result = Some(json!({
-                                    "listening" : rpc_request.is_listening(),
-                                    "event" : rpc_request.ctx.method
-                                }))
-                            } else if let Some(filter) = broker_request
-                                .rule
-                                .transform
-                                .get_filter(super::rules_engine::RuleTransformType::Response)
-                            {
-                                match jq_compile(
-                                    jv,
-                                    &filter,
-                                    format!("{}_response", rpc_request.ctx.method),
-                                ) {
-                                    Ok(r) => {
-                                        if r.to_string().to_lowercase().contains("null") {
-                                            v.data.error = None;
-                                            v.data.result = Some(Value::Null);
-                                        } else {
-                                            if success {
-                                                v.data.result = Some(r);
-                                            } else {
-                                                v.data.error = Some(r);
-                                            }
+                            if let Some(result) = v.data.result.clone() {
+                                if is_event {
+                                    if let Some(filter) = broker_request
+                                        .rule
+                                        .transform
+                                        .get_filter(super::rules_engine::RuleTransformType::Event)
+                                    {
+                                        if let Ok(r) = jq_compile(
+                                            result,
+                                            &filter,
+                                            format!("{}_event", rpc_request.ctx.method),
+                                        ) {
+                                            v.data.result = Some(r);
                                         }
                                     }
-                                    Err(e) => error!("{:?}", e),
+                                } else if is_subscription {
+                                    v.data.result = Some(json!({
+                                        "listening" : rpc_request.is_listening(),
+                                        "event" : rpc_request.ctx.method
+                                    }))
+                                } else if let Some(filter) = broker_request
+                                    .rule
+                                    .transform
+                                    .get_filter(super::rules_engine::RuleTransformType::Response)
+                                {
+                                    match jq_compile(
+                                        result.clone(),
+                                        &filter,
+                                        format!("{}_response", rpc_request.ctx.method),
+                                    ) {
+                                        Ok(r) => {
+                                            if r.to_string().to_lowercase().contains("null") {
+                                                v.data.error = None;
+                                                v.data.result = Some(Value::Null);
+                                            } else if result.get("success").is_some() {
+                                                v.data.result = Some(r);
+                                                v.data.error = None;
+                                            } else {
+                                                v.data.error = Some(r);
+                                                v.data.result = None;
+                                            }
+                                        }
+                                        Err(e) => error!("jq_compile error {:?}", e),
+                                    }
                                 }
                             }
                             let message = ApiMessage {
