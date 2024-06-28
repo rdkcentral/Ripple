@@ -165,7 +165,6 @@ pub struct ProviderAttributes {
 
 impl ProviderAttributes {
     pub fn get(module: &str) -> Option<&'static ProviderAttributes> {
-        println!("*** _DEBUG: ProviderAttributes::get: name={}", module);
         match module {
             "AcknowledgeChallenge" => Some(&ACKNOWLEDGE_CHALLENGE_ATTRIBS),
             "PinChallenge" => Some(&ACKNOWLEDGE_CHALLENGE_ATTRIBS),

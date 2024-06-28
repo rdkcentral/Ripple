@@ -152,9 +152,8 @@ impl OpenRpcState {
         let mut ripple_open_rpc: FireboltOpenRpc = FireboltOpenRpc::default();
         Self::load_additional_rpc(&mut ripple_open_rpc, ripple_rpc_file);
 
-        let openrpc_validator = FireboltOpenRpcValidator::expect_from_file_path(
-            "core/main/src/state/firebolt-open-rpc.json",
-        );
+        let openrpc_validator: FireboltOpenRpcValidator =
+            serde_json::from_str(std::include_str!("./firebolt-open-rpc.json")).unwrap();
 
         OpenRpcState {
             firebolt_cap_map: Arc::new(RwLock::new(firebolt_open_rpc.get_methods_caps())),

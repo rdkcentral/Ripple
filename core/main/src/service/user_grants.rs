@@ -1950,15 +1950,12 @@ impl GrantStepExecutor {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     mod test_grant_policy_enforcer {
         use super::*;
         use crate::{
-            firebolt::handlers::{
-                acknowledge_rpc::{AcknowledgeChallengeImpl, AcknowledgeChallengeServer},
-                pin_rpc::{PinChallengeImpl, PinChallengeServer},
-            },
             state::session_state::Session,
             utils::test_utils::{fb_perm, MockRuntime},
         };
@@ -1970,19 +1967,21 @@ mod tests {
                     fb_general::ListenRequest,
                     fb_pin::{
                         PinChallengeResponse, PinChallengeResultReason, PIN_CHALLENGE_CAPABILITY,
+                        PIN_CHALLENGE_EVENT,
                     },
                     provider::{
                         ChallengeResponse, ExternalProviderRequest, ExternalProviderResponse,
-                        ACK_CHALLENGE_CAPABILITY,
+                        ProviderResponse, ACK_CHALLENGE_CAPABILITY, ACK_CHALLENGE_EVENT,
                     },
                 },
                 gateway::rpc_gateway_api::CallContext,
             },
-            tokio::{self},
+            tokio,
             utils::logger::init_logger,
         };
         use serde_json::json;
         struct ProviderApp;
+
         impl ProviderApp {
             pub async fn start(
                 state: PlatformState,
@@ -1998,19 +1997,29 @@ mod tests {
                 state
                     .session_state
                     .add_session(ctx.session_id.clone(), sample_app_session);
-                let pin_provider_handler = PinChallengeImpl {
-                    platform_state: state_c.clone(),
-                };
-                let _res = pin_provider_handler
-                    .on_request_challenge(ctx_c.clone(), ListenRequest { listen: true })
-                    .await;
-                let ack_provider_handler = AcknowledgeChallengeImpl {
-                    platform_state: state_c.clone(),
-                };
 
-                let _res = ack_provider_handler
-                    .on_request_challenge(ctx_c.clone(), ListenRequest { listen: true })
-                    .await;
+                ProviderBroker::register_or_unregister_provider(
+                    &state_c,
+                    String::from(PIN_CHALLENGE_CAPABILITY),
+                    String::from("challenge"),
+                    PIN_CHALLENGE_EVENT,
+                    ctx_c.clone(),
+                    ListenRequest { listen: true },
+                )
+                .await;
+
+                ProviderBroker::register_or_unregister_provider(
+                    &state_c,
+                    String::from(ACK_CHALLENGE_CAPABILITY),
+                    String::from("challenge"),
+                    ACK_CHALLENGE_EVENT,
+                    ctx_c.clone(),
+                    ListenRequest { listen: true },
+                )
+                .await;
+
+                let platform_state = state.clone();
+
                 tokio::spawn(async move {
                     while let Some(message) = rx.recv().await {
                         let json_msg = serde_json::from_str::<Value>(&message.jsonrpc_msg).unwrap();
@@ -2020,25 +2029,25 @@ mod tests {
                         >(msg.clone());
                         if let Ok(prov_req) = req {
                             let corr_id = prov_req.correlation_id.clone();
-                            let challenge_resp = ExternalProviderResponse::<PinChallengeResponse> {
+                            let msg = ProviderResponse {
                                 correlation_id: corr_id,
-                                result: pin_response.clone(),
+                                result: ProviderResponsePayload::PinChallengeResponse(
+                                    pin_response.clone(),
+                                ),
                             };
-                            let _ = pin_provider_handler
-                                .challenge_response(ctx_c.clone(), challenge_resp)
-                                .await;
+                            ProviderBroker::provider_response(&platform_state, msg).await;
                         } else {
                             let req =
                                 serde_json::from_value::<ExternalProviderRequest<Challenge>>(msg);
                             if let Ok(prov_req) = req {
                                 let corr_id = prov_req.correlation_id.clone();
-                                let challenge_resp = ExternalProviderResponse::<ChallengeResponse> {
+                                let msg = ProviderResponse {
                                     correlation_id: corr_id,
-                                    result: ack_response.clone(),
+                                    result: ProviderResponsePayload::ChallengeResponse(
+                                        ack_response.clone(),
+                                    ),
                                 };
-                                let _ = ack_provider_handler
-                                    .challenge_response(ctx_c.clone(), challenge_resp)
-                                    .await;
+                                ProviderBroker::provider_response(&platform_state, msg).await;
                             }
                         }
                     }

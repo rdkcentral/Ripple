@@ -798,6 +798,12 @@ mod tests {
             alternative: Some("cap6".to_string()),
             since: Some("1.0.0".to_string()),
             setter_for: Some("example_property".to_string()),
+            response: None,
+            response_for: None,
+            error: None,
+            error_for: None,
+            allow_focus: None,
+            allow_focus_for: None,
         };
 
         assert_eq!(
@@ -835,6 +841,12 @@ mod tests {
                 alternative: Some("cap6".to_string()),
                 since: Some("1.0.0".to_string()),
                 setter_for: Some("example_property".to_string()),
+                response: None,
+                response_for: None,
+                error: None,
+                error_for: None,
+                allow_focus: None,
+                allow_focus_for: None,
             }]),
         };
 
@@ -849,6 +861,12 @@ mod tests {
             alternative: Some("cap6".to_string()),
             since: Some("1.0.0".to_string()),
             setter_for: Some("example_property".to_string()),
+            response: None,
+            response_for: None,
+            error: None,
+            error_for: None,
+            allow_focus: None,
+            allow_focus_for: None,
         }]);
 
         assert_eq!(method.get_allow_value(), None);
