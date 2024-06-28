@@ -27,7 +27,7 @@ rpc = ["jsonrpsee"]
 tdk = []
 full = ["rpc"]
 sysd = []
-test = []
+test = ["jsonrpsee"]
 contract_tests = []
 
 [dependencies]
