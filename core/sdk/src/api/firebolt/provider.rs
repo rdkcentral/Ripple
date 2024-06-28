@@ -15,8 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::any::type_name;
-
 use serde::{Deserialize, Serialize};
 
 use crate::api::device::entertainment_data::{
@@ -25,7 +23,9 @@ use crate::api::device::entertainment_data::{
 
 use super::{
     fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
-    fb_pin::{PinChallengeRequest, PinChallengeResponse},
+    fb_pin::{
+        PinChallengeRequest, PinChallengeResponse, PIN_CHALLENGE_CAPABILITY, PIN_CHALLENGE_EVENT,
+    },
 };
 
 pub const ACK_CHALLENGE_EVENT: &str = "acknowledgechallenge.onRequestChallenge";
@@ -185,14 +185,11 @@ pub struct ExternalProviderResponse<T> {
 }
 
 // <pca>
-//#[derive(Debug, Clone, Serialize, Copy)]
 #[derive(Debug, Clone, Serialize)]
 
 pub struct ProviderAttributes {
     pub event: &'static str,
-    //pub response_type: &'static str,
     pub response_payload_type: ProviderResponsePayloadType,
-    //pub error_type: &'static str,
     pub error_payload_type: ProviderResponsePayloadType,
     pub capability: &'static str,
     pub method: &'static str,
@@ -203,6 +200,7 @@ impl ProviderAttributes {
         println!("*** _DEBUG: ProviderAttributes::get: name={}", module);
         match module {
             "AcknowledgeChallenge" => Some(&ACKNOWLEDGE_CHALLENGE_ATTRIBS),
+            "PinChallenge" => Some(&ACKNOWLEDGE_CHALLENGE_ATTRIBS),
             _ => None,
         }
     }
@@ -213,6 +211,14 @@ pub const ACKNOWLEDGE_CHALLENGE_ATTRIBS: ProviderAttributes = ProviderAttributes
     response_payload_type: ProviderResponsePayloadType::ChallengeResponse,
     error_payload_type: ProviderResponsePayloadType::ChallengeError,
     capability: ACK_CHALLENGE_CAPABILITY,
+    method: "challenge",
+};
+
+pub const PIN_CHALLENGE_ATTRIBS: ProviderAttributes = ProviderAttributes {
+    event: PIN_CHALLENGE_EVENT,
+    response_payload_type: ProviderResponsePayloadType::PinChallengeResponse,
+    error_payload_type: ProviderResponsePayloadType::ChallengeError,
+    capability: PIN_CHALLENGE_CAPABILITY,
     method: "challenge",
 };
 // </pca>

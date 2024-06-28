@@ -117,13 +117,14 @@ impl ProviderResult {
 }
 
 impl ProviderBroker {
-    // <pca>
-    pub fn get_method(capability: &str) -> Option<String> {
-        match capability {
-            ACK_CHALLENGE_CAPABILITY => Some("challenge".into()),
-            _ => None,
-        }
-    }
+    // <pca> added
+    // pub fn get_method(capability: &str) -> Option<String> {
+    //     match capability {
+    //         ACK_CHALLENGE_CAPABILITY => Some("challenge".into()),
+    //         PIN_CHALLENGE_CAPABILITY => Some("challenge".into()),
+    //         _ => None,
+    //     }
+    // }
     // </pca>
 
     pub async fn register_or_unregister_provider(

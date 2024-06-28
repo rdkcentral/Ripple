@@ -28,9 +28,9 @@ use crate::{
             lcm_rpc::LifecycleManagementProvider, lifecycle_rpc::LifecycleRippleProvider,
             localization_rpc::LocalizationRPCProvider,
             metrics_management_rpc::MetricsManagementProvider, metrics_rpc::MetricsRPCProvider,
-            parameters_rpc::ParametersRPCProvider, pin_rpc::PinRPCProvider,
-            privacy_rpc::PrivacyProvider, profile_rpc::ProfileRPCProvider,
-            provider_registrar::ProviderRegistrar, second_screen_rpc::SecondScreenRPCProvider,
+            parameters_rpc::ParametersRPCProvider, privacy_rpc::PrivacyProvider,
+            profile_rpc::ProfileRPCProvider, provider_registrar::ProviderRegistrar,
+            second_screen_rpc::SecondScreenRPCProvider,
             secure_storage_rpc::SecureStorageRPCProvider, user_grants_rpc::UserGrantsRPCProvider,
             voice_guidance_rpc::VoiceguidanceRPCProvider, wifi_rpc::WifiRPCProvider,
         },
@@ -48,6 +48,9 @@ pub struct FireboltGatewayStep;
 impl FireboltGatewayStep {
     async fn init_handlers(&self, state: PlatformState, extn_methods: Methods) -> Methods {
         let mut methods = Methods::new();
+        // <pca>
+        ProviderRegistrar::register(&state, &mut methods);
+        // </pca>
         let _ = methods.merge(DeviceRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(WifiRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(LifecycleRippleProvider::provide_with_alias(state.clone()));
@@ -55,13 +58,8 @@ impl FireboltGatewayStep {
         let _ = methods.merge(KeyboardRPCProvider::provide_with_alias(state.clone()));
         // <pca>
         //let _ = methods.merge(AckRPCProvider::provide_with_alias(state.clone()));
-        ProviderRegistrar::register(&state, &mut methods);
-        println!(
-            "*** _DEBUG: FireboltGatewayStep::init_handlers: methods: {:?}",
-            methods
-        );
+        //let _ = methods.merge(PinRPCProvider::provide_with_alias(state.clone()));
         // </pca>
-        let _ = methods.merge(PinRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(ClosedcaptionsRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(VoiceguidanceRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(LocalizationRPCProvider::provide_with_alias(state.clone()));

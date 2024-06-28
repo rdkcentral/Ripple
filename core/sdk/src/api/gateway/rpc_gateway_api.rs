@@ -242,6 +242,7 @@ pub struct RequestParseError {}
 
 impl RpcRequest {
     pub fn new(method: String, params_json: String, ctx: CallContext) -> RpcRequest {
+        println!("*** _DEBUG: RpcRequest::new: params_json: {}", params_json);
         RpcRequest {
             method,
             params_json,

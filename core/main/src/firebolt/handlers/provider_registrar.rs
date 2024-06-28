@@ -15,21 +15,13 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{
-    any::{Any, TypeId},
-    collections::HashMap,
-    sync::Arc,
-};
-
 use crate::{
-    firebolt::rpc::RippleRPCProvider,
-    service::apps::provider_broker::ProviderBroker,
-    state::{self, openrpc_state::ProviderSet, platform_state::PlatformState},
+    firebolt::rpc::register_aliases, service::apps::provider_broker::ProviderBroker,
+    state::platform_state::PlatformState,
 };
-use futures_channel::mpsc::{self, Sender};
 use jsonrpsee::{
-    core::{server::rpc_module::Methods, Error, RpcResult},
-    types::{error::CallError, Params, ParamsSequence},
+    core::{server::rpc_module::Methods, RpcResult},
+    types::{error::CallError, ParamsSequence},
     RpcModule,
 };
 use ripple_sdk::{
@@ -39,70 +31,23 @@ use ripple_sdk::{
             fb_openrpc::FireboltOpenRpcMethod,
             fb_pin::PinChallengeResponse,
             provider::{
-                self, ChallengeError, ChallengeResponse, ExternalProviderResponse, FocusRequest,
-                ProviderAttributes, ProviderResponse, ProviderResponsePayload,
-                ProviderResponsePayloadType, ACKNOWLEDGE_CHALLENGE_ATTRIBS,
-                ACK_CHALLENGE_CAPABILITY, ACK_CHALLENGE_EVENT,
+                ChallengeResponse, ExternalProviderResponse, FocusRequest, ProviderResponse,
+                ProviderResponsePayload, ProviderResponsePayloadType,
             },
         },
         gateway::rpc_gateway_api::CallContext,
     },
-    log::{debug, error},
+    log::error,
 };
-use serde_json::json;
 
-#[derive(Debug)]
-pub struct Provider {
-    pub platform_state: PlatformState,
-    capability: String,
-    event: &'static str,
+#[derive(Clone)]
+struct RpcModuleContext {
+    platform_state: PlatformState,
 }
 
-impl Provider {
-    pub fn new(platform_state: PlatformState, capability: String, event: &'static str) -> Provider {
-        Provider {
-            platform_state,
-            capability,
-            event,
-        }
-    }
-
-    async fn on_request(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        let listen = request.listen;
-        debug!("on_request: request={:?}", request);
-        ProviderBroker::register_or_unregister_provider(
-            &self.platform_state,
-            self.capability.clone(),
-            ProviderBroker::get_method(&self.capability).unwrap_or_default(),
-            self.event,
-            ctx,
-            request,
-        )
-        .await;
-
-        Ok(ListenerResponse {
-            listening: listen,
-            event: self.event.into(),
-        })
-    }
-
-    async fn response(&self, _ctx: CallContext, resp: ProviderResponse) -> RpcResult<Option<()>> {
-        ProviderBroker::provider_response(&self.platform_state, resp).await;
-        return Ok(None);
-    }
-
-    async fn error(&self, _ctx: CallContext, resp: ProviderResponse) -> RpcResult<Option<()>> {
-        ProviderBroker::provider_response(&self.platform_state, resp).await;
-        return Ok(None);
-    }
-
-    async fn focus(&self, ctx: CallContext, request: FocusRequest) -> RpcResult<Option<()>> {
-        ProviderBroker::focus(&self.platform_state, ctx, self.capability.clone(), request).await;
-        Ok(None)
+impl RpcModuleContext {
+    fn new(platform_state: PlatformState) -> Self {
+        RpcModuleContext { platform_state }
     }
 }
 
@@ -146,7 +91,7 @@ impl ProviderRegistrar {
         None
     }
 
-    pub fn register(platform_state: &PlatformState, mut methods: &mut Methods) {
+    pub fn register(platform_state: &PlatformState, methods: &mut Methods) {
         let provider_map = platform_state.open_rpc_state.get_provider_map();
         for provides in provider_map.clone().keys() {
             println!(
@@ -155,26 +100,36 @@ impl ProviderRegistrar {
             );
             if let Some(provider_set) = provider_map.get(provides) {
                 if let Some(attributes) = provider_set.attributes.clone() {
-                    let mut rpc_module = RpcModule::new(platform_state.clone());
+                    println!(
+                        "*** _DEBUG: ProviderRegistrar::register: attributes={:?}",
+                        attributes
+                    );
+                    let rpc_module_context = RpcModuleContext::new(platform_state.clone());
+                    let mut rpc_module = RpcModule::new(rpc_module_context.clone());
 
                     // Register request function
                     if let Some(method) = provider_set.request.clone() {
                         let request_method =
                             FireboltOpenRpcMethod::name_with_lowercase_module(&method.name).leak();
 
-                        println!("*** _DEBUG: request_method={}", request_method);
+                        println!(
+                            "*** _DEBUG: ProviderRegistrar::register: request_method={}",
+                            request_method
+                        );
 
                         rpc_module
                             .register_async_method(
                                 request_method,
-                                move |params, platform_state| async move {
+                                move |params, context| async move {
+                                    println!("*** _DEBUG: async callback: params={:?}", params);
+
                                     let mut params_sequence = params.sequence();
                                     let call_context: CallContext = params_sequence.next().unwrap();
                                     let request: ListenRequest = params_sequence.next().unwrap();
                                     let listening = request.listen;
 
                                     ProviderBroker::register_or_unregister_provider(
-                                        &platform_state,
+                                        &context.platform_state,
                                         attributes.capability.into(),
                                         attributes.method.into(),
                                         attributes.event,
@@ -202,13 +157,13 @@ impl ProviderRegistrar {
                         rpc_module
                             .register_async_method(
                                 focus_method,
-                                move |params, platform_state| async move {
+                                move |params, context| async move {
                                     let mut params_sequence = params.sequence();
                                     let call_context: CallContext = params_sequence.next().unwrap();
                                     let request: FocusRequest = params_sequence.next().unwrap();
 
                                     ProviderBroker::focus(
-                                        &platform_state,
+                                        &context.platform_state,
                                         call_context,
                                         attributes.capability.into(),
                                         request,
@@ -230,9 +185,8 @@ impl ProviderRegistrar {
                         rpc_module
                             .register_async_method(
                                 response_method,
-                                move |params, platform_state| async move {
-                                    let mut params_sequence = params.sequence();
-                                    let call_context: CallContext = params_sequence.next().unwrap();
+                                move |params, context| async move {
+                                    let params_sequence = params.sequence();
 
                                     if let Some(provider_response) =
                                         ProviderRegistrar::get_provider_response(
@@ -241,7 +195,7 @@ impl ProviderRegistrar {
                                         )
                                     {
                                         ProviderBroker::provider_response(
-                                            &platform_state,
+                                            &context.platform_state,
                                             provider_response,
                                         )
                                         .await;
@@ -262,9 +216,8 @@ impl ProviderRegistrar {
                         rpc_module
                             .register_async_method(
                                 error_method,
-                                move |params, platform_state| async move {
-                                    let mut params_sequence = params.sequence();
-                                    let call_context: CallContext = params_sequence.next().unwrap();
+                                move |params, context| async move {
+                                    let params_sequence = params.sequence();
 
                                     if let Some(provider_response) =
                                         ProviderRegistrar::get_provider_response(
@@ -273,7 +226,7 @@ impl ProviderRegistrar {
                                         )
                                     {
                                         ProviderBroker::provider_response(
-                                            &platform_state,
+                                            &context.platform_state,
                                             provider_response,
                                         )
                                         .await;
@@ -285,7 +238,10 @@ impl ProviderRegistrar {
                             .unwrap();
                     }
 
-                    methods.merge(rpc_module.clone()).ok();
+                    //methods.merge(rpc_module.clone()).ok();
+                    methods
+                        .merge(register_aliases(&platform_state, rpc_module))
+                        .ok();
                 }
             }
         }
