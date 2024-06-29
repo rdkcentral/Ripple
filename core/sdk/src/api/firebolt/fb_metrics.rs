@@ -754,8 +754,6 @@ pub struct SystemErrorParams {
 mod tests {
     use super::*;
     use crate::api::gateway::rpc_gateway_api::ApiProtocol;
-    use crate::api::observability::*;
-    use crate::api::observability::{OperationalMetricRequest, Timer};
     use crate::utils::test_utils::test_extn_payload_provider;
     use serde_json::json;
 
