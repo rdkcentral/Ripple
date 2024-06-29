@@ -43,11 +43,11 @@ use ripple_sdk::api::app_catalog::{AppCatalogRequest, AppOperationComplete, Apps
 use ripple_sdk::api::device::device_apps::DeviceAppMetadata;
 use ripple_sdk::api::device::device_operator::{DeviceResponseMessage, DeviceSubscribeRequest};
 use ripple_sdk::api::firebolt::fb_capabilities::FireboltPermissions;
-use ripple_sdk::api::firebolt::fb_metrics::{Timer, TimerType};
-use ripple_sdk::api::observability::metrics_util::{
+use ripple_sdk::api::observability::{Timer, TimerType};
+
+use ripple_sdk::api::observability::{
     start_service_metrics_timer, stop_and_send_service_metrics_timer,
 };
-
 #[cfg(not(test))]
 use ripple_sdk::log::{debug, error, info};
 use ripple_sdk::tokio;
@@ -1029,11 +1029,11 @@ impl ExtnRequestProcessor for ThunderPackageManagerRequestProcessor {
 /*
 RDK Telemetry  message processing/emitting
 */
-pub fn rdk_telemetry_emit(timer: ripple_sdk::api::firebolt::fb_metrics::Timer) {
+pub fn rdk_telemetry_emit(timer: Timer) {
     emit(format_timer(timer));
 }
 
-fn format_timer(timer: ripple_sdk::api::firebolt::fb_metrics::Timer) -> String {
+fn format_timer(timer: Timer) -> String {
     /*
     emit - name: <appId>,<appVersion>,<status>,<duration>
     */
@@ -1073,7 +1073,6 @@ pub mod tests {
     };
     use ripple_sdk::extn::mock_extension_client::*;
     use ripple_sdk::{
-        api::firebolt::fb_metrics::Timer,
         tokio::{self, time::sleep},
         uuid::Uuid,
     };

@@ -29,8 +29,8 @@ use jsonrpsee::{
 };
 use ripple_sdk::{
     api::{
-        firebolt::fb_metrics::Timer,
         gateway::rpc_gateway_api::{ApiMessage, RpcRequest},
+        observability::Timer,
     },
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,

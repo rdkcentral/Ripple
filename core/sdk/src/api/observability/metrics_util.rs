@@ -1,7 +1,9 @@
+use std::collections::HashMap;
+
 use crate::{
     api::firebolt::{
         fb_metrics::{
-            get_metrics_tags, InteractionType, Tag, Timer, TimerType,
+            InteractionType, Tag, Timer, TimerType,
             SERVICE_METRICS_SEND_REQUEST_TIMEOUT_MS,
         },
         fb_telemetry::OperationalMetricRequest,
@@ -9,6 +11,41 @@ use crate::{
     extn::{client::extn_client::ExtnClient, extn_client_message::ExtnResponse},
     utils::error::RippleError,
 };
+pub fn get_metrics_tags(
+    extn_client: &ExtnClient,
+    interaction_type: InteractionType,
+    app_id: Option<String>,
+) -> Option<HashMap<String, String>> {
+    let metrics_context = extn_client.get_metrics_context()?;
+    let mut tags: HashMap<String, String> = HashMap::new();
+
+    tags.insert(Tag::Type.key(), interaction_type.to_string());
+
+    if let Some(app) = app_id {
+        tags.insert(Tag::App.key(), app);
+    }
+
+    tags.insert(Tag::Firmware.key(), metrics_context.firmware.clone());
+    tags.insert(Tag::RippleVersion.key(), metrics_context.ripple_version);
+
+    let features = extn_client.get_features();
+    let feature_count = features.len();
+    let mut features_str = String::new();
+
+    if feature_count > 0 {
+        for (i, feature) in features.iter().enumerate() {
+            features_str.push_str(feature);
+            if i < feature_count - 1 {
+                features_str.push(',');
+            }
+        }
+    }
+
+    tags.insert(Tag::Features.key(), features_str);
+
+    Some(tags)
+}
+
 
 #[cfg(not(test))]
 use log::{debug, error};

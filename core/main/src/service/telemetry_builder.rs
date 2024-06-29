@@ -18,10 +18,7 @@
 use ripple_sdk::{
     api::{
         firebolt::{
-            fb_metrics::{
-                get_metrics_tags, ErrorParams, InteractionType, InternalInitializeParams,
-                SystemErrorParams, Tag, Timer, TimerType,
-            },
+            fb_metrics::{ErrorParams, InternalInitializeParams, SystemErrorParams},
             fb_telemetry::{
                 AppLoadStart, AppLoadStop, FireboltInteraction, InternalInitialize,
                 TelemetryAppError, TelemetryPayload, TelemetrySignIn, TelemetrySignOut,
@@ -29,6 +26,7 @@ use ripple_sdk::{
             },
         },
         gateway::rpc_gateway_api::{CallContext, RpcRequest},
+        observability::*,
     },
     chrono::{DateTime, Utc},
     extn::client::extn_client::ExtnClient,
@@ -238,9 +236,7 @@ impl TelemetryBuilder {
             if let Err(e) = &ps
                 .get_client()
                 .send_extn_request(
-                    ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest::Timer(
-                        timer.clone(),
-                    ),
+                    ripple_sdk::api::observability::OperationalMetricRequest::Timer(timer.clone()),
                 )
                 .await
             {

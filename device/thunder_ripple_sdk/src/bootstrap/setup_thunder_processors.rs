@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest;
+use ripple_sdk::api::observability::OperationalMetricRequest;
 use ripple_sdk::api::status_update::ExtnStatus;
 use ripple_sdk::log::error;
 
