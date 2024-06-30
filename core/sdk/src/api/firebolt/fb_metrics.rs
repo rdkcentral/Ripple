@@ -486,11 +486,7 @@ pub fn fb_api_counter(method_name: String, tags: Option<HashMap<String, String>>
             the_map
         }
     };
-    Counter {
-        name: FIREBOLT_RPC_NAME.to_string(),
-        value: 1,
-        tags: Some(counter_tags),
-    }
+    Counter::new(FIREBOLT_RPC_NAME.to_string(), 1, Some(counter_tags))
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]

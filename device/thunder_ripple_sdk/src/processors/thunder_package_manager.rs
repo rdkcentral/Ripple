@@ -43,7 +43,7 @@ use ripple_sdk::api::app_catalog::{AppCatalogRequest, AppOperationComplete, Apps
 use ripple_sdk::api::device::device_apps::DeviceAppMetadata;
 use ripple_sdk::api::device::device_operator::{DeviceResponseMessage, DeviceSubscribeRequest};
 use ripple_sdk::api::firebolt::fb_capabilities::FireboltPermissions;
-use ripple_sdk::api::observability::{Timer, TimerType};
+use ripple_sdk::api::observability::{MetricStatus, Timer, TimerType};
 
 use ripple_sdk::api::observability::{
     start_service_metrics_timer, stop_and_send_service_metrics_timer,
@@ -212,7 +212,7 @@ impl Operation {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum OperationStatus {
     Succeeded,
     Failed,
@@ -266,6 +266,24 @@ impl OperationStatus {
 
     pub fn succeeded(&self) -> bool {
         matches!(self, OperationStatus::Succeeded)
+    }
+}
+impl From<OperationStatus> for MetricStatus {
+    fn from(status: OperationStatus) -> Self {
+        match status {
+            OperationStatus::Succeeded => MetricStatus::Success,
+            OperationStatus::Failed => MetricStatus::Failure,
+            OperationStatus::NotStarted => MetricStatus::Unknown,
+            OperationStatus::Downloading => MetricStatus::Unknown,
+            OperationStatus::Downloaded => MetricStatus::Unknown,
+            OperationStatus::DownloadFailed => MetricStatus::Failure,
+            OperationStatus::Verifying => MetricStatus::Unknown,
+            OperationStatus::VerificationFailed => MetricStatus::Failure,
+            OperationStatus::InstallationFailed => MetricStatus::Failure,
+            OperationStatus::Cancelled => MetricStatus::Failure,
+            OperationStatus::NotEnoughStorage => MetricStatus::Failure,
+            OperationStatus::Unknown => MetricStatus::Unknown,
+        }
     }
 }
 
@@ -327,6 +345,11 @@ impl AppsOperationStatus {
             status,
             details,
         }
+    }
+}
+impl From<AppsOperationStatus> for MetricStatus {
+    fn from(status: AppsOperationStatus) -> Self {
+        OperationStatus::new(&status.status).into()
     }
 }
 
@@ -417,11 +440,12 @@ impl ThunderPackageManagerRequestProcessor {
                             operation_status.id.clone(),
                             AppData::new(operation_status.version.clone()),
                         );
+
                         Self::add_or_remove_operation(
                             state_for_event_handler.clone(),
                             operation_status.handle,
                             operation,
-                            Some(operation_status.status),
+                            Some(status.clone().into()),
                         );
                         let op_comp = AppOperationComplete {
                             id: operation_status.id,
@@ -493,14 +517,16 @@ impl ThunderPackageManagerRequestProcessor {
         state: ThunderPackageManagerState,
         handle: String,
         operation: Operation,
-        status: Option<String>,
+        status: Option<MetricStatus>,
     ) {
         let mut active_operations = state.active_operations.lock().unwrap();
         match active_operations.get(&handle) {
             Some(op) => {
                 let mut timer = op.timer.clone();
+                if let Some(stat) = status {
+                    timer.status = stat;
+                }
                 timer.stop();
-                timer.insert_tag("status".to_string(), status.unwrap_or("".to_string()));
                 rdk_telemetry_emit(timer);
                 active_operations.remove(&handle);
             }
@@ -603,7 +629,7 @@ impl ThunderPackageManagerRequestProcessor {
         stop_and_send_service_metrics_timer(
             thunder_state.get_client().clone(),
             metrics_timer,
-            status.to_string(),
+            status.into(),
         )
         .await;
 
@@ -681,7 +707,7 @@ impl ThunderPackageManagerRequestProcessor {
         stop_and_send_service_metrics_timer(
             state.thunder_state.get_client().clone(),
             metrics_timer,
-            status.to_string(),
+            status.clone().into(),
         )
         .await;
 
@@ -691,7 +717,7 @@ impl ThunderPackageManagerRequestProcessor {
                     state.clone(),
                     handle.clone(),
                     operation,
-                    Some(status.to_string()),
+                    Some(status.into()),
                 );
 
                 ExtnResponse::String(handle)
@@ -764,7 +790,7 @@ impl ThunderPackageManagerRequestProcessor {
         stop_and_send_service_metrics_timer(
             state.thunder_state.get_client().clone(),
             metrics_timer,
-            status.to_string(),
+            status.clone().into(),
         )
         .await;
 
@@ -774,7 +800,7 @@ impl ThunderPackageManagerRequestProcessor {
                     state.clone(),
                     handle.clone(),
                     operation,
-                    Some(status.to_string()),
+                    Some(status.into()),
                 );
                 ExtnResponse::String(handle)
             }
@@ -912,7 +938,7 @@ impl ThunderPackageManagerRequestProcessor {
         stop_and_send_service_metrics_timer(
             state.thunder_state.get_client().clone(),
             metrics_timer,
-            status.to_string(),
+            status.into(),
         )
         .await;
 
@@ -976,7 +1002,7 @@ impl ThunderPackageManagerRequestProcessor {
         stop_and_send_service_metrics_timer(
             state.thunder_state.get_client().clone(),
             metrics_timer,
-            status.to_string(),
+            status.into(),
         )
         .await;
     }
@@ -1145,7 +1171,7 @@ pub mod tests {
             state.clone(),
             "asdf".to_string(),
             operation,
-            Some("success".to_string()),
+            Some(MetricStatus::Success),
         );
         assert!(state.active_operations.lock().unwrap().is_empty());
     }
@@ -1178,7 +1204,7 @@ pub mod tests {
             state.clone(),
             "asdf".to_string(),
             operation,
-            Some("success".to_string()),
+            Some(MetricStatus::Success),
         );
         assert!(sessions.eq(&state.active_operations.lock().unwrap().clone()));
     }

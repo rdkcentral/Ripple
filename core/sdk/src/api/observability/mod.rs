@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    fmt::{Display, Formatter},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -66,13 +69,15 @@ pub struct Counter {
     TODO... this needs to be a map
     */
     pub tags: Option<HashMap<String, String>>,
+    pub status: MetricStatus,
 }
 impl Counter {
     pub fn new(name: String, value: u64, tags: Option<HashMap<String, String>>) -> Counter {
         Counter {
             name: format!("{}_counter", name),
             value,
-            tags,
+            tags: Some(tags.unwrap_or_default()),
+            status: MetricStatus::Unknown,
         }
     }
     pub fn increment(&mut self) {
@@ -106,6 +111,7 @@ impl Counter {
         }
     }
     pub fn error(&mut self) {
+        self.status = MetricStatus::Failure;
         if let Some(my_tags) = self.tags.as_mut() {
             my_tags.insert("error".to_string(), true.to_string());
         }
@@ -151,6 +157,25 @@ pub enum TimerType {
     */
     Remote,
 }
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum MetricStatus {
+    Unknown,
+    Unset,
+    Success,
+    Failure,
+    Error,
+}
+impl Display for MetricStatus {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MetricStatus::Unknown => write!(f, "unknown"),
+            MetricStatus::Success => write!(f, "success"),
+            MetricStatus::Failure => write!(f, "failure"),
+            MetricStatus::Error => write!(f, "error"),
+            MetricStatus::Unset => write!(f, "unset"),
+        }
+    }
+}
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Timer {
     pub name: String,
@@ -161,6 +186,7 @@ pub struct Timer {
     pub tags: Option<HashMap<String, String>>,
     pub time_unit: TimeUnit,
     pub timer_type: TimerType,
+    pub status: MetricStatus,
 }
 impl Timer {
     pub fn start(
@@ -200,12 +226,16 @@ impl Timer {
             time_unit,
             /*most will probably be local, so default as such*/
             timer_type: timer_type.unwrap_or(TimerType::Local),
+            status: MetricStatus::Unset,
         }
     }
 
     pub fn stop(&mut self) -> Timer {
         if self.stop.is_none() {
             self.stop = Some(std::time::Instant::now());
+        }
+        if self.status != MetricStatus::Unset {
+            self.insert_tag(Tag::Status.key(), self.status.to_string());
         }
         self.clone()
     }
@@ -223,15 +253,15 @@ impl Timer {
     }
 
     pub fn insert_tag(&mut self, tag_name: String, tag_value: String) {
-        if let Some(my_tags) = self.tags.as_mut() {
-            my_tags.insert(tag_name, tag_value);
-        }
+        let mut tags = HashMap::new();
+
+        tags.insert(tag_name, tag_value);
+        self.insert_tags(tags);
     }
 
     pub fn insert_tags(&mut self, new_tags: HashMap<String, String>) {
-        let tags = self.tags.clone();
-        match tags {
-            Some(mut t) => t.extend(new_tags),
+        match self.tags.as_mut() {
+            Some(t) => t.extend(new_tags),
             None => self.tags = Some(new_tags),
         }
     }
@@ -308,11 +338,11 @@ pub fn start_service_metrics_timer(extn_client: &ExtnClient, name: String) -> Op
 pub async fn stop_and_send_service_metrics_timer(
     client: ExtnClient,
     timer: Option<Timer>,
-    status: String,
+    status: MetricStatus,
 ) {
     if let Some(mut timer) = timer {
+        timer.status = status;
         timer.stop();
-        timer.insert_tag(Tag::Status.key(), status);
 
         debug!("stop_and_send_service_metrics_timer: {:?}", timer);
 
@@ -322,6 +352,38 @@ pub async fn stop_and_send_service_metrics_timer(
             .standalone_request(req, SERVICE_METRICS_SEND_REQUEST_TIMEOUT_MS)
             .await;
 
+        if let Err(e) = resp {
+            error!(
+                "stop_and_send_service_metrics_timer: Failed to send metrics request: e={:?}",
+                e
+            );
+        }
+    }
+}
+pub async fn emit_observability(client: ExtnClient, timers: Vec<Timer>, counters: Vec<Counter>) {
+    for mut timer in timers {
+        timer.stop();
+        timer.insert_tag(Tag::Status.key(), timer.status.to_string());
+        let resp: Result<ExtnResponse, RippleError> = client
+            .standalone_request(
+                OperationalMetricRequest::Timer(timer),
+                SERVICE_METRICS_SEND_REQUEST_TIMEOUT_MS,
+            )
+            .await;
+        if let Err(e) = resp {
+            error!(
+                "stop_and_send_service_metrics_timer: Failed to send metrics request: e={:?}",
+                e
+            );
+        }
+    }
+    for counter in counters {
+        let resp: Result<ExtnResponse, RippleError> = client
+            .standalone_request(
+                OperationalMetricRequest::Counter(counter),
+                SERVICE_METRICS_SEND_REQUEST_TIMEOUT_MS,
+            )
+            .await;
         if let Err(e) = resp {
             error!(
                 "stop_and_send_service_metrics_timer: Failed to send metrics request: e={:?}",
