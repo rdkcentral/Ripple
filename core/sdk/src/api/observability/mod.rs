@@ -175,7 +175,7 @@ impl From<Option<MetricStatus>> for MetricStatus {
 }
 impl MetricStatus {
     /*
-    could not get ordinals to work with type coercion, so just doing it manually
+    could not get ordinals to work with type coercion, so just doing it manuallycargo
     */
     pub fn ordinal(&self) -> i32 {
         match self {
@@ -258,6 +258,10 @@ impl Timer {
         }
         self.clone()
     }
+    pub fn stop_with_status(&mut self, status: MetricStatus) {
+        self.status = status;
+        self.stop();
+    }
 
     pub fn restart(&mut self) {
         self.start = std::time::Instant::now();
@@ -287,9 +291,6 @@ impl Timer {
 
     pub fn error(&mut self) {
         self.status = MetricStatus::Error;
-        if let Some(my_tags) = self.tags.as_mut() {
-            my_tags.insert("error".to_string(), true.to_string());
-        }
     }
     pub fn set_status(&mut self, status: MetricStatus) {
         self.status = status;
@@ -656,7 +657,26 @@ mod tests {
             None,
         );
         timer.error();
-        assert_eq!(timer.tags.unwrap().get("error"), Some(&"true".to_string()));
+        timer.stop();
+        assert_eq!(
+            timer.tags.unwrap().get("status"),
+            Some(&MetricStatus::Error.to_string())
+        );
+    }
+    #[test]
+    fn test_timer_stop_with_status() {
+        let mut timer = Timer::new(
+            "test_timer".to_string(),
+            std::time::Instant::now(),
+            Some(HashMap::new()),
+            TimeUnit::Millis,
+            None,
+        );
+        timer.stop_with_status(MetricStatus::Failure);
+        assert_eq!(
+            timer.tags.unwrap().get("status"),
+            Some(&MetricStatus::Failure.to_string())
+        );
     }
 
     #[test]
