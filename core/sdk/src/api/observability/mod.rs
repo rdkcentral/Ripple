@@ -119,6 +119,9 @@ impl Counter {
             my_tags.insert("error".to_string(), true.to_string());
         }
     }
+    pub fn set_status(&mut self, status: MetricStatus) {
+        self.status = status;
+    }
     pub fn is_error(&self) -> bool {
         if let Some(my_tags) = &self.tags {
             if let Some(error) = my_tags.get("error") {
@@ -302,6 +305,14 @@ impl Timer {
     pub fn to_extn_request(&self) -> OperationalMetricRequest {
         OperationalMetricRequest::Timer(self.clone())
     }
+    pub fn status(maybe: Option<Timer>, status: MetricStatus) -> Option<Timer> {
+        if maybe.is_some() {
+            let mut timer = maybe.unwrap();
+            timer.set_status(status);
+            return Some(timer);
+        }
+        None
+    }
 }
 
 impl From<Timer> for OperationalMetricRequest {
@@ -369,7 +380,11 @@ pub fn start_service_metrics_timer(extn_client: &ExtnClient, name: String) -> Op
         Some(TimerType::Remote),
     ))
 }
-pub fn service_interaction_counter(extn_client: &ExtnClient, name: Option<String>) -> Counter {
+pub fn service_interaction_counter(
+    extn_client: &ExtnClient,
+    name: Option<String>,
+    status: Option<MetricStatus>,
+) -> Counter {
     let metrics_tags = get_metrics_tags(extn_client, InteractionType::Service, None);
     let counter_name = name.unwrap_or_else(|| "service_interaction_counter".to_string());
     trace!(
@@ -378,7 +393,11 @@ pub fn service_interaction_counter(extn_client: &ExtnClient, name: Option<String
         metrics_tags
     );
 
-    Counter::new(counter_name, 1, metrics_tags)
+    let mut counter = Counter::new(counter_name, 1, metrics_tags);
+    if let Some(the_status) = status {
+        counter.set_status(the_status);
+    }
+    counter
 }
 
 pub async fn stop_and_send_service_metrics_timer(
@@ -406,37 +425,43 @@ pub async fn stop_and_send_service_metrics_timer(
         }
     }
 }
-pub async fn emit_observability(client: ExtnClient, timers: Vec<Timer>, counters: Vec<Counter>) {
-    for mut timer in timers {
-        timer.stop();
-        timer.insert_tag(Tag::Status.key(), timer.status.to_string());
-        let resp: Result<ExtnResponse, RippleError> = client
-            .standalone_request(
-                OperationalMetricRequest::Timer(timer),
-                SERVICE_METRICS_SEND_REQUEST_TIMEOUT_MS,
-            )
-            .await;
-        if let Err(e) = resp {
-            error!(
-                "stop_and_send_service_metrics_timer: Failed to send metrics request: e={:?}",
-                e
-            );
+pub async fn emit_observability(
+    client: ExtnClient,
+    timers: Vec<Option<Timer>>,
+    counters: Vec<Counter>,
+) {
+    tokio::spawn(async move {
+        for mut timer in timers.into_iter().flatten() {
+            timer.stop();
+            timer.insert_tag(Tag::Status.key(), timer.status.to_string());
+            let resp: Result<ExtnResponse, RippleError> = client
+                .standalone_request(
+                    OperationalMetricRequest::Timer(timer),
+                    SERVICE_METRICS_SEND_REQUEST_TIMEOUT_MS,
+                )
+                .await;
+            if let Err(e) = resp {
+                error!(
+                    "stop_and_send_service_metrics_timer: Failed to send metrics request: e={:?}",
+                    e
+                );
+            }
         }
-    }
-    for counter in counters {
-        let resp: Result<ExtnResponse, RippleError> = client
-            .standalone_request(
-                OperationalMetricRequest::Counter(counter),
-                SERVICE_METRICS_SEND_REQUEST_TIMEOUT_MS,
-            )
-            .await;
-        if let Err(e) = resp {
-            error!(
-                "stop_and_send_service_metrics_timer: Failed to send metrics request: e={:?}",
-                e
-            );
+        for counter in counters {
+            let resp: Result<ExtnResponse, RippleError> = client
+                .standalone_request(
+                    OperationalMetricRequest::Counter(counter),
+                    SERVICE_METRICS_SEND_REQUEST_TIMEOUT_MS,
+                )
+                .await;
+            if let Err(e) = resp {
+                error!(
+                    "stop_and_send_service_metrics_timer: Failed to send metrics request: e={:?}",
+                    e
+                );
+            }
         }
-    }
+    });
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]

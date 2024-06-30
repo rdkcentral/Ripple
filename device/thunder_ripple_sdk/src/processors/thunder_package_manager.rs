@@ -43,7 +43,9 @@ use ripple_sdk::api::app_catalog::{AppCatalogRequest, AppOperationComplete, Apps
 use ripple_sdk::api::device::device_apps::DeviceAppMetadata;
 use ripple_sdk::api::device::device_operator::{DeviceResponseMessage, DeviceSubscribeRequest};
 use ripple_sdk::api::firebolt::fb_capabilities::FireboltPermissions;
-use ripple_sdk::api::observability::{MetricStatus, Timer, TimerType};
+use ripple_sdk::api::observability::{
+    emit_observability, service_interaction_counter, MetricStatus, Timer, TimerType,
+};
 
 use ripple_sdk::api::observability::{
     start_service_metrics_timer, stop_and_send_service_metrics_timer,
@@ -625,11 +627,19 @@ impl ThunderPackageManagerRequestProcessor {
                     ExtnResponse::Error(RippleError::ProcessorError),
                 ),
             };
-
-        stop_and_send_service_metrics_timer(
-            thunder_state.get_client().clone(),
-            metrics_timer,
+        /*
+        use associated function in case we don't have  Some() */
+        let metrics_timer = Timer::status(metrics_timer, status.clone().into());
+        let service_counter = service_interaction_counter(
+            &thunder_state.get_client().clone(),
+            None,
             Some(status.into()),
+        );
+
+        emit_observability(
+            thunder_state.get_client().clone(),
+            vec![metrics_timer],
+            vec![service_counter],
         )
         .await;
 
