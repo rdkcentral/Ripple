@@ -32,6 +32,7 @@ use ripple_sdk::{
     extn::client::extn_client::ExtnClient,
     framework::RippleResponse,
     log::{debug, error},
+    tokio,
 };
 use serde_json::Value;
 
@@ -230,20 +231,45 @@ impl TelemetryBuilder {
         timer: Option<Timer>,
         status: Option<MetricStatus>,
     ) {
-        if let Some(mut timer) = timer {
-            timer.set_status(MetricStatus::from(status));
-            if let Err(e) = &ps
+        let platform_state = ps.clone();
+        let stat = status.clone();
+        tokio::spawn(async move {
+            let mut counter = Counter::new("firebolt_interactions".to_string(), 1, None);
+            counter.status_opt(stat);
+            if let Err(e) = platform_state
+                .clone()
                 .get_client()
                 .send_extn_request(
-                    ripple_sdk::api::observability::OperationalMetricRequest::Timer(timer.clone()),
+                    ripple_sdk::api::observability::OperationalMetricRequest::Counter(
+                        counter.clone(),
+                    ),
                 )
                 .await
             {
                 error!(
-                    "stop_and_send_firebolt_metrics_timer: send_telemetry={:?}",
+                    "stop_and_send_firebolt_metrics_timer: send_telemetry_counter_fail={:?}",
                     e
                 )
             }
-        }
+
+            if let Some(mut timer) = timer {
+                timer.set_status(MetricStatus::from(status));
+                if let Err(e) = platform_state
+                    .clone()
+                    .get_client()
+                    .send_extn_request(
+                        ripple_sdk::api::observability::OperationalMetricRequest::Timer(
+                            timer.clone(),
+                        ),
+                    )
+                    .await
+                {
+                    error!(
+                        "stop_and_send_firebolt_metrics_timer: send_telemetry_timer_fail={:?}",
+                        e
+                    )
+                }
+            }
+        });
     }
 }

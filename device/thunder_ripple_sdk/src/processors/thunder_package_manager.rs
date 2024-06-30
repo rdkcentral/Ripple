@@ -44,12 +44,10 @@ use ripple_sdk::api::device::device_apps::DeviceAppMetadata;
 use ripple_sdk::api::device::device_operator::{DeviceResponseMessage, DeviceSubscribeRequest};
 use ripple_sdk::api::firebolt::fb_capabilities::FireboltPermissions;
 use ripple_sdk::api::observability::{
-    emit_observability, service_interaction_counter, MetricStatus, Timer, TimerType,
+    emit_observability, fb_interaction_counter, MetricStatus, Timer, TimerType,
 };
 
-use ripple_sdk::api::observability::{
-    start_service_metrics_timer, stop_and_send_service_metrics_timer,
-};
+use ripple_sdk::api::observability::start_service_metrics_timer;
 #[cfg(not(test))]
 use ripple_sdk::log::{debug, error, info};
 use ripple_sdk::tokio;
@@ -630,16 +628,17 @@ impl ThunderPackageManagerRequestProcessor {
         /*
         use associated function in case we don't have  Some() */
         let metrics_timer = Timer::status(metrics_timer, status.clone().into());
-        let service_counter = service_interaction_counter(
+        let fb_counter = fb_interaction_counter(
             &thunder_state.get_client().clone(),
-            None,
+            Some(ThunderMetricsTimerName::PackageManagerGetList.to_string()),
             Some(status.into()),
+            None,
         );
 
         emit_observability(
             thunder_state.get_client().clone(),
             vec![metrics_timer],
-            vec![service_counter],
+            vec![fb_counter],
         )
         .await;
 
@@ -713,11 +712,18 @@ impl ThunderPackageManagerRequestProcessor {
         } else {
             ThunderResponseStatus::Failure
         };
-
-        stop_and_send_service_metrics_timer(
-            state.thunder_state.get_client().clone(),
-            metrics_timer,
+        let metrics_timer = Timer::status(metrics_timer, status.clone().into());
+        let fb_counter = fb_interaction_counter(
+            &state.thunder_state.get_client().clone(),
+            Some(ThunderMetricsTimerName::PackageManagerInstall.to_string()),
             Some(status.clone().into()),
+            None,
+        );
+
+        emit_observability(
+            state.thunder_state.get_client().clone(),
+            vec![metrics_timer],
+            vec![fb_counter],
         )
         .await;
 
@@ -796,11 +802,17 @@ impl ThunderPackageManagerRequestProcessor {
         } else {
             ThunderResponseStatus::Failure
         };
-
-        stop_and_send_service_metrics_timer(
-            state.thunder_state.get_client().clone(),
-            metrics_timer,
+        let fb_counter = fb_interaction_counter(
+            &state.thunder_state.get_client().clone(),
+            Some(ThunderMetricsTimerName::PackageManagerUninstall.to_string()),
             Some(status.clone().into()),
+            None,
+        );
+
+        emit_observability(
+            state.thunder_state.get_client().clone(),
+            vec![metrics_timer],
+            vec![fb_counter],
         )
         .await;
 
@@ -945,10 +957,17 @@ impl ThunderPackageManagerRequestProcessor {
             ThunderResponseStatus::Failure
         };
 
-        stop_and_send_service_metrics_timer(
+        let fb_counter = fb_interaction_counter(
+            &state.thunder_state.get_client().clone(),
+            Some(ThunderMetricsTimerName::PackageManagerGetMetadata.to_string()),
+            Some(status.clone().into()),
+            None,
+        );
+
+        emit_observability(
             state.thunder_state.get_client().clone(),
-            metrics_timer,
-            Some(status.into()),
+            vec![metrics_timer],
+            vec![fb_counter],
         )
         .await;
 
@@ -1009,10 +1028,17 @@ impl ThunderPackageManagerRequestProcessor {
             ThunderResponseStatus::Failure
         };
 
-        stop_and_send_service_metrics_timer(
+        let fb_counter = fb_interaction_counter(
+            &state.thunder_state.get_client().clone(),
+            Some(ThunderMetricsTimerName::PackageManagerUninstall.to_string()),
+            Some(status.clone().into()),
+            None,
+        );
+
+        emit_observability(
             state.thunder_state.get_client().clone(),
-            metrics_timer,
-            Some(status.into()),
+            vec![metrics_timer],
+            vec![fb_counter],
         )
         .await;
     }

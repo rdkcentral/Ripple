@@ -133,6 +133,9 @@ impl Counter {
             false
         }
     }
+    pub fn status_opt(&mut self, status: Option<MetricStatus>) {
+        self.set_status(status.unwrap_or(MetricStatus::Unset));
+    }
     pub fn to_extn_request(&self) -> OperationalMetricRequest {
         OperationalMetricRequest::Counter(self.clone())
     }
@@ -384,9 +387,30 @@ pub fn service_interaction_counter(
     extn_client: &ExtnClient,
     name: Option<String>,
     status: Option<MetricStatus>,
+    app_id: Option<String>,
 ) -> Counter {
-    let metrics_tags = get_metrics_tags(extn_client, InteractionType::Service, None);
-    let counter_name = name.unwrap_or_else(|| "service_interaction_counter".to_string());
+    let metrics_tags = get_metrics_tags(extn_client, InteractionType::Service, app_id);
+    let counter_name = name.unwrap_or_else(|| "service_interaction".to_string());
+    trace!(
+        "service_interaction_counter: {}: {:?}",
+        counter_name,
+        metrics_tags
+    );
+
+    let mut counter = Counter::new(counter_name, 1, metrics_tags);
+    if let Some(the_status) = status {
+        counter.set_status(the_status);
+    }
+    counter
+}
+pub fn fb_interaction_counter(
+    extn_client: &ExtnClient,
+    name: Option<String>,
+    status: Option<MetricStatus>,
+    app_id: Option<String>,
+) -> Counter {
+    let metrics_tags = get_metrics_tags(extn_client, InteractionType::Service, app_id);
+    let counter_name = name.unwrap_or_else(|| "fb_interaction".to_string());
     trace!(
         "service_interaction_counter: {}: {:?}",
         counter_name,
@@ -433,7 +457,7 @@ pub async fn emit_observability(
     tokio::spawn(async move {
         for mut timer in timers.into_iter().flatten() {
             timer.stop();
-            timer.insert_tag(Tag::Status.key(), timer.status.to_string());
+
             let resp: Result<ExtnResponse, RippleError> = client
                 .standalone_request(
                     OperationalMetricRequest::Timer(timer),
