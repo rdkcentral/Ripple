@@ -625,6 +625,18 @@ impl MetricsContext {
             authenticated: None,
         }
     }
+
+    pub fn get_fw_version(&self) -> String {
+        if self.firmware.to_lowercase().contains("stable") {
+            return "stable".to_string();
+        } else if self.firmware.to_lowercase().contains("sprint") {
+            return "sprint".to_string();
+        }
+        self.firmware.clone()
+    }
+    pub fn is_vbn(&self) -> bool {
+        self.firmware.to_lowercase().contains("vbn")
+    }
 }
 
 #[async_trait]

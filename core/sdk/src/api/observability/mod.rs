@@ -3,6 +3,7 @@ use std::{
     fmt::{Display, Formatter},
 };
 
+use log::trace;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -45,6 +46,7 @@ pub enum Tag {
     Status,
     RippleVersion,
     Features,
+    Vbn,
 }
 
 impl Tag {
@@ -57,6 +59,7 @@ impl Tag {
             Tag::Status => "status".into(),
             Tag::RippleVersion => "ripple".into(),
             Tag::Features => "features".into(),
+            Tag::Vbn => "vbn".into(),
         }
     }
 }
@@ -311,7 +314,8 @@ pub fn get_metrics_tags(
     interaction_type: InteractionType,
     app_id: Option<String>,
 ) -> Option<HashMap<String, String>> {
-    let metrics_context = extn_client.get_metrics_context()?;
+    let metrics_context: super::firebolt::fb_metrics::MetricsContext =
+        extn_client.get_metrics_context()?;
     let mut tags: HashMap<String, String> = HashMap::new();
 
     tags.insert(Tag::Type.key(), interaction_type.to_string());
@@ -320,8 +324,15 @@ pub fn get_metrics_tags(
         tags.insert(Tag::App.key(), app);
     }
 
-    tags.insert(Tag::Firmware.key(), metrics_context.firmware.clone());
-    tags.insert(Tag::RippleVersion.key(), metrics_context.ripple_version);
+    tags.insert(
+        Tag::Firmware.key(),
+        metrics_context.clone().get_fw_version(),
+    );
+    tags.insert(
+        Tag::RippleVersion.key(),
+        metrics_context.clone().ripple_version,
+    );
+    tags.insert(Tag::Vbn.key(), metrics_context.is_vbn().to_string());
 
     let features = extn_client.get_features();
     let feature_count = features.len();
@@ -357,6 +368,17 @@ pub fn start_service_metrics_timer(extn_client: &ExtnClient, name: String) -> Op
         Some(metrics_tags),
         Some(TimerType::Remote),
     ))
+}
+pub fn service_interaction_counter(extn_client: &ExtnClient, name: Option<String>) -> Counter {
+    let metrics_tags = get_metrics_tags(extn_client, InteractionType::Service, None);
+    let counter_name = name.unwrap_or_else(|| "service_interaction_counter".to_string());
+    trace!(
+        "service_interaction_counter: {}: {:?}",
+        counter_name,
+        metrics_tags
+    );
+
+    Counter::new(counter_name, 1, metrics_tags)
 }
 
 pub async fn stop_and_send_service_metrics_timer(
