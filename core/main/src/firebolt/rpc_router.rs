@@ -147,18 +147,23 @@ impl RpcRouter {
             let start = Utc::now().timestamp_millis();
             let resp = resolve_route(methods, resources, req.clone()).await;
 
-            let status = match resp.clone() {
-                Ok(msg) => {
-                    if msg.is_error() {
-                        msg.jsonrpc_msg
-                    } else {
-                        "0".into()
-                    }
-                }
-                Err(e) => format!("{}", e),
-            };
+            // let status = match resp.clone() {
+            //     Ok(msg) => {
+            //         if msg.is_error() {
+            //             msg.jsonrpc_msg
+            //         } else {
+            //             "0".into()
+            //         }
+            //     }
+            //     Err(e) => format!("{}", e),
+            // };
 
-            TelemetryBuilder::stop_and_send_firebolt_metrics_timer(&state, timer, status).await;
+            TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
+                &state,
+                timer,
+                Some(resp.clone().into()),
+            )
+            .await;
 
             if let Ok(msg) = resp {
                 let now = Utc::now().timestamp_millis();

@@ -629,7 +629,7 @@ impl ThunderPackageManagerRequestProcessor {
         stop_and_send_service_metrics_timer(
             thunder_state.get_client().clone(),
             metrics_timer,
-            status.into(),
+            Some(status.into()),
         )
         .await;
 
@@ -707,7 +707,7 @@ impl ThunderPackageManagerRequestProcessor {
         stop_and_send_service_metrics_timer(
             state.thunder_state.get_client().clone(),
             metrics_timer,
-            status.clone().into(),
+            Some(status.clone().into()),
         )
         .await;
 
@@ -790,7 +790,7 @@ impl ThunderPackageManagerRequestProcessor {
         stop_and_send_service_metrics_timer(
             state.thunder_state.get_client().clone(),
             metrics_timer,
-            status.clone().into(),
+            Some(status.clone().into()),
         )
         .await;
 
@@ -938,7 +938,7 @@ impl ThunderPackageManagerRequestProcessor {
         stop_and_send_service_metrics_timer(
             state.thunder_state.get_client().clone(),
             metrics_timer,
-            status.into(),
+            Some(status.into()),
         )
         .await;
 
@@ -1002,7 +1002,7 @@ impl ThunderPackageManagerRequestProcessor {
         stop_and_send_service_metrics_timer(
             state.thunder_state.get_client().clone(),
             metrics_timer,
-            status.into(),
+            Some(status.into()),
         )
         .await;
     }

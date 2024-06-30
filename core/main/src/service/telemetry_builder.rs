@@ -228,11 +228,10 @@ impl TelemetryBuilder {
     pub async fn stop_and_send_firebolt_metrics_timer(
         ps: &PlatformState,
         timer: Option<Timer>,
-        status: String,
+        status: Option<MetricStatus>,
     ) {
         if let Some(mut timer) = timer {
-            timer.stop();
-            timer.insert_tag(Tag::Status.key(), status);
+            timer.set_status(MetricStatus::from(status));
             if let Err(e) = &ps
                 .get_client()
                 .send_extn_request(

@@ -76,7 +76,7 @@ impl Counter {
         Counter {
             name: format!("{}_counter", name),
             value,
-            tags: Some(tags.unwrap_or_default()),
+            tags,
             status: MetricStatus::Unknown,
         }
     }
@@ -158,22 +158,41 @@ pub enum TimerType {
     Remote,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[repr(i32)]
 pub enum MetricStatus {
-    Unknown,
-    Unset,
-    Success,
-    Failure,
     Error,
+    Failure,
+    Success,
+    Unset,
+    Unknown,
+    PermissionError(i32),
+    ServiceError(i32),
 }
+impl From<Option<MetricStatus>> for MetricStatus {
+    fn from(status: Option<MetricStatus>) -> Self {
+        status.unwrap_or(MetricStatus::Unset)
+    }
+}
+impl MetricStatus {
+    /*
+    could not get ordinals to work with type coercion, so just doing it manually
+    */
+    pub fn ordinal(&self) -> i32 {
+        match self {
+            MetricStatus::Error => -2,
+            MetricStatus::Failure => -1,
+            MetricStatus::Success => 0,
+            MetricStatus::Unset => 1,
+            MetricStatus::Unknown => 2,
+            MetricStatus::PermissionError(code) => *code,
+            MetricStatus::ServiceError(code) => *code,
+        }
+    }
+}
+
 impl Display for MetricStatus {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            MetricStatus::Unknown => write!(f, "unknown"),
-            MetricStatus::Success => write!(f, "success"),
-            MetricStatus::Failure => write!(f, "failure"),
-            MetricStatus::Error => write!(f, "error"),
-            MetricStatus::Unset => write!(f, "unset"),
-        }
+        write!(f, "{}", self.ordinal())
     }
 }
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -267,9 +286,13 @@ impl Timer {
     }
 
     pub fn error(&mut self) {
+        self.status = MetricStatus::Error;
         if let Some(my_tags) = self.tags.as_mut() {
             my_tags.insert("error".to_string(), true.to_string());
         }
+    }
+    pub fn set_status(&mut self, status: MetricStatus) {
+        self.status = status;
     }
 
     pub fn to_extn_request(&self) -> OperationalMetricRequest {
@@ -338,10 +361,10 @@ pub fn start_service_metrics_timer(extn_client: &ExtnClient, name: String) -> Op
 pub async fn stop_and_send_service_metrics_timer(
     client: ExtnClient,
     timer: Option<Timer>,
-    status: MetricStatus,
+    status: Option<MetricStatus>,
 ) {
     if let Some(mut timer) = timer {
-        timer.status = status;
+        timer.set_status(status.into());
         timer.stop();
 
         debug!("stop_and_send_service_metrics_timer: {:?}", timer);

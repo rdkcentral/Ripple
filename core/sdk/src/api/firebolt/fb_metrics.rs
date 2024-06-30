@@ -963,7 +963,7 @@ mod tests {
     #[test]
     fn test_fb_api_counter() {
         let counter = fb_api_counter("test_method".to_string(), None);
-        assert_eq!(counter.name, "firebolt_rpc_call");
+        assert_eq!(counter.name, "firebolt_rpc_call_counter");
         assert_eq!(counter.value, 1);
         assert_eq!(
             counter.tags.unwrap().get("method_name"),
