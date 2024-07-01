@@ -21,7 +21,7 @@ use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::fb_openrpc::CapabilitySet;
-use crate::api::gateway::rpc_error::RpcError;
+use crate::api::{gateway::rpc_error::RpcError, observability::MetricStatus};
 
 /// There are many types of Firebolt Cap enums
 /// 1. Short: `device:model` becomes = `xrn:firebolt:capability:account:session` its just a handy cap which helps us write less code
@@ -428,7 +428,35 @@ impl RpcError for DenyReason {
         }
     }
 }
-
+impl From<DenyReason> for MetricStatus {
+    fn from(reason: DenyReason) -> Self {
+        match reason {
+            DenyReason::Unavailable => MetricStatus::PermissionError(CAPABILITY_NOT_AVAILABLE),
+            DenyReason::Unsupported => MetricStatus::PermissionError(CAPABILITY_NOT_SUPPORTED),
+            DenyReason::GrantDenied => MetricStatus::PermissionError(CAPABILITY_GRANT_DENIED),
+            DenyReason::Unpermitted => MetricStatus::PermissionError(CAPABILITY_NOT_PERMITTED),
+            DenyReason::Ungranted => MetricStatus::PermissionError(CAPABILITY_UNGRANTED),
+            DenyReason::NotFound => {
+                MetricStatus::PermissionError(JSON_RPC_STANDARD_ERROR_METHOD_NOT_FOUND)
+            }
+            DenyReason::AppNotInActiveState => {
+                MetricStatus::PermissionError(CAPABILITY_APP_NOT_IN_ACTIVE_STATE)
+            }
+            DenyReason::GrantProviderMissing => {
+                MetricStatus::PermissionError(CAPABILITY_GRANT_PROVIDER_MISSING)
+            }
+            _ => MetricStatus::Error,
+        }
+    }
+}
+impl From<Option<DenyReason>> for MetricStatus {
+    fn from(reason: Option<DenyReason>) -> Self {
+        match reason {
+            Some(r) => MetricStatus::from(r),
+            None => MetricStatus::Unset,
+        }
+    }
+}
 #[derive(Debug, PartialEq)]
 pub struct DenyReasonWithCap {
     pub reason: DenyReason,

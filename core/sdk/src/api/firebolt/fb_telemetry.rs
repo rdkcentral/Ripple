@@ -23,9 +23,7 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
-use super::fb_metrics::{
-    Counter, ErrorParams, ErrorType, FlatMapValue, Param, SystemErrorParams, Timer,
-};
+use super::fb_metrics::{ErrorParams, ErrorType, FlatMapValue, Param, SystemErrorParams};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppLoadStart {
@@ -196,14 +194,6 @@ impl ExtnPayloadProvider for TelemetryPayload {
     fn contract() -> RippleContract {
         RippleContract::TelemetryEventsListener
     }
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub enum OperationalMetricRequest {
-    Subscribe,
-    UnSubscribe,
-    Counter(Counter),
-    Timer(Timer),
 }
 
 #[cfg(test)]

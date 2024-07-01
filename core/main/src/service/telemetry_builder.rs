@@ -18,10 +18,7 @@
 use ripple_sdk::{
     api::{
         firebolt::{
-            fb_metrics::{
-                get_metrics_tags, ErrorParams, InteractionType, InternalInitializeParams,
-                SystemErrorParams, Tag, Timer, TimerType,
-            },
+            fb_metrics::{ErrorParams, InternalInitializeParams, SystemErrorParams},
             fb_telemetry::{
                 AppLoadStart, AppLoadStop, FireboltInteraction, InternalInitialize,
                 TelemetryAppError, TelemetryPayload, TelemetrySignIn, TelemetrySignOut,
@@ -29,11 +26,13 @@ use ripple_sdk::{
             },
         },
         gateway::rpc_gateway_api::{CallContext, RpcRequest},
+        observability::*,
     },
     chrono::{DateTime, Utc},
     extn::client::extn_client::ExtnClient,
     framework::RippleResponse,
     log::{debug, error},
+    tokio,
 };
 use serde_json::Value;
 
@@ -216,7 +215,8 @@ impl TelemetryBuilder {
         name: String,
         app_id: String,
     ) -> Option<Timer> {
-        let metrics_tags = get_metrics_tags(extn_client, InteractionType::Firebolt, Some(app_id))?;
+        let metrics_tags =
+            get_metrics_tags(extn_client, Some(InteractionType::Firebolt), Some(app_id))?;
 
         debug!("start_firebolt_metrics_timer: {}: {:?}", name, metrics_tags);
 
@@ -230,25 +230,47 @@ impl TelemetryBuilder {
     pub async fn stop_and_send_firebolt_metrics_timer(
         ps: &PlatformState,
         timer: Option<Timer>,
-        status: String,
+        status: Option<MetricStatus>,
     ) {
-        if let Some(mut timer) = timer {
-            timer.stop();
-            timer.insert_tag(Tag::Status.key(), status);
-            if let Err(e) = &ps
+        let platform_state = ps.clone();
+        let stat = status.clone();
+        tokio::spawn(async move {
+            let mut counter = Counter::new("firebolt_interactions".to_string(), 1, None);
+            counter.status_opt(stat);
+            if let Err(e) = platform_state
+                .clone()
                 .get_client()
                 .send_extn_request(
-                    ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest::Timer(
-                        timer.clone(),
+                    ripple_sdk::api::observability::OperationalMetricRequest::Counter(
+                        counter.clone(),
                     ),
                 )
                 .await
             {
                 error!(
-                    "stop_and_send_firebolt_metrics_timer: send_telemetry={:?}",
+                    "stop_and_send_firebolt_metrics_timer: send_telemetry_counter_fail={:?}",
                     e
                 )
             }
-        }
+
+            if let Some(mut timer) = timer {
+                timer.set_status(MetricStatus::from(status));
+                if let Err(e) = platform_state
+                    .clone()
+                    .get_client()
+                    .send_extn_request(
+                        ripple_sdk::api::observability::OperationalMetricRequest::Timer(
+                            timer.clone(),
+                        ),
+                    )
+                    .await
+                {
+                    error!(
+                        "stop_and_send_firebolt_metrics_timer: send_telemetry_timer_fail={:?}",
+                        e
+                    )
+                }
+            }
+        });
     }
 }

@@ -19,6 +19,7 @@ use ripple_sdk::{
     api::{
         device::device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
         firebolt::fb_telemetry::TelemetryPayload,
+        observability::MetricStatus,
     },
     async_trait::async_trait,
     extn::{
@@ -29,7 +30,7 @@ use ripple_sdk::{
     },
     log::info,
     serde_json::json,
-    tokio::sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
+    tokio::sync::mpsc::{Receiver as MReceiver, Sender as MSender},
     utils::error::RippleError,
 };
 use serde::{Deserialize, Serialize};
@@ -116,6 +117,7 @@ impl ToString for ThunderMetricsTimerName {
     }
 }
 
+#[derive(Clone)]
 pub enum ThunderResponseStatus {
     Success,
     Failure,
@@ -126,6 +128,14 @@ impl ToString for ThunderResponseStatus {
         match self {
             ThunderResponseStatus::Success => "success".into(),
             ThunderResponseStatus::Failure => "failure".into(),
+        }
+    }
+}
+impl From<ThunderResponseStatus> for MetricStatus {
+    fn from(status: ThunderResponseStatus) -> Self {
+        match status {
+            ThunderResponseStatus::Success => MetricStatus::Success,
+            ThunderResponseStatus::Failure => MetricStatus::Failure,
         }
     }
 }
