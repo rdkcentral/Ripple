@@ -34,7 +34,8 @@
       "voice": {
         "enabled": true,
         "speed": 5
-      }
+      },
+      "lifecycle_transition_validate": true
     },
     "model_friendly_names": {
       "RSPPI": "Raspberry PI"
