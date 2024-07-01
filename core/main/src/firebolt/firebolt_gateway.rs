@@ -35,7 +35,10 @@ use serde::Serialize;
 
 use crate::{
     firebolt::firebolt_gatekeeper::FireboltGatekeeper,
-    service::{apps::app_events::AppEvents, telemetry_builder::TelemetryBuilder},
+    service::{
+        apps::{app_events::AppEvents, provider_broker::ProviderBroker},
+        telemetry_builder::TelemetryBuilder,
+    },
     state::{bootstrap_state::BootstrapState, session_state::Session},
 };
 
@@ -109,6 +112,13 @@ impl FireboltGateway {
                 }
                 UnregisterSession { session_id, cid } => {
                     AppEvents::remove_session(&self.state.platform_state, session_id.clone());
+                    ProviderBroker::unregister_session(&self.state.platform_state, cid.clone())
+                        .await;
+                    self.state
+                        .platform_state
+                        .endpoint_state
+                        .cleanup_for_app(&cid)
+                        .await;
                     self.state.platform_state.session_state.clear_session(&cid);
                 }
                 HandleRpc { request } => self.handle(request, None).await,

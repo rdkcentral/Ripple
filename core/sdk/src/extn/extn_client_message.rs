@@ -125,6 +125,28 @@ impl ExtnMessage {
         }
     }
 
+    /// This method can be used to create [ExtnEvent] payload message from a given [ExtnRequest]
+    /// payload.
+    ///
+    /// Note: If used in a processor this method can be safely unwrapped
+    pub fn get_event(&self, event: ExtnEvent) -> Result<ExtnMessage, RippleError> {
+        match self.payload {
+            ExtnPayload::Request(_) => Ok(ExtnMessage {
+                callback: self.callback.clone(),
+                id: self.id.clone(),
+                payload: ExtnPayload::Event(event),
+                requestor: self.requestor.clone(),
+                target: self.target.clone(),
+                target_id: self.target_id.clone(),
+                ts: None,
+            }),
+            _ => {
+                error!("can only event for a request message");
+                Err(RippleError::InvalidInput)
+            }
+        }
+    }
+
     pub fn ack(&self) -> ExtnMessage {
         ExtnMessage {
             id: self.id.clone(),
@@ -402,6 +424,7 @@ mod tests {
         extn_id::ExtnClassId,
     };
     use rstest::rstest;
+    use serde_json::json;
 
     #[test]
     fn test_extract_response() {
@@ -569,5 +592,24 @@ mod tests {
     fn test_contract() {
         let expected_contract = RippleContract::Internal;
         assert_eq!(ExtnEvent::contract(), expected_contract);
+    }
+
+    #[test]
+    fn test_get_event() {
+        // Create a sample ExtnMessage for testing
+        let original_message = ExtnMessage {
+            id: "test_id".to_string(),
+            requestor: ExtnId::get_main_target("main".into()),
+            target: RippleContract::Internal,
+            target_id: Some(ExtnId::get_main_target("main".into())),
+            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
+            callback: None,
+            ts: Some(1234567890),
+        };
+        let event_payload = ExtnEvent::Value(json!(1));
+        let value = original_message.get_event(event_payload.clone()).unwrap();
+        let extn_event_payload = ExtnPayload::Event(event_payload);
+        assert!(value.id.eq_ignore_ascii_case("test_id"));
+        assert!(value.payload.eq(&extn_event_payload));
     }
 }
