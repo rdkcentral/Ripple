@@ -120,7 +120,8 @@ impl Counter {
         }
     }
     pub fn set_status(&mut self, status: MetricStatus) {
-        self.status = status;
+        self.status = status.clone();
+        self.tag("status".into(), status.to_string());
     }
     pub fn is_error(&self) -> bool {
         if let Some(my_tags) = &self.tags {
@@ -264,6 +265,9 @@ impl Timer {
         }
         if self.status != MetricStatus::Unset {
             self.insert_tag(Tag::Status.key(), self.status.to_string());
+        } else {
+            /*default to YAY! if unset*/
+            self.insert_tag(Tag::Status.key(), MetricStatus::Success.to_string());
         }
         self.clone()
     }
@@ -325,14 +329,16 @@ impl From<Timer> for OperationalMetricRequest {
 }
 pub fn get_metrics_tags(
     extn_client: &ExtnClient,
-    interaction_type: InteractionType,
+    interaction_type: Option<InteractionType>,
     app_id: Option<String>,
 ) -> Option<HashMap<String, String>> {
     let metrics_context: super::firebolt::fb_metrics::MetricsContext =
         extn_client.get_metrics_context()?;
     let mut tags: HashMap<String, String> = HashMap::new();
 
-    tags.insert(Tag::Type.key(), interaction_type.to_string());
+    if let Some(interaction_type) = interaction_type {
+        tags.insert(Tag::Type.key(), interaction_type.to_string());
+    }
 
     if let Some(app) = app_id {
         tags.insert(Tag::App.key(), app);
@@ -373,7 +379,7 @@ use log::{debug, error};
 use {println as debug, println as error};
 
 pub fn start_service_metrics_timer(extn_client: &ExtnClient, name: String) -> Option<Timer> {
-    let metrics_tags = get_metrics_tags(extn_client, InteractionType::Service, None)?;
+    let metrics_tags = get_metrics_tags(extn_client, Some(InteractionType::Service), None)?;
 
     debug!("start_service_metrics_timer: {}: {:?}", name, metrics_tags);
 
@@ -389,7 +395,7 @@ pub fn service_interaction_counter(
     status: Option<MetricStatus>,
     app_id: Option<String>,
 ) -> Counter {
-    let metrics_tags = get_metrics_tags(extn_client, InteractionType::Service, app_id);
+    let metrics_tags = get_metrics_tags(extn_client, Some(InteractionType::Service), app_id);
     let counter_name = name.unwrap_or_else(|| "service_interaction".to_string());
     trace!(
         "service_interaction_counter: {}: {:?}",
@@ -409,7 +415,7 @@ pub fn fb_interaction_counter(
     status: Option<MetricStatus>,
     app_id: Option<String>,
 ) -> Counter {
-    let metrics_tags = get_metrics_tags(extn_client, InteractionType::Service, app_id);
+    let metrics_tags = get_metrics_tags(extn_client, Some(InteractionType::Service), app_id);
     let counter_name = name.unwrap_or_else(|| "fb_interaction".to_string());
     trace!(
         "service_interaction_counter: {}: {:?}",
@@ -581,7 +587,7 @@ mod tests {
         );
         assert_eq!(timer.timer_type, TimerType::Remote);
 
-        let expected_tags = get_metrics_tags(&extn_client, InteractionType::Service, None);
+        let expected_tags = get_metrics_tags(&extn_client, Some(InteractionType::Service), None);
         assert_eq!(
             timer.tags, expected_tags,
             "Timer tags do not match expected tags"
@@ -659,7 +665,9 @@ mod tests {
         let stopped_timer = timer.stop();
         assert_eq!(stopped_timer.name, "test_timer");
         assert!(stopped_timer.elapsed().as_secs() >= 1);
-        assert_eq!(stopped_timer.tags, None);
+        let mut expected_tags = HashMap::new();
+        expected_tags.insert("status".to_string(), MetricStatus::Success.to_string());
+        assert_eq!(stopped_timer.tags, Some(expected_tags));
         assert_eq!(stopped_timer.time_unit, TimeUnit::Millis);
         assert_eq!(stopped_timer.timer_type, TimerType::Local);
     }

@@ -1146,24 +1146,21 @@ pub mod tests {
         let mut tags: HashMap<String, String> = HashMap::new();
         tags.insert("app_id".to_string(), "xumo".to_string());
         tags.insert("app_version".to_string(), "1.2.3".to_string());
-        tags.insert("status".to_string(), "success".to_string());
         let mut timer = Timer::start(timer_name, Some(tags), None);
         sleep(Duration::from_millis(1000)).await;
         timer.stop();
         let rendered = format_timer(timer);
-        assert!(rendered.starts_with("test_timer: xumo,1.2.3,success,"));
+        assert!(rendered.starts_with("test_timer: xumo,1.2.3,0,"));
     }
 
     #[tokio::test]
     pub async fn test_format_timer_some_tags() {
         let timer_name = "test_timer".to_string();
-        let mut tags: HashMap<String, String> = HashMap::new();
-        tags.insert("status".to_string(), "success".to_string());
-        let mut timer = Timer::start(timer_name, Some(tags), None);
+        let mut timer = Timer::start(timer_name, None, None);
         sleep(Duration::from_millis(1000)).await;
         timer.stop();
         let rendered = format_timer(timer);
-        assert!(rendered.starts_with("test_timer: ,,success,"));
+        assert!(rendered.starts_with("test_timer: ,,0,"));
     }
 
     #[tokio::test]
