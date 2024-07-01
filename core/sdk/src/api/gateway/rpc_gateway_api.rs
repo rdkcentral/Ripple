@@ -331,6 +331,12 @@ impl RpcRequest {
         }
         None
     }
+
+    pub fn get_unsubscribe(&self) -> RpcRequest {
+        let mut rpc_request = self.clone();
+        rpc_request.params_json = serde_json::to_string(&ListenRequest { listen: false }).unwrap();
+        rpc_request
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
