@@ -424,6 +424,7 @@ mod tests {
         extn_id::ExtnClassId,
     };
     use rstest::rstest;
+    use serde_json::json;
 
     #[test]
     fn test_extract_response() {
@@ -591,5 +592,24 @@ mod tests {
     fn test_contract() {
         let expected_contract = RippleContract::Internal;
         assert_eq!(ExtnEvent::contract(), expected_contract);
+    }
+
+    #[test]
+    fn test_get_event() {
+        // Create a sample ExtnMessage for testing
+        let original_message = ExtnMessage {
+            id: "test_id".to_string(),
+            requestor: ExtnId::get_main_target("main".into()),
+            target: RippleContract::Internal,
+            target_id: Some(ExtnId::get_main_target("main".into())),
+            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
+            callback: None,
+            ts: Some(1234567890),
+        };
+        let event_payload = ExtnEvent::Value(json!(1));
+        let value = original_message.get_event(event_payload.clone()).unwrap();
+        let extn_event_payload = ExtnPayload::Event(event_payload);
+        assert!(value.id.eq_ignore_ascii_case("test_id"));
+        assert!(value.payload.eq(&extn_event_payload));
     }
 }

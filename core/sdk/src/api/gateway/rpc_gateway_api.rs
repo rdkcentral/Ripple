@@ -403,6 +403,7 @@ mod tests {
     use super::*;
     use crate::api::gateway::rpc_gateway_api::{ApiProtocol, CallContext};
     use crate::utils::test_utils::test_extn_payload_provider;
+    use crate::Mockable;
 
     #[test]
     fn test_caller_session_from_call_context() {
@@ -691,5 +692,18 @@ mod tests {
         assert!(result.is_ok());
         let error_code = result.unwrap();
         assert_eq!(error_code, None);
+    }
+
+    #[test]
+    fn new_json_rpc_methods() {
+        let request = JsonRpcApiRequest::new("some_method".to_owned(), None);
+        assert!(request.method.eq("some_method"));
+    }
+
+    #[test]
+    fn test_rpc_unsubscribe() {
+        let new = RpcRequest::mock().get_unsubscribe();
+        let request = serde_json::from_str::<ListenRequest>(&new.params_json).unwrap();
+        assert!(!request.listen);
     }
 }

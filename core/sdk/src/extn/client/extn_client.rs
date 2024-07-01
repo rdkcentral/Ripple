@@ -848,17 +848,20 @@ pub mod tests {
                 },
                 extn_sender::tests::Mockable as extn_sender_mockable,
             },
-            extn_client_message::{ExtnPayload, ExtnRequest},
+            extn_client_message::{ExtnEvent, ExtnPayload, ExtnRequest},
             extn_id::{ExtnClassId, ExtnId},
         },
-        utils::mock_utils::{get_mock_extn_client, MockEvent, MockRequest},
+        utils::{
+            logger::init_logger,
+            mock_utils::{get_mock_extn_client, MockEvent, MockRequest},
+        },
     };
     use async_channel::unbounded;
     use core::panic;
     use rstest::rstest;
     use std::collections::HashMap;
     use testing_logger::{self, validate};
-    use tokio::sync::oneshot;
+    use tokio::sync::{mpsc, oneshot};
     use tokio::time::Duration;
     use uuid::Uuid;
 
@@ -2339,5 +2342,45 @@ pub mod tests {
         extn_client.ripple_context.write().unwrap().time_zone = Some(test_timezone.clone());
         let result = extn_client.get_timezone();
         assert_eq!(result, Some(test_timezone));
+    }
+
+    #[tokio::test]
+    async fn test_subscription() {
+        let _ = init_logger("subscription_test".to_owned());
+        let mut extn_client = ExtnClient::mock();
+        let (tx, mut tr) = mpsc::channel(1);
+        let request = MockRequest {
+            app_id: "test_app_id".to_string(),
+            contract: RippleContract::Internal,
+            expected_response: None,
+        };
+        let id = extn_client.subscribe(request.clone(), tx).await.unwrap();
+
+        let msg = ExtnMessage {
+            id: id.clone(),
+            requestor: ExtnId::get_main_target("main".into()),
+            target: RippleContract::Internal,
+            target_id: None,
+            payload: request.get_extn_payload(),
+            callback: None,
+            ts: Some(Utc::now().timestamp_millis()),
+        };
+
+        let event = msg.get_event(ExtnEvent::String("some".to_owned())).unwrap();
+        let _ = extn_client.send_message(event).await;
+        tokio::spawn(async move {
+            extn_client.initialize().await;
+        });
+        let r = tokio::time::timeout(Duration::from_secs(2), tr.recv())
+            .await
+            .unwrap()
+            .unwrap();
+
+        if let Some(ExtnEvent::String(s)) = r.payload.extract() {
+            assert!(s.eq("some"))
+        } else {
+            // more readable and can help detect panic! definitions in code
+            unreachable!()
+        }
     }
 }
