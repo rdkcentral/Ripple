@@ -36,10 +36,10 @@ pub async fn boot_thunder(
             SetupThunderProcessor::setup(state.clone()).await;
             return Some(state);
         } else {
-            error!("Unbale to connect to Thuner, error in ThunderPoolStep");
+            error!("Unable to connect to Thuner, error in ThunderPoolStep");
         }
     } else {
-        error!("Unbale to connect to Thuner, error in ThunderGetConfigStep");
+        error!("Unable to connect to Thuner, error in ThunderGetConfigStep");
     }
     None
 }
