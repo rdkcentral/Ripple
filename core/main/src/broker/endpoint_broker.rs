@@ -551,6 +551,11 @@ impl BrokerOutputForwarder {
                                             error!("couldnt send back event {:?}", e)
                                         }
                                     }
+                                } else if is_subscription {
+                                    v.data.result = Some(json!({
+                                        "listening" : rpc_request.is_listening(),
+                                        "event" : rpc_request.ctx.method
+                                    }))
                                 } else {
                                     return_extn_response(message, extn_message)
                                 }

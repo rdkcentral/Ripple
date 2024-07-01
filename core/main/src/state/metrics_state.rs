@@ -23,7 +23,7 @@ use std::{
 use jsonrpsee::tracing::debug;
 use ripple_sdk::{
     api::{
-        context::{ActivationStatus, RippleContextUpdateRequest},
+        context::RippleContextUpdateRequest,
         device::device_info_request::{DeviceInfoRequest, DeviceResponse, FirmwareInfo},
         distributor::distributor_privacy::{DataEventType, PrivacySettingsData},
         firebolt::{
@@ -304,12 +304,7 @@ impl MetricsState {
             Err(_) => env = None,
         };
 
-        let activated = match state.get_client().get_extn_client().get_activation_status() {
-            Some(ActivationStatus::Activated) => Some(true),
-            None => None,
-            _ => Some(false),
-        };
-
+        let activated = Some(true);
         let proposition =
             Self::get_persistent_store_string(state, PERSISTENT_STORAGE_KEY_PROPOSITION)
                 .await
@@ -343,18 +338,37 @@ impl MetricsState {
             Self::get_persistent_store_string(state, PERSISTENT_STORAGE_ACCOUNT_DETAIL_TYPE).await;
 
         let device_type =
-            Self::get_persistent_store_string(state, PERSISTENT_STORAGE_ACCOUNT_DEVICE_TYPE)
+            match Self::get_persistent_store_string(state, PERSISTENT_STORAGE_ACCOUNT_DEVICE_TYPE)
                 .await
-                .unwrap_or("Device.Type.missing.from.persistent.store".into());
+            {
+                Some(s) => s,
+                None => state.get_device_manifest().get_form_factor(),
+            };
 
-        let device_manufacturer = Self::get_persistent_store_string(
+        let device_manufacturer = match Self::get_persistent_store_string(
             state,
             PERSISTENT_STORAGE_ACCOUNT_DEVICE_MANUFACTURER,
         )
         .await
-        .unwrap_or("Device.Manufacturer.missing.from.persistent.store".into());
-
-        let authenticated = None;
+        {
+            Some(s) => s,
+            None => {
+                if let Ok(response) = state
+                    .get_client()
+                    .send_extn_request(DeviceInfoRequest::Make)
+                    .await
+                {
+                    if let Some(ExtnResponse::String(v)) = response.payload.extract() {
+                        v
+                    } else {
+                        "Device.Manufacturer.missing.from.persistent.store".to_string()
+                    }
+                } else {
+                    "Device.Manufacturer.missing.from.persistent.store".to_string()
+                }
+            }
+        };
+        let authenticated = Some(true);
 
         {
             // Time to set them
