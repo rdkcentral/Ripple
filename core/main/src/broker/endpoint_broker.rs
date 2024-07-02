@@ -64,6 +64,13 @@ pub struct BrokerSender {
 pub struct BrokerRequest {
     pub rpc: RpcRequest,
     pub rule: Rule,
+    pub subscription_processed: Option<bool>,
+}
+
+impl BrokerRequest {
+    pub fn is_subscription_processed(&self) -> bool {
+        self.subscription_processed.is_some()
+    }
 }
 
 /// BrokerCallback will be used by the communication broker to send the firebolt response
@@ -180,6 +187,14 @@ impl EndpointBrokerState {
         Ok(result)
     }
 
+    fn update_unsubscribe_request(&self, id: u64) {
+        let mut result = self.request_map.write().unwrap();
+        if let Some(mut value) = result.remove(&id) {
+            value.subscription_processed = Some(true);
+            let _ = result.insert(id, value);
+        }
+    }
+
     fn get_extn_message(&self, id: u64) -> Result<ExtnMessage, RippleError> {
         let result = { self.extension_request_map.write().unwrap().remove(&id) };
         match result {
@@ -204,6 +219,7 @@ impl EndpointBrokerState {
                 BrokerRequest {
                     rpc: rpc_request.clone(),
                     rule: rule.clone(),
+                    subscription_processed: None,
                 },
             );
         }
@@ -306,6 +322,7 @@ impl EndpointBrokerState {
         BrokerRequest {
             rpc: rpc_request.clone(),
             rule,
+            subscription_processed: None,
         }
     }
 }
@@ -412,6 +429,7 @@ impl BrokerOutputForwarder {
                 };
                 if let Some(id) = id {
                     if let Ok(broker_request) = platform_state.endpoint_state.get_request(id) {
+                        let sub_processed = broker_request.is_subscription_processed();
                         let rpc_request = broker_request.rpc;
                         let session_id = rpc_request.ctx.get_id();
                         let is_subscription = rpc_request.is_subscription();
@@ -437,10 +455,14 @@ impl BrokerOutputForwarder {
                                         }
                                     }
                                 } else if is_subscription {
+                                    if sub_processed {
+                                        continue;
+                                    }
                                     v.data.result = Some(json!({
                                         "listening" : rpc_request.is_listening(),
                                         "event" : rpc_request.ctx.method
-                                    }))
+                                    }));
+                                    platform_state.endpoint_state.update_unsubscribe_request(id);
                                 } else if let Some(filter) = broker_request
                                     .rule
                                     .transform
@@ -535,6 +557,7 @@ mod tests {
                         transform: RuleTransform::default(),
                         endpoint: None,
                     },
+                    subscription_processed: None,
                 },
                 RippleError::InvalidInput,
             )
