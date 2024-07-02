@@ -107,7 +107,6 @@ async fn resolve_route(
                     let sink = sink.clone();
                     let id = id.into_owned();
                     let params = params.into_owned();
-
                     let fut = async move {
                         (callback)(id, params, sink, 1, Some(guard)).await;
                     };

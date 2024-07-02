@@ -140,7 +140,7 @@ impl ProviderBroker {
         }
     }
 
-    pub async fn unregister_provider(
+    async fn unregister_provider(
         pst: &PlatformState,
         capability: String,
         method: String,
@@ -160,7 +160,7 @@ impl ProviderBroker {
         // TODO Add permissions
     }
 
-    pub async fn register_provider(
+    async fn register_provider(
         pst: &PlatformState,
         capability: String,
         method: String,
