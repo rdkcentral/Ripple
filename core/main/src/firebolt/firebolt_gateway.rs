@@ -30,9 +30,9 @@ use ripple_sdk::{
     },
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,
-    log::{error, info, warn},
+    log::{debug, error, info, warn},
     serde_json::{self, Value},
-    tokio::{self},
+    tokio,
 };
 use serde::Serialize;
 
@@ -305,8 +305,12 @@ fn validate_request(open_rpc_state: OpenRpcState, request: &RpcRequest) -> Resul
             }
         }
     } else {
-        let error_string = format!("Method not found in schema: {}", request.method);
-        return Err(error_string);
+        // TODO: Currently LifecycleManagement and other APIs are not in the schema. Let these pass through to their
+        // respective handlers for now.
+        debug!(
+            "validate_request: Method not found in schema: {}",
+            request.method
+        );
     }
 
     Ok(())
