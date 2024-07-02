@@ -414,6 +414,7 @@ impl BrokerOutputForwarder {
                     if let Ok(broker_request) = platform_state.endpoint_state.get_request(id) {
                         let rpc_request = broker_request.rpc;
                         let session_id = rpc_request.ctx.get_id();
+                        let is_subscription = rpc_request.is_subscription();
                         if let Some(session) = platform_state
                             .session_state
                             .get_session_for_connection_id(&session_id)
@@ -435,21 +436,34 @@ impl BrokerOutputForwarder {
                                             v.data.result = Some(r);
                                         }
                                     }
+                                } else if is_subscription {
+                                    v.data.result = Some(json!({
+                                        "listening" : rpc_request.is_listening(),
+                                        "event" : rpc_request.ctx.method
+                                    }))
                                 } else if let Some(filter) = broker_request
                                     .rule
                                     .transform
                                     .get_filter(super::rules_engine::RuleTransformType::Response)
                                 {
-                                    if let Ok(r) = jq_compile(
-                                        result,
+                                    match jq_compile(
+                                        result.clone(),
                                         &filter,
                                         format!("{}_response", rpc_request.ctx.method),
                                     ) {
-                                        if r.to_string().to_lowercase().contains("null") {
-                                            v.data.result = Some(Value::Null)
-                                        } else {
-                                            v.data.result = Some(r);
+                                        Ok(r) => {
+                                            if r.to_string().to_lowercase().contains("null") {
+                                                v.data.error = None;
+                                                v.data.result = Some(Value::Null);
+                                            } else if result.get("success").is_some() {
+                                                v.data.result = Some(r);
+                                                v.data.error = None;
+                                            } else {
+                                                v.data.error = Some(r);
+                                                v.data.result = None;
+                                            }
                                         }
+                                        Err(e) => error!("jq_compile error {:?}", e),
                                     }
                                 }
                             }

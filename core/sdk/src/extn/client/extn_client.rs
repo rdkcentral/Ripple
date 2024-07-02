@@ -596,6 +596,27 @@ impl ExtnClient {
         Err(RippleError::ExtnError)
     }
 
+    pub async fn main_internal_request(
+        &mut self,
+        payload: impl ExtnPayloadProvider,
+    ) -> Result<ExtnMessage, RippleError> {
+        if !self.sender.get_cap().is_main() {
+            return Err(RippleError::InvalidAccess);
+        }
+
+        let id = uuid::Uuid::new_v4().to_string();
+        let (tx, rx) = oneshot::channel();
+        add_single_processor(id.clone(), Some(tx), self.response_processors.clone());
+        let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
+        self.sender
+            .send_request(id, payload, other_sender, Some(self.sender.tx.clone()))?;
+        if let Ok(r) = rx.await {
+            return Ok(r);
+        }
+
+        Err(RippleError::ExtnError)
+    }
+
     ///
     /// Same as request except will inspect the response payload for errors
     /// and place error in the returned result instead of in the payload
@@ -773,6 +794,7 @@ pub mod tests {
                 device_info_request::DeviceInfoRequest,
                 device_request::{AccountToken, DeviceRequest},
             },
+            gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
             session::SessionAdjective,
         },
         extn::{
@@ -1145,6 +1167,76 @@ pub mod tests {
             }
             Err(_) => {
                 panic!("Received an unexpected error");
+            }
+        }
+    }
+
+    #[rstest(cap, exp_response,
+        case(ExtnId::get_main_target("main".into()), "ok"),
+        case(ExtnId::new_channel(ExtnClassId::Internal, "test".into()), "err")
+    )]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_main_internal_request(cap: ExtnId, exp_response: &str) {
+        // test case: main <=> main
+        let (mock_sender, mock_rx) =
+            ExtnSender::mock_with_params(cap.clone(), Vec::new(), Vec::new(), Some(HashMap::new()));
+        let mut extn_client = ExtnClient::new(mock_rx.clone(), mock_sender.clone());
+        let processor =
+            MockRequestProcessor::new_v1(extn_client.clone(), vec![RippleContract::Internal]);
+        extn_client.add_request_processor(processor);
+        // add_request_processor(RpcGatewayProcessor::new(state.platform_state.get_client()));
+        let extn_client_for_thread = extn_client.clone();
+
+        let ctx = CallContext::new(
+            String::from("test_session_id"),
+            String::from("test_request_id"),
+            String::from("test_app_id"),
+            123,
+            ApiProtocol::Extn,
+            String::from("test_method"),
+            None,
+            true,
+        );
+        let new_ctx = ctx.clone();
+        let rpc_request = RpcRequest {
+            ctx: new_ctx.clone(),
+            method: "some.method".into(),
+            params_json: RpcRequest::prepend_ctx(None, &new_ctx),
+        };
+
+        tokio::spawn(async move {
+            extn_client_for_thread.initialize().await;
+        });
+
+        let response = extn_client.main_internal_request(rpc_request).await;
+
+        match response {
+            Ok(actual_response) => {
+                if exp_response == "err" {
+                    panic!("Received an unexpected error");
+                }
+
+                let expected_message = ExtnMessage {
+                    id: "some-uuid".to_string(),
+                    requestor: cap,
+                    target: RippleContract::Rpc,
+                    target_id: None,
+                    payload: ExtnPayload::Response(ExtnResponse::Boolean(true)),
+                    callback: Some(mock_sender.tx.clone()),
+                    ts: Some(Utc::now().timestamp_millis()),
+                };
+
+                assert!(Uuid::parse_str(&actual_response.id).is_ok());
+                assert_eq!(actual_response.requestor, expected_message.requestor);
+                assert_eq!(actual_response.target, expected_message.target);
+                assert_eq!(actual_response.target_id, expected_message.target_id);
+                assert!(actual_response.callback.is_some());
+                assert!(actual_response.ts.is_some());
+            }
+            Err(_) => {
+                if exp_response == "ok" {
+                    panic!("Received an unexpected error");
+                }
             }
         }
     }
@@ -1673,7 +1765,7 @@ pub mod tests {
         case("success", ExtnResponse::Boolean(true)),
         case("success", ExtnResponse::Error(RippleError::ProcessorError)),
         case("failure - send resp err", ExtnResponse::Boolean(true)),
-        case("failure - req processor err", ExtnResponse::Boolean(true))
+        case("failure - req processor err", ExtnResponse::Boolean(false))
     )]
     #[tokio::test]
     async fn test_handle_stream(tc: String, exp_resp: ExtnResponse) {
@@ -1694,14 +1786,6 @@ pub mod tests {
             assert!(extn_client.request_processors.read().unwrap().len() == 1);
         }
 
-        add_stream_processor(
-            processor.contract().as_clear_string(),
-            processor.sender(),
-            extn_client.request_processors.clone(),
-        );
-
-        assert!(extn_client.request_processors.read().unwrap().len() == 1);
-
         let msg = ExtnMessage {
             id: "some-id".to_string(),
             requestor: ExtnId::get_main_target("main".into()),
@@ -1715,8 +1799,11 @@ pub mod tests {
         let result = ExtnClient::handle_stream(msg.clone(), extn_client.request_processors);
         tokio::time::sleep(Duration::from_millis(10)).await;
 
-        // TODO - update based on tc
-        assert!(result);
+        if tc.contains("req processor err") {
+            assert!(!result);
+        } else {
+            assert!(result);
+        }
 
         validate(|captured_logs| {
             for log in captured_logs {
