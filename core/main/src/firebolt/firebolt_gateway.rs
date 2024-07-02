@@ -296,12 +296,14 @@ fn validate_request(open_rpc_state: OpenRpcState, request: &RpcRequest) -> Resul
             .unwrap();
 
         if let Ok(params) = serde_json::from_str::<Vec<serde_json::Value>>(&request.params_json) {
-            if let Err(errors) = validator.validate(&params[1]) {
-                let mut error_string = String::new();
-                for error in errors {
-                    error_string.push_str(&format!("{} ", error));
+            if params.len() > 1 {
+                if let Err(errors) = validator.validate(&params[1]) {
+                    let mut error_string = String::new();
+                    for error in errors {
+                        error_string.push_str(&format!("{} ", error));
+                    }
+                    return Err(error_string);
                 }
-                return Err(error_string);
             }
         }
     } else {
