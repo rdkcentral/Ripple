@@ -97,6 +97,10 @@ impl ExtnPayloadProvider for AppsRequest {
     }
 }
 
+pub enum AppCatalogPoll {
+    CheckForUpdates,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
