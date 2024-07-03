@@ -24,11 +24,10 @@ impl FireboltOpenRpc {
         serde_json::from_str(&data).expect("JSON does not have correct format.")
     }
 
-    #[allow(dead_code)]
     pub fn get_method_by_name(&self, name: &str) -> Option<RpcMethod> {
         for spec in self.apis.values() {
             for m in &spec.methods {
-                if m.name == name {
+                if m.name.to_ascii_lowercase() == name.to_ascii_lowercase() {
                     return Some(m.clone());
                 }
             }
@@ -39,11 +38,11 @@ impl FireboltOpenRpc {
     pub fn params_validator(
         &self,
         version: String,
-        request: &JsonRpcRequest,
+        method: &str,
     ) -> Result<JSONSchema, ValidationError> {
         if let Some(spec) = self.apis.get(&version) {
             let open_rpc_spec: OpenRpcSpec = spec.clone().into();
-            open_rpc_spec.params_validator(request)
+            open_rpc_spec.params_validator(method)
         } else {
             Err(ValidationError::SpecVersionNotFound)
         }
@@ -95,11 +94,8 @@ pub struct OpenRpcSpec {
 }
 
 impl OpenRpcSpec {
-    pub fn params_validator(
-        &self,
-        request: &JsonRpcRequest,
-    ) -> Result<JSONSchema, ValidationError> {
-        let method = self.methods.iter().find(|m| m.name == request.method);
+    pub fn params_validator(&self, method: &str) -> Result<JSONSchema, ValidationError> {
+        let method = self.methods.iter().find(|m| m.name == method);
         if let Some(m) = method {
             m.params_validator(self.additional_schemas.clone())
         } else {
@@ -281,7 +277,9 @@ pub mod tests {
                         params: example_json,
                     };
                     // validate params
-                    let validator = open_rpc_spec.params_validator(request).unwrap();
+                    let validator = open_rpc_spec
+                        .params_validator(&request.method.clone())
+                        .unwrap();
                     let res = validator.validate(&request.params);
                     assert_valid(&method.name, res);
 
@@ -300,14 +298,18 @@ pub mod tests {
             method: method.into(),
             params: serde_json::from_str(valid_params).unwrap(),
         };
-        let validator = rpc.params_validator("1".into(), &valid_req).unwrap();
+        let validator = rpc
+            .params_validator("1".into(), &valid_req.method.clone())
+            .unwrap();
         assert_valid(method, validator.validate(&valid_req.params));
 
         let invalid_req = JsonRpcRequest {
             method: method.into(),
             params: serde_json::from_str(invalid_params).unwrap(),
         };
-        let validator = rpc.params_validator("1".into(), &invalid_req).unwrap();
+        let validator = rpc
+            .params_validator("1".into(), &invalid_req.method.clone())
+            .unwrap();
         assert!(
             validator.validate(&invalid_req.params).is_err(),
             "{} should have failed validation with {}",

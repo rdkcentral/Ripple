@@ -23,7 +23,9 @@ use crate::api::device::entertainment_data::{
 
 use super::{
     fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
-    fb_pin::{PinChallengeRequest, PinChallengeResponse},
+    fb_pin::{
+        PinChallengeRequest, PinChallengeResponse, PIN_CHALLENGE_CAPABILITY, PIN_CHALLENGE_EVENT,
+    },
 };
 
 pub const ACK_CHALLENGE_EVENT: &str = "acknowledgechallenge.onRequestChallenge";
@@ -38,6 +40,31 @@ pub enum ProviderRequestPayload {
     EntityInfoRequest(EntityInfoParameters),
     PurchasedContentRequest(PurchasedContentParameters),
     Generic(String),
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub enum ProviderResponsePayloadType {
+    ChallengeResponse,
+    ChallengeError,
+    PinChallengeResponse,
+    KeyboardResult,
+    EntityInfoResponse,
+    PurchasedContentResponse,
+}
+
+impl ToString for ProviderResponsePayloadType {
+    fn to_string(&self) -> String {
+        match self {
+            ProviderResponsePayloadType::ChallengeResponse => "ChallengeResponse".into(),
+            ProviderResponsePayloadType::ChallengeError => "ChallengeError".into(),
+            ProviderResponsePayloadType::PinChallengeResponse => "PinChallengeResponse".into(),
+            ProviderResponsePayloadType::KeyboardResult => "KeyboardResult".into(),
+            ProviderResponsePayloadType::EntityInfoResponse => "EntityInfoResponse".into(),
+            ProviderResponsePayloadType::PurchasedContentResponse => {
+                "PurchasedContentResponse".into()
+            }
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -125,6 +152,42 @@ pub struct ExternalProviderResponse<T> {
     pub correlation_id: String,
     pub result: T,
 }
+
+#[derive(Debug, Clone, Serialize)]
+
+pub struct ProviderAttributes {
+    pub event: &'static str,
+    pub response_payload_type: ProviderResponsePayloadType,
+    pub error_payload_type: ProviderResponsePayloadType,
+    pub capability: &'static str,
+    pub method: &'static str,
+}
+
+impl ProviderAttributes {
+    pub fn get(module: &str) -> Option<&'static ProviderAttributes> {
+        match module {
+            "AcknowledgeChallenge" => Some(&ACKNOWLEDGE_CHALLENGE_ATTRIBS),
+            "PinChallenge" => Some(&ACKNOWLEDGE_CHALLENGE_ATTRIBS),
+            _ => None,
+        }
+    }
+}
+
+pub const ACKNOWLEDGE_CHALLENGE_ATTRIBS: ProviderAttributes = ProviderAttributes {
+    event: ACK_CHALLENGE_EVENT,
+    response_payload_type: ProviderResponsePayloadType::ChallengeResponse,
+    error_payload_type: ProviderResponsePayloadType::ChallengeError,
+    capability: ACK_CHALLENGE_CAPABILITY,
+    method: "challenge",
+};
+
+pub const PIN_CHALLENGE_ATTRIBS: ProviderAttributes = ProviderAttributes {
+    event: PIN_CHALLENGE_EVENT,
+    response_payload_type: ProviderResponsePayloadType::PinChallengeResponse,
+    error_payload_type: ProviderResponsePayloadType::ChallengeError,
+    capability: PIN_CHALLENGE_CAPABILITY,
+    method: "challenge",
+};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
