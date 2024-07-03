@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 // Copyright 2023 Comcast Cable Communications Management, LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +16,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
+use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::{
     api::{
         firebolt::fb_capabilities::{
@@ -21,7 +24,14 @@ use ripple_sdk::{
         },
         gateway::rpc_gateway_api::{ApiMessage, CallContext},
     },
-    tokio::sync::mpsc::{self, Receiver},
+    log::debug,
+    tokio::{
+        self,
+        net::{TcpListener, TcpStream},
+        sync::mpsc::{self, Receiver},
+        time::sleep,
+    },
+    utils::logger::init_logger,
 };
 use ripple_tdk::utils::test_utils::Mockable;
 
@@ -100,5 +110,89 @@ impl MockCallContext {
             cid: Some("cid".to_owned()),
             gateway_secure: false,
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct WSMockData {
+    pub data: String,
+    pub delay: Option<u64>,
+}
+
+impl WSMockData {
+    pub fn get(data: String) -> Self {
+        Self { data, delay: None }
+    }
+}
+
+pub struct MockWebsocket {
+    port: u32,
+}
+
+impl MockWebsocket {
+    pub fn new(port: u32) -> Self {
+        let _ = init_logger("mock websocket tests".to_owned());
+        Self { port }
+    }
+
+    pub async fn start(
+        &self,
+        send_data: Vec<WSMockData>,
+        recv_data: Vec<WSMockData>,
+        result: mpsc::Sender<bool>,
+    ) {
+        let url = format!("127.0.0.1:{}", self.port);
+        let listener = TcpListener::bind(&url).await.expect("Can't listen");
+        debug!("Listening on: {}", url);
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = listener.accept().await {
+                tokio::spawn(Self::accept_connection(
+                    stream, send_data, recv_data, result,
+                ));
+            }
+        });
+    }
+
+    async fn accept_connection(
+        stream: TcpStream,
+        send_data: Vec<WSMockData>,
+        recv_data: Vec<WSMockData>,
+        result: mpsc::Sender<bool>,
+    ) {
+        let addr = stream
+            .peer_addr()
+            .expect("connected streams should have a peer address");
+        debug!("Peer address: {}", addr);
+
+        let ws_stream = tokio_tungstenite::accept_async(stream)
+            .await
+            .expect("Error during the websocket handshake occurred");
+
+        debug!("New WebSocket connection: {}", addr);
+
+        let (mut write, mut read) = ws_stream.split();
+
+        for send in send_data {
+            if let Some(d) = send.delay {
+                sleep(Duration::from_millis(d)).await;
+            }
+            write
+                .send(tokio_tungstenite::tungstenite::Message::Text(send.data))
+                .await
+                .unwrap();
+            write.flush().await.unwrap();
+        }
+
+        for r in recv_data {
+            let value = read.next().await.unwrap().unwrap();
+            if let tokio_tungstenite::tungstenite::Message::Text(v) = value {
+                if !r.data.eq_ignore_ascii_case(&v) {
+                    result.send(false).await.unwrap();
+                    return;
+                }
+            }
+        }
+
+        result.send(true).await.unwrap();
     }
 }
