@@ -140,6 +140,7 @@ impl MockWebsocket {
         send_data: Vec<WSMockData>,
         recv_data: Vec<WSMockData>,
         result: mpsc::Sender<bool>,
+        on_close: bool,
     ) {
         let url = format!("127.0.0.1:{}", self.port);
         let listener = TcpListener::bind(&url).await.expect("Can't listen");
@@ -147,7 +148,7 @@ impl MockWebsocket {
         tokio::spawn(async move {
             if let Ok((stream, _)) = listener.accept().await {
                 tokio::spawn(Self::accept_connection(
-                    stream, send_data, recv_data, result,
+                    stream, send_data, recv_data, result, on_close,
                 ));
             }
         });
@@ -158,6 +159,7 @@ impl MockWebsocket {
         send_data: Vec<WSMockData>,
         recv_data: Vec<WSMockData>,
         result: mpsc::Sender<bool>,
+        on_close: bool,
     ) {
         let addr = stream
             .peer_addr()
@@ -183,16 +185,30 @@ impl MockWebsocket {
             write.flush().await.unwrap();
         }
 
-        for r in recv_data {
-            let value = read.next().await.unwrap().unwrap();
-            if let tokio_tungstenite::tungstenite::Message::Text(v) = value {
-                if !r.data.eq_ignore_ascii_case(&v) {
-                    result.send(false).await.unwrap();
-                    return;
+        if recv_data.is_empty() && on_close {
+            while let Some(Ok(v)) = read.next().await {
+                if let tokio_tungstenite::tungstenite::Message::Close(_) = v {
+                    result.send(true).await.unwrap();
+                }
+            }
+        } else {
+            for r in recv_data {
+                let value = read.next().await.unwrap().unwrap();
+                if let tokio_tungstenite::tungstenite::Message::Text(v) = value {
+                    if !r.data.eq_ignore_ascii_case(&v) {
+                        result.send(false).await.unwrap();
+                        return;
+                    }
+                } else if let tokio_tungstenite::tungstenite::Message::Close(_) = value {
+                    if on_close {
+                        result.send(true).await.unwrap();
+                    }
                 }
             }
         }
 
-        result.send(true).await.unwrap();
+        if !on_close {
+            result.send(true).await.unwrap();
+        }
     }
 }

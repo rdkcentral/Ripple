@@ -88,6 +88,10 @@ impl BrokerRequest {
             rule,
         }
     }
+
+    pub fn get_id(&self) -> String {
+        self.rpc.ctx.session_id.clone()
+    }
 }
 
 /// BrokerCallback will be used by the communication broker to send the firebolt response
@@ -437,39 +441,6 @@ pub trait EndpointBroker {
         }
     }
 
-    fn handle_non_jsonrpc_response(
-        data: &[u8],
-        callback: BrokerCallback,
-        request: &BrokerRequest,
-    ) -> RippleResponse {
-        // find if its event
-        let method = if request.rpc.is_subscription() {
-            Some(format!(
-                "{}.{}",
-                request.rpc.ctx.call_id, request.rpc.ctx.method
-            ))
-        } else {
-            None
-        };
-        let parse_result = serde_json::from_slice::<Value>(data);
-        if parse_result.is_err() {
-            return Err(RippleError::ParseError);
-        }
-        let result = Some(parse_result.unwrap());
-        // build JsonRpcApiResponse
-        let data = JsonRpcApiResponse {
-            jsonrpc: "2.0".to_owned(),
-            id: Some(request.rpc.ctx.call_id),
-            method,
-            result,
-            error: None,
-            params: None,
-        };
-        let output = BrokerOutput { data };
-        tokio::spawn(async move { callback.sender.send(output).await });
-        Ok(())
-    }
-
     fn get_cleaner(&self) -> BrokerCleaner;
 }
 
@@ -578,6 +549,39 @@ impl BrokerOutputForwarder {
             }
         });
     }
+
+    pub fn handle_non_jsonrpc_response(
+        data: &[u8],
+        callback: BrokerCallback,
+        request: BrokerRequest,
+    ) -> RippleResponse {
+        // find if its event
+        let method = if request.rpc.is_subscription() {
+            Some(format!(
+                "{}.{}",
+                request.rpc.ctx.call_id, request.rpc.ctx.method
+            ))
+        } else {
+            None
+        };
+        let parse_result = serde_json::from_slice::<Value>(data);
+        if parse_result.is_err() {
+            return Err(RippleError::ParseError);
+        }
+        let result = Some(parse_result.unwrap());
+        // build JsonRpcApiResponse
+        let data = JsonRpcApiResponse {
+            jsonrpc: "2.0".to_owned(),
+            id: Some(request.rpc.ctx.call_id),
+            method,
+            result,
+            error: None,
+            params: None,
+        };
+        let output = BrokerOutput { data };
+        tokio::spawn(async move { callback.sender.send(output).await });
+        Ok(())
+    }
 }
 
 fn apply_rule_for_event(
@@ -600,6 +604,10 @@ fn apply_rule_for_event(
         }
     }
 }
+
+pub struct BrokerUtils;
+
+impl BrokerUtils {}
 
 #[cfg(test)]
 mod tests {

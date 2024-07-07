@@ -22,7 +22,9 @@ use ripple_sdk::{
 };
 
 use super::{
-    endpoint_broker::{BrokerCallback, BrokerCleaner, BrokerSender, EndpointBroker},
+    endpoint_broker::{
+        BrokerCallback, BrokerCleaner, BrokerOutputForwarder, BrokerSender, EndpointBroker,
+    },
     rules_engine::RuleEndpoint,
 };
 
@@ -73,7 +75,11 @@ impl EndpointBroker for HttpBroker {
                             if is_json_rpc {
                                 Self::handle_jsonrpc_response(value, callback.clone());
                             } else if let Err(e) =
-                                Self::handle_non_jsonrpc_response(value, callback.clone(), &request)
+                                BrokerOutputForwarder::handle_non_jsonrpc_response(
+                                    value,
+                                    callback.clone(),
+                                    request.clone(),
+                                )
                             {
                                 error!("Error forwarding {:?}", e)
                             }
