@@ -185,7 +185,7 @@ impl From<Option<MetricStatus>> for MetricStatus {
 }
 impl MetricStatus {
     /*
-    could not get ordinals to work with type coercion, so just doing it manuallycargo
+    could not get ordinals to work with type coercion, so just doing it manually
     */
     pub fn ordinal(&self) -> i32 {
         match self {
