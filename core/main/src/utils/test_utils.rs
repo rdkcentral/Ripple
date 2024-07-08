@@ -127,25 +127,14 @@ impl WSMockData {
 
 pub struct MockWebsocket;
 
-impl Default for MockWebsocket {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl MockWebsocket {
-    pub fn new() -> Self {
-        let _ = init_logger("mock websocket tests".to_owned());
-        Self
-    }
-
     pub async fn start(
-        &self,
         send_data: Vec<WSMockData>,
         recv_data: Vec<WSMockData>,
         result: mpsc::Sender<bool>,
         on_close: bool,
     ) -> u32 {
+        let _ = init_logger("mock websocket tests".to_owned());
         let mut port: u32 = 34743;
 
         loop {
