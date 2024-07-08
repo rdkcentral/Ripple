@@ -57,6 +57,8 @@ jaq-interpret = "1.2.1"
 jaq-parse = "1.0.2"
 jaq-core = "1.2.1"
 
+openrpc_validator = { path = "../../openrpc_validator" }
+
 [build-dependencies]
 vergen = "1"
 

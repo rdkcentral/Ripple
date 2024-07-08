@@ -32,13 +32,14 @@ use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
     time::Duration,
+    vec,
 };
 use tokio_tungstenite::client_async;
 
 #[derive(Debug, Clone)]
 pub struct ThunderBroker {
     sender: BrokerSender,
-    subscription_map: Arc<RwLock<HashMap<String, BrokerRequest>>>,
+    subscription_map: Arc<RwLock<HashMap<String, Vec<BrokerRequest>>>>,
     status_manager: StatusManager,
 }
 
@@ -151,6 +152,8 @@ impl ThunderBroker {
         let mut new_response = response.clone();
         if response.params.is_some() {
             new_response.result = response.params.clone();
+        } else if response.error.is_some() {
+            new_response.result = response.error.clone();
         }
         new_response
     }
@@ -160,6 +163,40 @@ impl ThunderBroker {
         let method = collection.pop();
         let callsign = collection.join(".");
         (callsign, method)
+    }
+
+    fn subscribe(&self, request: &BrokerRequest) -> Option<BrokerRequest> {
+        let mut sub_map = self.subscription_map.write().unwrap();
+        let app_id = &request.rpc.ctx.session_id;
+        let method = &request.rpc.ctx.method;
+        let listen = request.rpc.is_listening();
+        let mut response = None;
+        debug!(
+            "Initial subscription map of {:?} app_id {:?}",
+            sub_map, app_id
+        );
+
+        if let Some(mut v) = sub_map.remove(app_id) {
+            debug!("Subscription map after removing app {:?}", v);
+            if let Some(i) = v
+                .iter()
+                .position(|x| x.rpc.ctx.method.eq_ignore_ascii_case(method))
+            {
+                debug!(
+                    "Removing subscription for method {} for app {}",
+                    method, app_id
+                );
+                response = Some(v.remove(i));
+                //let _ = response.insert(v.remove(i));
+            }
+            if listen {
+                v.push(request.clone());
+            }
+            let _ = sub_map.insert(app_id.clone(), v);
+        } else {
+            let _ = sub_map.insert(app_id.clone(), vec![request.clone()]);
+        }
+        response
     }
 }
 
@@ -179,7 +216,6 @@ impl EndpointBroker for ThunderBroker {
         let mut requests = Vec::new();
         let rpc = rpc_request.clone().rpc;
         let id = rpc.ctx.call_id;
-        let app_id = rpc.ctx.app_id;
         let (callsign, method) = Self::get_callsign_and_method_from_alias(&rpc_request.rule.alias);
         if method.is_none() {
             return Err(RippleError::InvalidInput);
@@ -225,49 +261,43 @@ impl EndpointBroker for ThunderBroker {
         }
 
         let method = method.unwrap();
+        // Below chunk of code is basically for subscription where thunder needs some special care based on
+        // the JsonRpc specification
         if rpc_request.rpc.is_subscription() {
             let listen = rpc_request.rpc.is_listening();
-            let notif_id = {
-                let mut sub_map = self.subscription_map.write().unwrap();
-
-                if listen {
-                    if let Some(cleanup) = sub_map.insert(app_id, rpc_request.clone()) {
-                        requests.push(
-                            json!({
-                                "jsonrpc": "2.0",
-                                "id": cleanup.rpc.ctx.call_id,
-                                "method": format!("{}.{}", callsign, "unregister".to_owned()),
-                                "params": {
-                                    "event": method,
-                                    "id": format!("{}", cleanup.rpc.ctx.call_id)
-                                }
-                            })
-                            .to_string(),
-                        )
-                    }
-                    id
-                } else if let Some(v) = sub_map.remove(&app_id) {
-                    v.rpc.ctx.call_id
-                } else {
-                    id
-                }
-            };
-            requests.push(
-                json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "method": format!("{}.{}", callsign, match listen {
-                        true => "register",
-                        false => "unregister"
-                    }),
-                    "params": json!({
-                        "event": method,
-                        "id": format!("{}", notif_id)
+            // If there was an existing app and method combo for the same subscription just unregister that
+            if let Some(cleanup) = self.subscribe(rpc_request) {
+                requests.push(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": cleanup.rpc.ctx.call_id,
+                        "method": format!("{}.unregister", callsign),
+                        "params": {
+                            "event": method,
+                            "id": format!("{}", cleanup.rpc.ctx.call_id)
+                        }
                     })
-                })
-                .to_string(),
-            )
+                    .to_string(),
+                )
+            }
+
+            // Given unregistration is already performed by previous step just do registration
+            if listen {
+                requests.push(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "method": format!("{}.register", callsign),
+                        "params": json!({
+                            "event": method,
+                            "id": format!("{}", id)
+                        })
+                    })
+                    .to_string(),
+                )
+            }
         } else {
+            // Simple request and response handling
             let request = Self::update_request(rpc_request)?;
             requests.push(request)
         }
