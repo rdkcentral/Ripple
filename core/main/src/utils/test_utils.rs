@@ -125,14 +125,18 @@ impl WSMockData {
     }
 }
 
-pub struct MockWebsocket {
-    port: u32,
+pub struct MockWebsocket;
+
+impl Default for MockWebsocket {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MockWebsocket {
-    pub fn new(port: u32) -> Self {
+    pub fn new() -> Self {
         let _ = init_logger("mock websocket tests".to_owned());
-        Self { port }
+        Self
     }
 
     pub async fn start(
@@ -141,17 +145,27 @@ impl MockWebsocket {
         recv_data: Vec<WSMockData>,
         result: mpsc::Sender<bool>,
         on_close: bool,
-    ) {
-        let url = format!("127.0.0.1:{}", self.port);
-        let listener = TcpListener::bind(&url).await.expect("Can't listen");
-        debug!("Listening on: {}", url);
-        tokio::spawn(async move {
-            if let Ok((stream, _)) = listener.accept().await {
-                tokio::spawn(Self::accept_connection(
-                    stream, send_data, recv_data, result, on_close,
-                ));
+    ) -> u32 {
+        let mut port: u32 = 34743;
+
+        loop {
+            let url = format!("127.0.0.1:{}", port);
+            match TcpListener::bind(&url).await {
+                Ok(l) => {
+                    tokio::spawn(async move {
+                        if let Ok((stream, _)) = l.accept().await {
+                            tokio::spawn(Self::accept_connection(
+                                stream, send_data, recv_data, result, on_close,
+                            ));
+                        }
+                    });
+                    break;
+                }
+                Err(_) => port += 1,
             }
-        });
+        }
+
+        port
     }
 
     async fn accept_connection(
@@ -207,6 +221,7 @@ impl MockWebsocket {
             }
         }
 
+        write.close().await.unwrap();
         if !on_close {
             result.send(true).await.unwrap();
         }

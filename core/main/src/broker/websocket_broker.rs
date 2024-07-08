@@ -247,12 +247,12 @@ mod tests {
         on_close: bool,
     ) -> WebsocketBroker {
         // setup mock websocket server
-        MockWebsocket::new(43473)
+        let port = MockWebsocket::new()
             .start(send_data, Vec::new(), tx, on_close)
             .await;
 
         let endpoint = RuleEndpoint {
-            url: "ws://127.0.0.1:43473".to_owned(),
+            url: format!("ws://127.0.0.1:{}", port),
             protocol: crate::broker::rules_engine::RuleEndpointProtocol::Websocket,
             jsonrpc: false,
         };
