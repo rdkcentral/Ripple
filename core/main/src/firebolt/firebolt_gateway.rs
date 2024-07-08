@@ -19,7 +19,10 @@ use jsonrpsee::{core::server::rpc_module::Methods, types::TwoPointZero};
 use ripple_sdk::{
     api::{
         apps::EffectiveTransport,
-        firebolt::fb_openrpc::FireboltOpenRpcMethod,
+        firebolt::{
+            fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+            fb_openrpc::FireboltOpenRpcMethod,
+        },
         gateway::{
             rpc_error::RpcError,
             rpc_gateway_api::{ApiMessage, ApiProtocol, RpcRequest},
@@ -27,7 +30,7 @@ use ripple_sdk::{
     },
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,
-    log::{error, info},
+    log::{debug, error, info, warn},
     serde_json::{self, Value},
     tokio,
 };
@@ -39,7 +42,10 @@ use crate::{
         apps::{app_events::AppEvents, provider_broker::ProviderBroker},
         telemetry_builder::TelemetryBuilder,
     },
-    state::{bootstrap_state::BootstrapState, session_state::Session},
+    state::{
+        bootstrap_state::BootstrapState, openrpc_state::OpenRpcState,
+        platform_state::PlatformState, session_state::Session,
+    },
 };
 
 use super::rpc_router::RpcRouter;
@@ -176,8 +182,39 @@ impl FireboltGateway {
             request_c.ctx.app_id.clone(),
         );
 
+        let open_rpc_state = self.state.platform_state.open_rpc_state.clone();
+
         tokio::spawn(async move {
             let start = Utc::now().timestamp_millis();
+
+            // Validate incoming request parameters.
+            if let Err(error_string) = validate_request(open_rpc_state, &request_c) {
+                let now = Utc::now().timestamp_millis();
+
+                RpcRouter::log_rdk_telemetry_message(
+                    &request.ctx.app_id,
+                    &request.method,
+                    JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+                    now - start,
+                );
+
+                TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
+                    &platform_state.clone(),
+                    metrics_timer,
+                    format!("{}", JSON_RPC_STANDARD_ERROR_INVALID_PARAMS),
+                )
+                .await;
+
+                let json_rpc_error = JsonRpcError {
+                    code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+                    message: error_string,
+                    data: None,
+                };
+
+                send_json_rpc_error(&platform_state, &request, json_rpc_error).await;
+                return;
+            }
+
             let result = FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await;
 
             match result {
@@ -246,43 +283,99 @@ impl FireboltGateway {
                     );
 
                     let caps = e.caps.iter().map(|x| x.as_str()).collect();
-                    let err = JsonRpcMessage {
-                        jsonrpc: TwoPointZero {},
-                        id: request.ctx.call_id,
-                        error: Some(JsonRpcError {
-                            code: deny_reason.get_rpc_error_code(),
-                            message: deny_reason.get_rpc_error_message(caps),
-                            data: None,
-                        }),
+                    let json_rpc_error = JsonRpcError {
+                        code: deny_reason.get_rpc_error_code(),
+                        message: deny_reason.get_rpc_error_message(caps),
+                        data: None,
                     };
 
-                    let msg = serde_json::to_string(&err).unwrap();
-
-                    let api_msg = ApiMessage::new(
-                        request.clone().ctx.protocol,
-                        msg,
-                        request.clone().ctx.request_id,
-                    );
-                    if let Some(session) = platform_state
-                        .clone()
-                        .session_state
-                        .get_session(&request.ctx)
-                    {
-                        match session.get_transport() {
-                            EffectiveTransport::Websocket => {
-                                if let Err(e) = session.send_json_rpc(api_msg).await {
-                                    error!("Error while responding back message {:?}", e)
-                                }
-                            }
-                            EffectiveTransport::Bridge(id) => {
-                                if let Err(e) = platform_state.send_to_bridge(id, api_msg).await {
-                                    error!("Error while responding back message {:?}", e)
-                                }
-                            }
-                        }
-                    }
+                    send_json_rpc_error(&platform_state, &request, json_rpc_error).await;
                 }
             }
         });
+    }
+}
+
+fn validate_request(open_rpc_state: OpenRpcState, request: &RpcRequest) -> Result<(), String> {
+    let major_version = open_rpc_state.get_version().major.to_string();
+    let openrpc_validator = open_rpc_state.get_openrpc_validator();
+
+    if let Some(rpc_method) = openrpc_validator.get_method_by_name(&request.method) {
+        let validator = openrpc_validator
+            .params_validator(major_version, &rpc_method.name)
+            .unwrap();
+
+        if let Ok(params) = serde_json::from_str::<Vec<serde_json::Value>>(&request.params_json) {
+            if params.len() > 1 {
+                if let Err(errors) = validator.validate(&params[1]) {
+                    let mut error_string = String::new();
+                    for error in errors {
+                        error_string.push_str(&format!("{} ", error));
+                    }
+                    return Err(error_string);
+                }
+            }
+        }
+    } else {
+        // TODO: Currently LifecycleManagement and other APIs are not in the schema. Let these pass through to their
+        // respective handlers for now.
+        debug!(
+            "validate_request: Method not found in schema: {}",
+            request.method
+        );
+    }
+
+    Ok(())
+}
+
+async fn send_json_rpc_error(
+    platform_state: &PlatformState,
+    request: &RpcRequest,
+    json_rpc_error: JsonRpcError,
+) {
+    if let Some(session) = platform_state
+        .clone()
+        .session_state
+        .get_session(&request.ctx)
+    {
+        let error_message = JsonRpcMessage {
+            jsonrpc: TwoPointZero {},
+            id: request.ctx.call_id,
+            error: Some(json_rpc_error),
+        };
+
+        if let Ok(error_message) = serde_json::to_string(&error_message) {
+            let api_message = ApiMessage::new(
+                request.clone().ctx.protocol,
+                error_message,
+                request.clone().ctx.request_id,
+            );
+
+            match session.get_transport() {
+                EffectiveTransport::Websocket => {
+                    if let Err(e) = session.send_json_rpc(api_message).await {
+                        error!(
+                            "send_json_rpc_error: Error sending websocket message: e={:?}",
+                            e
+                        )
+                    }
+                }
+                EffectiveTransport::Bridge(id) => {
+                    if let Err(e) = platform_state.send_to_bridge(id, api_message).await {
+                        error!(
+                            "send_json_rpc_error: Error sending bridge message: e={:?}",
+                            e
+                        )
+                    }
+                }
+            }
+        } else {
+            error!("send_json_rpc_error: Could not serialize error message");
+        }
+    } else {
+        warn!(
+            "send_json_rpc_error: Session no found: method={}",
+            request.method
+        );
     }
 }

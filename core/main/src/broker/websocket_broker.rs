@@ -277,6 +277,7 @@ mod tests {
                 transform: RuleTransform::default(),
                 endpoint: None,
             },
+            subscription_processed: None,
         };
 
         broker.sender.send(request).await.unwrap();
@@ -315,6 +316,7 @@ mod tests {
                 transform: RuleTransform::default(),
                 endpoint: None,
             },
+            subscription_processed: None,
         };
         let id = request.get_id();
 

@@ -79,6 +79,13 @@ impl BrokerCleaner {
 pub struct BrokerRequest {
     pub rpc: RpcRequest,
     pub rule: Rule,
+    pub subscription_processed: Option<bool>,
+}
+
+impl BrokerRequest {
+    pub fn is_subscription_processed(&self) -> bool {
+        self.subscription_processed.is_some()
+    }
 }
 
 impl BrokerRequest {
@@ -86,6 +93,7 @@ impl BrokerRequest {
         BrokerRequest {
             rpc: rpc_request.clone(),
             rule,
+            subscription_processed: None,
         }
     }
 
@@ -210,6 +218,14 @@ impl EndpointBrokerState {
         Ok(result)
     }
 
+    fn update_unsubscribe_request(&self, id: u64) {
+        let mut result = self.request_map.write().unwrap();
+        if let Some(mut value) = result.remove(&id) {
+            value.subscription_processed = Some(true);
+            let _ = result.insert(id, value);
+        }
+    }
+
     fn get_extn_message(&self, id: u64, is_event: bool) -> Result<ExtnMessage, RippleError> {
         if is_event {
             let v = { self.extension_request_map.read().unwrap().get(&id).cloned() };
@@ -243,6 +259,7 @@ impl EndpointBrokerState {
                 BrokerRequest {
                     rpc: rpc_request.clone(),
                     rule: rule.clone(),
+                    subscription_processed: None,
                 },
             );
         }
@@ -354,6 +371,15 @@ impl EndpointBrokerState {
             cleaner.cleanup_session(app_id).await
         }
     }
+
+    // Get Broker Request from rpc_request
+    pub fn get_broker_request(&self, rpc_request: &RpcRequest, rule: Rule) -> BrokerRequest {
+        BrokerRequest {
+            rpc: rpc_request.clone(),
+            rule,
+            subscription_processed: None,
+        }
+    }
 }
 
 /// Trait which contains all the abstract methods for a Endpoint Broker
@@ -462,9 +488,12 @@ impl BrokerOutputForwarder {
 
                 if let Some(id) = id {
                     if let Ok(broker_request) = platform_state.endpoint_state.get_request(id) {
+                        let sub_processed = broker_request.is_subscription_processed();
                         let rpc_request = broker_request.rpc.clone();
                         let session_id = rpc_request.ctx.get_id();
                         let is_subscription = rpc_request.is_subscription();
+
+                        // Step 1: Create the data
                         if let Some(result) = v.data.result.clone() {
                             if is_event {
                                 apply_rule_for_event(
@@ -474,25 +503,36 @@ impl BrokerOutputForwarder {
                                     &mut v,
                                 );
                             } else if is_subscription {
+                                if sub_processed {
+                                    continue;
+                                }
                                 v.data.result = Some(json!({
                                     "listening" : rpc_request.is_listening(),
                                     "event" : rpc_request.ctx.method
-                                }))
+                                }));
+                                platform_state.endpoint_state.update_unsubscribe_request(id);
                             } else if let Some(filter) = broker_request
                                 .rule
                                 .transform
                                 .get_filter(super::rules_engine::RuleTransformType::Response)
                             {
-                                if let Ok(r) = jq_compile(
-                                    result,
+                                match jq_compile(
+                                    result.clone(),
                                     &filter,
                                     format!("{}_response", rpc_request.ctx.method),
                                 ) {
-                                    if r.to_string().to_lowercase().contains("null") {
-                                        v.data.result = Some(Value::Null)
-                                    } else {
-                                        v.data.result = Some(r);
+                                    Ok(r) => {
+                                        if r.to_string().to_lowercase().contains("null") {
+                                            v.data.result = Some(Value::Null)
+                                        } else if result.get("success").is_some() {
+                                            v.data.result = Some(r);
+                                            v.data.error = None;
+                                        } else {
+                                            v.data.error = Some(r);
+                                            v.data.result = None;
+                                        }
                                     }
+                                    Err(e) => error!("jq_compile error {:?}", e),
                                 }
                             }
                         }
@@ -500,11 +540,14 @@ impl BrokerOutputForwarder {
                         let request_id = rpc_request.ctx.call_id;
                         v.data.id = Some(request_id);
 
+                        // Step 2: Create the message
                         let message = ApiMessage {
                             request_id: request_id.to_string(),
                             protocol: rpc_request.ctx.protocol.clone(),
                             jsonrpc_msg: serde_json::to_string(&v.data).unwrap(),
                         };
+
+                        // Step 3: Handle Non Extension
                         if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
                             if let Ok(extn_message) =
                                 platform_state.endpoint_state.get_extn_message(id, is_event)
@@ -522,11 +565,6 @@ impl BrokerOutputForwarder {
                                             error!("couldnt send back event {:?}", e)
                                         }
                                     }
-                                } else if is_subscription {
-                                    v.data.result = Some(json!({
-                                        "listening" : rpc_request.is_listening(),
-                                        "event" : rpc_request.ctx.method
-                                    }))
                                 } else {
                                     return_extn_response(message, extn_message)
                                 }
@@ -644,6 +682,7 @@ mod tests {
                         transform: RuleTransform::default(),
                         endpoint: None,
                     },
+                    subscription_processed: None,
                 },
                 RippleError::InvalidInput,
             )

@@ -34,6 +34,7 @@ use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
     time::Duration,
+    vec,
 };
 use tokio_tungstenite::client_async;
 
@@ -163,14 +164,30 @@ impl ThunderBroker {
         let method = &request.rpc.ctx.method;
         let listen = request.rpc.is_listening();
         let mut response = None;
+        debug!(
+            "Initial subscription map of {:?} app_id {:?}",
+            sub_map, app_id
+        );
+
         if let Some(mut v) = sub_map.remove(app_id) {
-            if let Some(i) = v.iter().position(|x| x.rpc.ctx.method.contains(method)) {
-                let _ = response.insert(v.remove(i));
+            debug!("Subscription map after removing app {:?}", v);
+            if let Some(i) = v
+                .iter()
+                .position(|x| x.rpc.ctx.method.eq_ignore_ascii_case(method))
+            {
+                debug!(
+                    "Removing subscription for method {} for app {}",
+                    method, app_id
+                );
+                response = Some(v.remove(i));
+                //let _ = response.insert(v.remove(i));
             }
             if listen {
                 v.push(request.clone());
             }
             let _ = sub_map.insert(app_id.clone(), v);
+        } else {
+            let _ = sub_map.insert(app_id.clone(), vec![request.clone()]);
         }
         response
     }
