@@ -29,5 +29,5 @@ crate-type = ["cdylib"]
 [dependencies]
 ripple_sdk = { workspace = true, features = ["full"] }
 serde_json.workspace = true
-serde = { version = "1.0", features = ["derive"] }
-jsonrpsee = { workspace = true, features = ["macros", "jsonrpsee-core"] }
+serde = { version = "1.0", default-features = false}
+jsonrpsee = { workspace = true, features = ["macros", "jsonrpsee-core"], default-features = false }
