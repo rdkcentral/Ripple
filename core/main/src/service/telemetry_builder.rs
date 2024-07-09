@@ -187,7 +187,8 @@ impl TelemetryBuilder {
         tt: i64,
         success: bool,
         resp: &ApiMessage,
-    ) {        let ctx = req.ctx;
+    ) {
+        let ctx = req.ctx;
         let method = req.method;
         let params = if let Ok(mut p) = serde_json::from_str::<Vec<Value>>(&req.params_json) {
             if p.len() > 1 {
