@@ -220,7 +220,6 @@ impl EndpointBroker for ThunderBroker {
         if method.is_none() {
             return Err(RippleError::InvalidInput);
         }
-        // TBD: Move these changes to a separate method
         // check if the plugin is activated.
         let status = match self.status_manager.get_status(callsign.clone()) {
             Some(v) => v.clone(),
@@ -237,8 +236,6 @@ impl EndpointBroker for ThunderBroker {
         };
 
         if status.state.is_missing() {
-            /*self.status_manager
-            .add_broker_request_to_pending_list(callsign.clone(), rpc_request.clone());*/
             error!("Plugin {} is missing", callsign);
             return Err(RippleError::ServiceError);
         }

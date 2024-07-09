@@ -517,17 +517,11 @@ impl StatusManager {
 
 #[cfg(test)]
 mod tests {
-    use ripple_sdk::{
-        //api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
-        tokio::{
-            self,
-            sync::mpsc::{self, channel},
-        },
-    };
-
-    //use crate::broker::rules_engine::{Rule, RuleTransform};
-
     use super::*;
+    use ripple_sdk::tokio::{
+        self,
+        sync::mpsc::{self, channel},
+    };
 
     #[test]
     fn test_generate_state_change_subscribe_request() {
@@ -612,10 +606,15 @@ mod tests {
         assert_eq!(status.unwrap().state, State::Missing);
     }
 
-    /*
     // Uncomment and use the following unit test only for local testing. Not use as part of the CI/CD pipeline.
+    /*
+    use ripple_sdk::{
+        api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
+    };
+    use crate::broker::rules_engine::{Rule, RuleTransform};
+
     #[tokio::test]
-    async fn test_expired_request() {
+    async fn test_expired_broker_request() {
         let status_manager = StatusManager::new();
         let (tx, _tr) = mpsc::channel(10);
         let broker = BrokerSender { sender: tx };
@@ -661,6 +660,7 @@ mod tests {
                 transform: RuleTransform::default(),
                 endpoint: None,
             },
+            subscription_processed: None,
         };
         status_manager.add_broker_request_to_pending_list("TestPlugin".to_string(), request);
 
