@@ -22,7 +22,7 @@ use std::{
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse,
     chrono::{DateTime, Duration, Utc},
-    log::info,
+    log::{info, warn},
     utils::error::RippleError,
 };
 use serde::{Deserialize, Serialize};
@@ -144,6 +144,10 @@ impl StatusManager {
     }
 
     pub fn update_status(&self, plugin_name: String, state: State) {
+        info!(
+            "Updating the status of the plugin: {:?} to state: {:?}",
+            plugin_name, state
+        );
         let mut status = self.status.write().unwrap();
         // get the current plugin state from hashmap and update the State
         if let Some(plugin_state) = status.get_mut(&plugin_name) {
@@ -403,22 +407,28 @@ impl StatusManager {
         };
 
         for status in status_res {
-            if status.callsign == callsign {
-                self.update_status(callsign.to_string(), status.to_state());
+            if status.callsign != callsign {
+                // it's not required to enforce callsign matching.  But it's good to log a warning.
+                // Already chekced the id in the request, so it's safe to ignore this.
+                warn!(
+                    "Call Sign not matching callsign from response: {:?} callsign : {:?}",
+                    status.callsign, callsign
+                );
+            }
+            self.update_status(callsign.to_string(), status.to_state());
 
-                if status.to_state().is_activated() {
-                    let (pending_requests, expired) =
-                        self.retrive_pending_broker_requests(callsign.to_string());
+            if status.to_state().is_activated() {
+                let (pending_requests, expired) =
+                    self.retrive_pending_broker_requests(callsign.to_string());
 
-                    for pending_request in pending_requests {
-                        if expired {
-                            info!("Expired request: {:?}", pending_request);
-                            callback
-                                .send_error(pending_request, RippleError::ServiceError)
-                                .await;
-                        } else {
-                            let _ = sender.send(pending_request).await;
-                        }
+                for pending_request in pending_requests {
+                    if expired {
+                        info!("Expired request: {:?}", pending_request);
+                        callback
+                            .send_error(pending_request, RippleError::ServiceError)
+                            .await;
+                    } else {
+                        let _ = sender.send(pending_request).await;
                     }
                 }
             }

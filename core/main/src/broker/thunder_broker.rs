@@ -128,7 +128,7 @@ impl ThunderBroker {
                                 debug!("Sending request to broker {:?}", updated_request);
                                 for r in updated_request {
                                     let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
-                                let _flush = ws_tx.flush().await;
+                                    let _flush = ws_tx.flush().await;
                                 }
                             }
                             Err(e) => {
