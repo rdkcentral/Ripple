@@ -28,7 +28,7 @@ use ripple_sdk::{
                 TelemetrySystemError,
             },
         },
-        gateway::rpc_gateway_api::{CallContext, RpcRequest, ApiMessage},
+        gateway::rpc_gateway_api::{ApiMessage, CallContext, RpcRequest},
     },
     chrono::{DateTime, Utc},
     extn::client::extn_client::ExtnClient,
@@ -181,7 +181,13 @@ impl TelemetryBuilder {
         }
     }
 
-    pub fn send_fb_tt(ps: &PlatformState, req: RpcRequest, tt: i64, success: bool, resp: &ApiMessage) {
+    pub fn send_fb_tt(
+        ps: &PlatformState,
+        req: RpcRequest,
+        tt: i64,
+        success: bool,
+        resp: &ApiMessage,
+    ) {
         let ctx = req.ctx;
         let method = req.method;
         let params = if let Ok(mut p) = serde_json::from_str::<Vec<Value>>(&req.params_json) {
@@ -206,7 +212,7 @@ impl TelemetryBuilder {
                 method,
                 params,
                 success,
-                response
+                response,
             }),
         ) {
             error!("send_telemetry={:?}", e)
