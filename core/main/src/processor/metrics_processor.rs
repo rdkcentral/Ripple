@@ -263,7 +263,7 @@ impl ExtnRequestProcessor for OpMetricsProcessor {
                 .operational_telemetry_listener(&requestor, true),
             OperationalMetricRequest::UnSubscribe => state
                 .metrics
-                .operational_telemetry_listener(&requestor, true),
+                .operational_telemetry_listener(&requestor, false),
             _ => (),
         }
         Self::ack(state.get_client().get_extn_client(), msg)
