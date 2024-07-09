@@ -150,7 +150,7 @@ pub struct FireboltInteraction {
     pub success: bool,
     pub ripple_session_id: String,
     pub app_session_id: Option<String>,
-    pub response: String
+    pub response: String,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
