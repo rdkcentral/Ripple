@@ -20,7 +20,6 @@ version = "1.1.0"
 edition = "2021"
 repository = "https://github.com/rdkcentral/Ripple"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
 default = []
 rpc = ["jsonrpsee"]
@@ -36,7 +35,6 @@ contract_tests = []
 serde.workspace = true
 serde_json.workspace = true
 chrono.workspace = true
-#chrono = { features = ["clock"], default-features = false, version = "0.4" }
 tokio = { workspace = true, features = [
     "macros",
     "sync",
@@ -49,16 +47,15 @@ jsonrpsee = { workspace = true, features = ["ws-server"], optional = true }
 regex.workspace = true
 uuid = { workspace = true, features = ["serde", "v5", "v4"] }
 
-
 serde_yaml = "0.9.10"
 serde_millis = "0.1.1"
-semver = "1.0.20"
+semver = { version = "1.0.20", default-features = false }
 log = "0.4"
 fern = "0.6"
 async-trait = "0.1.57"
 libloading = "0.7.4"
-async-channel = "=2.1.0"
-tree_magic_mini = { version = "=3.0.3", optional = true}
+async-channel = { version = "2.1.0", default-features = false }
+tree_magic_mini = { version = "3.0.3", optional = true}
 
 [dev-dependencies]
 ripple_sdk = { path = ".", features=["tdk"]}
@@ -66,3 +63,4 @@ ripple_sdk = { path = ".", features=["tdk"]}
 rstest = "0.18.0"
 async-std = { version = "1.5", features = ["attributes"] }
 testing_logger = "0.1.1"
+
