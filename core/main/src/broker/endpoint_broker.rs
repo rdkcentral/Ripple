@@ -516,24 +516,7 @@ impl BrokerOutputForwarder {
                                 .transform
                                 .get_filter(super::rules_engine::RuleTransformType::Response)
                             {
-                                match jq_compile(
-                                    result.clone(),
-                                    &filter,
-                                    format!("{}_response", rpc_request.ctx.method),
-                                ) {
-                                    Ok(r) => {
-                                        if r.to_string().to_lowercase().contains("null") {
-                                            v.data.result = Some(Value::Null)
-                                        } else if result.get("success").is_some() {
-                                            v.data.result = Some(r);
-                                            v.data.error = None;
-                                        } else {
-                                            v.data.error = Some(r);
-                                            v.data.result = None;
-                                        }
-                                    }
-                                    Err(e) => error!("jq_compile error {:?}", e),
-                                }
+                                apply_response(result, filter, &rpc_request, &mut v);
                             }
                         }
 
@@ -553,18 +536,8 @@ impl BrokerOutputForwarder {
                                 platform_state.endpoint_state.get_extn_message(id, is_event)
                             {
                                 if is_event {
-                                    if let Ok(event) = extn_message.get_event(ExtnEvent::Value(
-                                        serde_json::to_value(v.data).unwrap(),
-                                    )) {
-                                        if let Err(e) = platform_state
-                                            .get_client()
-                                            .get_extn_client()
-                                            .send_message(event)
-                                            .await
-                                        {
-                                            error!("couldnt send back event {:?}", e)
-                                        }
-                                    }
+                                    forward_extn_event(&extn_message, v.data, &platform_state)
+                                        .await;
                                 } else {
                                     return_extn_response(message, extn_message)
                                 }
@@ -619,6 +592,44 @@ impl BrokerOutputForwarder {
         let output = BrokerOutput { data };
         tokio::spawn(async move { callback.sender.send(output).await });
         Ok(())
+    }
+}
+
+async fn forward_extn_event(
+    extn_message: &ExtnMessage,
+    v: JsonRpcApiResponse,
+    platform_state: &PlatformState,
+) {
+    if let Ok(event) = extn_message.get_event(ExtnEvent::Value(serde_json::to_value(v).unwrap())) {
+        if let Err(e) = platform_state
+            .get_client()
+            .get_extn_client()
+            .send_message(event)
+            .await
+        {
+            error!("couldnt send back event {:?}", e)
+        }
+    }
+}
+
+fn apply_response(result: Value, filter: String, rpc_request: &RpcRequest, v: &mut BrokerOutput) {
+    match jq_compile(
+        result.clone(),
+        &filter,
+        format!("{}_response", rpc_request.ctx.method),
+    ) {
+        Ok(r) => {
+            if r.to_string().to_lowercase().contains("null") {
+                v.data.result = Some(Value::Null)
+            } else if result.get("success").is_some() {
+                v.data.result = Some(r);
+                v.data.error = None;
+            } else {
+                v.data.error = Some(r);
+                v.data.result = None;
+            }
+        }
+        Err(e) => error!("jq_compile error {:?}", e),
     }
 }
 
