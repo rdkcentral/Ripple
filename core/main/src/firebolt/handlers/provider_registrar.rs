@@ -31,8 +31,9 @@ use ripple_sdk::{
             fb_openrpc::FireboltOpenRpcMethod,
             fb_pin::PinChallengeResponse,
             provider::{
-                ChallengeResponse, ExternalProviderResponse, FocusRequest, ProviderResponse,
-                ProviderResponsePayload, ProviderResponsePayloadType,
+                ChallengeError, ChallengeResponse, ExternalProviderError, ExternalProviderResponse,
+                FocusRequest, ProviderResponse, ProviderResponsePayload,
+                ProviderResponsePayloadType,
             },
         },
         gateway::rpc_gateway_api::CallContext,
@@ -58,6 +59,7 @@ impl ProviderRegistrar {
         payload_type: ProviderResponsePayloadType,
         mut params_sequence: ParamsSequence,
     ) -> Option<ProviderResponse> {
+        let _: Option<CallContext> = params_sequence.next().ok(); // ignore CallContext
         match payload_type {
             ProviderResponsePayloadType::ChallengeResponse => {
                 let external_provider_response: Result<
@@ -82,6 +84,17 @@ impl ProviderRegistrar {
                     return Some(ProviderResponse {
                         correlation_id: r.correlation_id,
                         result: ProviderResponsePayload::PinChallengeResponse(r.result),
+                    });
+                }
+            }
+            ProviderResponsePayloadType::ChallengeError => {
+                let external_provider_error: Result<ExternalProviderError, CallError> =
+                    params_sequence.next();
+
+                if let Ok(r) = external_provider_error {
+                    return Some(ProviderResponse {
+                        correlation_id: r.correlation_id,
+                        result: ProviderResponsePayload::ChallengeError(r.error),
                     });
                 }
             }
@@ -190,8 +203,8 @@ impl ProviderRegistrar {
 
                     // Register error function
                     if let Some(method) = provider_set.error.clone() {
-                        let error_method = method.name.clone().leak();
-
+                        let error_method =
+                            FireboltOpenRpcMethod::name_with_lowercase_module(&method.name).leak();
                         rpc_module
                             .register_async_method(
                                 error_method,
