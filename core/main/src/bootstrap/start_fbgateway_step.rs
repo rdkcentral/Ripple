@@ -36,7 +36,6 @@ use crate::{
         },
         rpc::RippleRPCProvider,
     },
-    processor::rpc_gateway_processor::RpcGatewayProcessor,
     service::telemetry_builder::TelemetryBuilder,
     state::{bootstrap_state::BootstrapState, platform_state::PlatformState},
 };
@@ -102,12 +101,6 @@ impl Bootstep<BootstrapState> for FireboltGatewayStep {
             .await;
         let gateway = FireboltGateway::new(state.clone(), methods);
         debug!("Handlers initialized");
-        // Main can now recieve RPC requests
-        state
-            .platform_state
-            .get_client()
-            .add_request_processor(RpcGatewayProcessor::new(state.platform_state.get_client()));
-        debug!("Adding RPC gateway processor");
         #[cfg(feature = "sysd")]
         if sd_notify::booted().is_ok()
             && sd_notify::notify(false, &[sd_notify::NotifyState::Ready]).is_err()

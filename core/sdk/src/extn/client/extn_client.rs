@@ -453,6 +453,7 @@ impl ExtnClient {
     ) {
         let id_c = msg.target.as_clear_string();
         let mut gc_sender_indexes: Vec<usize> = Vec::new();
+        let mut processed = false;
         let read_processor = processor.clone();
         {
             let processors = read_processor.read().unwrap();
@@ -463,6 +464,7 @@ impl ExtnClient {
             };
             if let Some(v) = v {
                 for (index, s) in v.iter().enumerate() {
+                    processed = true;
                     if !s.is_closed() {
                         let sndr = s.clone();
                         let m = msg.clone();
@@ -480,7 +482,8 @@ impl ExtnClient {
             }
         };
 
-        if RippleContext::is_ripple_context(&msg.payload).is_none() {
+        // Print this message only for messages which were not processed
+        if !processed && RippleContext::is_ripple_context(&msg.payload).is_none() {
             // Not every extension will have a context listener
             error!("No Event Processor for {:?}", msg);
         }
