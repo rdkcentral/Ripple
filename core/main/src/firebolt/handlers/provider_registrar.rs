@@ -31,9 +31,8 @@ use ripple_sdk::{
             fb_openrpc::FireboltOpenRpcMethod,
             fb_pin::PinChallengeResponse,
             provider::{
-                ChallengeError, ChallengeResponse, ExternalProviderError, ExternalProviderResponse,
-                FocusRequest, ProviderResponse, ProviderResponsePayload,
-                ProviderResponsePayloadType,
+                ChallengeResponse, ExternalProviderError, ExternalProviderResponse, FocusRequest,
+                ProviderResponse, ProviderResponsePayload, ProviderResponsePayloadType,
             },
         },
         gateway::rpc_gateway_api::CallContext,
