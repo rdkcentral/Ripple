@@ -127,7 +127,9 @@ impl SettingsProcessor {
                     AllowWatchHistory => Some(SettingValue::bool(cp.remember_watched_programs)),
                     ShareWatchHistory => Some(SettingValue::bool(cp.share_watch_history)),
                     DeviceName => Some(SettingValue::string(
-                        get_device_name(state).await.unwrap_or_else(|_| "".into()),
+                        get_device_name(&ctx, state)
+                            .await
+                            .unwrap_or_else(|_| "".into()),
                     )),
                     PowerSaving => Some(SettingValue::bool(true)),
                     LegacyMiniGuide => Some(SettingValue::bool(false)),
