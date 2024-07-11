@@ -16,8 +16,9 @@
 //
 
 use crate::{
-    firebolt::rpc::register_aliases, service::apps::provider_broker::ProviderBroker,
-    state::platform_state::PlatformState,
+    firebolt::rpc::register_aliases,
+    service::apps::provider_broker::ProviderBroker,
+    state::{cap, platform_state::PlatformState},
 };
 use jsonrpsee::{
     core::{server::rpc_module::Methods, RpcResult},
@@ -31,7 +32,7 @@ use ripple_sdk::{
             fb_openrpc::FireboltOpenRpcMethod,
             fb_pin::PinChallengeResponse,
             provider::{
-                ChallengeResponse, ExternalProviderResponse, FocusRequest, ProviderResponse,
+                self, ChallengeResponse, ExternalProviderResponse, FocusRequest, ProviderResponse,
                 ProviderResponsePayload, ProviderResponsePayloadType,
             },
         },
@@ -104,32 +105,66 @@ impl ProviderRegistrar {
                         let request_method =
                             FireboltOpenRpcMethod::name_with_lowercase_module(&method.name).leak();
 
-                        rpc_module
-                            .register_async_method(
-                                request_method,
-                                move |params, context| async move {
-                                    let mut params_sequence = params.sequence();
-                                    let call_context: CallContext = params_sequence.next().unwrap();
-                                    let request: ListenRequest = params_sequence.next().unwrap();
-                                    let listening = request.listen;
+                        // <pca>
+                        // rpc_module
+                        //     .register_async_method(
+                        //         request_method,
+                        //         move |params, context| async move {
+                        //             let mut params_sequence = params.sequence();
+                        //             let call_context: CallContext = params_sequence.next().unwrap();
+                        //             let request: ListenRequest = params_sequence.next().unwrap();
+                        //             let listening = request.listen;
 
-                                    ProviderBroker::register_or_unregister_provider(
-                                        &context.platform_state,
-                                        attributes.capability.into(),
-                                        attributes.method.into(),
-                                        attributes.event,
-                                        call_context,
-                                        request,
-                                    )
-                                    .await;
+                        //             ProviderBroker::register_or_unregister_provider(
+                        //                 &context.platform_state,
+                        //                 // <pca>
+                        //                 //attributes.capability.into(),
+                        //                 provider_set.uses.clone().into(),
+                        //                 // </pca>
+                        //                 attributes.method.into(),
+                        //                 attributes.event,
+                        //                 call_context,
+                        //                 request,
+                        //             )
+                        //             .await;
 
-                                    Ok(ListenerResponse {
-                                        listening,
-                                        event: attributes.event.into(),
-                                    })
-                                },
-                            )
-                            .unwrap();
+                        //             Ok(ListenerResponse {
+                        //                 listening,
+                        //                 event: attributes.event.into(),
+                        //             })
+                        //         },
+                        //     )
+                        //     .unwrap();
+                        if let Some(capability) = provider_set.uses {
+                            rpc_module
+                                .register_async_method(
+                                    request_method,
+                                    move |params, context| async move {
+                                        let mut params_sequence = params.sequence();
+                                        let call_context: CallContext =
+                                            params_sequence.next().unwrap();
+                                        let request: ListenRequest =
+                                            params_sequence.next().unwrap();
+                                        let listening = request.listen;
+
+                                        ProviderBroker::register_or_unregister_provider(
+                                            &context.platform_state,
+                                            capability.into(),
+                                            attributes.method.into(),
+                                            attributes.event,
+                                            call_context,
+                                            request,
+                                        )
+                                        .await;
+
+                                        Ok(ListenerResponse {
+                                            listening,
+                                            event: attributes.event.into(),
+                                        })
+                                    },
+                                )
+                                .unwrap();
+                        }
                     }
 
                     // Register focus function
@@ -137,25 +172,49 @@ impl ProviderRegistrar {
                         let focus_method =
                             FireboltOpenRpcMethod::name_with_lowercase_module(&method.name).leak();
 
-                        rpc_module
-                            .register_async_method(
-                                focus_method,
-                                move |params, context| async move {
-                                    let mut params_sequence = params.sequence();
-                                    let call_context: CallContext = params_sequence.next().unwrap();
-                                    let request: FocusRequest = params_sequence.next().unwrap();
+                        // <pca>
+                        // rpc_module
+                        //     .register_async_method(
+                        //         focus_method,
+                        //         move |params, context| async move {
+                        //             let mut params_sequence = params.sequence();
+                        //             let call_context: CallContext = params_sequence.next().unwrap();
+                        //             let request: FocusRequest = params_sequence.next().unwrap();
 
-                                    ProviderBroker::focus(
-                                        &context.platform_state,
-                                        call_context,
-                                        attributes.capability.into(),
-                                        request,
-                                    )
-                                    .await;
-                                    Ok(None) as RpcResult<Option<()>>
-                                },
-                            )
-                            .unwrap();
+                        //             ProviderBroker::focus(
+                        //                 &context.platform_state,
+                        //                 call_context,
+                        //                 attributes.capability.into(),
+                        //                 request,
+                        //             )
+                        //             .await;
+                        //             Ok(None) as RpcResult<Option<()>>
+                        //         },
+                        //     )
+                        //     .unwrap();
+                        if let Some(capability) = provider_set.uses {
+                            rpc_module
+                                .register_async_method(
+                                    focus_method,
+                                    move |params, context| async move {
+                                        let mut params_sequence = params.sequence();
+                                        let call_context: CallContext =
+                                            params_sequence.next().unwrap();
+                                        let request: FocusRequest = params_sequence.next().unwrap();
+
+                                        ProviderBroker::focus(
+                                            &context.platform_state,
+                                            call_context,
+                                            capability.into(),
+                                            request,
+                                        )
+                                        .await;
+                                        Ok(None) as RpcResult<Option<()>>
+                                    },
+                                )
+                                .unwrap();
+                        }
+                        // </pca>
                     }
 
                     // Register response function

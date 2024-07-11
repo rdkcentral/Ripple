@@ -159,7 +159,9 @@ pub struct ProviderAttributes {
     pub event: &'static str,
     pub response_payload_type: ProviderResponsePayloadType,
     pub error_payload_type: ProviderResponsePayloadType,
-    pub capability: &'static str,
+    // <pca>
+    //pub capability: &'static str,
+    // </pca>
     pub method: &'static str,
 }
 
@@ -177,7 +179,9 @@ pub const ACKNOWLEDGE_CHALLENGE_ATTRIBS: ProviderAttributes = ProviderAttributes
     event: ACK_CHALLENGE_EVENT,
     response_payload_type: ProviderResponsePayloadType::ChallengeResponse,
     error_payload_type: ProviderResponsePayloadType::ChallengeError,
-    capability: ACK_CHALLENGE_CAPABILITY,
+    // <pca>
+    //capability: ACK_CHALLENGE_CAPABILITY,
+    // </pca>
     method: "challenge",
 };
 
@@ -185,7 +189,9 @@ pub const PIN_CHALLENGE_ATTRIBS: ProviderAttributes = ProviderAttributes {
     event: PIN_CHALLENGE_EVENT,
     response_payload_type: ProviderResponsePayloadType::PinChallengeResponse,
     error_payload_type: ProviderResponsePayloadType::ChallengeError,
-    capability: PIN_CHALLENGE_CAPABILITY,
+    // <pca>
+    //capability: PIN_CHALLENGE_CAPABILITY,
+    // </pca>
     method: "challenge",
 };
 

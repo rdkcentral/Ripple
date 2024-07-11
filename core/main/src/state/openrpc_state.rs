@@ -54,6 +54,7 @@ pub struct ProviderSet {
     // <pca>
     pub provides: Option<String>,
     pub provided_by: Option<String>,
+    pub uses: Option<String>,
     // </pca>
 }
 
@@ -151,6 +152,7 @@ pub fn build_provider_sets(
             let mut has_x_error_for = false;
             let mut x_provided_by = None;
             let mut x_provides = None;
+            let mut x_uses = None;
 
             for tag in tags {
                 if tag.name.eq("event") {
@@ -163,6 +165,7 @@ pub fn build_provider_sets(
                     has_x_error_for |= tag.error_for.is_some();
                     x_provided_by = tag.provided_by.clone();
                     x_provides = tag.provides.clone();
+                    x_uses = tag.uses.clone();
                 }
             }
 
@@ -186,6 +189,8 @@ pub fn build_provider_sets(
                 // x-provided-by can only be set if x-provides isn't.
                 provider_set.provided_by = x_provided_by;
             }
+
+            provider_set.uses = x_uses;
 
             let module: Vec<&str> = method.name.split('.').collect();
             provider_set.attributes = ProviderAttributes::get(module[0]);
