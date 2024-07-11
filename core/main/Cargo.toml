@@ -45,17 +45,17 @@ serde.workspace = true
 regex.workspace = true
 serde_json.workspace = true
 
-arrayvec = "0.7.2"
+arrayvec = { version ="0.7.2", default-features = false }
 env-file-reader = "0.2.0"
 sd-notify = { version = "0.4.1", optional = true }
 exitcode = "1.1.2"
-rand = "0.8"
+rand = { version = "0.8", default-features = false }
 url.workspace = true
-futures-util = { version = "0.3.28", default-features = false, features = ["sink", "std"] }
-hyper = { version = "=0.14.27", features = ["client", "http1", "tcp"]}
-jaq-interpret = "1.2.1"
-jaq-parse = "1.0.2"
-jaq-core = "1.2.1"
+futures-util = { version = "0.3.28", features = ["sink", "std"], default-features = false}
+hyper = { version = "=0.14.27", features = ["client", "http1", "tcp"], default-features = false }
+jaq-interpret = { version = "1.2.1", default-features = false }
+jaq-parse = { version ="1.0.2", default-features = false }
+jaq-core = { version ="1.2.1", default-features = false }
 
 openrpc_validator = { path = "../../openrpc_validator" }
 
