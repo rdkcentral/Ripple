@@ -20,7 +20,11 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use super::platform_state::PlatformState;
+use crate::firebolt::handlers::device_rpc::get_device_name;
+use crate::processor::storage::storage_manager::StorageManager;
 use jsonrpsee::tracing::debug;
+use rand::Rng;
 use ripple_sdk::{
     api::{
         context::RippleContextUpdateRequest,
@@ -30,6 +34,7 @@ use ripple_sdk::{
             fb_metrics::{MetricsContext, MetricsEnvironment},
             fb_openrpc::FireboltSemanticVersion,
         },
+        gateway::rpc_gateway_api::{ApiProtocol, CallContext},
         manifest::device_manifest::DataGovernanceConfig,
         storage_property::StorageProperty,
     },
@@ -37,13 +42,8 @@ use ripple_sdk::{
     extn::extn_client_message::ExtnResponse,
     log::error,
     utils::error::RippleError,
+    uuid::Uuid,
 };
-
-use rand::Rng;
-
-use crate::processor::storage::storage_manager::StorageManager;
-
-use super::platform_state::PlatformState;
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
@@ -267,10 +267,20 @@ impl MetricsState {
 
         debug!("got os_info={:?}", &os_info);
 
-        let mut device_name = "no.device.name.set".to_string();
-        if let Ok(resp) = StorageManager::get_string(state, StorageProperty::DeviceName).await {
-            device_name = resp;
-        }
+        let ctx = CallContext::new(
+            Uuid::new_v4().to_string(),
+            Uuid::new_v4().to_string(),
+            "internal".into(),
+            1,
+            ApiProtocol::Extn,
+            "device.name".to_string(),
+            None,
+            false,
+        );
+        let device_name = get_device_name(&ctx, state)
+            .await
+            .unwrap_or("no.device.name.set".to_string());
+        debug!("got device_name={:?}", &device_name);
 
         let mut timezone: Option<String> = None;
         if let Ok(resp) = state
