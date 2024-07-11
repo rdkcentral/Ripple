@@ -42,7 +42,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::{
     service::telemetry_builder::TelemetryBuilder,
-    state::{platform_state::PlatformState, session_state::Session},
+    state::{openrpc_state::ProviderSet, platform_state::PlatformState, session_state::Session},
     utils::router_utils::{return_api_message_for_transport, return_extn_response},
 };
 
@@ -82,8 +82,17 @@ async fn resolve_route(
     methods: Methods,
     resources: Resources,
     req: RpcRequest,
+    // <pca>
+    provider_set: Option<ProviderSet>,
+    // </pca>
 ) -> Result<ApiMessage, RippleError> {
     info!("Routing {}", req.method);
+    // <pca> resolve_route </pca>
+    println!(
+        "*** _DEBUG: req.method={}, provider_set={:?}",
+        req.method, provider_set
+    );
+    // <pca> YAH: Check if it's a provider and pass request to ProviderBroker? </pca>
     let id = Id::Number(req.ctx.call_id);
     let (sink_tx, mut sink_rx) = futures_channel::mpsc::unbounded::<String>();
     let sink = MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES);
@@ -139,12 +148,23 @@ impl RpcRouter {
     ) {
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
+        // <pca>
+        println!("*** _DEBUG: route: req.method={}", req.method);
+        let provider_map = state.open_rpc_state.get_provider_map();
+        let provider_set = match provider_map.get(&req.method) {
+            Some(ps) => Some(ps.clone()),
+            None => None,
+        };
+        // </pca>
 
         tokio::spawn(async move {
             let method = req.method.clone();
             let app_id = req.ctx.app_id.clone();
             let start = Utc::now().timestamp_millis();
-            let resp = resolve_route(methods, resources, req.clone()).await;
+            // <pca>
+            //let resp = resolve_route(methods, resources, req.clone()).await;
+            let resp = resolve_route(methods, resources, req.clone(), provider_set).await;
+            // </pca>
 
             let status = match resp.clone() {
                 Ok(msg) => {
@@ -195,7 +215,9 @@ impl RpcRouter {
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
         tokio::spawn(async move {
-            if let Ok(msg) = resolve_route(methods, resources, req).await {
+            // <pca>
+            //if let Ok(msg) = resolve_route(methods, resources, req).await {
+            if let Ok(msg) = resolve_route(methods, resources, req, None).await {
                 return_extn_response(msg, extn_msg);
             }
         });

@@ -307,6 +307,10 @@ pub struct FireboltOpenRpcTag {
     pub manages: Option<Vec<String>>,
     #[serde(rename = "x-provides")]
     pub provides: Option<String>,
+    // <pca>
+    #[serde(rename = "x-provided-by")]
+    pub provided_by: Option<String>,
+    // </pca>
     #[serde(rename = "x-alternative")]
     pub alternative: Option<String>,
     #[serde(rename = "x-since")]

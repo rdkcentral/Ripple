@@ -265,6 +265,10 @@ impl FireboltWs {
                                 "firebolt_ws Received Firebolt request {} {} {}",
                                 connection_id, request.ctx.request_id, request.method
                             );
+                            debug!(
+                                "*** _DEBUG: firebolt_ws Received Firebolt request {} {} {}",
+                                connection_id, request.ctx.request_id, request.method
+                            );
                             let msg = FireboltGatewayCommand::HandleRpc { request };
                             if let Err(e) = client.clone().send_gateway_command(msg) {
                                 error!("failed to send request {:?}", e);
@@ -289,6 +293,7 @@ impl FireboltWs {
                                     }
                                 }
                             }
+                            error!("*** _DEBUG: invalid message {}", req_text);
                             error!("invalid message {}", req_text)
                         }
                     }

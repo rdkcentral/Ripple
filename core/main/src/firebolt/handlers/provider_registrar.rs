@@ -93,8 +93,8 @@ impl ProviderRegistrar {
 
     pub fn register(platform_state: &PlatformState, methods: &mut Methods) {
         let provider_map = platform_state.open_rpc_state.get_provider_map();
-        for provides in provider_map.clone().keys() {
-            if let Some(provider_set) = provider_map.get(provides) {
+        for method_name in provider_map.clone().keys() {
+            if let Some(provider_set) = provider_map.get(method_name) {
                 if let Some(attributes) = provider_set.attributes {
                     let rpc_module_context = RpcModuleContext::new(platform_state.clone());
                     let mut rpc_module = RpcModule::new(rpc_module_context.clone());

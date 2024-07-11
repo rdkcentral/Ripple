@@ -49,6 +49,8 @@ impl FireboltGatewayStep {
     async fn init_handlers(&self, state: PlatformState, extn_methods: Methods) -> Methods {
         let mut methods = Methods::new();
 
+        // <pca> This loads up all of the firebolt methods </pca>
+
         // TODO: Ultimately this should be able to register all provider below, for now just does
         // AcknowledgeChallenge and PinChallenge.
         ProviderRegistrar::register(&state, &mut methods);
