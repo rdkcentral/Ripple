@@ -34,7 +34,7 @@ use ripple_sdk::{
             fb_metrics::{MetricsContext, MetricsEnvironment},
             fb_openrpc::FireboltSemanticVersion,
         },
-        gateway::rpc_gateway_api::{ApiProtocol, CallContext},
+        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
         manifest::device_manifest::DataGovernanceConfig,
         storage_property::StorageProperty,
     },
@@ -264,7 +264,6 @@ impl MetricsState {
                 version: FireboltSemanticVersion::new(0, 0, 0, "no.os.ver.set".into()),
             },
         };
-
         debug!("got os_info={:?}", &os_info);
 
         let ctx = CallContext::new(

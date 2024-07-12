@@ -18,11 +18,9 @@
 use std::{collections::HashMap, env, time::Duration};
 
 use crate::{
-    firebolt::rpc::RippleRPCProvider,
-    processor::storage::storage_manager::StorageManager,
-    service::apps::app_events::AppEvents,
-    state::platform_state::PlatformState,
-    utils::rpc_utils::{rpc_add_event_listener, rpc_err},
+    firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManager,
+    service::apps::app_events::AppEvents, state::platform_state::PlatformState,
+    utils::rpc_utils::rpc_err,
 };
 
 use jsonrpsee::{
@@ -41,7 +39,6 @@ use ripple_sdk::{
             },
             device_info_request::{DeviceInfoRequest, DeviceResponse, FirmwareInfo},
             device_operator::DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS,
-            device_peristence::SetStringProperty,
             device_request::{
                 AudioProfile, DeviceVersionResponse, HdcpProfile, HdrProfile, NetworkResponse,
             },
@@ -53,10 +50,7 @@ use ripple_sdk::{
         },
         gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
         session::{AccountSessionRequest, ProvisionRequest},
-        storage_property::{
-            StorageProperty, StoragePropertyData, EVENT_DEVICE_DEVICE_NAME_CHANGED,
-            EVENT_DEVICE_NAME_CHANGED, KEY_FIREBOLT_DEVICE_UID, SCOPE_DEVICE,
-        },
+        storage_property::{StoragePropertyData, KEY_FIREBOLT_DEVICE_UID, SCOPE_DEVICE},
     },
     extn::extn_client_message::ExtnResponse,
     log::error,
@@ -260,26 +254,22 @@ pub async fn get_ll_mac_addr(state: PlatformState) -> RpcResult<String> {
 pub async fn get_device_name(ctx: &CallContext, state: &PlatformState) -> RpcResult<String> {
     let mut new_ctx = ctx.clone();
     new_ctx.protocol = ApiProtocol::Extn;
-    println!("**** new_ctx: {:?}", new_ctx.clone());
 
     let rpc_request = RpcRequest {
         ctx: new_ctx.clone(),
         method: "device.name".into(),
         params_json: RpcRequest::prepend_ctx(None, &new_ctx),
     };
-    println!("**** rpc_request: {:?}", rpc_request);
 
     let resp = state
         .get_client()
         .get_extn_client()
         .main_internal_request(rpc_request.clone())
         .await;
-    println!("**** resp: {:?}", resp.clone());
 
     if let Ok(res) = resp {
         if let Some(ExtnResponse::Value(val)) = res.payload.extract::<ExtnResponse>() {
             if let Ok(v) = from_value::<String>(val) {
-                println!("**** device_name from thunder: {:?}", v.clone());
                 return Ok(v);
             }
         }

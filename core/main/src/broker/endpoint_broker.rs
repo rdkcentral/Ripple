@@ -324,6 +324,10 @@ impl EndpointBrokerState {
         }
     }
 
+    pub fn has_rule(&self, rpc_request: &RpcRequest) -> bool {
+        self.rule_engine.get_rule(rpc_request).is_some()
+    }
+
     /// Main handler method whcih checks for brokerage and then sends the request for
     /// asynchronous processing
     pub fn handle_brokerage(
