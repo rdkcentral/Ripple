@@ -143,9 +143,17 @@ impl WSNotificationBroker {
     ) -> mpsc::Sender<String> {
         let (tx, mut tr) = mpsc::channel::<String>(1);
         tokio::spawn(async move {
-            let (final_url, tcp) = connect(&url, Some(request_c.clone().rule.alias)).await;
             let app_id = request_c.get_id();
-            let (stream, _) = client_async(final_url, tcp).await.unwrap();
+            let alias = request_c.rule.alias.clone();
+            let (stream, _) = loop {
+                let (final_url, tcp) = connect(&url, Some(alias.clone())).await;
+                let result = client_async(final_url.clone(), tcp).await;
+                if let Ok(r) = result {
+                    break r;
+                } else {
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+            };
             let (mut ws_tx, mut ws_rx) = stream.split();
 
             tokio::pin! {
