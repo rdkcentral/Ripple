@@ -23,9 +23,7 @@ use crate::api::device::entertainment_data::{
 
 use super::{
     fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
-    fb_pin::{
-        PinChallengeRequest, PinChallengeResponse, PIN_CHALLENGE_CAPABILITY, PIN_CHALLENGE_EVENT,
-    },
+    fb_pin::{PinChallengeRequest, PinChallengeResponse},
 };
 
 pub const ACK_CHALLENGE_EVENT: &str = "acknowledgechallenge.onRequestChallenge";

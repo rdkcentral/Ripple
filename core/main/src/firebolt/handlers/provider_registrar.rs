@@ -23,7 +23,7 @@ use crate::{
         app_events::AppEvents,
         provider_broker::{ProviderBroker, ProviderBrokerRequest},
     },
-    state::{cap, openrpc_state::ProviderSet, platform_state::PlatformState},
+    state::{openrpc_state::ProviderSet, platform_state::PlatformState},
 };
 use jsonrpsee::{
     core::{server::rpc_module::Methods, Error, RpcResult},
@@ -37,7 +37,7 @@ use ripple_sdk::{
             fb_openrpc::FireboltOpenRpcMethod,
             fb_pin::PinChallengeResponse,
             provider::{
-                self, ChallengeResponse, ExternalProviderResponse, FocusRequest,
+                ChallengeResponse, ExternalProviderError, ExternalProviderResponse, FocusRequest,
                 ProviderRequestPayload, ProviderResponse, ProviderResponsePayload,
                 ProviderResponsePayloadType,
             },
@@ -401,7 +401,7 @@ impl ProviderRegistrar {
                             .unwrap();
                     }
 
-                    if let Some(error) = &provider_set.error_for {
+                    if provider_set.error_for.is_some() {
                         if let Some(attributes) = provider_set.attributes {
                             println!(
                                 "*** _DEBUG: Registering method: Error function: method_name={}",
@@ -411,9 +411,6 @@ impl ProviderRegistrar {
                                 "Registering method: Error function: method_name={}",
                                 method_name
                             );
-
-                            // let error_method =
-                            // FireboltOpenRpcMethod::name_with_lowercase_module(method_name).leak();
 
                             rpc_module
                                 .register_async_method(
@@ -453,7 +450,7 @@ impl ProviderRegistrar {
                         }
                     }
 
-                    if let Some(provided_by) = &provider_set.provided_by {
+                    if provider_set.provided_by.is_some() {
                         println!(
                             "*** _DEBUG: Registering method: Provider invoker: method_name={}",
                             method_name
@@ -559,7 +556,7 @@ impl ProviderRegistrar {
                                                             return Ok(provider_response_payload
                                                                 .as_value());
                                                         }
-                                                        Err(e) => {
+                                                        Err(_) => {
                                                             return Err(Error::Custom(
                                                                 String::from(
                                                                     "Error returning from provider",
@@ -587,7 +584,7 @@ impl ProviderRegistrar {
                 }
 
                 // Register focus function
-                if let Some(method) = provider_set.focus.clone() {
+                if provider_set.focus.is_some() {
                     println!(
                         "*** _DEBUG: Registering method: Focus function: method_name={}",
                         method_name

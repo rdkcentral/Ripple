@@ -41,12 +41,8 @@ use ripple_sdk::{
 use std::sync::{Arc, RwLock};
 
 use crate::{
-    service::{apps::provider_broker::ProviderBroker, telemetry_builder::TelemetryBuilder},
-    state::{
-        openrpc_state::ProviderSet,
-        platform_state::{self, PlatformState},
-        session_state::Session,
-    },
+    service::telemetry_builder::TelemetryBuilder,
+    state::{platform_state::PlatformState, session_state::Session},
     utils::router_utils::{return_api_message_for_transport, return_extn_response},
 };
 

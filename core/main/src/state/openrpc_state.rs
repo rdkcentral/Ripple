@@ -15,22 +15,19 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use ripple_sdk::api::{
+    firebolt::{
+        fb_capabilities::FireboltPermission,
+        fb_openrpc::{
+            CapabilitySet, FireboltOpenRpc, FireboltOpenRpcMethod, FireboltSemanticVersion,
+            FireboltVersionManifest, OpenRPCParser,
+        },
+        provider::ProviderAttributes,
+    },
+    manifest::exclusory::{Exclusory, ExclusoryImpl},
+};
 use ripple_sdk::log::{debug, error};
 use ripple_sdk::{api::firebolt::fb_openrpc::CapabilityPolicy, serde_json};
-use ripple_sdk::{
-    api::{
-        firebolt::{
-            fb_capabilities::FireboltPermission,
-            fb_openrpc::{
-                CapabilitySet, FireboltOpenRpc, FireboltOpenRpcMethod, FireboltSemanticVersion,
-                FireboltVersionManifest, OpenRPCParser,
-            },
-            provider::ProviderAttributes,
-        },
-        manifest::exclusory::{Exclusory, ExclusoryImpl},
-    },
-    semver::Op,
-};
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},

@@ -29,12 +29,12 @@ use ripple_sdk::{
                 ProviderResponsePayload,
             },
         },
-        gateway::rpc_gateway_api::{ApiMessage, CallContext, CallerSession, RpcRequest},
+        gateway::rpc_gateway_api::{CallContext, CallerSession},
     },
     log::{debug, error, info, warn},
     serde_json,
     tokio::sync::oneshot,
-    utils::{channel_utils::oneshot_send_and_log, error::RippleError},
+    utils::channel_utils::oneshot_send_and_log,
     uuid::Uuid,
 };
 use serde::{Deserialize, Serialize};
@@ -444,16 +444,4 @@ impl ProviderBroker {
             warn!("Focus: No active session for request");
         }
     }
-
-    // <pca>
-    pub async fn handle_passthrough_request(
-        platform_state: &PlatformState,
-        rpc_request: RpcRequest,
-    ) {
-        println!(
-            "*** _DEBUG: handle_passthrough_request: rpc_request={:?}",
-            rpc_request
-        );
-    }
-    // </pca>
 }
