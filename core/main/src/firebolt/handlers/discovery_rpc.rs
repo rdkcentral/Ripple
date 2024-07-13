@@ -625,7 +625,10 @@ impl DiscoveryServer for DiscoveryImpl {
             &self.state,
             FireboltCap::Short(ENTITY_INFO_CAPABILITY.into()).as_str(),
             String::from("entityInfo"),
-            ENTITY_INFO_EVENT,
+            // <pca> 3
+            //ENTITY_INFO_EVENT,
+            String::from(ENTITY_INFO_EVENT),
+            // </pca>
             ctx,
             request,
         )
@@ -697,7 +700,10 @@ impl DiscoveryServer for DiscoveryImpl {
             &self.state,
             FireboltCap::Short(PURCHASED_CONTENT_CAPABILITY.into()).as_str(),
             String::from("purchasedContent"),
-            PURCHASED_CONTENT_EVENT,
+            // <pca> 3
+            //PURCHASED_CONTENT_EVENT,
+            String::from(PURCHASED_CONTENT_EVENT),
+            // </pca>
             ctx,
             request,
         )

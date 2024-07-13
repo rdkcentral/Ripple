@@ -221,7 +221,10 @@ impl LocalizationImpl {
             // TODO update with Firebolt Cap in later effort
             "xrn:firebolt:capability:localization:locale".into(),
             method.into(),
-            event_name,
+            // <pca> 3
+            //event_name,
+            String::from(event_name),
+            // </pca>
             ctx,
             request,
         )

@@ -54,6 +54,7 @@ impl FireboltGatewayStep {
         // TODO: Ultimately this should be able to register all provider below, for now just does
         // AcknowledgeChallenge and PinChallenge.
         ProviderRegistrar::register(&state, &mut methods);
+        // </pca>
 
         let _ = methods.merge(DeviceRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(WifiRPCProvider::provide_with_alias(state.clone()));

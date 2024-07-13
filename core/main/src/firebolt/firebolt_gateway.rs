@@ -214,10 +214,6 @@ impl FireboltGateway {
                         .handle_brokerage(request_c.clone(), extn_msg.clone())
                     {
                         // Route
-                        println!(
-                            "*** _DEBUG: route: request.clone().ctx.protocol={:?}",
-                            request.clone().ctx.protocol
-                        );
                         match request.clone().ctx.protocol {
                             ApiProtocol::Extn => {
                                 if let Some(extn_msg) = extn_msg {

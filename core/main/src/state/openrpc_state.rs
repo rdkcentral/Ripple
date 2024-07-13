@@ -49,12 +49,17 @@ pub struct ProviderSet {
     pub request: Option<FireboltOpenRpcMethod>,
     pub focus: Option<FireboltOpenRpcMethod>,
     pub response: Option<FireboltOpenRpcMethod>,
-    pub error: Option<FireboltOpenRpcMethod>,
+    // <pca> 2
+    //pub error: Option<FireboltOpenRpcMethod>,
+    pub error_for: Option<String>,
+    // </pca>
     pub attributes: Option<&'static ProviderAttributes>,
     // <pca>
     pub provides: Option<String>,
     pub provided_by: Option<String>,
-    pub uses: Option<String>,
+    pub uses: Option<Vec<String>>,
+    pub event: bool,
+    pub provides_to: Option<String>,
     // </pca>
 }
 
@@ -149,7 +154,10 @@ pub fn build_provider_sets(
             let mut has_caps = false;
             let mut has_x_allow_focus_for = false;
             let mut has_x_response_for = false;
-            let mut has_x_error_for = false;
+            // <pca> 2
+            //let mut has_x_error_for = false;
+            let mut x_error_for = None;
+            // </pca>
             let mut x_provided_by = None;
             let mut x_provides = None;
             let mut x_uses = None;
@@ -162,14 +170,22 @@ pub fn build_provider_sets(
                     has_x_provides = tag.get_provides();
                     has_x_allow_focus_for |= tag.allow_focus_for.is_some();
                     has_x_response_for |= tag.response_for.is_some();
-                    has_x_error_for |= tag.error_for.is_some();
+                    // <pca> 2
+                    //has_x_error_for |= tag.error_for.is_some();
+                    x_error_for = tag.error_for.clone();
+                    // </pca>
                     x_provided_by = tag.provided_by.clone();
                     x_provides = tag.provides.clone();
                     x_uses = tag.uses.clone();
                 }
             }
 
-            let mut provider_set = ProviderSet::new();
+            let mut provider_set = provider_sets
+                .get(&FireboltOpenRpcMethod::name_with_lowercase_module(
+                    &method.name,
+                ))
+                .unwrap_or(&ProviderSet::new())
+                .clone();
 
             if let Some(_capability) = has_x_provides {
                 if has_event && has_caps {
@@ -181,21 +197,36 @@ pub fn build_provider_sets(
                 if has_x_response_for {
                     provider_set.response = Some(method.clone());
                 }
-                if has_x_error_for {
-                    provider_set.error = Some(method.clone());
-                }
+                // <pca> 2
+                // if has_x_error_for {
+                //     provider_set.error = Some(method.clone());
+                // }
+                provider_set.error_for = x_error_for;
+                // </pca>
                 provider_set.provides = x_provides;
             } else {
                 // x-provided-by can only be set if x-provides isn't.
-                provider_set.provided_by = x_provided_by;
+                provider_set.provided_by = x_provided_by.clone();
+                if let Some(provided_by) = x_provided_by {
+                    let mut provided_by_set = provider_sets
+                        .get(&provided_by)
+                        .unwrap_or(&ProviderSet::new())
+                        .clone();
+
+                    provided_by_set.provides_to = Some(method.name.clone());
+
+                    provider_sets.insert(
+                        FireboltOpenRpcMethod::name_with_lowercase_module(&provided_by),
+                        provided_by_set.to_owned(),
+                    );
+                }
             }
 
             provider_set.uses = x_uses;
+            provider_set.event = has_event;
 
             let module: Vec<&str> = method.name.split('.').collect();
             provider_set.attributes = ProviderAttributes::get(module[0]);
-
-            println!("build_provider_sets: provider_set={:?}", provider_set);
 
             provider_sets.insert(
                 FireboltOpenRpcMethod::name_with_lowercase_module(&method.name),

@@ -123,6 +123,23 @@ impl ProviderResponsePayload {
             _ => None,
         }
     }
+
+    // <pca>
+    pub fn as_value(&self) -> serde_json::Value {
+        match self {
+            ProviderResponsePayload::ChallengeResponse(res) => serde_json::to_value(res).unwrap(),
+            ProviderResponsePayload::ChallengeError(res) => serde_json::to_value(res).unwrap(),
+            ProviderResponsePayload::PinChallengeResponse(res) => {
+                serde_json::to_value(res).unwrap()
+            }
+            ProviderResponsePayload::KeyboardResult(res) => serde_json::to_value(res).unwrap(),
+            ProviderResponsePayload::EntityInfoResponse(res) => serde_json::to_value(res).unwrap(),
+            ProviderResponsePayload::PurchasedContentResponse(res) => {
+                serde_json::to_value(res).unwrap()
+            }
+        }
+    }
+    // </pca>
 }
 
 #[derive(Serialize, Deserialize)]
@@ -156,43 +173,51 @@ pub struct ExternalProviderResponse<T> {
 #[derive(Debug, Clone, Serialize)]
 
 pub struct ProviderAttributes {
-    pub event: &'static str,
+    // <pca>
+    //pub event: &'static str,
+    // </pca>
     pub response_payload_type: ProviderResponsePayloadType,
     pub error_payload_type: ProviderResponsePayloadType,
     // <pca>
     //pub capability: &'static str,
     // </pca>
-    pub method: &'static str,
+    // <pca> 3
+    //pub method: &'static str,
+    // </pca>
 }
 
 impl ProviderAttributes {
     pub fn get(module: &str) -> Option<&'static ProviderAttributes> {
         match module {
             "AcknowledgeChallenge" => Some(&ACKNOWLEDGE_CHALLENGE_ATTRIBS),
-            "PinChallenge" => Some(&ACKNOWLEDGE_CHALLENGE_ATTRIBS),
+            "PinChallenge" => Some(&PIN_CHALLENGE_ATTRIBS),
             _ => None,
         }
     }
 }
 
 pub const ACKNOWLEDGE_CHALLENGE_ATTRIBS: ProviderAttributes = ProviderAttributes {
-    event: ACK_CHALLENGE_EVENT,
+    // <pca>
+    //event: ACK_CHALLENGE_EVENT,
+    // </pca>
     response_payload_type: ProviderResponsePayloadType::ChallengeResponse,
     error_payload_type: ProviderResponsePayloadType::ChallengeError,
     // <pca>
     //capability: ACK_CHALLENGE_CAPABILITY,
+    //method: "challenge",
     // </pca>
-    method: "challenge",
 };
 
 pub const PIN_CHALLENGE_ATTRIBS: ProviderAttributes = ProviderAttributes {
-    event: PIN_CHALLENGE_EVENT,
+    // <pca>
+    //event: PIN_CHALLENGE_EVENT,
+    // </pca>
     response_payload_type: ProviderResponsePayloadType::PinChallengeResponse,
     error_payload_type: ProviderResponsePayloadType::ChallengeError,
     // <pca>
     //capability: PIN_CHALLENGE_CAPABILITY,
+    //method: "challenge",
     // </pca>
-    method: "challenge",
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

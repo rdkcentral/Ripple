@@ -29,12 +29,12 @@ use ripple_sdk::{
                 ProviderResponsePayload,
             },
         },
-        gateway::rpc_gateway_api::{CallContext, CallerSession},
+        gateway::rpc_gateway_api::{ApiMessage, CallContext, CallerSession, RpcRequest},
     },
     log::{debug, error, info, warn},
     serde_json,
     tokio::sync::oneshot,
-    utils::channel_utils::oneshot_send_and_log,
+    utils::{channel_utils::oneshot_send_and_log, error::RippleError},
     uuid::Uuid,
 };
 use serde::{Deserialize, Serialize};
@@ -76,7 +76,10 @@ pub struct ProviderBroker {}
 
 #[derive(Clone, Debug)]
 struct ProviderMethod {
-    event_name: &'static str,
+    // <pca> 3
+    //event_name: &'static str,
+    event_name: String,
+    // </pca>
     provider: CallContext,
 }
 
@@ -121,7 +124,10 @@ impl ProviderBroker {
         pst: &PlatformState,
         capability: String,
         method: String,
-        event_name: &'static str,
+        // <pca> 3
+        //event_name: &'static str,
+        event_name: String,
+        // </pca>
         provider: CallContext,
         listen_request: ListenRequest,
     ) {
@@ -164,7 +170,10 @@ impl ProviderBroker {
         pst: &PlatformState,
         capability: String,
         method: String,
-        event_name: &'static str,
+        // <pca> 3
+        //event_name: &'static str,
+        event_name: String,
+        // </pca>
         provider: CallContext,
         listen_request: ListenRequest,
     ) {
@@ -175,7 +184,10 @@ impl ProviderBroker {
         let cap_method = format!("{}:{}", capability, method);
         AppEvents::add_listener(
             pst,
-            event_name.to_string(),
+            // <pca> 3
+            //event_name.to_string(),
+            event_name.clone(),
+            // </pca>
             provider.clone(),
             listen_request,
         );
@@ -212,11 +224,17 @@ impl ProviderBroker {
         for cap in all_caps {
             if let Some(provider) = provider_methods.get(&cap) {
                 if let Some(list) = result.get_mut(&provider.provider.app_id) {
-                    list.push(String::from(provider.event_name));
+                    // <pca> 3
+                    //list.push(String::from(provider.event_name));
+                    list.push(provider.event_name.clone());
+                    // </pca>
                 } else {
                     result.insert(
                         provider.provider.app_id.clone(),
-                        vec![String::from(provider.event_name)],
+                        // <pca> 3
+                        //vec![String::from(provider.event_name)],
+                        vec![provider.event_name.clone()],
+                        // </pca>
                     );
                 }
             }
@@ -233,7 +251,10 @@ impl ProviderBroker {
             provider_methods.get(&cap_method).cloned()
         };
         if let Some(provider) = provider_opt {
-            let event_name = provider.event_name;
+            // <pca> 3
+            //let event_name = provider.event_name;
+            let event_name = provider.event_name.clone();
+            // </pca>
             let req_params = request.request.clone();
             let app_id_opt = request.app_id.clone();
             let c_id = ProviderBroker::start_provider_session(pst, request, provider);
@@ -242,7 +263,10 @@ impl ProviderBroker {
                 AppEvents::emit_to_app(
                     pst,
                     app_id,
-                    event_name,
+                    // <pca> 3
+                    //event_name,
+                    &event_name,
+                    // </pca>
                     &serde_json::to_value(ProviderRequest {
                         correlation_id: c_id,
                         parameters: req_params,
@@ -254,7 +278,10 @@ impl ProviderBroker {
                 debug!("Broadcasting request to all the apps!!");
                 AppEvents::emit(
                     pst,
-                    event_name,
+                    // <pca> 3
+                    //event_name,
+                    &event_name,
+                    // </pca>
                     &serde_json::to_value(ProviderRequest {
                         correlation_id: c_id,
                         parameters: req_params,
@@ -417,4 +444,16 @@ impl ProviderBroker {
             warn!("Focus: No active session for request");
         }
     }
+
+    // <pca>
+    pub async fn handle_passthrough_request(
+        platform_state: &PlatformState,
+        rpc_request: RpcRequest,
+    ) {
+        println!(
+            "*** _DEBUG: handle_passthrough_request: rpc_request={:?}",
+            rpc_request
+        );
+    }
+    // </pca>
 }
