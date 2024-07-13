@@ -96,16 +96,12 @@ impl ProviderResponsePayload {
 
     pub fn as_challenge_response(&self) -> Option<ChallengeResponse> {
         match self {
-            ProviderResponsePayload::ChallengeResponse(res) => {
-                res.granted.map(|value| ChallengeResponse {
-                    granted: Some(value),
-                })
-            }
-            ProviderResponsePayload::PinChallengeResponse(res) => {
-                res.get_granted().map(|value| ChallengeResponse {
-                    granted: Some(value),
-                })
-            }
+            ProviderResponsePayload::ChallengeResponse(res) => Some(ChallengeResponse {
+                granted: res.granted,
+            }),
+            ProviderResponsePayload::PinChallengeResponse(res) => Some(ChallengeResponse {
+                granted: res.granted,
+            }),
             _ => None,
         }
     }
@@ -168,6 +164,13 @@ pub struct ExternalProviderRequest<T> {
 pub struct ExternalProviderResponse<T> {
     pub correlation_id: String,
     pub result: T,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalProviderError {
+    pub correlation_id: String,
+    pub error: ChallengeError,
 }
 
 #[derive(Debug, Clone, Serialize)]

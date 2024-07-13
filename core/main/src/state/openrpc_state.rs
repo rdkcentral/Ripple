@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use ripple_sdk::log::error;
+use ripple_sdk::log::{debug, error};
 use ripple_sdk::{api::firebolt::fb_openrpc::CapabilityPolicy, serde_json};
 use ripple_sdk::{
     api::{
@@ -252,7 +252,7 @@ pub struct OpenRpcState {
 }
 
 impl OpenRpcState {
-    pub fn load_additional_rpc(rpc: &mut FireboltOpenRpc, file_contents: &'static str) {
+    fn load_additional_rpc(rpc: &mut FireboltOpenRpc, file_contents: &'static str) {
         match serde_json::from_str::<OpenRPCParser>(file_contents) {
             Ok(addl_rpc) => {
                 for m in addl_rpc.methods {
@@ -264,9 +264,45 @@ impl OpenRpcState {
             }
         }
     }
+
+    fn load_firebolt_open_rpc() -> FireboltVersionManifest {
+        let mut fb_open_rpc_file = "/etc/ripple/openrpc/firebolt-open-rpc.json".to_string();
+
+        if cfg!(feature = "local_dev") {
+            let key = "FIREBOLT_OPEN_RPC";
+            let env_var = std::env::var(key);
+            if let Ok(path) = env_var {
+                fb_open_rpc_file = path;
+            };
+        }
+
+        let mut content = "".to_string();
+        match std::fs::read_to_string(fb_open_rpc_file.clone()) {
+            Ok(str) => {
+                debug!("loading from {fb_open_rpc_file}");
+                content = str
+            }
+            Err(e) => error!("can't read {fb_open_rpc_file}: {:?}", e),
+        };
+
+        let version_manifest: FireboltVersionManifest = match serde_json::from_str(&content) {
+            Ok(fvm) => fvm,
+            _ => {
+                if content.is_empty() {
+                    debug!("loading default");
+                } else {
+                    error!("failed to parse firebolt-open-rpc, loading default");
+                };
+                serde_json::from_str(std::include_str!("./firebolt-open-rpc.json")).unwrap()
+            }
+        };
+
+        version_manifest
+    }
+
     pub fn new(exclusory: Option<ExclusoryImpl>) -> OpenRpcState {
-        let version_manifest: FireboltVersionManifest =
-            serde_json::from_str(std::include_str!("./firebolt-open-rpc.json")).unwrap();
+        let version_manifest = Self::load_firebolt_open_rpc();
+
         let firebolt_open_rpc: FireboltOpenRpc = version_manifest.clone().into();
         let ripple_rpc_file = std::include_str!("./ripple-rpc.json");
         let mut ripple_open_rpc: FireboltOpenRpc = FireboltOpenRpc::default();
