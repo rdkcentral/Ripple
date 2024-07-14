@@ -38,8 +38,8 @@ use ripple_sdk::{
             fb_pin::PinChallengeResponse,
             provider::{
                 ChallengeResponse, ExternalProviderError, ExternalProviderResponse, FocusRequest,
-                ProviderAttributes, ProviderRequestPayload, ProviderResponse,
-                ProviderResponsePayload, ProviderResponsePayloadType,
+                ProviderRequestPayload, ProviderResponse, ProviderResponsePayload,
+                ProviderResponsePayloadType,
             },
         },
         gateway::rpc_gateway_api::{CallContext, CallerSession},
@@ -634,7 +634,7 @@ impl ProviderRegistrar {
                     Self::register_method_focus(method_name_lcm, &mut rpc_module);
                 }
 
-                if let Some(method) = provider_set.response.clone() {
+                if provider_set.response.is_some() {
                     // Register response function
                     Self::register_method_response(method_name_lcm, &mut rpc_module);
                 }
