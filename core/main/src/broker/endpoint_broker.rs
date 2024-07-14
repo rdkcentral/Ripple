@@ -654,10 +654,6 @@ fn apply_rule_for_event(
     }
 }
 
-pub struct BrokerUtils;
-
-impl BrokerUtils {}
-
 #[cfg(test)]
 mod tests {
     use ripple_sdk::{tokio::sync::mpsc::channel, Mockable};

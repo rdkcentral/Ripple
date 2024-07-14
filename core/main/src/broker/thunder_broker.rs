@@ -1,5 +1,3 @@
-use crate::utils::rpc_utils::extract_tcp_port;
-
 // Copyright 2023 Comcast Cable Communications Management, LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,21 +20,21 @@ use super::{
     },
     rules_engine::RuleEndpoint,
 };
+use crate::broker::broker_utils::BrokerUtils;
 use futures_util::{SinkExt, StreamExt};
+
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse,
-    log::{debug, error, info},
-    tokio::{self, net::TcpStream, sync::mpsc},
+    log::{debug, error},
+    tokio::{self, sync::mpsc},
     utils::error::RippleError,
 };
 use serde_json::json;
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
-    time::Duration,
     vec,
 };
-use tokio_tungstenite::client_async;
 
 #[derive(Debug, Clone)]
 pub struct ThunderBroker {
@@ -62,29 +60,7 @@ impl ThunderBroker {
         let broker_for_cleanup = broker.clone();
         let callback_for_sender = callback.clone();
         tokio::spawn(async move {
-            info!("Broker Endpoint url {}", endpoint.url);
-            let url = url::Url::parse(&endpoint.url).unwrap();
-            let port = extract_tcp_port(&endpoint.url);
-            info!("Url host str {}", url.host_str().unwrap());
-            let mut index = 0;
-            //let tcp_url = url.host_str()
-            let tcp = loop {
-                if let Ok(v) = TcpStream::connect(&port).await {
-                    break v;
-                } else {
-                    if (index % 10).eq(&0) {
-                        error!(
-                            "Thunder Broker failed with retry for last {} secs in {}",
-                            index, port
-                        );
-                    }
-                    index += 1;
-                    tokio::time::sleep(Duration::from_secs(1)).await;
-                }
-            };
-
-            let (stream, _) = client_async(url, tcp).await.unwrap();
-            let (mut ws_tx, mut ws_rx) = stream.split();
+            let (mut ws_tx, mut ws_rx) = BrokerUtils::get_ws_broker(&endpoint.url, None).await;
 
             tokio::pin! {
                 let read = ws_rx.next();

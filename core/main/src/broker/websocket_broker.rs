@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::utils::rpc_utils::extract_tcp_port;
+use crate::broker::broker_utils::BrokerUtils;
 
 use super::{
     endpoint_broker::{
@@ -26,15 +26,13 @@ use super::{
 };
 use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::{
-    log::{debug, error, info},
-    tokio::{self, net::TcpStream, sync::mpsc},
+    log::{debug, error},
+    tokio::{self, sync::mpsc},
 };
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
-    time::Duration,
 };
-use tokio_tungstenite::client_async;
 
 pub struct WebsocketBroker {
     sender: BrokerSender,
@@ -51,10 +49,7 @@ impl WebsocketBroker {
         let broker = BrokerSender { sender: tx };
         tokio::spawn(async move {
             if endpoint.jsonrpc {
-                let (url, tcp) = connect(&endpoint.url, None).await;
-
-                let (stream, _) = client_async(url, tcp).await.unwrap();
-                let (mut ws_tx, mut ws_rx) = stream.split();
+                let (mut ws_tx, mut ws_rx) = BrokerUtils::get_ws_broker(&endpoint.url, None).await;
 
                 tokio::pin! {
                     let read = ws_rx.next();
@@ -145,16 +140,8 @@ impl WSNotificationBroker {
         tokio::spawn(async move {
             let app_id = request_c.get_id();
             let alias = request_c.rule.alias.clone();
-            let (stream, _) = loop {
-                let (final_url, tcp) = connect(&url, Some(alias.clone())).await;
-                let result = client_async(final_url.clone(), tcp).await;
-                if let Ok(r) = result {
-                    break r;
-                } else {
-                    tokio::time::sleep(Duration::from_secs(1)).await;
-                }
-            };
-            let (mut ws_tx, mut ws_rx) = stream.split();
+            let (mut ws_tx, mut ws_rx) =
+                BrokerUtils::get_ws_broker(&url, Some(alias.clone())).await;
 
             tokio::pin! {
                 let read = ws_rx.next();
@@ -198,28 +185,6 @@ impl WSNotificationBroker {
     }
 }
 
-async fn connect(endpoint: &str, alias: Option<String>) -> (url::Url, TcpStream) {
-    info!("Broker Endpoint url {}", endpoint);
-    let url_path = if let Some(a) = alias {
-        format!("{}{}", endpoint, a)
-    } else {
-        endpoint.to_owned()
-    };
-    let url = url::Url::parse(&url_path).unwrap();
-    let port = extract_tcp_port(endpoint);
-    info!("Url host str {}", url.host_str().unwrap());
-    //let tcp_url = url.host_str()
-    let tcp = loop {
-        if let Ok(v) = TcpStream::connect(&port).await {
-            break v;
-        } else {
-            error!("Broker Wait for a sec and retry {}", port);
-            tokio::time::sleep(Duration::from_secs(1)).await;
-        }
-    };
-    (url, tcp)
-}
-
 impl EndpointBroker for WebsocketBroker {
     fn get_broker(endpoint: RuleEndpoint, callback: BrokerCallback) -> Self {
         Self::start(endpoint, callback)
@@ -236,6 +201,8 @@ impl EndpointBroker for WebsocketBroker {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use crate::{
         broker::{
             endpoint_broker::{BrokerOutput, BrokerRequest},
@@ -294,7 +261,6 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        info!("{:?}", v);
         assert!(v
             .data
             .result

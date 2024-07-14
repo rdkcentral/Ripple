@@ -14,6 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
+pub mod broker_utils;
 pub mod endpoint_broker;
 pub mod http_broker;
 pub mod rules_engine;
