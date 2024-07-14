@@ -38,8 +38,8 @@ use ripple_sdk::{
             fb_pin::PinChallengeResponse,
             provider::{
                 ChallengeResponse, ExternalProviderError, ExternalProviderResponse, FocusRequest,
-                ProviderRequestPayload, ProviderResponse, ProviderResponsePayload,
-                ProviderResponsePayloadType,
+                ProviderAttributes, ProviderRequestPayload, ProviderResponse,
+                ProviderResponsePayload, ProviderResponsePayloadType,
             },
         },
         gateway::rpc_gateway_api::{CallContext, CallerSession},
@@ -265,410 +265,380 @@ impl ProviderRegistrar {
     //         }
     //     }
     // }
+
+    fn register_method_app_event_listener(
+        method_name: &'static str,
+        rpc_module: &mut RpcModule<RpcModuleContext>,
+    ) {
+        println!(
+            "*** _DEBUG: register_method_app_event_listener: method_name={}",
+            method_name
+        );
+        info!(
+            "register_method_app_event_listener: method_name={}",
+            method_name
+        );
+
+        rpc_module
+            .register_async_method(method_name, move |params, context| async move {
+                println!(
+                    "*** _DEBUG: App event listener registration: method={}",
+                    context.method
+                );
+                info!("App event listener registration: method={}", context.method);
+
+                let mut params_sequence = params.sequence();
+                let call_context: CallContext = params_sequence.next().unwrap();
+                let request: ListenRequest = params_sequence.next().unwrap();
+                let listen = request.listen;
+
+                AppEvents::add_listener(
+                    &context.platform_state,
+                    context.method.clone(),
+                    call_context,
+                    request,
+                );
+                Ok(ListenerResponse {
+                    listening: listen,
+                    event: context.method.clone(),
+                })
+            })
+            .unwrap();
+    }
+
+    fn register_method_provider(
+        method_name: &'static str,
+        rpc_module: &mut RpcModule<RpcModuleContext>,
+    ) {
+        println!(
+            "*** _DEBUG: register_method_provider: method_name={}",
+            method_name
+        );
+        info!("register_method_provider: method_name={}", method_name);
+        rpc_module
+            .register_async_method(method_name, move |params, context| async move {
+                println!(
+                    "*** _DEBUG: Provider registration: method={}",
+                    context.method
+                );
+                info!("Provider registration: method={}", context.method);
+
+                if let Some(provides) = &context.provider_set.provides {
+                    let mut params_sequence = params.sequence();
+                    let call_context: CallContext = params_sequence.next().unwrap();
+                    let request: ListenRequest = params_sequence.next().unwrap();
+                    let listening = request.listen;
+
+                    ProviderBroker::register_or_unregister_provider(
+                        &context.platform_state,
+                        provides.clone(),
+                        context.method.clone(),
+                        context.method.clone(),
+                        call_context,
+                        request,
+                    )
+                    .await;
+
+                    Ok(ListenerResponse {
+                        listening,
+                        event: context.method.clone(),
+                    })
+                } else {
+                    Err(Error::Custom("Missing provides attribute".to_string()))
+                }
+            })
+            .unwrap();
+    }
+
+    fn register_method_app_event_emitter(
+        method_name: &'static str,
+        rpc_module: &mut RpcModule<RpcModuleContext>,
+    ) {
+        println!(
+            "*** _DEBUG: register_method_app_event_emitter: method_name={}",
+            method_name
+        );
+        info!(
+            "register_method_app_event_emitter: method_name={}",
+            method_name
+        );
+
+        rpc_module
+            .register_async_method(method_name, move |params, context| async move {
+                println!("*** _DEBUG: App event emitter: method={}", context.method);
+                info!("App event emitter: method={}", context.method);
+                if let Some(event) = &context.provider_set.provides_to {
+                    let mut params_sequence = params.sequence();
+                    let _call_context: CallContext = params_sequence.next().unwrap();
+                    let result: Value = params_sequence.next().unwrap();
+
+                    AppEvents::emit(&context.platform_state, event, &result).await;
+                }
+
+                Ok(None) as RpcResult<Option<()>>
+            })
+            .unwrap();
+    }
+
+    fn register_method_error(
+        method_name: &'static str,
+        rpc_module: &mut RpcModule<RpcModuleContext>,
+    ) {
+        println!(
+            "*** _DEBUG: register_method_error: method_name={}",
+            method_name
+        );
+        info!("register_method_error: method_name={}", method_name);
+
+        rpc_module
+            .register_async_method(method_name, move |params, context| async move {
+                println!("*** _DEBUG: Provider error: method={}", context.method);
+                info!("Provider error: method={}", context.method);
+                let params_sequence = params.sequence();
+
+                if let Some(attributes) = context.provider_set.attributes {
+                    if let Some(provider_response) = ProviderRegistrar::get_provider_response(
+                        attributes.error_payload_type.clone(),
+                        params_sequence,
+                    ) {
+                        ProviderBroker::provider_response(
+                            &context.platform_state,
+                            provider_response,
+                        )
+                        .await;
+                    }
+                } else {
+                    println!(
+                        "*** _DEBUG: Provider error: NO ATTRIBUTES: method_name={}",
+                        method_name
+                    );
+                    error!("Provider error: NO ATTRIBUTES: method_name={}", method_name);
+                    return Err(Error::Custom(String::from("Missing provider attributes")));
+                }
+
+                Ok(None) as RpcResult<Option<()>>
+            })
+            .unwrap();
+    }
+
+    fn register_method_provider_invoker(
+        method_name: &'static str,
+        rpc_module: &mut RpcModule<RpcModuleContext>,
+    ) {
+        println!(
+            "*** _DEBUG: register_method_provider_invoker: method_name={}",
+            method_name
+        );
+        info!(
+            "register_method_provider_invoker: method_name={}",
+            method_name
+        );
+
+        rpc_module
+            .register_async_method(method_name, move |params, context| async move {
+                let mut params_sequence = params.sequence();
+                let call_context: CallContext = params_sequence.next().unwrap();
+                let params: Value = params_sequence.next().unwrap();
+
+                println!("*** _DEBUG: Provider invoker: method={}", context.method);
+                info!("Provider invoker: method={}", context.method);
+
+                if let Some(provided_by) = &context.provider_set.provided_by {
+                    let provider_map = context.platform_state.open_rpc_state.get_provider_map();
+
+                    if let Some(provided_by_set) = provider_map.get(
+                        &FireboltOpenRpcMethod::name_with_lowercase_module(provided_by),
+                    ) {
+                        if let Some(capability) = &provided_by_set.provides {
+                            let (provider_response_payload_tx, provider_response_payload_rx) =
+                                oneshot::channel::<ProviderResponsePayload>();
+
+                            let caller = CallerSession {
+                                session_id: Some(call_context.session_id.clone()),
+                                app_id: Some(call_context.app_id.clone()),
+                            };
+
+                            let provider_broker_request = ProviderBrokerRequest {
+                                capability: capability.clone(),
+                                method: provided_by.clone(),
+                                caller,
+                                request: ProviderRequestPayload::Generic(params.to_string()),
+                                tx: provider_response_payload_tx,
+                                app_id: None,
+                            };
+
+                            ProviderBroker::invoke_method(
+                                &context.platform_state,
+                                provider_broker_request,
+                            )
+                            .await;
+
+                            match timeout(
+                                Duration::from_millis(DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS),
+                                provider_response_payload_rx,
+                            )
+                            .await
+                            {
+                                Ok(result) => match result {
+                                    Ok(provider_response_payload) => {
+                                        return Ok(provider_response_payload.as_value());
+                                    }
+                                    Err(_) => {
+                                        return Err(Error::Custom(String::from(
+                                            "Error returning from provider",
+                                        )));
+                                    }
+                                },
+                                Err(_) => {
+                                    return Err(Error::Custom(String::from(
+                                        "Provider response timeout",
+                                    )));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Err(Error::Custom(String::from(
+                    "Unexpected schema configuration",
+                )))
+            })
+            .unwrap();
+    }
+
+    fn register_method_focus(
+        method_name: &'static str,
+        rpc_module: &mut RpcModule<RpcModuleContext>,
+    ) {
+        println!(
+            "*** _DEBUG: register_method_focus: method_name={}",
+            method_name
+        );
+        info!("register_method_focus: method_name={}", method_name);
+
+        rpc_module
+            .register_async_method(method_name, move |params, context| async move {
+                println!("*** _DEBUG: Provider focus: method={}", context.method);
+                info!("Provider focus: method={}", context.method);
+
+                if let Some(provides) = &context.provider_set.provides {
+                    let mut params_sequence = params.sequence();
+                    let call_context: CallContext = params_sequence.next().unwrap();
+                    let request: FocusRequest = params_sequence.next().unwrap();
+
+                    ProviderBroker::focus(
+                        &context.platform_state,
+                        call_context,
+                        provides.clone(),
+                        request,
+                    )
+                    .await;
+
+                    Ok(None) as RpcResult<Option<()>>
+                } else {
+                    Err(Error::Custom("Missing provides attribute".to_string()))
+                }
+            })
+            .unwrap();
+    }
+
+    fn register_method_response(
+        method_name: &'static str,
+        rpc_module: &mut RpcModule<RpcModuleContext>,
+    ) {
+        println!(
+            "*** _DEBUG: register_method_response: method_name={}",
+            method_name
+        );
+        info!("register_method_response: method_name={}", method_name);
+
+        rpc_module
+            .register_async_method(method_name, move |params, context| async move {
+                println!("*** _DEBUG: Provider response: method={}", context.method);
+                info!("Provider response: method={}", context.method);
+
+                let params_sequence = params.sequence();
+
+                if let Some(attributes) = context.provider_set.attributes {
+                    if let Some(provider_response) = ProviderRegistrar::get_provider_response(
+                        attributes.response_payload_type.clone(),
+                        params_sequence,
+                    ) {
+                        ProviderBroker::provider_response(
+                            &context.platform_state,
+                            provider_response,
+                        )
+                        .await;
+                    }
+                } else {
+                    println!(
+                        "*** _DEBUG: Provider response: NO ATTRIBUTES: method_name={}",
+                        method_name
+                    );
+                    error!(
+                        "Provider response: NO ATTRIBUTES: method_name={}",
+                        method_name
+                    );
+                    return Err(Error::Custom(String::from("Missing provider attributes")));
+                }
+
+                Ok(None) as RpcResult<Option<()>>
+            })
+            .unwrap();
+    }
+
     pub fn register(platform_state: &PlatformState, methods: &mut Methods) {
         let provider_map = platform_state.open_rpc_state.get_provider_map();
 
         for method_name in provider_map.clone().keys() {
             if let Some(provider_set) = provider_map.get(method_name) {
-                let method_name_lc =
+                let method_name_lcm =
                     FireboltOpenRpcMethod::name_with_lowercase_module(method_name).leak();
 
                 let rpc_module_context = RpcModuleContext::new(
                     platform_state.clone(),
-                    method_name_lc.into(),
+                    method_name_lcm.into(),
                     provider_set.clone(),
                 );
+
                 let mut rpc_module = RpcModule::new(rpc_module_context.clone());
 
                 if provider_set.event {
-                    if let Some(provided_by) = &provider_set.provided_by {
+                    if provider_set.provided_by.is_some() {
                         // Register app event listener
-                        println!("*** _DEBUG: Registering method: App event listener: method_name={}, provided_by={}",
-                            method_name, provided_by
-                        );
-                        info!("Registering method: App event listener: method_name={}, provided_by={}",
-                            method_name, provided_by
-                        );
-                        rpc_module
-                            .register_async_method(
-                                method_name_lc,
-                                move |params, context| async move {
-                                    println!(
-                                        "*** _DEBUG: App event listener registration: method={}",
-                                        context.method
-                                    );
-                                    info!(
-                                        "App event listener registration: method={}",
-                                        context.method
-                                    );
-
-                                    let mut params_sequence = params.sequence();
-                                    let call_context: CallContext = params_sequence.next().unwrap();
-                                    let request: ListenRequest = params_sequence.next().unwrap();
-                                    let listen = request.listen;
-
-                                    AppEvents::add_listener(
-                                        &context.platform_state,
-                                        context.method.clone(),
-                                        call_context,
-                                        request,
-                                    );
-                                    Ok(ListenerResponse {
-                                        listening: listen,
-                                        event: context.method.clone(),
-                                    })
-                                },
-                            )
-                            .unwrap();
+                        Self::register_method_app_event_listener(method_name_lcm, &mut rpc_module);
                     } else if provider_set.provides.is_some() || provider_set.provides_to.is_some()
                     {
-                        println!(
-                            "*** _DEBUG: Registering method: Provider: method_name={}",
-                            method_name
-                        );
-                        info!("Registering method: Provider: method_name={}", method_name);
-                        rpc_module
-                            .register_async_method(
-                                method_name_lc,
-                                move |params, context| async move {
-                                    println!(
-                                        "*** _DEBUG: Provider registration: method={}",
-                                        context.method
-                                    );
-                                    info!("Provider registration: method={}", context.method);
-
-                                    if let Some(provides) = &context.provider_set.provides {
-                                        let mut params_sequence = params.sequence();
-                                        let call_context: CallContext =
-                                            params_sequence.next().unwrap();
-                                        let request: ListenRequest =
-                                            params_sequence.next().unwrap();
-                                        let listening = request.listen;
-
-                                        ProviderBroker::register_or_unregister_provider(
-                                            &context.platform_state,
-                                            provides.clone(),
-                                            context.method.clone(),
-                                            context.method.clone(),
-                                            call_context,
-                                            request,
-                                        )
-                                        .await;
-
-                                        Ok(ListenerResponse {
-                                            listening,
-                                            event: context.method.clone(),
-                                        })
-                                    } else {
-                                        Err(Error::Custom("Missing provides attribute".to_string()))
-                                    }
-                                },
-                            )
-                            .unwrap();
+                        // Register provider
+                        Self::register_method_provider(method_name_lcm, &mut rpc_module);
                     }
                 } else {
                     if provider_set.provides_to.is_some() {
-                        println!(
-                            "*** _DEBUG: Registering method: App event emitter: method_name={}",
-                            method_name
-                        );
-                        info!(
-                            "Registering method: App event emitter: method_name={}",
-                            method_name
-                        );
-                        rpc_module
-                            .register_async_method(
-                                method_name_lc,
-                                move |params, context| async move {
-                                    println!(
-                                        "*** _DEBUG: App event emitter: method={}",
-                                        context.method
-                                    );
-                                    info!("App event emitter: method={}", context.method);
-                                    if let Some(event) = &context.provider_set.provides_to {
-                                        let mut params_sequence = params.sequence();
-                                        let _call_context: CallContext =
-                                            params_sequence.next().unwrap();
-                                        let result: Value = params_sequence.next().unwrap();
-
-                                        AppEvents::emit(&context.platform_state, event, &result)
-                                            .await;
-                                    }
-
-                                    Ok(None) as RpcResult<Option<()>>
-                                },
-                            )
-                            .unwrap();
+                        // Register app event emitter
+                        Self::register_method_app_event_emitter(method_name_lcm, &mut rpc_module);
                     }
 
                     if provider_set.error_for.is_some() {
-                        if let Some(attributes) = provider_set.attributes {
-                            println!(
-                                "*** _DEBUG: Registering method: Error function: method_name={}",
-                                method_name
-                            );
-                            info!(
-                                "Registering method: Error function: method_name={}",
-                                method_name
-                            );
-
-                            rpc_module
-                                .register_async_method(
-                                    //error_method,
-                                    method_name_lc,
-                                    move |params, context| async move {
-                                        println!(
-                                            "*** _DEBUG: Provider error: method={}",
-                                            context.method
-                                        );
-                                        info!("Provider error: method={}", context.method);
-                                        let params_sequence = params.sequence();
-
-                                        if let Some(provider_response) =
-                                            ProviderRegistrar::get_provider_response(
-                                                attributes.error_payload_type.clone(),
-                                                params_sequence,
-                                            )
-                                        {
-                                            ProviderBroker::provider_response(
-                                                &context.platform_state,
-                                                provider_response,
-                                            )
-                                            .await;
-                                        }
-
-                                        Ok(None) as RpcResult<Option<()>>
-                                    },
-                                )
-                                .unwrap();
-                        } else {
-                            println!("*** _DEBUG: Registering method: Error function: NO ATTRIBUTES: method_name={}", method_name);
-                            error!(
-                                "Registering method: Error function: NO ATTRIBUTES: method_name={}",
-                                method_name
-                            );
-                        }
+                        // Register error function
+                        Self::register_method_error(method_name_lcm, &mut rpc_module);
                     }
 
                     if provider_set.provided_by.is_some() {
-                        println!(
-                            "*** _DEBUG: Registering method: Provider invoker: method_name={}",
-                            method_name
-                        );
-                        info!(
-                            "Registering method: Provider invoker: method_name={}",
-                            method_name
-                        );
-
-                        rpc_module
-                            .register_async_method(
-                                method_name_lc,
-                                move |params, context| async move {
-                                    let mut params_sequence = params.sequence();
-                                    let call_context: CallContext = params_sequence.next().unwrap();
-                                    let params: Value = params_sequence.next().unwrap();
-
-                                    println!(
-                                        "*** _DEBUG: Provider invoker: method={}",
-                                        context.method
-                                    );
-                                    info!("Provider invoker: method={}", context.method);
-
-                                    if let Some(provided_by) = &context.provider_set.provided_by {
-                                        let provider_map = context
-                                            .platform_state
-                                            .open_rpc_state
-                                            .get_provider_map();
-
-                                        if let Some(provided_by_set) = provider_map.get(
-                                            &FireboltOpenRpcMethod::name_with_lowercase_module(
-                                                provided_by,
-                                            ),
-                                        ) {
-                                            if let Some(capability) = &provided_by_set.provides {
-                                                let (
-                                                    provider_response_payload_tx,
-                                                    provider_response_payload_rx,
-                                                ) = oneshot::channel::<ProviderResponsePayload>();
-
-                                                let caller = CallerSession {
-                                                    session_id: Some(
-                                                        call_context.session_id.clone(),
-                                                    ),
-                                                    app_id: Some(call_context.app_id.clone()),
-                                                };
-
-                                                let provider_broker_request =
-                                                    ProviderBrokerRequest {
-                                                        capability: capability.clone(),
-                                                        method: provided_by.clone(),
-                                                        caller,
-                                                        request: ProviderRequestPayload::Generic(
-                                                            params.to_string(),
-                                                        ),
-                                                        tx: provider_response_payload_tx,
-                                                        app_id: None,
-                                                    };
-
-                                                ProviderBroker::invoke_method(
-                                                    &context.platform_state,
-                                                    provider_broker_request,
-                                                )
-                                                .await;
-
-                                                // match provider_response_payload_rx.await {
-                                                //     Ok(provider_response_payload) => {
-                                                //         return Ok(
-                                                //             provider_response_payload.as_value(), // TODO: Is this right?
-                                                //         );
-                                                //     }
-                                                //     Err(e) => {
-                                                //         return Err(Error::Custom(String::from(
-                                                //             "Error returning from provider",
-                                                //         )));
-                                                //     }
-                                                // }
-
-                                                // let provider_response = timeout(
-                                                //     Duration::from_millis(
-                                                //         DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS,
-                                                //     ),
-                                                //     provider_response_payload_rx,
-                                                // )
-                                                // .await
-                                                // .map_err(|_| {
-                                                //     Err(Error::Custom(String::from(
-                                                //         "Privder response timeout",
-                                                //     )))
-                                                // })?;
-                                                // return provider_response;
-
-                                                match timeout(
-                                                    Duration::from_millis(
-                                                        DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS,
-                                                    ),
-                                                    provider_response_payload_rx,
-                                                )
-                                                .await
-                                                {
-                                                    Ok(result) => match result {
-                                                        Ok(provider_response_payload) => {
-                                                            return Ok(provider_response_payload
-                                                                .as_value());
-                                                        }
-                                                        Err(_) => {
-                                                            return Err(Error::Custom(
-                                                                String::from(
-                                                                    "Error returning from provider",
-                                                                ),
-                                                            ));
-                                                        }
-                                                    },
-                                                    Err(_) => {
-                                                        return Err(Error::Custom(String::from(
-                                                            "Provider response timeout",
-                                                        )));
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    Err(Error::Custom(String::from(
-                                        "Unexpected schema configuration",
-                                    )))
-                                },
-                            )
-                            .unwrap();
+                        // Register provider invoker
+                        Self::register_method_provider_invoker(method_name_lcm, &mut rpc_module);
                     }
                 }
 
-                // Register focus function
                 if provider_set.focus.is_some() {
-                    println!(
-                        "*** _DEBUG: Registering method: Focus function: method_name={}",
-                        method_name
-                    );
-                    info!(
-                        "Registering method: Focus function: method_name={}",
-                        method_name
-                    );
-
-                    // let focus_method =
-                    //     FireboltOpenRpcMethod::name_with_lowercase_module(&method.name).leak();
-
-                    rpc_module
-                        .register_async_method(method_name_lc, move |params, context| async move {
-                            println!("*** _DEBUG: Provider focus: method={}", context.method);
-                            info!("Provider focus: method={}", context.method);
-
-                            if let Some(provides) = &context.provider_set.provides {
-                                let mut params_sequence = params.sequence();
-                                let call_context: CallContext = params_sequence.next().unwrap();
-                                let request: FocusRequest = params_sequence.next().unwrap();
-
-                                ProviderBroker::focus(
-                                    &context.platform_state,
-                                    call_context,
-                                    provides.clone(),
-                                    request,
-                                )
-                                .await;
-
-                                Ok(None) as RpcResult<Option<()>>
-                            } else {
-                                Err(Error::Custom("Missing provides attribute".to_string()))
-                            }
-                        })
-                        .unwrap();
+                    // Register focus function
+                    Self::register_method_focus(method_name_lcm, &mut rpc_module);
                 }
 
-                if let Some(attributes) = provider_set.attributes {
+                if let Some(method) = provider_set.response.clone() {
                     // Register response function
-                    if let Some(method) = provider_set.response.clone() {
-                        println!(
-                            "*** _DEBUG: Registering method: Response function: method_name={}",
-                            method_name
-                        );
-                        info!(
-                            "Registering method: Response function: method_name={}",
-                            method_name
-                        );
-
-                        let response_method =
-                            FireboltOpenRpcMethod::name_with_lowercase_module(&method.name).leak();
-
-                        rpc_module
-                            .register_async_method(
-                                response_method,
-                                move |params, context| async move {
-                                    println!(
-                                        "*** _DEBUG: Provider response: method={}",
-                                        context.method
-                                    );
-                                    info!("Provider response: method={}", context.method);
-
-                                    let params_sequence = params.sequence();
-
-                                    if let Some(provider_response) =
-                                        ProviderRegistrar::get_provider_response(
-                                            attributes.response_payload_type.clone(),
-                                            params_sequence,
-                                        )
-                                    {
-                                        ProviderBroker::provider_response(
-                                            &context.platform_state,
-                                            provider_response,
-                                        )
-                                        .await;
-                                    }
-
-                                    Ok(None) as RpcResult<Option<()>>
-                                },
-                            )
-                            .unwrap();
-                    }
+                    Self::register_method_response(method_name_lcm, &mut rpc_module);
                 }
+
                 methods
                     .merge(register_aliases(platform_state, rpc_module))
                     .ok();
