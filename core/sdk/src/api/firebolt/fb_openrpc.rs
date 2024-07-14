@@ -808,6 +808,7 @@ mod tests {
             error_for: None,
             allow_focus: None,
             allow_focus_for: None,
+            provided_by: None,
         };
 
         assert_eq!(
@@ -851,6 +852,7 @@ mod tests {
                 error_for: None,
                 allow_focus: None,
                 allow_focus_for: None,
+                provided_by: None,
             }]),
         };
 
@@ -871,6 +873,7 @@ mod tests {
             error_for: None,
             allow_focus: None,
             allow_focus_for: None,
+            provided_by: None,
         }]);
 
         assert_eq!(method.get_allow_value(), None);

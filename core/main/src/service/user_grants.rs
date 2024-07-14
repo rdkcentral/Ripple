@@ -2002,7 +2002,7 @@ mod tests {
                     &state_c,
                     String::from(PIN_CHALLENGE_CAPABILITY),
                     String::from("challenge"),
-                    PIN_CHALLENGE_EVENT,
+                    String::from(PIN_CHALLENGE_EVENT),
                     ctx_c.clone(),
                     ListenRequest { listen: true },
                 )
@@ -2012,7 +2012,7 @@ mod tests {
                     &state_c,
                     String::from(ACK_CHALLENGE_CAPABILITY),
                     String::from("challenge"),
-                    ACK_CHALLENGE_EVENT,
+                    String::from(ACK_CHALLENGE_EVENT),
                     ctx_c.clone(),
                     ListenRequest { listen: true },
                 )
