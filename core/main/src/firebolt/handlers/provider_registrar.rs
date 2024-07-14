@@ -25,6 +25,7 @@ use crate::{
     },
     state::{openrpc_state::ProviderSet, platform_state::PlatformState},
 };
+use futures::Future;
 use jsonrpsee::{
     core::{server::rpc_module::Methods, Error, RpcResult},
     types::{error::CallError, Params, ParamsSequence},
@@ -52,6 +53,17 @@ use serde_json::Value;
 // <pca>
 // TODO: Add to config
 const DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS: u64 = 5000;
+
+#[derive(Debug)]
+enum MethodType {
+    AppEventListener,
+    Provider,
+    AppEventEmitter,
+    Error,
+    ProviderInvoker,
+    Focus,
+    Response,
+}
 // </pca>
 
 #[derive(Clone)]
@@ -266,6 +278,59 @@ impl ProviderRegistrar {
     //     }
     // }
 
+    fn register_method(
+        method_name: &'static str,
+        method_type: MethodType,
+        rpc_module: &mut RpcModule<RpcModuleContext>,
+    ) {
+        println!(
+            "*** _DEBUG: register_method: method_name={}, method_type={:?}",
+            method_name, method_type
+        );
+        info!(
+            "*** _DEBUG: register_method: method_name={}, method_type={:?}",
+            method_name, method_type
+        );
+
+        match method_type {
+            MethodType::AppEventEmitter => {
+                rpc_module
+                    .register_async_method(method_name, Self::callback_app_event_emitter)
+                    .unwrap();
+            }
+            MethodType::AppEventListener => {
+                rpc_module
+                    .register_async_method(method_name, Self::callback_app_event_listener)
+                    .unwrap();
+            }
+            MethodType::Error => {
+                rpc_module
+                    .register_async_method(method_name, Self::callback_error)
+                    .unwrap();
+            }
+            MethodType::Focus => {
+                rpc_module
+                    .register_async_method(method_name, Self::callback_focus)
+                    .unwrap();
+            }
+            MethodType::Provider => {
+                rpc_module
+                    .register_async_method(method_name, Self::callback_register_provider)
+                    .unwrap();
+            }
+            MethodType::ProviderInvoker => {
+                rpc_module
+                    .register_async_method(method_name, Self::callback_provider_invoker)
+                    .unwrap();
+            }
+            MethodType::Response => {
+                rpc_module
+                    .register_async_method(method_name, Self::callback_response)
+                    .unwrap();
+            }
+        }
+    }
+
     async fn callback_app_event_listener(
         params: Params<'static>,
         context: Arc<RpcModuleContext>,
@@ -291,24 +356,6 @@ impl ProviderRegistrar {
             listening: listen,
             event: context.method.clone(),
         })
-    }
-
-    fn register_method_app_event_listener(
-        method_name: &'static str,
-        rpc_module: &mut RpcModule<RpcModuleContext>,
-    ) {
-        println!(
-            "*** _DEBUG: register_method_app_event_listener: method_name={}",
-            method_name
-        );
-        info!(
-            "register_method_app_event_listener: method_name={}",
-            method_name
-        );
-
-        rpc_module
-            .register_async_method(method_name, Self::callback_app_event_listener)
-            .unwrap();
     }
 
     async fn callback_register_provider(
@@ -346,20 +393,6 @@ impl ProviderRegistrar {
         }
     }
 
-    fn register_method_provider(
-        method_name: &'static str,
-        rpc_module: &mut RpcModule<RpcModuleContext>,
-    ) {
-        println!(
-            "*** _DEBUG: register_method_provider: method_name={}",
-            method_name
-        );
-        info!("register_method_provider: method_name={}", method_name);
-        rpc_module
-            .register_async_method(method_name, Self::callback_register_provider)
-            .unwrap();
-    }
-
     async fn callback_app_event_emitter(
         params: Params<'static>,
         context: Arc<RpcModuleContext>,
@@ -377,26 +410,7 @@ impl ProviderRegistrar {
             AppEvents::emit(&context.platform_state, event, &result).await;
         }
 
-        //Ok(None) as RpcResult<Option<()>>
         Ok(None)
-    }
-
-    fn register_method_app_event_emitter(
-        method_name: &'static str,
-        rpc_module: &mut RpcModule<RpcModuleContext>,
-    ) {
-        println!(
-            "*** _DEBUG: register_method_app_event_emitter: method_name={}",
-            method_name
-        );
-        info!(
-            "register_method_app_event_emitter: method_name={}",
-            method_name
-        );
-
-        rpc_module
-            .register_async_method(method_name, Self::callback_app_event_emitter)
-            .unwrap();
     }
 
     async fn callback_error(
@@ -429,25 +443,11 @@ impl ProviderRegistrar {
         Ok(None) as RpcResult<Option<()>>
     }
 
-    fn register_method_error(
-        method_name: &'static str,
-        rpc_module: &mut RpcModule<RpcModuleContext>,
-    ) {
-        println!(
-            "*** _DEBUG: register_method_error: method_name={}",
-            method_name
-        );
-        info!("register_method_error: method_name={}", method_name);
-
-        rpc_module
-            .register_async_method(method_name, Self::callback_error)
-            .unwrap();
-    }
-
     async fn callback_provider_invoker(
         params: Params<'static>,
         context: Arc<RpcModuleContext>,
     ) -> Result<Value, Error> {
+        // TODO: Is 'Value' correct here? otherwise need to do bespoke return types?
         let mut params_sequence = params.sequence();
         let call_context: CallContext = params_sequence.next().unwrap();
         let params: Value = params_sequence.next().unwrap();
@@ -514,24 +514,6 @@ impl ProviderRegistrar {
         )))
     }
 
-    fn register_method_provider_invoker(
-        method_name: &'static str,
-        rpc_module: &mut RpcModule<RpcModuleContext>,
-    ) {
-        println!(
-            "*** _DEBUG: register_method_provider_invoker: method_name={}",
-            method_name
-        );
-        info!(
-            "register_method_provider_invoker: method_name={}",
-            method_name
-        );
-
-        rpc_module
-            .register_async_method(method_name, Self::callback_provider_invoker)
-            .unwrap();
-    }
-
     async fn callback_focus(
         params: Params<'static>,
         context: Arc<RpcModuleContext>,
@@ -556,21 +538,6 @@ impl ProviderRegistrar {
         } else {
             Err(Error::Custom("Missing provides attribute".to_string()))
         }
-    }
-
-    fn register_method_focus(
-        method_name: &'static str,
-        rpc_module: &mut RpcModule<RpcModuleContext>,
-    ) {
-        println!(
-            "*** _DEBUG: register_method_focus: method_name={}",
-            method_name
-        );
-        info!("register_method_focus: method_name={}", method_name);
-
-        rpc_module
-            .register_async_method(method_name, Self::callback_focus)
-            .unwrap();
     }
 
     async fn callback_response(
@@ -601,22 +568,7 @@ impl ProviderRegistrar {
             return Err(Error::Custom(String::from("Missing provider attributes")));
         }
 
-        Ok(None) as RpcResult<Option<()>>
-    }
-
-    fn register_method_response(
-        method_name: &'static str,
-        rpc_module: &mut RpcModule<RpcModuleContext>,
-    ) {
-        println!(
-            "*** _DEBUG: register_method_response: method_name={}",
-            method_name
-        );
-        info!("register_method_response: method_name={}", method_name);
-
-        rpc_module
-            .register_async_method(method_name, Self::callback_response)
-            .unwrap();
+        Ok(None)
     }
 
     pub fn register(platform_state: &PlatformState, methods: &mut Methods) {
@@ -637,38 +589,41 @@ impl ProviderRegistrar {
 
                 if provider_set.event {
                     if provider_set.provided_by.is_some() {
-                        // Register app event listener
-                        Self::register_method_app_event_listener(method_name_lcm, &mut rpc_module);
+                        Self::register_method(
+                            method_name_lcm,
+                            MethodType::AppEventListener,
+                            &mut rpc_module,
+                        );
                     } else if provider_set.provides.is_some() || provider_set.provides_to.is_some()
                     {
-                        // Register provider
-                        Self::register_method_provider(method_name_lcm, &mut rpc_module);
+                        Self::register_method(
+                            method_name_lcm,
+                            MethodType::Provider,
+                            &mut rpc_module,
+                        );
                     }
                 } else {
                     if provider_set.provides_to.is_some() {
-                        // Register app event emitter
-                        Self::register_method_app_event_emitter(method_name_lcm, &mut rpc_module);
-                    }
-
-                    if provider_set.error_for.is_some() {
-                        // Register error function
-                        Self::register_method_error(method_name_lcm, &mut rpc_module);
-                    }
-
-                    if provider_set.provided_by.is_some() {
-                        // Register provider invoker
-                        Self::register_method_provider_invoker(method_name_lcm, &mut rpc_module);
+                        Self::register_method(
+                            method_name_lcm,
+                            MethodType::AppEventEmitter,
+                            &mut rpc_module,
+                        );
+                    } else if provider_set.error_for.is_some() {
+                        Self::register_method(method_name_lcm, MethodType::Error, &mut rpc_module);
+                    } else if provider_set.provided_by.is_some() {
+                        Self::register_method(
+                            method_name_lcm,
+                            MethodType::ProviderInvoker,
+                            &mut rpc_module,
+                        );
                     }
                 }
 
-                if provider_set.focus.is_some() {
-                    // Register focus function
-                    Self::register_method_focus(method_name_lcm, &mut rpc_module);
-                }
-
-                if provider_set.response.is_some() {
-                    // Register response function
-                    Self::register_method_response(method_name_lcm, &mut rpc_module);
+                if provider_set.allow_focus_for.is_some() {
+                    Self::register_method(method_name_lcm, MethodType::Focus, &mut rpc_module);
+                } else if provider_set.response_for.is_some() {
+                    Self::register_method(method_name_lcm, MethodType::Response, &mut rpc_module);
                 }
 
                 methods
