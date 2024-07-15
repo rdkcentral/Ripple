@@ -49,7 +49,6 @@ use ripple_sdk::{
 };
 use serde_json::Value;
 
-// <pca>
 // TODO: Add to config
 const DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS: u64 = 5000;
 
@@ -63,22 +62,15 @@ enum MethodType {
     Focus,
     Response,
 }
-// </pca>
 
 #[derive(Clone)]
 struct RpcModuleContext {
     platform_state: PlatformState,
-    // <pca>
     method: String,
     provider_set: ProviderSet,
-    // <pca>
 }
 
 impl RpcModuleContext {
-    // <pca>
-    // fn new(platform_state: PlatformState) -> Self {
-    //     RpcModuleContext { platform_state }
-    // }
     fn new(platform_state: PlatformState, method: String, provider_set: ProviderSet) -> Self {
         RpcModuleContext {
             method,
@@ -86,7 +78,6 @@ impl RpcModuleContext {
             provider_set,
         }
     }
-    // </pca>
 }
 
 pub struct ProviderRegistrar;
@@ -141,151 +132,11 @@ impl ProviderRegistrar {
         None
     }
 
-    // <pca>
-    // pub fn register(platform_state: &PlatformState, methods: &mut Methods) {
-    //     let provider_map = platform_state.open_rpc_state.get_provider_map();
-    //     for method_name in provider_map.clone().keys() {
-    //         if let Some(provider_set) = provider_map.get(method_name) {
-    //             if let Some(attributes) = provider_set.attributes {
-    //                 let rpc_module_context = RpcModuleContext::new(platform_state.clone());
-    //                 let mut rpc_module = RpcModule::new(rpc_module_context.clone());
-
-    //                 // Register request function
-    //                 if let Some(method) = provider_set.request.clone() {
-    //                     let request_method =
-    //                         FireboltOpenRpcMethod::name_with_lowercase_module(&method.name).leak();
-
-    //                     rpc_module
-    //                         .register_async_method(
-    //                             request_method,
-    //                             move |params, context| async move {
-    //                                 let mut params_sequence = params.sequence();
-    //                                 let call_context: CallContext = params_sequence.next().unwrap();
-    //                                 let request: ListenRequest = params_sequence.next().unwrap();
-    //                                 let listening = request.listen;
-
-    //                                 ProviderBroker::register_or_unregister_provider(
-    //                                     &context.platform_state,
-    //                                     attributes.capability.into(),
-    //                                     attributes.method.into(),
-    //                                     attributes.event,
-    //                                     call_context,
-    //                                     request,
-    //                                 )
-    //                                 .await;
-
-    //                                 Ok(ListenerResponse {
-    //                                     listening,
-    //                                     event: attributes.event.into(),
-    //                                 })
-    //                             },
-    //                         )
-    //                         .unwrap();
-    //                 }
-
-    //                 // Register focus function
-    //                 if let Some(method) = provider_set.focus.clone() {
-    //                     let focus_method =
-    //                         FireboltOpenRpcMethod::name_with_lowercase_module(&method.name).leak();
-
-    //                     rpc_module
-    //                         .register_async_method(
-    //                             focus_method,
-    //                             move |params, context| async move {
-    //                                 let mut params_sequence = params.sequence();
-    //                                 let call_context: CallContext = params_sequence.next().unwrap();
-    //                                 let request: FocusRequest = params_sequence.next().unwrap();
-
-    //                                 ProviderBroker::focus(
-    //                                     &context.platform_state,
-    //                                     call_context,
-    //                                     attributes.capability.into(),
-    //                                     request,
-    //                                 )
-    //                                 .await;
-    //                                 Ok(None) as RpcResult<Option<()>>
-    //                             },
-    //                         )
-    //                         .unwrap();
-    //                 }
-
-    //                 // Register response function
-    //                 if let Some(method) = provider_set.response.clone() {
-    //                     let response_method =
-    //                         FireboltOpenRpcMethod::name_with_lowercase_module(&method.name).leak();
-
-    //                     rpc_module
-    //                         .register_async_method(
-    //                             response_method,
-    //                             move |params, context| async move {
-    //                                 let params_sequence = params.sequence();
-
-    //                                 if let Some(provider_response) =
-    //                                     ProviderRegistrar::get_provider_response(
-    //                                         attributes.response_payload_type.clone(),
-    //                                         params_sequence,
-    //                                     )
-    //                                 {
-    //                                     ProviderBroker::provider_response(
-    //                                         &context.platform_state,
-    //                                         provider_response,
-    //                                     )
-    //                                     .await;
-    //                                 }
-
-    //                                 Ok(None) as RpcResult<Option<()>>
-    //                             },
-    //                         )
-    //                         .unwrap();
-    //                 }
-
-    //                 // Register error function
-    //                 if let Some(method) = provider_set.error.clone() {
-    //                     let error_method = method.name.clone().leak();
-
-    //                     rpc_module
-    //                         .register_async_method(
-    //                             error_method,
-    //                             move |params, context| async move {
-    //                                 let params_sequence = params.sequence();
-
-    //                                 if let Some(provider_response) =
-    //                                     ProviderRegistrar::get_provider_response(
-    //                                         attributes.error_payload_type.clone(),
-    //                                         params_sequence,
-    //                                     )
-    //                                 {
-    //                                     ProviderBroker::provider_response(
-    //                                         &context.platform_state,
-    //                                         provider_response,
-    //                                     )
-    //                                     .await;
-    //                                 }
-
-    //                                 Ok(None) as RpcResult<Option<()>>
-    //                             },
-    //                         )
-    //                         .unwrap();
-    //                 }
-
-    //                 //methods.merge(rpc_module.clone()).ok();
-    //                 methods
-    //                     .merge(register_aliases(platform_state, rpc_module))
-    //                     .ok();
-    //             }
-    //         }
-    //     }
-    // }
-
     fn register_method(
         method_name: &'static str,
         method_type: MethodType,
         rpc_module: &mut RpcModule<RpcModuleContext>,
     ) -> bool {
-        println!(
-            "*** _DEBUG: register_method: method_name={}, method_type={:?}",
-            method_name, method_type
-        );
         info!(
             "register_method: method_name={}, method_type={:?}",
             method_name, method_type
@@ -319,10 +170,6 @@ impl ProviderRegistrar {
             Ok(_) => true,
             Err(e) => {
                 error!("register_method: Error registering method: {:?}", e);
-                println!(
-                    "*** _DEBUG: register_method: Error registering method: {:?}",
-                    e
-                );
                 false
             }
         }
@@ -332,10 +179,6 @@ impl ProviderRegistrar {
         params: Params<'static>,
         context: Arc<RpcModuleContext>,
     ) -> Result<ListenerResponse, Error> {
-        println!(
-            "*** _DEBUG: callback_app_event_listener: method={}",
-            context.method
-        );
         info!("callback_app_event_listener: method={}", context.method);
 
         let mut params_sequence = params.sequence();
@@ -359,10 +202,6 @@ impl ProviderRegistrar {
         params: Params<'static>,
         context: Arc<RpcModuleContext>,
     ) -> Result<ListenerResponse, Error> {
-        println!(
-            "*** _DEBUG: callback_register_provider: method={}",
-            context.method
-        );
         info!("callback_register_provider: method={}", context.method);
 
         if let Some(provides) = &context.provider_set.provides {
@@ -394,10 +233,6 @@ impl ProviderRegistrar {
         params: Params<'static>,
         context: Arc<RpcModuleContext>,
     ) -> Result<Option<()>, Error> {
-        println!(
-            "*** _DEBUG: callback_app_event_emitter: method={}",
-            context.method
-        );
         info!("callback_app_event_emitter: method={}", context.method);
         if let Some(event) = &context.provider_set.provides_to {
             let mut params_sequence = params.sequence();
@@ -414,7 +249,6 @@ impl ProviderRegistrar {
         params: Params<'static>,
         context: Arc<RpcModuleContext>,
     ) -> Result<Option<()>, Error> {
-        println!("*** _DEBUG: callback_error: method={}", context.method);
         info!("callback_error: method={}", context.method);
         let params_sequence = params.sequence();
 
@@ -426,10 +260,6 @@ impl ProviderRegistrar {
                 ProviderBroker::provider_response(&context.platform_state, provider_response).await;
             }
         } else {
-            println!(
-                "*** _DEBUG: callback_error: NO ATTRIBUTES: context.method={}",
-                context.method
-            );
             error!(
                 "callback_error: NO ATTRIBUTES: context.method={}",
                 context.method
@@ -449,10 +279,6 @@ impl ProviderRegistrar {
         let call_context: CallContext = params_sequence.next().unwrap();
         let params: Value = params_sequence.next().unwrap();
 
-        println!(
-            "*** _DEBUG: callback_provider_invoker: method={}",
-            context.method
-        );
         info!("callback_provider_invoker: method={}", context.method);
 
         if let Some(provided_by) = &context.provider_set.provided_by {
@@ -515,7 +341,6 @@ impl ProviderRegistrar {
         params: Params<'static>,
         context: Arc<RpcModuleContext>,
     ) -> Result<Option<()>, Error> {
-        println!("*** _DEBUG: callback_focus: method={}", context.method);
         info!("callback_focus: method={}", context.method);
 
         if let Some(provides) = &context.provider_set.provides {
@@ -541,7 +366,6 @@ impl ProviderRegistrar {
         params: Params<'static>,
         context: Arc<RpcModuleContext>,
     ) -> Result<Option<()>, Error> {
-        println!("*** _DEBUG: callback_response: method={}", context.method);
         info!("callback_response: method={}", context.method);
 
         let params_sequence = params.sequence();
@@ -554,10 +378,6 @@ impl ProviderRegistrar {
                 ProviderBroker::provider_response(&context.platform_state, provider_response).await;
             }
         } else {
-            println!(
-                "*** _DEBUG: callback_response: NO ATTRIBUTES: context.method={}",
-                context.method
-            );
             error!(
                 "callback_response: NO ATTRIBUTES: context.method={}",
                 context.method
@@ -602,26 +422,21 @@ impl ProviderRegistrar {
                             &mut rpc_module,
                         );
                     }
-                } else {
-                    if provider_set.provides_to.is_some() {
-                        registered = Self::register_method(
-                            method_name_lcm,
-                            MethodType::AppEventEmitter,
-                            &mut rpc_module,
-                        );
-                    } else if provider_set.error_for.is_some() {
-                        registered = Self::register_method(
-                            method_name_lcm,
-                            MethodType::Error,
-                            &mut rpc_module,
-                        );
-                    } else if provider_set.provided_by.is_some() {
-                        registered = Self::register_method(
-                            method_name_lcm,
-                            MethodType::ProviderInvoker,
-                            &mut rpc_module,
-                        );
-                    }
+                } else if provider_set.provides_to.is_some() {
+                    registered = Self::register_method(
+                        method_name_lcm,
+                        MethodType::AppEventEmitter,
+                        &mut rpc_module,
+                    );
+                } else if provider_set.error_for.is_some() {
+                    registered =
+                        Self::register_method(method_name_lcm, MethodType::Error, &mut rpc_module);
+                } else if provider_set.provided_by.is_some() {
+                    registered = Self::register_method(
+                        method_name_lcm,
+                        MethodType::ProviderInvoker,
+                        &mut rpc_module,
+                    );
                 }
 
                 if !registered {
@@ -652,7 +467,6 @@ impl ProviderRegistrar {
 
         registered_methods
     }
-    // </pca>
 }
 
 #[cfg(test)]
@@ -663,7 +477,6 @@ mod tests {
 
     use super::*;
     use jsonrpsee::core::server::rpc_module::Methods;
-    use ripple_sdk::api::firebolt::provider;
 
     #[test]
     fn test_register_methods() {
@@ -681,8 +494,6 @@ mod tests {
 
         let registered_methods =
             ProviderRegistrar::register_methods(&runtime.platform_state, &mut methods);
-
-        println!("*** _DEBUG: registered_methods={}", registered_methods);
 
         assert!(registered_methods == 0);
     }
@@ -710,8 +521,6 @@ mod tests {
         let registered_methods =
             ProviderRegistrar::register_methods(&runtime.platform_state, &mut methods);
 
-        println!("*** _DEBUG: registered_methods={}", registered_methods);
-
         assert!(registered_methods == 1);
     }
 
@@ -737,8 +546,6 @@ mod tests {
 
         let registered_methods =
             ProviderRegistrar::register_methods(&runtime.platform_state, &mut methods);
-
-        println!("*** _DEBUG: registered_methods={}", registered_methods);
 
         assert!(registered_methods == 1);
     }
@@ -766,8 +573,6 @@ mod tests {
         let registered_methods =
             ProviderRegistrar::register_methods(&runtime.platform_state, &mut methods);
 
-        println!("*** _DEBUG: registered_methods={}", registered_methods);
-
         assert!(registered_methods == 1);
     }
 
@@ -794,8 +599,6 @@ mod tests {
         let registered_methods =
             ProviderRegistrar::register_methods(&runtime.platform_state, &mut methods);
 
-        println!("*** _DEBUG: registered_methods={}", registered_methods);
-
         assert!(registered_methods == 1);
     }
 
@@ -820,8 +623,6 @@ mod tests {
 
         let registered_methods =
             ProviderRegistrar::register_methods(&runtime.platform_state, &mut methods);
-
-        println!("*** _DEBUG: registered_methods={}", registered_methods);
 
         assert!(registered_methods == 1);
     }
@@ -848,8 +649,6 @@ mod tests {
         let registered_methods =
             ProviderRegistrar::register_methods(&runtime.platform_state, &mut methods);
 
-        println!("*** _DEBUG: registered_methods={}", registered_methods);
-
         assert!(registered_methods == 1);
     }
 
@@ -874,8 +673,6 @@ mod tests {
 
         let registered_methods =
             ProviderRegistrar::register_methods(&runtime.platform_state, &mut methods);
-
-        println!("*** _DEBUG: registered_methods={}", registered_methods);
 
         assert!(registered_methods == 1);
     }
@@ -902,8 +699,6 @@ mod tests {
         let registered_methods =
             ProviderRegistrar::register_methods(&runtime.platform_state, &mut methods);
 
-        println!("*** _DEBUG: registered_methods={}", registered_methods);
-
         assert!(registered_methods == 1);
     }
 
@@ -911,7 +706,6 @@ mod tests {
     fn test_register_method_duplicate() {
         const METHOD_NAME: &str = "some.method";
 
-        let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
         runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
 

@@ -43,27 +43,15 @@ pub enum ApiSurface {
 
 #[derive(Debug, Clone, Default)]
 pub struct ProviderSet {
-    // <pca>
-    //pub request: Option<FireboltOpenRpcMethod>,
-    // </pca>
-    // <pca> 4
-    //pub focus: Option<FireboltOpenRpcMethod>,
-    //pub response: Option<FireboltOpenRpcMethod>,
     pub allow_focus_for: Option<String>,
     pub response_for: Option<String>,
-    // </pca>
-    // <pca> 2
-    //pub error: Option<FireboltOpenRpcMethod>,
     pub error_for: Option<String>,
-    // </pca>
     pub attributes: Option<&'static ProviderAttributes>,
-    // <pca>
     pub provides: Option<String>,
     pub provided_by: Option<String>,
     pub uses: Option<Vec<String>>,
     pub event: bool,
     pub provides_to: Option<String>,
-    // </pca>
 }
 
 impl ProviderSet {
@@ -72,69 +60,6 @@ impl ProviderSet {
     }
 }
 
-// <pca>
-// pub fn build_provider_sets(
-//     openrpc_methods: &Vec<FireboltOpenRpcMethod>,
-// ) -> HashMap<String, ProviderSet> {
-//     let mut provider_sets = HashMap::default();
-
-//     for method in openrpc_methods {
-//         let mut has_x_provides = None;
-
-//         // Only build provider sets for AcknowledgeChallenge and PinChallenge methods for now
-//         if !method.name.starts_with("AcknowledgeChallenge.")
-//             && !method.name.starts_with("PinChallenge.")
-//         {
-//             continue;
-//         }
-
-//         if let Some(tags) = &method.tags {
-//             let mut has_event = false;
-//             let mut has_caps = false;
-//             let mut has_x_allow_focus_for = false;
-//             let mut has_x_response_for = false;
-//             let mut has_x_error_for = false;
-
-//             for tag in tags {
-//                 if tag.name.eq("event") {
-//                     has_event = true;
-//                 } else if tag.name.eq("capabilities") {
-//                     has_caps = true;
-//                     has_x_provides = tag.get_provides();
-//                     has_x_allow_focus_for |= tag.allow_focus_for.is_some();
-//                     has_x_response_for |= tag.response_for.is_some();
-//                     has_x_error_for |= tag.error_for.is_some();
-//                 }
-//             }
-
-//             if let Some(p) = has_x_provides {
-//                 let mut provider_set = provider_sets
-//                     .get(&p.as_str())
-//                     .unwrap_or(&ProviderSet::new())
-//                     .clone();
-
-//                 if has_event && has_caps {
-//                     provider_set.request = Some(method.clone());
-//                 }
-//                 if has_x_allow_focus_for {
-//                     provider_set.focus = Some(method.clone());
-//                 }
-//                 if has_x_response_for {
-//                     provider_set.response = Some(method.clone());
-//                 }
-//                 if has_x_error_for {
-//                     provider_set.error = Some(method.clone());
-//                 }
-
-//                 let module: Vec<&str> = method.name.split('.').collect();
-//                 provider_set.attributes = ProviderAttributes::get(module[0]);
-
-//                 provider_sets.insert(p.as_str(), provider_set.to_owned());
-//             }
-//         }
-//     }
-//     provider_sets
-// }
 pub fn build_provider_sets(
     openrpc_methods: &Vec<FireboltOpenRpcMethod>,
 ) -> HashMap<String, ProviderSet> {
@@ -154,16 +79,9 @@ pub fn build_provider_sets(
 
         if let Some(tags) = &method.tags {
             let mut has_event = false;
-            // <pca> 4
-            //let mut has_x_allow_focus_for = false;
-            //let mut has_x_response_for = false;
             let mut x_allow_focus_for = None;
             let mut x_response_for = None;
-            // </pca>
-            // <pca> 2
-            //let mut has_x_error_for = false;
             let mut x_error_for = None;
-            // </pca>
             let mut x_provided_by = None;
             let mut x_provides = None;
             let mut x_uses = None;
@@ -173,16 +91,9 @@ pub fn build_provider_sets(
                     has_event = true;
                 } else if tag.name.eq("capabilities") {
                     has_x_provides = tag.get_provides();
-                    // <pca> 4
-                    //has_x_allow_focus_for |= tag.allow_focus_for.is_some();
-                    //has_x_response_for |= tag.response_for.is_some();
                     x_allow_focus_for = tag.allow_focus_for.clone();
                     x_response_for = tag.response_for.clone();
-                    // </pca>
-                    // <pca> 2
-                    //has_x_error_for |= tag.error_for.is_some();
                     x_error_for = tag.error_for.clone();
-                    // </pca>
                     x_provided_by = tag.provided_by.clone();
                     x_provides = tag.provides.clone();
                     x_uses = tag.uses.clone();
@@ -197,27 +108,9 @@ pub fn build_provider_sets(
                 .clone();
 
             if let Some(_capability) = has_x_provides {
-                // <pca>
-                // if has_event && has_caps {
-                //     provider_set.request = Some(method.clone());
-                // }
-                // </pca>
-                // <pca> 4
-                // if has_x_allow_focus_for {
-                //     provider_set.focus = Some(method.clone());
-                // }
-                // if has_x_response_for {
-                //     provider_set.response = Some(method.clone());
-                // }
                 provider_set.allow_focus_for = x_allow_focus_for;
                 provider_set.response_for = x_response_for;
-                // </pca>
-                // <pca> 2
-                // if has_x_error_for {
-                //     provider_set.error = Some(method.clone());
-                // }
                 provider_set.error_for = x_error_for;
-                // </pca>
                 provider_set.provides = x_provides;
             } else {
                 // x-provided-by can only be set if x-provides isn't.
@@ -252,7 +145,6 @@ pub fn build_provider_sets(
 
     provider_sets
 }
-//  </pca>
 
 #[derive(Debug, Clone)]
 pub struct OpenRpcState {
@@ -485,11 +377,9 @@ impl OpenRpcState {
         self.provider_map.read().unwrap().clone()
     }
 
-    // <pca>
     pub fn set_provider_map(&self, provider_map: HashMap<String, ProviderSet>) {
         *self.provider_map.write().unwrap() = provider_map;
     }
-    // </pca>
 
     pub fn get_version(&self) -> FireboltSemanticVersion {
         self.open_rpc.info.clone()

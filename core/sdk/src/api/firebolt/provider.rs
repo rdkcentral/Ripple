@@ -118,7 +118,6 @@ impl ProviderResponsePayload {
         }
     }
 
-    // <pca>
     pub fn as_value(&self) -> serde_json::Value {
         match self {
             ProviderResponsePayload::ChallengeResponse(res) => serde_json::to_value(res).unwrap(),
@@ -133,7 +132,6 @@ impl ProviderResponsePayload {
             }
         }
     }
-    // </pca>
 }
 
 #[derive(Serialize, Deserialize)]
@@ -174,17 +172,8 @@ pub struct ExternalProviderError {
 #[derive(Debug, Clone, Serialize)]
 
 pub struct ProviderAttributes {
-    // <pca>
-    //pub event: &'static str,
-    // </pca>
     pub response_payload_type: ProviderResponsePayloadType,
     pub error_payload_type: ProviderResponsePayloadType,
-    // <pca>
-    //pub capability: &'static str,
-    // </pca>
-    // <pca> 3
-    //pub method: &'static str,
-    // </pca>
 }
 
 impl ProviderAttributes {
@@ -198,27 +187,13 @@ impl ProviderAttributes {
 }
 
 pub const ACKNOWLEDGE_CHALLENGE_ATTRIBS: ProviderAttributes = ProviderAttributes {
-    // <pca>
-    //event: ACK_CHALLENGE_EVENT,
-    // </pca>
     response_payload_type: ProviderResponsePayloadType::ChallengeResponse,
     error_payload_type: ProviderResponsePayloadType::ChallengeError,
-    // <pca>
-    //capability: ACK_CHALLENGE_CAPABILITY,
-    //method: "challenge",
-    // </pca>
 };
 
 pub const PIN_CHALLENGE_ATTRIBS: ProviderAttributes = ProviderAttributes {
-    // <pca>
-    //event: PIN_CHALLENGE_EVENT,
-    // </pca>
     response_payload_type: ProviderResponsePayloadType::PinChallengeResponse,
     error_payload_type: ProviderResponsePayloadType::ChallengeError,
-    // <pca>
-    //capability: PIN_CHALLENGE_CAPABILITY,
-    //method: "challenge",
-    // </pca>
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

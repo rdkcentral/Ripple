@@ -289,7 +289,6 @@ impl FireboltWs {
                                     }
                                 }
                             }
-                            error!("*** _DEBUG: invalid message {}", req_text);
                             error!("invalid message {}", req_text)
                         }
                     }
