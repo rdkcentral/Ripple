@@ -14,16 +14,19 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-use super::endpoint_broker::{
-    BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutput, BrokerRequest, BrokerSender,
-    BrokerSubMap, EndpointBroker,
+use super::{
+    endpoint_broker::{
+        BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutput, BrokerRequest,
+        BrokerSender, BrokerSubMap, EndpointBroker,
+    },
+    thunder::thunder_plugins_status_mgr::StatusManager,
 };
 use crate::broker::broker_utils::BrokerUtils;
 use futures_util::{SinkExt, StreamExt};
 
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse,
-    log::{debug, error},
+    log::{debug, error, info},
     tokio::{self, sync::mpsc},
     utils::error::RippleError,
 };
@@ -38,6 +41,7 @@ pub struct ThunderBroker {
     sender: BrokerSender,
     subscription_map: Arc<RwLock<BrokerSubMap>>,
     cleaner: BrokerCleaner,
+    status_manager: StatusManager,
 }
 
 impl ThunderBroker {
@@ -53,6 +57,7 @@ impl ThunderBroker {
             cleaner: BrokerCleaner {
                 cleaner: Some(c_tx.clone()),
             },
+            status_manager: StatusManager::new(),
         };
         let broker_c = broker.clone();
         let broker_for_cleanup = broker.clone();
@@ -60,6 +65,18 @@ impl ThunderBroker {
         let broker_for_reconnect = broker.clone();
         tokio::spawn(async move {
             let (mut ws_tx, mut ws_rx) = BrokerUtils::get_ws_broker(&endpoint.url, None).await;
+
+            // send the first request to the broker. This is the controller statechange subscription request
+            let status_request = broker_c
+                .status_manager
+                .generate_state_change_subscribe_request();
+
+            let _feed = ws_tx
+                .feed(tokio_tungstenite::tungstenite::Message::Text(
+                    status_request.to_string(),
+                ))
+                .await;
+            let _flush = ws_tx.flush().await;
 
             tokio::pin! {
                 let read = ws_rx.next();
@@ -70,8 +87,13 @@ impl ThunderBroker {
                         match value {
                             Ok(v) => {
                                 if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
-                                    // send the incoming text without context back to the sender
-                                    Self::handle_jsonrpc_response(t.as_bytes(),callback.clone())
+                                    if broker_c.status_manager.is_controller_response(broker_c.get_sender(), callback.clone(), t.as_bytes()).await {
+                                        broker_c.status_manager.handle_controller_response(broker_c.get_sender(), callback.clone(), t.as_bytes()).await;
+                                    }
+                                    else {
+                                        // send the incoming text without context back to the sender
+                                        Self::handle_jsonrpc_response(t.as_bytes(),callback.clone())
+                                    }
                                 }
                             },
                             Err(e) => {
@@ -92,9 +114,17 @@ impl ThunderBroker {
                                     let _flush = ws_tx.flush().await;
                                 }
                             }
-                            Err(e) => callback_for_sender.send_error(request,e).await
+                            Err(e) => {
+                                match e {
+                                    RippleError::ServiceNotReady => {
+                                        info!("Thunder Service not ready, request is now in pending list {:?}", request);
+                                    },
+                                    _ =>
+                                callback_for_sender.send_error(request,e).await
+                            }
                         }
-                    },
+                    }
+                },
                     Some(cleanup_request) = c_tr.recv() => {
                         let value = {
                             broker_for_cleanup.subscription_map.write().unwrap().remove(&cleanup_request)
@@ -111,7 +141,7 @@ impl ThunderBroker {
                         }
 
                     }
-                }
+                    }
             }
 
             let mut reconnect_request = request.clone();
@@ -204,6 +234,43 @@ impl EndpointBroker for ThunderBroker {
         if method.is_none() {
             return Err(RippleError::InvalidInput);
         }
+        // check if the plugin is activated.
+        let status = match self.status_manager.get_status(callsign.clone()) {
+            Some(v) => v.clone(),
+            None => {
+                self.status_manager
+                    .add_broker_request_to_pending_list(callsign.clone(), rpc_request.clone());
+                // PluginState is not available with StateManager,  create an internal thunder request to activate the plugin
+                let request = self
+                    .status_manager
+                    .generate_plugin_status_request(callsign.clone());
+                requests.push(request.to_string());
+                return Ok(requests);
+            }
+        };
+
+        if status.state.is_missing() {
+            error!("Plugin {} is missing", callsign);
+            return Err(RippleError::ServiceError);
+        }
+
+        if status.state.is_activating() {
+            info!("Plugin {} is activating", callsign);
+            return Err(RippleError::ServiceNotReady);
+        }
+
+        if !status.state.is_activated() {
+            // add the broker request to pending list
+            self.status_manager
+                .add_broker_request_to_pending_list(callsign.clone(), rpc_request.clone());
+            // create an internal thunder request to activate the plugin
+            let request = self
+                .status_manager
+                .generate_plugin_activation_request(callsign.clone());
+            requests.push(request.to_string());
+            return Ok(requests);
+        }
+
         let method = method.unwrap();
         // Below chunk of code is basically for subscription where thunder needs some special care based on
         // the JsonRpc specification
