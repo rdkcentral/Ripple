@@ -30,6 +30,7 @@ use ripple_sdk::{
             fb_metrics::{MetricsContext, MetricsEnvironment},
             fb_openrpc::FireboltSemanticVersion,
         },
+        gateway::rpc_gateway_api::{ApiProtocol, CallContext},
         manifest::device_manifest::DataGovernanceConfig,
         storage_property::StorageProperty,
     },
@@ -37,12 +38,13 @@ use ripple_sdk::{
     extn::extn_client_message::ExtnResponse,
     log::error,
     utils::error::RippleError,
+    uuid::Uuid,
 };
 
 use rand::Rng;
 
 use crate::processor::storage::storage_manager::StorageManager;
-
+use crate::firebolt::handlers::localization_rpc::get_language;
 use super::platform_state::PlatformState;
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
@@ -252,10 +254,21 @@ impl MetricsState {
             }
         }
 
-        let language = match StorageManager::get_string(state, StorageProperty::Language).await {
-            Ok(resp) => resp,
-            Err(_) => "no.language.set".to_string(),
-        };
+        let ctx = CallContext::new(
+            Uuid::new_v4().to_string(),
+            Uuid::new_v4().to_string(),
+            "internal".into(),
+            1,
+            ApiProtocol::Extn,
+            "localization.language".to_string(),
+            None,
+            false,
+        );
+
+        let language = get_language(&ctx, state)
+            .await
+            .unwrap_or("no.language.set".to_string());
+        debug!("got language={:?}", &language);
 
         let os_info = match Self::get_os_info_from_firebolt(state).await {
             Ok(info) => info,

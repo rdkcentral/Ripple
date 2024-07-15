@@ -18,6 +18,7 @@
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
+    types::error::CallError,
     tracing::error,
     RpcModule,
 };
@@ -29,16 +30,18 @@ use ripple_sdk::{
             },
             device_info_request::DeviceInfoRequest,
             device_peristence::SetStringProperty,
-            device_request::{LanguageProperty, TimezoneProperty},
+            device_request::TimezoneProperty,
         },
         firebolt::{
             fb_general::{ListenRequest, ListenerResponse},
             fb_localization::SetPreferredAudioLanguage,
+            fb_capabilities::CAPABILITY_NOT_AVAILABLE,
         },
-        gateway::rpc_gateway_api::CallContext,
+        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
         storage_property::{StorageProperty, KEY_POSTAL_CODE},
     },
     extn::extn_client_message::ExtnResponse,
+    serde_json::from_value,
 };
 use std::collections::HashMap;
 
@@ -81,16 +84,6 @@ pub trait Localization {
     ) -> RpcResult<()>;
     #[method(name = "localization.onCountryCodeChanged")]
     async fn on_country_code_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
-    #[method(name = "localization.language")]
-    async fn language(&self, ctx: CallContext) -> RpcResult<String>;
-    #[method(name = "localization.setLanguage")]
-    async fn language_set(&self, ctx: CallContext, set_request: LanguageProperty) -> RpcResult<()>;
-    #[method(name = "localization.onLanguageChanged")]
-    async fn on_language_changed(
         &self,
         ctx: CallContext,
         request: ListenRequest,
@@ -183,6 +176,35 @@ pub trait Localization {
     ) -> RpcResult<ListenerResponse>;
 }
 
+pub async fn get_language(ctx: &CallContext, state: &PlatformState) -> RpcResult<String> {
+    let mut new_ctx = ctx.clone();
+    new_ctx.protocol = ApiProtocol::Extn;
+
+    let rpc_request = RpcRequest {
+        ctx: new_ctx.clone(),
+        method: "localization.language".into(),
+        params_json: RpcRequest::prepend_ctx(None, &new_ctx),
+    };
+
+    let resp = state
+        .get_client()
+        .get_extn_client()
+        .main_internal_request(rpc_request.clone())
+        .await;
+
+    if let Ok(res) = resp {
+        if let Some(ExtnResponse::Value(val)) = res.payload.extract::<ExtnResponse>() {
+            if let Ok(v) = from_value::<String>(val) {
+                return Ok(v);
+            }
+        }
+    }
+    Err(jsonrpsee::core::Error::Call(CallError::Custom {
+        code: CAPABILITY_NOT_AVAILABLE,
+        message: "localization.language is not available".into(),
+        data: None,
+    }))
+}
 #[derive(Debug)]
 pub struct LocalizationImpl {
     pub platform_state: PlatformState,
@@ -296,38 +318,6 @@ impl LocalizationServer for LocalizationImpl {
             request,
             "LocalizationCountryCodeChanged",
             "localization.onCountryCodeChanged",
-        )
-        .await
-    }
-
-    async fn language(&self, _ctx: CallContext) -> RpcResult<String> {
-        StorageManager::get_string(&self.platform_state, StorageProperty::Language).await
-    }
-
-    async fn language_set(
-        &self,
-        _ctx: CallContext,
-        set_request: LanguageProperty,
-    ) -> RpcResult<()> {
-        StorageManager::set_string(
-            &self.platform_state,
-            StorageProperty::Language,
-            set_request.value,
-            None,
-        )
-        .await
-    }
-
-    async fn on_language_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
-            ctx,
-            request,
-            "LocalizationLanguageChanged",
-            "localization.onLanguageChanged",
         )
         .await
     }
