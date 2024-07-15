@@ -143,7 +143,7 @@ pub fn build_provider_sets(
     for method in openrpc_methods {
         let mut has_x_provides = None;
 
-        // Only build provider sets for AcknowledgeChallenge and PinChallenge methods for now
+        // Only build provider sets for AcknowledgeChallenge, PinChallenge methods, Discovery, and Content for now
         if !method.name.starts_with("AcknowledgeChallenge.")
             && !method.name.starts_with("PinChallenge.")
             && !method.name.starts_with("Discovery.")
@@ -154,7 +154,6 @@ pub fn build_provider_sets(
 
         if let Some(tags) = &method.tags {
             let mut has_event = false;
-            let mut has_caps = false;
             // <pca> 4
             //let mut has_x_allow_focus_for = false;
             //let mut has_x_response_for = false;
@@ -173,7 +172,6 @@ pub fn build_provider_sets(
                 if tag.name.eq("event") {
                     has_event = true;
                 } else if tag.name.eq("capabilities") {
-                    has_caps = true;
                     has_x_provides = tag.get_provides();
                     // <pca> 4
                     //has_x_allow_focus_for |= tag.allow_focus_for.is_some();
@@ -486,6 +484,12 @@ impl OpenRpcState {
     pub fn get_provider_map(&self) -> HashMap<String, ProviderSet> {
         self.provider_map.read().unwrap().clone()
     }
+
+    // <pca>
+    pub fn set_provider_map(&self, provider_map: HashMap<String, ProviderSet>) {
+        *self.provider_map.write().unwrap() = provider_map;
+    }
+    // </pca>
 
     pub fn get_version(&self) -> FireboltSemanticVersion {
         self.open_rpc.info.clone()
