@@ -793,7 +793,7 @@ mod tests {
 
     mod endpoint_broker_state {
         use ripple_sdk::{
-            api::gateway::rpc_gateway_api::RpcRequest, tokio::sync::mpsc::channel, Mockable,
+            api::gateway::rpc_gateway_api::RpcRequest, tokio, tokio::sync::mpsc::channel, Mockable,
         };
 
         use crate::{
@@ -806,8 +806,8 @@ mod tests {
 
         use super::EndpointBrokerState;
 
-        #[test]
-        fn get_request() {
+        #[tokio::test]
+        async fn get_request() {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let state = EndpointBrokerState::new(
