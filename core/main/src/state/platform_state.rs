@@ -125,7 +125,7 @@ impl PlatformState {
             cap_state: CapState::new(manifest.clone()),
             session_state: SessionState::default(),
             device_manifest: manifest.clone(),
-            ripple_client: client,
+            ripple_client: client.clone(),
             app_library_state: AppLibraryState::new(app_library),
             app_events_state: AppEventsState::default(),
             provider_broker_state: ProviderBrokerState::default(),
@@ -137,7 +137,7 @@ impl PlatformState {
             device_session_id: DeviceSessionIdentifier::default(),
             ripple_cache: RippleCache::default(),
             version,
-            endpoint_state: EndpointBrokerState::new(broker_sender, rule_engine),
+            endpoint_state: EndpointBrokerState::new(broker_sender, rule_engine, client),
         }
     }
 
