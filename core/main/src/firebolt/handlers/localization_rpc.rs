@@ -18,8 +18,8 @@
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
-    types::error::CallError,
     tracing::error,
+    types::error::CallError,
     RpcModule,
 };
 use ripple_sdk::{
@@ -33,9 +33,9 @@ use ripple_sdk::{
             device_request::TimezoneProperty,
         },
         firebolt::{
+            fb_capabilities::CAPABILITY_NOT_AVAILABLE,
             fb_general::{ListenRequest, ListenerResponse},
             fb_localization::SetPreferredAudioLanguage,
-            fb_capabilities::CAPABILITY_NOT_AVAILABLE,
         },
         gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
         storage_property::{StorageProperty, KEY_POSTAL_CODE},

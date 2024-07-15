@@ -43,9 +43,9 @@ use ripple_sdk::{
 
 use rand::Rng;
 
-use crate::processor::storage::storage_manager::StorageManager;
-use crate::firebolt::handlers::localization_rpc::get_language;
 use super::platform_state::PlatformState;
+use crate::firebolt::handlers::localization_rpc::get_language;
+use crate::processor::storage::storage_manager::StorageManager;
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
