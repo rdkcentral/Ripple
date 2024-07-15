@@ -28,7 +28,7 @@ use ripple_sdk::{
     log::error,
     tokio::{
         self,
-        sync::mpsc::{Receiver, Sender},
+        sync::mpsc::{self, Receiver, Sender},
     },
     utils::error::RippleError,
 };
@@ -43,7 +43,8 @@ use std::{
 };
 
 use crate::{
-    firebolt::firebolt_gateway::JsonRpcError,
+    firebolt::firebolt_gateway::{FireboltGatewayCommand, JsonRpcError},
+    service::extn::ripple_client::RippleClient,
     state::platform_state::PlatformState,
     utils::router_utils::{return_api_message_for_transport, return_extn_response},
 };
@@ -80,6 +81,48 @@ pub struct BrokerRequest {
     pub rpc: RpcRequest,
     pub rule: Rule,
     pub subscription_processed: Option<bool>,
+}
+
+pub type BrokerSubMap = HashMap<String, Vec<BrokerRequest>>;
+
+#[derive(Clone, Debug)]
+pub struct BrokerConnectRequest {
+    pub key: String,
+    pub endpoint: RuleEndpoint,
+    pub sub_map: BrokerSubMap,
+    pub session: Option<AccountSession>,
+    pub reconnector: Sender<BrokerConnectRequest>,
+}
+
+impl BrokerConnectRequest {
+    pub fn new(
+        key: String,
+        endpoint: RuleEndpoint,
+        reconnector: Sender<BrokerConnectRequest>,
+    ) -> Self {
+        Self {
+            key,
+            endpoint,
+            sub_map: HashMap::new(),
+            session: None,
+            reconnector,
+        }
+    }
+
+    pub fn new_with_sesssion(
+        key: String,
+        endpoint: RuleEndpoint,
+        reconnector: Sender<BrokerConnectRequest>,
+        session: Option<AccountSession>,
+    ) -> Self {
+        Self {
+            key,
+            endpoint,
+            sub_map: HashMap::new(),
+            session,
+            reconnector,
+        }
+    }
 }
 
 impl BrokerRequest {
@@ -191,18 +234,46 @@ pub struct EndpointBrokerState {
     extension_request_map: Arc<RwLock<HashMap<u64, ExtnMessage>>>,
     rule_engine: RuleEngine,
     cleaner_list: Arc<RwLock<Vec<BrokerCleaner>>>,
+    reconnect_tx: Sender<BrokerConnectRequest>,
 }
 
 impl EndpointBrokerState {
-    pub fn new(tx: Sender<BrokerOutput>, rule_engine: RuleEngine) -> Self {
-        Self {
+    pub fn new(
+        tx: Sender<BrokerOutput>,
+        rule_engine: RuleEngine,
+        ripple_client: RippleClient,
+    ) -> Self {
+        let (reconnect_tx, rec_tr) = mpsc::channel(2);
+        let state = Self {
             endpoint_map: Arc::new(RwLock::new(HashMap::new())),
             callback: BrokerCallback { sender: tx },
             request_map: Arc::new(RwLock::new(HashMap::new())),
             extension_request_map: Arc::new(RwLock::new(HashMap::new())),
             rule_engine,
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
-        }
+            reconnect_tx,
+        };
+        state.reconnect_thread(rec_tr, ripple_client);
+        state
+    }
+
+    fn reconnect_thread(&self, mut rx: Receiver<BrokerConnectRequest>, client: RippleClient) {
+        let mut state = self.clone();
+        tokio::spawn(async move {
+            while let Some(v) = rx.recv().await {
+                if matches!(v.endpoint.protocol, RuleEndpointProtocol::Thunder) {
+                    if client
+                        .send_gateway_command(FireboltGatewayCommand::StopServer)
+                        .is_err()
+                    {
+                        error!("Stopping server")
+                    }
+                    break;
+                } else {
+                    state.build_endpoint(v)
+                }
+            }
+        });
     }
 
     fn get_request(&self, id: u64) -> Result<BrokerRequest, RippleError> {
@@ -275,53 +346,61 @@ impl EndpointBrokerState {
 
     pub fn build_thunder_endpoint(&mut self) {
         if let Some(endpoint) = self.rule_engine.rules.endpoints.get("thunder").cloned() {
-            let mut endpoint_map = self.endpoint_map.write().unwrap();
-            let thunder_broker = ThunderBroker::get_broker(endpoint.clone(), self.callback.clone());
-            endpoint_map.insert("thunder".to_owned(), thunder_broker.get_sender());
-            {
-                let mut cleaner_list = self.cleaner_list.write().unwrap();
-                cleaner_list.push(thunder_broker.get_cleaner());
-            }
+            let request = BrokerConnectRequest::new(
+                "thunder".to_owned(),
+                endpoint.clone(),
+                self.reconnect_tx.clone(),
+            );
+            self.build_endpoint(request);
         }
     }
 
     pub fn build_other_endpoints(&mut self, session: Option<AccountSession>) {
         for (key, endpoint) in self.rule_engine.rules.endpoints.clone() {
-            match endpoint.protocol {
-                RuleEndpointProtocol::Http => {
-                    let mut endpoint_map = self.endpoint_map.write().unwrap();
-                    endpoint_map.insert(
-                        key,
-                        HttpBroker::get_broker_with_session(
-                            endpoint.clone(),
-                            self.callback.clone(),
-                            session.clone(),
-                        )
-                        .get_sender(),
-                    );
-                }
-                RuleEndpointProtocol::Websocket => {
-                    let ws_broker =
-                        WebsocketBroker::get_broker(endpoint.clone(), self.callback.clone());
-                    {
-                        let mut endpoint_map = self.endpoint_map.write().unwrap();
-                        endpoint_map.insert(key, ws_broker.get_sender());
-                    }
+            let request = BrokerConnectRequest::new_with_sesssion(
+                key,
+                endpoint.clone(),
+                self.reconnect_tx.clone(),
+                session.clone(),
+            );
+            self.build_endpoint(request);
+        }
+    }
 
-                    {
-                        let mut cleaner_list = self.cleaner_list.write().unwrap();
-                        cleaner_list.push(ws_broker.get_cleaner())
-                    }
-                }
-                _ => {}
+    fn build_endpoint(&mut self, request: BrokerConnectRequest) {
+        let endpoint = request.endpoint.clone();
+        let key = request.key.clone();
+        let (broker, cleaner) = match endpoint.protocol {
+            RuleEndpointProtocol::Http => (
+                HttpBroker::get_broker(request, self.callback.clone()).get_sender(),
+                None,
+            ),
+            RuleEndpointProtocol::Websocket => {
+                let ws_broker = WebsocketBroker::get_broker(request, self.callback.clone());
+                (ws_broker.get_sender(), Some(ws_broker.get_cleaner()))
             }
+            RuleEndpointProtocol::Thunder => {
+                let thunder_broker = ThunderBroker::get_broker(request, self.callback.clone());
+                (
+                    thunder_broker.get_sender(),
+                    Some(thunder_broker.get_cleaner()),
+                )
+            }
+        };
+
+        {
+            let mut endpoint_map = self.endpoint_map.write().unwrap();
+            endpoint_map.insert(key, broker);
+        }
+
+        if let Some(cleaner) = cleaner {
+            let mut cleaner_list = self.cleaner_list.write().unwrap();
+            cleaner_list.push(cleaner);
         }
     }
 
     fn get_sender(&self, hash: &str) -> Option<BrokerSender> {
-        {
-            self.endpoint_map.read().unwrap().get(hash).cloned()
-        }
+        self.endpoint_map.read().unwrap().get(hash).cloned()
     }
 
     /// Main handler method whcih checks for brokerage and then sends the request for
@@ -385,18 +464,8 @@ impl EndpointBrokerState {
 /// Trait which contains all the abstract methods for a Endpoint Broker
 /// There could be Websocket or HTTP protocol implementations of the given trait
 pub trait EndpointBroker {
-    fn get_broker_with_session(
-        endpoint: RuleEndpoint,
-        callback: BrokerCallback,
-        _: Option<AccountSession>,
-    ) -> Self
-    where
-        Self: Sized,
-    {
-        Self::get_broker(endpoint, callback)
-    }
+    fn get_broker(request: BrokerConnectRequest, callback: BrokerCallback) -> Self;
 
-    fn get_broker(endpoint: RuleEndpoint, callback: BrokerCallback) -> Self;
     fn get_sender(&self) -> BrokerSender;
 
     fn prepare_request(&self, rpc_request: &BrokerRequest) -> Result<Vec<String>, RippleError> {
@@ -727,18 +796,26 @@ mod tests {
             api::gateway::rpc_gateway_api::RpcRequest, tokio::sync::mpsc::channel, Mockable,
         };
 
-        use crate::broker::rules_engine::{Rule, RuleEngine, RuleSet, RuleTransform};
+        use crate::{
+            broker::{
+                endpoint_broker::tests::RippleClient,
+                rules_engine::{Rule, RuleEngine, RuleSet, RuleTransform},
+            },
+            state::bootstrap_state::ChannelsState,
+        };
 
         use super::EndpointBrokerState;
 
         #[test]
         fn get_request() {
             let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
             let state = EndpointBrokerState::new(
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
                 },
+                client,
             );
             let mut request = RpcRequest::mock();
             state.update_request(

@@ -21,11 +21,9 @@ use ripple_sdk::{
     tokio::{self, sync::mpsc},
 };
 
-use super::{
-    endpoint_broker::{
-        BrokerCallback, BrokerCleaner, BrokerOutputForwarder, BrokerSender, EndpointBroker,
-    },
-    rules_engine::RuleEndpoint,
+use super::endpoint_broker::{
+    BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerSender,
+    EndpointBroker,
 };
 
 pub struct HttpBroker {
@@ -34,7 +32,8 @@ pub struct HttpBroker {
 }
 
 impl EndpointBroker for HttpBroker {
-    fn get_broker(endpoint: RuleEndpoint, callback: BrokerCallback) -> Self {
+    fn get_broker(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
+        let endpoint = request.endpoint.clone();
         let (tx, mut tr) = mpsc::channel(10);
         let broker = BrokerSender { sender: tx };
         let is_json_rpc = endpoint.jsonrpc;

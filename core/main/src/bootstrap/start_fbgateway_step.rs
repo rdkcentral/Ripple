@@ -110,6 +110,6 @@ impl Bootstep<BootstrapState> for FireboltGatewayStep {
         TelemetryBuilder::send_ripple_telemetry(&state.platform_state);
         gateway.start().await;
 
-        Ok(())
+        Err(RippleError::ServiceError)
     }
 }

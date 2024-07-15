@@ -85,6 +85,7 @@ pub enum FireboltGatewayCommand {
     HandleRpcForExtn {
         msg: ExtnMessage,
     },
+    StopServer,
 }
 
 impl FireboltGateway {
@@ -134,6 +135,10 @@ impl FireboltGateway {
                     } else {
                         error!("Not a valid RPC Request {:?}", msg);
                     }
+                }
+                StopServer => {
+                    error!("Stopping server");
+                    break;
                 }
             }
         }

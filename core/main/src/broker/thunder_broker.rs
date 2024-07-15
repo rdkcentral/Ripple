@@ -14,11 +14,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-use super::{
-    endpoint_broker::{
-        BrokerCallback, BrokerCleaner, BrokerOutput, BrokerRequest, BrokerSender, EndpointBroker,
-    },
-    rules_engine::RuleEndpoint,
+use super::endpoint_broker::{
+    BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutput, BrokerRequest, BrokerSender,
+    BrokerSubMap, EndpointBroker,
 };
 use crate::broker::broker_utils::BrokerUtils;
 use futures_util::{SinkExt, StreamExt};
@@ -31,7 +29,6 @@ use ripple_sdk::{
 };
 use serde_json::json;
 use std::{
-    collections::HashMap,
     sync::{Arc, RwLock},
     vec,
 };
@@ -39,16 +36,17 @@ use std::{
 #[derive(Debug, Clone)]
 pub struct ThunderBroker {
     sender: BrokerSender,
-    subscription_map: Arc<RwLock<HashMap<String, Vec<BrokerRequest>>>>,
+    subscription_map: Arc<RwLock<BrokerSubMap>>,
     cleaner: BrokerCleaner,
 }
 
 impl ThunderBroker {
-    fn start(endpoint: RuleEndpoint, callback: BrokerCallback) -> Self {
+    fn start(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
+        let endpoint = request.endpoint.clone();
         let (tx, mut tr) = mpsc::channel(10);
         let (c_tx, mut c_tr) = mpsc::channel(2);
         let sender = BrokerSender { sender: tx };
-        let subscription_map = Arc::new(RwLock::new(HashMap::new()));
+        let subscription_map = Arc::new(RwLock::new(request.sub_map.clone()));
         let broker = Self {
             sender,
             subscription_map,
@@ -59,6 +57,7 @@ impl ThunderBroker {
         let broker_c = broker.clone();
         let broker_for_cleanup = broker.clone();
         let callback_for_sender = callback.clone();
+        let broker_for_reconnect = broker.clone();
         tokio::spawn(async move {
             let (mut ws_tx, mut ws_rx) = BrokerUtils::get_ws_broker(&endpoint.url, None).await;
 
@@ -77,7 +76,8 @@ impl ThunderBroker {
                             },
                             Err(e) => {
                                 error!("Broker Websocket error on read {:?}", e);
-                                break false
+                                // Time to reconnect Thunder with existing subscription
+                                break;
                             }
                         }
 
@@ -112,6 +112,18 @@ impl ThunderBroker {
 
                     }
                 }
+            }
+
+            let mut reconnect_request = request.clone();
+            // Thunder Disconnected try reconnecting.
+            {
+                let mut subs = broker_for_reconnect.subscription_map.write().unwrap();
+                for (k, v) in subs.drain().take(1) {
+                    let _ = reconnect_request.sub_map.insert(k, v);
+                }
+            }
+            if request.reconnector.send(reconnect_request).await.is_err() {
+                error!("Error reconnecting to thunder");
             }
         });
         broker
@@ -156,7 +168,6 @@ impl ThunderBroker {
                     method, app_id
                 );
                 response = Some(v.remove(i));
-                //let _ = response.insert(v.remove(i));
             }
             if listen {
                 v.push(request.clone());
@@ -170,8 +181,8 @@ impl ThunderBroker {
 }
 
 impl EndpointBroker for ThunderBroker {
-    fn get_broker(endpoint: RuleEndpoint, callback: BrokerCallback) -> Self {
-        Self::start(endpoint, callback)
+    fn get_broker(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
+        Self::start(request, callback)
     }
 
     fn get_sender(&self) -> BrokerSender {

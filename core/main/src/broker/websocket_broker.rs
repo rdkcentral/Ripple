@@ -17,12 +17,9 @@
 
 use crate::broker::broker_utils::BrokerUtils;
 
-use super::{
-    endpoint_broker::{
-        BrokerCallback, BrokerCleaner, BrokerOutputForwarder, BrokerRequest, BrokerSender,
-        EndpointBroker,
-    },
-    rules_engine::RuleEndpoint,
+use super::endpoint_broker::{
+    BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerRequest,
+    BrokerSender, EndpointBroker,
 };
 use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::{
@@ -40,7 +37,8 @@ pub struct WebsocketBroker {
 }
 
 impl WebsocketBroker {
-    fn start(endpoint: RuleEndpoint, callback: BrokerCallback) -> Self {
+    fn start(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
+        let endpoint = request.endpoint.clone();
         let (tx, mut tr) = mpsc::channel(10);
         let (cleaner_tx, mut cleaner_tr) = mpsc::channel::<String>(1);
         let non_json_rpc_map: Arc<RwLock<HashMap<String, Vec<mpsc::Sender<String>>>>> =
@@ -186,8 +184,8 @@ impl WSNotificationBroker {
 }
 
 impl EndpointBroker for WebsocketBroker {
-    fn get_broker(endpoint: RuleEndpoint, callback: BrokerCallback) -> Self {
-        Self::start(endpoint, callback)
+    fn get_broker(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
+        Self::start(request, callback)
     }
 
     fn get_sender(&self) -> BrokerSender {
@@ -206,7 +204,7 @@ mod tests {
     use crate::{
         broker::{
             endpoint_broker::{BrokerOutput, BrokerRequest},
-            rules_engine::{Rule, RuleTransform},
+            rules_engine::{Rule, RuleEndpoint, RuleTransform},
         },
         utils::test_utils::{MockWebsocket, WSMockData},
     };
@@ -229,10 +227,11 @@ mod tests {
             protocol: crate::broker::rules_engine::RuleEndpointProtocol::Websocket,
             jsonrpc: false,
         };
-
+        let (tx, _) = mpsc::channel(1);
+        let request = BrokerConnectRequest::new("somekey".to_owned(), endpoint, tx);
         let callback = BrokerCallback { sender };
         // Setup websocket broker
-        WebsocketBroker::start(endpoint, callback)
+        WebsocketBroker::start(request, callback)
     }
 
     #[tokio::test]
