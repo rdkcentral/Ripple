@@ -1,5 +1,3 @@
-use crate::utils::rpc_utils::extract_tcp_port;
-
 // Copyright 2023 Comcast Cable Communications Management, LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,73 +16,67 @@ use crate::utils::rpc_utils::extract_tcp_port;
 //
 use super::{
     endpoint_broker::{
-        BrokerCallback, BrokerCleaner, BrokerOutput, BrokerRequest, BrokerSender, EndpointBroker,
+        BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutput, BrokerRequest,
+        BrokerSender, BrokerSubMap, EndpointBroker,
     },
-    rules_engine::RuleEndpoint,
+    thunder::thunder_plugins_status_mgr::StatusManager,
 };
+use crate::broker::broker_utils::BrokerUtils;
 use futures_util::{SinkExt, StreamExt};
+
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse,
     log::{debug, error, info},
-    tokio::{self, net::TcpStream, sync::mpsc},
+    tokio::{self, sync::mpsc},
     utils::error::RippleError,
 };
 use serde_json::json;
 use std::{
-    collections::HashMap,
     sync::{Arc, RwLock},
-    time::Duration,
     vec,
 };
-use tokio_tungstenite::client_async;
 
 #[derive(Debug, Clone)]
 pub struct ThunderBroker {
     sender: BrokerSender,
-    subscription_map: Arc<RwLock<HashMap<String, Vec<BrokerRequest>>>>,
+    subscription_map: Arc<RwLock<BrokerSubMap>>,
     cleaner: BrokerCleaner,
+    status_manager: StatusManager,
 }
 
 impl ThunderBroker {
-    fn start(endpoint: RuleEndpoint, callback: BrokerCallback) -> Self {
+    fn start(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
+        let endpoint = request.endpoint.clone();
         let (tx, mut tr) = mpsc::channel(10);
         let (c_tx, mut c_tr) = mpsc::channel(2);
         let sender = BrokerSender { sender: tx };
-        let subscription_map = Arc::new(RwLock::new(HashMap::new()));
+        let subscription_map = Arc::new(RwLock::new(request.sub_map.clone()));
         let broker = Self {
             sender,
             subscription_map,
             cleaner: BrokerCleaner {
                 cleaner: Some(c_tx.clone()),
             },
+            status_manager: StatusManager::new(),
         };
         let broker_c = broker.clone();
         let broker_for_cleanup = broker.clone();
         let callback_for_sender = callback.clone();
+        let broker_for_reconnect = broker.clone();
         tokio::spawn(async move {
-            info!("Broker Endpoint url {}", endpoint.url);
-            let url = url::Url::parse(&endpoint.url).unwrap();
-            let port = extract_tcp_port(&endpoint.url);
-            info!("Url host str {}", url.host_str().unwrap());
-            let mut index = 0;
-            //let tcp_url = url.host_str()
-            let tcp = loop {
-                if let Ok(v) = TcpStream::connect(&port).await {
-                    break v;
-                } else {
-                    if (index % 10).eq(&0) {
-                        error!(
-                            "Thunder Broker failed with retry for last {} secs in {}",
-                            index, port
-                        );
-                    }
-                    index += 1;
-                    tokio::time::sleep(Duration::from_secs(1)).await;
-                }
-            };
+            let (mut ws_tx, mut ws_rx) = BrokerUtils::get_ws_broker(&endpoint.url, None).await;
 
-            let (stream, _) = client_async(url, tcp).await.unwrap();
-            let (mut ws_tx, mut ws_rx) = stream.split();
+            // send the first request to the broker. This is the controller statechange subscription request
+            let status_request = broker_c
+                .status_manager
+                .generate_state_change_subscribe_request();
+
+            let _feed = ws_tx
+                .feed(tokio_tungstenite::tungstenite::Message::Text(
+                    status_request.to_string(),
+                ))
+                .await;
+            let _flush = ws_tx.flush().await;
 
             tokio::pin! {
                 let read = ws_rx.next();
@@ -95,13 +87,19 @@ impl ThunderBroker {
                         match value {
                             Ok(v) => {
                                 if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
-                                    // send the incoming text without context back to the sender
-                                    Self::handle_jsonrpc_response(t.as_bytes(),callback.clone())
+                                    if broker_c.status_manager.is_controller_response(broker_c.get_sender(), callback.clone(), t.as_bytes()).await {
+                                        broker_c.status_manager.handle_controller_response(broker_c.get_sender(), callback.clone(), t.as_bytes()).await;
+                                    }
+                                    else {
+                                        // send the incoming text without context back to the sender
+                                        Self::handle_jsonrpc_response(t.as_bytes(),callback.clone())
+                                    }
                                 }
                             },
                             Err(e) => {
                                 error!("Broker Websocket error on read {:?}", e);
-                                break false
+                                // Time to reconnect Thunder with existing subscription
+                                break;
                             }
                         }
 
@@ -116,9 +114,17 @@ impl ThunderBroker {
                                     let _flush = ws_tx.flush().await;
                                 }
                             }
-                            Err(e) => callback_for_sender.send_error(request,e).await
+                            Err(e) => {
+                                match e {
+                                    RippleError::ServiceNotReady => {
+                                        info!("Thunder Service not ready, request is now in pending list {:?}", request);
+                                    },
+                                    _ =>
+                                callback_for_sender.send_error(request,e).await
+                            }
                         }
-                    },
+                    }
+                },
                     Some(cleanup_request) = c_tr.recv() => {
                         let value = {
                             broker_for_cleanup.subscription_map.write().unwrap().remove(&cleanup_request)
@@ -135,7 +141,19 @@ impl ThunderBroker {
                         }
 
                     }
+                    }
+            }
+
+            let mut reconnect_request = request.clone();
+            // Thunder Disconnected try reconnecting.
+            {
+                let mut subs = broker_for_reconnect.subscription_map.write().unwrap();
+                for (k, v) in subs.drain().take(1) {
+                    let _ = reconnect_request.sub_map.insert(k, v);
                 }
+            }
+            if request.reconnector.send(reconnect_request).await.is_err() {
+                error!("Error reconnecting to thunder");
             }
         });
         broker
@@ -180,7 +198,6 @@ impl ThunderBroker {
                     method, app_id
                 );
                 response = Some(v.remove(i));
-                //let _ = response.insert(v.remove(i));
             }
             if listen {
                 v.push(request.clone());
@@ -194,8 +211,8 @@ impl ThunderBroker {
 }
 
 impl EndpointBroker for ThunderBroker {
-    fn get_broker(endpoint: RuleEndpoint, callback: BrokerCallback) -> Self {
-        Self::start(endpoint, callback)
+    fn get_broker(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
+        Self::start(request, callback)
     }
 
     fn get_sender(&self) -> BrokerSender {
@@ -217,6 +234,43 @@ impl EndpointBroker for ThunderBroker {
         if method.is_none() {
             return Err(RippleError::InvalidInput);
         }
+        // check if the plugin is activated.
+        let status = match self.status_manager.get_status(callsign.clone()) {
+            Some(v) => v.clone(),
+            None => {
+                self.status_manager
+                    .add_broker_request_to_pending_list(callsign.clone(), rpc_request.clone());
+                // PluginState is not available with StateManager,  create an internal thunder request to activate the plugin
+                let request = self
+                    .status_manager
+                    .generate_plugin_status_request(callsign.clone());
+                requests.push(request.to_string());
+                return Ok(requests);
+            }
+        };
+
+        if status.state.is_missing() {
+            error!("Plugin {} is missing", callsign);
+            return Err(RippleError::ServiceError);
+        }
+
+        if status.state.is_activating() {
+            info!("Plugin {} is activating", callsign);
+            return Err(RippleError::ServiceNotReady);
+        }
+
+        if !status.state.is_activated() {
+            // add the broker request to pending list
+            self.status_manager
+                .add_broker_request_to_pending_list(callsign.clone(), rpc_request.clone());
+            // create an internal thunder request to activate the plugin
+            let request = self
+                .status_manager
+                .generate_plugin_activation_request(callsign.clone());
+            requests.push(request.to_string());
+            return Ok(requests);
+        }
+
         let method = method.unwrap();
         // Below chunk of code is basically for subscription where thunder needs some special care based on
         // the JsonRpc specification

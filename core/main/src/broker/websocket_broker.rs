@@ -15,26 +15,21 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::utils::rpc_utils::extract_tcp_port;
+use crate::broker::broker_utils::BrokerUtils;
 
-use super::{
-    endpoint_broker::{
-        BrokerCallback, BrokerCleaner, BrokerOutputForwarder, BrokerRequest, BrokerSender,
-        EndpointBroker,
-    },
-    rules_engine::RuleEndpoint,
+use super::endpoint_broker::{
+    BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerRequest,
+    BrokerSender, EndpointBroker,
 };
 use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::{
-    log::{debug, error, info},
-    tokio::{self, net::TcpStream, sync::mpsc},
+    log::{debug, error},
+    tokio::{self, sync::mpsc},
 };
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
-    time::Duration,
 };
-use tokio_tungstenite::client_async;
 
 pub struct WebsocketBroker {
     sender: BrokerSender,
@@ -42,7 +37,8 @@ pub struct WebsocketBroker {
 }
 
 impl WebsocketBroker {
-    fn start(endpoint: RuleEndpoint, callback: BrokerCallback) -> Self {
+    fn start(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
+        let endpoint = request.endpoint.clone();
         let (tx, mut tr) = mpsc::channel(10);
         let (cleaner_tx, mut cleaner_tr) = mpsc::channel::<String>(1);
         let non_json_rpc_map: Arc<RwLock<HashMap<String, Vec<mpsc::Sender<String>>>>> =
@@ -51,10 +47,7 @@ impl WebsocketBroker {
         let broker = BrokerSender { sender: tx };
         tokio::spawn(async move {
             if endpoint.jsonrpc {
-                let (url, tcp) = connect(&endpoint.url, None).await;
-
-                let (stream, _) = client_async(url, tcp).await.unwrap();
-                let (mut ws_tx, mut ws_rx) = stream.split();
+                let (mut ws_tx, mut ws_rx) = BrokerUtils::get_ws_broker(&endpoint.url, None).await;
 
                 tokio::pin! {
                     let read = ws_rx.next();
@@ -143,10 +136,10 @@ impl WSNotificationBroker {
     ) -> mpsc::Sender<String> {
         let (tx, mut tr) = mpsc::channel::<String>(1);
         tokio::spawn(async move {
-            let (final_url, tcp) = connect(&url, Some(request_c.clone().rule.alias)).await;
             let app_id = request_c.get_id();
-            let (stream, _) = client_async(final_url, tcp).await.unwrap();
-            let (mut ws_tx, mut ws_rx) = stream.split();
+            let alias = request_c.rule.alias.clone();
+            let (mut ws_tx, mut ws_rx) =
+                BrokerUtils::get_ws_broker(&url, Some(alias.clone())).await;
 
             tokio::pin! {
                 let read = ws_rx.next();
@@ -190,31 +183,9 @@ impl WSNotificationBroker {
     }
 }
 
-async fn connect(endpoint: &str, alias: Option<String>) -> (url::Url, TcpStream) {
-    info!("Broker Endpoint url {}", endpoint);
-    let url_path = if let Some(a) = alias {
-        format!("{}{}", endpoint, a)
-    } else {
-        endpoint.to_owned()
-    };
-    let url = url::Url::parse(&url_path).unwrap();
-    let port = extract_tcp_port(endpoint);
-    info!("Url host str {}", url.host_str().unwrap());
-    //let tcp_url = url.host_str()
-    let tcp = loop {
-        if let Ok(v) = TcpStream::connect(&port).await {
-            break v;
-        } else {
-            error!("Broker Wait for a sec and retry {}", port);
-            tokio::time::sleep(Duration::from_secs(1)).await;
-        }
-    };
-    (url, tcp)
-}
-
 impl EndpointBroker for WebsocketBroker {
-    fn get_broker(endpoint: RuleEndpoint, callback: BrokerCallback) -> Self {
-        Self::start(endpoint, callback)
+    fn get_broker(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
+        Self::start(request, callback)
     }
 
     fn get_sender(&self) -> BrokerSender {
@@ -228,10 +199,12 @@ impl EndpointBroker for WebsocketBroker {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use crate::{
         broker::{
             endpoint_broker::{BrokerOutput, BrokerRequest},
-            rules_engine::{Rule, RuleTransform},
+            rules_engine::{Rule, RuleEndpoint, RuleTransform},
         },
         utils::test_utils::{MockWebsocket, WSMockData},
     };
@@ -254,10 +227,11 @@ mod tests {
             protocol: crate::broker::rules_engine::RuleEndpointProtocol::Websocket,
             jsonrpc: false,
         };
-
+        let (tx, _) = mpsc::channel(1);
+        let request = BrokerConnectRequest::new("somekey".to_owned(), endpoint, tx);
         let callback = BrokerCallback { sender };
         // Setup websocket broker
-        WebsocketBroker::start(endpoint, callback)
+        WebsocketBroker::start(request, callback)
     }
 
     #[tokio::test]
@@ -286,7 +260,6 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        info!("{:?}", v);
         assert!(v
             .data
             .result
