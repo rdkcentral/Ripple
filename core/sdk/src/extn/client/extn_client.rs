@@ -23,6 +23,7 @@ use std::{
 
 use async_channel::{bounded, Receiver as CReceiver, Sender as CSender};
 use chrono::Utc;
+use log::warn;
 #[cfg(not(test))]
 use log::{debug, error, info, trace};
 
@@ -452,12 +453,18 @@ impl ExtnClient {
     ) {
         let id_c = msg.target.as_clear_string();
         let mut gc_sender_indexes: Vec<usize> = Vec::new();
+        let mut processed = false;
         let read_processor = processor.clone();
         {
             let processors = read_processor.read().unwrap();
-            let v = processors.get(&id_c).cloned();
+            let v = if let Some(id_proc) = processors.get(&msg.id).cloned() {
+                Some(id_proc)
+            } else {
+                processors.get(&id_c).cloned()
+            };
             if let Some(v) = v {
                 for (index, s) in v.iter().enumerate() {
+                    processed = true;
                     if !s.is_closed() {
                         let sndr = s.clone();
                         let m = msg.clone();
@@ -470,10 +477,13 @@ impl ExtnClient {
                         gc_sender_indexes.push(index);
                     }
                 }
+            } else {
+                warn!("No valid processors for the event {:?}", msg)
             }
         };
 
-        if RippleContext::is_ripple_context(&msg.payload).is_none() {
+        // Print this message only for messages which were not processed
+        if !processed && RippleContext::is_ripple_context(&msg.payload).is_none() {
             // Not every extension will have a context listener
             error!("No Event Processor for {:?}", msg);
         }
@@ -596,6 +606,37 @@ impl ExtnClient {
         Err(RippleError::ExtnError)
     }
 
+    /// Subscribe method which accepts a impl [ExtnPayloadProvider] and a [MSender<ExtnMessage>]
+    /// As part of the subscription process it will automatically callback the Sender with the value recieved from the Publisher
+    pub async fn subscribe(
+        &mut self,
+        payload: impl ExtnPayloadProvider,
+        sender: MSender<ExtnMessage>,
+    ) -> Result<String, RippleError> {
+        let id = self.request_transient(payload)?;
+        add_vec_stream_processor(id.clone(), sender, self.event_processors.clone());
+        Ok(id)
+    }
+
+    // Unsubscribe is an antonym for subscribe accepts a impl [ExtnPayLoadProvider] and a [MSender<ExtnMessage]
+    pub async fn unsubscribe(
+        &mut self,
+        id: String,
+        payload: impl ExtnPayloadProvider,
+        sender: MSender<ExtnMessage>,
+    ) -> RippleResponse {
+        remove_processor(id, self.event_processors.clone());
+        if sender.is_closed() {
+            // send the unsubscription payload to the subscriber
+            self.request_transient(payload)?;
+            Ok(())
+        } else {
+            // if sender is closed automatically it gets cleaned up from event processors
+            error!("Expect sender to be closed before unsubscription");
+            Err(RippleError::InvalidInput)
+        }
+    }
+
     pub async fn main_internal_request(
         &mut self,
         payload: impl ExtnPayloadProvider,
@@ -682,10 +723,15 @@ impl ExtnClient {
     ///
     /// # Arguments
     /// `payload` - impl [ExtnPayloadProvider]
-    pub fn request_transient(&self, payload: impl ExtnPayloadProvider) -> RippleResponse {
+    pub fn request_transient(
+        &self,
+        payload: impl ExtnPayloadProvider,
+    ) -> Result<String, RippleError> {
         let id = uuid::Uuid::new_v4().to_string();
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
-        self.sender.send_request(id, payload, other_sender, None)
+        self.sender
+            .send_request(id.clone(), payload, other_sender, None)?;
+        Ok(id)
     }
 
     pub fn get_stack_size(&self) -> Option<ExtnStackSize> {
@@ -805,17 +851,20 @@ pub mod tests {
                 },
                 extn_sender::tests::Mockable as extn_sender_mockable,
             },
-            extn_client_message::{ExtnPayload, ExtnRequest},
+            extn_client_message::{ExtnEvent, ExtnPayload, ExtnRequest},
             extn_id::{ExtnClassId, ExtnId},
         },
-        utils::mock_utils::{get_mock_extn_client, MockEvent, MockRequest},
+        utils::{
+            logger::init_logger,
+            mock_utils::{get_mock_extn_client, MockEvent, MockRequest},
+        },
     };
     use async_channel::unbounded;
     use core::panic;
     use rstest::rstest;
     use std::collections::HashMap;
     use testing_logger::{self, validate};
-    use tokio::sync::oneshot;
+    use tokio::sync::{mpsc, oneshot};
     use tokio::time::Duration;
     use uuid::Uuid;
 
@@ -2296,5 +2345,45 @@ pub mod tests {
         extn_client.ripple_context.write().unwrap().time_zone = Some(test_timezone.clone());
         let result = extn_client.get_timezone();
         assert_eq!(result, Some(test_timezone));
+    }
+
+    #[tokio::test]
+    async fn test_subscription() {
+        let _ = init_logger("subscription_test".to_owned());
+        let mut extn_client = ExtnClient::mock();
+        let (tx, mut tr) = mpsc::channel(1);
+        let request = MockRequest {
+            app_id: "test_app_id".to_string(),
+            contract: RippleContract::Internal,
+            expected_response: None,
+        };
+        let id = extn_client.subscribe(request.clone(), tx).await.unwrap();
+
+        let msg = ExtnMessage {
+            id: id.clone(),
+            requestor: ExtnId::get_main_target("main".into()),
+            target: RippleContract::Internal,
+            target_id: None,
+            payload: request.get_extn_payload(),
+            callback: None,
+            ts: Some(Utc::now().timestamp_millis()),
+        };
+
+        let event = msg.get_event(ExtnEvent::String("some".to_owned())).unwrap();
+        let _ = extn_client.send_message(event).await;
+        tokio::spawn(async move {
+            extn_client.initialize().await;
+        });
+        let r = tokio::time::timeout(Duration::from_secs(2), tr.recv())
+            .await
+            .unwrap()
+            .unwrap();
+
+        if let Some(ExtnEvent::String(s)) = r.payload.extract() {
+            assert!(s.eq("some"))
+        } else {
+            // more readable and can help detect panic! definitions in code
+            unreachable!()
+        }
     }
 }

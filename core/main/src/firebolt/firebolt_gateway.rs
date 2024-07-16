@@ -38,7 +38,10 @@ use serde::Serialize;
 
 use crate::{
     firebolt::firebolt_gatekeeper::FireboltGatekeeper,
-    service::{apps::app_events::AppEvents, telemetry_builder::TelemetryBuilder},
+    service::{
+        apps::{app_events::AppEvents, provider_broker::ProviderBroker},
+        telemetry_builder::TelemetryBuilder,
+    },
     state::{
         bootstrap_state::BootstrapState, openrpc_state::OpenRpcState,
         platform_state::PlatformState, session_state::Session,
@@ -82,6 +85,7 @@ pub enum FireboltGatewayCommand {
     HandleRpcForExtn {
         msg: ExtnMessage,
     },
+    StopServer,
 }
 
 impl FireboltGateway {
@@ -115,6 +119,13 @@ impl FireboltGateway {
                 }
                 UnregisterSession { session_id, cid } => {
                     AppEvents::remove_session(&self.state.platform_state, session_id.clone());
+                    ProviderBroker::unregister_session(&self.state.platform_state, cid.clone())
+                        .await;
+                    self.state
+                        .platform_state
+                        .endpoint_state
+                        .cleanup_for_app(&cid)
+                        .await;
                     self.state.platform_state.session_state.clear_session(&cid);
                 }
                 HandleRpc { request } => self.handle(request, None).await,
@@ -125,6 +136,10 @@ impl FireboltGateway {
                         error!("Not a valid RPC Request {:?}", msg);
                     }
                 }
+                StopServer => {
+                    error!("Stopping server");
+                    break;
+                }
             }
         }
     }
@@ -134,11 +149,17 @@ impl FireboltGateway {
             "firebolt_gateway Received Firebolt request {} {} {}",
             request.ctx.request_id, request.method, request.params_json
         );
+        let mut extn_request = false;
         // First check sender if no sender no need to process
         let callback_c = extn_msg.clone();
         match request.ctx.protocol {
             ApiProtocol::Extn => {
-                if callback_c.is_none() || callback_c.unwrap().callback.is_none() {
+                extn_request = true;
+                // extn protocol with subscription requests means there is no need for callback
+                // it is using extn_client::subscribe method which uses id field to resolve.
+                if !request.is_subscription()
+                    && (callback_c.is_none() || callback_c.unwrap().callback.is_none())
+                {
                     error!("No callback for request {:?} ", request);
                     return;
                 }
@@ -176,36 +197,40 @@ impl FireboltGateway {
 
         tokio::spawn(async move {
             let start = Utc::now().timestamp_millis();
+            let result = if extn_request {
+                // extn protocol means its an internal Ripple request skip permissions.
+                Ok(())
+            } else {
+                // Validate incoming request parameters.
+                if let Err(error_string) = validate_request(open_rpc_state, &request_c) {
+                    let now = Utc::now().timestamp_millis();
 
-            // Validate incoming request parameters.
-            if let Err(error_string) = validate_request(open_rpc_state, &request_c) {
-                let now = Utc::now().timestamp_millis();
+                    RpcRouter::log_rdk_telemetry_message(
+                        &request.ctx.app_id,
+                        &request.method,
+                        JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+                        now - start,
+                    );
 
-                RpcRouter::log_rdk_telemetry_message(
-                    &request.ctx.app_id,
-                    &request.method,
-                    JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
-                    now - start,
-                );
+                    TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
+                        &platform_state.clone(),
+                        metrics_timer,
+                        format!("{}", JSON_RPC_STANDARD_ERROR_INVALID_PARAMS),
+                    )
+                    .await;
 
-                TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
-                    &platform_state.clone(),
-                    metrics_timer,
-                    format!("{}", JSON_RPC_STANDARD_ERROR_INVALID_PARAMS),
-                )
-                .await;
+                    let json_rpc_error = JsonRpcError {
+                        code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+                        message: error_string,
+                        data: None,
+                    };
 
-                let json_rpc_error = JsonRpcError {
-                    code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
-                    message: error_string,
-                    data: None,
-                };
+                    send_json_rpc_error(&platform_state, &request, json_rpc_error).await;
+                    return;
+                }
 
-                send_json_rpc_error(&platform_state, &request, json_rpc_error).await;
-                return;
-            }
-
-            let result = FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await;
+                FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await
+            };
 
             match result {
                 Ok(_) => {
