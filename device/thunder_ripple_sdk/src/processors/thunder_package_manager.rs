@@ -843,8 +843,8 @@ impl ThunderPackageManagerRequestProcessor {
                             Self::install(state.clone(), app[0].clone().into()).await;
                         }
                     }
-                    Ok(_) => {
-                        error!("get_firebolt_permissions: Unexpected response");
+                    Ok(resp) => {
+                        error!("get_firebolt_permissions: Unexpected response {:?}", resp);
                     }
                     Err(e) => {
                         error!("get_firebolt_permissions: Failed to get catalog: e={:?}", e);

@@ -67,6 +67,42 @@ macro_rules! get_pact_with_params {
     }
 }
 
+#[macro_export]
+macro_rules! mock_websocket_server {
+    ($pact_builder:ident, $server: ident,$server_url: ident, $test_name:expr, $interactions:expr) => {
+
+        let mut $pact_builder = PactBuilder::new_v4("ripple", $test_name) // Define the message consumer and provider by name
+        .using_plugin("websockets", Some("0.4.2".to_string()))
+        .await;
+
+        let pacts = $interactions.clone();
+        let pacts = pacts.as_array();
+
+        if let Some(multis) = pacts {
+         for interaction in multis {
+            $pact_builder.synchronous_message_interaction($test_name, |mut i| async move {
+             i.test_name($test_name);
+             i.contents_from(interaction.clone()).await;
+             i
+            }).await;
+         }
+        }else {
+            $pact_builder.synchronous_message_interaction($test_name, |mut i| async move {
+                i.test_name($test_name);
+                i.contents_from($interactions.clone()).await;
+                i
+               }).await;
+
+        }
+
+        let $server = $pact_builder.start_mock_server_async(Some("websockets/transport/websockets")).await;
+
+        let $server_url = reqwest::Url::parse($server.path("/jsonrpc").as_str()).unwrap();
+
+
+    }
+}
+
 pub struct ContractResult {
     pub result: HashMap<String, ContractMatcher>,
 }

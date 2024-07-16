@@ -14,10 +14,4 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-pub mod broker_utils;
-pub mod endpoint_broker;
-pub mod http_broker;
-pub mod rules_engine;
-pub mod thunder;
-pub mod thunder_broker;
-pub mod websocket_broker;
+pub mod thunder_plugins_status_mgr;
