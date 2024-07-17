@@ -23,7 +23,7 @@ use crate::{
         app_events::AppEvents,
         provider_broker::{ProviderBroker, ProviderBrokerRequest},
     },
-    state::{openrpc_state::ProviderSet, platform_state::PlatformState},
+    state::{openrpc_state::ProviderRelationSet, platform_state::PlatformState},
 };
 use jsonrpsee::{
     core::{server::rpc_module::Methods, Error, RpcResult},
@@ -67,15 +67,19 @@ enum MethodType {
 struct RpcModuleContext {
     platform_state: PlatformState,
     method: String,
-    provider_set: ProviderSet,
+    provider_relation_set: ProviderRelationSet,
 }
 
 impl RpcModuleContext {
-    fn new(platform_state: PlatformState, method: String, provider_set: ProviderSet) -> Self {
+    fn new(
+        platform_state: PlatformState,
+        method: String,
+        provider_relation_set: ProviderRelationSet,
+    ) -> Self {
         RpcModuleContext {
             method,
             platform_state,
-            provider_set,
+            provider_relation_set,
         }
     }
 }
@@ -204,7 +208,7 @@ impl ProviderRegistrar {
     ) -> Result<ListenerResponse, Error> {
         info!("callback_register_provider: method={}", context.method);
 
-        if let Some(provides) = &context.provider_set.provides {
+        if let Some(provides) = &context.provider_relation_set.provides {
             let mut params_sequence = params.sequence();
             let call_context: CallContext = params_sequence.next().unwrap();
             let request: ListenRequest = params_sequence.next().unwrap();
@@ -234,7 +238,7 @@ impl ProviderRegistrar {
         context: Arc<RpcModuleContext>,
     ) -> Result<Option<()>, Error> {
         info!("callback_app_event_emitter: method={}", context.method);
-        if let Some(event) = &context.provider_set.provides_to {
+        if let Some(event) = &context.provider_relation_set.provides_to {
             let mut params_sequence = params.sequence();
             let _call_context: CallContext = params_sequence.next().unwrap();
             let result: Value = params_sequence.next().unwrap();
@@ -252,7 +256,7 @@ impl ProviderRegistrar {
         info!("callback_error: method={}", context.method);
         let params_sequence = params.sequence();
 
-        if let Some(attributes) = context.provider_set.attributes {
+        if let Some(attributes) = context.provider_relation_set.attributes {
             if let Some(provider_response) = ProviderRegistrar::get_provider_response(
                 attributes.error_payload_type.clone(),
                 params_sequence,
@@ -281,10 +285,13 @@ impl ProviderRegistrar {
 
         info!("callback_provider_invoker: method={}", context.method);
 
-        if let Some(provided_by) = &context.provider_set.provided_by {
-            let provider_map = context.platform_state.open_rpc_state.get_provider_map();
+        if let Some(provided_by) = &context.provider_relation_set.provided_by {
+            let provider_relation_map = context
+                .platform_state
+                .open_rpc_state
+                .get_provider_relation_map();
 
-            if let Some(provided_by_set) = provider_map.get(
+            if let Some(provided_by_set) = provider_relation_map.get(
                 &FireboltOpenRpcMethod::name_with_lowercase_module(provided_by),
             ) {
                 if let Some(capability) = &provided_by_set.provides {
@@ -343,7 +350,7 @@ impl ProviderRegistrar {
     ) -> Result<Option<()>, Error> {
         info!("callback_focus: method={}", context.method);
 
-        if let Some(provides) = &context.provider_set.provides {
+        if let Some(provides) = &context.provider_relation_set.provides {
             let mut params_sequence = params.sequence();
             let call_context: CallContext = params_sequence.next().unwrap();
             let request: FocusRequest = params_sequence.next().unwrap();
@@ -370,7 +377,7 @@ impl ProviderRegistrar {
 
         let params_sequence = params.sequence();
 
-        if let Some(attributes) = context.provider_set.attributes {
+        if let Some(attributes) = context.provider_relation_set.attributes {
             if let Some(provider_response) = ProviderRegistrar::get_provider_response(
                 attributes.response_payload_type.clone(),
                 params_sequence,
@@ -389,11 +396,11 @@ impl ProviderRegistrar {
     }
 
     pub fn register_methods(platform_state: &PlatformState, methods: &mut Methods) -> u32 {
-        let provider_map = platform_state.open_rpc_state.get_provider_map();
+        let provider_relation_map = platform_state.open_rpc_state.get_provider_relation_map();
         let mut registered_methods = 0;
 
-        for method_name in provider_map.clone().keys() {
-            if let Some(provider_set) = provider_map.get(method_name) {
+        for method_name in provider_relation_map.clone().keys() {
+            if let Some(provider_relation_set) = provider_relation_map.get(method_name) {
                 let mut registered = false;
 
                 let method_name_lcm =
@@ -402,19 +409,20 @@ impl ProviderRegistrar {
                 let rpc_module_context = RpcModuleContext::new(
                     platform_state.clone(),
                     method_name_lcm.into(),
-                    provider_set.clone(),
+                    provider_relation_set.clone(),
                 );
 
                 let mut rpc_module = RpcModule::new(rpc_module_context.clone());
 
-                if provider_set.event {
-                    if provider_set.provided_by.is_some() {
+                if provider_relation_set.event {
+                    if provider_relation_set.provided_by.is_some() {
                         registered = Self::register_method(
                             method_name_lcm,
                             MethodType::AppEventListener,
                             &mut rpc_module,
                         );
-                    } else if provider_set.provides.is_some() || provider_set.provides_to.is_some()
+                    } else if provider_relation_set.provides.is_some()
+                        || provider_relation_set.provides_to.is_some()
                     {
                         registered = Self::register_method(
                             method_name_lcm,
@@ -422,16 +430,16 @@ impl ProviderRegistrar {
                             &mut rpc_module,
                         );
                     }
-                } else if provider_set.provides_to.is_some() {
+                } else if provider_relation_set.provides_to.is_some() {
                     registered = Self::register_method(
                         method_name_lcm,
                         MethodType::AppEventEmitter,
                         &mut rpc_module,
                     );
-                } else if provider_set.error_for.is_some() {
+                } else if provider_relation_set.error_for.is_some() {
                     registered =
                         Self::register_method(method_name_lcm, MethodType::Error, &mut rpc_module);
-                } else if provider_set.provided_by.is_some() {
+                } else if provider_relation_set.provided_by.is_some() {
                     registered = Self::register_method(
                         method_name_lcm,
                         MethodType::ProviderInvoker,
@@ -440,13 +448,13 @@ impl ProviderRegistrar {
                 }
 
                 if !registered {
-                    if provider_set.allow_focus_for.is_some() {
+                    if provider_relation_set.allow_focus_for.is_some() {
                         registered = Self::register_method(
                             method_name_lcm,
                             MethodType::Focus,
                             &mut rpc_module,
                         );
-                    } else if provider_set.response_for.is_some() {
+                    } else if provider_relation_set.response_for.is_some() {
                         registered = Self::register_method(
                             method_name_lcm,
                             MethodType::Response,
@@ -484,13 +492,13 @@ mod tests {
         let mut runtime = test_utils::MockRuntime::new();
         runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
 
-        let mut provider_map: HashMap<String, ProviderSet> = HashMap::new();
-        provider_map.insert("some.method".to_string(), ProviderSet::new());
+        let mut provider_relation_map: HashMap<String, ProviderRelationSet> = HashMap::new();
+        provider_relation_map.insert("some.method".to_string(), ProviderRelationSet::new());
 
         runtime
             .platform_state
             .open_rpc_state
-            .set_provider_map(provider_map);
+            .set_provider_relation_map(provider_relation_map);
 
         let registered_methods =
             ProviderRegistrar::register_methods(&runtime.platform_state, &mut methods);
@@ -504,19 +512,19 @@ mod tests {
         let mut runtime = test_utils::MockRuntime::new();
         runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
 
-        let provider_set = ProviderSet {
+        let provider_relation_set = ProviderRelationSet {
             event: true,
             provided_by: Some("some.other_method".to_string()),
             ..Default::default()
         };
 
-        let mut provider_map: HashMap<String, ProviderSet> = HashMap::new();
-        provider_map.insert("some.method".to_string(), provider_set);
+        let mut provider_relation_map: HashMap<String, ProviderRelationSet> = HashMap::new();
+        provider_relation_map.insert("some.method".to_string(), provider_relation_set);
 
         runtime
             .platform_state
             .open_rpc_state
-            .set_provider_map(provider_map);
+            .set_provider_relation_map(provider_relation_map);
 
         let registered_methods =
             ProviderRegistrar::register_methods(&runtime.platform_state, &mut methods);
@@ -530,19 +538,19 @@ mod tests {
         let mut runtime = test_utils::MockRuntime::new();
         runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
 
-        let provider_set = ProviderSet {
+        let provider_relation_set = ProviderRelationSet {
             event: true,
             provides: Some("some.capability".to_string()),
             ..Default::default()
         };
 
-        let mut provider_map: HashMap<String, ProviderSet> = HashMap::new();
-        provider_map.insert("some.method".to_string(), provider_set);
+        let mut provider_relation_map: HashMap<String, ProviderRelationSet> = HashMap::new();
+        provider_relation_map.insert("some.method".to_string(), provider_relation_set);
 
         runtime
             .platform_state
             .open_rpc_state
-            .set_provider_map(provider_map);
+            .set_provider_relation_map(provider_relation_map);
 
         let registered_methods =
             ProviderRegistrar::register_methods(&runtime.platform_state, &mut methods);
@@ -556,19 +564,19 @@ mod tests {
         let mut runtime = test_utils::MockRuntime::new();
         runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
 
-        let provider_set = ProviderSet {
+        let provider_relation_set = ProviderRelationSet {
             event: true,
             provides_to: Some("some.other.method".to_string()),
             ..Default::default()
         };
 
-        let mut provider_map: HashMap<String, ProviderSet> = HashMap::new();
-        provider_map.insert("some.method".to_string(), provider_set);
+        let mut provider_relation_map: HashMap<String, ProviderRelationSet> = HashMap::new();
+        provider_relation_map.insert("some.method".to_string(), provider_relation_set);
 
         runtime
             .platform_state
             .open_rpc_state
-            .set_provider_map(provider_map);
+            .set_provider_relation_map(provider_relation_map);
 
         let registered_methods =
             ProviderRegistrar::register_methods(&runtime.platform_state, &mut methods);
@@ -582,19 +590,19 @@ mod tests {
         let mut runtime = test_utils::MockRuntime::new();
         runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
 
-        let provider_set = ProviderSet {
+        let provider_relation_set = ProviderRelationSet {
             event: true,
             provides_to: Some("some.other.method".to_string()),
             ..Default::default()
         };
 
-        let mut provider_map: HashMap<String, ProviderSet> = HashMap::new();
-        provider_map.insert("some.method".to_string(), provider_set);
+        let mut provider_relation_map: HashMap<String, ProviderRelationSet> = HashMap::new();
+        provider_relation_map.insert("some.method".to_string(), provider_relation_set);
 
         runtime
             .platform_state
             .open_rpc_state
-            .set_provider_map(provider_map);
+            .set_provider_relation_map(provider_relation_map);
 
         let registered_methods =
             ProviderRegistrar::register_methods(&runtime.platform_state, &mut methods);
@@ -608,18 +616,18 @@ mod tests {
         let mut runtime = test_utils::MockRuntime::new();
         runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
 
-        let provider_set = ProviderSet {
+        let provider_relation_set = ProviderRelationSet {
             error_for: Some("some.other.method".to_string()),
             ..Default::default()
         };
 
-        let mut provider_map: HashMap<String, ProviderSet> = HashMap::new();
-        provider_map.insert("some.method".to_string(), provider_set);
+        let mut provider_relation_map: HashMap<String, ProviderRelationSet> = HashMap::new();
+        provider_relation_map.insert("some.method".to_string(), provider_relation_set);
 
         runtime
             .platform_state
             .open_rpc_state
-            .set_provider_map(provider_map);
+            .set_provider_relation_map(provider_relation_map);
 
         let registered_methods =
             ProviderRegistrar::register_methods(&runtime.platform_state, &mut methods);
@@ -633,18 +641,18 @@ mod tests {
         let mut runtime = test_utils::MockRuntime::new();
         runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
 
-        let provider_set = ProviderSet {
+        let provider_relation_set = ProviderRelationSet {
             provided_by: Some("some.other.method".to_string()),
             ..Default::default()
         };
 
-        let mut provider_map: HashMap<String, ProviderSet> = HashMap::new();
-        provider_map.insert("some.method".to_string(), provider_set);
+        let mut provider_relation_map: HashMap<String, ProviderRelationSet> = HashMap::new();
+        provider_relation_map.insert("some.method".to_string(), provider_relation_set);
 
         runtime
             .platform_state
             .open_rpc_state
-            .set_provider_map(provider_map);
+            .set_provider_relation_map(provider_relation_map);
 
         let registered_methods =
             ProviderRegistrar::register_methods(&runtime.platform_state, &mut methods);
@@ -658,18 +666,18 @@ mod tests {
         let mut runtime = test_utils::MockRuntime::new();
         runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
 
-        let provider_set = ProviderSet {
+        let provider_relation_set = ProviderRelationSet {
             allow_focus_for: Some("some.other.method".to_string()),
             ..Default::default()
         };
 
-        let mut provider_map: HashMap<String, ProviderSet> = HashMap::new();
-        provider_map.insert("some.method".to_string(), provider_set);
+        let mut provider_relation_map: HashMap<String, ProviderRelationSet> = HashMap::new();
+        provider_relation_map.insert("some.method".to_string(), provider_relation_set);
 
         runtime
             .platform_state
             .open_rpc_state
-            .set_provider_map(provider_map);
+            .set_provider_relation_map(provider_relation_map);
 
         let registered_methods =
             ProviderRegistrar::register_methods(&runtime.platform_state, &mut methods);
@@ -683,18 +691,18 @@ mod tests {
         let mut runtime = test_utils::MockRuntime::new();
         runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
 
-        let provider_set = ProviderSet {
+        let provider_relation_set = ProviderRelationSet {
             response_for: Some("some.other.method".to_string()),
             ..Default::default()
         };
 
-        let mut provider_map: HashMap<String, ProviderSet> = HashMap::new();
-        provider_map.insert("some.method".to_string(), provider_set);
+        let mut provider_relation_map: HashMap<String, ProviderRelationSet> = HashMap::new();
+        provider_relation_map.insert("some.method".to_string(), provider_relation_set);
 
         runtime
             .platform_state
             .open_rpc_state
-            .set_provider_map(provider_map);
+            .set_provider_relation_map(provider_relation_map);
 
         let registered_methods =
             ProviderRegistrar::register_methods(&runtime.platform_state, &mut methods);
@@ -709,7 +717,7 @@ mod tests {
         let mut runtime = test_utils::MockRuntime::new();
         runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
 
-        let provider_set = ProviderSet {
+        let provider_relation_set = ProviderRelationSet {
             response_for: Some("some.other.method".to_string()),
             ..Default::default()
         };
@@ -717,7 +725,7 @@ mod tests {
         let rpc_module_context = RpcModuleContext::new(
             runtime.platform_state.clone(),
             String::from(METHOD_NAME),
-            provider_set.clone(),
+            provider_relation_set.clone(),
         );
 
         let mut rpc_module = RpcModule::new(rpc_module_context.clone());

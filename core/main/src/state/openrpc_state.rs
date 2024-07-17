@@ -42,7 +42,7 @@ pub enum ApiSurface {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct ProviderSet {
+pub struct ProviderRelationSet {
     pub allow_focus_for: Option<String>,
     pub response_for: Option<String>,
     pub error_for: Option<String>,
@@ -54,16 +54,16 @@ pub struct ProviderSet {
     pub provides_to: Option<String>,
 }
 
-impl ProviderSet {
-    pub fn new() -> ProviderSet {
-        ProviderSet::default()
+impl ProviderRelationSet {
+    pub fn new() -> ProviderRelationSet {
+        ProviderRelationSet::default()
     }
 }
 
-pub fn build_provider_sets(
+pub fn build_provider_relation_sets(
     openrpc_methods: &Vec<FireboltOpenRpcMethod>,
-) -> HashMap<String, ProviderSet> {
-    let mut provider_sets = HashMap::default();
+) -> HashMap<String, ProviderRelationSet> {
+    let mut provider_relation_sets = HashMap::default();
 
     for method in openrpc_methods {
         let mut has_x_provides = None;
@@ -100,50 +100,50 @@ pub fn build_provider_sets(
                 }
             }
 
-            let mut provider_set = provider_sets
+            let mut provider_relation_set = provider_relation_sets
                 .get(&FireboltOpenRpcMethod::name_with_lowercase_module(
                     &method.name,
                 ))
-                .unwrap_or(&ProviderSet::new())
+                .unwrap_or(&ProviderRelationSet::new())
                 .clone();
 
             if let Some(_capability) = has_x_provides {
-                provider_set.allow_focus_for = x_allow_focus_for;
-                provider_set.response_for = x_response_for;
-                provider_set.error_for = x_error_for;
-                provider_set.provides = x_provides;
+                provider_relation_set.allow_focus_for = x_allow_focus_for;
+                provider_relation_set.response_for = x_response_for;
+                provider_relation_set.error_for = x_error_for;
+                provider_relation_set.provides = x_provides;
             } else {
                 // x-provided-by can only be set if x-provides isn't.
-                provider_set.provided_by = x_provided_by.clone();
+                provider_relation_set.provided_by = x_provided_by.clone();
                 if let Some(provided_by) = x_provided_by {
-                    let mut provided_by_set = provider_sets
+                    let mut provided_by_set = provider_relation_sets
                         .get(&provided_by)
-                        .unwrap_or(&ProviderSet::new())
+                        .unwrap_or(&ProviderRelationSet::new())
                         .clone();
 
                     provided_by_set.provides_to = Some(method.name.clone());
 
-                    provider_sets.insert(
+                    provider_relation_sets.insert(
                         FireboltOpenRpcMethod::name_with_lowercase_module(&provided_by),
                         provided_by_set.to_owned(),
                     );
                 }
             }
 
-            provider_set.uses = x_uses;
-            provider_set.event = has_event;
+            provider_relation_set.uses = x_uses;
+            provider_relation_set.event = has_event;
 
             let module: Vec<&str> = method.name.split('.').collect();
-            provider_set.attributes = ProviderAttributes::get(module[0]);
+            provider_relation_set.attributes = ProviderAttributes::get(module[0]);
 
-            provider_sets.insert(
+            provider_relation_sets.insert(
                 FireboltOpenRpcMethod::name_with_lowercase_module(&method.name),
-                provider_set.to_owned(),
+                provider_relation_set.to_owned(),
             );
         }
     }
 
-    provider_sets
+    provider_relation_sets
 }
 
 #[derive(Debug, Clone)]
@@ -154,7 +154,7 @@ pub struct OpenRpcState {
     ripple_cap_map: Arc<RwLock<HashMap<String, CapabilitySet>>>,
     cap_policies: Arc<RwLock<HashMap<String, CapabilityPolicy>>>,
     extended_rpc: Arc<RwLock<Vec<FireboltOpenRpc>>>,
-    provider_map: Arc<RwLock<HashMap<String, ProviderSet>>>,
+    provider_relation_map: Arc<RwLock<HashMap<String, ProviderRelationSet>>>,
     openrpc_validator: Arc<RwLock<FireboltOpenRpcValidator>>,
 }
 
@@ -225,7 +225,9 @@ impl OpenRpcState {
             cap_policies: Arc::new(RwLock::new(version_manifest.capabilities)),
             open_rpc: firebolt_open_rpc.clone(),
             extended_rpc: Arc::new(RwLock::new(Vec::new())),
-            provider_map: Arc::new(RwLock::new(build_provider_sets(&firebolt_open_rpc.methods))),
+            provider_relation_map: Arc::new(RwLock::new(build_provider_relation_sets(
+                &firebolt_open_rpc.methods,
+            ))),
             openrpc_validator: Arc::new(RwLock::new(openrpc_validator)),
         }
     }
@@ -373,12 +375,15 @@ impl OpenRpcState {
         self.open_rpc.clone()
     }
 
-    pub fn get_provider_map(&self) -> HashMap<String, ProviderSet> {
-        self.provider_map.read().unwrap().clone()
+    pub fn get_provider_relation_map(&self) -> HashMap<String, ProviderRelationSet> {
+        self.provider_relation_map.read().unwrap().clone()
     }
 
-    pub fn set_provider_map(&self, provider_map: HashMap<String, ProviderSet>) {
-        *self.provider_map.write().unwrap() = provider_map;
+    pub fn set_provider_relation_map(
+        &self,
+        provider_relation_map: HashMap<String, ProviderRelationSet>,
+    ) {
+        *self.provider_relation_map.write().unwrap() = provider_relation_map;
     }
 
     pub fn get_version(&self) -> FireboltSemanticVersion {

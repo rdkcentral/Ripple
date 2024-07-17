@@ -49,7 +49,7 @@ impl FireboltGatewayStep {
         let mut methods = Methods::new();
 
         // TODO: Ultimately this may be able to register all providers below, for now just does
-        // those included by build_provider_sets().
+        // those included by build_provider_relation_sets().
         ProviderRegistrar::register_methods(&state, &mut methods);
 
         let _ = methods.merge(DeviceRPCProvider::provide_with_alias(state.clone()));
