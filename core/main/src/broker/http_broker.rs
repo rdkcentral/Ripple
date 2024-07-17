@@ -21,20 +21,22 @@ use ripple_sdk::{
     tokio::{self, sync::mpsc},
 };
 
-use super::{
-    endpoint_broker::{BrokerCallback, BrokerSender, EndpointBroker},
-    rules_engine::RuleEndpoint,
+use super::endpoint_broker::{
+    BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerSender,
+    EndpointBroker,
 };
 
 pub struct HttpBroker {
     sender: BrokerSender,
+    cleaner: BrokerCleaner,
 }
 
 impl EndpointBroker for HttpBroker {
-    fn get_broker(endpoint: RuleEndpoint, callback: BrokerCallback) -> Self {
+    fn get_broker(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
+        let endpoint = request.endpoint.clone();
         let (tx, mut tr) = mpsc::channel(10);
         let broker = BrokerSender { sender: tx };
-
+        let is_json_rpc = endpoint.jsonrpc;
         let uri: Uri = endpoint.url.parse().unwrap();
         // let mut headers = HeaderMap::new();
         // headers.insert("Content-Type", "application/json".parse().unwrap());
@@ -69,16 +71,33 @@ impl EndpointBroker for HttpBroker {
                         if let Ok(bytes) = hyper::body::to_bytes(body).await {
                             let value: Vec<u8> = bytes.into();
                             let value = value.as_slice();
-                            Self::handle_response(value, callback.clone());
+                            if is_json_rpc {
+                                Self::handle_jsonrpc_response(value, callback.clone());
+                            } else if let Err(e) =
+                                BrokerOutputForwarder::handle_non_jsonrpc_response(
+                                    value,
+                                    callback.clone(),
+                                    request.clone(),
+                                )
+                            {
+                                error!("Error forwarding {:?}", e)
+                            }
                         }
                     }
                 }
             }
         });
-        Self { sender: broker }
+        Self {
+            sender: broker,
+            cleaner: BrokerCleaner { cleaner: None },
+        }
     }
 
     fn get_sender(&self) -> BrokerSender {
         self.sender.clone()
+    }
+
+    fn get_cleaner(&self) -> BrokerCleaner {
+        self.cleaner.clone()
     }
 }
