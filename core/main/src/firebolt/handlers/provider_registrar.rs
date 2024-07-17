@@ -485,9 +485,10 @@ mod tests {
 
     use super::*;
     use jsonrpsee::core::server::rpc_module::Methods;
+    use ripple_sdk::tokio;
 
-    #[test]
-    fn test_register_methods() {
+    #[tokio::test]
+    async fn test_register_methods() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
         runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
@@ -506,8 +507,8 @@ mod tests {
         assert!(registered_methods == 0);
     }
 
-    #[test]
-    fn test_register_method_event_provided_by() {
+    #[tokio::test]
+    async fn test_register_method_event_provided_by() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
         runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
@@ -532,8 +533,8 @@ mod tests {
         assert!(registered_methods == 1);
     }
 
-    #[test]
-    fn test_register_method_event_provides() {
+    #[tokio::test]
+    async fn test_register_method_event_provides() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
         runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
@@ -558,8 +559,8 @@ mod tests {
         assert!(registered_methods == 1);
     }
 
-    #[test]
-    fn test_register_method_event_provides_to() {
+    #[tokio::test]
+    async fn test_register_method_event_provides_to() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
         runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
@@ -584,8 +585,8 @@ mod tests {
         assert!(registered_methods == 1);
     }
 
-    #[test]
-    fn test_register_method_provides_to() {
+    #[tokio::test]
+    async fn test_register_method_provides_to() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
         runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
@@ -610,8 +611,8 @@ mod tests {
         assert!(registered_methods == 1);
     }
 
-    #[test]
-    fn test_register_method_error_for() {
+    #[tokio::test]
+    async fn test_register_method_error_for() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
         runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
@@ -635,8 +636,8 @@ mod tests {
         assert!(registered_methods == 1);
     }
 
-    #[test]
-    fn test_register_method_provided_by() {
+    #[tokio::test]
+    async fn test_register_method_provided_by() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
         runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
@@ -660,8 +661,8 @@ mod tests {
         assert!(registered_methods == 1);
     }
 
-    #[test]
-    fn test_register_method_allow_focus_for() {
+    #[tokio::test]
+    async fn test_register_method_allow_focus_for() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
         runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
@@ -685,8 +686,8 @@ mod tests {
         assert!(registered_methods == 1);
     }
 
-    #[test]
-    fn test_register_method_response_for() {
+    #[tokio::test]
+    async fn test_register_method_response_for() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
         runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
@@ -710,8 +711,8 @@ mod tests {
         assert!(registered_methods == 1);
     }
 
-    #[test]
-    fn test_register_method_duplicate() {
+    #[tokio::test]
+    async fn test_register_method_duplicate() {
         const METHOD_NAME: &str = "some.method";
 
         let mut runtime = test_utils::MockRuntime::new();
