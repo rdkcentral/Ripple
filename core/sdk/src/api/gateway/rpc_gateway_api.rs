@@ -19,6 +19,7 @@ use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::sync::{mpsc, oneshot};
+use uuid::Uuid;
 
 use crate::{
     api::{
@@ -187,6 +188,17 @@ pub struct JsonRpcApiRequest {
     pub params: Option<Value>,
 }
 
+impl JsonRpcApiRequest {
+    pub fn new(method: String, params: Option<Value>) -> Self {
+        Self {
+            jsonrpc: "2.0".to_owned(),
+            id: None,
+            method,
+            params,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcApiResponse {
     pub jsonrpc: String,
@@ -334,6 +346,12 @@ impl RpcRequest {
         false
     }
 
+    pub fn get_unsubscribe(&self) -> RpcRequest {
+        let mut rpc_request = self.clone();
+        rpc_request.params_json = serde_json::to_string(&ListenRequest { listen: false }).unwrap();
+        rpc_request
+    }
+
     pub fn get_params(&self) -> Option<Value> {
         if let Ok(mut v) = serde_json::from_str::<Vec<Value>>(&self.params_json) {
             if v.len() > 1 {
@@ -341,6 +359,25 @@ impl RpcRequest {
             }
         }
         None
+    }
+
+    pub fn get_new_internal(method: String, params: Option<Value>) -> Self {
+        let ctx = CallContext::new(
+            Uuid::new_v4().to_string(),
+            Uuid::new_v4().to_string(),
+            "internal".into(),
+            1,
+            crate::api::gateway::rpc_gateway_api::ApiProtocol::Extn,
+            method.clone(),
+            None,
+            false,
+        );
+        let request = serde_json::to_value(JsonRpcApiRequest::new(method.clone(), params)).unwrap();
+        RpcRequest {
+            params_json: Self::prepend_ctx(Some(request), &ctx),
+            ctx,
+            method,
+        }
     }
 }
 
@@ -377,6 +414,7 @@ mod tests {
     use super::*;
     use crate::api::gateway::rpc_gateway_api::{ApiProtocol, CallContext};
     use crate::utils::test_utils::test_extn_payload_provider;
+    use crate::Mockable;
 
     #[test]
     fn test_caller_session_from_call_context() {
@@ -665,5 +703,18 @@ mod tests {
         assert!(result.is_ok());
         let error_code = result.unwrap();
         assert_eq!(error_code, None);
+    }
+
+    #[test]
+    fn new_json_rpc_methods() {
+        let request = JsonRpcApiRequest::new("some_method".to_owned(), None);
+        assert!(request.method.eq("some_method"));
+    }
+
+    #[test]
+    fn test_rpc_unsubscribe() {
+        let new = RpcRequest::mock().get_unsubscribe();
+        let request = serde_json::from_str::<ListenRequest>(&new.params_json).unwrap();
+        assert!(!request.listen);
     }
 }
