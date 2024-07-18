@@ -708,8 +708,11 @@ fn apply_response(
                 compilation_result, raw_value
             );
             if compilation_result == Value::Null {
-                error!("error processing: {}", compilation_result);
-                v.data.error = None;
+                error!(
+                    "error processing: {} from {}",
+                    compilation_result, raw_value
+                );
+                v.data.error = Some(Value::from(false));
                 v.data.result = Some(Value::Null);
             } else if compilation_result.get("success").is_some() {
                 v.data.result = Some(compilation_result.clone());
@@ -812,30 +815,49 @@ mod tests {
     // unit test for apply_response
     #[test]
     fn test_apply_response_simple() {
-        let data = JsonRpcApiResponse::mock();
-        let mut result = json!({
-            "result": true
-        });
-        let filter = ".result";
-        let rpc_request = RpcRequest::mock();
-        let mut v = BrokerOutput { data };
-        apply_response(result.clone(), filter.to_owned(), &rpc_request, &mut v);
+        let mut v = BrokerOutput {
+            data: JsonRpcApiResponse::mock(),
+        };
+        apply_response(
+            json!({
+                "result": true
+            }),
+            ".result".into(),
+            &RpcRequest::mock(),
+            &mut v,
+        );
         assert_eq!(v.data.result, Some(Value::from(true)));
         assert_eq!(v.data.error, None);
 
-        result = json!({
-            "success": true
-        });
-        apply_response(result.clone(), filter.to_owned(), &rpc_request, &mut v);
+        apply_response(
+            json!({
+                "result": true
+            }),
+            ".result".into(),
+            &RpcRequest::mock(),
+            &mut v,
+        );
         assert_eq!(v.data.result, Some(Value::from(true)));
         assert_eq!(v.data.error, None);
 
-        result = json!({
-            "success": false
-        });
-        apply_response(result.clone(), filter.to_owned(), &rpc_request, &mut v);
+        apply_response(
+            json!({
+                "result": true
+            }),
+            "result".into(),
+            &RpcRequest::mock(),
+            &mut v,
+        );
         assert_eq!(v.data.result, Some(Value::from(true)));
         assert_eq!(v.data.error, None);
+
+        apply_response(json!({}), ".result".into(), &RpcRequest::mock(), &mut v);
+        assert_eq!(v.data.result, Some(Value::from(true)));
+        assert_eq!(v.data.error, None);
+
+        apply_response(Value::Null, ".result".into(), &RpcRequest::mock(), &mut v);
+        assert_eq!(v.data.result, Some(Value::Null));
+        assert_eq!(v.data.error, Some(Value::from(false)));
     }
 
     #[test]
@@ -978,12 +1000,6 @@ mod tests {
                 },
                 None,
             );
-
-            // Hardcoding the id here will be a problem as multiple tests uses the atomic id and there is no guarantee
-            // that this test case would always be the first one to run
-            // Revisit this test case, to make it more robust
-            // assert!(state.get_request(2).is_ok());
-            // assert!(state.get_request(1).is_ok());
         }
     }
 }
