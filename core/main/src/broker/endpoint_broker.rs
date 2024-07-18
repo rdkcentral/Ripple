@@ -474,18 +474,27 @@ impl BrokerOutputForwarder {
                                         format!("{}_response", rpc_request.ctx.method),
                                     ) {
                                         Ok(r) => {
-                                            if r.to_string().to_lowercase().contains("null") {
+                                            if r == Value::Null {
+                                                error!("error processing: {}", r);
                                                 v.data.error = None;
                                                 v.data.result = Some(Value::Null);
                                             } else if result.get("success").is_some() {
                                                 v.data.result = Some(r);
-                                                v.data.error = None;
+                                                v.data.error = Some(Value::from(
+                                                    result
+                                                        .get("success")
+                                                        .unwrap()
+                                                        .as_bool()
+                                                        .unwrap_or(true),
+                                                ));
                                             } else {
-                                                v.data.error = Some(r);
-                                                v.data.result = None;
+                                                v.data.error = None;
+                                                v.data.result = Some(r);
                                             }
                                         }
-                                        Err(e) => error!("jq_compile error {:?}", e),
+                                        Err(e) => {
+                                            error!("jq_compile error {:?}", e)
+                                        }
                                     }
                                 }
                             }

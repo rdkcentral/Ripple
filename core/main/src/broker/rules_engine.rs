@@ -18,6 +18,7 @@ use jaq_interpret::{Ctx, FilterT, ParseCtx, RcIter, Val};
 use ripple_sdk::api::{
     gateway::rpc_gateway_api::RpcRequest, manifest::extn_manifest::ExtnManifest,
 };
+use ripple_sdk::log::trace;
 use ripple_sdk::{
     chrono::Utc,
     log::{debug, error, info, warn},
@@ -163,7 +164,10 @@ impl RuleEngine {
 }
 
 pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value, RippleError> {
-    debug!("Jq rule {}  input {:?}", filter, input);
+    debug!(
+        "processing jq_rule={}, input {:?} , reference={}",
+        filter, input, reference
+    );
     let start = Utc::now().timestamp_millis();
     // start out only from core filters,
     // which do not include filters in the standard library
@@ -190,16 +194,92 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
     let inputs = RcIter::new(core::iter::empty());
 
     // iterator over the output values
-    let mut out = f.run((Ctx::new([], &inputs), Val::from(input)));
+    let out = f
+        .run((Ctx::new([], &inputs), Val::from(input.clone())))
+        .next();
 
-    if let Some(Ok(v)) = out.next() {
-        info!(
-            "Ripple Gateway Rule Processing Time: {},{}",
-            reference,
-            Utc::now().timestamp_millis() - start
-        );
-        return Ok(Value::from(v));
+    match out {
+        Some(val) => match val {
+            Ok(v) => {
+                info!(
+                    "Ripple Gateway Rule Processing Time: {},{}",
+                    reference,
+                    Utc::now().timestamp_millis() - start
+                );
+                trace!(
+                    "jq_rule={}, input {:?} , extracted value={}",
+                    filter,
+                    input,
+                    v
+                );
+                if v == Val::Null {
+                    debug!(
+                        "jq processing returned null for jq_rule={}, input {:?} , reference={}",
+                        filter, input, reference
+                    );
+                    return Err(RippleError::InvalidValueReturned);
+                }
+                Ok(Value::from(v))
+            }
+            Err(e) => {
+                debug!("Encountered primtive value in jq_rule={}, input {:?} , reference={}, error={}. Returning value {}", filter, input, reference,e,input);
+                Ok(input)
+            }
+        },
+        None => {
+            error!(
+                "Ripple Gateway Rule Processing Time: {},{}",
+                reference,
+                Utc::now().timestamp_millis() - start
+            );
+            Err(RippleError::RuleError)
+        }
     }
+}
 
-    Err(RippleError::ParseError)
+#[cfg(test)]
+mod tests {
+    use ripple_sdk::utils::error::RippleError;
+
+    #[test]
+    pub fn test_jq_compile_simple_return_value() {
+        let input = serde_json::json!({
+            "result": true
+        });
+
+        let filter = ".result";
+        let reference = "test";
+        let result = super::jq_compile(input.clone(), filter, reference.to_string());
+        assert!(result.is_ok());
+        assert!(result.unwrap().as_bool().unwrap());
+
+        let result = super::jq_compile(input, ".broken", reference.to_string());
+        assert_eq!(result, Err(RippleError::InvalidValueReturned));
+    }
+    #[test]
+    pub fn test_jq_compile_complex_return_value() {
+        let input = serde_json::json!(
+            {
+                    "result": true,
+                    "success": true,
+                    "foo": "baz"
+
+            }
+        );
+
+        let filter = ".result";
+        let reference = "test";
+        let result = super::jq_compile(input.clone(), filter, reference.to_string());
+        assert!(result.is_ok());
+        assert!(result.unwrap().as_bool().unwrap());
+
+        let result = super::jq_compile(input.clone(), ".broken", reference.to_string());
+        assert_eq!(result, Err(RippleError::InvalidValueReturned));
+
+        let result = super::jq_compile(input.clone(), ".foo", reference.to_string());
+        assert_eq!(result, Ok("baz".into()));
+
+        let result = super::jq_compile(input, ".success", reference.to_string());
+        assert!(result.unwrap().as_bool().unwrap());
+    }
 }

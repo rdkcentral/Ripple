@@ -95,9 +95,13 @@ fn is_valid_host(host: Option<Host<&str>>) -> bool {
 }
 
 async fn find_mock_device_data_file(mut client: ExtnClient) -> Result<PathBuf, MockDeviceError> {
-    let file = client
-        .get_config("mock_data_file")
-        .unwrap_or("mock-device.json".to_owned());
+    let file = client.get_config("mock_data_file").unwrap_or(
+        format!(
+            "{}/mock-device.json",
+            std::env::var("HOME").unwrap_or("/tmp".to_owned())
+        )
+        .to_owned(),
+    );
     let path = PathBuf::from(file);
 
     debug!(
