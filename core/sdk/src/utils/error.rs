@@ -38,6 +38,7 @@ pub enum RippleError {
     ServiceError,
     NotAvailable,
     RuleError,
+    ServiceNotReady,
     InvalidValueReturned,
 }
 impl std::fmt::Display for RippleError {
@@ -60,6 +61,7 @@ impl std::fmt::Display for RippleError {
             RippleError::ServiceError => write!(f, "ServiceError"),
             RippleError::NotAvailable => write!(f, "NotAvailable"),
             RippleError::RuleError => write!(f, "RuleError"),
+            RippleError::ServiceNotReady => write!(f, "ServiceNotReady"),
             RippleError::InvalidValueReturned => write!(f, "InvalidValueReturned"),
         }
     }

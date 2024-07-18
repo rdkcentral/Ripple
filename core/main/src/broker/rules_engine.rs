@@ -46,6 +46,12 @@ impl RuleSet {
 pub struct RuleEndpoint {
     pub protocol: RuleEndpointProtocol,
     pub url: String,
+    #[serde(default = "default_autostart")]
+    pub jsonrpc: bool,
+}
+
+fn default_autostart() -> bool {
+    true
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -60,6 +66,8 @@ pub enum RuleEndpointProtocol {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Rule {
     pub alias: String,
+    // Not every rule needs transform
+    #[serde(default)]
     pub transform: RuleTransform,
     pub endpoint: Option<String>,
 }
