@@ -25,7 +25,7 @@ use ripple_sdk::{
     },
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
-    log::error,
+    log::{debug, error},
     tokio::{
         self,
         sync::mpsc::{self, Receiver, Sender},
@@ -203,6 +203,12 @@ impl BrokerOutput {
             }
         }
         None
+    }
+    pub fn is_success(&self) -> bool {
+        self.data.error.is_none()
+    }
+    pub fn is_failure(&self) -> bool {
+        !self.is_success()
     }
 }
 
@@ -685,25 +691,61 @@ async fn forward_extn_event(
     }
 }
 
-fn apply_response(result: Value, filter: String, rpc_request: &RpcRequest, v: &mut BrokerOutput) {
+fn apply_response(
+    raw_value: Value,
+    filter: String,
+    rpc_request: &RpcRequest,
+    v: &mut BrokerOutput,
+) {
     match jq_compile(
-        result.clone(),
+        raw_value.clone(),
         &filter,
         format!("{}_response", rpc_request.ctx.method),
     ) {
-        Ok(r) => {
-            if r == Value::Null {
-                error!("error processing: {}", r);
+        Ok(compilation_result) => {
+            debug!(
+                "jq_compile result {:?} for {}",
+                compilation_result, raw_value
+            );
+            if compilation_result == Value::Null {
+                error!("error processing: {}", compilation_result);
                 v.data.error = None;
                 v.data.result = Some(Value::Null);
-            } else if result.get("success").is_some() {
-                v.data.result = Some(r);
-                v.data.error = Some(Value::from(
-                    result.get("success").unwrap().as_bool().unwrap_or(true),
-                ));
+            } else if compilation_result.get("success").is_some() {
+                v.data.result = Some(compilation_result.clone());
+                v.data.error = match compilation_result.get("success") {
+                    Some(v) => {
+                        if v.is_boolean() {
+                            if !v.as_bool().unwrap() {
+                                Some(Value::from(false))
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    }
+                    None => None,
+                };
+            } else if raw_value.get("success").is_some() {
+                v.data.result = Some(compilation_result);
+                v.data.error = match raw_value.get("success") {
+                    Some(v) => {
+                        if v.is_boolean() {
+                            if !v.as_bool().unwrap() {
+                                Some(Value::from(false))
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    }
+                    None => None,
+                }
             } else {
                 v.data.error = None;
-                v.data.result = Some(r);
+                v.data.result = Some(compilation_result);
             }
         }
         Err(e) => {
@@ -711,6 +753,33 @@ fn apply_response(result: Value, filter: String, rpc_request: &RpcRequest, v: &m
         }
     }
 }
+
+// fn apply_response(result: Value, filter: String, rpc_request: &RpcRequest, v: &mut BrokerOutput) {
+//     match jq_compile(
+//         result.clone(),
+//         &filter,
+//         format!("{}_response", rpc_request.ctx.method),
+//     ) {
+//         Ok(r) => {
+//             if r == Value::Null {
+//                 error!("error processing: {}", r);
+//                 v.data.error = None;
+//                 v.data.result = Some(Value::Null);
+//             } else if result.get("success").is_some() {
+//                 v.data.result = Some(r);
+//                 v.data.error = Some(Value::from(
+//                     result.get("success").unwrap().as_bool().unwrap_or(true),
+//                 ));
+//             } else {
+//                 v.data.error = None;
+//                 v.data.result = Some(r);
+//             }
+//         }
+//         Err(e) => {
+//             error!("jq_compile error {:?}", e)
+//         }
+//     }
+// }
 
 fn apply_rule_for_event(
     broker_request: &BrokerRequest,
@@ -735,23 +804,85 @@ fn apply_rule_for_event(
 
 #[cfg(test)]
 mod tests {
-    use ripple_sdk::{tokio::sync::mpsc::channel, Mockable};
+    use ripple_sdk::{tokio::sync::mpsc::channel, utils::logger::init_logger, Mockable};
 
     use crate::broker::rules_engine::RuleTransform;
 
     use super::*;
-    mod endpoint_broker {
-        use ripple_sdk::{api::gateway::rpc_gateway_api::RpcRequest, Mockable};
+    // unit test for apply_response
+    #[test]
+    fn test_apply_response_simple() {
+        let data = JsonRpcApiResponse::mock();
+        let mut result = json!({
+            "result": true
+        });
+        let filter = ".result";
+        let rpc_request = RpcRequest::mock();
+        let mut v = BrokerOutput { data };
+        apply_response(result.clone(), filter.to_owned(), &rpc_request, &mut v);
+        assert_eq!(v.data.result, Some(Value::from(true)));
+        assert_eq!(v.data.error, None);
 
-        #[test]
-        fn test_update_context() {
-            let _request = RpcRequest::mock();
+        result = json!({
+            "success": true
+        });
+        apply_response(result.clone(), filter.to_owned(), &rpc_request, &mut v);
+        assert_eq!(v.data.result, Some(Value::from(true)));
+        assert_eq!(v.data.error, None);
 
-            // if let Ok(v) = WebsocketBroker::add_context(&request) {
-            //     println!("_ctx {}", v);
-            //     //assert!(v.get("_ctx").unwrap().as_u64().unwrap().eq(&1));
-            // }
-        }
+        result = json!({
+            "success": false
+        });
+        apply_response(result.clone(), filter.to_owned(), &rpc_request, &mut v);
+        assert_eq!(v.data.result, Some(Value::from(true)));
+        assert_eq!(v.data.error, None);
+    }
+
+    #[test]
+    fn test_apply_response_complex() {
+        let _ = init_logger("complex".into());
+        let mut v = BrokerOutput {
+            data: JsonRpcApiResponse::mock(),
+        };
+        apply_response(
+            json!({
+                "result": {
+                    "success": true,
+                    "foo": "baz",
+                    "the_value" : 42
+                }
+            }),
+            ".result".into(),
+            &RpcRequest::mock(),
+            &mut v,
+        );
+        assert_eq!(
+            v.data.result,
+            Some(json!({"foo": "baz","success": true, "the_value" : 42}))
+        );
+        assert_eq!(v.data.error, None);
+        assert!(v.is_success());
+        assert!(!v.is_failure());
+
+        apply_response(
+            json!({
+                "result": {
+                    "success": false,
+                    "foo": "baz",
+                    "the_value" : 42
+                }
+            }),
+            ".result".into(),
+            &RpcRequest::mock(),
+            &mut v,
+        );
+        assert_eq!(
+            v.data.result,
+            Some(json!({"foo": "baz","success": false, "the_value" : 42}))
+        );
+        assert_eq!(v.data.error, Some(Value::from(false)));
+        assert!(!v.is_success());
+        assert!(v.is_failure());
     }
 
     #[tokio::test]
