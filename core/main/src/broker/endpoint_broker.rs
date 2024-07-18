@@ -51,7 +51,9 @@ use crate::{
 
 use super::{
     http_broker::HttpBroker,
-    rules_engine::{jq_compile, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine},
+    rules_engine::{
+        jq_compile, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine, RuleTransformType,
+    },
     thunder_broker::ThunderBroker,
     websocket_broker::WebsocketBroker,
 };
@@ -128,6 +130,9 @@ impl BrokerConnectRequest {
 impl BrokerRequest {
     pub fn is_subscription_processed(&self) -> bool {
         self.subscription_processed.is_some()
+    }
+    pub fn get_filter(&self, transform_type: RuleTransformType) -> Option<String> {
+        self.rule.transform.get_filter(transform_type)
     }
 }
 
@@ -512,10 +517,8 @@ pub trait EndpointBroker {
         if let Ok(mut params) = serde_json::from_str::<Vec<Value>>(&rpc_request.rpc.params_json) {
             if params.len() > 1 {
                 if let Some(last) = params.pop() {
-                    if let Some(filter) = rpc_request
-                        .rule
-                        .transform
-                        .get_filter(super::rules_engine::RuleTransformType::Request)
+                    if let Some(filter) =
+                        rpc_request.get_filter(super::rules_engine::RuleTransformType::Request)
                     {
                         return jq_compile(
                             last,
@@ -591,8 +594,6 @@ impl BrokerOutputForwarder {
                                 }));
                                 platform_state.endpoint_state.update_unsubscribe_request(id);
                             } else if let Some(filter) = broker_request
-                                .rule
-                                .transform
                                 .get_filter(super::rules_engine::RuleTransformType::Response)
                             {
                                 apply_response(result, filter, &rpc_request, &mut v);
@@ -757,44 +758,13 @@ fn apply_response(
     }
 }
 
-// fn apply_response(result: Value, filter: String, rpc_request: &RpcRequest, v: &mut BrokerOutput) {
-//     match jq_compile(
-//         result.clone(),
-//         &filter,
-//         format!("{}_response", rpc_request.ctx.method),
-//     ) {
-//         Ok(r) => {
-//             if r == Value::Null {
-//                 error!("error processing: {}", r);
-//                 v.data.error = None;
-//                 v.data.result = Some(Value::Null);
-//             } else if result.get("success").is_some() {
-//                 v.data.result = Some(r);
-//                 v.data.error = Some(Value::from(
-//                     result.get("success").unwrap().as_bool().unwrap_or(true),
-//                 ));
-//             } else {
-//                 v.data.error = None;
-//                 v.data.result = Some(r);
-//             }
-//         }
-//         Err(e) => {
-//             error!("jq_compile error {:?}", e)
-//         }
-//     }
-// }
-
 fn apply_rule_for_event(
     broker_request: &BrokerRequest,
     result: &Value,
     rpc_request: &RpcRequest,
     v: &mut BrokerOutput,
 ) {
-    if let Some(filter) = broker_request
-        .rule
-        .transform
-        .get_filter(super::rules_engine::RuleTransformType::Event)
-    {
+    if let Some(filter) = broker_request.get_filter(super::rules_engine::RuleTransformType::Event) {
         if let Ok(r) = jq_compile(
             result.clone(),
             &filter,
