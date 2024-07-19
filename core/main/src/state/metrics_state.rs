@@ -61,7 +61,7 @@ const PERSISTENT_STORAGE_ACCOUNT_DEVICE_MANUFACTURER: &str = "deviceManufacturer
 pub enum SiftDeviceType {
     IPTV,
     IPSTB,
-    IPCOAM
+    IPCOAM,
 }
 
 impl SiftDeviceType {
@@ -69,7 +69,7 @@ impl SiftDeviceType {
         match self {
             SiftDeviceType::IPTV => String::from("iptv"),
             SiftDeviceType::IPSTB => String::from("ipstb"),
-            SiftDeviceType::IPCOAM => String::from("ipcoam")
+            SiftDeviceType::IPCOAM => String::from("ipcoam"),
         }
     }
 }
