@@ -281,8 +281,6 @@ impl SettingsProcessor {
                     }
                 }
                 SettingKey::DeviceName => {
-                    debug!("**** Subscribing to device name change event");
-
                     if subscribe(
                         state,
                         ctx.clone(),
@@ -292,7 +290,6 @@ impl SettingsProcessor {
                     .await
                     .is_err()
                     {
-                        debug!("**** Failed to subscribe to device name change event");
                         resp = false;
                     }
                 }
