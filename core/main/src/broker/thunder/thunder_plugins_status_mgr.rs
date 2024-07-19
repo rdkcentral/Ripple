@@ -45,7 +45,6 @@ const STATE_CHANGE_EVENT_METHOD: &str = "client.Controller.1.events.statechange"
 pub struct Status {
     pub callsign: String,
     pub state: String,
-    pub startmode: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -568,9 +567,7 @@ mod tests {
         let data = JsonRpcApiResponse {
             id: Some(1),
             jsonrpc: "2.0".to_string(),
-            result: Some(
-                serde_json::json!([{"callsign":"TestPlugin","state":"activated","startmode":"auto"}]),
-            ),
+            result: Some(serde_json::json!([{"callsign":"TestPlugin","state":"activated"}])),
             error: None,
             method: None,
             params: None,
