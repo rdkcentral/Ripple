@@ -57,7 +57,22 @@ const PERSISTENT_STORAGE_KEY_OPERATOR: &str = "operator";
 const PERSISTENT_STORAGE_ACCOUNT_DETAIL_TYPE: &str = "detailType";
 const PERSISTENT_STORAGE_ACCOUNT_DEVICE_TYPE: &str = "deviceType";
 const PERSISTENT_STORAGE_ACCOUNT_DEVICE_MANUFACTURER: &str = "deviceManufacturer";
+#[derive(Debug)]
+pub enum SiftDeviceType {
+    IPTV,
+    IPSTB,
+    IPCOAM
+}
 
+impl SiftDeviceType {
+    pub fn from_form_factor(&self) -> String {
+        match self {
+            SiftDeviceType::IPTV => String::from("iptv"),
+            SiftDeviceType::IPSTB => String::from("ipstb"),
+            SiftDeviceType::IPCOAM => String::from("ipcoam")
+        }
+    }
+}
 #[derive(Debug, Clone, Default)]
 pub struct MetricsState {
     pub start_time: DateTime<Utc>,
@@ -342,7 +357,14 @@ impl MetricsState {
                 .await
             {
                 Some(s) => s,
-                None => state.get_device_manifest().get_form_factor(),
+                None => {
+                    let form_factor = state.get_device_manifest().get_form_factor();
+                    match form_factor.as_str() {
+                        "ipstb" => SiftDeviceType::IPSTB.from_form_factor(),
+                        "smarttv" => SiftDeviceType::IPTV.from_form_factor(),
+                        _ => form_factor.to_owned(),
+                    }
+                }
             };
 
         let device_manufacturer = match Self::get_persistent_store_string(
