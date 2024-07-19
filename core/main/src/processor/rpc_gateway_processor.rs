@@ -79,7 +79,7 @@ impl ExtnRequestProcessor for RpcGatewayProcessor {
                 // to the gateway which does more complex inter connected operations. The design for
                 // Extn Processor is built in such a way to support transient processors which do not
                 // necessarily need to provide response
-                if state.endpoint_state.has_rule(&request) {
+                if state.endpoint_state.rule_engine.has_rule(&request) {
                     if !state
                         .endpoint_state
                         .handle_brokerage(request, Some(msg.clone()))

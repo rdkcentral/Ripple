@@ -677,7 +677,7 @@ pub struct ThunderRawBoolRequest {
 
 impl ThunderRawBoolRequest {
     async fn send_request(self: Box<Self>) -> Value {
-        let host = match env::var("THUNDER_HOST") {
+        let host = match env::var("DEVICE_HOST") {
             Ok(h) => h,
             Err(_) => String::from("127.0.0.1"),
         };

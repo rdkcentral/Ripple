@@ -45,16 +45,15 @@ use ripple_sdk::{
         },
         distributor::distributor_encoder::EncoderRequest,
         firebolt::{
-            fb_capabilities::{CAPABILITY_NOT_AVAILABLE, CAPABILITY_NOT_SUPPORTED},
+            fb_capabilities::CAPABILITY_NOT_SUPPORTED,
             fb_general::{ListenRequest, ListenerResponse},
         },
-        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
+        gateway::rpc_gateway_api::CallContext,
         session::{AccountSessionRequest, ProvisionRequest},
         storage_property::{StoragePropertyData, KEY_FIREBOLT_DEVICE_UID, SCOPE_DEVICE},
     },
     extn::extn_client_message::ExtnResponse,
     log::error,
-    serde_json::from_value,
     tokio::time::timeout,
     uuid::Uuid,
 };
@@ -250,38 +249,6 @@ pub async fn get_ll_mac_addr(state: PlatformState) -> RpcResult<String> {
         ))),
     }
 }
-
-pub async fn get_device_name(ctx: &CallContext, state: &PlatformState) -> RpcResult<String> {
-    let mut new_ctx = ctx.clone();
-    new_ctx.protocol = ApiProtocol::Extn;
-
-    let rpc_request = RpcRequest {
-        ctx: new_ctx.clone(),
-        method: "device.name".into(),
-        params_json: RpcRequest::prepend_ctx(None, &new_ctx),
-    };
-
-    let resp = state
-        .get_client()
-        .get_extn_client()
-        .main_internal_request(rpc_request.clone())
-        .await;
-
-    if let Ok(res) = resp {
-        if let Some(ExtnResponse::Value(val)) = res.payload.extract::<ExtnResponse>() {
-            if let Ok(v) = from_value::<String>(val) {
-                return Ok(v);
-            }
-        }
-    }
-
-    Err(jsonrpsee::core::Error::Call(CallError::Custom {
-        code: CAPABILITY_NOT_AVAILABLE,
-        message: "device.name is not available".into(),
-        data: None,
-    }))
-}
-
 #[derive(Debug)]
 pub struct DeviceImpl {
     pub state: PlatformState,

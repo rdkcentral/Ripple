@@ -232,7 +232,7 @@ pub struct EndpointBrokerState {
     callback: BrokerCallback,
     request_map: Arc<RwLock<HashMap<u64, BrokerRequest>>>,
     extension_request_map: Arc<RwLock<HashMap<u64, ExtnMessage>>>,
-    rule_engine: RuleEngine,
+    pub rule_engine: RuleEngine,
     cleaner_list: Arc<RwLock<Vec<BrokerCleaner>>>,
     reconnect_tx: Sender<BrokerConnectRequest>,
 }
@@ -605,6 +605,7 @@ impl BrokerOutputForwarder {
 
                         // Step 3: Handle Non Extension
                         if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
+                            is_event = rpc_request.is_subscription();
                             if let Ok(extn_message) =
                                 platform_state.endpoint_state.get_extn_message(id, is_event)
                             {

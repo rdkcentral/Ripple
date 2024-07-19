@@ -15,13 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{
-    collections::HashSet,
-    sync::{Arc, RwLock},
-};
-
 use super::platform_state::PlatformState;
-use crate::firebolt::handlers::device_rpc::get_device_name;
+use crate::broker::broker_utils::BrokerUtils;
 use crate::processor::storage::storage_manager::StorageManager;
 use jsonrpsee::tracing::debug;
 use rand::Rng;
@@ -34,7 +29,7 @@ use ripple_sdk::{
             fb_metrics::{MetricsContext, MetricsEnvironment},
             fb_openrpc::FireboltSemanticVersion,
         },
-        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
+        gateway::rpc_gateway_api::{ApiProtocol, CallContext},
         manifest::device_manifest::DataGovernanceConfig,
         storage_property::StorageProperty,
     },
@@ -43,6 +38,10 @@ use ripple_sdk::{
     log::error,
     utils::error::RippleError,
     uuid::Uuid,
+};
+use std::{
+    collections::HashSet,
+    sync::{Arc, RwLock},
 };
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
@@ -264,6 +263,7 @@ impl MetricsState {
                 version: FireboltSemanticVersion::new(0, 0, 0, "no.os.ver.set".into()),
             },
         };
+
         debug!("got os_info={:?}", &os_info);
 
         let ctx = CallContext::new(
@@ -276,7 +276,7 @@ impl MetricsState {
             None,
             false,
         );
-        let device_name = get_device_name(&ctx, state)
+        let device_name = BrokerUtils::get_device_name(&ctx, state)
             .await
             .unwrap_or("no.device.name.set".to_string());
         debug!("got device_name={:?}", &device_name);

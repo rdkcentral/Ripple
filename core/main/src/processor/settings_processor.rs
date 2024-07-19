@@ -15,40 +15,13 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::HashMap;
-
-use ripple_sdk::{
-    api::{
-        distributor::distributor_privacy::ContentListenRequest,
-        firebolt::{
-            fb_capabilities::{CapabilityRole, FireboltCap, RoleInfo},
-            fb_general::ListenRequest,
-        },
-        gateway::rpc_gateway_api::CallContext,
-        settings::{SettingKey, SettingValue, SettingsRequest, SettingsRequestParam},
-        storage_property::{
-            EVENT_ALLOW_PERSONALIZATION_CHANGED, EVENT_ALLOW_WATCH_HISTORY_CHANGED,
-            EVENT_CLOSED_CAPTIONS_ENABLED, EVENT_DEVICE_NAME_CHANGED, EVENT_SHARE_WATCH_HISTORY,
-        },
-    },
-    async_trait::async_trait,
-    extn::{
-        client::extn_processor::{
-            DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
-        },
-        extn_client_message::{ExtnMessage, ExtnResponse},
-    },
-    log::{debug, warn},
-    tokio::sync::mpsc::{Receiver as MReceiver, Sender as MSender},
-    utils::error::RippleError,
-};
-use serde_json::{json, Value};
-
+use crate::broker::broker_utils::BrokerUtils;
+use crate::error;
+use crate::tokio::sync::mpsc;
 use crate::{
     firebolt::handlers::{
         capabilities_rpc::is_permitted,
         closed_captions_rpc::ClosedcaptionsImpl,
-        device_rpc::get_device_name,
         discovery_rpc::DiscoveryImpl,
         privacy_rpc::PrivacyImpl,
         voice_guidance_rpc::{
@@ -59,6 +32,36 @@ use crate::{
     state::platform_state::PlatformState,
     utils::rpc_utils::rpc_add_event_listener_with_decorator,
 };
+use jaq_parse::Error;
+use ripple_sdk::{
+    api::{
+        distributor::distributor_privacy::ContentListenRequest,
+        firebolt::{
+            fb_capabilities::{CapabilityRole, FireboltCap, RoleInfo},
+            fb_general::{ListenRequest, ListenerResponse},
+        },
+        gateway::rpc_gateway_api::{CallContext, RpcRequest},
+        settings::{SettingKey, SettingValue, SettingsRequest, SettingsRequestParam},
+        storage_property::{
+            EVENT_ALLOW_PERSONALIZATION_CHANGED, EVENT_ALLOW_WATCH_HISTORY_CHANGED,
+            EVENT_CLOSED_CAPTIONS_ENABLED, EVENT_SHARE_WATCH_HISTORY,
+        },
+    },
+    async_trait::async_trait,
+    extn::{
+        client::extn_processor::{
+            DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
+        },
+        extn_client_message::{ExtnEvent, ExtnMessage, ExtnResponse},
+    },
+    log::{debug, warn},
+    tokio,
+    tokio::sync::mpsc::{Receiver as MReceiver, Sender as MSender},
+    utils::error::RippleError,
+};
+use serde_json::{json, Value};
+use std::collections::HashMap;
+pub const EVENT_DEVICE_NAME_CHANGED: &str = "device.onNameChanged";
 
 #[derive(Clone, Debug)]
 struct SettingsChangeEventDecorator {
@@ -127,7 +130,7 @@ impl SettingsProcessor {
                     AllowWatchHistory => Some(SettingValue::bool(cp.remember_watched_programs)),
                     ShareWatchHistory => Some(SettingValue::bool(cp.share_watch_history)),
                     DeviceName => Some(SettingValue::string(
-                        get_device_name(&ctx, state)
+                        BrokerUtils::get_device_name(&ctx, state)
                             .await
                             .unwrap_or_else(|_| "".into()),
                     )),
@@ -278,18 +281,18 @@ impl SettingsProcessor {
                     }
                 }
                 SettingKey::DeviceName => {
-                    if rpc_add_event_listener_with_decorator(
+                    debug!("**** Subscribing to device name change event");
+
+                    if subscribe(
                         state,
                         ctx.clone(),
-                        ListenRequest { listen: true },
-                        EVENT_DEVICE_NAME_CHANGED,
-                        Some(Box::new(SettingsChangeEventDecorator {
-                            request: request.clone(),
-                        })),
+                        &EVENT_DEVICE_NAME_CHANGED.to_string(),
+                        request.clone(),
                     )
                     .await
                     .is_err()
                     {
+                        debug!("**** Failed to subscribe to device name change event");
                         resp = false;
                     }
                 }
@@ -347,4 +350,69 @@ impl ExtnRequestProcessor for SettingsProcessor {
             }
         }
     }
+}
+
+pub async fn subscribe(
+    platform_state: &PlatformState,
+    ctx: CallContext,
+    event_name: &String,
+    request: SettingsRequestParam,
+) -> Result<ListenerResponse, Error> {
+    if platform_state
+        .get_client()
+        .get_extn_client()
+        .subscribe(
+            RpcRequest::get_new_internal(event_name.to_owned(), Some(json!({"listen": true}))),
+            self::handle_events(platform_state, &ctx.clone(), &event_name.to_string()),
+        )
+        .await
+        .is_err()
+    {
+        error!("{}: Error while registration", event_name.to_string());
+    }
+
+    AppEvents::add_listener_with_decorator(
+        platform_state,
+        event_name.clone(),
+        ctx.clone(),
+        ListenRequest { listen: true },
+        Some(Box::new(SettingsChangeEventDecorator {
+            request: request.clone(),
+        })),
+    );
+
+    Ok(ListenerResponse {
+        listening: true,
+        event: EVENT_DEVICE_NAME_CHANGED.to_string(),
+    })
+}
+
+pub fn handle_events(
+    state: &PlatformState,
+    ctx: &CallContext,
+    event: &str,
+) -> MSender<ExtnMessage> {
+    let (tx, mut tr) = mpsc::channel::<ExtnMessage>(10);
+    let state_c = state.clone();
+    let event_c = event.to_owned();
+    let ctx_c = ctx.clone();
+    tokio::spawn(async move {
+        while let Some(message) = tr.recv().await {
+            if let Some(ExtnEvent::Value(v)) = message.payload.extract() {
+                let val = v.clone();
+                debug!("** handle_events: received event {:?}", val);
+                let state_for_event = state_c.clone();
+                let ctx_for_event = ctx_c.clone();
+                let evt = event_c.clone();
+                tokio::spawn(async move {
+                    AppEvents::emit_to_app(&state_for_event, ctx_for_event.app_id, &evt, &val)
+                        .await;
+                });
+            } else {
+                error!("invalid message");
+            }
+        }
+    });
+
+    tx
 }
