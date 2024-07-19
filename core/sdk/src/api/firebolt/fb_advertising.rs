@@ -162,7 +162,9 @@ pub struct AdConfig {
     #[serde(default)]
     pub environment: Environment,
     // COPPA stands for Children's Online Privacy Protection Act.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub coppa: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub authentication_entity: Option<String>,
 }
 
