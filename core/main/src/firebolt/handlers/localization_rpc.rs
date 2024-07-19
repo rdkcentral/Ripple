@@ -19,7 +19,6 @@ use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
     tracing::error,
-    types::error::CallError,
     RpcModule,
 };
 use ripple_sdk::{
