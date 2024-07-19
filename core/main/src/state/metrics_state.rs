@@ -20,23 +20,28 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use jsonrpsee::tracing::debug;
+use jsonrpsee::{
+    core::RpcResult,
+    tracing::{debug, error},
+    types::error::CallError,
+};
 use ripple_sdk::{
     api::{
         context::RippleContextUpdateRequest,
         device::device_info_request::{DeviceInfoRequest, DeviceResponse, FirmwareInfo},
         distributor::distributor_privacy::{DataEventType, PrivacySettingsData},
         firebolt::{
+            fb_capabilities::CAPABILITY_NOT_AVAILABLE,
             fb_metrics::{MetricsContext, MetricsEnvironment},
             fb_openrpc::FireboltSemanticVersion,
         },
-        gateway::rpc_gateway_api::{ApiProtocol, CallContext},
+        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
         manifest::device_manifest::DataGovernanceConfig,
         storage_property::StorageProperty,
     },
     chrono::{DateTime, Utc},
     extn::extn_client_message::ExtnResponse,
-    log::error,
+    serde_json::from_value,
     utils::error::RippleError,
     uuid::Uuid,
 };
@@ -44,7 +49,6 @@ use ripple_sdk::{
 use rand::Rng;
 
 use super::platform_state::PlatformState;
-use crate::firebolt::handlers::localization_rpc::get_language;
 use crate::processor::storage::storage_manager::StorageManager;
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
@@ -207,6 +211,36 @@ impl MetricsState {
         }
     }
 
+    pub async fn get_language(ctx: &CallContext, state: &PlatformState) -> RpcResult<String> {
+        let mut new_ctx = ctx.clone();
+        new_ctx.protocol = ApiProtocol::Extn;
+
+        let rpc_request = RpcRequest {
+            ctx: new_ctx.clone(),
+            method: "localization.language".into(),
+            params_json: RpcRequest::prepend_ctx(None, &new_ctx),
+        };
+
+        let resp = state
+            .get_client()
+            .get_extn_client()
+            .main_internal_request(rpc_request.clone())
+            .await;
+
+        if let Ok(res) = resp {
+            if let Some(ExtnResponse::Value(val)) = res.payload.extract::<ExtnResponse>() {
+                if let Ok(v) = from_value::<String>(val) {
+                    return Ok(v);
+                }
+            }
+        }
+        Err(jsonrpsee::core::Error::Call(CallError::Custom {
+            code: CAPABILITY_NOT_AVAILABLE,
+            message: "localization.language is not available".into(),
+            data: None,
+        }))
+    }
+
     pub async fn initialize(state: &PlatformState) {
         let metrics_percentage = state
             .get_device_manifest()
@@ -265,7 +299,7 @@ impl MetricsState {
             false,
         );
 
-        let language = get_language(&ctx, state)
+        let language = Self::get_language(&ctx, state)
             .await
             .unwrap_or("no.language.set".to_string());
         debug!("got language={:?}", &language);
