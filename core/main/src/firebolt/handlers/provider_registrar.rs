@@ -130,6 +130,17 @@ impl ProviderRegistrar {
                     });
                 }
             }
+            ProviderResponsePayloadType::Generic => {
+                let external_provider_response: Result<ExternalProviderResponse<Value>, CallError> =
+                    params_sequence.next();
+
+                if let Ok(r) = external_provider_response {
+                    return Some(ProviderResponse {
+                        correlation_id: r.correlation_id,
+                        result: ProviderResponsePayload::Generic(r.result),
+                    });
+                }
+            }
             _ => error!("get_provider_response: Unsupported payload type"),
         }
 
@@ -237,13 +248,21 @@ impl ProviderRegistrar {
         params: Params<'static>,
         context: Arc<RpcModuleContext>,
     ) -> Result<Option<()>, Error> {
-        info!("callback_app_event_emitter: method={}", context.method);
+        info!(
+            "callback_app_event_emitter: method={}, event={:?}",
+            context.method, &context.provider_relation_set.provides_to
+        );
         if let Some(event) = &context.provider_relation_set.provides_to {
             let mut params_sequence = params.sequence();
             let _call_context: CallContext = params_sequence.next().unwrap();
             let result: Value = params_sequence.next().unwrap();
 
-            AppEvents::emit(&context.platform_state, event, &result).await;
+            AppEvents::emit(
+                &context.platform_state,
+                &FireboltOpenRpcMethod::name_with_lowercase_module(event),
+                &result,
+            )
+            .await;
         }
 
         Ok(None)
@@ -278,7 +297,6 @@ impl ProviderRegistrar {
         params: Params<'static>,
         context: Arc<RpcModuleContext>,
     ) -> Result<Value, Error> {
-        // TODO: Is 'Value' correct here? otherwise need to do bespoke return types?
         let mut params_sequence = params.sequence();
         let call_context: CallContext = params_sequence.next().unwrap();
         let params: Value = params_sequence.next().unwrap();
@@ -307,7 +325,7 @@ impl ProviderRegistrar {
                         capability: capability.clone(),
                         method: provided_by.clone(),
                         caller,
-                        request: ProviderRequestPayload::Generic(params.to_string()),
+                        request: ProviderRequestPayload::Generic(params),
                         tx: provider_response_payload_tx,
                         app_id: None,
                     };
@@ -377,19 +395,23 @@ impl ProviderRegistrar {
 
         let params_sequence = params.sequence();
 
-        if let Some(attributes) = context.provider_relation_set.attributes {
-            if let Some(provider_response) = ProviderRegistrar::get_provider_response(
-                attributes.response_payload_type.clone(),
-                params_sequence,
-            ) {
-                ProviderBroker::provider_response(&context.platform_state, provider_response).await;
-            }
+        let response_payload_type = match &context.provider_relation_set.attributes {
+            Some(attributes) => attributes.response_payload_type.clone(),
+            None => ProviderResponsePayloadType::Generic,
+        };
+
+        if let Some(provider_response) =
+            ProviderRegistrar::get_provider_response(response_payload_type, params_sequence)
+        {
+            ProviderBroker::provider_response(&context.platform_state, provider_response).await;
         } else {
             error!(
-                "callback_response: NO ATTRIBUTES: context.method={}",
+                "callback_response: Could not resolve response payload type: context.method={}",
                 context.method
             );
-            return Err(Error::Custom(String::from("Missing provider attributes")));
+            return Err(Error::Custom(String::from(
+                "Couldn't resolve response payload type",
+            )));
         }
 
         Ok(None)

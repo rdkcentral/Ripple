@@ -49,7 +49,7 @@ impl GenericCapState {
             FireboltCap::Short("token:platform".to_owned()),
             FireboltCap::Short("usergrant:acknowledgechallenge".to_owned()),
             FireboltCap::Short("usergrant:pinchallenge".to_owned()),
-            // <pca> Do we need to add "discovery:interest" etc. here or just in the manifests? </pca>
+            FireboltCap::Short("discovery:interest".to_owned()),
         ];
         cap_state.ingest_availability(caps, false);
         cap_state

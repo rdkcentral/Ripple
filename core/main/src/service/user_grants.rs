@@ -1883,15 +1883,11 @@ impl GrantStepExecutor {
                  * This is for any other capability, hoping it to deduce its necessary params from a json string
                  * and has a challenge method.
                  */
-                let param_str = match param {
-                    None => "".to_owned(),
-                    Some(val) => val.to_string(),
-                };
                 Some(ProviderBrokerRequest {
                     capability: p_cap.as_str(),
                     method: String::from("challenge"),
                     caller: caller_session.clone(),
-                    request: ProviderRequestPayload::Generic(param_str),
+                    request: ProviderRequestPayload::Generic(param.clone().unwrap_or(Value::Null)),
                     tx: session_tx,
                     app_id: None,
                 })

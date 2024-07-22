@@ -37,7 +37,7 @@ pub enum ProviderRequestPayload {
     AckChallenge(Challenge),
     EntityInfoRequest(EntityInfoParameters),
     PurchasedContentRequest(PurchasedContentParameters),
-    Generic(String),
+    Generic(serde_json::Value),
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -48,6 +48,7 @@ pub enum ProviderResponsePayloadType {
     KeyboardResult,
     EntityInfoResponse,
     PurchasedContentResponse,
+    Generic,
 }
 
 impl ToString for ProviderResponsePayloadType {
@@ -61,6 +62,7 @@ impl ToString for ProviderResponsePayloadType {
             ProviderResponsePayloadType::PurchasedContentResponse => {
                 "PurchasedContentResponse".into()
             }
+            ProviderResponsePayloadType::Generic => "GenericResponse".into(),
         }
     }
 }
@@ -75,6 +77,7 @@ pub enum ProviderResponsePayload {
     KeyboardResult(KeyboardSessionResponse),
     EntityInfoResponse(Option<EntityInfoResult>),
     PurchasedContentResponse(PurchasedContentResult),
+    Generic(serde_json::Value),
 }
 
 impl ProviderResponsePayload {
@@ -130,6 +133,7 @@ impl ProviderResponsePayload {
             ProviderResponsePayload::PurchasedContentResponse(res) => {
                 serde_json::to_value(res).unwrap()
             }
+            ProviderResponsePayload::Generic(res) => res.clone(),
         }
     }
 }
