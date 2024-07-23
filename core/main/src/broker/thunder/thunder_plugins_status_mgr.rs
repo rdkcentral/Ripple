@@ -416,19 +416,17 @@ impl StatusManager {
             }
             self.update_status(callsign.to_string(), status.to_state());
 
-            if status.to_state().is_activated() {
-                let (pending_requests, expired) =
-                    self.retrive_pending_broker_requests(callsign.to_string());
+            let (pending_requests, expired) =
+                self.retrive_pending_broker_requests(callsign.to_string());
 
-                for pending_request in pending_requests {
-                    if expired {
-                        info!("Expired request: {:?}", pending_request);
-                        callback
-                            .send_error(pending_request, RippleError::ServiceError)
-                            .await;
-                    } else {
-                        let _ = sender.send(pending_request).await;
-                    }
+            for pending_request in pending_requests {
+                if expired {
+                    info!("Expired request: {:?}", pending_request);
+                    callback
+                        .send_error(pending_request, RippleError::ServiceError)
+                        .await;
+                } else {
+                    let _ = sender.send(pending_request).await;
                 }
             }
         }
