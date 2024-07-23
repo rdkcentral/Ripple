@@ -1982,10 +1982,14 @@ impl GrantStepExecutor {
                 "invoke_capability: Could not find provider for capability {}",
                 p_cap.as_str()
             );
-            return Err(DenyReasonWithCap {
-                reason: DenyReason::Ungranted,
-                caps: vec![permission.cap.clone()],
-            });
+            error!(
+                "*** _DEBUG: invoke_capability: Could not find provider for capability {}",
+                p_cap.as_str()
+            );
+            // return Err(DenyReasonWithCap {
+            //     reason: DenyReason::Ungranted,
+            //     caps: vec![permission.cap.clone()],
+            // });
         }
 
         let method = method_key.unwrap();
