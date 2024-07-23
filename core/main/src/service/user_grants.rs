@@ -1969,6 +1969,9 @@ impl GrantStepExecutor {
                     if p_cap.as_str().eq(capability) {
                         method_key = Some(key.clone());
                     }
+                } else if let Some(provides_to) = &provider_relation_set.provides_to {
+                    // <pca> YAH need to get and compare cap </pca>
+                    // <pca> YAH run tests, failing in CI? </pca>
                 }
             }
         }
