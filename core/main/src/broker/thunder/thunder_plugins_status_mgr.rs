@@ -22,7 +22,7 @@ use std::{
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse,
     chrono::{DateTime, Duration, Utc},
-    log::{info, warn, error},
+    log::{error, info, warn},
     utils::error::RippleError,
 };
 use serde::{Deserialize, Serialize};
