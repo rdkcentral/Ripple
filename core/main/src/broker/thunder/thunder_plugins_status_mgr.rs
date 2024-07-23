@@ -22,7 +22,7 @@ use std::{
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse,
     chrono::{DateTime, Duration, Utc},
-    log::{info, warn},
+    log::{info, warn, error},
     utils::error::RippleError,
 };
 use serde::{Deserialize, Serialize};
@@ -319,7 +319,7 @@ impl StatusManager {
                     if !pending_requests.is_empty() {
                         for pending_request in pending_requests {
                             if expired {
-                                info!("Expired request: {:?}", pending_request);
+                                error!("Expired request: {:?}", pending_request);
                                 callback
                                     .send_error(pending_request, RippleError::ServiceError)
                                     .await;
@@ -367,7 +367,7 @@ impl StatusManager {
 
             for pending_request in pending_requests {
                 if expired {
-                    info!("Expired request: {:?}", pending_request);
+                    error!("Expired request: {:?}", pending_request);
                     callback
                         .send_error(pending_request, RippleError::ServiceError)
                         .await;
@@ -421,7 +421,7 @@ impl StatusManager {
 
             for pending_request in pending_requests {
                 if expired {
-                    info!("Expired request: {:?}", pending_request);
+                    error!("Expired request: {:?}", pending_request);
                     callback
                         .send_error(pending_request, RippleError::ServiceError)
                         .await;
@@ -443,7 +443,7 @@ impl StatusManager {
             None => return,
         };
 
-        info!(
+        error!(
             "Error Received from Thunder on getting the status of the plugin: {:?}",
             error
         );
