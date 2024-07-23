@@ -1811,9 +1811,143 @@ impl GrantStepExecutor {
         app_name
     }
 
+    // <pca>
+    // pub async fn invoke_capability(
+    //     platform_state: &PlatformState,
+    //     // call_ctx: &CallContext,
+    //     caller_session: &CallerSession,
+    //     app_requested_for: &AppIdentification,
+    //     cap: &FireboltCap,
+    //     param: &Option<Value>,
+    //     permission: &FireboltPermission,
+    // ) -> Result<(), DenyReasonWithCap> {
+    //     let (session_tx, session_rx) = oneshot::channel::<ProviderResponsePayload>();
+    //     let p_cap = cap.clone();
+    //     /*
+    //      * We have a concrete struct defined for ack challenge and pin challenge hence handling them separately. If any new
+    //      * caps are introduced in future, the assumption is that capability provider has a method "challenge" and it can
+    //      * deduce its params from a string.
+    //      */
+    //     /*
+    //      * this might be weird looking as_str().as_str(), FireboltCap returns String but has a function named as_str.
+    //      * We call as_str on String to convert String to str to perform our match
+    //      */
+    //     let for_app_id = &app_requested_for.app_id;
+    //     let app_name = Self::get_app_name(platform_state, for_app_id.clone()).await;
+    //     let pr_msg_opt = match p_cap.as_str().as_str() {
+    //         "xrn:firebolt:capability:usergrant:acknowledgechallenge" => {
+    //             let challenge = Challenge {
+    //                 capability: permission.cap.as_str(),
+    //                 requestor: ChallengeRequestor {
+    //                     id: for_app_id.clone(),
+    //                     name: app_name,
+    //                 },
+    //             };
+    //             Some(ProviderBrokerRequest {
+    //                 capability: p_cap.as_str(),
+    //                 method: String::from("challenge"),
+    //                 caller: caller_session.to_owned(),
+    //                 request: ProviderRequestPayload::AckChallenge(challenge),
+    //                 tx: session_tx,
+    //                 app_id: None,
+    //             })
+    //         }
+    //         "xrn:firebolt:capability:usergrant:pinchallenge" => {
+    //             let pin_space_res = serde_json::from_value::<PinChallengeConfiguration>(
+    //                 param.as_ref().unwrap_or(&Value::Null).clone(),
+    //             );
+    //             if pin_space_res.is_err() {
+    //                 error!("Missing pin space for {}", permission.cap.as_str());
+    //             }
+    //             pin_space_res.map_or(None, |pin_conf| {
+    //                 let challenge = PinChallengeRequest {
+    //                     pin_space: pin_conf.pin_space,
+    //                     requestor: ChallengeRequestor {
+    //                         id: for_app_id.clone(),
+    //                         name: app_name,
+    //                     },
+    //                     capability: Some(permission.cap.as_str()),
+    //                 };
+    //                 Some(ProviderBrokerRequest {
+    //                     capability: p_cap.as_str(),
+    //                     method: "challenge".to_owned(),
+    //                     caller: caller_session.clone(),
+    //                     request: ProviderRequestPayload::PinChallenge(challenge),
+    //                     tx: session_tx,
+    //                     app_id: None,
+    //                 })
+    //             })
+    //         }
+    //         _ => {
+    //             /*
+    //              * This is for any other capability, hoping it to deduce its necessary params from a json string
+    //              * and has a challenge method.
+    //              */
+    //             Some(ProviderBrokerRequest {
+    //                 capability: p_cap.as_str(),
+    //                 method: String::from("challenge"),
+    //                 caller: caller_session.clone(),
+    //                 request: ProviderRequestPayload::Generic(param.clone().unwrap_or(Value::Null)),
+    //                 tx: session_tx,
+    //                 app_id: None,
+    //             })
+    //         }
+    //     };
+
+    //     let result = if let Some(pr_msg) = pr_msg_opt {
+    //         println!(
+    //             "*** _DEBUG: invoke_capability: cap={}, method={}",
+    //             pr_msg.capability, pr_msg.method
+    //         );
+    //         ProviderBroker::invoke_method(&platform_state.clone(), pr_msg).await;
+    //         match session_rx.await {
+    //             Ok(result) => match result.as_challenge_response() {
+    //                 Some(res) => {
+    //                     match res.granted {
+    //                         Some(true) => {
+    //                             debug!("returning ok from invoke_capability");
+    //                             Ok(())
+    //                         }
+    //                         Some(false) => {
+    //                             debug!("returning err from invoke_capability");
+    //                             Err(DenyReason::GrantDenied)
+    //                         }
+    //                         None => {
+    //                             debug!("Challenge left unanswered. Returning err from invoke_capability");
+    //                             Err(DenyReason::Ungranted)
+    //                         }
+    //                     }
+    //                 }
+    //                 None => {
+    //                     debug!("Received reponse that is not convertable to challenge response");
+    //                     Err(DenyReason::Ungranted)
+    //                 }
+    //             },
+    //             Err(_) => {
+    //                 debug!("Receive error in channel");
+    //                 Err(DenyReason::Ungranted)
+    //             }
+    //         }
+    //     } else {
+    //         /*
+    //          * We would reach here if the cap is ack or pin
+    //          * and we are not able to parse the configuration in the manifest
+    //          * as pinchallenge or ackchallenge.
+    //          */
+    //         Err(DenyReason::Ungranted)
+    //     };
+
+    //     if let Err(reason) = result {
+    //         Err(DenyReasonWithCap {
+    //             reason,
+    //             caps: vec![permission.cap.clone()],
+    //         })
+    //     } else {
+    //         Ok(())
+    //     }
+    // }
     pub async fn invoke_capability(
         platform_state: &PlatformState,
-        // call_ctx: &CallContext,
         caller_session: &CallerSession,
         app_requested_for: &AppIdentification,
         cap: &FireboltCap,
@@ -1822,11 +1956,36 @@ impl GrantStepExecutor {
     ) -> Result<(), DenyReasonWithCap> {
         let (session_tx, session_rx) = oneshot::channel::<ProviderResponsePayload>();
         let p_cap = cap.clone();
-        /*
-         * We have a concrete struct defined for ack challenge and pin challenge hence handling them separately. If any new
-         * caps are introduced in future, the assumption is that capability provider has a method "challenge" and it can
-         * deduce its params from a string.
-         */
+
+        let mut method_key: Option<String> = None;
+
+        for (key, provider_relation_set) in platform_state
+            .open_rpc_state
+            .get_provider_relation_map()
+            .iter()
+        {
+            if provider_relation_set.event {
+                if let Some(capability) = &provider_relation_set.provides {
+                    if p_cap.as_str().eq(capability) {
+                        method_key = Some(key.clone());
+                    }
+                }
+            }
+        }
+
+        if method_key.is_none() {
+            error!(
+                "invoke_capability: Could not find provider for capability {}",
+                p_cap.as_str()
+            );
+            return Err(DenyReasonWithCap {
+                reason: DenyReason::Ungranted,
+                caps: vec![permission.cap.clone()],
+            });
+        }
+
+        let method = method_key.unwrap();
+        println!("*** _DEBUG: invoke_capability: method={}", method);
 
         /*
          * this might be weird looking as_str().as_str(), FireboltCap returns String but has a function named as_str.
@@ -1845,7 +2004,7 @@ impl GrantStepExecutor {
                 };
                 Some(ProviderBrokerRequest {
                     capability: p_cap.as_str(),
-                    method: String::from("challenge"),
+                    method,
                     caller: caller_session.to_owned(),
                     request: ProviderRequestPayload::AckChallenge(challenge),
                     tx: session_tx,
@@ -1870,7 +2029,7 @@ impl GrantStepExecutor {
                     };
                     Some(ProviderBrokerRequest {
                         capability: p_cap.as_str(),
-                        method: "challenge".to_owned(),
+                        method,
                         caller: caller_session.clone(),
                         request: ProviderRequestPayload::PinChallenge(challenge),
                         tx: session_tx,
@@ -1885,7 +2044,7 @@ impl GrantStepExecutor {
                  */
                 Some(ProviderBrokerRequest {
                     capability: p_cap.as_str(),
-                    method: String::from("challenge"),
+                    method,
                     caller: caller_session.clone(),
                     request: ProviderRequestPayload::Generic(param.clone().unwrap_or(Value::Null)),
                     tx: session_tx,
@@ -1895,6 +2054,10 @@ impl GrantStepExecutor {
         };
 
         let result = if let Some(pr_msg) = pr_msg_opt {
+            println!(
+                "*** _DEBUG: invoke_capability: cap={}, method={}",
+                pr_msg.capability, pr_msg.method
+            );
             ProviderBroker::invoke_method(&platform_state.clone(), pr_msg).await;
             match session_rx.await {
                 Ok(result) => match result.as_challenge_response() {
@@ -1942,6 +2105,7 @@ impl GrantStepExecutor {
             Ok(())
         }
     }
+    // </pca>
 }
 
 #[cfg(test)]
