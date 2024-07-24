@@ -1964,18 +1964,19 @@ impl GrantStepExecutor {
             .get_provider_relation_map()
             .iter()
         {
-            if provider_relation_set.event {
-                if let Some(capability) = &provider_relation_set.provides {
-                    if p_cap.as_str().eq(capability) {
-                        method_key = Some(key.clone());
-                    }
-                } else if let Some(provides_to) = &provider_relation_set.provides_to {
-                    println!("*** _DEBUG: invoke_capability: provides_to={}", provides_to);
-                    // <pca> YAH need to get and compare cap </pca>
-                    // <pca> YAH run tests, failing in CI? </pca>
+            if let Some(provides) = &provider_relation_set.provides {
+                if provides.eq(&cap.as_str()) {
+                    method_key = Some(key.clone());
+                    break;
                 }
             }
         }
+
+        println!(
+            "*** _DEBUG: invoke_capability: cap={}, method_key={:?}",
+            cap.as_str(),
+            method_key
+        );
 
         if method_key.is_none() {
             error!(
@@ -1986,10 +1987,10 @@ impl GrantStepExecutor {
                 "*** _DEBUG: invoke_capability: Could not find provider for capability {}",
                 p_cap.as_str()
             );
-            // return Err(DenyReasonWithCap {
-            //     reason: DenyReason::Ungranted,
-            //     caps: vec![permission.cap.clone()],
-            // });
+            return Err(DenyReasonWithCap {
+                reason: DenyReason::Ungranted,
+                caps: vec![permission.cap.clone()],
+            });
         }
 
         let method = method_key.unwrap();

@@ -219,7 +219,7 @@ impl ProviderRegistrar {
     ) -> Result<ListenerResponse, Error> {
         info!("callback_register_provider: method={}", context.method);
 
-        if let Some(provides) = &context.provider_relation_set.provides {
+        if let Some(capability) = &context.provider_relation_set.capability {
             let mut params_sequence = params.sequence();
             let call_context: CallContext = params_sequence.next().unwrap();
             let request: ListenRequest = params_sequence.next().unwrap();
@@ -227,7 +227,7 @@ impl ProviderRegistrar {
 
             ProviderBroker::register_or_unregister_provider(
                 &context.platform_state,
-                provides.clone(),
+                capability.clone(),
                 context.method.clone(),
                 context.method.clone(),
                 call_context,
@@ -312,7 +312,7 @@ impl ProviderRegistrar {
             if let Some(provided_by_set) = provider_relation_map.get(
                 &FireboltOpenRpcMethod::name_with_lowercase_module(provided_by),
             ) {
-                if let Some(capability) = &provided_by_set.provides {
+                if let Some(capability) = &provided_by_set.capability {
                     let (provider_response_payload_tx, provider_response_payload_rx) =
                         oneshot::channel::<ProviderResponsePayload>();
 
@@ -368,7 +368,7 @@ impl ProviderRegistrar {
     ) -> Result<Option<()>, Error> {
         info!("callback_focus: method={}", context.method);
 
-        if let Some(provides) = &context.provider_relation_set.provides {
+        if let Some(capability) = &context.provider_relation_set.capability {
             let mut params_sequence = params.sequence();
             let call_context: CallContext = params_sequence.next().unwrap();
             let request: FocusRequest = params_sequence.next().unwrap();
@@ -376,7 +376,7 @@ impl ProviderRegistrar {
             ProviderBroker::focus(
                 &context.platform_state,
                 call_context,
-                provides.clone(),
+                capability.clone(),
                 request,
             )
             .await;
@@ -443,7 +443,7 @@ impl ProviderRegistrar {
                             MethodType::AppEventListener,
                             &mut rpc_module,
                         );
-                    } else if provider_relation_set.provides.is_some()
+                    } else if provider_relation_set.capability.is_some()
                         || provider_relation_set.provides_to.is_some()
                     {
                         registered = Self::register_method(
@@ -563,7 +563,7 @@ mod tests {
 
         let provider_relation_set = ProviderRelationSet {
             event: true,
-            provides: Some("some.capability".to_string()),
+            capability: Some("some.capability".to_string()),
             ..Default::default()
         };
 

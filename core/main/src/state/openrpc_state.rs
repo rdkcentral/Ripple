@@ -43,15 +43,16 @@ pub enum ApiSurface {
 
 #[derive(Debug, Clone, Default)]
 pub struct ProviderRelationSet {
+    pub capability: Option<String>,
+    pub attributes: Option<&'static ProviderAttributes>,
+    pub event: bool,
+    pub provides: Option<String>,
+    pub provides_to: Option<String>,
+    pub provided_by: Option<String>,
+    pub uses: Option<Vec<String>>,
     pub allow_focus_for: Option<String>,
     pub response_for: Option<String>,
     pub error_for: Option<String>,
-    pub attributes: Option<&'static ProviderAttributes>,
-    pub provides: Option<String>,
-    pub provided_by: Option<String>,
-    pub uses: Option<Vec<String>>,
-    pub event: bool,
-    pub provides_to: Option<String>,
 }
 
 impl ProviderRelationSet {
@@ -107,11 +108,14 @@ pub fn build_provider_relation_sets(
                 .unwrap_or(&ProviderRelationSet::new())
                 .clone();
 
-            if let Some(_capability) = has_x_provides {
+            // <pca>
+            //if let Some(_capability) = has_x_provides {
+            if has_x_provides.is_some() {
+                // </pca>
                 provider_relation_set.allow_focus_for = x_allow_focus_for;
                 provider_relation_set.response_for = x_response_for;
                 provider_relation_set.error_for = x_error_for;
-                provider_relation_set.provides = x_provides;
+                provider_relation_set.capability = x_provides;
             } else {
                 // x-provided-by can only be set if x-provides isn't.
                 provider_relation_set.provided_by = x_provided_by.clone();
@@ -133,6 +137,12 @@ pub fn build_provider_relation_sets(
             provider_relation_set.uses = x_uses;
             provider_relation_set.event = has_event;
 
+            // <pca>
+            if provider_relation_set.event {
+                provider_relation_set.provides = provider_relation_set.capability.clone();
+            }
+            // </pca>
+
             let module: Vec<&str> = method.name.split('.').collect();
             provider_relation_set.attributes = ProviderAttributes::get(module[0]);
 
@@ -142,6 +152,55 @@ pub fn build_provider_relation_sets(
             );
         }
     }
+
+    // <pca>
+    // Post-process sets to set 'provides' for methods that provide-to other methods.
+
+    let provides_to_array: Vec<(String, String)> = provider_relation_sets
+        .iter()
+        .filter_map(|(method_name, provider_relation_set)| {
+            if let Some(provides_to) = &provider_relation_set.provides_to {
+                Some((method_name.clone(), provides_to.clone()))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    for (provider_method, provides_to_method) in provides_to_array {
+        println!(
+            "*** _DEBUG: provides_method={}, provides_to_method={}",
+            provider_method, provides_to_method
+        );
+
+        let provided_to_capability =
+            if let Some(provided_to_set) = provider_relation_sets.get(&provides_to_method) {
+                provided_to_set.capability.clone()
+            } else {
+                None
+            };
+
+        if let Some(provider_set) = provider_relation_sets.get_mut(&provider_method) {
+            println!(
+                "*** _DEBUG: provider_set.provides={:?}, provider_set.capability={:?}, provided_to_capability={:?}",
+                provider_set.provides, provider_set.capability, provided_to_capability
+            );
+            if provider_set.provides.is_none() {
+                provider_set.provides = provided_to_capability.clone();
+            }
+        }
+    }
+    // </pca>
+
+    // <pca> debug
+    for set in provider_relation_sets.iter() {
+        println!(
+            "*** _DEBUG: provider_relation_sets: method={}, provides={:?}",
+            set.0, set.1.provides
+        );
+    }
+
+    // </pca>
 
     println!(
         "*** _DEBUG: provider_relation_sets: provider_relation_sets={:?}",
