@@ -159,11 +159,15 @@ pub fn build_provider_relation_sets(
     let provides_to_array: Vec<(String, String)> = provider_relation_sets
         .iter()
         .filter_map(|(method_name, provider_relation_set)| {
-            if let Some(provides_to) = &provider_relation_set.provides_to {
-                Some((method_name.clone(), provides_to.clone()))
-            } else {
-                None
-            }
+            // if let Some(provides_to) = &provider_relation_set.provides_to {
+            //     Some((method_name.clone(), provides_to.clone()))
+            // } else {
+            //     None
+            // }
+            provider_relation_set
+                .provides_to
+                .as_ref()
+                .map(|provides_to| (method_name.clone(), provides_to.clone()))
         })
         .collect();
 
