@@ -2170,7 +2170,10 @@ mod tests {
                 ProviderBroker::register_or_unregister_provider(
                     &state_c,
                     String::from(PIN_CHALLENGE_CAPABILITY),
-                    String::from("challenge"),
+                    // <pca>
+                    //                    String::from("challenge"),
+                    String::from(PIN_CHALLENGE_EVENT),
+                    // </pca>
                     String::from(PIN_CHALLENGE_EVENT),
                     ctx_c.clone(),
                     ListenRequest { listen: true },
@@ -2180,7 +2183,10 @@ mod tests {
                 ProviderBroker::register_or_unregister_provider(
                     &state_c,
                     String::from(ACK_CHALLENGE_CAPABILITY),
-                    String::from("challenge"),
+                    //<pca>
+                    //String::from("challenge"),
+                    String::from(ACK_CHALLENGE_EVENT),
+                    // </pca>
                     String::from(ACK_CHALLENGE_EVENT),
                     ctx_c.clone(),
                     ListenRequest { listen: true },
