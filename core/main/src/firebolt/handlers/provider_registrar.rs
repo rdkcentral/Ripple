@@ -50,7 +50,7 @@ use ripple_sdk::{
 use serde_json::Value;
 
 // TODO: Add to config
-const DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS: u64 = 5000;
+const DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS: u64 = 15000;
 
 #[derive(Debug)]
 enum MethodType {
@@ -195,6 +195,10 @@ impl ProviderRegistrar {
         context: Arc<RpcModuleContext>,
     ) -> Result<ListenerResponse, Error> {
         info!("callback_app_event_listener: method={}", context.method);
+        info!(
+            "*** DEBUG: callback_app_event_listener: method/event={}",
+            context.method
+        );
 
         let mut params_sequence = params.sequence();
         let call_context: CallContext = params_sequence.next().unwrap();

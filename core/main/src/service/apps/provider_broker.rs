@@ -24,6 +24,7 @@ use ripple_sdk::{
             fb_lifecycle_management::{
                 LifecycleManagementEventRequest, LifecycleManagementProviderEvent,
             },
+            fb_openrpc::FireboltOpenRpcMethod,
             provider::{
                 FocusRequest, ProviderRequest, ProviderRequestPayload, ProviderResponse,
                 ProviderResponsePayload,
@@ -220,7 +221,11 @@ impl ProviderBroker {
     }
 
     pub async fn invoke_method(pst: &PlatformState, request: ProviderBrokerRequest) {
-        let cap_method = format!("{}:{}", request.capability, request.method);
+        let cap_method = format!(
+            "{}:{}",
+            request.capability,
+            FireboltOpenRpcMethod::name_with_lowercase_module(&request.method)
+        );
         debug!("invoking provider for {}", cap_method);
 
         let provider_opt = {
