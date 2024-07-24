@@ -180,7 +180,7 @@ impl RpcRouter {
 
                 Self::log_rdk_telemetry_message(&app_id, &method, status_code, now - start);
 
-                TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start, success);
+                TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start, success, &msg);
 
                 return_api_message_for_transport(session, msg, state).await;
             }
