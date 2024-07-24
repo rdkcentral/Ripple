@@ -222,7 +222,6 @@ impl ProviderBroker {
     pub async fn invoke_method(pst: &PlatformState, request: ProviderBrokerRequest) {
         let cap_method = format!("{}:{}", request.capability, request.method);
         debug!("invoking provider for {}", cap_method);
-        println!("*** _DEBUG: invoke_method: pst.provider_broker_state.provider_methods.read().unwrap()={:?}", pst.provider_broker_state.provider_methods.read().unwrap());
 
         let provider_opt = {
             let provider_methods = pst.provider_broker_state.provider_methods.read().unwrap();

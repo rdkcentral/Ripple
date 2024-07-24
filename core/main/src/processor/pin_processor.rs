@@ -87,10 +87,7 @@ impl ExtnRequestProcessor for PinProcessor {
         let (session_tx, session_rx) = oneshot::channel::<ProviderResponsePayload>();
         let pr_msg = ProviderBrokerRequest {
             capability: String::from(PIN_CHALLENGE_CAPABILITY),
-            // <pca>
-            //method: String::from("challenge"),
             method: String::from("pinchallenge.onRequestChallenge"),
-            // </pca>
             caller: pin_request.call_ctx.clone().into(),
             request: ProviderRequestPayload::PinChallenge(pin_request.into()),
             tx: session_tx,

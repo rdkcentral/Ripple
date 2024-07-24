@@ -108,10 +108,7 @@ pub fn build_provider_relation_sets(
                 .unwrap_or(&ProviderRelationSet::new())
                 .clone();
 
-            // <pca>
-            //if let Some(_capability) = has_x_provides {
             if has_x_provides.is_some() {
-                // </pca>
                 provider_relation_set.allow_focus_for = x_allow_focus_for;
                 provider_relation_set.response_for = x_response_for;
                 provider_relation_set.error_for = x_error_for;
@@ -137,11 +134,10 @@ pub fn build_provider_relation_sets(
             provider_relation_set.uses = x_uses;
             provider_relation_set.event = has_event;
 
-            // <pca>
+            // If this is an event, then it provides the capability.
             if provider_relation_set.event {
                 provider_relation_set.provides = provider_relation_set.capability.clone();
             }
-            // </pca>
 
             let module: Vec<&str> = method.name.split('.').collect();
             provider_relation_set.attributes = ProviderAttributes::get(module[0]);
@@ -153,17 +149,11 @@ pub fn build_provider_relation_sets(
         }
     }
 
-    // <pca>
     // Post-process sets to set 'provides' for methods that provide-to other methods.
 
     let provides_to_array: Vec<(String, String)> = provider_relation_sets
         .iter()
         .filter_map(|(method_name, provider_relation_set)| {
-            // if let Some(provides_to) = &provider_relation_set.provides_to {
-            //     Some((method_name.clone(), provides_to.clone()))
-            // } else {
-            //     None
-            // }
             provider_relation_set
                 .provides_to
                 .as_ref()
@@ -172,11 +162,6 @@ pub fn build_provider_relation_sets(
         .collect();
 
     for (provider_method, provides_to_method) in provides_to_array {
-        println!(
-            "*** _DEBUG: provides_method={}, provides_to_method={}",
-            provider_method, provides_to_method
-        );
-
         let provided_to_capability =
             if let Some(provided_to_set) = provider_relation_sets.get(&provides_to_method) {
                 provided_to_set.capability.clone()
@@ -185,31 +170,11 @@ pub fn build_provider_relation_sets(
             };
 
         if let Some(provider_set) = provider_relation_sets.get_mut(&provider_method) {
-            println!(
-                "*** _DEBUG: provider_set.provides={:?}, provider_set.capability={:?}, provided_to_capability={:?}",
-                provider_set.provides, provider_set.capability, provided_to_capability
-            );
             if provider_set.provides.is_none() {
                 provider_set.provides = provided_to_capability.clone();
             }
         }
     }
-    // </pca>
-
-    // <pca> debug
-    for set in provider_relation_sets.iter() {
-        println!(
-            "*** _DEBUG: provider_relation_sets: method={}, provides={:?}",
-            set.0, set.1.provides
-        );
-    }
-
-    // </pca>
-
-    println!(
-        "*** _DEBUG: provider_relation_sets: provider_relation_sets={:?}",
-        provider_relation_sets
-    );
 
     provider_relation_sets
 }
