@@ -757,33 +757,6 @@ fn apply_response(
     }
 }
 
-// fn apply_response(result: Value, filter: String, rpc_request: &RpcRequest, v: &mut BrokerOutput) {
-//     match jq_compile(
-//         result.clone(),
-//         &filter,
-//         format!("{}_response", rpc_request.ctx.method),
-//     ) {
-//         Ok(r) => {
-//             if r == Value::Null {
-//                 error!("error processing: {}", r);
-//                 v.data.error = None;
-//                 v.data.result = Some(Value::Null);
-//             } else if result.get("success").is_some() {
-//                 v.data.result = Some(r);
-//                 v.data.error = Some(Value::from(
-//                     result.get("success").unwrap().as_bool().unwrap_or(true),
-//                 ));
-//             } else {
-//                 v.data.error = None;
-//                 v.data.result = Some(r);
-//             }
-//         }
-//         Err(e) => {
-//             error!("jq_compile error {:?}", e)
-//         }
-//     }
-// }
-
 fn apply_rule_for_event(
     broker_request: &BrokerRequest,
     result: &Value,
