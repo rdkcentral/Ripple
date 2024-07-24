@@ -44,7 +44,7 @@ pub fn init_logger(name: String) -> Result<(), fern::InitError> {
             ));
         })
         .level(filter)
-	//log filter applied here, making the log level to OFF for the below mentioned crates
+        //log filter applied here, making the log level to OFF for the below mentioned crates
         .level_for("h2", log::LevelFilter::Off)
         .level_for("hyper", log::LevelFilter::Off)
         .level_for("rustls", log::LevelFilter::Off)
@@ -109,7 +109,7 @@ pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern
             }
         })
         .level(filter)
-	//log filter applied here, making the log level to OFF for the below mentioned crates
+        //log filter applied here, making the log level to OFF for the below mentioned crates
         .level_for("h2", log::LevelFilter::Off)
         .level_for("hyper", log::LevelFilter::Off)
         .level_for("rustls", log::LevelFilter::Off)
