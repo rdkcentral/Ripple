@@ -763,6 +763,17 @@ impl ExtnClient {
         None
     }
 
+    // <pca>
+    pub fn get_string_array_config(&self, key: &str) -> Option<Vec<String>> {
+        if let Some(s) = self.sender.get_config(key) {
+            if let Ok(v) = serde_json::from_str(s.as_str()) {
+                return Some(v);
+            }
+        }
+        None
+    }
+    // </pca>
+
     /// Method to send event to an extension based on its Id
     pub fn send_event_with_id(&self, id: &str, event: impl ExtnPayloadProvider) -> RippleResponse {
         if let Some(sender) = self.get_extn_sender_with_extn_id(id) {

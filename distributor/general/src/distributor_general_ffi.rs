@@ -88,6 +88,7 @@ export_extn_metadata!(CExtnMetadata, init_library);
 fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     let _ = init_logger("distributor_general".into());
     info!("Starting distributor channel");
+    info!("*** _DEBUG: Starting distributor channel");
     let mut client: ExtnClient = ExtnClient::new(receiver, sender);
     let runtime = ExtnUtils::get_runtime("e-dg".to_owned(), client.get_stack_size());
     runtime.block_on(async move {
