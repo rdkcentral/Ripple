@@ -44,6 +44,14 @@ pub fn init_logger(name: String) -> Result<(), fern::InitError> {
             ));
         })
         .level(filter)
+        //log filter applied here, making the log level to OFF for the below mentioned crates
+        .level_for("h2", log::LevelFilter::Off)
+        .level_for("hyper", log::LevelFilter::Off)
+        .level_for("rustls", log::LevelFilter::Off)
+        .level_for("tower", log::LevelFilter::Off)
+        .level_for("tower_http", log::LevelFilter::Off)
+        .level_for("jsonrpsee_client_transport", log::LevelFilter::Off)
+        .level_for("jsonrpsee_core", log::LevelFilter::Off)
         .chain(std::io::stdout())
         .apply()?;
     Ok(())
@@ -101,6 +109,14 @@ pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern
             }
         })
         .level(filter)
+        //log filter applied here, making the log level to OFF for the below mentioned crates
+        .level_for("h2", log::LevelFilter::Off)
+        .level_for("hyper", log::LevelFilter::Off)
+        .level_for("rustls", log::LevelFilter::Off)
+        .level_for("tower", log::LevelFilter::Off)
+        .level_for("tower_http", log::LevelFilter::Off)
+        .level_for("jsonrpsee_client_transport", log::LevelFilter::Off)
+        .level_for("jsonrpsee_core", log::LevelFilter::Off)
         .chain(std::io::stdout())
         .apply()?;
     Ok(())
