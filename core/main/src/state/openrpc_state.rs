@@ -82,6 +82,7 @@ pub fn build_provider_relation_sets(
             && !method.name.starts_with("Content.onUserInterest")
             && !method.name.starts_with("Player.")
             && !method.name.starts_with("StreamingPlayer.")
+            && !method.name.starts_with("BroadcastPlayer.")
         {
             continue;
         }
