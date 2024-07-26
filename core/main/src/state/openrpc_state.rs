@@ -76,8 +76,11 @@ pub fn build_provider_relation_sets(
         // Only build provider sets for AcknowledgeChallenge, PinChallenge methods, Discovery, and Content for now
         if !method.name.starts_with("AcknowledgeChallenge.")
             && !method.name.starts_with("PinChallenge.")
-            && !method.name.starts_with("Discovery.")
-            && !method.name.starts_with("Content.")
+            && !method.name.starts_with("Discovery.userInterest")
+            && !method.name.starts_with("Discovery.onRequestUserInterest")
+            && !method.name.starts_with("Discovery.userInterestResponse")
+            && !method.name.starts_with("Content.requestUserInterest")
+            && !method.name.starts_with("Content.onUserInterest")
         {
             continue;
         }
