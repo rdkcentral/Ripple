@@ -302,7 +302,7 @@ impl KeyboardImpl {
             &self.platform_state,
             String::from(KEYBOARD_PROVIDER_CAPABILITY),
             method,
-            event_name,
+            String::from(event_name),
             ctx,
             request,
         )

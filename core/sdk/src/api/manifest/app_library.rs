@@ -44,7 +44,7 @@ pub struct AppLibrary {}
 
 impl AppLibraryState {
     pub fn new(default_apps: Vec<AppLibraryEntry>) -> AppLibraryState {
-        let providers = AppLibrary::generate_provider_map(&default_apps);
+        let providers = AppLibrary::generate_provider_relation_map(&default_apps);
         AppLibraryState {
             default_apps,
             providers,
@@ -90,7 +90,7 @@ impl AppLibrary {
         }
     }
 
-    fn generate_provider_map(apps: &[AppLibraryEntry]) -> HashMap<String, String> {
+    fn generate_provider_relation_map(apps: &[AppLibraryEntry]) -> HashMap<String, String> {
         let mut map = HashMap::new();
 
         for app in apps.iter() {
@@ -103,7 +103,10 @@ impl AppLibrary {
                     map.insert(capability.clone(), app.app_id.clone());
                 }
             } else {
-                warn!("generate_provider_map: Not supported: {:?}", app.manifest);
+                warn!(
+                    "generate_provider_relation_map: Not supported: {:?}",
+                    app.manifest
+                );
             }
         }
 
@@ -137,7 +140,7 @@ mod tests {
         let app_library_state = AppLibraryState::new(default_apps.clone());
         assert_eq!(app_library_state.default_apps, default_apps);
 
-        let providers = AppLibrary::generate_provider_map(&default_apps);
+        let providers = AppLibrary::generate_provider_relation_map(&default_apps);
         assert_eq!(app_library_state.providers, providers);
     }
 
