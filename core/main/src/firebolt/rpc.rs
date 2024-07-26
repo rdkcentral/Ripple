@@ -87,7 +87,6 @@ where
     rpc_module
 }
 
-// <pca>
 pub struct OpenRPCSchemaRegistrar {
     platform_state: PlatformState,
     streamer: DefaultExtnStreamer,
@@ -142,4 +141,3 @@ impl ExtnRequestProcessor for OpenRPCSchemaRegistrar {
         }
     }
 }
-// </pca>

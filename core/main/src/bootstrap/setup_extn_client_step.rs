@@ -65,9 +65,7 @@ impl Bootstep<BootstrapState> for SetupExtnClientStep {
         client.add_request_processor(SettingsProcessor::new(state.platform_state.clone()));
         client.add_request_processor(MetricsProcessor::new(state.platform_state.clone()));
         client.add_request_processor(OpMetricsProcessor::new(state.platform_state.clone()));
-        // <pca>
         client.add_request_processor(OpenRPCSchemaRegistrar::new(state.platform_state.clone()));
-        // </pca>
         Ok(())
     }
 }

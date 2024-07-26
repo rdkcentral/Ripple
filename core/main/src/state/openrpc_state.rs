@@ -67,13 +67,12 @@ impl ProviderRelationSet {
 pub fn build_provider_relation_sets(
     openrpc_methods: &Vec<FireboltOpenRpcMethod>,
 ) -> HashMap<String, ProviderRelationSet> {
-    println!("*** _DEBUG: build_provider_relation_sets: entry");
     let mut provider_relation_sets = HashMap::default();
 
     for method in openrpc_methods {
         let mut has_x_provides = None;
 
-        // Only build provider sets for AcknowledgeChallenge, PinChallenge methods, Discovery, and Content for now
+        // Only build provider sets for those indicated below, for now.
         if !method.name.starts_with("AcknowledgeChallenge.")
             && !method.name.starts_with("PinChallenge.")
             && !method.name.starts_with("Discovery.userInterest")
@@ -81,6 +80,8 @@ pub fn build_provider_relation_sets(
             && !method.name.starts_with("Discovery.userInterestResponse")
             && !method.name.starts_with("Content.requestUserInterest")
             && !method.name.starts_with("Content.onUserInterest")
+            && !method.name.starts_with("Player.")
+            && !method.name.starts_with("StreamingPlayer.")
         {
             continue;
         }
@@ -196,9 +197,6 @@ pub struct OpenRpcState {
     extended_rpc: Arc<RwLock<Vec<FireboltOpenRpc>>>,
     provider_relation_map: Arc<RwLock<HashMap<String, ProviderRelationSet>>>,
     openrpc_validator: Arc<RwLock<FireboltOpenRpcValidator>>,
-    // <pca>
-    extension_open_rpcs: Arc<RwLock<Vec<FireboltOpenRpc>>>,
-    // </pca>
 }
 
 impl OpenRpcState {
@@ -215,7 +213,6 @@ impl OpenRpcState {
         }
     }
 
-    // <pca>
     fn load_open_rpc(path: String) -> Option<FireboltOpenRpc> {
         match std::fs::read_to_string(path.clone()) {
             Ok(content) => {
@@ -242,13 +239,17 @@ impl OpenRpcState {
     pub fn add_extension_open_rpc(&self, path: String) -> Result<(), RippleError> {
         match Self::load_open_rpc(path) {
             Some(open_rpc) => {
-                self.extension_open_rpcs.write().unwrap().push(open_rpc);
+                let provider_relation_sets = build_provider_relation_sets(&open_rpc.methods);
+                self.provider_relation_map
+                    .write()
+                    .unwrap()
+                    .extend(provider_relation_sets);
+                self.add_open_rpc(open_rpc);
                 Ok(())
             }
             None => Err(RippleError::ParseError),
         }
     }
-    // </pca>
 
     fn load_firebolt_open_rpc() -> FireboltVersionManifest {
         let mut fb_open_rpc_file = "/etc/ripple/openrpc/firebolt-open-rpc.json".to_string();
@@ -307,9 +308,6 @@ impl OpenRpcState {
                 &firebolt_open_rpc.methods,
             ))),
             openrpc_validator: Arc::new(RwLock::new(openrpc_validator)),
-            // <pca>
-            extension_open_rpcs: Arc::new(RwLock::new(Vec::new())),
-            // </pca>
         }
     }
 

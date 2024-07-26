@@ -315,9 +315,7 @@ pub enum ExtnRequest {
     DistributorToken(DistributorTokenRequest),
     Context(RippleContextUpdateRequest),
     AppCatalog(AppCatalogRequest),
-    // <pca>
     OpenRPCRegistrar(OpenRPCRegistrarRequest),
-    // </pca>
 }
 
 impl ExtnPayloadProvider for ExtnRequest {

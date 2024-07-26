@@ -201,8 +201,23 @@ impl ProviderRegistrar {
         );
 
         let mut params_sequence = params.sequence();
-        let call_context: CallContext = params_sequence.next().unwrap();
-        let request: ListenRequest = params_sequence.next().unwrap();
+
+        let call_context: CallContext = match params_sequence.next() {
+            Ok(c) => c,
+            Err(e) => {
+                error!("callback_app_event_listener: Error: {:?}", e);
+                return Err(Error::Custom("Missing call context".to_string()));
+            }
+        };
+
+        let request: ListenRequest = match params_sequence.next() {
+            Ok(r) => r,
+            Err(e) => {
+                error!("callback_app_event_listener: Error: {:?}", e);
+                return Err(Error::Custom("Missing request".to_string()));
+            }
+        };
+
         let listen = request.listen;
 
         AppEvents::add_listener(
@@ -225,8 +240,23 @@ impl ProviderRegistrar {
 
         if let Some(capability) = &context.provider_relation_set.capability {
             let mut params_sequence = params.sequence();
-            let call_context: CallContext = params_sequence.next().unwrap();
-            let request: ListenRequest = params_sequence.next().unwrap();
+
+            let call_context: CallContext = match params_sequence.next() {
+                Ok(c) => c,
+                Err(e) => {
+                    error!("callback_register_provider: Error: {:?}", e);
+                    return Err(Error::Custom("Missing call context".to_string()));
+                }
+            };
+
+            let request: ListenRequest = match params_sequence.next() {
+                Ok(r) => r,
+                Err(e) => {
+                    error!("callback_register_provider: Error: {:?}", e);
+                    return Err(Error::Custom("Missing request".to_string()));
+                }
+            };
+
             let listening = request.listen;
 
             ProviderBroker::register_or_unregister_provider(
@@ -258,8 +288,15 @@ impl ProviderRegistrar {
         );
         if let Some(event) = &context.provider_relation_set.provides_to {
             let mut params_sequence = params.sequence();
-            let _call_context: CallContext = params_sequence.next().unwrap();
-            let result: Value = params_sequence.next().unwrap();
+            let _call_context: Option<CallContext> = params_sequence.next().ok();
+
+            let result: Value = match params_sequence.next() {
+                Ok(r) => r,
+                Err(e) => {
+                    error!("callback_app_event_emitter: Error: {:?}", e);
+                    return Err(Error::Custom("Missing result".to_string()));
+                }
+            };
 
             AppEvents::emit(
                 &context.platform_state,
@@ -302,8 +339,21 @@ impl ProviderRegistrar {
         context: Arc<RpcModuleContext>,
     ) -> Result<Value, Error> {
         let mut params_sequence = params.sequence();
-        let call_context: CallContext = params_sequence.next().unwrap();
-        let params: Value = params_sequence.next().unwrap();
+        let call_context: CallContext = match params_sequence.next() {
+            Ok(c) => c,
+            Err(e) => {
+                error!("callback_provider_invoker: Error: {:?}", e);
+                return Err(Error::Custom("Missing call context".to_string()));
+            }
+        };
+
+        let params: Value = match params_sequence.next() {
+            Ok(p) => p,
+            Err(e) => {
+                error!("callback_provider_invoker: Error: {:?}", e);
+                return Err(Error::Custom("Missing params".to_string()));
+            }
+        };
 
         info!("callback_provider_invoker: method={}", context.method);
 
@@ -374,8 +424,22 @@ impl ProviderRegistrar {
 
         if let Some(capability) = &context.provider_relation_set.capability {
             let mut params_sequence = params.sequence();
-            let call_context: CallContext = params_sequence.next().unwrap();
-            let request: FocusRequest = params_sequence.next().unwrap();
+
+            let call_context: CallContext = match params_sequence.next() {
+                Ok(c) => c,
+                Err(e) => {
+                    error!("callback_focus: Error: {:?}", e);
+                    return Err(Error::Custom("Missing call context".to_string()));
+                }
+            };
+
+            let request: FocusRequest = match params_sequence.next() {
+                Ok(r) => r,
+                Err(e) => {
+                    error!("callback_focus: Error: {:?}", e);
+                    return Err(Error::Custom("Missing request".to_string()));
+                }
+            };
 
             ProviderBroker::focus(
                 &context.platform_state,
@@ -422,7 +486,6 @@ impl ProviderRegistrar {
     }
 
     pub fn register_methods(platform_state: &PlatformState, methods: &mut Methods) -> u32 {
-        println!("*** _DEBUG: register_methods: entry");
         let provider_relation_map = platform_state.open_rpc_state.get_provider_relation_map();
         let mut registered_methods = 0;
 

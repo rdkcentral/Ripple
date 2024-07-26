@@ -119,8 +119,6 @@ pub struct OpenRPCParser {
     pub methods: Vec<FireboltOpenRpcMethod>,
 }
 
-// <pca>
-//#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum OpenRPCRegistrarRequest {
     Register(String),
@@ -142,7 +140,6 @@ impl ExtnPayloadProvider for OpenRPCRegistrarRequest {
         RippleContract::Rpc
     }
 }
-// </pca>
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FireboltOpenRpc {
