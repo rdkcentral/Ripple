@@ -203,7 +203,7 @@ impl ProviderRegistrar {
         let mut params_sequence = params.sequence();
 
         let call_context: CallContext = match params_sequence.next() {
-            Ok(c) => c,
+            Ok(context) => context,
             Err(e) => {
                 error!("callback_app_event_listener: Error: {:?}", e);
                 return Err(Error::Custom("Missing call context".to_string()));
@@ -242,7 +242,7 @@ impl ProviderRegistrar {
             let mut params_sequence = params.sequence();
 
             let call_context: CallContext = match params_sequence.next() {
-                Ok(c) => c,
+                Ok(context) => context,
                 Err(e) => {
                     error!("callback_register_provider: Error: {:?}", e);
                     return Err(Error::Custom("Missing call context".to_string()));
@@ -340,7 +340,7 @@ impl ProviderRegistrar {
     ) -> Result<Value, Error> {
         let mut params_sequence = params.sequence();
         let call_context: CallContext = match params_sequence.next() {
-            Ok(c) => c,
+            Ok(context) => context,
             Err(e) => {
                 error!("callback_provider_invoker: Error: {:?}", e);
                 return Err(Error::Custom("Missing call context".to_string()));
@@ -426,7 +426,7 @@ impl ProviderRegistrar {
             let mut params_sequence = params.sequence();
 
             let call_context: CallContext = match params_sequence.next() {
-                Ok(c) => c,
+                Ok(context) => context,
                 Err(e) => {
                     error!("callback_focus: Error: {:?}", e);
                     return Err(Error::Custom("Missing call context".to_string()));
