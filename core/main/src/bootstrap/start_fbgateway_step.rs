@@ -48,9 +48,9 @@ impl FireboltGatewayStep {
     async fn init_handlers(&self, state: PlatformState, extn_methods: Methods) -> Methods {
         let mut methods = Methods::new();
 
-        // TODO: Ultimately this should be able to register all provider below, for now just does
-        // AcknowledgeChallenge and PinChallenge.
-        ProviderRegistrar::register(&state, &mut methods);
+        // TODO: Ultimately this may be able to register all providers below, for now just does
+        // those included by build_provider_relation_sets().
+        ProviderRegistrar::register_methods(&state, &mut methods);
 
         let _ = methods.merge(DeviceRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(WifiRPCProvider::provide_with_alias(state.clone()));
