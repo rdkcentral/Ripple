@@ -36,7 +36,7 @@ use std::{
     vec,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ThunderBroker {
     sender: BrokerSender,
     subscription_map: Arc<RwLock<BrokerSubMap>>,

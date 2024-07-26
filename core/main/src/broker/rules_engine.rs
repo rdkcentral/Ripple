@@ -68,6 +68,7 @@ pub struct Rule {
     // Not every rule needs transform
     #[serde(default)]
     pub transform: RuleTransform,
+    pub filter: Option<String>,
     pub endpoint: Option<String>,
 }
 
@@ -76,6 +77,7 @@ pub struct RuleTransform {
     pub request: Option<String>,
     pub response: Option<String>,
     pub event: Option<String>,
+    pub event_decorator_method: Option<String>,
 }
 
 impl RuleTransform {
@@ -93,7 +95,7 @@ impl RuleTransform {
         }
     }
 
-    pub fn get_filter(&self, typ: RuleTransformType) -> Option<String> {
+    pub fn get_transform_data(&self, typ: RuleTransformType) -> Option<String> {
         match typ {
             RuleTransformType::Request => self.request.clone(),
             RuleTransformType::Event => self.event.clone(),
