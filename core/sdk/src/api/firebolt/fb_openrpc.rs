@@ -119,7 +119,7 @@ pub struct OpenRPCParser {
     pub methods: Vec<FireboltOpenRpcMethod>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum OpenRPCRegistrarRequest {
     Register(String),
 }
