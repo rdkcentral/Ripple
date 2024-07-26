@@ -422,6 +422,7 @@ impl ProviderRegistrar {
     }
 
     pub fn register_methods(platform_state: &PlatformState, methods: &mut Methods) -> u32 {
+        println!("*** _DEBUG: register_methods: entry");
         let provider_relation_map = platform_state.open_rpc_state.get_provider_relation_map();
         let mut registered_methods = 0;
 

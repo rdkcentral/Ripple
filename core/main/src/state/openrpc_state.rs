@@ -15,19 +15,22 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use ripple_sdk::api::{
-    firebolt::{
-        fb_capabilities::FireboltPermission,
-        fb_openrpc::{
-            CapabilitySet, FireboltOpenRpc, FireboltOpenRpcMethod, FireboltSemanticVersion,
-            FireboltVersionManifest, OpenRPCParser,
-        },
-        provider::ProviderAttributes,
-    },
-    manifest::exclusory::{Exclusory, ExclusoryImpl},
-};
 use ripple_sdk::log::{debug, error};
 use ripple_sdk::{api::firebolt::fb_openrpc::CapabilityPolicy, serde_json};
+use ripple_sdk::{
+    api::{
+        firebolt::{
+            fb_capabilities::FireboltPermission,
+            fb_openrpc::{
+                CapabilitySet, FireboltOpenRpc, FireboltOpenRpcMethod, FireboltSemanticVersion,
+                FireboltVersionManifest, OpenRPCParser,
+            },
+            provider::ProviderAttributes,
+        },
+        manifest::exclusory::{Exclusory, ExclusoryImpl},
+    },
+    utils::error::RippleError,
+};
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
@@ -64,6 +67,7 @@ impl ProviderRelationSet {
 pub fn build_provider_relation_sets(
     openrpc_methods: &Vec<FireboltOpenRpcMethod>,
 ) -> HashMap<String, ProviderRelationSet> {
+    println!("*** _DEBUG: build_provider_relation_sets: entry");
     let mut provider_relation_sets = HashMap::default();
 
     for method in openrpc_methods {
@@ -189,6 +193,9 @@ pub struct OpenRpcState {
     extended_rpc: Arc<RwLock<Vec<FireboltOpenRpc>>>,
     provider_relation_map: Arc<RwLock<HashMap<String, ProviderRelationSet>>>,
     openrpc_validator: Arc<RwLock<FireboltOpenRpcValidator>>,
+    // <pca>
+    extension_open_rpcs: Arc<RwLock<Vec<FireboltOpenRpc>>>,
+    // </pca>
 }
 
 impl OpenRpcState {
@@ -204,6 +211,41 @@ impl OpenRpcState {
             }
         }
     }
+
+    // <pca>
+    fn load_open_rpc(path: String) -> Option<FireboltOpenRpc> {
+        match std::fs::read_to_string(path.clone()) {
+            Ok(content) => {
+                debug!("load_open_rpc: loading from {path}");
+                let firebolt_version_manifest: Result<FireboltVersionManifest, _> =
+                    serde_json::from_str(&content);
+                match firebolt_version_manifest {
+                    Ok(fvm) => {
+                        return Some(fvm.into());
+                    }
+                    _ => {
+                        error!("load_open_rpc: can't parse {path}");
+                    }
+                }
+            }
+            Err(e) => {
+                error!("load_open_rpc: can't read {path}, e={:?}", e);
+            }
+        }
+
+        None
+    }
+
+    pub fn add_extension_open_rpc(&self, path: String) -> Result<(), RippleError> {
+        match Self::load_open_rpc(path) {
+            Some(open_rpc) => {
+                self.extension_open_rpcs.write().unwrap().push(open_rpc);
+                Ok(())
+            }
+            None => Err(RippleError::ParseError),
+        }
+    }
+    // </pca>
 
     fn load_firebolt_open_rpc() -> FireboltVersionManifest {
         let mut fb_open_rpc_file = "/etc/ripple/openrpc/firebolt-open-rpc.json".to_string();
@@ -262,6 +304,9 @@ impl OpenRpcState {
                 &firebolt_open_rpc.methods,
             ))),
             openrpc_validator: Arc::new(RwLock::new(openrpc_validator)),
+            // <pca>
+            extension_open_rpcs: Arc::new(RwLock::new(Vec::new())),
+            // </pca>
         }
     }
 

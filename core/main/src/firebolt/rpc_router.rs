@@ -137,7 +137,7 @@ impl RpcRouter {
         session: Session,
         timer: Option<Timer>,
     ) {
-        let methods = state.router_state.get_methods();
+        let methods = state.router_state.get_methods(); // <pca> Will need to have added extension methods to this </pca>
         let resources = state.router_state.resources.clone();
 
         tokio::spawn(async move {

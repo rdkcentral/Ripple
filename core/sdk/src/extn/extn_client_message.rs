@@ -56,6 +56,7 @@ use crate::{
             fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
             fb_lifecycle_management::LifecycleManagementRequest,
             fb_metrics::{BehavioralMetricRequest, MetricsRequest},
+            fb_openrpc::OpenRPCRegistrarRequest,
             fb_pin::{PinChallengeRequestWithContext, PinChallengeResponse},
             fb_secure_storage::{SecureStorageRequest, SecureStorageResponse},
             fb_telemetry::{OperationalMetricRequest, TelemetryPayload},
@@ -314,6 +315,9 @@ pub enum ExtnRequest {
     DistributorToken(DistributorTokenRequest),
     Context(RippleContextUpdateRequest),
     AppCatalog(AppCatalogRequest),
+    // <pca>
+    OpenRPCRegistrar(OpenRPCRegistrarRequest),
+    // </pca>
 }
 
 impl ExtnPayloadProvider for ExtnRequest {
