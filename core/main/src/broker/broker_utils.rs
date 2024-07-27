@@ -17,13 +17,21 @@
 
 use std::time::Duration;
 
-use crate::utils::rpc_utils::extract_tcp_port;
+use crate::{state::platform_state::PlatformState, utils::rpc_utils::extract_tcp_port};
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::StreamExt;
+use jsonrpsee::{core::RpcResult, types::error::CallError};
 use ripple_sdk::{
-    log::{error, info},
+    api::{
+        firebolt::fb_capabilities::CAPABILITY_NOT_AVAILABLE,
+        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
+    },
+    extn::extn_client_message::ExtnResponse,
+    log::{debug, error, info},
     tokio::{self, net::TcpStream},
 };
+use serde::Deserialize;
+use serde_json::from_value;
 use tokio_tungstenite::{client_async, tungstenite::Message, WebSocketStream};
 
 pub struct BrokerUtils;
@@ -65,5 +73,39 @@ impl BrokerUtils {
             index += 1;
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
+    }
+    pub fn rpc_request(method_name: String, call_context: CallContext) -> RpcRequest {
+        let mut new_ctx = call_context.clone();
+        new_ctx.protocol = ApiProtocol::Extn;
+        RpcRequest {
+            ctx: new_ctx.clone(),
+            method: method_name.clone(),
+            params_json: RpcRequest::prepend_ctx(None, &new_ctx),
+        }
+    }
+
+    pub async fn brokered_thunder_call<T: for<'a> Deserialize<'a>>(
+        platform_state: &PlatformState,
+        call_context: CallContext,
+        method_name: String,
+    ) -> RpcResult<T> {
+        if let Ok(res) = platform_state
+            .get_client()
+            .get_extn_client()
+            .main_internal_request(Self::rpc_request(method_name.clone(), call_context.clone()))
+            .await
+        {
+            if let Some(ExtnResponse::Value(val)) = res.payload.extract::<ExtnResponse>() {
+                if let Ok(v) = from_value::<T>(val) {
+                    return Ok(v);
+                }
+            }
+        }
+
+        Err(jsonrpsee::core::Error::Call(CallError::Custom {
+            code: CAPABILITY_NOT_AVAILABLE,
+            message: format!("the firebolt API {} is not available", method_name).into(),
+            data: None,
+        }))
     }
 }

@@ -16,6 +16,7 @@
 //
 
 use crate::{
+    broker::{self, broker_utils::BrokerUtils, endpoint_broker::BrokerRequest},
     firebolt::rpc::RippleRPCProvider,
     processor::storage::storage_manager::StorageManager,
     service::apps::app_events::{AppEventDecorationError, AppEventDecorator},
@@ -29,28 +30,32 @@ use jsonrpsee::{
     RpcModule,
 };
 
-use ripple_sdk::api::{
-    device::{
-        device_accessibility_data::{
-            ClosedCaptionStyle, ClosedCaptionsSettings, FONT_EDGE_LIST, FONT_FAMILY_LIST,
+use ripple_sdk::{
+    api::{
+        device::{
+            device_accessibility_data::{
+                ClosedCaptionStyle, ClosedCaptionsSettings, FONT_EDGE_LIST, FONT_FAMILY_LIST,
+            },
+            device_peristence::{SetProperty, SetPropertyOpt},
         },
-        device_peristence::{SetProperty, SetPropertyOpt},
+        firebolt::{
+            fb_general::{ListenRequest, ListenerResponse},
+            fb_localization::SetPreferredAudioLanguage,
+        },
+        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
+        storage_property::{
+            StorageProperty as SP, EVENT_CC_PREFERRED_LANGUAGES,
+            EVENT_CLOSED_CAPTIONS_BACKGROUND_COLOR, EVENT_CLOSED_CAPTIONS_BACKGROUND_OPACITY,
+            EVENT_CLOSED_CAPTIONS_ENABLED, EVENT_CLOSED_CAPTIONS_FONT_COLOR,
+            EVENT_CLOSED_CAPTIONS_FONT_EDGE, EVENT_CLOSED_CAPTIONS_FONT_EDGE_COLOR,
+            EVENT_CLOSED_CAPTIONS_FONT_FAMILY, EVENT_CLOSED_CAPTIONS_FONT_OPACITY,
+            EVENT_CLOSED_CAPTIONS_FONT_SIZE, EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED,
+            EVENT_CLOSED_CAPTIONS_TEXT_ALIGN, EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL,
+            EVENT_CLOSED_CAPTIONS_WINDOW_COLOR, EVENT_CLOSED_CAPTIONS_WINDOW_OPACITY,
+        },
     },
-    firebolt::{
-        fb_general::{ListenRequest, ListenerResponse},
-        fb_localization::SetPreferredAudioLanguage,
-    },
-    gateway::rpc_gateway_api::CallContext,
-    storage_property::{
-        StorageProperty as SP, EVENT_CC_PREFERRED_LANGUAGES,
-        EVENT_CLOSED_CAPTIONS_BACKGROUND_COLOR, EVENT_CLOSED_CAPTIONS_BACKGROUND_OPACITY,
-        EVENT_CLOSED_CAPTIONS_ENABLED, EVENT_CLOSED_CAPTIONS_FONT_COLOR,
-        EVENT_CLOSED_CAPTIONS_FONT_EDGE, EVENT_CLOSED_CAPTIONS_FONT_EDGE_COLOR,
-        EVENT_CLOSED_CAPTIONS_FONT_FAMILY, EVENT_CLOSED_CAPTIONS_FONT_OPACITY,
-        EVENT_CLOSED_CAPTIONS_FONT_SIZE, EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED,
-        EVENT_CLOSED_CAPTIONS_TEXT_ALIGN, EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL,
-        EVENT_CLOSED_CAPTIONS_WINDOW_COLOR, EVENT_CLOSED_CAPTIONS_WINDOW_OPACITY,
-    },
+    extn::extn_client_message::ExtnResponse,
+    serde_json::from_value,
 };
 use serde_json::Value;
 
@@ -62,11 +67,11 @@ impl AppEventDecorator for CCEventDecorator {
     async fn decorate(
         &self,
         ps: &PlatformState,
-        _ctx: &CallContext,
+        ctx: &CallContext,
         _event_name: &str,
         _val_in: &Value,
     ) -> Result<Value, AppEventDecorationError> {
-        let settings = ClosedcaptionsImpl::get_cc_settings(ps).await?;
+        let settings = ClosedcaptionsImpl::get_cc_settings(ps, ctx).await?;
         Ok(serde_json::to_value(settings).unwrap_or_default())
     }
 
@@ -299,10 +304,13 @@ pub struct ClosedcaptionsImpl {
 }
 
 impl ClosedcaptionsImpl {
-    pub async fn get_cc_settings(ps: &PlatformState) -> RpcResult<ClosedCaptionsSettings> {
+    pub async fn get_cc_settings(
+        ps: &PlatformState,
+        call_context: &CallContext,
+    ) -> RpcResult<ClosedCaptionsSettings> {
         use ClosedcaptionsImpl as CI;
         use SP::*;
-        let enabled = ClosedcaptionsImpl::cc_enabled(ps).await?;
+        let enabled = ClosedcaptionsImpl::cc_enabled(ps, call_context).await?;
         let styles: ClosedCaptionStyle = ClosedCaptionStyle {
             font_family: CI::get_string(ps, ClosedCaptionsFontFamily).await?,
             font_size: CI::get_number_as_f32(ps, ClosedCaptionsFontSize).await?,
@@ -416,8 +424,13 @@ impl ClosedcaptionsImpl {
         }
     }
 
-    pub async fn cc_enabled(state: &PlatformState) -> RpcResult<bool> {
-        StorageManager::get_bool(state, SP::ClosedCaptionsEnabled).await
+    pub async fn cc_enabled(state: &PlatformState, call_context: &CallContext) -> RpcResult<bool> {
+        Ok(BrokerUtils::brokered_thunder_call::<bool>(
+            state,
+            call_context.clone(),
+            "closedCaptions.enabled".into(),
+        )
+        .await?)
     }
 }
 
@@ -425,9 +438,9 @@ impl ClosedcaptionsImpl {
 impl ClosedcaptionsServer for ClosedcaptionsImpl {
     async fn closed_captions_settings(
         &self,
-        _ctx: CallContext,
+        ctx: CallContext,
     ) -> RpcResult<ClosedCaptionsSettings> {
-        let settings = ClosedcaptionsImpl::get_cc_settings(&self.state).await?;
+        let settings = ClosedcaptionsImpl::get_cc_settings(&self.state, &ctx).await?;
         Ok(settings)
     }
 
@@ -446,8 +459,8 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         .await
     }
 
-    async fn cc_enabled_rpc(&self, _ctx: CallContext) -> RpcResult<bool> {
-        ClosedcaptionsImpl::cc_enabled(&self.state).await
+    async fn cc_enabled_rpc(&self, ctx: CallContext) -> RpcResult<bool> {
+        ClosedcaptionsImpl::cc_enabled(&self.state, &ctx).await
     }
 
     async fn cc_enabled_set(&self, _ctx: CallContext, request: SetProperty<bool>) -> RpcResult<()> {

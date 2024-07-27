@@ -648,6 +648,10 @@ impl ExtnClient {
         let id = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = oneshot::channel();
         add_single_processor(id.clone(), Some(tx), self.response_processors.clone());
+        debug!(
+            "main_internal_request: conctract={:?}",
+            payload.get_contract()
+        );
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
         self.sender
             .send_request(id, payload, other_sender, Some(self.sender.tx.clone()))?;

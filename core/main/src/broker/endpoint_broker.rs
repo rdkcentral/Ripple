@@ -243,7 +243,7 @@ pub struct EndpointBrokerState {
     callback: BrokerCallback,
     request_map: Arc<RwLock<HashMap<u64, BrokerRequest>>>,
     extension_request_map: Arc<RwLock<HashMap<u64, ExtnMessage>>>,
-    rule_engine: RuleEngine,
+    pub rule_engine: RuleEngine,
     cleaner_list: Arc<RwLock<Vec<BrokerCleaner>>>,
     reconnect_tx: Sender<BrokerConnectRequest>,
 }

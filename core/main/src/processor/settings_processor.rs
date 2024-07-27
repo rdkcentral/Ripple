@@ -120,7 +120,9 @@ impl SettingsProcessor {
                         Some(SettingValue::bool(enabled))
                     }
                     ClosedCaptions => {
-                        let enabled = ClosedcaptionsImpl::cc_enabled(state).await.unwrap_or(false);
+                        let enabled = ClosedcaptionsImpl::cc_enabled(state, &ctx)
+                            .await
+                            .unwrap_or(false);
                         Some(SettingValue::bool(enabled))
                     }
                     AllowPersonalization => Some(SettingValue::bool(cp.enable_recommendations)),
