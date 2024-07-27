@@ -176,15 +176,16 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
     // start out only from core filters,
     // which do not include filters in the standard library
     // such as `map`, `select` etc.
-    let mut defs = ParseCtx::new(Vec::new());
 
+    let mut defs = ParseCtx::new(vec!["fromjson".into()]);
+    defs.insert_natives(jaq_core::core());
+    defs.insert_defs(jaq_std::std());
     // parse the filter
     let (f, errs) = jaq_parse::parse(filter, jaq_parse::main());
     if !errs.is_empty() {
         error!("Error in rule {:?}", errs);
         return Err(RippleError::RuleError);
     }
-
     // compile the filter in the context of the given definitions
     let f = defs.compile(f.unwrap());
     if !defs.errs.is_empty() {
@@ -196,18 +197,70 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
     }
 
     let inputs = RcIter::new(core::iter::empty());
-
     // iterator over the output values
     let mut out = f.run((Ctx::new([], &inputs), Val::from(input)));
-
-    if let Some(Ok(v)) = out.next() {
+    while let Some(v) = out.next() {
         info!(
             "Ripple Gateway Rule Processing Time: {},{}",
             reference,
             Utc::now().timestamp_millis() - start
         );
-        return Ok(Value::from(v));
+        return Ok(Value::from(v.unwrap()));
     }
 
     Err(RippleError::ParseError)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ripple_sdk::serde_json::json;
+
+    #[test]
+    fn test_jq_compile() {
+        let filter = "if .success then ( .stbVersion | split(\"_\")[0] ) else { code: -32100, message: \"couldn't get version\" } end";
+        let input = json!({
+            "stbVersion":"SCXI11BEI_VBN_24Q2_sprint_20240620140024sdy_FG_GRT",
+            "receiverVersion":"7.2.0.0",
+            "stbTimestamp":"Thu 20 Jun 2024 14:00:24 UTC",
+            "success":true
+        });
+        let resp = jq_compile(input, filter, String::new());
+        assert_eq!(resp.unwrap(), "SCXI11BEI".to_string());
+
+        let filter = "{ namespace: \"refui\", scope: .scope, key: .key, value: .value }";
+        let input = json!({
+            "key": "key3",
+            "scope": "account",
+            "value": "value2"
+        });
+        let resp = jq_compile(input, filter, String::new());
+        let expected = json!({
+           "namespace": "refui",
+           "key": "key3",
+           "scope": "account",
+           "value": "value2"
+        });
+        assert_eq!(resp.unwrap(), expected);
+
+        let filter = "if .success and ( .supportedHDCPVersion | contains(\"2.2\")) then {\"hdcp2.2\": true} elif .success and ( .supportedHDCPVersion | contains(\"1.4\")) then {\"hdcp1.4\": true}  else {\"code\": -32100, \"message\": \"couldn't get version\"} end";
+        let input = json!({
+            "supportedHDCPVersion":"2.2",
+            "isHDCPSupported":true,
+            "success":true
+        });
+        let resp = jq_compile(input, filter, String::new());
+        let expected = json!({
+           "hdcp2.2": true
+        });
+        assert_eq!(resp.unwrap(), expected);
+
+        let filter = "if .success then (.value | fromjson | .value) else { \"code\": -32100, \"message\": \"couldn't get language\" } end";
+        let input = json!({
+           "value": "{\"update_time\":\"2024-07-26T23:39:57.831726080Z\",\"value\":\"EN\"}",
+           "success":true
+        });
+        let resp = jq_compile(input, filter, String::new());
+        assert_eq!(resp.unwrap(), "EN".to_string());
+    }
 }
