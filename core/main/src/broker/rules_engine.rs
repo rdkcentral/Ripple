@@ -199,7 +199,7 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
     let inputs = RcIter::new(core::iter::empty());
     // iterator over the output values
     let mut out = f.run((Ctx::new([], &inputs), Val::from(input)));
-    while let Some(v) = out.next() {
+    if let Some(v) = out.next() {
         info!(
             "Ripple Gateway Rule Processing Time: {},{}",
             reference,
