@@ -22,7 +22,7 @@ use std::{
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse,
     chrono::{DateTime, Duration, Utc},
-    log::{info, warn},
+    log::{error, info, warn},
     utils::error::RippleError,
 };
 use serde::{Deserialize, Serialize};
@@ -319,7 +319,7 @@ impl StatusManager {
                     if !pending_requests.is_empty() {
                         for pending_request in pending_requests {
                             if expired {
-                                info!("Expired request: {:?}", pending_request);
+                                error!("Expired request: {:?}", pending_request);
                                 callback
                                     .send_error(pending_request, RippleError::ServiceError)
                                     .await;
@@ -367,7 +367,7 @@ impl StatusManager {
 
             for pending_request in pending_requests {
                 if expired {
-                    info!("Expired request: {:?}", pending_request);
+                    error!("Expired request: {:?}", pending_request);
                     callback
                         .send_error(pending_request, RippleError::ServiceError)
                         .await;
@@ -416,19 +416,17 @@ impl StatusManager {
             }
             self.update_status(callsign.to_string(), status.to_state());
 
-            if status.to_state().is_activated() {
-                let (pending_requests, expired) =
-                    self.retrive_pending_broker_requests(callsign.to_string());
+            let (pending_requests, expired) =
+                self.retrive_pending_broker_requests(callsign.to_string());
 
-                for pending_request in pending_requests {
-                    if expired {
-                        info!("Expired request: {:?}", pending_request);
-                        callback
-                            .send_error(pending_request, RippleError::ServiceError)
-                            .await;
-                    } else {
-                        let _ = sender.send(pending_request).await;
-                    }
+            for pending_request in pending_requests {
+                if expired {
+                    error!("Expired request: {:?}", pending_request);
+                    callback
+                        .send_error(pending_request, RippleError::ServiceError)
+                        .await;
+                } else {
+                    let _ = sender.send(pending_request).await;
                 }
             }
         }
@@ -445,7 +443,7 @@ impl StatusManager {
             None => return,
         };
 
-        info!(
+        error!(
             "Error Received from Thunder on getting the status of the plugin: {:?}",
             error
         );
