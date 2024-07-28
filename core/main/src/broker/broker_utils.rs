@@ -27,7 +27,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
     },
     extn::extn_client_message::ExtnResponse,
-    log::{debug, error, info},
+    log::{error, info},
     tokio::{self, net::TcpStream},
 };
 use serde::Deserialize;
@@ -84,7 +84,7 @@ impl BrokerUtils {
         }
     }
 
-    pub async fn brokered_thunder_call<T: for<'a> Deserialize<'a>>(
+    pub async fn brokered_rpc_call<T: for<'a> Deserialize<'a>>(
         platform_state: &PlatformState,
         call_context: CallContext,
         method_name: String,
@@ -104,7 +104,7 @@ impl BrokerUtils {
 
         Err(jsonrpsee::core::Error::Call(CallError::Custom {
             code: CAPABILITY_NOT_AVAILABLE,
-            message: format!("the firebolt API {} is not available", method_name).into(),
+            message: format!("the firebolt API {} is not available", method_name),
             data: None,
         }))
     }
