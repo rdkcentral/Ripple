@@ -654,6 +654,7 @@ impl ExtnClient {
         if let Ok(r) = rx.await {
             return Ok(r);
         }
+        
         Err(RippleError::ExtnError)
     }
 
