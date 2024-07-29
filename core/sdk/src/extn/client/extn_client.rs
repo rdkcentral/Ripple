@@ -651,10 +651,11 @@ impl ExtnClient {
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
         self.sender
             .send_request(id, payload, other_sender, Some(self.sender.tx.clone()))?;
+        debug!("sakshi waiting for response");
         if let Ok(r) = rx.await {
             return Ok(r);
         }
-
+        debug!("sakshi not getting the response back");
         Err(RippleError::ExtnError)
     }
 

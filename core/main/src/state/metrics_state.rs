@@ -15,42 +15,33 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{
-    collections::HashSet,
-    sync::{Arc, RwLock},
-};
-
-use jsonrpsee::{
-    core::RpcResult,
-    tracing::{debug, error},
-    types::error::CallError,
-};
+use super::platform_state::PlatformState;
+use crate::broker::broker_utils::BrokerUtils;
+use crate::processor::storage::storage_manager::StorageManager;
+use jsonrpsee::tracing::{debug, error};
+use rand::Rng;
 use ripple_sdk::{
     api::{
         context::RippleContextUpdateRequest,
         device::device_info_request::{DeviceInfoRequest, DeviceResponse, FirmwareInfo},
         distributor::distributor_privacy::{DataEventType, PrivacySettingsData},
         firebolt::{
-            fb_capabilities::CAPABILITY_NOT_AVAILABLE,
             fb_metrics::{MetricsContext, MetricsEnvironment},
             fb_openrpc::FireboltSemanticVersion,
         },
-        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
+        gateway::rpc_gateway_api::{ApiProtocol, CallContext},
         manifest::device_manifest::DataGovernanceConfig,
         storage_property::StorageProperty,
     },
     chrono::{DateTime, Utc},
     extn::extn_client_message::ExtnResponse,
-    serde_json::from_value,
     utils::error::RippleError,
     uuid::Uuid,
 };
-
-use rand::Rng;
-
-use super::platform_state::PlatformState;
-use crate::processor::storage::storage_manager::StorageManager;
-
+use std::{
+    collections::HashSet,
+    sync::{Arc, RwLock},
+};
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
 const PERSISTENT_STORAGE_NAMESPACE: &str = "accountProfile";
@@ -211,36 +202,6 @@ impl MetricsState {
         }
     }
 
-    pub async fn get_language(ctx: &CallContext, state: &PlatformState) -> RpcResult<String> {
-        let mut new_ctx = ctx.clone();
-        new_ctx.protocol = ApiProtocol::Extn;
-
-        let rpc_request = RpcRequest {
-            ctx: new_ctx.clone(),
-            method: "localization.language".into(),
-            params_json: RpcRequest::prepend_ctx(None, &new_ctx),
-        };
-
-        let resp = state
-            .get_client()
-            .get_extn_client()
-            .main_internal_request(rpc_request.clone())
-            .await;
-
-        if let Ok(res) = resp {
-            if let Some(ExtnResponse::Value(val)) = res.payload.extract::<ExtnResponse>() {
-                if let Ok(v) = from_value::<String>(val) {
-                    return Ok(v);
-                }
-            }
-        }
-        Err(jsonrpsee::core::Error::Call(CallError::Custom {
-            code: CAPABILITY_NOT_AVAILABLE,
-            message: "localization.language is not available".into(),
-            data: None,
-        }))
-    }
-
     pub async fn initialize(state: &PlatformState) {
         let metrics_percentage = state
             .get_device_manifest()
@@ -299,7 +260,7 @@ impl MetricsState {
             false,
         );
 
-        let language = Self::get_language(&ctx, state)
+        let language = BrokerUtils::get_language(&ctx, state)
             .await
             .unwrap_or("no.language.set".to_string());
         debug!("got language={:?}", &language);
@@ -314,10 +275,20 @@ impl MetricsState {
 
         debug!("got os_info={:?}", &os_info);
 
-        let mut device_name = "no.device.name.set".to_string();
-        if let Ok(resp) = StorageManager::get_string(state, StorageProperty::DeviceName).await {
-            device_name = resp;
-        }
+        let ctx = CallContext::new(
+            Uuid::new_v4().to_string(),
+            Uuid::new_v4().to_string(),
+            "internal".into(),
+            1,
+            ApiProtocol::Extn,
+            "device.name".to_string(),
+            None,
+            false,
+        );
+        let device_name = BrokerUtils::get_device_name(&ctx, state)
+            .await
+            .unwrap_or("no.device.name.set".to_string());
+        debug!("got device_name={:?}", &device_name);
 
         let mut timezone: Option<String> = None;
         if let Ok(resp) = state

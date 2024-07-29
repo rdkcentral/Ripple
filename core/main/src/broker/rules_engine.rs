@@ -49,6 +49,17 @@ pub struct RuleEndpoint {
     pub jsonrpc: bool,
 }
 
+impl RuleEndpoint {
+    pub fn get_url(&self) -> String {
+        if cfg!(feature = "local_dev") {
+            if let Ok(host_override) = std::env::var("DEVICE_HOST") {
+                return self.url.replace("127.0.0.1", &host_override);
+            }
+        }
+        self.url.clone()
+    }
+}
+
 fn default_autostart() -> bool {
     true
 }

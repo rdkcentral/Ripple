@@ -148,7 +148,7 @@ pub struct DistributionConfiguration {
 impl Default for DistributionConfiguration {
     fn default() -> Self {
         DistributionConfiguration {
-            library: "/etc/firebolt-app-library.json".into(),
+            library: "/Users/sgupta229/projects/comcast-firebolt/eos-ripple/target/manifests/firebolt-app-library.json".into(),
         }
     }
 }

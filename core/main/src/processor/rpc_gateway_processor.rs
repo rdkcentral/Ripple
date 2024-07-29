@@ -24,34 +24,35 @@ use ripple_sdk::{
         },
         extn_client_message::ExtnMessage,
     },
+    log::debug,
     tokio::sync::mpsc::Sender,
 };
 
 use crate::{
-    firebolt::firebolt_gateway::FireboltGatewayCommand, service::extn::ripple_client::RippleClient,
+    firebolt::firebolt_gateway::FireboltGatewayCommand, state::platform_state::PlatformState,
 };
 
 /// Processor to service incoming RPC Requests used by extensions and other local rpc handlers for aliasing.
 #[derive(Debug)]
 pub struct RpcGatewayProcessor {
-    client: RippleClient,
+    state: PlatformState,
     streamer: DefaultExtnStreamer,
 }
 
 impl RpcGatewayProcessor {
-    pub fn new(client: RippleClient) -> RpcGatewayProcessor {
+    pub fn new(state: PlatformState) -> RpcGatewayProcessor {
         RpcGatewayProcessor {
-            client,
+            state,
             streamer: DefaultExtnStreamer::new(),
         }
     }
 }
 
 impl ExtnStreamProcessor for RpcGatewayProcessor {
-    type STATE = RippleClient;
+    type STATE = PlatformState;
     type VALUE = RpcRequest;
     fn get_state(&self) -> Self::STATE {
-        self.client.clone()
+        self.state.clone()
     }
 
     fn sender(&self) -> Sender<ExtnMessage> {
@@ -66,10 +67,11 @@ impl ExtnStreamProcessor for RpcGatewayProcessor {
 #[async_trait]
 impl ExtnRequestProcessor for RpcGatewayProcessor {
     fn get_client(&self) -> ripple_sdk::extn::client::extn_client::ExtnClient {
-        self.client.get_extn_client()
+        self.state.get_client().get_extn_client()
     }
 
     async fn process_request(state: Self::STATE, msg: ExtnMessage, request: Self::VALUE) -> bool {
+        debug!("Inside RPC gateway processor");
         match request.ctx.protocol {
             ApiProtocol::Extn => {
                 // Notice how this processor is different from others where it doesnt respond to
@@ -77,12 +79,22 @@ impl ExtnRequestProcessor for RpcGatewayProcessor {
                 // to the gateway which does more complex inter connected operations. The design for
                 // Extn Processor is built in such a way to support transient processors which do not
                 // necessarily need to provide response
-                if let Err(e) =
-                    state.send_gateway_command(FireboltGatewayCommand::HandleRpcForExtn {
-                        msg: msg.clone(),
-                    })
-                {
-                    return Self::handle_error(state.get_extn_client(), msg, e).await;
+                if state.endpoint_state.rule_engine.has_rule(&request) {
+                    if !state
+                        .endpoint_state
+                        .handle_brokerage(request, Some(msg.clone()))
+                    {
+                        return Self::handle_error(
+                            state.get_client().get_extn_client(),
+                            msg,
+                            ripple_sdk::utils::error::RippleError::InvalidAccess,
+                        )
+                        .await;
+                    }
+                } else if let Err(e) = state.get_client().send_gateway_command(
+                    FireboltGatewayCommand::HandleRpcForExtn { msg: msg.clone() },
+                ) {
+                    return Self::handle_error(state.get_client().get_extn_client(), msg, e).await;
                 }
             }
             _ =>
@@ -92,10 +104,11 @@ impl ExtnRequestProcessor for RpcGatewayProcessor {
             // Extn Processor is built in such a way to support transient processors which do not
             // necessarily need to provide response
             {
-                if let Err(e) =
-                    state.send_gateway_command(FireboltGatewayCommand::HandleRpc { request })
+                if let Err(e) = state
+                    .get_client()
+                    .send_gateway_command(FireboltGatewayCommand::HandleRpc { request })
                 {
-                    return Self::handle_error(state.get_extn_client(), msg, e).await;
+                    return Self::handle_error(state.get_client().get_extn_client(), msg, e).await;
                 }
             }
         }
