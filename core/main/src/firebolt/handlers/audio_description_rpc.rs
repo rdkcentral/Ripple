@@ -20,7 +20,7 @@ use jsonrpsee::{
     RpcModule,
 };
 use ripple_sdk::api::{
-    device::device_accessibility_data::{AudioDescriptionSettings, AudioDescriptionSettingsSet},
+    device::device_accessibility_data::AudioDescriptionSettings,
     firebolt::fb_general::{ListenRequest, ListenerResponse},
     gateway::rpc_gateway_api::CallContext,
     storage_property::{StorageProperty, EVENT_AUDIO_DESCRIPTION_SETTINGS_CHANGED},
@@ -64,18 +64,9 @@ impl AppEventDecorator for AudioDescriptionEventDecorator {
 
 #[rpc(server)]
 pub trait AudioDescription {
-    #[method(name = "audiodescriptions.enabled")]
-    async fn ad_enabled(&self, ctx: CallContext) -> RpcResult<bool>;
-
     #[method(name = "accessibility.audioDescriptionSettings")]
     async fn ad_settings_get(&self, ctx: CallContext) -> RpcResult<AudioDescriptionSettings>;
 
-    #[method(name = "audiodescriptions.setEnabled")]
-    async fn ad_enabled_set(
-        &self,
-        ctx: CallContext,
-        set_request: AudioDescriptionSettingsSet,
-    ) -> RpcResult<()>;
     #[method(name = "audiodescriptions.onEnabledChanged")]
     async fn on_audio_description_enabled_changed(
         &self,
@@ -98,14 +89,6 @@ pub struct AudioDescriptionImpl {
 
 #[async_trait]
 impl AudioDescriptionServer for AudioDescriptionImpl {
-    async fn ad_enabled(&self, _ctx: CallContext) -> RpcResult<bool> {
-        Ok(StorageManager::get_bool(
-            &self.platform_state,
-            StorageProperty::AudioDescriptionEnabled,
-        )
-        .await?)
-    }
-
     async fn ad_settings_get(&self, _ctx: CallContext) -> RpcResult<AudioDescriptionSettings> {
         let v = StorageManager::get_bool(
             &self.platform_state,
@@ -113,20 +96,6 @@ impl AudioDescriptionServer for AudioDescriptionImpl {
         )
         .await?;
         Ok(AudioDescriptionSettings { enabled: v })
-    }
-
-    async fn ad_enabled_set(
-        &self,
-        _ctx: CallContext,
-        set_request: AudioDescriptionSettingsSet,
-    ) -> RpcResult<()> {
-        StorageManager::set_bool(
-            &self.platform_state,
-            StorageProperty::AudioDescriptionEnabled,
-            set_request.value,
-            None,
-        )
-        .await
     }
 
     async fn on_audio_description_settings_changed(
