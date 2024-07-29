@@ -16,21 +16,7 @@
 //
 
 use jsonrpsee::RpcModule;
-use ripple_sdk::{
-    api::firebolt::fb_openrpc::OpenRPCRegistrarRequest,
-    async_trait::async_trait,
-    extn::{
-        client::{
-            extn_client::ExtnClient,
-            extn_processor::{
-                DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
-            },
-        },
-        extn_client_message::{ExtnMessage, ExtnResponse},
-    },
-    log::error,
-    tokio::sync::mpsc::{Receiver, Sender},
-};
+use ripple_sdk::log::error;
 
 use crate::state::platform_state::PlatformState;
 
@@ -85,59 +71,4 @@ where
         }
     }
     rpc_module
-}
-
-pub struct OpenRPCSchemaRegistrar {
-    platform_state: PlatformState,
-    streamer: DefaultExtnStreamer,
-}
-
-impl OpenRPCSchemaRegistrar {
-    pub fn new(platform_state: PlatformState) -> OpenRPCSchemaRegistrar {
-        OpenRPCSchemaRegistrar {
-            platform_state,
-            streamer: DefaultExtnStreamer::new(),
-        }
-    }
-}
-
-impl ExtnStreamProcessor for OpenRPCSchemaRegistrar {
-    type STATE = PlatformState;
-    type VALUE = OpenRPCRegistrarRequest;
-
-    fn get_state(&self) -> Self::STATE {
-        self.platform_state.clone()
-    }
-
-    fn sender(&self) -> Sender<ExtnMessage> {
-        self.streamer.sender()
-    }
-
-    fn receiver(&mut self) -> Receiver<ExtnMessage> {
-        self.streamer.receiver()
-    }
-}
-
-#[async_trait]
-impl ExtnRequestProcessor for OpenRPCSchemaRegistrar {
-    fn get_client(&self) -> ExtnClient {
-        self.platform_state.get_client().get_extn_client()
-    }
-
-    async fn process_request(
-        state: Self::STATE,
-        msg: ExtnMessage,
-        extracted_message: Self::VALUE,
-    ) -> bool {
-        let client = state.get_client().get_extn_client();
-        match extracted_message {
-            OpenRPCRegistrarRequest::Register(path) => {
-                let result = match state.open_rpc_state.add_extension_open_rpc(path) {
-                    Ok(_) => ExtnResponse::None(()),
-                    Err(e) => ExtnResponse::Error(e),
-                };
-                Self::respond(client, msg, result).await.is_ok()
-            }
-        }
-    }
 }

@@ -214,8 +214,8 @@ impl OpenRpcState {
         }
     }
 
-    fn load_open_rpc(path: String) -> Option<FireboltOpenRpc> {
-        match std::fs::read_to_string(path.clone()) {
+    fn load_open_rpc(path: &str) -> Option<FireboltOpenRpc> {
+        match std::fs::read_to_string(path) {
             Ok(content) => {
                 debug!("load_open_rpc: loading from {path}");
                 let firebolt_version_manifest: Result<FireboltVersionManifest, _> =
@@ -237,7 +237,7 @@ impl OpenRpcState {
         None
     }
 
-    pub fn add_extension_open_rpc(&self, path: String) -> Result<(), RippleError> {
+    pub fn add_extension_open_rpc(&self, path: &str) -> Result<(), RippleError> {
         match Self::load_open_rpc(path) {
             Some(open_rpc) => {
                 let provider_relation_sets = build_provider_relation_sets(&open_rpc.methods);
@@ -287,7 +287,7 @@ impl OpenRpcState {
         version_manifest
     }
 
-    pub fn new(exclusory: Option<ExclusoryImpl>) -> OpenRpcState {
+    pub fn new(exclusory: Option<ExclusoryImpl>, extn_sdks: Vec<String>) -> OpenRpcState {
         let version_manifest = Self::load_firebolt_open_rpc();
 
         let firebolt_open_rpc: FireboltOpenRpc = version_manifest.clone().into();
@@ -298,7 +298,7 @@ impl OpenRpcState {
         let openrpc_validator: FireboltOpenRpcValidator =
             serde_json::from_str(std::include_str!("./firebolt-open-rpc.json")).unwrap();
 
-        OpenRpcState {
+        let v = OpenRpcState {
             firebolt_cap_map: Arc::new(RwLock::new(firebolt_open_rpc.get_methods_caps())),
             ripple_cap_map: Arc::new(RwLock::new(ripple_open_rpc.get_methods_caps())),
             exclusory,
@@ -309,7 +309,15 @@ impl OpenRpcState {
                 &firebolt_open_rpc.methods,
             ))),
             openrpc_validator: Arc::new(RwLock::new(openrpc_validator)),
+        };
+
+        for path in extn_sdks {
+            if v.add_extension_open_rpc(&path).is_err() {
+                error!("Error adding extn_sdk from {path}");
+            }
         }
+
+        v
     }
 
     pub fn add_open_rpc(&self, open_rpc: FireboltOpenRpc) {

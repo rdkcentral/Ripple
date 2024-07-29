@@ -21,11 +21,6 @@ use log::{debug, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{
-    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
-    framework::ripple_contract::RippleContract,
-};
-
 use super::fb_capabilities::{
     CapRequestRpcRequest, CapabilityRole, DenyReason, DenyReasonWithCap, FireboltCap,
     FireboltPermission,
@@ -117,28 +112,6 @@ pub struct OpenRPCParser {
     pub openrpc: String,
     pub info: FireboltInfo,
     pub methods: Vec<FireboltOpenRpcMethod>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum OpenRPCRegistrarRequest {
-    Register(String),
-}
-
-impl ExtnPayloadProvider for OpenRPCRegistrarRequest {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::OpenRPCRegistrar(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<OpenRPCRegistrarRequest> {
-        if let ExtnPayload::Request(ExtnRequest::OpenRPCRegistrar(request)) = payload {
-            return Some(request);
-        }
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::Rpc
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -19,7 +19,6 @@ use ripple_sdk::{
     async_trait::async_trait, framework::bootstrap::Bootstep, utils::error::RippleError,
 };
 
-use crate::firebolt::rpc::OpenRPCSchemaRegistrar;
 use crate::processor::account_link_processor::AccountLinkProcessor;
 use crate::processor::metrics_processor::{MetricsProcessor, OpMetricsProcessor};
 use crate::processor::settings_processor::SettingsProcessor;
@@ -65,7 +64,6 @@ impl Bootstep<BootstrapState> for SetupExtnClientStep {
         client.add_request_processor(SettingsProcessor::new(state.platform_state.clone()));
         client.add_request_processor(MetricsProcessor::new(state.platform_state.clone()));
         client.add_request_processor(OpMetricsProcessor::new(state.platform_state.clone()));
-        client.add_request_processor(OpenRPCSchemaRegistrar::new(state.platform_state.clone()));
         Ok(())
     }
 }

@@ -577,7 +577,7 @@ mod tests {
     async fn test_register_methods() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new());
 
         let mut provider_relation_map: HashMap<String, ProviderRelationSet> = HashMap::new();
         provider_relation_map.insert("some.method".to_string(), ProviderRelationSet::new());
@@ -597,7 +597,7 @@ mod tests {
     async fn test_register_method_event_provided_by() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new());
 
         let provider_relation_set = ProviderRelationSet {
             event: true,
@@ -623,7 +623,7 @@ mod tests {
     async fn test_register_method_event_provides() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new());
 
         let provider_relation_set = ProviderRelationSet {
             event: true,
@@ -649,7 +649,7 @@ mod tests {
     async fn test_register_method_event_provides_to() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new());
 
         let provider_relation_set = ProviderRelationSet {
             event: true,
@@ -675,7 +675,7 @@ mod tests {
     async fn test_register_method_provides_to() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new());
 
         let provider_relation_set = ProviderRelationSet {
             event: true,
@@ -701,7 +701,7 @@ mod tests {
     async fn test_register_method_error_for() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new());
 
         let provider_relation_set = ProviderRelationSet {
             error_for: Some("some.other.method".to_string()),
@@ -726,7 +726,7 @@ mod tests {
     async fn test_register_method_provided_by() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new());
 
         let provider_relation_set = ProviderRelationSet {
             provided_by: Some("some.other.method".to_string()),
@@ -751,7 +751,7 @@ mod tests {
     async fn test_register_method_allow_focus_for() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new());
 
         let provider_relation_set = ProviderRelationSet {
             allow_focus_for: Some("some.other.method".to_string()),
@@ -776,7 +776,7 @@ mod tests {
     async fn test_register_method_response_for() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new());
 
         let provider_relation_set = ProviderRelationSet {
             response_for: Some("some.other.method".to_string()),
@@ -802,7 +802,7 @@ mod tests {
         const METHOD_NAME: &str = "some.method";
 
         let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new());
 
         let provider_relation_set = ProviderRelationSet {
             response_for: Some("some.other.method".to_string()),
