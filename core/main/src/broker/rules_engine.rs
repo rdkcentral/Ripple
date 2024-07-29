@@ -61,7 +61,9 @@ impl RuleEndpoint {
     pub fn get_url(&self) -> String {
         if cfg!(feature = "local_dev") {
             if let Ok(host_override) = std::env::var("DEVICE_HOST") {
-                return self.url.replace("127.0.0.1", &host_override);
+                if !host_override.is_empty() {
+                    return self.url.replace("127.0.0.1", &host_override);
+                }
             }
         }
         self.url.clone()
