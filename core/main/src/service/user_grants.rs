@@ -1813,7 +1813,6 @@ impl GrantStepExecutor {
 
     pub async fn invoke_capability(
         platform_state: &PlatformState,
-        // call_ctx: &CallContext,
         caller_session: &CallerSession,
         app_requested_for: &AppIdentification,
         cap: &FireboltCap,
@@ -1822,11 +1821,34 @@ impl GrantStepExecutor {
     ) -> Result<(), DenyReasonWithCap> {
         let (session_tx, session_rx) = oneshot::channel::<ProviderResponsePayload>();
         let p_cap = cap.clone();
-        /*
-         * We have a concrete struct defined for ack challenge and pin challenge hence handling them separately. If any new
-         * caps are introduced in future, the assumption is that capability provider has a method "challenge" and it can
-         * deduce its params from a string.
-         */
+
+        let mut method_key: Option<String> = None;
+
+        for (key, provider_relation_set) in platform_state
+            .open_rpc_state
+            .get_provider_relation_map()
+            .iter()
+        {
+            if let Some(provides) = &provider_relation_set.provides {
+                if provides.eq(&cap.as_str()) {
+                    method_key = Some(key.clone());
+                    break;
+                }
+            }
+        }
+
+        if method_key.is_none() {
+            error!(
+                "invoke_capability: Could not find provider for capability {}",
+                p_cap.as_str()
+            );
+            return Err(DenyReasonWithCap {
+                reason: DenyReason::Ungranted,
+                caps: vec![permission.cap.clone()],
+            });
+        }
+
+        let method = method_key.unwrap();
 
         /*
          * this might be weird looking as_str().as_str(), FireboltCap returns String but has a function named as_str.
@@ -1845,7 +1867,7 @@ impl GrantStepExecutor {
                 };
                 Some(ProviderBrokerRequest {
                     capability: p_cap.as_str(),
-                    method: String::from("challenge"),
+                    method,
                     caller: caller_session.to_owned(),
                     request: ProviderRequestPayload::AckChallenge(challenge),
                     tx: session_tx,
@@ -1870,7 +1892,7 @@ impl GrantStepExecutor {
                     };
                     Some(ProviderBrokerRequest {
                         capability: p_cap.as_str(),
-                        method: "challenge".to_owned(),
+                        method,
                         caller: caller_session.clone(),
                         request: ProviderRequestPayload::PinChallenge(challenge),
                         tx: session_tx,
@@ -1883,15 +1905,11 @@ impl GrantStepExecutor {
                  * This is for any other capability, hoping it to deduce its necessary params from a json string
                  * and has a challenge method.
                  */
-                let param_str = match param {
-                    None => "".to_owned(),
-                    Some(val) => val.to_string(),
-                };
                 Some(ProviderBrokerRequest {
                     capability: p_cap.as_str(),
-                    method: String::from("challenge"),
+                    method,
                     caller: caller_session.clone(),
-                    request: ProviderRequestPayload::Generic(param_str),
+                    request: ProviderRequestPayload::Generic(param.clone().unwrap_or(Value::Null)),
                     tx: session_tx,
                     app_id: None,
                 })
@@ -2001,8 +2019,8 @@ mod tests {
                 ProviderBroker::register_or_unregister_provider(
                     &state_c,
                     String::from(PIN_CHALLENGE_CAPABILITY),
-                    String::from("challenge"),
-                    PIN_CHALLENGE_EVENT,
+                    String::from(PIN_CHALLENGE_EVENT),
+                    String::from(PIN_CHALLENGE_EVENT),
                     ctx_c.clone(),
                     ListenRequest { listen: true },
                 )
@@ -2011,8 +2029,8 @@ mod tests {
                 ProviderBroker::register_or_unregister_provider(
                     &state_c,
                     String::from(ACK_CHALLENGE_CAPABILITY),
-                    String::from("challenge"),
-                    ACK_CHALLENGE_EVENT,
+                    String::from(ACK_CHALLENGE_EVENT),
+                    String::from(ACK_CHALLENGE_EVENT),
                     ctx_c.clone(),
                     ListenRequest { listen: true },
                 )
