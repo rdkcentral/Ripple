@@ -588,13 +588,54 @@ impl BrokerOutputForwarder {
                                 if let Some(decorator_method) =
                                     broker_request.rule.transform.event_decorator_method.clone()
                                 {
-                                    if let Some(func) = event_utility_clone.get_function(&decorator_method) {
-                                        if let Ok(value) = func(Some(result.clone())) {
-                                            v.data.result = Some(value.expect("REASON"));
-                                        }
+                                    if let Some(func) =
+                                        event_utility_clone.get_function(&decorator_method)
+                                    {
+                                        // spawn a tokio thread to run the function and continue the main thread.
+                                        let session_id = rpc_request.ctx.get_id();
+                                        let request_id = rpc_request.ctx.call_id;
+                                        let protocol = rpc_request.ctx.protocol.clone();
+                                        let platform_state_c = platform_state.clone();
+                                        let ctx = rpc_request.ctx.clone();
+                                        tokio::spawn(async move {
+                                            if let Ok(value) = func(
+                                                platform_state_c.clone(),
+                                                ctx.clone(),
+                                                Some(result.clone()),
+                                            )
+                                            .await
+                                            {
+                                                v.data.result = Some(value.expect("REASON"));
+                                            }
+                                            v.data.id = Some(request_id);
+
+                                            let message = ApiMessage {
+                                                request_id: request_id.to_string(),
+                                                protocol,
+                                                jsonrpc_msg: serde_json::to_string(&v.data)
+                                                    .unwrap(),
+                                            };
+
+                                            if let Some(session) = platform_state_c
+                                                .session_state
+                                                .get_session_for_connection_id(&session_id)
+                                            {
+                                                return_api_message_for_transport(
+                                                    session,
+                                                    message,
+                                                    platform_state_c,
+                                                )
+                                                .await
+                                            }
+                                        });
+                                        continue;
+                                    } else {
+                                        error!(
+                                            "Failed to invoke decorator method {:?}",
+                                            decorator_method
+                                        );
                                     }
                                 }
-                                
                             } else if is_subscription {
                                 if sub_processed {
                                     continue;
@@ -604,10 +645,10 @@ impl BrokerOutputForwarder {
                                     "event" : rpc_request.ctx.method
                                 }));
                                 platform_state.endpoint_state.update_unsubscribe_request(id);
-                            } else if let Some(filter) = broker_request
-                                .rule
-                                .transform
-                                .get_transform_data(super::rules_engine::RuleTransformType::Response)
+                            } else if let Some(filter) =
+                                broker_request.rule.transform.get_transform_data(
+                                    super::rules_engine::RuleTransformType::Response,
+                                )
                             {
                                 apply_response(result, filter, &rpc_request, &mut v);
                             }
@@ -748,11 +789,7 @@ fn apply_rule_for_event(
 }
 
 fn apply_filter(broker_request: &BrokerRequest, result: &Value, rpc_request: &RpcRequest) -> bool {
-    
-    if let Some(filter) = broker_request
-        .rule
-        .filter.clone()
-    {
+    if let Some(filter) = broker_request.rule.filter.clone() {
         if let Ok(r) = jq_compile(
             result.clone(),
             &filter,
@@ -760,8 +797,7 @@ fn apply_filter(broker_request: &BrokerRequest, result: &Value, rpc_request: &Rp
         ) {
             if r.is_null() {
                 return false;
-            }
-            else {
+            } else {
                 // get bool value for r and return
                 return r.as_bool().unwrap();
             }

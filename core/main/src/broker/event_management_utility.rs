@@ -15,18 +15,38 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::HashMap;
+use std::{collections::HashMap, pin::Pin};
 
-use ripple_sdk::{utils::error::RippleError, log::info};
+use futures::Future;
+use ripple_sdk::{
+    api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
+    extn::extn_client_message::ExtnResponse,
+    log::info,
+    utils::error::RippleError,
+};
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
 
-type UtilityFunction =
-    Arc<dyn Fn(Option<Value>) -> Result<Option<Value>, RippleError> + Send + Sync>;
+use crate::state::platform_state::PlatformState;
+
+type DecoratorFunctionType = Arc<
+    dyn Fn(
+            PlatformState,
+            CallContext,
+            Option<Value>,
+        ) -> Pin<Box<dyn Future<Output = Result<Option<Value>, RippleError>> + Send>>
+        + Send
+        + Sync,
+>;
 pub struct EventManagementUtility {
-    pub functions: Mutex<HashMap<String, UtilityFunction>>,
+    pub functions: Mutex<HashMap<String, DecoratorFunctionType>>,
 }
 
+impl Default for EventManagementUtility {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl EventManagementUtility {
     pub fn new() -> Self {
         Self {
@@ -36,35 +56,53 @@ impl EventManagementUtility {
     pub fn register_custom_functions(&self) {
         // Add a custom function to event utility based on the tag
         self.register_function(
-            "AdvertisingSetRestrictionEventDecorator".to_string(),
-            Arc::new(EventManagementUtility::advertising_set_restriction_event_decorator),
-        );
-        self.register_function(
             "AdvertisingPolicyEventDecorator".to_string(),
-            Arc::new(EventManagementUtility::advertising_policy_event_decorator),
+            Arc::new(|state, ctx, value| {
+                Box::pin(EventManagementUtility::advertising_policy_event_decorator(
+                    state, ctx, value,
+                ))
+            }),
         );
     }
-    pub fn register_function(&self, name: String, function: UtilityFunction) {
+    pub fn register_function(&self, name: String, function: DecoratorFunctionType) {
         self.functions.lock().unwrap().insert(name, function);
     }
 
-    pub fn get_function(&self, name: &str) -> Option<UtilityFunction> {
+    pub fn get_function(&self, name: &str) -> Option<DecoratorFunctionType> {
         self.functions.lock().unwrap().get(name).cloned()
     }
 
-    // Utility functions used in Rule Engine
-    pub fn advertising_set_restriction_event_decorator(
+    pub async fn advertising_policy_event_decorator(
+        platform_state: PlatformState,
+        ctx: CallContext,
         value: Option<Value>,
     ) -> Result<Option<Value>, RippleError> {
-        info!("advertising_set_restriction_event_decorator {:?}", value);
-        Ok(value)
-    }
-    pub fn advertising_policy_event_decorator(
-        value: Option<Value>,
-    ) -> Result<Option<Value>, RippleError> {
-        info!("advertising_policy_event_decorator {:?}", value);
-        // change the value to something else
-        let modified_value = Some(Value::String("Decorated Event Value".to_string()));
-        Ok(modified_value)
+        info!("advertising_policy_event_decorator called {:?}", value);
+
+        let mut new_ctx = ctx.clone();
+        new_ctx.protocol = ApiProtocol::Extn;
+
+        let rpc_request = RpcRequest {
+            ctx: new_ctx.clone(),
+            method: "advertising.policy".into(),
+            params_json: RpcRequest::prepend_ctx(None, &new_ctx),
+        };
+
+        let resp = platform_state
+            .get_client()
+            .get_extn_client()
+            .main_internal_request(rpc_request.clone())
+            .await;
+
+        let policy = if let Ok(res) = resp.clone() {
+            if let Some(ExtnResponse::Value(val)) = res.payload.extract::<ExtnResponse>() {
+                Some(val)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        Ok(policy)
     }
 }
