@@ -113,7 +113,7 @@ impl LifecycleManagementImpl {
             &self.state,
             FireboltCap::short("app:lifecycle").as_str(),
             method.into(),
-            event_name,
+            String::from(event_name),
             ctx,
             request,
         )
@@ -121,7 +121,7 @@ impl LifecycleManagementImpl {
 
         Ok(ListenerResponse {
             listening: listen,
-            event: event_name.into(),
+            event: String::from(event_name),
         })
     }
 }
