@@ -307,6 +307,8 @@ pub struct FireboltOpenRpcTag {
     pub manages: Option<Vec<String>>,
     #[serde(rename = "x-provides")]
     pub provides: Option<String>,
+    #[serde(rename = "x-provided-by")]
+    pub provided_by: Option<String>,
     #[serde(rename = "x-alternative")]
     pub alternative: Option<String>,
     #[serde(rename = "x-since")]
@@ -804,6 +806,7 @@ mod tests {
             error_for: None,
             allow_focus: None,
             allow_focus_for: None,
+            provided_by: None,
         };
 
         assert_eq!(
@@ -847,6 +850,7 @@ mod tests {
                 error_for: None,
                 allow_focus: None,
                 allow_focus_for: None,
+                provided_by: None,
             }]),
         };
 
@@ -867,6 +871,7 @@ mod tests {
             error_for: None,
             allow_focus: None,
             allow_focus_for: None,
+            provided_by: None,
         }]);
 
         assert_eq!(method.get_allow_value(), None);

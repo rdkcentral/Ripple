@@ -24,6 +24,7 @@ use ripple_sdk::{
             fb_lifecycle_management::{
                 LifecycleManagementEventRequest, LifecycleManagementProviderEvent,
             },
+            fb_openrpc::FireboltOpenRpcMethod,
             provider::{
                 FocusRequest, ProviderRequest, ProviderRequestPayload, ProviderResponse,
                 ProviderResponsePayload,
@@ -76,7 +77,7 @@ pub struct ProviderBroker {}
 
 #[derive(Clone, Debug)]
 struct ProviderMethod {
-    event_name: &'static str,
+    event_name: String,
     provider: CallContext,
 }
 
@@ -121,7 +122,7 @@ impl ProviderBroker {
         pst: &PlatformState,
         capability: String,
         method: String,
-        event_name: &'static str,
+        event_name: String,
         provider: CallContext,
         listen_request: ListenRequest,
     ) {
@@ -164,7 +165,7 @@ impl ProviderBroker {
         pst: &PlatformState,
         capability: String,
         method: String,
-        event_name: &'static str,
+        event_name: String,
         provider: CallContext,
         listen_request: ListenRequest,
     ) {
@@ -173,12 +174,7 @@ impl ProviderBroker {
             capability, method, event_name
         );
         let cap_method = format!("{}:{}", capability, method);
-        AppEvents::add_listener(
-            pst,
-            event_name.to_string(),
-            provider.clone(),
-            listen_request,
-        );
+        AppEvents::add_listener(pst, event_name.clone(), provider.clone(), listen_request);
         {
             let mut provider_methods = pst.provider_broker_state.provider_methods.write().unwrap();
             provider_methods.insert(
@@ -212,11 +208,11 @@ impl ProviderBroker {
         for cap in all_caps {
             if let Some(provider) = provider_methods.get(&cap) {
                 if let Some(list) = result.get_mut(&provider.provider.app_id) {
-                    list.push(String::from(provider.event_name));
+                    list.push(provider.event_name.clone());
                 } else {
                     result.insert(
                         provider.provider.app_id.clone(),
-                        vec![String::from(provider.event_name)],
+                        vec![provider.event_name.clone()],
                     );
                 }
             }
@@ -225,7 +221,11 @@ impl ProviderBroker {
     }
 
     pub async fn invoke_method(pst: &PlatformState, request: ProviderBrokerRequest) {
-        let cap_method = format!("{}:{}", request.capability, request.method);
+        let cap_method = format!(
+            "{}:{}",
+            request.capability,
+            FireboltOpenRpcMethod::name_with_lowercase_module(&request.method)
+        );
         debug!("invoking provider for {}", cap_method);
 
         let provider_opt = {
@@ -233,7 +233,7 @@ impl ProviderBroker {
             provider_methods.get(&cap_method).cloned()
         };
         if let Some(provider) = provider_opt {
-            let event_name = provider.event_name;
+            let event_name = provider.event_name.clone();
             let req_params = request.request.clone();
             let app_id_opt = request.app_id.clone();
             let c_id = ProviderBroker::start_provider_session(pst, request, provider);
@@ -242,7 +242,7 @@ impl ProviderBroker {
                 AppEvents::emit_to_app(
                     pst,
                     app_id,
-                    event_name,
+                    &event_name,
                     &serde_json::to_value(ProviderRequest {
                         correlation_id: c_id,
                         parameters: req_params,
@@ -254,7 +254,7 @@ impl ProviderBroker {
                 debug!("Broadcasting request to all the apps!!");
                 AppEvents::emit(
                     pst,
-                    event_name,
+                    &event_name,
                     &serde_json::to_value(ProviderRequest {
                         correlation_id: c_id,
                         parameters: req_params,
