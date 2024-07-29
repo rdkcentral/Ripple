@@ -749,12 +749,10 @@ fn apply_rule_for_event(
 
 fn apply_filter(broker_request: &BrokerRequest, result: &Value, rpc_request: &RpcRequest) -> bool {
     
-println!("Vinod apply_filter {:?}, {:?}, {:?}", broker_request, result, rpc_request);
     if let Some(filter) = broker_request
         .rule
         .filter.clone()
     {
-        println!("Vinod apply_filter filter is available {:?}", filter);
         if let Ok(r) = jq_compile(
             result.clone(),
             &filter,

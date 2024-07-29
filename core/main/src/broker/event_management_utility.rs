@@ -17,7 +17,7 @@
 
 use std::collections::HashMap;
 
-use ripple_sdk::utils::error::RippleError;
+use ripple_sdk::{utils::error::RippleError, log::info};
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
 
@@ -56,13 +56,13 @@ impl EventManagementUtility {
     pub fn advertising_set_restriction_event_decorator(
         value: Option<Value>,
     ) -> Result<Option<Value>, RippleError> {
-        println!("advertising_set_restriction_event_decorator {:?}", value);
+        info!("advertising_set_restriction_event_decorator {:?}", value);
         Ok(value)
     }
     pub fn advertising_policy_event_decorator(
         value: Option<Value>,
     ) -> Result<Option<Value>, RippleError> {
-        println!("advertising_policy_event_decorator {:?}", value);
+        info!("advertising_policy_event_decorator {:?}", value);
         // change the value to something else
         let modified_value = Some(Value::String("Decorated Event Value".to_string()));
         Ok(modified_value)
