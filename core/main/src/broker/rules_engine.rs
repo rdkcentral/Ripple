@@ -179,7 +179,7 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
     // which do not include filters in the standard library
     // such as `map`, `select` etc.
 
-    let mut defs = ParseCtx::new(vec!["fromjson".into()]);
+    let mut defs = ParseCtx::new(Vec::new());
     defs.insert_natives(jaq_core::core());
     defs.insert_defs(jaq_std::std());
     // parse the filter
@@ -201,13 +201,13 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
     let inputs = RcIter::new(core::iter::empty());
     // iterator over the output values
     let mut out = f.run((Ctx::new([], &inputs), Val::from(input)));
-    if let Some(v) = out.next() {
+    if let Some(Ok(v)) = out.next() {
         info!(
             "Ripple Gateway Rule Processing Time: {},{}",
             reference,
             Utc::now().timestamp_millis() - start
         );
-        return Ok(Value::from(v.unwrap()));
+        return Ok(Value::from(v));
     }
 
     Err(RippleError::ParseError)
