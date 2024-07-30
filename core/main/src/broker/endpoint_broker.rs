@@ -481,7 +481,7 @@ pub trait EndpointBroker {
     /// just before sending the data through the protocol
     fn update_request(rpc_request: &BrokerRequest) -> Result<String, RippleError> {
         let v = Self::apply_request_rule(rpc_request)?;
-        debug!("transformed request {:?}", v);
+        trace!("transformed request {:?}", v);
         let id = rpc_request.rpc.ctx.call_id;
         let method = rpc_request.rule.alias.clone();
         if let Value::Null = v {
@@ -695,9 +695,7 @@ fn apply_response(result: Value, filter: String, rpc_request: &RpcRequest, v: &m
         Ok(r) => {
             trace!(
                 "jq rendered output {:?} original input {:?} for filter {}",
-                r,
-                v,
-                filter
+                r, v, filter
             );
             /*
             weird corner case where the filter is "then \"null\"" which is a jq way to return null
