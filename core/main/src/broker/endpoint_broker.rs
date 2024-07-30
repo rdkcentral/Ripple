@@ -25,7 +25,7 @@ use ripple_sdk::{
     },
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
-    log::{debug, error, trace},
+    log::{error, trace},
     tokio::{
         self,
         sync::mpsc::{self, Receiver, Sender},
@@ -695,7 +695,9 @@ fn apply_response(result: Value, filter: String, rpc_request: &RpcRequest, v: &m
         Ok(r) => {
             trace!(
                 "jq rendered output {:?} original input {:?} for filter {}",
-                r, v, filter
+                r,
+                v,
+                filter
             );
             /*
             weird corner case where the filter is "then \"null\"" which is a jq way to return null
