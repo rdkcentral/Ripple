@@ -693,7 +693,10 @@ fn apply_response(result: Value, filter: String, rpc_request: &RpcRequest, v: &m
         format!("{}_response", rpc_request.ctx.method),
     ) {
         Ok(r) => {
-            trace!(
+            /*
+            todo , change back to debug
+            */
+            ripple_sdk::log::info!(
                 "jq rendered output {:?} original input {:?} for filter {}",
                 r,
                 v,
@@ -702,7 +705,7 @@ fn apply_response(result: Value, filter: String, rpc_request: &RpcRequest, v: &m
             /*
             weird corner case where the filter is "then \"null\"" which is a jq way to return null
             */
-            if r.to_string().to_lowercase().contains("then \"null\"") {
+            if r.to_string().to_lowercase().contains("null") {
                 v.data.result = Some(Value::Null);
                 v.data.error = None;
             } else if result.get("success").is_some() {
