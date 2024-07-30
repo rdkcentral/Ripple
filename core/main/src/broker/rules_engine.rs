@@ -171,7 +171,7 @@ impl RuleEngine {
 }
 
 pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value, RippleError> {
-    debug!("Jq rule {}  input {:?}", filter, input);
+    debug!("Jq rule {}  input {:?}", filter, input.clone());
     let start = Utc::now().timestamp_millis();
     // start out only from core filters,
     // which do not include filters in the standard library
@@ -198,7 +198,7 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
     let inputs = RcIter::new(core::iter::empty());
 
     // iterator over the output values
-    let mut out = f.run((Ctx::new([], &inputs), Val::from(input)));
+    let mut out = f.run((Ctx::new([], &inputs), Val::from(input.clone())));
 
     if let Some(Ok(v)) = out.next() {
         info!(
@@ -206,6 +206,7 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
             reference,
             Utc::now().timestamp_millis() - start
         );
+        debug!("Jq rule {}, input {}  output {:?}", filter, input, v);
         return Ok(Value::from(v));
     }
 

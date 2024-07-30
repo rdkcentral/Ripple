@@ -25,7 +25,7 @@ use ripple_sdk::{
     },
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
-    log::error,
+    log::{debug, error, trace},
     tokio::{
         self,
         sync::mpsc::{self, Receiver, Sender},
@@ -481,6 +481,7 @@ pub trait EndpointBroker {
     /// just before sending the data through the protocol
     fn update_request(rpc_request: &BrokerRequest) -> Result<String, RippleError> {
         let v = Self::apply_request_rule(rpc_request)?;
+        debug!("transformed request {:?}", v);
         let id = rpc_request.rpc.ctx.call_id;
         let method = rpc_request.rule.alias.clone();
         if let Value::Null = v {
@@ -692,8 +693,18 @@ fn apply_response(result: Value, filter: String, rpc_request: &RpcRequest, v: &m
         format!("{}_response", rpc_request.ctx.method),
     ) {
         Ok(r) => {
-            if r.to_string().to_lowercase().contains("null") {
-                v.data.result = Some(Value::Null)
+            trace!(
+                "jq rendered output {:?} original input {:?} for filter {}",
+                r,
+                v,
+                filter
+            );
+            /*
+            weird corner case where the filter is "then \"null\"" which is a jq way to return null
+            */
+            if r.to_string().to_lowercase().contains("then \"null\"") {
+                v.data.result = Some(Value::Null);
+                v.data.error = None;
             } else if result.get("success").is_some() {
                 v.data.result = Some(r);
                 v.data.error = None;
@@ -701,6 +712,7 @@ fn apply_response(result: Value, filter: String, rpc_request: &RpcRequest, v: &m
                 v.data.error = Some(r);
                 v.data.result = None;
             }
+            trace!("mutated output {:?}", v);
         }
         Err(e) => error!("jq_compile error {:?}", e),
     }
