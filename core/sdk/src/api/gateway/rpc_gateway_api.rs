@@ -65,6 +65,53 @@ pub struct CallContext {
     pub gateway_secure: bool,
 }
 
+/// Provides a default implementation for `CallContext`.
+///
+/// This implementation sets default values for all fields of `CallContext`.
+/// It's useful when you need a `CallContext` instance with predefined values,
+/// typically for testing or when initializing a new context without specific values.
+///
+/// # Examples
+///
+/// ```
+/// use your_crate_name::{CallContext, ApiProtocol};
+///
+/// let default_context = CallContext::default();
+/// assert_eq!(default_context.session_id, "unset.session.id");
+/// assert_eq!(default_context.request_id, "-1");
+/// assert_eq!(default_context.app_id, "default.app_od");
+/// assert_eq!(default_context.call_id, 1);
+/// assert_eq!(default_context.protocol, ApiProtocol::JsonRpc);
+/// assert_eq!(default_context.method, "unset.module.method");
+/// assert_eq!(default_context.cid, Some("unset.cid".to_owned()));
+/// assert!(default_context.gateway_secure);
+/// ```
+///
+/// # Default Values
+///
+/// - `session_id`: "unset.session.id"
+/// - `request_id`: "-1"
+/// - `app_id`: "default.app_od"
+/// - `call_id`: 1
+/// - `protocol`: `ApiProtocol::JsonRpc`
+/// - `method`: "unset.module.method"
+/// - `cid`: Some("unset.cid")
+/// - `gateway_secure`: true
+impl Default for CallContext {
+    fn default() -> Self {
+        CallContext {
+            session_id: "unset.session.id".to_owned(),
+            request_id: "-1".to_owned(),
+            app_id: "default.app_od".to_owned(),
+            call_id: 1,
+            protocol: ApiProtocol::JsonRpc,
+            method: "unset.module.method".to_owned(),
+            cid: Some("unset.cid".to_owned()),
+            gateway_secure: true,
+        }
+    }
+}
+
 impl CallContext {
     // TODO: refactor this to use less arguments
     #[allow(clippy::too_many_arguments)]
@@ -221,7 +268,47 @@ pub struct RpcRequest {
     pub params_json: String,
     pub ctx: CallContext,
 }
+/// Provides a default implementation for `RpcRequest`.
+///
+/// This implementation sets default values for all fields of `RpcRequest`,
+/// including a default `CallContext`. It's useful when you need an `RpcRequest`
+/// instance with predefined values, typically for testing or initializing a new
+/// request without specific values.
+///
+/// # Examples
+///
+/// ```
+/// use your_crate_name::RpcRequest;
+///
+/// let default_request = RpcRequest::default();
+/// assert_eq!(default_request.method, "unset.method");
+/// assert_eq!(default_request.params_json, "{}");
+///
+/// // The ctx field is set to CallContext::default()
+/// assert_eq!(default_request.ctx.session_id, "unset.session.id");
+/// assert_eq!(default_request.ctx.request_id, "-1");
+/// // ... other CallContext assertions ...
+/// ```
+///
+/// # Default Values
+///
+/// - `method`: "unset.method"
+/// - `params_json`: "{}" (an empty JSON object)
+/// - `ctx`: Set to `CallContext::default()`
+///
+/// # See Also
+///
+/// - [`CallContext::default()`](struct.CallContext.html#method.default) for the default values of the `ctx` field.
 
+impl Default for RpcRequest {
+    fn default() -> Self {
+        RpcRequest {
+            method: "unset.method".to_owned(),
+            params_json: "{}".to_owned(),
+            ctx: CallContext::default(),
+        }
+    }
+}
 impl ExtnPayloadProvider for RpcRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Request(ExtnRequest::Rpc(self.clone()))
@@ -242,7 +329,7 @@ impl ExtnPayloadProvider for RpcRequest {
 impl crate::Mockable for RpcRequest {
     fn mock() -> Self {
         RpcRequest {
-            method: "module.method".to_owned(),
+            method: "default.unset.method".to_owned(),
             params_json: "{}".to_owned(),
             ctx: CallContext::mock(),
         }

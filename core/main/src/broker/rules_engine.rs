@@ -163,6 +163,7 @@ impl RuleEngine {
     }
 
     pub fn get_rule(&self, rpc_request: &RpcRequest) -> Option<Rule> {
+        println!("looking for rule {:?}", rpc_request.method);
         if let Some(mut rule) = self.rules.rules.get(&rpc_request.method).cloned() {
             rule.transform.apply_context(rpc_request);
             return Some(rule);
@@ -220,6 +221,7 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
                     input,
                     v
                 );
+
                 if v == Val::Null {
                     debug!(
                         "jq processing returned null for jq_rule={}, input {:?} , reference={}",
@@ -231,7 +233,7 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
             }
             Err(e) => {
                 debug!("Encountered primtive value in jq_rule={}, input {:?} , reference={}, error={}. Returning value {}", filter, input, reference,e,input);
-                Ok(input)
+                Err(RippleError::InvalidValueReturned)
             }
         },
         None => {
@@ -247,7 +249,12 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
 
 #[cfg(test)]
 mod tests {
-    use ripple_sdk::utils::error::RippleError;
+    use super::*;
+    use ripple_sdk::{
+        api::gateway::rpc_gateway_api::CallContext as Context,
+        utils::{error::RippleError, logger::init_logger},
+    };
+    use serde_json::json;
 
     #[test]
     pub fn test_jq_compile_simple_return_value() {
@@ -289,5 +296,284 @@ mod tests {
 
         let result = super::jq_compile(input, ".success", reference.to_string());
         assert!(result.unwrap().as_bool().unwrap());
+    }
+    #[test]
+    fn test_ruleset_append() {
+        let mut ruleset1 = RuleSet {
+            endpoints: HashMap::from([(
+                "endpoint1".to_string(),
+                RuleEndpoint {
+                    protocol: RuleEndpointProtocol::Http,
+                    url: "http://example.com".to_string(),
+                    jsonrpc: true,
+                },
+            )]),
+            rules: HashMap::from([(
+                "rule1".to_string(),
+                Rule {
+                    alias: "alias1".to_string(),
+                    transform: RuleTransform::default(),
+                    endpoint: None,
+                },
+            )]),
+        };
+
+        let ruleset2 = RuleSet {
+            endpoints: HashMap::from([(
+                "endpoint2".to_string(),
+                RuleEndpoint {
+                    protocol: RuleEndpointProtocol::Websocket,
+                    url: "ws://example.com".to_string(),
+                    jsonrpc: false,
+                },
+            )]),
+            rules: HashMap::from([(
+                "rule2".to_string(),
+                Rule {
+                    alias: "alias2".to_string(),
+                    transform: RuleTransform::default(),
+                    endpoint: Some("endpoint2".to_string()),
+                },
+            )]),
+        };
+
+        ruleset1.append(ruleset2);
+
+        assert_eq!(ruleset1.endpoints.len(), 2);
+        assert_eq!(ruleset1.rules.len(), 2);
+        assert!(ruleset1.endpoints.contains_key("endpoint1"));
+        assert!(ruleset1.endpoints.contains_key("endpoint2"));
+        assert!(ruleset1.rules.contains_key("rule1"));
+        assert!(ruleset1.rules.contains_key("rule2"));
+    }
+
+    #[test]
+    fn test_default_autostart() {
+        assert!(default_autostart());
+    }
+
+    #[test]
+    fn test_rule_transform_apply_context() {
+        let mut transform = RuleTransform {
+            request: Some("$context.appId/test".to_string()),
+            response: None,
+            event: None,
+        };
+
+        let rpc_request = RpcRequest {
+            ctx: Context {
+                app_id: "my_app".to_string(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        transform.apply_context(&rpc_request);
+
+        assert_eq!(transform.request, Some("my_app/test".to_string()));
+
+        // Test when request doesn't contain $context.appId
+        let mut transform = RuleTransform {
+            request: Some("no_context".to_string()),
+            response: None,
+            event: None,
+        };
+        transform.apply_context(&rpc_request);
+        assert_eq!(transform.request, Some("no_context".to_string()));
+    }
+
+    #[test]
+    fn test_rule_transform_get_filter() {
+        let transform = RuleTransform {
+            request: Some("request_filter".to_string()),
+            response: Some("response_filter".to_string()),
+            event: Some("event_filter".to_string()),
+        };
+
+        assert_eq!(
+            transform.get_filter(RuleTransformType::Request),
+            Some("request_filter".to_string())
+        );
+        assert_eq!(
+            transform.get_filter(RuleTransformType::Response),
+            Some("response_filter".to_string())
+        );
+        assert_eq!(
+            transform.get_filter(RuleTransformType::Event),
+            Some("event_filter".to_string())
+        );
+    }
+
+    #[test]
+    fn test_rule_engine_build_path() {
+        assert_eq!(
+            RuleEngine::build_path("/absolute/path", "/default/"),
+            "/absolute/path"
+        );
+        assert_eq!(
+            RuleEngine::build_path("relative/path", "/default/"),
+            "/default/relative/path"
+        );
+    }
+
+    #[test]
+    fn test_rule_engine_has_rule() {
+        let engine = RuleEngine {
+            rules: RuleSet {
+                endpoints: HashMap::new(),
+                rules: HashMap::from([(
+                    "test_method".to_string(),
+                    Rule {
+                        alias: "test_alias".to_string(),
+                        transform: RuleTransform::default(),
+                        endpoint: None,
+                    },
+                )]),
+            },
+        };
+
+        let rpc_request = RpcRequest {
+            ctx: Context {
+                method: "test_method".to_string(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        assert!(engine.has_rule(&rpc_request));
+
+        let rpc_request_no_rule = RpcRequest {
+            ctx: Context {
+                method: "non_existent_method".to_string(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        assert!(!engine.has_rule(&rpc_request_no_rule));
+    }
+
+    #[test]
+    fn test_rule_engine_get_rule() {
+        let engine = RuleEngine {
+            rules: RuleSet {
+                endpoints: HashMap::new(),
+                rules: HashMap::from([(
+                    "test_method".to_string(),
+                    Rule {
+                        alias: "test_alias".to_string(),
+                        transform: RuleTransform {
+                            request: Some("$context.appId/test".to_string()),
+                            response: None,
+                            event: None,
+                        },
+                        endpoint: None,
+                    },
+                )]),
+            },
+        };
+
+        let rpc_request = RpcRequest {
+            ctx: Context {
+                method: "test_method".to_string(),
+                app_id: "my_app".to_string(),
+                ..Default::default()
+            },
+            method: "test_method".to_string(),
+            ..Default::default()
+        };
+        println!("{:?}", engine.rules.rules);
+        let rule = engine.get_rule(&rpc_request);
+        assert!(rule.is_some());
+        let rule = rule.unwrap();
+        assert_eq!(rule.alias, "test_alias");
+        assert_eq!(rule.transform.request, Some("my_app/test".to_string()));
+
+        let rpc_request_no_rule = RpcRequest {
+            ctx: Context {
+                method: "non_existent_method".to_string(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        assert!(engine.get_rule(&rpc_request_no_rule).is_none());
+    }
+
+    #[test]
+    fn test_rule_engine_load_from_content() {
+        let valid_content = r#"
+        {
+            "endpoints": {
+                "test_endpoint": {
+                    "protocol": "http",
+                    "url": "http://example.com"
+                }
+            },
+            "rules": {
+                "test_rule": {
+                    "alias": "test_alias",
+                    "transform": {
+                        "request": "request_filter"
+                    },
+                    "endpoint": "test_endpoint"
+                }
+            }
+        }"#;
+
+        let result = RuleEngine::load_from_content(valid_content.to_string());
+        assert!(result.is_ok());
+        let (content, ruleset) = result.unwrap();
+        assert_eq!(content, valid_content);
+        assert_eq!(ruleset.endpoints.len(), 1);
+        assert_eq!(ruleset.rules.len(), 1);
+
+        let invalid_content = r#"
+        {
+            "invalid": "json"
+        }"#;
+
+        let result = RuleEngine::load_from_content(invalid_content.to_string());
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), RippleError::InvalidInput));
+    }
+
+    #[test]
+    fn test_jq_compile_edge_cases() {
+        // Test with empty input
+        let _ = init_logger("test_jq_compile_edge_cases".into());
+        let empty_input = json!({});
+        let filter = ".";
+        let reference = "empty_input".to_string();
+        let result = jq_compile(empty_input, filter, reference);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), json!({}));
+
+        // Test with array input
+        let array_input = json!([1, 2, 3]);
+        let filter = ".[0]";
+        let reference = "array_input".to_string();
+        let result = jq_compile(array_input, filter, reference);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), json!(1));
+
+        // Test with invalid filter
+        let input = json!({"a": 1});
+        let filter = ".b[";
+        let reference = "invalid_filter".to_string();
+        let result = jq_compile(input, filter, reference);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), RippleError::RuleError));
+
+        // Test with filter that returns empty output
+        let input = json!({"a": 1});
+        let filter = ".b[]";
+        let reference = "empty_output".to_string();
+        let result = jq_compile(input, filter, reference);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            RippleError::InvalidValueReturned
+        ));
     }
 }
