@@ -109,6 +109,7 @@ pub struct App {
     pub internal_state: Option<AppMethod>,
     pub app_id: String,
     pub is_app_init_params_invoked: bool,
+    pub ready: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -195,7 +196,6 @@ impl AppManagerState {
                 }
             }
         }
-
         path.display().to_string()
     }
 
@@ -444,6 +444,10 @@ impl DelegatedLauncherHandler {
                     if let Err(e) = self.ready_check(&app_id) {
                         resp = Err(e)
                     } else {
+                        let apps = self.platform_state.app_manager_state.apps.clone();
+                        if let Some(app) = apps.write().unwrap().get_mut(app_id.as_str()) {
+                            app.ready = true
+                        }
                         self.send_app_init_events(app_id.as_str()).await;
                         resp = self
                             .send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Ready(
@@ -928,6 +932,7 @@ impl DelegatedLauncherHandler {
             internal_state: None,
             app_id: app_id.clone(),
             is_app_init_params_invoked: false,
+            ready: false,
         };
         platform_state
             .app_manager_state
@@ -1124,6 +1129,7 @@ impl DelegatedLauncherHandler {
             }
         }
     }
+
     async fn set_state(
         &mut self,
         app_id: &str,
@@ -1161,6 +1167,13 @@ impl DelegatedLauncherHandler {
                 "Calling is_valid_lifecycle_transition for app_id:{} prev state:{:?} state{:?}",
                 app_id, previous_state, state
             );
+            if !app.ready {
+                warn!(
+                    "set_state app_id:{} app is not ready Cannot transition",
+                    app_id
+                );
+                return Err(AppError::AppNotReady);
+            }
             if !Self::is_valid_lifecycle_transition(previous_state, state) {
                 warn!(
                     "set_state app_id:{} prev state:{:?} state{:?} Cannot transition",
@@ -1404,6 +1417,12 @@ impl DelegatedLauncherHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::bootstrap_state::ChannelsState;
+    use crate::state::platform_state::PlatformState;
+    use ripple_sdk::api::apps::{
+        AppBasicInfo, AppError, AppLaunchInfo, AppRuntime, AppRuntimeTransport, AppSession,
+    };
+    use ripple_tdk::utils::test_utils::Mockable;
 
     #[test]
     fn test_same_state_transition() {
@@ -1588,5 +1607,90 @@ mod tests {
             LifecycleState::Unloading,
             LifecycleState::Initializing
         ),);
+    }
+
+    #[tokio::test]
+    pub async fn test_set_state_before_app_ready() {
+        let channels_state = ChannelsState::new();
+        let platform_state = PlatformState::mock();
+        let session = AppSession {
+            app: AppBasicInfo {
+                id: "test_app".to_string(),
+                catalog: None,
+                url: None,
+                title: None,
+            },
+            runtime: Some(AppRuntime {
+                id: Some("runtime_id".to_string()),
+                transport: AppRuntimeTransport::Bridge,
+            }),
+            launch: AppLaunchInfo::default(),
+        };
+
+        let app = App {
+            initial_session: session.clone(),
+            current_session: session.clone(),
+            session_id: "1234".to_string(),
+            loaded_session_id: "1234".to_string(),
+            active_session_id: None,
+            state: LifecycleState::Initializing,
+            internal_state: None,
+            app_id: "test_app".to_string(),
+            is_app_init_params_invoked: false,
+            ready: false,
+        };
+        platform_state
+            .app_manager_state
+            .insert("test_app".to_string(), app);
+        let mut app_manager = DelegatedLauncherHandler::new(channels_state, platform_state);
+        assert_eq!(
+            app_manager
+                .set_state("test_app", LifecycleState::Inactive)
+                .await,
+            Err(AppError::AppNotReady)
+        );
+    }
+
+    #[tokio::test]
+    pub async fn test_set_state_after_app_ready() {
+        let channels_state = ChannelsState::new();
+        let platform_state = PlatformState::mock();
+        let session = AppSession {
+            app: AppBasicInfo {
+                id: "test_app".to_string(),
+                catalog: None,
+                url: None,
+                title: None,
+            },
+            runtime: Some(AppRuntime {
+                id: Some("runtime_id".to_string()),
+                transport: AppRuntimeTransport::Bridge,
+            }),
+            launch: AppLaunchInfo::default(),
+        };
+
+        let app = App {
+            initial_session: session.clone(),
+            current_session: session.clone(),
+            session_id: "1234".to_string(),
+            loaded_session_id: "1234".to_string(),
+            active_session_id: None,
+            state: LifecycleState::Initializing,
+            internal_state: None,
+            app_id: "test_app".to_string(),
+            is_app_init_params_invoked: false,
+            ready: true,
+        };
+        platform_state
+            .app_manager_state
+            .insert("test_app".to_string(), app);
+        let mut app_manager = DelegatedLauncherHandler::new(channels_state, platform_state);
+        assert_eq!(
+            app_manager
+                .set_state("test_app", LifecycleState::Inactive)
+                .await
+                .unwrap(),
+            AppManagerResponse::None
+        );
     }
 }
