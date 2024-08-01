@@ -47,7 +47,8 @@ impl WebsocketBroker {
         let broker = BrokerSender { sender: tx };
         tokio::spawn(async move {
             if endpoint.jsonrpc {
-                let (mut ws_tx, mut ws_rx) = BrokerUtils::get_ws_broker(&endpoint.url, None).await;
+                let (mut ws_tx, mut ws_rx) =
+                    BrokerUtils::get_ws_broker(&endpoint.get_url(), None).await;
 
                 tokio::pin! {
                     let read = ws_rx.next();
@@ -103,7 +104,7 @@ impl WebsocketBroker {
                     let cleaner = WSNotificationBroker::start(
                         v.clone(),
                         callback.clone(),
-                        endpoint.url.clone(),
+                        endpoint.get_url().clone(),
                     );
                     {
                         let mut map = map_clone.write().unwrap();

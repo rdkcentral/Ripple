@@ -87,7 +87,7 @@ impl ThunderGetConfigStep {
                         GATEWAY_DEFAULT
                     );
                 }
-                if let Ok(host_override) = std::env::var("THUNDER_HOST") {
+                if let Ok(host_override) = std::env::var("DEVICE_HOST") {
                     gateway_url.set_host(Some(&host_override)).ok();
                 }
                 return Ok(ThunderBootstrapStateWithConfig {

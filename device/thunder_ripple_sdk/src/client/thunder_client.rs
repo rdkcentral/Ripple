@@ -677,9 +677,15 @@ pub struct ThunderRawBoolRequest {
 
 impl ThunderRawBoolRequest {
     async fn send_request(self: Box<Self>) -> Value {
-        let host = match env::var("THUNDER_HOST") {
-            Ok(h) => h,
-            Err(_) => String::from("127.0.0.1"),
+        let host = {
+            if cfg!(feature = "local_dev") {
+                match env::var("DEVICE_HOST") {
+                    Ok(h) => h,
+                    Err(_) => String::from("127.0.0.1"),
+                }
+            } else {
+                String::from("127.0.0.1")
+            }
         };
 
         if let Ok(t) = env::var("THUNDER_TOKEN") {

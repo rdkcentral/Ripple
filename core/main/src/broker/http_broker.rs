@@ -37,7 +37,7 @@ impl EndpointBroker for HttpBroker {
         let (tx, mut tr) = mpsc::channel(10);
         let broker = BrokerSender { sender: tx };
         let is_json_rpc = endpoint.jsonrpc;
-        let uri: Uri = endpoint.url.parse().unwrap();
+        let uri: Uri = endpoint.get_url().parse().unwrap();
         // let mut headers = HeaderMap::new();
         // headers.insert("Content-Type", "application/json".parse().unwrap());
         // if let Some(auth) = &endpoint.authentication {

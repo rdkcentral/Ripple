@@ -37,7 +37,15 @@ pub struct RuleSet {
 impl RuleSet {
     pub fn append(&mut self, rule_set: RuleSet) {
         self.endpoints.extend(rule_set.endpoints);
-        self.rules.extend(rule_set.rules);
+        let rules: HashMap<String, Rule> = rule_set
+            .rules
+            .into_iter()
+            .map(|(k, v)| {
+                debug!("Loading JQ Rule for {}", k.to_lowercase());
+                (k.to_lowercase(), v)
+            })
+            .collect();
+        self.rules.extend(rules);
     }
 }
 
@@ -47,6 +55,17 @@ pub struct RuleEndpoint {
     pub url: String,
     #[serde(default = "default_autostart")]
     pub jsonrpc: bool,
+}
+
+impl RuleEndpoint {
+    pub fn get_url(&self) -> String {
+        if cfg!(feature = "local_dev") {
+            if let Ok(host_override) = std::env::var("DEVICE_HOST") {
+                return self.url.replace("127.0.0.1", &host_override);
+            }
+        }
+        self.url.clone()
+    }
 }
 
 fn default_autostart() -> bool {
@@ -131,8 +150,7 @@ impl RuleEngine {
             if let Some(p) = Path::new(&path_for_rule).to_str() {
                 if let Ok(contents) = fs::read_to_string(p) {
                     debug!("Rule content {}", contents);
-                    if let Ok((path, rule_set)) = Self::load_from_content(contents) {
-                        debug!("Rules loaded from path={}", path);
+                    if let Ok((_, rule_set)) = Self::load_from_content(contents) {
                         engine.rules.append(rule_set)
                     } else {
                         warn!("invalid rule found in path {}", path)
@@ -158,13 +176,22 @@ impl RuleEngine {
     }
 
     pub fn has_rule(&self, request: &RpcRequest) -> bool {
-        self.rules.rules.contains_key(&request.ctx.method)
+        self.rules
+            .rules
+            .contains_key(&request.ctx.method.to_lowercase())
     }
 
     pub fn get_rule(&self, rpc_request: &RpcRequest) -> Option<Rule> {
-        if let Some(mut rule) = self.rules.rules.get(&rpc_request.method).cloned() {
+        if let Some(mut rule) = self
+            .rules
+            .rules
+            .get(&rpc_request.method.to_lowercase())
+            .cloned()
+        {
             rule.transform.apply_context(rpc_request);
             return Some(rule);
+        } else {
+            info!("Rule not available for {}", rpc_request.method);
         }
         None
     }

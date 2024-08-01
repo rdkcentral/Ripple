@@ -64,7 +64,8 @@ impl ThunderBroker {
         let callback_for_sender = callback.clone();
         let broker_for_reconnect = broker.clone();
         tokio::spawn(async move {
-            let (mut ws_tx, mut ws_rx) = BrokerUtils::get_ws_broker(&endpoint.url, None).await;
+            let (mut ws_tx, mut ws_rx) =
+                BrokerUtils::get_ws_broker(&endpoint.get_url(), None).await;
 
             // send the first request to the broker. This is the controller statechange subscription request
             let status_request = broker_c
