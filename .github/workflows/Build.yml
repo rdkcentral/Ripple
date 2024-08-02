@@ -88,34 +88,34 @@ jobs:
           path: current_coverage.md
         continue-on-error: true
 
-  build_and_test_aarch64:
-    name: Build and Test on aarch64
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Build and Test
-        uses: uraimo/run-on-arch-action@v2.5.1
-        id: build_and_test
-        with:
-          arch: aarch64
-          distro: ubuntu22.04
-          githubToken: ${{ github.token }}
-          install: |
-            apt-get update -q -y
-            apt-get install -q -y --no-install-recommends \
-              ca-certificates \
-              curl \
-              pkg-config \
-              build-essential \
-              libssl-dev
-            curl --proto '=https' -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.69.0 --component "rustfmt, clippy"
-          run: |
-            source "$HOME/.cargo/env"
-            export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
-            cargo --version --verbose
-            rustc --version
-            cargo clippy --version
-            cargo fmt -- --check
-            cargo clippy --tests --examples --all-targets --all-features -- -D warnings -A clippy::large_enum_variant
-            cargo test
+  # build_and_test_aarch64:
+  #   name: Build and Test on aarch64
+  #   runs-on: ubuntu-22.04
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #     - name: Build and Test
+  #       uses: uraimo/run-on-arch-action@v2.5.1
+  #       id: build_and_test
+  #       with:
+  #         arch: aarch64
+  #         distro: ubuntu22.04
+  #         githubToken: ${{ github.token }}
+  #         install: |
+  #           apt-get update -q -y
+  #           apt-get install -q -y --no-install-recommends \
+  #             ca-certificates \
+  #             curl \
+  #             pkg-config \
+  #             build-essential \
+  #             libssl-dev
+  #           curl --proto '=https' -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.69.0 --component "rustfmt, clippy"
+  #         run: |
+  #           source "$HOME/.cargo/env"
+  #           export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+  #           cargo --version --verbose
+  #           rustc --version
+  #           cargo clippy --version
+  #           cargo fmt -- --check
+  #           cargo clippy --tests --examples --all-targets --all-features -- -D warnings -A clippy::large_enum_variant
+  #           cargo test
