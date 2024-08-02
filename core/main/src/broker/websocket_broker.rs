@@ -222,7 +222,6 @@ mod tests {
     ) -> WebsocketBroker {
         // setup mock websocket server
         let port = MockWebsocket::start(send_data, Vec::new(), tx, on_close).await;
-
         let endpoint = RuleEndpoint {
             url: format!("ws://127.0.0.1:{}", port),
             protocol: crate::broker::rules_engine::RuleEndpointProtocol::Websocket,

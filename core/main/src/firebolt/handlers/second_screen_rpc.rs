@@ -34,17 +34,14 @@ use ripple_sdk::api::{
     gateway::rpc_gateway_api::CallContext,
 };
 
-use super::device_rpc::{get_device_id, get_device_name};
+use super::device_rpc::get_device_id;
 
 pub const EVENT_SECOND_SCREEN_ON_CLOSE_REQUEST: &str = "secondscreen.onCloseRequest";
-pub const EVENT_SECOND_SCREEN_ON_FRIENDLY_NAME_CHANGED: &str = "secondscreen.onFriendlyNameChanged";
 
 #[rpc(server)]
 pub trait SecondScreen {
     #[method(name = "secondscreen.device")]
     async fn device(&self, ctx: CallContext, param: SecondScreenDeviceInfo) -> RpcResult<String>;
-    #[method(name = "secondscreen.friendlyName")]
-    async fn friendly_name(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "secondscreen.protocols")]
     async fn protocols(&self, _ctx: CallContext) -> RpcResult<HashMap<String, bool>>;
     #[method(name = "secondscreen.onLaunchRequest")]
@@ -59,12 +56,6 @@ pub trait SecondScreen {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
-    #[method(name = "secondscreen.onFriendlyNameChanged")]
-    async fn on_friendly_name_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
 }
 
 pub struct SecondScreenImpl {
@@ -75,10 +66,6 @@ pub struct SecondScreenImpl {
 impl SecondScreenServer for SecondScreenImpl {
     async fn device(&self, _ctx: CallContext, _param: SecondScreenDeviceInfo) -> RpcResult<String> {
         get_device_id(&self.state).await
-    }
-
-    async fn friendly_name(&self, _ctx: CallContext) -> RpcResult<String> {
-        get_device_name(&self.state).await
     }
 
     async fn protocols(&self, _ctx: CallContext) -> RpcResult<HashMap<String, bool>> {
@@ -111,20 +98,6 @@ impl SecondScreenServer for SecondScreenImpl {
             ctx,
             request,
             EVENT_SECOND_SCREEN_ON_CLOSE_REQUEST,
-        )
-        .await
-    }
-
-    async fn on_friendly_name_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(
-            &self.state,
-            ctx,
-            request,
-            EVENT_SECOND_SCREEN_ON_FRIENDLY_NAME_CHANGED,
         )
         .await
     }
