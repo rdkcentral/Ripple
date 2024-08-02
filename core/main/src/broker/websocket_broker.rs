@@ -104,7 +104,7 @@ impl WebsocketBroker {
                     let cleaner = WSNotificationBroker::start(
                         v.clone(),
                         callback.clone(),
-                        endpoint.get_url(),
+                        endpoint.get_url().clone(),
                     );
                     {
                         let mut map = map_clone.write().unwrap();
