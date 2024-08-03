@@ -555,10 +555,12 @@ pub fn get_event_id(broker_output: BrokerOutput) -> Option<u64> {
     broker_output.get_event().or_else(|| broker_output.data.id)
 }
 
+#[derive(Debug, Clone)]
 pub enum BrokerWorkFlowError {
     Error,
     MissingValueError,
 }
+#[derive(Debug, Clone)]
 pub enum BrokerWorkflowSuccess {
     SubscriptionProcessed(BrokerOutput, Option<u64>),
     Unsubcribe(BrokerOutput, Option<u64>),
@@ -580,7 +582,7 @@ impl From<BrokerOutput> for BrokerWorkflowSuccess {
 
 Factor out broker workflow from tokio loop
 */
-pub fn broker_workflow(
+pub fn run_broker_workflow(
     broker_output: &BrokerOutput,
     broker_request: &BrokerRequest,
 ) -> Result<BrokerWorkflowSuccess, BrokerWorkFlowError> {
@@ -644,11 +646,11 @@ pub fn get_request_id(broker_request: &BrokerRequest, request_id: Option<u64>) -
         .map(|v| v.to_string())
         .unwrap_or_else(|| broker_request.rpc.ctx.call_id.to_string())
 }
-pub fn broker_response(
+pub fn broker_workflow(
     broker_output: &BrokerOutput,
     broker_request: &BrokerRequest,
 ) -> Result<ApiMessage, BrokerWorkFlowError> {
-    match broker_workflow(broker_output, broker_request)? {
+    match run_broker_workflow(broker_output, broker_request)? {
         BrokerWorkflowSuccess::SubscriptionProcessed(broker_output, request_id) => {
             brokered_to_api_message_response(
                 broker_output,
@@ -692,82 +694,121 @@ impl BrokerOutputForwarder {
 
                 if let Some(id) = get_event_id(broker_output.clone()) {
                     if let Ok(broker_request) = platform_state.endpoint_state.get_request(id) {
-                        let sub_processed = broker_request.is_subscription_processed();
-                        let rpc_request = broker_request.rpc.clone();
-                        let session_id = rpc_request.ctx.get_id();
-                        let is_subscription = rpc_request.is_subscription();
-                        let is_event = is_event(broker_output.data.method.clone());
+                        // let sub_processed = broker_request.is_subscription_processed();
+                        // let rpc_request = broker_request.rpc.clone();
+                        // let session_id = rpc_request.ctx.get_id();
+                        // let is_subscription = rpc_request.is_subscription();
+                        // let is_event = is_event(broker_output.data.method.clone());
 
-                        // Step 1: Create the data
-                        if let Some(result) = broker_output.data.result.clone() {
-                            if is_event {
-                                apply_rule_for_event(
-                                    &broker_request,
-                                    &result,
-                                    &rpc_request,
-                                    &mut broker_output,
-                                );
-                            } else if is_subscription {
-                                if sub_processed {
-                                    continue;
-                                }
-                                broker_output.data.result = Some(json!({
-                                    "listening" : rpc_request.is_listening(),
-                                    "event" : rpc_request.ctx.method
-                                }));
-                                platform_state.endpoint_state.update_unsubscribe_request(id);
-                            } else if let Some(filter) = broker_request
-                                .rule
-                                .transform
-                                .get_filter(super::rules_engine::RuleTransformType::Response)
-                            {
-                                apply_response(result, filter, &rpc_request, &mut broker_output);
-                            }
-                        }
+                        // // Step 1: Create the data
+                        // if let Some(result) = broker_output.data.result.clone() {
+                        //     if is_event {
+                        //         apply_rule_for_event(
+                        //             &broker_request,
+                        //             &result,
+                        //             &rpc_request,
+                        //             &mut broker_output,
+                        //         );
+                        //     } else if is_subscription {
+                        //         if sub_processed {
+                        //             continue;
+                        //         }
+                        //         broker_output.data.result = Some(json!({
+                        //             "listening" : rpc_request.is_listening(),
+                        //             "event" : rpc_request.ctx.method
+                        //         }));
+                        //         platform_state.endpoint_state.update_unsubscribe_request(id);
+                        //     } else if let Some(filter) = broker_request
+                        //         .rule
+                        //         .transform
+                        //         .get_filter(super::rules_engine::RuleTransformType::Response)
+                        //     {
+                        //         apply_response(result, filter, &rpc_request, &mut broker_output);
+                        //     }
+                        // }
 
-                        let request_id = rpc_request.ctx.call_id;
-                        broker_output.data.id = Some(request_id);
+                        // let request_id = rpc_request.ctx.call_id;
+                        // broker_output.data.id = Some(request_id);
 
-                        // Step 2: Create the message
-                        let message = ApiMessage {
-                            request_id: request_id.to_string(),
-                            protocol: rpc_request.ctx.protocol.clone(),
-                            jsonrpc_msg: serde_json::to_string(&broker_output.data).unwrap(),
-                        };
-
-                        // Step 3: Handle Non Extension
-                        if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
-                            if let Ok(extn_message) =
-                                platform_state.endpoint_state.get_extn_message(id, is_event)
-                            {
-                                if is_event {
-                                    forward_extn_event(
-                                        &extn_message,
-                                        broker_output.data,
-                                        &platform_state,
+                        let message = broker_workflow(&broker_output, &broker_request);
+                        match message {
+                            Ok(message) => {
+                                let is_event = is_event(broker_output.data.method.clone());
+                                let session_id = get_request_id(&broker_request, None);
+                                if matches!(message.protocol, ApiProtocol::Extn) {
+                                    if let Ok(extn_message) =
+                                        platform_state.endpoint_state.get_extn_message(id, is_event)
+                                    {
+                                        if is_event {
+                                            forward_extn_event(
+                                                &extn_message,
+                                                broker_output.data,
+                                                &platform_state,
+                                            )
+                                            .await;
+                                        } else {
+                                            return_extn_response(message, extn_message)
+                                        }
+                                    }
+                                } else if let Some(session) = platform_state
+                                    .session_state
+                                    .get_session_for_connection_id(&session_id)
+                                {
+                                    return_api_message_for_transport(
+                                        session,
+                                        message,
+                                        platform_state.clone(),
                                     )
-                                    .await;
-                                } else {
-                                    return_extn_response(message, extn_message)
+                                    .await
                                 }
                             }
-                        } else if let Some(session) = platform_state
-                            .session_state
-                            .get_session_for_connection_id(&session_id)
-                        {
-                            return_api_message_for_transport(
-                                session,
-                                message,
-                                platform_state.clone(),
-                            )
-                            .await
+                            Err(e) => {
+                                error!("Error couldnt broker the event {:?}", e)
+                            }
                         }
                     }
-                } else {
-                    error!("Error couldnt broker the event {:?}", broker_output)
                 }
             }
         });
+
+        // // Step 2: Create the message
+        // let message = ApiMessage {
+        //     request_id: request_id.to_string(),
+        //     protocol: rpc_request.ctx.protocol.clone(),
+        //     jsonrpc_msg: serde_json::to_string(&broker_output.data).unwrap(),
+        // };
+
+        // Step 3: Handle Non Extension
+        //         if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
+        //             if let Ok(extn_message) =
+        //                 platform_state.endpoint_state.get_extn_message(id, is_event)
+        //             {
+        //                 if is_event {
+        //                     forward_extn_event(
+        //                         &extn_message,
+        //                         broker_output.data,
+        //                         &platform_state,
+        //                     )
+        //                     .await;
+        //                 } else {
+        //                     return_extn_response(message, extn_message)
+        //                 }
+        //             }
+        //         } else if let Some(session) = platform_state
+        //             .session_state
+        //             .get_session_for_connection_id(&session_id)
+        //         {
+        //             return_api_message_for_transport(
+        //                 session,
+        //                 message,
+        //                 platform_state.clone(),
+        //             )
+        //             .await
+        //         }
+        //     }
+        // } else {
+        //     error!("Error couldnt broker the event {:?}", broker_output)
+        // }
     }
 
     pub fn handle_non_jsonrpc_response(
