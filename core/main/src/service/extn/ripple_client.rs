@@ -69,6 +69,12 @@ pub struct RippleClient {
     app_mgr_sender: Sender<AppRequest>, // will be used by LCM RPC
     broker_sender: Sender<BrokerOutput>,
 }
+impl Default for RippleClient {
+    fn default() -> Self {
+        let cs = ChannelsState::new();
+        RippleClient::new(cs)
+    }
+}
 
 impl RippleClient {
     pub fn new(state: ChannelsState) -> RippleClient {

@@ -10,6 +10,13 @@ pub extern crate jsonschema;
 pub struct FireboltOpenRpc {
     pub apis: HashMap<String, FireboltOpenRpcSpec>,
 }
+impl Default for FireboltOpenRpc {
+    fn default() -> Self {
+        FireboltOpenRpc {
+            apis: HashMap::default(),
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ValidationError {

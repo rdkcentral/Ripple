@@ -108,6 +108,29 @@ pub struct PlatformState {
     pub version: Option<String>,
     pub endpoint_state: EndpointBrokerState,
 }
+impl Default for PlatformState {
+    fn default() -> Self {
+        Self {
+            extn_manifest: ExtnManifest::default(),
+            cap_state: CapState::default(),
+            session_state: SessionState::default(),
+            device_manifest: DeviceManifest::default(),
+            ripple_client: RippleClient::default(),
+            app_library_state: AppLibraryState::default(),
+            app_events_state: AppEventsState::default(),
+            provider_broker_state: ProviderBrokerState::default(),
+            app_manager_state: AppManagerState::default(),
+            open_rpc_state: OpenRpcState::default(),
+            router_state: RouterState::default(),
+            data_governance: DataGovernanceState::default(),
+            metrics: MetricsState::default(),
+            device_session_id: DeviceSessionIdentifier::default(),
+            ripple_cache: RippleCache::default(),
+            version: None,
+            endpoint_state: EndpointBrokerState::default(),
+        }
+    }
+}
 
 impl PlatformState {
     pub fn new(

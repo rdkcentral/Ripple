@@ -77,6 +77,21 @@ pub struct GrantState {
     grant_app_map: GrantAppMap,
     caps_needing_grants: Vec<String>,
 }
+impl Default for GrantState {
+    fn default() -> Self {
+        GrantState {
+            device_grants: Arc::new(RwLock::new(FileStore::new(
+                "device_grants".into(),
+                HashSet::new(),
+            ))),
+            grant_app_map: Arc::new(RwLock::new(FileStore::new(
+                "app_grants".into(),
+                HashMap::new(),
+            ))),
+            caps_needing_grants: Vec::new(),
+        }
+    }
+}
 
 impl GrantState {
     pub fn new(manifest: DeviceManifest) -> GrantState {

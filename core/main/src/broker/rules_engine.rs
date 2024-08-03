@@ -70,6 +70,15 @@ pub struct Rule {
     pub transform: RuleTransform,
     pub endpoint: Option<String>,
 }
+impl Default for Rule {
+    fn default() -> Self {
+        Rule {
+            alias: "".to_string(),
+            transform: RuleTransform::default(),
+            endpoint: None,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct RuleTransform {

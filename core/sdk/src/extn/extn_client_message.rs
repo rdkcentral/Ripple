@@ -101,6 +101,19 @@ pub struct ExtnMessage {
     pub callback: Option<CSender<CExtnMessage>>,
     pub ts: Option<i64>,
 }
+impl Default for ExtnMessage {
+    fn default() -> Self {
+        ExtnMessage {
+            id: "".to_string(),
+            requestor: ExtnId::get_main_target("main".into()),
+            target: RippleContract::Internal,
+            target_id: None,
+            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
+            callback: None,
+            ts: None,
+        }
+    }
+}
 
 impl ExtnMessage {
     /// This method can be used to create [ExtnResponse] payload message from a given [ExtnRequest]

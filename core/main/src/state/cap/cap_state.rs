@@ -55,6 +55,16 @@ pub struct CapState {
     primed_listeners: Arc<RwLock<HashSet<CapEventEntry>>>,
     pub grant_state: GrantState,
 }
+impl Default for CapState {
+    fn default() -> Self {
+        CapState {
+            generic: GenericCapState::default(),
+            permitted_state: PermittedState::default(),
+            primed_listeners: Arc::new(RwLock::new(HashSet::new())),
+            grant_state: GrantState::default(),
+        }
+    }
+}
 
 impl CapState {
     pub fn new(manifest: DeviceManifest) -> Self {

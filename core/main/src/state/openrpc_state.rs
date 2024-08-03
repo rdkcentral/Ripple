@@ -193,6 +193,20 @@ pub struct OpenRpcState {
     provider_relation_map: Arc<RwLock<HashMap<String, ProviderRelationSet>>>,
     openrpc_validator: Arc<RwLock<FireboltOpenRpcValidator>>,
 }
+impl Default for OpenRpcState {
+    fn default() -> Self {
+        OpenRpcState {
+            open_rpc: FireboltOpenRpc::default(),
+            exclusory: None,
+            firebolt_cap_map: Arc::new(RwLock::new(HashMap::default())),
+            ripple_cap_map: Arc::new(RwLock::new(HashMap::default())),
+            cap_policies: Arc::new(RwLock::new(HashMap::default())),
+            extended_rpc: Arc::new(RwLock::new(Vec::new())),
+            provider_relation_map: Arc::new(RwLock::new(HashMap::default())),
+            openrpc_validator: Arc::new(RwLock::new(FireboltOpenRpcValidator::default())),
+        }
+    }
+}
 
 impl OpenRpcState {
     fn load_additional_rpc(rpc: &mut FireboltOpenRpc, file_contents: &'static str) {
