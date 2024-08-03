@@ -112,6 +112,27 @@ pub enum RuleTransformType {
 pub struct RuleEngine {
     pub rules: RuleSet,
 }
+#[derive(Debug, Clone)]
+pub enum RuleEngineError {
+    PartialRuleLoadError(Vec<String>, RuleEngine),
+}
+
+#[derive(Debug, Clone)]
+pub enum JqError {
+    RuleParseFailed,
+    RuleCompileFailed,
+    RuleNotFound,
+}
+impl From<RippleError> for JqError {
+    fn from(ripple_error: RippleError) -> Self {
+        JqError::RuleCompileFailed
+    }
+}
+impl From<JqError> for RippleError {
+    fn from(jq_error: JqError) -> Self {
+        RippleError::ParseError
+    }
+}
 
 impl RuleEngine {
     fn build_path(path: &str, default_path: &str) -> String {
@@ -121,30 +142,69 @@ impl RuleEngine {
             format!("{}{}", default_path, path)
         }
     }
+    pub fn build_from_paths(
+        rule_paths: Vec<String>,
+        default_path: &str,
+    ) -> Result<Self, RuleEngineError> {
+        let mut engine = RuleEngine::default();
+        let mut failed_paths: Vec<String> = Vec::new();
+        for path in rule_paths.iter() {
+            let path = Self::build_path(path, default_path);
+            if let Ok(contents) = fs::read_to_string(path.clone()) {
+                if let Ok((path, rule_set)) = Self::load_from_content(contents) {
+                    debug!("Rules loaded from path={}", path);
+                    engine.rules.append(rule_set)
+                } else {
+                    failed_paths.push(path.to_string());
+                    warn!("invalid rule found in path {}", path)
+                }
+            } else {
+                failed_paths.push(path.to_string());
+                warn!("path for the rule is invalid {}", path)
+            }
+        }
+        if failed_paths.len() > 0 {
+            return Err(RuleEngineError::PartialRuleLoadError(failed_paths, engine));
+        } else {
+            return Ok(engine);
+        }
+    }
 
     pub fn build(extn_manifest: &ExtnManifest) -> Self {
         debug!("building rules engine {:?}", extn_manifest.rules_path);
-        let mut engine = RuleEngine::default();
-        for path in extn_manifest.rules_path.iter() {
-            let path_for_rule = Self::build_path(path, &extn_manifest.default_path);
-            debug!("loading rule {}", path_for_rule);
-            if let Some(p) = Path::new(&path_for_rule).to_str() {
-                if let Ok(contents) = fs::read_to_string(p) {
-                    debug!("Rule content {}", contents);
-                    if let Ok((path, rule_set)) = Self::load_from_content(contents) {
-                        debug!("Rules loaded from path={}", path);
-                        engine.rules.append(rule_set)
-                    } else {
-                        warn!("invalid rule found in path {}", path)
-                    }
-                } else {
-                    warn!("path for the rule is invalid {}", path)
+        match Self::build_from_paths(
+            extn_manifest.rules_path.clone(),
+            extn_manifest.default_path.as_str(),
+        ) {
+            Ok(engine) => engine,
+            Err(e) => match e {
+                RuleEngineError::PartialRuleLoadError(failed_paths, engine) => {
+                    error!("Failed to load rules from paths  {:?}. This is currently not fatal but may produce unexepected results. ",failed_paths);
+                    engine
                 }
-            } else {
-                warn!("invalid rule path {}", path)
-            }
+            },
         }
-        engine
+        // let mut engine = RuleEngine::default();
+        // for path in extn_manifest.rules_path.iter() {
+        //     let path_for_rule = Self::build_path(path, &extn_manifest.default_path);
+        //     debug!("loading rule {}", path_for_rule);
+        //     if let Some(p) = Path::new(&path_for_rule).to_str() {
+        //         if let Ok(contents) = fs::read_to_string(p) {
+        //             debug!("Rule content {}", contents);
+        //             if let Ok((path, rule_set)) = Self::load_from_content(contents) {
+        //                 debug!("Rules loaded from path={}", path);
+        //                 engine.rules.append(rule_set)
+        //             } else {
+        //                 warn!("invalid rule found in path {}", path)
+        //             }
+        //         } else {
+        //             warn!("path for the rule is invalid {}", path)
+        //         }
+        //     } else {
+        //         warn!("invalid rule path {}", path)
+        //     }
+        // }
+        // engine
     }
 
     pub fn load_from_content(contents: String) -> Result<(String, RuleSet), RippleError> {
@@ -162,15 +222,17 @@ impl RuleEngine {
     }
 
     pub fn get_rule(&self, rpc_request: &RpcRequest) -> Option<Rule> {
-        if let Some(mut rule) = self.rules.rules.get(&rpc_request.method).cloned() {
-            rule.transform.apply_context(rpc_request);
+        self.get_rule_by_method_name(&rpc_request.method)
+    }
+    pub fn get_rule_by_method_name(&self, method_name: &str) -> Option<Rule> {
+        if let Some(rule) = self.rules.rules.get(method_name).cloned() {
             return Some(rule);
         }
         None
     }
 }
 
-pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value, RippleError> {
+pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value, JqError> {
     debug!("Jq rule {}  input {:?}", filter, input);
     let start = Utc::now().timestamp_millis();
     // start out only from core filters,
@@ -182,7 +244,7 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
     let (f, errs) = jaq_parse::parse(filter, jaq_parse::main());
     if !errs.is_empty() {
         error!("Error in rule {:?}", errs);
-        return Err(RippleError::RuleError);
+        return Err(JqError::RuleParseFailed);
     }
 
     // compile the filter in the context of the given definitions
@@ -192,7 +254,7 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
         for (err, _) in defs.errs {
             error!("reference={} {}", reference, err);
         }
-        return Err(RippleError::RuleError);
+        return Err(JqError::RuleCompileFailed);
     }
 
     let inputs = RcIter::new(core::iter::empty());
@@ -209,5 +271,5 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
         return Ok(Value::from(v));
     }
 
-    Err(RippleError::ParseError)
+    Err(JqError::RuleNotFound)
 }

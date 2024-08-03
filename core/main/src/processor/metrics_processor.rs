@@ -42,8 +42,8 @@ use ripple_sdk::{
 use crate::{
     service::{data_governance::DataGovernance, telemetry_builder::TelemetryBuilder},
     state::platform_state::PlatformState,
-    SEMVER_LIGHTWEIGHT,
 };
+include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
 pub async fn send_metric(
     platform_state: &PlatformState,
