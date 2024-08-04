@@ -18,6 +18,7 @@ use jaq_interpret::{Ctx, FilterT, ParseCtx, RcIter, Val};
 use ripple_sdk::api::{
     gateway::rpc_gateway_api::RpcRequest, manifest::extn_manifest::ExtnManifest,
 };
+use ripple_sdk::log::trace;
 use ripple_sdk::{
     chrono::Utc,
     log::{debug, error, info, warn},
@@ -131,6 +132,7 @@ pub enum JqError {
     RuleParseFailed,
     RuleCompileFailed,
     RuleNotFound,
+    InvalidData,
 }
 impl From<RippleError> for JqError {
     fn from(ripple_error: RippleError) -> Self {
@@ -241,8 +243,53 @@ impl RuleEngine {
     }
 }
 
+// pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value, JqError> {
+//     debug!("Jq rule {}  input {:?}", filter, input);
+//     let start = Utc::now().timestamp_millis();
+//     // start out only from core filters,
+//     // which do not include filters in the standard library
+//     // such as `map`, `select` etc.
+//     let mut defs = ParseCtx::new(Vec::new());
+
+//     // parse the filter
+//     let (f, errs) = jaq_parse::parse(filter, jaq_parse::main());
+//     if !errs.is_empty() {
+//         error!("Error in rule {:?}", errs);
+//         return Err(JqError::RuleParseFailed);
+//     }
+
+//     // compile the filter in the context of the given definitions
+//     let f = defs.compile(f.unwrap());
+//     if !defs.errs.is_empty() {
+//         error!("Error in rule {}", reference);
+//         for (err, _) in defs.errs {
+//             error!("reference={} {}", reference, err);
+//         }
+//         return Err(JqError::RuleCompileFailed);
+//     }
+
+//     let inputs = RcIter::new(core::iter::empty());
+
+//     // iterator over the output values
+//     let mut out = f.run((Ctx::new([], &inputs), Val::from(input)));
+
+//     if let Some(Ok(v)) = out.next() {
+//         info!(
+//             "Ripple Gateway Rule Processing Time: {},{}",
+//             reference,
+//             Utc::now().timestamp_millis() - start
+//         );
+//         return Ok(Value::from(v));
+//     }
+
+//     Err(JqError::RuleNotFound)
+// }
+
 pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value, JqError> {
-    debug!("Jq rule {}  input {:?}", filter, input);
+    debug!(
+        "processing jq_rule={}, input {:?} , reference={}",
+        filter, input, reference
+    );
     let start = Utc::now().timestamp_millis();
     // start out only from core filters,
     // which do not include filters in the standard library
@@ -269,16 +316,46 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
     let inputs = RcIter::new(core::iter::empty());
 
     // iterator over the output values
-    let mut out = f.run((Ctx::new([], &inputs), Val::from(input)));
+    let out = f
+        .run((Ctx::new([], &inputs), Val::from(input.clone())))
+        .next();
 
-    if let Some(Ok(v)) = out.next() {
-        info!(
-            "Ripple Gateway Rule Processing Time: {},{}",
-            reference,
-            Utc::now().timestamp_millis() - start
-        );
-        return Ok(Value::from(v));
+    match out {
+        Some(val) => match val {
+            Ok(v) => {
+                info!(
+                    "Ripple Gateway Rule Processing Time: {},{}",
+                    reference,
+                    Utc::now().timestamp_millis() - start
+                );
+                trace!(
+                    "jq_rule={}, input {:?} , extracted value={}",
+                    filter,
+                    input,
+                    v
+                );
+
+                if v == Val::Null {
+                    debug!(
+                        "jq processing returned null for jq_rule={}, input {:?} , reference={}",
+                        filter, input, reference
+                    );
+                    return Err(JqError::InvalidData);
+                }
+                Ok(Value::from(v))
+            }
+            Err(e) => {
+                debug!("Encountered primtive value in jq_rule={}, input {:?} , reference={}, error={}. Returning value {}", filter, input, reference,e,input);
+                return Ok(Value::from(input));
+            }
+        },
+        None => {
+            error!(
+                "Ripple Gateway Rule Processing Time: {},{}",
+                reference,
+                Utc::now().timestamp_millis() - start
+            );
+            Err(JqError::RuleNotFound)
+        }
     }
-
-    Err(JqError::RuleNotFound)
 }

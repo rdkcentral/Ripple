@@ -26,7 +26,7 @@ use ripple_sdk::{
     },
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
-    log::error,
+    log::{debug, error, info},
     semver::Op,
     tokio::{
         self,
@@ -603,23 +603,27 @@ pub enum BrokerWorkFlowError {
     Error,
     MissingValueError,
 }
+pub struct SessionizedApiMessage {
+    pub session_id: String,
+    pub api_message: ApiMessage,
+}
 #[derive(Debug, Clone)]
 pub enum BrokerWorkflowSuccess {
     SubscriptionProcessed(BrokerOutput, Option<u64>),
     Unsubcribe(BrokerOutput, Option<u64>),
-    RuleAppliedToEvent(BrokerOutput),
-    FilterApplied(BrokerOutput),
+    RuleAppliedToEvent(BrokerOutput, Option<u64>),
+    FilterApplied(BrokerOutput, Option<u64>),
 }
 impl From<JqError> for BrokerWorkFlowError {
     fn from(e: JqError) -> Self {
         BrokerWorkFlowError::Error
     }
 }
-impl From<BrokerOutput> for BrokerWorkflowSuccess {
-    fn from(e: BrokerOutput) -> Self {
-        BrokerWorkflowSuccess::FilterApplied(e)
-    }
-}
+// impl From<BrokerOutput> for BrokerWorkflowSuccess {
+//     fn from(e: BrokerOutput) -> Self {
+//         BrokerWorkflowSuccess::FilterApplied(e)
+//     }
+// }
 
 /*
 
@@ -631,7 +635,6 @@ pub fn run_broker_workflow(
 ) -> Result<BrokerWorkflowSuccess, BrokerWorkFlowError> {
     let sub_processed = broker_request.is_subscription_processed();
     let rpc_request = broker_request.rpc.clone();
-    let session_id = rpc_request.ctx.get_id();
     let is_subscription = rpc_request.is_subscription();
     let is_event = is_event(broker_output.data.method.clone());
     let id = get_event_id(broker_output.clone());
@@ -642,7 +645,7 @@ pub fn run_broker_workflow(
         mutant.data.id = Some(request_id);
         if is_event {
             let f = apply_rule_for_event(&broker_request, &result, &rpc_request, &broker_output)?;
-            return Ok(BrokerWorkflowSuccess::RuleAppliedToEvent(f));
+            return Ok(BrokerWorkflowSuccess::RuleAppliedToEvent(f, id));
         } else if is_subscription {
             if sub_processed {
                 return Ok(BrokerWorkflowSuccess::SubscriptionProcessed(mutant, id));
@@ -659,12 +662,10 @@ pub fn run_broker_workflow(
             .get_filter(super::rules_engine::RuleTransformType::Response)
         {
             // let broker_output = apply_response(result, filter, &rpc_request, broker_output)?;
-            return Ok(BrokerWorkflowSuccess::FilterApplied(apply_response(
-                result,
-                filter,
-                &rpc_request,
-                broker_output,
-            )?));
+            return Ok(BrokerWorkflowSuccess::FilterApplied(
+                apply_response(result, filter, &rpc_request, broker_output)?,
+                id,
+            ));
         }
     }
     Err(BrokerWorkFlowError::MissingValueError)
@@ -692,95 +693,67 @@ pub fn get_request_id(broker_request: &BrokerRequest, request_id: Option<u64>) -
 pub fn broker_workflow(
     broker_output: &BrokerOutput,
     broker_request: &BrokerRequest,
-) -> Result<ApiMessage, BrokerWorkFlowError> {
+) -> Result<SessionizedApiMessage, BrokerWorkFlowError> {
     match run_broker_workflow(broker_output, broker_request)? {
         BrokerWorkflowSuccess::SubscriptionProcessed(broker_output, request_id) => {
-            brokered_to_api_message_response(
+            Ok(SessionizedApiMessage {
+                session_id: broker_request.rpc.ctx.get_id(),
+                api_message: brokered_to_api_message_response(
+                    broker_output,
+                    broker_request,
+                    broker_request.rpc.ctx.request_id.clone(),
+                )?,
+            })
+        }
+        BrokerWorkflowSuccess::Unsubcribe(broker_output, request_id) => Ok(SessionizedApiMessage {
+            session_id: broker_request.rpc.ctx.get_id(),
+            api_message: brokered_to_api_message_response(
                 broker_output,
                 broker_request,
-                get_request_id(broker_request, request_id),
-            )
-        }
-        BrokerWorkflowSuccess::Unsubcribe(broker_output, request_id) => {
-            brokered_to_api_message_response(
+                broker_request.rpc.ctx.request_id.clone(),
+            )?,
+        }),
+        BrokerWorkflowSuccess::RuleAppliedToEvent(broker_output, _) => Ok(SessionizedApiMessage {
+            session_id: broker_request.rpc.ctx.get_id(),
+            api_message: brokered_to_api_message_response(
                 broker_output,
                 broker_request,
-                get_request_id(broker_request, request_id),
-            )
-        }
-        BrokerWorkflowSuccess::RuleAppliedToEvent(broker_output) => {
-            brokered_to_api_message_response(
+                broker_request.rpc.ctx.request_id.clone(),
+            )?,
+        }),
+        BrokerWorkflowSuccess::FilterApplied(broker_output, _) => Ok(SessionizedApiMessage {
+            session_id: broker_request.rpc.ctx.get_id(),
+            api_message: brokered_to_api_message_response(
                 broker_output,
                 broker_request,
-                get_request_id(broker_request, None),
-            )
-        }
-        BrokerWorkflowSuccess::FilterApplied(broker_output) => brokered_to_api_message_response(
-            broker_output,
-            broker_request,
-            get_request_id(broker_request, None),
-        ),
+                broker_request.rpc.ctx.request_id.clone(),
+            )?,
+        }),
     }
 }
 impl BrokerOutputForwarder {
     pub fn start_forwarder(platform_state: PlatformState, mut rx: Receiver<BrokerOutput>) {
         tokio::spawn(async move {
             while let Some(mut broker_output) = rx.recv().await {
-                // let mut is_event = false;
-                // // First validate the id check if it could be an event
-                // let id = if let Some(e) = v.get_event() {
-                //     is_event = true;
-                //     Some(e)
-                // } else {
-                //     v.data.id
-                // };
+                if let Some(request_id) = get_event_id(broker_output.clone()) {
+                    if let Ok(broker_request) =
+                        platform_state.endpoint_state.get_request(request_id)
+                    {
+                        info!("processing request {:?}", request_id);
 
-                if let Some(id) = get_event_id(broker_output.clone()) {
-                    if let Ok(broker_request) = platform_state.endpoint_state.get_request(id) {
-                        // let sub_processed = broker_request.is_subscription_processed();
-                        // let rpc_request = broker_request.rpc.clone();
-                        // let session_id = rpc_request.ctx.get_id();
-                        // let is_subscription = rpc_request.is_subscription();
-                        // let is_event = is_event(broker_output.data.method.clone());
-
-                        // // Step 1: Create the data
-                        // if let Some(result) = broker_output.data.result.clone() {
-                        //     if is_event {
-                        //         apply_rule_for_event(
-                        //             &broker_request,
-                        //             &result,
-                        //             &rpc_request,
-                        //             &mut broker_output,
-                        //         );
-                        //     } else if is_subscription {
-                        //         if sub_processed {
-                        //             continue;
-                        //         }
-                        //         broker_output.data.result = Some(json!({
-                        //             "listening" : rpc_request.is_listening(),
-                        //             "event" : rpc_request.ctx.method
-                        //         }));
-                        //         platform_state.endpoint_state.update_unsubscribe_request(id);
-                        //     } else if let Some(filter) = broker_request
-                        //         .rule
-                        //         .transform
-                        //         .get_filter(super::rules_engine::RuleTransformType::Response)
-                        //     {
-                        //         apply_response(result, filter, &rpc_request, &mut broker_output);
-                        //     }
-                        // }
-
-                        // let request_id = rpc_request.ctx.call_id;
-                        // broker_output.data.id = Some(request_id);
-
-                        let message = broker_workflow(&broker_output, &broker_request);
-                        match message {
+                        match broker_workflow(&broker_output, &broker_request) {
                             Ok(message) => {
+                                let session_id = message.session_id;
                                 let is_event = is_event(broker_output.data.method.clone());
-                                let session_id = get_request_id(&broker_request, None);
-                                if matches!(message.protocol, ApiProtocol::Extn) {
-                                    if let Ok(extn_message) =
-                                        platform_state.endpoint_state.get_extn_message(id, is_event)
+                                //let session_id = get_request_id(&broker_request, None);
+                                info!(
+                                    "processing request id={} for session_id={:?}",
+                                    request_id, session_id
+                                );
+                                if matches!(message.api_message.protocol, ApiProtocol::Extn) {
+                                    if let Ok(extn_message) = platform_state
+                                        .endpoint_state
+                                        .get_extn_message(request_id, is_event)
                                     {
                                         if is_event {
                                             forward_extn_event(
@@ -790,7 +763,7 @@ impl BrokerOutputForwarder {
                                             )
                                             .await;
                                         } else {
-                                            return_extn_response(message, extn_message)
+                                            return_extn_response(message.api_message, extn_message)
                                         }
                                     }
                                 } else if let Some(session) = platform_state
@@ -799,7 +772,7 @@ impl BrokerOutputForwarder {
                                 {
                                     return_api_message_for_transport(
                                         session,
-                                        message,
+                                        message.api_message,
                                         platform_state.clone(),
                                     )
                                     .await
@@ -807,51 +780,15 @@ impl BrokerOutputForwarder {
                             }
                             Err(e) => {
                                 error!("Error couldnt broker the event {:?}", e)
+                                /*
+                                TODO - who do we tell about this?
+                                */
                             }
                         }
                     }
                 }
             }
         });
-
-        // // Step 2: Create the message
-        // let message = ApiMessage {
-        //     request_id: request_id.to_string(),
-        //     protocol: rpc_request.ctx.protocol.clone(),
-        //     jsonrpc_msg: serde_json::to_string(&broker_output.data).unwrap(),
-        // };
-
-        // Step 3: Handle Non Extension
-        //         if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
-        //             if let Ok(extn_message) =
-        //                 platform_state.endpoint_state.get_extn_message(id, is_event)
-        //             {
-        //                 if is_event {
-        //                     forward_extn_event(
-        //                         &extn_message,
-        //                         broker_output.data,
-        //                         &platform_state,
-        //                     )
-        //                     .await;
-        //                 } else {
-        //                     return_extn_response(message, extn_message)
-        //                 }
-        //             }
-        //         } else if let Some(session) = platform_state
-        //             .session_state
-        //             .get_session_for_connection_id(&session_id)
-        //         {
-        //             return_api_message_for_transport(
-        //                 session,
-        //                 message,
-        //                 platform_state.clone(),
-        //             )
-        //             .await
-        //         }
-        //     }
-        // } else {
-        //     error!("Error couldnt broker the event {:?}", broker_output)
-        // }
     }
 
     pub fn handle_non_jsonrpc_response(
@@ -905,37 +842,104 @@ async fn forward_extn_event(
     }
 }
 
+//fn apply_response(
+//     result: Value,
+//     filter: String,
+//     rpc_request: &RpcRequest,
+//     broker_output: &BrokerOutput,
+// ) -> Result<BrokerOutput, JqError> {
+//     match jq_compile(
+//         result.clone(),
+//         &filter,
+//         format!("{}_response", rpc_request.ctx.method),
+//     ) {
+//         Ok(r) => {
+//             let mut mutant = broker_output.clone();
+//             if r.to_string().to_lowercase().contains("null") {
+//                 mutant.data.result = Some(Value::Null)
+//             } else if result.get("success").is_some() {
+//                 mutant.data.result = Some(r);
+//                 mutant.data.error = None;
+//             } else {
+//                 mutant.data.error = Some(r);
+//                 mutant.data.result = None;
+//             }
+//             Ok(mutant)
+//         }
+//         Err(e) => {
+//             error!("jq_compile error {:?}", e);
+//             Err(e)
+//         }
+//     }
+// }
 fn apply_response(
-    result: Value,
+    raw_value: Value,
     filter: String,
     rpc_request: &RpcRequest,
     broker_output: &BrokerOutput,
 ) -> Result<BrokerOutput, JqError> {
     match jq_compile(
-        result.clone(),
+        raw_value.clone(),
         &filter,
         format!("{}_response", rpc_request.ctx.method),
     ) {
-        Ok(r) => {
+        Ok(compilation_result) => {
             let mut mutant = broker_output.clone();
-            if r.to_string().to_lowercase().contains("null") {
-                mutant.data.result = Some(Value::Null)
-            } else if result.get("success").is_some() {
-                mutant.data.result = Some(r);
-                mutant.data.error = None;
+            debug!(
+                "jq_compile result {:?} for {}",
+                compilation_result, raw_value
+            );
+            if compilation_result == Value::Null {
+                error!(
+                    "error processing: {} from {}",
+                    compilation_result, raw_value
+                );
+                mutant.data.error = Some(Value::from(false));
+                mutant.data.result = Some(Value::Null);
+            } else if compilation_result.get("success").is_some() {
+                mutant.data.result = Some(compilation_result.clone());
+                mutant.data.error = match compilation_result.get("success") {
+                    Some(v) => {
+                        if v.is_boolean() {
+                            if !v.as_bool().unwrap() {
+                                Some(Value::from(false))
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    }
+                    None => None,
+                };
+            } else if raw_value.get("success").is_some() {
+                mutant.data.result = Some(compilation_result);
+                mutant.data.error = match raw_value.get("success") {
+                    Some(v) => {
+                        if v.is_boolean() {
+                            if !v.as_bool().unwrap() {
+                                Some(Value::from(false))
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    }
+                    None => None,
+                }
             } else {
-                mutant.data.error = Some(r);
-                mutant.data.result = None;
+                mutant.data.error = None;
+                mutant.data.result = Some(compilation_result);
             }
             Ok(mutant)
         }
         Err(e) => {
             error!("jq_compile error {:?}", e);
-            Err(e)
+            Err(JqError::RuleParseFailed)
         }
     }
 }
-
 fn apply_rule_for_event(
     broker_request: &BrokerRequest,
     result: &Value,
@@ -967,19 +971,6 @@ mod tests {
     use crate::broker::rules_engine::RuleTransform;
 
     use super::*;
-    mod endpoint_broker {
-        use ripple_sdk::{api::gateway::rpc_gateway_api::RpcRequest, Mockable};
-
-        #[test]
-        fn test_update_context() {
-            let _request = RpcRequest::mock();
-
-            // if let Ok(v) = WebsocketBroker::add_context(&request) {
-            //     println!("_ctx {}", v);
-            //     //assert!(v.get("_ctx").unwrap().as_u64().unwrap().eq(&1));
-            // }
-        }
-    }
 
     #[tokio::test]
     async fn test_send_error() {
