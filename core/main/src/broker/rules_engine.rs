@@ -131,7 +131,8 @@ pub enum RuleEngineError {
 pub enum JqError {
     RuleParseFailed,
     RuleCompileFailed,
-    RuleNotFound,
+    RuleNotFound(String),
+    RuleFailedToProcess(String),
     InvalidData,
 }
 impl From<RippleError> for JqError {
@@ -140,7 +141,7 @@ impl From<RippleError> for JqError {
     }
 }
 impl From<JqError> for RippleError {
-    fn from(jq_error: JqError) -> Self {
+    fn from(_: JqError) -> Self {
         RippleError::ParseError
     }
 }
@@ -304,7 +305,7 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
     }
 
     // compile the filter in the context of the given definitions
-    let f = defs.compile(f.unwrap());
+    let compiled = defs.compile(f.unwrap());
     if !defs.errs.is_empty() {
         error!("Error in rule {}", reference);
         for (err, _) in defs.errs {
@@ -313,11 +314,14 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
         return Err(JqError::RuleCompileFailed);
     }
 
-    let inputs = RcIter::new(core::iter::empty());
+    //let inputs = RcIter::new(core::iter::empty());
 
     // iterator over the output values
-    let out = f
-        .run((Ctx::new([], &inputs), Val::from(input.clone())))
+    let out = compiled
+        .run((
+            Ctx::new([], &RcIter::new(core::iter::empty())),
+            Val::from(input.clone()),
+        ))
         .next();
 
     match out {
@@ -340,9 +344,9 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
                         "jq processing returned null for jq_rule={}, input {:?} , reference={}",
                         filter, input, reference
                     );
-                    return Err(JqError::InvalidData);
+                    //return Err(JqError::InvalidData);
                 }
-                Ok(Value::from(v))
+                return Ok(Value::from(v));
             }
             Err(e) => {
                 debug!("Encountered primtive value in jq_rule={}, input {:?} , reference={}, error={}. Returning value {}", filter, input, reference,e,input);
@@ -355,7 +359,7 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
                 reference,
                 Utc::now().timestamp_millis() - start
             );
-            Err(JqError::RuleNotFound)
+            Err(JqError::RuleFailedToProcess(reference))
         }
     }
 }

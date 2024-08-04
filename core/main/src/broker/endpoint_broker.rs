@@ -600,9 +600,13 @@ pub fn get_event_id(broker_output: BrokerOutput) -> Option<u64> {
 
 #[derive(Debug, Clone)]
 pub enum BrokerWorkFlowError {
-    Error,
-    MissingValueError,
+    MissingValue,
+    NoRuleFound,
+    JqError(JqError),
+    JsonParseError,
 }
+
+#[derive(Debug, Clone)]
 pub struct SessionizedApiMessage {
     pub session_id: String,
     pub api_message: ApiMessage,
@@ -616,7 +620,7 @@ pub enum BrokerWorkflowSuccess {
 }
 impl From<JqError> for BrokerWorkFlowError {
     fn from(e: JqError) -> Self {
-        BrokerWorkFlowError::Error
+        BrokerWorkFlowError::JqError(e)
     }
 }
 // impl From<BrokerOutput> for BrokerWorkflowSuccess {
@@ -639,8 +643,9 @@ pub fn run_broker_workflow(
     let is_event = is_event(broker_output.data.method.clone());
     let id = get_event_id(broker_output.clone());
     let request_id = rpc_request.ctx.call_id;
-
+    println!("request={:?}", broker_output);
     if let Some(result) = broker_output.data.result.clone() {
+        println!("here={:?}", result);
         let mut mutant = broker_output.clone();
         mutant.data.id = Some(request_id);
         if is_event {
@@ -666,9 +671,12 @@ pub fn run_broker_workflow(
                 apply_response(result, filter, &rpc_request, broker_output)?,
                 id,
             ));
+        } else {
+            return Err(BrokerWorkFlowError::NoRuleFound);
         }
+    } else {
+        return Err(BrokerWorkFlowError::JsonParseError);
     }
-    Err(BrokerWorkFlowError::MissingValueError)
 }
 
 pub fn brokered_to_api_message_response(
@@ -682,7 +690,7 @@ pub fn brokered_to_api_message_response(
             protocol: broker_request.rpc.ctx.protocol.clone(),
             jsonrpc_msg,
         }),
-        Err(_) => Err(BrokerWorkFlowError::Error),
+        Err(_) => Err(BrokerWorkFlowError::JsonParseError),
     }
 }
 pub fn get_request_id(broker_request: &BrokerRequest, request_id: Option<u64>) -> String {
@@ -960,7 +968,7 @@ fn apply_rule_for_event(
         mutated_broker_output.data.result = Some(data);
         Ok(mutated_broker_output.clone())
     } else {
-        return Err(JqError::RuleNotFound);
+        return Err(JqError::RuleNotFound(rpc_request.ctx.method.clone()));
     }
 }
 
@@ -1079,6 +1087,9 @@ mod tests {
     #[cfg(test)]
     mod tests {
 
+        use openrpc_validator::RpcResult;
+        use serde_json::Number;
+
         use super::*;
 
         #[tokio::test]
@@ -1185,8 +1196,12 @@ mod tests {
 
         #[test]
         fn test_run_broker_workflow() {
-            let broker_request = BrokerRequest::default();
-            let broker_output = BrokerOutput::default();
+            let mut broker_request = BrokerRequest::default();
+            broker_request.rule.transform.response = Some(".success".to_owned());
+            let mut broker_output = BrokerOutput::default();
+            let mut payload = JsonRpcApiResponse::default();
+            payload.result = Some(serde_json::Value::Number(Number::from(1)));
+            broker_output.data = payload;
             let result = run_broker_workflow(&broker_output, &broker_request);
             assert!(result.is_ok());
         }
@@ -1210,8 +1225,12 @@ mod tests {
 
         #[test]
         fn test_broker_workflow() {
-            let broker_request = BrokerRequest::default();
-            let broker_output = BrokerOutput::default();
+            let mut broker_request = BrokerRequest::default();
+            broker_request.rule.transform.response = Some(".success".to_owned());
+            let mut broker_output = BrokerOutput::default();
+            let mut payload = JsonRpcApiResponse::default();
+            payload.result = Some(serde_json::Value::Number(Number::from(1)));
+            broker_output.data = payload;
             let result = super::broker_workflow(&broker_output, &broker_request);
             assert!(result.is_ok());
         }
@@ -1256,12 +1275,18 @@ mod tests {
 
         #[test]
         fn test_apply_rule_for_event() {
-            let broker_request = BrokerRequest::default();
-            let result = serde_json::json!({"success": true});
+            let mut broker_request = BrokerRequest::default();
+            broker_request.rule.transform.response = Some(".success".to_owned());
+            let mut broker_output = BrokerOutput::default();
+            let mut payload = JsonRpcApiResponse::default();
+            payload.result = Some(serde_json::Value::Number(Number::from(1)));
+            let result = json!({});
             let rpc_request = RpcRequest::default();
-            let broker_output = BrokerOutput::default();
+            broker_output.data = payload;
+            broker_request.rule.transform.event = Some(".success".to_owned());
             let result =
                 apply_rule_for_event(&broker_request, &result, &rpc_request, &broker_output);
+            println!("result={:?}", result);
             assert!(result.is_ok());
         }
     }

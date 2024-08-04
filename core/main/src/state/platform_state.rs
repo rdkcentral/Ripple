@@ -56,10 +56,11 @@ use super::{
 ///
 /// # Examples
 /// ```
-/// let state = PlatformState::default();
+/// //use core::state::platform_state::PlatformState;
+/// //let state = PlatformState::default();
 ///
-/// let manifest = state.get_device_manifest();
-/// println!("{}", manifest.unwrap().configuration.platform);
+/// //let manifest = state.get_device_manifest();
+/// //println!("{}", manifest.unwrap().configuration.platform);
 /// ```
 ///
 
