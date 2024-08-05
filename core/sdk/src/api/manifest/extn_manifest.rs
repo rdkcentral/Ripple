@@ -35,6 +35,8 @@ pub struct ExtnManifest {
     pub timeout: Option<u64>,
     #[serde(default)]
     pub rules_path: Vec<String>,
+    #[serde(default)]
+    pub extn_sdks: Vec<String>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -190,6 +192,7 @@ mod tests {
                 rpc_aliases: HashMap::new(),
                 timeout: Some(5000),
                 rules_path: Vec::new(),
+                extn_sdks: Vec::new(),
             }
         }
     }
@@ -255,6 +258,7 @@ mod tests {
             rpc_aliases: HashMap::new(),
             timeout: None,
             rules_path: Vec::new(),
+            extn_sdks: Vec::new(),
         };
 
         assert_eq!(
