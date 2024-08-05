@@ -27,7 +27,7 @@ use ripple_sdk::{
 };
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::{fs, path::Path};
+use std::fs;
 
 #[derive(Debug, Deserialize, Default, Clone)]
 pub struct RuleSet {
@@ -175,10 +175,10 @@ impl RuleEngine {
                 warn!("path for the rule is invalid {}", path)
             }
         }
-        if failed_paths.len() > 0 {
-            return Err(RuleEngineError::PartialRuleLoadError(failed_paths, engine));
+        if failed_paths.is_empty() {
+            Err(RuleEngineError::PartialRuleLoadError(failed_paths, engine))
         } else {
-            return Ok(engine);
+            Ok(engine)
         }
     }
 
@@ -346,11 +346,11 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
                     );
                     //return Err(JqError::InvalidData);
                 }
-                return Ok(Value::from(v));
+                Ok(Value::from(v))
             }
             Err(e) => {
                 debug!("Encountered primtive value in jq_rule={}, input {:?} , reference={}, error={}. Returning value {}", filter, input, reference,e,input);
-                return Ok(Value::from(input));
+                Err(JqError::RuleFailedToProcess(reference))
             }
         },
         None => {

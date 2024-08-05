@@ -53,7 +53,7 @@ impl From<CallContext> for AppIdentification {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct CallContext {
     pub session_id: String,
     pub request_id: String,
@@ -64,20 +64,20 @@ pub struct CallContext {
     pub cid: Option<String>,
     pub gateway_secure: bool,
 }
-impl Default for CallContext {
-    fn default() -> Self {
-        CallContext {
-            session_id: String::default(),
-            request_id: String::default(),
-            app_id: String::default(),
-            call_id: u64::default(),
-            protocol: ApiProtocol::default(),
-            method: String::default(),
-            cid: Option::default(),
-            gateway_secure: bool::default(),
-        }
-    }
-}
+// impl Default for CallContext {
+//     fn default() -> Self {
+//         CallContext {
+//             session_id: String::default(),
+//             request_id: String::default(),
+//             app_id: String::default(),
+//             call_id: u64::default(),
+//             protocol: ApiProtocol::default(),
+//             method: String::default(),
+//             cid: Option::default(),
+//             gateway_secure: bool::default(),
+//         }
+//     }
+// }
 
 impl CallContext {
     // TODO: refactor this to use less arguments
@@ -127,16 +127,12 @@ impl crate::Mockable for CallContext {
     }
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Default)]
 pub enum ApiProtocol {
     Bridge,
     Extn,
+    #[default]
     JsonRpc,
-}
-impl Default for ApiProtocol {
-    fn default() -> Self {
-        ApiProtocol::JsonRpc
-    }
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]

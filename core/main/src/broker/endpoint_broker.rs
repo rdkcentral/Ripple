@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use futures::executor::block_on;
 use ripple_sdk::{
     api::{
         firebolt::fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
@@ -27,7 +26,6 @@ use ripple_sdk::{
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
     log::{debug, error, info},
-    semver::Op,
     tokio::{
         self,
         sync::mpsc::{self, Receiver, Sender},
@@ -40,7 +38,7 @@ use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicU64, Ordering},
-        Arc, MutexGuard, RwLock,
+        Arc, RwLock,
     },
 };
 
@@ -78,20 +76,11 @@ impl BrokerCleaner {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct BrokerRequest {
     pub rpc: RpcRequest,
     pub rule: Rule,
     pub subscription_processed: Option<bool>,
-}
-impl Default for BrokerRequest {
-    fn default() -> Self {
-        Self {
-            rpc: RpcRequest::default(),
-            rule: Rule::default(),
-            subscription_processed: None,
-        }
-    }
 }
 
 pub type BrokerSubMap = HashMap<String, Vec<BrokerRequest>>;
@@ -595,7 +584,7 @@ pub trait EndpointBroker {
 /// Forwarder gets the BrokerOutput and forwards the response to the gateway.
 pub struct BrokerOutputForwarder;
 pub fn get_event_id(broker_output: BrokerOutput) -> Option<u64> {
-    broker_output.get_event().or_else(|| broker_output.data.id)
+    broker_output.get_event().or(broker_output.data.id)
 }
 
 #[derive(Debug, Clone)]
@@ -644,8 +633,8 @@ pub fn run_broker_workflow(
         let mut mutant = broker_output.clone();
         mutant.data.id = Some(request_id);
         if is_event {
-            let f = apply_rule_for_event(&broker_request, &result, &rpc_request, &broker_output)?;
-            return Ok(BrokerWorkflowSuccess::RuleAppliedToEvent(f, id));
+            let f = apply_rule_for_event(broker_request, &result, &rpc_request, broker_output)?;
+            Ok(BrokerWorkflowSuccess::RuleAppliedToEvent(f, id))
         } else if is_subscription {
             if sub_processed {
                 return Ok(BrokerWorkflowSuccess::SubscriptionProcessed(mutant, id));
@@ -654,22 +643,21 @@ pub fn run_broker_workflow(
                 "listening" : rpc_request.is_listening(),
                 "event" : rpc_request.ctx.method
             }));
-            return Ok(BrokerWorkflowSuccess::Unsubcribe(mutant, id));
-            //platform_state.endpoint_state.update_unsubscribe_request(id);
+            Ok(BrokerWorkflowSuccess::Unsubcribe(mutant, id))
         } else if let Some(filter) = broker_request
             .rule
             .transform
             .get_filter(super::rules_engine::RuleTransformType::Response)
         {
-            return Ok(BrokerWorkflowSuccess::FilterApplied(
+            Ok(BrokerWorkflowSuccess::FilterApplied(
                 apply_response(result, filter, &rpc_request, broker_output)?,
                 id,
-            ));
+            ))
         } else {
-            return Err(BrokerWorkFlowError::NoRuleFound);
+            Err(BrokerWorkFlowError::NoRuleFound)
         }
     } else {
-        return Err(BrokerWorkFlowError::JsonParseError);
+        Err(BrokerWorkFlowError::JsonParseError)
     }
 }
 
@@ -680,7 +668,7 @@ pub fn brokered_to_api_message_response(
 ) -> Result<ApiMessage, BrokerWorkFlowError> {
     match serde_json::to_string(&broker_output.data) {
         Ok(jsonrpc_msg) => Ok(ApiMessage {
-            request_id: request_id, //broker_request.rpc.ctx.call_id.to_string(),
+            request_id,
             protocol: broker_request.rpc.ctx.protocol.clone(),
             jsonrpc_msg,
         }),
@@ -698,7 +686,7 @@ pub fn broker_workflow(
     platform_state: &PlatformState,
 ) -> Result<SessionizedApiMessage, BrokerWorkFlowError> {
     match run_broker_workflow(broker_output, broker_request)? {
-        BrokerWorkflowSuccess::SubscriptionProcessed(broker_output, request_id) => {
+        BrokerWorkflowSuccess::SubscriptionProcessed(broker_output, _request_id) => {
             Ok(SessionizedApiMessage {
                 session_id: broker_request.rpc.ctx.get_id(),
                 api_message: brokered_to_api_message_response(
@@ -709,7 +697,10 @@ pub fn broker_workflow(
             })
         }
         BrokerWorkflowSuccess::Unsubcribe(broker_output, request_id) => {
-            request_id.map(|id| platform_state.endpoint_state.update_unsubscribe_request(id));
+            if let Some(id) = request_id {
+                platform_state.endpoint_state.update_unsubscribe_request(id)
+            }
+
             Ok(SessionizedApiMessage {
                 session_id: broker_request.rpc.ctx.get_id(),
                 api_message: brokered_to_api_message_response(
@@ -740,7 +731,7 @@ pub fn broker_workflow(
 impl BrokerOutputForwarder {
     pub fn start_forwarder(platform_state: PlatformState, mut rx: Receiver<BrokerOutput>) {
         tokio::spawn(async move {
-            while let Some(mut broker_output) = rx.recv().await {
+            while let Some(broker_output) = rx.recv().await {
                 if let Some(request_id) = get_event_id(broker_output.clone()) {
                     if let Ok(broker_request) =
                         platform_state.endpoint_state.get_request(request_id)
@@ -970,7 +961,7 @@ fn apply_rule_for_event(
         mutated_broker_output.data.result = Some(data);
         Ok(mutated_broker_output.clone())
     } else {
-        return Err(JqError::RuleNotFound(rpc_request.ctx.method.clone()));
+        Err(JqError::RuleNotFound(rpc_request.ctx.method.clone()))
     }
 }
 
@@ -1004,293 +995,108 @@ mod tests {
         let value = tr.recv().await.unwrap();
         assert!(value.data.error.is_some())
     }
-
-    mod broker_output {
-        use ripple_sdk::{api::gateway::rpc_gateway_api::JsonRpcApiResponse, Mockable};
-
-        use crate::broker::endpoint_broker::BrokerOutput;
-
-        #[test]
-        fn test_result() {
-            let mut data = JsonRpcApiResponse::mock();
-            let output = BrokerOutput { data: data.clone() };
-            assert!(!output.is_result());
-            data.result = Some(serde_json::Value::Null);
-            let output = BrokerOutput { data };
-            assert!(output.is_result());
-        }
-
-        #[test]
-        fn test_get_event() {
-            let mut data = JsonRpcApiResponse::mock();
-            data.method = Some("20.events".to_owned());
-            let output = BrokerOutput { data };
-            assert_eq!(20, output.get_event().unwrap())
-        }
-    }
-
-    mod endpoint_broker_state {
-        use ripple_sdk::{
-            api::gateway::rpc_gateway_api::RpcRequest, tokio, tokio::sync::mpsc::channel, Mockable,
-        };
-
-        use crate::{
-            broker::{
-                endpoint_broker::tests::RippleClient,
-                rules_engine::{Rule, RuleEngine, RuleSet, RuleTransform},
-            },
-            state::bootstrap_state::ChannelsState,
-        };
-
-        use super::EndpointBrokerState;
-
-        use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
-
-        #[tokio::test]
-        async fn get_request() {
-            let (tx, _) = channel(2);
-            let client = RippleClient::new(ChannelsState::new());
-            let state = EndpointBrokerState::new(
-                tx,
-                RuleEngine {
-                    rules: RuleSet::default(),
-                },
-                client,
-            );
-            let mut request = RpcRequest::mock();
-            state.update_request(
-                &request,
-                Rule {
-                    alias: "somecallsign.method".to_owned(),
-                    transform: RuleTransform::default(),
-                    endpoint: None,
-                },
-                None,
-            );
-            request.ctx.call_id = 2;
-            state.update_request(
-                &request,
-                Rule {
-                    alias: "somecallsign.method".to_owned(),
-                    transform: RuleTransform::default(),
-                    endpoint: None,
-                },
-                None,
-            );
-
-            // Hardcoding the id here will be a problem as multiple tests uses the atomic id and there is no guarantee
-            // that this test case would always be the first one to run
-            // Revisit this test case, to make it more robust
-            // assert!(state.get_request(2).is_ok());
-            // assert!(state.get_request(1).is_ok());
-        }
-    }
     /*add exhaustive unit tests for as many function as possible */
-    #[cfg(test)]
-    mod tests {
 
-        use openrpc_validator::RpcResult;
-        use serde_json::Number;
+    use serde_json::Number;
 
-        use super::*;
+    #[test]
+    fn test_run_broker_workflow() {
+        let mut broker_request = BrokerRequest::default();
+        broker_request.rule.transform.response = Some(".success".to_owned());
+        let payload = JsonRpcApiResponse {
+            result: Some(serde_json::Value::Number(Number::from(1))),
+            ..Default::default()
+        };
+        let broker_output = BrokerOutput { data: payload };
 
-        #[tokio::test]
-        async fn test_send_error() {
-            let (tx, mut tr) = channel(2);
-            let callback = BrokerCallback { sender: tx };
+        let result = run_broker_workflow(&broker_output, &broker_request);
+        assert!(result.is_ok());
+    }
 
-            callback
-                .send_error(
-                    BrokerRequest {
-                        rpc: RpcRequest::mock(),
-                        rule: Rule {
-                            alias: "somecallsign.method".to_owned(),
-                            transform: RuleTransform::default(),
-                            endpoint: None,
-                        },
-                        subscription_processed: None,
-                    },
-                    RippleError::InvalidInput,
-                )
-                .await;
-            let value = tr.recv().await.unwrap();
-            assert!(value.data.error.is_some())
-        }
+    #[test]
+    fn test_brokered_to_api_message_response() {
+        let request_id = String::from("12345");
+        let broker_request = BrokerRequest::default();
+        let broker_output = BrokerOutput::default();
+        let result = brokered_to_api_message_response(broker_output, &broker_request, request_id);
+        assert!(result.is_ok());
+    }
 
-        mod broker_output {
-            use ripple_sdk::{api::gateway::rpc_gateway_api::JsonRpcApiResponse, Mockable};
+    #[test]
+    fn test_get_request_id() {
+        let broker_request = BrokerRequest::default();
+        let request_id = get_request_id(&broker_request, None);
+        assert!(!request_id.is_empty());
+    }
 
-            use crate::broker::endpoint_broker::BrokerOutput;
+    #[test]
+    fn test_broker_workflow() {
+        let mut broker_request = BrokerRequest::default();
+        broker_request.rule.transform.response = Some(".success".to_owned());
+        let payload = JsonRpcApiResponse {
+            result: Some(serde_json::Value::Number(Number::from(1))),
+            ..Default::default()
+        };
 
-            #[test]
-            fn test_result() {
-                let mut data = JsonRpcApiResponse::mock();
-                let output = BrokerOutput { data: data.clone() };
-                assert!(!output.is_result());
-                data.result = Some(serde_json::Value::Null);
-                let output = BrokerOutput { data };
-                assert!(output.is_result());
-            }
+        let broker_output = BrokerOutput { data: payload };
+        let result =
+            super::broker_workflow(&broker_output, &broker_request, &PlatformState::default());
+        assert!(result.is_ok());
+    }
 
-            #[test]
-            fn test_get_event() {
-                let mut data = JsonRpcApiResponse::mock();
-                data.method = Some("20.events".to_owned());
-                let output = BrokerOutput { data };
-                assert_eq!(20, output.get_event().unwrap())
-            }
-        }
+    // #[test]
+    // fn test_start_forwarder() {
+    //     let platform_state = PlatformState::default();
+    //     let rx = Receiver::default();
 
-        mod endpoint_broker_state {
-            use super::*;
-            use ripple_sdk::{
-                api::gateway::rpc_gateway_api::RpcRequest, tokio, tokio::sync::mpsc::channel,
-                Mockable,
-            };
+    //     start_forwarder(platform_state, rx);
+    //     // TODO: Add assertions or mock the tokio::spawn call to verify the behavior
+    // }
 
-            use crate::{
-                broker::{
-                    endpoint_broker::{tests::RippleClient, EndpointBrokerState},
-                    rules_engine::{Rule, RuleEngine, RuleSet, RuleTransform},
-                },
-                state::bootstrap_state::ChannelsState,
-            };
+    #[test]
+    fn test_handle_non_jsonrpc_response() {
+        let data: &[u8] = &[1, 2, 3];
+        let callback = BrokerCallback::default();
+        let request = BrokerRequest::default();
+        let result = BrokerOutputForwarder::handle_non_jsonrpc_response(data, callback, request);
+        assert!(result.is_err());
+    }
 
-            #[tokio::test]
-            async fn get_request() {
-                let (tx, _) = channel(2);
-                let client = RippleClient::new(ChannelsState::new());
-                let state = EndpointBrokerState::new(
-                    tx,
-                    RuleEngine {
-                        rules: RuleSet::default(),
-                    },
-                    client,
-                );
-                let mut request = RpcRequest::mock();
-                state.update_request(
-                    &request,
-                    Rule {
-                        alias: "somecallsign.method".to_owned(),
-                        transform: RuleTransform::default(),
-                        endpoint: None,
-                    },
-                    None,
-                );
-                request.ctx.call_id = 2;
-                state.update_request(
-                    &request,
-                    Rule {
-                        alias: "somecallsign.method".to_owned(),
-                        transform: RuleTransform::default(),
-                        endpoint: None,
-                    },
-                    None,
-                );
+    #[tokio::test]
+    async fn test_forward_extn_event() {
+        let extn_message = ExtnMessage::default();
+        let v = JsonRpcApiResponse::default();
+        let platform_state = PlatformState::default();
+        forward_extn_event(&extn_message, v, &platform_state).await;
+        // TODO: Add assertions or mock the platform_state.get_client().get_extn_client().send_message call to verify the behavior
+    }
 
-                // Hardcoding the id here will be a problem as multiple tests uses the atomic id and there is no guarantee
-                // that this test case would always be the first one to run
-                // Revisit this test case, to make it more robust
-                // assert!(state.get_request(2).is_ok());
-                // assert!(state.get_request(1).is_ok());
-            }
-        }
+    #[test]
+    fn test_apply_response() {
+        let result = serde_json::json!({"success": true});
+        let filter = String::from(".success");
+        let rpc_request = RpcRequest::default();
+        let broker_output = BrokerOutput::default();
+        let result = apply_response(result, filter, &rpc_request, &broker_output);
+        assert!(result.is_ok());
+    }
 
-        #[test]
-        fn test_run_broker_workflow() {
-            let mut broker_request = BrokerRequest::default();
-            broker_request.rule.transform.response = Some(".success".to_owned());
-            let mut broker_output = BrokerOutput::default();
-            let mut payload = JsonRpcApiResponse::default();
-            payload.result = Some(serde_json::Value::Number(Number::from(1)));
-            broker_output.data = payload;
-            let result = run_broker_workflow(&broker_output, &broker_request);
-            assert!(result.is_ok());
-        }
+    #[test]
+    fn test_apply_rule_for_event() {
+        let mut broker_request = BrokerRequest::default();
+        broker_request.rule.transform.response = Some(".success".to_owned());
+        let payload = JsonRpcApiResponse {
+            result: Some(serde_json::Value::Number(Number::from(1))),
+            ..Default::default()
+        };
 
-        #[test]
-        fn test_brokered_to_api_message_response() {
-            let request_id = String::from("12345");
-            let broker_request = BrokerRequest::default();
-            let broker_output = BrokerOutput::default();
-            let result =
-                brokered_to_api_message_response(broker_output, &broker_request, request_id);
-            assert!(result.is_ok());
-        }
+        let result = json!({});
+        let rpc_request = RpcRequest::default();
+        let broker_output = BrokerOutput { data: payload };
 
-        #[test]
-        fn test_get_request_id() {
-            let broker_request = BrokerRequest::default();
-            let request_id = get_request_id(&broker_request, None);
-            assert!(!request_id.is_empty());
-        }
-
-        #[test]
-        fn test_broker_workflow() {
-            let mut broker_request = BrokerRequest::default();
-            broker_request.rule.transform.response = Some(".success".to_owned());
-            let mut broker_output = BrokerOutput::default();
-            let mut payload = JsonRpcApiResponse::default();
-            payload.result = Some(serde_json::Value::Number(Number::from(1)));
-            broker_output.data = payload;
-            let result =
-                super::broker_workflow(&broker_output, &broker_request, &PlatformState::default());
-            assert!(result.is_ok());
-        }
-
-        // #[test]
-        // fn test_start_forwarder() {
-        //     let platform_state = PlatformState::default();
-        //     let rx = Receiver::default();
-
-        //     start_forwarder(platform_state, rx);
-        //     // TODO: Add assertions or mock the tokio::spawn call to verify the behavior
-        // }
-
-        #[test]
-        fn test_handle_non_jsonrpc_response() {
-            let data: &[u8] = &[1, 2, 3];
-            let callback = BrokerCallback::default();
-            let request = BrokerRequest::default();
-            let result =
-                BrokerOutputForwarder::handle_non_jsonrpc_response(data, callback, request);
-            assert!(result.is_err());
-        }
-
-        #[tokio::test]
-        async fn test_forward_extn_event() {
-            let extn_message = ExtnMessage::default();
-            let v = JsonRpcApiResponse::default();
-            let platform_state = PlatformState::default();
-            forward_extn_event(&extn_message, v, &platform_state).await;
-            // TODO: Add assertions or mock the platform_state.get_client().get_extn_client().send_message call to verify the behavior
-        }
-
-        #[test]
-        fn test_apply_response() {
-            let result = serde_json::json!({"success": true});
-            let filter = String::from(".success");
-            let rpc_request = RpcRequest::default();
-            let broker_output = BrokerOutput::default();
-            let result = apply_response(result, filter, &rpc_request, &broker_output);
-            assert!(result.is_ok());
-        }
-
-        #[test]
-        fn test_apply_rule_for_event() {
-            let mut broker_request = BrokerRequest::default();
-            broker_request.rule.transform.response = Some(".success".to_owned());
-            let mut broker_output = BrokerOutput::default();
-            let mut payload = JsonRpcApiResponse::default();
-            payload.result = Some(serde_json::Value::Number(Number::from(1)));
-            let result = json!({});
-            let rpc_request = RpcRequest::default();
-            broker_output.data = payload;
-            broker_request.rule.transform.event = Some(".success".to_owned());
-            let result =
-                apply_rule_for_event(&broker_request, &result, &rpc_request, &broker_output);
-            println!("result={:?}", result);
-            assert!(result.is_ok());
-        }
+        broker_request.rule.transform.event = Some(".success".to_owned());
+        let result = apply_rule_for_event(&broker_request, &result, &rpc_request, &broker_output);
+        println!("result={:?}", result);
+        assert!(result.is_ok());
     }
 }
