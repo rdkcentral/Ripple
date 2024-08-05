@@ -15,19 +15,22 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use ripple_sdk::api::{
-    firebolt::{
-        fb_capabilities::FireboltPermission,
-        fb_openrpc::{
-            CapabilitySet, FireboltOpenRpc, FireboltOpenRpcMethod, FireboltSemanticVersion,
-            FireboltVersionManifest, OpenRPCParser,
-        },
-        provider::ProviderAttributes,
-    },
-    manifest::exclusory::{Exclusory, ExclusoryImpl},
-};
 use ripple_sdk::log::{debug, error};
 use ripple_sdk::{api::firebolt::fb_openrpc::CapabilityPolicy, serde_json};
+use ripple_sdk::{
+    api::{
+        firebolt::{
+            fb_capabilities::FireboltPermission,
+            fb_openrpc::{
+                CapabilitySet, FireboltOpenRpc, FireboltOpenRpcMethod, FireboltSemanticVersion,
+                FireboltVersionManifest, OpenRPCParser,
+            },
+            provider::ProviderAttributes,
+        },
+        manifest::exclusory::{Exclusory, ExclusoryImpl},
+    },
+    utils::error::RippleError,
+};
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
@@ -69,7 +72,7 @@ pub fn build_provider_relation_sets(
     for method in openrpc_methods {
         let mut has_x_provides = None;
 
-        // Only build provider sets for AcknowledgeChallenge, PinChallenge methods, Discovery, and Content for now
+        // Only build provider sets for those indicated below, for now.
         if !method.name.starts_with("AcknowledgeChallenge.")
             && !method.name.starts_with("PinChallenge.")
             && !method.name.starts_with("Discovery.userInterest")
@@ -77,6 +80,9 @@ pub fn build_provider_relation_sets(
             && !method.name.starts_with("Discovery.userInterestResponse")
             && !method.name.starts_with("Content.requestUserInterest")
             && !method.name.starts_with("Content.onUserInterest")
+            && !method.name.starts_with("Player.")
+            && !method.name.starts_with("StreamingPlayer.")
+            && !method.name.starts_with("BroadcastPlayer.")
         {
             continue;
         }
@@ -222,6 +228,44 @@ impl OpenRpcState {
         }
     }
 
+    fn load_open_rpc(path: &str) -> Option<FireboltOpenRpc> {
+        match std::fs::read_to_string(path) {
+            Ok(content) => {
+                debug!("load_open_rpc: loading from {path}");
+                let firebolt_version_manifest: Result<FireboltVersionManifest, _> =
+                    serde_json::from_str(&content);
+                match firebolt_version_manifest {
+                    Ok(fvm) => {
+                        return Some(fvm.into());
+                    }
+                    _ => {
+                        error!("load_open_rpc: can't parse {path}");
+                    }
+                }
+            }
+            Err(e) => {
+                error!("load_open_rpc: can't read {path}, e={:?}", e);
+            }
+        }
+
+        None
+    }
+
+    pub fn add_extension_open_rpc(&self, path: &str) -> Result<(), RippleError> {
+        match Self::load_open_rpc(path) {
+            Some(open_rpc) => {
+                let provider_relation_sets = build_provider_relation_sets(&open_rpc.methods);
+                self.provider_relation_map
+                    .write()
+                    .unwrap()
+                    .extend(provider_relation_sets);
+                self.add_open_rpc(open_rpc);
+                Ok(())
+            }
+            None => Err(RippleError::ParseError),
+        }
+    }
+
     fn load_firebolt_open_rpc() -> FireboltVersionManifest {
         let mut fb_open_rpc_file = "/etc/ripple/openrpc/firebolt-open-rpc.json".to_string();
 
@@ -257,7 +301,7 @@ impl OpenRpcState {
         version_manifest
     }
 
-    pub fn new(exclusory: Option<ExclusoryImpl>) -> OpenRpcState {
+    pub fn new(exclusory: Option<ExclusoryImpl>, extn_sdks: Vec<String>) -> OpenRpcState {
         let version_manifest = Self::load_firebolt_open_rpc();
 
         let firebolt_open_rpc: FireboltOpenRpc = version_manifest.clone().into();
@@ -268,7 +312,7 @@ impl OpenRpcState {
         let openrpc_validator: FireboltOpenRpcValidator =
             serde_json::from_str(std::include_str!("./firebolt-open-rpc.json")).unwrap();
 
-        OpenRpcState {
+        let v = OpenRpcState {
             firebolt_cap_map: Arc::new(RwLock::new(firebolt_open_rpc.get_methods_caps())),
             ripple_cap_map: Arc::new(RwLock::new(ripple_open_rpc.get_methods_caps())),
             exclusory,
@@ -279,7 +323,15 @@ impl OpenRpcState {
                 &firebolt_open_rpc.methods,
             ))),
             openrpc_validator: Arc::new(RwLock::new(openrpc_validator)),
+        };
+
+        for path in extn_sdks {
+            if v.add_extension_open_rpc(&path).is_err() {
+                error!("Error adding extn_sdk from {path}");
+            }
         }
+
+        v
     }
 
     pub fn add_open_rpc(&self, open_rpc: FireboltOpenRpc) {

@@ -38,7 +38,15 @@ pub struct RuleSet {
 impl RuleSet {
     pub fn append(&mut self, rule_set: RuleSet) {
         self.endpoints.extend(rule_set.endpoints);
-        self.rules.extend(rule_set.rules);
+        let rules: HashMap<String, Rule> = rule_set
+            .rules
+            .into_iter()
+            .map(|(k, v)| {
+                debug!("Loading JQ Rule for {}", k.to_lowercase());
+                (k.to_lowercase(), v)
+            })
+            .collect();
+        self.rules.extend(rules);
     }
 }
 
@@ -48,6 +56,19 @@ pub struct RuleEndpoint {
     pub url: String,
     #[serde(default = "default_autostart")]
     pub jsonrpc: bool,
+}
+
+impl RuleEndpoint {
+    pub fn get_url(&self) -> String {
+        if cfg!(feature = "local_dev") {
+            if let Ok(host_override) = std::env::var("DEVICE_HOST") {
+                if !host_override.is_empty() {
+                    return self.url.replace("127.0.0.1", &host_override);
+                }
+            }
+        }
+        self.url.clone()
+    }
 }
 
 fn default_autostart() -> bool {
