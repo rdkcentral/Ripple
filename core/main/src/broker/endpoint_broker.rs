@@ -604,6 +604,7 @@ pub enum BrokerWorkFlowError {
     NoRuleFound,
     JqError(JqError),
     JsonParseError,
+    ApiMessageError,
 }
 
 #[derive(Debug, Clone)]
@@ -623,11 +624,6 @@ impl From<JqError> for BrokerWorkFlowError {
         BrokerWorkFlowError::JqError(e)
     }
 }
-// impl From<BrokerOutput> for BrokerWorkflowSuccess {
-//     fn from(e: BrokerOutput) -> Self {
-//         BrokerWorkflowSuccess::FilterApplied(e)
-//     }
-// }
 
 /*
 
@@ -643,9 +639,8 @@ pub fn run_broker_workflow(
     let is_event = is_event(broker_output.data.method.clone());
     let id = get_event_id(broker_output.clone());
     let request_id = rpc_request.ctx.call_id;
-    println!("request={:?}", broker_output);
+
     if let Some(result) = broker_output.data.result.clone() {
-        println!("here={:?}", result);
         let mut mutant = broker_output.clone();
         mutant.data.id = Some(request_id);
         if is_event {
@@ -666,7 +661,6 @@ pub fn run_broker_workflow(
             .transform
             .get_filter(super::rules_engine::RuleTransformType::Response)
         {
-            // let broker_output = apply_response(result, filter, &rpc_request, broker_output)?;
             return Ok(BrokerWorkflowSuccess::FilterApplied(
                 apply_response(result, filter, &rpc_request, broker_output)?,
                 id,
@@ -690,7 +684,7 @@ pub fn brokered_to_api_message_response(
             protocol: broker_request.rpc.ctx.protocol.clone(),
             jsonrpc_msg,
         }),
-        Err(_) => Err(BrokerWorkFlowError::JsonParseError),
+        Err(_) => Err(BrokerWorkFlowError::ApiMessageError),
     }
 }
 pub fn get_request_id(broker_request: &BrokerRequest, request_id: Option<u64>) -> String {
@@ -701,6 +695,7 @@ pub fn get_request_id(broker_request: &BrokerRequest, request_id: Option<u64>) -
 pub fn broker_workflow(
     broker_output: &BrokerOutput,
     broker_request: &BrokerRequest,
+    platform_state: &PlatformState,
 ) -> Result<SessionizedApiMessage, BrokerWorkFlowError> {
     match run_broker_workflow(broker_output, broker_request)? {
         BrokerWorkflowSuccess::SubscriptionProcessed(broker_output, request_id) => {
@@ -713,14 +708,17 @@ pub fn broker_workflow(
                 )?,
             })
         }
-        BrokerWorkflowSuccess::Unsubcribe(broker_output, request_id) => Ok(SessionizedApiMessage {
-            session_id: broker_request.rpc.ctx.get_id(),
-            api_message: brokered_to_api_message_response(
-                broker_output,
-                broker_request,
-                broker_request.rpc.ctx.request_id.clone(),
-            )?,
-        }),
+        BrokerWorkflowSuccess::Unsubcribe(broker_output, request_id) => {
+            request_id.map(|id| platform_state.endpoint_state.update_unsubscribe_request(id));
+            Ok(SessionizedApiMessage {
+                session_id: broker_request.rpc.ctx.get_id(),
+                api_message: brokered_to_api_message_response(
+                    broker_output,
+                    broker_request,
+                    broker_request.rpc.ctx.request_id.clone(),
+                )?,
+            })
+        }
         BrokerWorkflowSuccess::RuleAppliedToEvent(broker_output, _) => Ok(SessionizedApiMessage {
             session_id: broker_request.rpc.ctx.get_id(),
             api_message: brokered_to_api_message_response(
@@ -749,7 +747,7 @@ impl BrokerOutputForwarder {
                     {
                         info!("processing request {:?}", request_id);
 
-                        match broker_workflow(&broker_output, &broker_request) {
+                        match broker_workflow(&broker_output, &broker_request, &platform_state) {
                             Ok(message) => {
                                 let session_id = message.session_id;
                                 let is_event = is_event(broker_output.data.method.clone());
@@ -902,8 +900,12 @@ fn apply_response(
                     "error processing: {} from {}",
                     compilation_result, raw_value
                 );
-                mutant.data.error = Some(Value::from(false));
-                mutant.data.result = Some(Value::Null);
+                return Err(JqError::RuleCompileFailed(format!(
+                    "{}",
+                    compilation_result
+                )));
+                // mutant.data.error = Some(Value::from(false));
+                // mutant.data.result = Some(Value::Null);
             } else if compilation_result.get("success").is_some() {
                 mutant.data.result = Some(compilation_result.clone());
                 mutant.data.error = match compilation_result.get("success") {
@@ -1231,7 +1233,8 @@ mod tests {
             let mut payload = JsonRpcApiResponse::default();
             payload.result = Some(serde_json::Value::Number(Number::from(1)));
             broker_output.data = payload;
-            let result = super::broker_workflow(&broker_output, &broker_request);
+            let result =
+                super::broker_workflow(&broker_output, &broker_request, &PlatformState::default());
             assert!(result.is_ok());
         }
 

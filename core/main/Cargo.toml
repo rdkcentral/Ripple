@@ -58,6 +58,8 @@ jaq-parse = { version ="1.0.2", default-features = false }
 jaq-core = { version ="1.2.1", default-features = false }
 
 openrpc_validator = { path = "../../openrpc_validator" }
+ripple_tdk = { path = "../tdk" }
+
 
 [build-dependencies]
 vergen = "1"

@@ -130,14 +130,14 @@ pub enum RuleEngineError {
 #[derive(Debug, Clone)]
 pub enum JqError {
     RuleParseFailed,
-    RuleCompileFailed,
+    RuleCompileFailed(String),
     RuleNotFound(String),
     RuleFailedToProcess(String),
     InvalidData,
 }
 impl From<RippleError> for JqError {
     fn from(ripple_error: RippleError) -> Self {
-        JqError::RuleCompileFailed
+        JqError::RuleCompileFailed(ripple_error.to_string())
     }
 }
 impl From<JqError> for RippleError {
@@ -311,7 +311,7 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
         for (err, _) in defs.errs {
             error!("reference={} {}", reference, err);
         }
-        return Err(JqError::RuleCompileFailed);
+        return Err(JqError::RuleCompileFailed(reference.clone()));
     }
 
     //let inputs = RcIter::new(core::iter::empty());
