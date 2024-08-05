@@ -94,7 +94,7 @@ case ${1} in
     ;;
     "run")
         cargo build --features local_dev
-        THUNDER_HOST=${2} cargo run --features local_dev core/main 
+        DEVICE_HOST=${2} cargo run --features local_dev core/main 
     ;;
     "run-mock")
         workspace_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )

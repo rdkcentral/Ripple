@@ -348,7 +348,7 @@ mod tests {
             app_authorization_rules: AppAuthorizationRules { app_ignore_rules },
             method_ignore_rules: Vec::new(),
         };
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(Some(exclusory));
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(Some(exclusory), Vec::new());
         if let Ok(v) = CapState::get_cap_info(
             &runtime.platform_state,
             MockCallContext::get_from_app_id("some_app"),
