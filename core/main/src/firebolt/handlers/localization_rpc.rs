@@ -29,7 +29,7 @@ use ripple_sdk::{
             },
             device_info_request::DeviceInfoRequest,
             device_peristence::SetStringProperty,
-            device_request::{LanguageProperty, TimezoneProperty},
+            device_request::TimezoneProperty,
         },
         firebolt::{
             fb_general::{ListenRequest, ListenerResponse},
@@ -81,16 +81,6 @@ pub trait Localization {
     ) -> RpcResult<()>;
     #[method(name = "localization.onCountryCodeChanged")]
     async fn on_country_code_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
-    #[method(name = "localization.language")]
-    async fn language(&self, ctx: CallContext) -> RpcResult<String>;
-    #[method(name = "localization.setLanguage")]
-    async fn language_set(&self, ctx: CallContext, set_request: LanguageProperty) -> RpcResult<()>;
-    #[method(name = "localization.onLanguageChanged")]
-    async fn on_language_changed(
         &self,
         ctx: CallContext,
         request: ListenRequest,
@@ -296,38 +286,6 @@ impl LocalizationServer for LocalizationImpl {
             request,
             "LocalizationCountryCodeChanged",
             "localization.onCountryCodeChanged",
-        )
-        .await
-    }
-
-    async fn language(&self, _ctx: CallContext) -> RpcResult<String> {
-        StorageManager::get_string(&self.platform_state, StorageProperty::Language).await
-    }
-
-    async fn language_set(
-        &self,
-        _ctx: CallContext,
-        set_request: LanguageProperty,
-    ) -> RpcResult<()> {
-        StorageManager::set_string(
-            &self.platform_state,
-            StorageProperty::Language,
-            set_request.value,
-            None,
-        )
-        .await
-    }
-
-    async fn on_language_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
-            ctx,
-            request,
-            "LocalizationLanguageChanged",
-            "localization.onLanguageChanged",
         )
         .await
     }

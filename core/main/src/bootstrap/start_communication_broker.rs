@@ -38,7 +38,7 @@ impl Bootstep<BootstrapState> for StartCommunicationBroker {
         state
             .platform_state
             .get_client()
-            .add_request_processor(RpcGatewayProcessor::new(state.platform_state.get_client()));
+            .add_request_processor(RpcGatewayProcessor::new(state.platform_state.clone()));
 
         // Start the Broker Reciever
         if let Ok(rx) = state.channels_state.get_broker_receiver() {

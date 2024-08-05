@@ -18,11 +18,9 @@
 use std::{collections::HashMap, env, time::Duration};
 
 use crate::{
-    firebolt::rpc::RippleRPCProvider,
-    processor::storage::storage_manager::StorageManager,
-    service::apps::app_events::AppEvents,
-    state::platform_state::PlatformState,
-    utils::rpc_utils::{rpc_add_event_listener, rpc_err},
+    firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManager,
+    service::apps::app_events::AppEvents, state::platform_state::PlatformState,
+    utils::rpc_utils::rpc_err,
 };
 
 use jsonrpsee::{
@@ -41,7 +39,6 @@ use ripple_sdk::{
             },
             device_info_request::{DeviceInfoRequest, DeviceResponse, FirmwareInfo},
             device_operator::DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS,
-            device_peristence::SetStringProperty,
             device_request::{
                 AudioProfile, DeviceVersionResponse, HdcpProfile, HdrProfile, NetworkResponse,
             },
@@ -53,10 +50,7 @@ use ripple_sdk::{
         },
         gateway::rpc_gateway_api::CallContext,
         session::{AccountSessionRequest, ProvisionRequest},
-        storage_property::{
-            StorageProperty, StoragePropertyData, EVENT_DEVICE_DEVICE_NAME_CHANGED,
-            EVENT_DEVICE_NAME_CHANGED, KEY_FIREBOLT_DEVICE_UID, SCOPE_DEVICE,
-        },
+        storage_property::{StoragePropertyData, KEY_FIREBOLT_DEVICE_UID, SCOPE_DEVICE},
     },
     extn::extn_client_message::ExtnResponse,
     log::error,
@@ -88,30 +82,10 @@ pub const DEVICE_UID: &str = "device.uid";
 
 #[rpc(server)]
 pub trait Device {
-    #[method(name = "device.name")]
-    async fn name(&self, ctx: CallContext) -> RpcResult<String>;
-    #[method(name = "device.setName")]
-    async fn set_name(
-        &self,
-        ctx: CallContext,
-        _setname_request: SetStringProperty,
-    ) -> RpcResult<()>;
     #[method(name = "device.id")]
     async fn id(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "device.uid")]
     async fn uid(&self, ctx: CallContext) -> RpcResult<String>;
-    #[method(name = "device.onNameChanged")]
-    async fn on_name_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
-    #[method(name = "device.onDeviceNameChanged")]
-    async fn on_device_name_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
     #[method(name = "device.model")]
     async fn model(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "device.sku")]
@@ -275,15 +249,6 @@ pub async fn get_ll_mac_addr(state: PlatformState) -> RpcResult<String> {
         ))),
     }
 }
-
-pub async fn set_device_name(state: &PlatformState, prop: SetStringProperty) -> RpcResult<()> {
-    StorageManager::set_string(state, StorageProperty::DeviceName, prop.value, None).await
-}
-
-pub async fn get_device_name(state: &PlatformState) -> RpcResult<String> {
-    StorageManager::get_string(state, StorageProperty::DeviceName).await
-}
-
 #[derive(Debug)]
 pub struct DeviceImpl {
     pub state: PlatformState,
@@ -313,34 +278,6 @@ impl DeviceImpl {
 
 #[async_trait]
 impl DeviceServer for DeviceImpl {
-    async fn name(&self, _ctx: CallContext) -> RpcResult<String> {
-        get_device_name(&self.state).await
-    }
-
-    async fn set_name(
-        &self,
-        _ctx: CallContext,
-        setname_request: SetStringProperty,
-    ) -> RpcResult<()> {
-        set_device_name(&self.state, setname_request).await
-    }
-
-    async fn on_name_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(&self.state, ctx, request, EVENT_DEVICE_NAME_CHANGED).await
-    }
-
-    async fn on_device_name_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(&self.state, ctx, request, EVENT_DEVICE_DEVICE_NAME_CHANGED).await
-    }
-
     async fn id(&self, _ctx: CallContext) -> RpcResult<String> {
         get_device_id(&self.state).await
     }

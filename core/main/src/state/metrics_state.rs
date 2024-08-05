@@ -15,12 +15,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{
-    collections::HashSet,
-    sync::{Arc, RwLock},
-};
-
-use jsonrpsee::tracing::debug;
+use super::platform_state::PlatformState;
+use crate::broker::broker_utils::BrokerUtils;
+use crate::processor::storage::storage_manager::StorageManager;
+use jsonrpsee::tracing::{debug, error};
+use rand::Rng;
 use ripple_sdk::{
     api::{
         context::RippleContextUpdateRequest,
@@ -30,21 +29,19 @@ use ripple_sdk::{
             fb_metrics::{MetricsContext, MetricsEnvironment},
             fb_openrpc::FireboltSemanticVersion,
         },
+        gateway::rpc_gateway_api::{ApiProtocol, CallContext},
         manifest::device_manifest::DataGovernanceConfig,
         storage_property::StorageProperty,
     },
     chrono::{DateTime, Utc},
     extn::extn_client_message::ExtnResponse,
-    log::error,
     utils::error::RippleError,
+    uuid::Uuid,
 };
-
-use rand::Rng;
-
-use crate::processor::storage::storage_manager::StorageManager;
-
-use super::platform_state::PlatformState;
-
+use std::{
+    collections::HashSet,
+    sync::{Arc, RwLock},
+};
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
 const PERSISTENT_STORAGE_NAMESPACE: &str = "accountProfile";
@@ -252,10 +249,21 @@ impl MetricsState {
             }
         }
 
-        let language = match StorageManager::get_string(state, StorageProperty::Language).await {
-            Ok(resp) => resp,
-            Err(_) => "no.language.set".to_string(),
-        };
+        let ctx = CallContext::new(
+            Uuid::new_v4().to_string(),
+            Uuid::new_v4().to_string(),
+            "internal".into(),
+            1,
+            ApiProtocol::Extn,
+            "localization.language".to_string(),
+            None,
+            false,
+        );
+
+        let language = BrokerUtils::get_language(&ctx, state)
+            .await
+            .unwrap_or("no.language.set".to_string());
+        debug!("got language={:?}", &language);
 
         let os_info = match Self::get_os_info_from_firebolt(state).await {
             Ok(info) => info,
@@ -267,10 +275,20 @@ impl MetricsState {
 
         debug!("got os_info={:?}", &os_info);
 
-        let mut device_name = "no.device.name.set".to_string();
-        if let Ok(resp) = StorageManager::get_string(state, StorageProperty::DeviceName).await {
-            device_name = resp;
-        }
+        let ctx = CallContext::new(
+            Uuid::new_v4().to_string(),
+            Uuid::new_v4().to_string(),
+            "internal".into(),
+            1,
+            ApiProtocol::Extn,
+            "device.name".to_string(),
+            None,
+            false,
+        );
+        let device_name = BrokerUtils::get_device_name(&ctx, state)
+            .await
+            .unwrap_or("no.device.name.set".to_string());
+        debug!("got device_name={:?}", &device_name);
 
         let mut timezone: Option<String> = None;
         if let Ok(resp) = state

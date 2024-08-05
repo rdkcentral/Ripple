@@ -361,9 +361,8 @@ impl RpcRequest {
             None,
             false,
         );
-        let request = serde_json::to_value(JsonRpcApiRequest::new(method.clone(), params)).unwrap();
         RpcRequest {
-            params_json: Self::prepend_ctx(Some(request), &ctx),
+            params_json: Self::prepend_ctx(params, &ctx),
             ctx,
             method,
         }

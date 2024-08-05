@@ -29,7 +29,6 @@ use super::{
 
 pub const NAMESPACE_CLOSED_CAPTIONS: &str = "ClosedCaptions";
 pub const NAMESPACE_PRIVACY: &str = "Privacy";
-pub const NAMESPACE_DEVICE_NAME: &str = "DeviceName";
 pub const NAMESPACE_LOCALIZATION: &str = "Localization";
 pub const NAMESPACE_USER_GRANT: &str = "UserGrant";
 pub const NAMESPACE_ADVERTISING: &str = "Advertising";
@@ -48,7 +47,6 @@ pub const KEY_WINDOW_COLOR: &str = "windowColor";
 pub const KEY_WINDOW_OPACITY: &str = "windowOpacity";
 pub const KEY_TEXT_ALIGN: &str = "textAlign";
 pub const KEY_TEXT_ALIGN_VERTICAL: &str = "textAlignVertical";
-pub const KEY_NAME: &str = "name";
 pub const KEY_POSTAL_CODE: &str = "postalCode";
 pub const KEY_LOCALITY: &str = "locality";
 pub const KEY_COUNTRY_CODE: &str = "countryCode";
@@ -98,7 +96,6 @@ pub const EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL: &str =
     "closedcaptions.onTextAlignVerticalChanged";
 pub const EVENT_LOCALITY: &str = "localization.onLocalityChanged";
 pub const EVENT_COUNTRY_CODE: &str = "localization.onCountryCodeChanged";
-pub const EVENT_LANGUAGE: &str = "localization.onLanguageChanged";
 pub const EVENT_POSTAL_CODE: &str = "localization.onPostalCodeChanged";
 pub const EVENT_LOCALE: &str = "localization.onLocaleChanged";
 pub const EVENT_LATLON: &str = "localization.onLatlonChanged";
@@ -122,9 +119,6 @@ pub const EVENT_ALLOW_UNENTITLED_PERSONALIZATION_CHANGED: &str =
 pub const EVENT_ALLOW_UNENTITLED_RESUME_POINTS_CHANGED: &str =
     "privacy.onAllowUnentitledResumePointsChanged";
 pub const EVENT_ALLOW_WATCH_HISTORY_CHANGED: &str = "privacy.onAllowWatchHistoryChanged";
-pub const EVENT_DEVICE_NAME_CHANGED: &str = "device.onNameChanged";
-pub const EVENT_DEVICE_DEVICE_NAME_CHANGED: &str = "device.onDeviceNameChanged";
-pub const EVENT_SECOND_SCREEN_FRIENDLY_NAME_CHANGED: &str = "secondscreen.onFriendlyNameChanged";
 pub const EVENT_ADVERTISING_POLICY_CHANGED: &str = "advertising.onPolicyChanged";
 pub const EVENT_ADVERTISING_SKIP_RESTRICTION_CHANGED: &str = "advertising.onSkipRestrictionChanged";
 pub const EVENT_ADVERTISING_SKIP_RESTRICTION: &str = "advertising.setSkipRestriction";
@@ -263,12 +257,6 @@ const PROPERTY_DATA_COUNTRY_CODE: PropertyData = PropertyData {
     event_names: Some(&[EVENT_COUNTRY_CODE]),
 };
 
-const PROPERTY_DATA_LANGUAGE: PropertyData = PropertyData {
-    key: KEY_LANGUAGE,
-    namespace: NAMESPACE_LOCALIZATION,
-    event_names: Some(&[EVENT_LANGUAGE]),
-};
-
 const PROPERTY_DATA_POSTAL_CODE: PropertyData = PropertyData {
     key: KEY_POSTAL_CODE,
     namespace: NAMESPACE_LOCALIZATION,
@@ -293,15 +281,6 @@ const PROPERTY_DATA_ADDITIONAL_INFO: PropertyData = PropertyData {
     event_names: Some(&[EVENT_ADDITIONAL_INFO]),
 };
 
-const PROPERTY_DATA_DEVICE_NAME: PropertyData = PropertyData {
-    key: KEY_NAME,
-    namespace: NAMESPACE_DEVICE_NAME,
-    event_names: Some(&[
-        EVENT_DEVICE_NAME_CHANGED,
-        EVENT_DEVICE_DEVICE_NAME_CHANGED,
-        EVENT_SECOND_SCREEN_FRIENDLY_NAME_CHANGED,
-    ]),
-};
 const PROPERTY_DATA_USER_GRANT: PropertyData = PropertyData {
     key: KEY_USER_GRANT,
     namespace: NAMESPACE_USER_GRANT,
@@ -464,12 +443,10 @@ pub enum StorageProperty {
     ClosedCaptionsTextAlignVertical,
     Locality,
     CountryCode,
-    Language,
     PostalCode,
     Locale,
     LatLon,
     AdditionalInfo,
-    DeviceName,
     UserGrants,
     AllowAcrCollection,
     AllowAppContentAdTargeting,
@@ -523,12 +500,10 @@ impl StorageProperty {
             }
             StorageProperty::Locality => PROPERTY_DATA_LOCALITY,
             StorageProperty::CountryCode => PROPERTY_DATA_COUNTRY_CODE,
-            StorageProperty::Language => PROPERTY_DATA_LANGUAGE,
             StorageProperty::PostalCode => PROPERTY_DATA_POSTAL_CODE,
             StorageProperty::Locale => PROPERTY_DATA_LOCALE,
             StorageProperty::LatLon => PROPERTY_DATA_LATLON,
             StorageProperty::AdditionalInfo => PROPERTY_DATA_ADDITIONAL_INFO,
-            StorageProperty::DeviceName => PROPERTY_DATA_DEVICE_NAME,
             StorageProperty::UserGrants => PROPERTY_DATA_USER_GRANT,
             StorageProperty::AllowAcrCollection => PROPERTY_DATA_ALLOW_ACR_COLLECTION,
             StorageProperty::AllowAppContentAdTargeting => {
