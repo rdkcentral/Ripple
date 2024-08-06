@@ -18,6 +18,7 @@ use jaq_interpret::{Ctx, FilterT, ParseCtx, RcIter, Val};
 use ripple_sdk::api::{
     gateway::rpc_gateway_api::RpcRequest, manifest::extn_manifest::ExtnManifest,
 };
+use ripple_sdk::log::trace;
 use ripple_sdk::{
     chrono::Utc,
     log::{debug, error, info, warn},
@@ -152,7 +153,8 @@ impl RuleEngine {
             if let Some(p) = Path::new(&path_for_rule).to_str() {
                 if let Ok(contents) = fs::read_to_string(p) {
                     debug!("Rule content {}", contents);
-                    if let Ok((_, rule_set)) = Self::load_from_content(contents) {
+                    if let Ok((path, rule_set)) = Self::load_from_content(contents) {
+                        debug!("Rules loaded from path={}", path);
                         engine.rules.append(rule_set)
                     } else {
                         warn!("invalid rule found in path {}", path)
@@ -200,12 +202,11 @@ impl RuleEngine {
 }
 
 pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value, RippleError> {
-    debug!("Jq rule {}  input {:?}", filter, input);
+    trace!("Jq rule {}  input {:?}", filter, input);
     let start = Utc::now().timestamp_millis();
     // start out only from core filters,
     // which do not include filters in the standard library
     // such as `map`, `select` etc.
-
     let mut defs = ParseCtx::new(Vec::new());
     defs.insert_natives(jaq_core::core());
     defs.insert_defs(jaq_std::std());
@@ -215,6 +216,7 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
         error!("Error in rule {:?}", errs);
         return Err(RippleError::RuleError);
     }
+
     // compile the filter in the context of the given definitions
     let f = defs.compile(f.unwrap());
     if !defs.errs.is_empty() {
@@ -226,8 +228,10 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
     }
 
     let inputs = RcIter::new(core::iter::empty());
+
     // iterator over the output values
     let mut out = f.run((Ctx::new([], &inputs), Val::from(input)));
+
     if let Some(Ok(v)) = out.next() {
         info!(
             "Ripple Gateway Rule Processing Time: {},{}",
