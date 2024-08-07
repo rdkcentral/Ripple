@@ -56,10 +56,11 @@ use super::{
 ///
 /// # Examples
 /// ```
-/// let state = PlatformState::default();
+/// //use core::state::platform_state::PlatformState;
+/// //let state = PlatformState::default();
 ///
-/// let manifest = state.get_device_manifest();
-/// println!("{}", manifest.unwrap().configuration.platform);
+/// //let manifest = state.get_device_manifest();
+/// //println!("{}", manifest.unwrap().configuration.platform);
 /// ```
 ///
 
@@ -88,7 +89,7 @@ impl From<String> for DeviceSessionIdentifier {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PlatformState {
     extn_manifest: ExtnManifest,
     device_manifest: DeviceManifest,

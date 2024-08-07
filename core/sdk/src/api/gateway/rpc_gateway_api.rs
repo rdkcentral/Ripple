@@ -53,7 +53,7 @@ impl From<CallContext> for AppIdentification {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct CallContext {
     pub session_id: String,
     pub request_id: String,
@@ -64,6 +64,20 @@ pub struct CallContext {
     pub cid: Option<String>,
     pub gateway_secure: bool,
 }
+// impl Default for CallContext {
+//     fn default() -> Self {
+//         CallContext {
+//             session_id: String::default(),
+//             request_id: String::default(),
+//             app_id: String::default(),
+//             call_id: u64::default(),
+//             protocol: ApiProtocol::default(),
+//             method: String::default(),
+//             cid: Option::default(),
+//             gateway_secure: bool::default(),
+//         }
+//     }
+// }
 
 impl CallContext {
     // TODO: refactor this to use less arguments
@@ -113,10 +127,11 @@ impl crate::Mockable for CallContext {
     }
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Default)]
 pub enum ApiProtocol {
     Bridge,
     Extn,
+    #[default]
     JsonRpc,
 }
 
@@ -201,6 +216,18 @@ pub struct JsonRpcApiResponse {
     #[serde(skip_serializing)]
     pub params: Option<Value>,
 }
+impl Default for JsonRpcApiResponse {
+    fn default() -> Self {
+        JsonRpcApiResponse {
+            jsonrpc: "2.0".to_owned(),
+            result: None,
+            id: None,
+            error: None,
+            method: None,
+            params: None,
+        }
+    }
+}
 
 impl crate::Mockable for JsonRpcApiResponse {
     fn mock() -> Self {
@@ -220,6 +247,15 @@ pub struct RpcRequest {
     pub method: String,
     pub params_json: String,
     pub ctx: CallContext,
+}
+impl Default for RpcRequest {
+    fn default() -> Self {
+        RpcRequest {
+            method: "".to_string(),
+            params_json: "".to_string(),
+            ctx: CallContext::default(),
+        }
+    }
 }
 
 impl ExtnPayloadProvider for RpcRequest {

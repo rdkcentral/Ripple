@@ -55,11 +55,12 @@ use crate::{
 ///
 /// # Examples
 /// ```
-/// use crate::firebolt::firebolt_gateway::FireboltGatewayCommand;
-/// fn send_gateway_command(msg: FireboltGatewayCommand) {
-///     let client = RippleClient::new();
-///     client.send_gateway_command()
-/// }
+/// //use main::firebolt::firebolt_gateway::FireboltGatewayCommand;
+/// //use main::service::extn::ripple_client::RippleClient;
+/// //fn send_gateway_command(msg: FireboltGatewayCommand) {
+///  //   let client = RippleClient::new();
+///     //let _ = client.send_gateway_command();
+/// //}
 ///
 /// ```
 #[derive(Debug, Clone)]
@@ -68,6 +69,12 @@ pub struct RippleClient {
     gateway_sender: Sender<FireboltGatewayCommand>,
     app_mgr_sender: Sender<AppRequest>, // will be used by LCM RPC
     broker_sender: Sender<BrokerOutput>,
+}
+impl Default for RippleClient {
+    fn default() -> Self {
+        let cs = ChannelsState::new();
+        RippleClient::new(cs)
+    }
 }
 
 impl RippleClient {

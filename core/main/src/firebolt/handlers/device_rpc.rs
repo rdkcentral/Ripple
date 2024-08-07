@@ -67,25 +67,6 @@ use ripple_sdk::{
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 pub const DEVICE_UID: &str = "device.uid";
 
-// #[derive(Serialize, Clone, Debug, Deserialize)]
-// #[serde(rename_all = "camelCase")]
-// pub struct ProvisionRequest {
-//     account_id: String,
-//     device_id: String,
-//     distributor_id: Option<String>,
-// }
-
-// impl ProvisionRequest {
-//     fn get_session(self) -> DistributorSession {
-//         DistributorSession {
-//             id: None,
-//             token: None,
-//             account_id: Some(self.account_id.clone()),
-//             device_id: Some(self.device_id.clone()),
-//         }
-//     }
-// }
-
 #[rpc(server)]
 pub trait Device {
     #[method(name = "device.name")]

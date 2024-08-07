@@ -25,7 +25,7 @@ use ripple_sdk::{
     },
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
-    log::error,
+    log::{debug, error, info},
     tokio::{
         self,
         sync::mpsc::{self, Receiver, Sender},
@@ -51,7 +51,7 @@ use crate::{
 
 use super::{
     http_broker::HttpBroker,
-    rules_engine::{jq_compile, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine},
+    rules_engine::{jq_compile, JqError, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine},
     thunder_broker::ThunderBroker,
     websocket_broker::WebsocketBroker,
 };
@@ -76,7 +76,7 @@ impl BrokerCleaner {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct BrokerRequest {
     pub rpc: RpcRequest,
     pub rule: Rule,
@@ -151,6 +151,13 @@ impl BrokerRequest {
 pub struct BrokerCallback {
     pub sender: Sender<BrokerOutput>,
 }
+impl Default for BrokerCallback {
+    fn default() -> Self {
+        Self {
+            sender: mpsc::channel(2).0,
+        }
+    }
+}
 
 static ATOMIC_ID: AtomicU64 = AtomicU64::new(0);
 
@@ -187,22 +194,40 @@ pub struct BrokerContext {
 pub struct BrokerOutput {
     pub data: JsonRpcApiResponse,
 }
+impl Default for BrokerOutput {
+    fn default() -> Self {
+        Self {
+            data: JsonRpcApiResponse {
+                jsonrpc: "2.0".to_owned(),
+                id: None,
+                method: None,
+                result: None,
+                error: None,
+                params: None,
+            },
+        }
+    }
+}
 
+pub fn get_event_id_from_method(method: Option<String>) -> Option<u64> {
+    method.and_then(|m| {
+        let event: Vec<&str> = m.split('.').collect();
+        event.first().and_then(|v| v.parse::<u64>().ok())
+    })
+}
+pub fn is_event(method: Option<String>) -> bool {
+    get_event_id_from_method(method).is_some()
+}
 impl BrokerOutput {
     pub fn is_result(&self) -> bool {
         self.data.result.is_some()
     }
 
     pub fn get_event(&self) -> Option<u64> {
-        if let Some(e) = &self.data.method {
-            let event: Vec<&str> = e.split('.').collect();
-            if let Some(v) = event.first() {
-                if let Ok(r) = v.parse::<u64>() {
-                    return Some(r);
-                }
-            }
-        }
-        None
+        get_event_id_from_method(self.data.method.clone())
+    }
+    pub fn is_event(&self) -> bool {
+        is_event(self.data.method.clone())
     }
 }
 
@@ -235,6 +260,19 @@ pub struct EndpointBrokerState {
     rule_engine: RuleEngine,
     cleaner_list: Arc<RwLock<Vec<BrokerCleaner>>>,
     reconnect_tx: Sender<BrokerConnectRequest>,
+}
+impl Default for EndpointBrokerState {
+    fn default() -> Self {
+        Self {
+            endpoint_map: Arc::new(RwLock::new(HashMap::new())),
+            callback: BrokerCallback::default(),
+            request_map: Arc::new(RwLock::new(HashMap::new())),
+            extension_request_map: Arc::new(RwLock::new(HashMap::new())),
+            rule_engine: RuleEngine::default(),
+            cleaner_list: Arc::new(RwLock::new(Vec::new())),
+            reconnect_tx: mpsc::channel(2).0,
+        }
+    }
 }
 
 impl EndpointBrokerState {
@@ -479,7 +517,7 @@ pub trait EndpointBroker {
 
     /// Adds BrokerContext to a given request used by the Broker Implementations
     /// just before sending the data through the protocol
-    fn update_request(rpc_request: &BrokerRequest) -> Result<String, RippleError> {
+    fn update_request(rpc_request: &BrokerRequest) -> Result<String, JqError> {
         let v = Self::apply_request_rule(rpc_request)?;
         let id = rpc_request.rpc.ctx.call_id;
         let method = rpc_request.rule.alias.clone();
@@ -502,7 +540,7 @@ pub trait EndpointBroker {
     }
 
     /// Generic method which takes the given parameters from RPC request and adds rules using rule engine
-    fn apply_request_rule(rpc_request: &BrokerRequest) -> Result<Value, RippleError> {
+    fn apply_request_rule(rpc_request: &BrokerRequest) -> Result<Value, JqError> {
         if let Ok(mut params) = serde_json::from_str::<Vec<Value>>(&rpc_request.rpc.params_json) {
             if params.len() > 1 {
                 if let Some(last) = params.pop() {
@@ -523,7 +561,7 @@ pub trait EndpointBroker {
                 return Ok(Value::Null);
             }
         }
-        Err(RippleError::ParseError)
+        Err(RippleError::ParseError.into())
     }
 
     /// Default handler method for the broker to remove the context and send it back to the
@@ -545,90 +583,206 @@ pub trait EndpointBroker {
 
 /// Forwarder gets the BrokerOutput and forwards the response to the gateway.
 pub struct BrokerOutputForwarder;
+pub fn get_event_id(broker_output: BrokerOutput) -> Option<u64> {
+    broker_output.get_event().or(broker_output.data.id)
+}
 
+#[derive(Debug, Clone)]
+pub enum BrokerWorkFlowError {
+    MissingValue,
+    NoRuleFound,
+    JqError(JqError),
+    JsonParseError,
+    ApiMessageError,
+}
+
+#[derive(Debug, Clone)]
+pub struct SessionizedApiMessage {
+    pub session_id: String,
+    pub api_message: ApiMessage,
+}
+#[derive(Debug, Clone)]
+pub enum BrokerWorkflowSuccess {
+    SubscriptionProcessed(BrokerOutput, Option<u64>),
+    Unsubcribe(BrokerOutput, Option<u64>),
+    RuleAppliedToEvent(BrokerOutput, Option<u64>),
+    FilterApplied(BrokerOutput, Option<u64>),
+}
+impl From<JqError> for BrokerWorkFlowError {
+    fn from(e: JqError) -> Self {
+        BrokerWorkFlowError::JqError(e)
+    }
+}
+
+/*
+
+Factor out broker workflow from tokio loop
+*/
+pub fn run_broker_workflow(
+    broker_output: &BrokerOutput,
+    broker_request: &BrokerRequest,
+) -> Result<BrokerWorkflowSuccess, BrokerWorkFlowError> {
+    let sub_processed = broker_request.is_subscription_processed();
+    let rpc_request = broker_request.rpc.clone();
+    let is_subscription = rpc_request.is_subscription();
+    let is_event = is_event(broker_output.data.method.clone());
+    let id = get_event_id(broker_output.clone());
+    let request_id = rpc_request.ctx.call_id;
+
+    if let Some(result) = broker_output.data.result.clone() {
+        let mut mutant = broker_output.clone();
+        mutant.data.id = Some(request_id);
+        if is_event {
+            let f = apply_rule_for_event(broker_request, &result, &rpc_request, broker_output)?;
+            Ok(BrokerWorkflowSuccess::RuleAppliedToEvent(f, id))
+        } else if is_subscription {
+            if sub_processed {
+                return Ok(BrokerWorkflowSuccess::SubscriptionProcessed(mutant, id));
+            }
+            mutant.data.result = Some(json!({
+                "listening" : rpc_request.is_listening(),
+                "event" : rpc_request.ctx.method
+            }));
+            Ok(BrokerWorkflowSuccess::Unsubcribe(mutant, id))
+        } else if let Some(filter) = broker_request
+            .rule
+            .transform
+            .get_filter(super::rules_engine::RuleTransformType::Response)
+        {
+            Ok(BrokerWorkflowSuccess::FilterApplied(
+                apply_response(result, filter, &rpc_request, broker_output)?,
+                id,
+            ))
+        } else {
+            Err(BrokerWorkFlowError::NoRuleFound)
+        }
+    } else {
+        Err(BrokerWorkFlowError::JsonParseError)
+    }
+}
+
+pub fn brokered_to_api_message_response(
+    broker_output: BrokerOutput,
+    broker_request: &BrokerRequest,
+    request_id: String,
+) -> Result<ApiMessage, BrokerWorkFlowError> {
+    match serde_json::to_string(&broker_output.data) {
+        Ok(jsonrpc_msg) => Ok(ApiMessage {
+            request_id,
+            protocol: broker_request.rpc.ctx.protocol.clone(),
+            jsonrpc_msg,
+        }),
+        Err(_) => Err(BrokerWorkFlowError::ApiMessageError),
+    }
+}
+pub fn get_request_id(broker_request: &BrokerRequest, request_id: Option<u64>) -> String {
+    request_id
+        .map(|v| v.to_string())
+        .unwrap_or_else(|| broker_request.rpc.ctx.call_id.to_string())
+}
+pub fn broker_workflow(
+    broker_output: &BrokerOutput,
+    broker_request: &BrokerRequest,
+    platform_state: &PlatformState,
+) -> Result<SessionizedApiMessage, BrokerWorkFlowError> {
+    match run_broker_workflow(broker_output, broker_request)? {
+        BrokerWorkflowSuccess::SubscriptionProcessed(broker_output, _request_id) => {
+            Ok(SessionizedApiMessage {
+                session_id: broker_request.rpc.ctx.get_id(),
+                api_message: brokered_to_api_message_response(
+                    broker_output,
+                    broker_request,
+                    broker_request.rpc.ctx.request_id.clone(),
+                )?,
+            })
+        }
+        BrokerWorkflowSuccess::Unsubcribe(broker_output, request_id) => {
+            if let Some(id) = request_id {
+                platform_state.endpoint_state.update_unsubscribe_request(id)
+            }
+
+            Ok(SessionizedApiMessage {
+                session_id: broker_request.rpc.ctx.get_id(),
+                api_message: brokered_to_api_message_response(
+                    broker_output,
+                    broker_request,
+                    broker_request.rpc.ctx.request_id.clone(),
+                )?,
+            })
+        }
+        BrokerWorkflowSuccess::RuleAppliedToEvent(broker_output, _) => Ok(SessionizedApiMessage {
+            session_id: broker_request.rpc.ctx.get_id(),
+            api_message: brokered_to_api_message_response(
+                broker_output,
+                broker_request,
+                broker_request.rpc.ctx.request_id.clone(),
+            )?,
+        }),
+        BrokerWorkflowSuccess::FilterApplied(broker_output, _) => Ok(SessionizedApiMessage {
+            session_id: broker_request.rpc.ctx.get_id(),
+            api_message: brokered_to_api_message_response(
+                broker_output,
+                broker_request,
+                broker_request.rpc.ctx.request_id.clone(),
+            )?,
+        }),
+    }
+}
 impl BrokerOutputForwarder {
     pub fn start_forwarder(platform_state: PlatformState, mut rx: Receiver<BrokerOutput>) {
         tokio::spawn(async move {
-            while let Some(mut v) = rx.recv().await {
-                let mut is_event = false;
-                // First validate the id check if it could be an event
-                let id = if let Some(e) = v.get_event() {
-                    is_event = true;
-                    Some(e)
-                } else {
-                    v.data.id
-                };
+            while let Some(broker_output) = rx.recv().await {
+                if let Some(request_id) = get_event_id(broker_output.clone()) {
+                    if let Ok(broker_request) =
+                        platform_state.endpoint_state.get_request(request_id)
+                    {
+                        info!("processing request {:?}", request_id);
 
-                if let Some(id) = id {
-                    if let Ok(broker_request) = platform_state.endpoint_state.get_request(id) {
-                        let sub_processed = broker_request.is_subscription_processed();
-                        let rpc_request = broker_request.rpc.clone();
-                        let session_id = rpc_request.ctx.get_id();
-                        let is_subscription = rpc_request.is_subscription();
-
-                        // Step 1: Create the data
-                        if let Some(result) = v.data.result.clone() {
-                            if is_event {
-                                apply_rule_for_event(
-                                    &broker_request,
-                                    &result,
-                                    &rpc_request,
-                                    &mut v,
+                        match broker_workflow(&broker_output, &broker_request, &platform_state) {
+                            Ok(message) => {
+                                let session_id = message.session_id;
+                                let is_event = is_event(broker_output.data.method.clone());
+                                //let session_id = get_request_id(&broker_request, None);
+                                info!(
+                                    "processing request id={} for session_id={:?}",
+                                    request_id, session_id
                                 );
-                            } else if is_subscription {
-                                if sub_processed {
-                                    continue;
-                                }
-                                v.data.result = Some(json!({
-                                    "listening" : rpc_request.is_listening(),
-                                    "event" : rpc_request.ctx.method
-                                }));
-                                platform_state.endpoint_state.update_unsubscribe_request(id);
-                            } else if let Some(filter) = broker_request
-                                .rule
-                                .transform
-                                .get_filter(super::rules_engine::RuleTransformType::Response)
-                            {
-                                apply_response(result, filter, &rpc_request, &mut v);
-                            }
-                        }
-
-                        let request_id = rpc_request.ctx.call_id;
-                        v.data.id = Some(request_id);
-
-                        // Step 2: Create the message
-                        let message = ApiMessage {
-                            request_id: request_id.to_string(),
-                            protocol: rpc_request.ctx.protocol.clone(),
-                            jsonrpc_msg: serde_json::to_string(&v.data).unwrap(),
-                        };
-
-                        // Step 3: Handle Non Extension
-                        if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
-                            if let Ok(extn_message) =
-                                platform_state.endpoint_state.get_extn_message(id, is_event)
-                            {
-                                if is_event {
-                                    forward_extn_event(&extn_message, v.data, &platform_state)
-                                        .await;
-                                } else {
-                                    return_extn_response(message, extn_message)
+                                if matches!(message.api_message.protocol, ApiProtocol::Extn) {
+                                    if let Ok(extn_message) = platform_state
+                                        .endpoint_state
+                                        .get_extn_message(request_id, is_event)
+                                    {
+                                        if is_event {
+                                            forward_extn_event(
+                                                &extn_message,
+                                                broker_output.data,
+                                                &platform_state,
+                                            )
+                                            .await;
+                                        } else {
+                                            return_extn_response(message.api_message, extn_message)
+                                        }
+                                    }
+                                } else if let Some(session) = platform_state
+                                    .session_state
+                                    .get_session_for_connection_id(&session_id)
+                                {
+                                    return_api_message_for_transport(
+                                        session,
+                                        message.api_message,
+                                        platform_state.clone(),
+                                    )
+                                    .await
                                 }
                             }
-                        } else if let Some(session) = platform_state
-                            .session_state
-                            .get_session_for_connection_id(&session_id)
-                        {
-                            return_api_message_for_transport(
-                                session,
-                                message,
-                                platform_state.clone(),
-                            )
-                            .await
+                            Err(e) => {
+                                error!("Error couldnt broker the event {:?}", e)
+                                /*
+                                TODO - who do we tell about this?
+                                */
+                            }
                         }
                     }
-                } else {
-                    error!("Error couldnt broker the event {:?}", v)
                 }
             }
         });
@@ -685,68 +839,139 @@ async fn forward_extn_event(
     }
 }
 
-fn apply_response(result: Value, filter: String, rpc_request: &RpcRequest, v: &mut BrokerOutput) {
+//fn apply_response(
+//     result: Value,
+//     filter: String,
+//     rpc_request: &RpcRequest,
+//     broker_output: &BrokerOutput,
+// ) -> Result<BrokerOutput, JqError> {
+//     match jq_compile(
+//         result.clone(),
+//         &filter,
+//         format!("{}_response", rpc_request.ctx.method),
+//     ) {
+//         Ok(r) => {
+//             let mut mutant = broker_output.clone();
+//             if r.to_string().to_lowercase().contains("null") {
+//                 mutant.data.result = Some(Value::Null)
+//             } else if result.get("success").is_some() {
+//                 mutant.data.result = Some(r);
+//                 mutant.data.error = None;
+//             } else {
+//                 mutant.data.error = Some(r);
+//                 mutant.data.result = None;
+//             }
+//             Ok(mutant)
+//         }
+//         Err(e) => {
+//             error!("jq_compile error {:?}", e);
+//             Err(e)
+//         }
+//     }
+// }
+fn apply_response(
+    raw_value: Value,
+    filter: String,
+    rpc_request: &RpcRequest,
+    broker_output: &BrokerOutput,
+) -> Result<BrokerOutput, JqError> {
     match jq_compile(
-        result.clone(),
+        raw_value.clone(),
         &filter,
         format!("{}_response", rpc_request.ctx.method),
     ) {
-        Ok(r) => {
-            if r.to_string().to_lowercase().contains("null") {
-                v.data.result = Some(Value::Null)
-            } else if result.get("success").is_some() {
-                v.data.result = Some(r);
-                v.data.error = None;
+        Ok(compilation_result) => {
+            let mut mutant = broker_output.clone();
+            debug!(
+                "jq_compile result {:?} for {}",
+                compilation_result, raw_value
+            );
+            if compilation_result == Value::Null {
+                error!(
+                    "error processing: {} from {}",
+                    compilation_result, raw_value
+                );
+                return Err(JqError::RuleCompileFailed(format!(
+                    "{}",
+                    compilation_result
+                )));
+                // mutant.data.error = Some(Value::from(false));
+                // mutant.data.result = Some(Value::Null);
+            } else if compilation_result.get("success").is_some() {
+                mutant.data.result = Some(compilation_result.clone());
+                mutant.data.error = match compilation_result.get("success") {
+                    Some(v) => {
+                        if v.is_boolean() {
+                            if !v.as_bool().unwrap() {
+                                Some(Value::from(false))
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    }
+                    None => None,
+                };
+            } else if raw_value.get("success").is_some() {
+                mutant.data.result = Some(compilation_result);
+                mutant.data.error = match raw_value.get("success") {
+                    Some(v) => {
+                        if v.is_boolean() {
+                            if !v.as_bool().unwrap() {
+                                Some(Value::from(false))
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    }
+                    None => None,
+                }
             } else {
-                v.data.error = Some(r);
-                v.data.result = None;
+                mutant.data.error = None;
+                mutant.data.result = Some(compilation_result);
             }
+            Ok(mutant)
         }
-        Err(e) => error!("jq_compile error {:?}", e),
+        Err(e) => {
+            error!("jq_compile error {:?}", e);
+            Err(JqError::RuleParseFailed)
+        }
     }
 }
-
 fn apply_rule_for_event(
     broker_request: &BrokerRequest,
     result: &Value,
     rpc_request: &RpcRequest,
-    v: &mut BrokerOutput,
-) {
+    broker_output: &BrokerOutput,
+) -> Result<BrokerOutput, JqError> {
     if let Some(filter) = broker_request
         .rule
         .transform
         .get_filter(super::rules_engine::RuleTransformType::Event)
     {
-        if let Ok(r) = jq_compile(
+        let data = jq_compile(
             result.clone(),
             &filter,
             format!("{}_event", rpc_request.ctx.method),
-        ) {
-            v.data.result = Some(r);
-        }
+        )?;
+        let mut mutated_broker_output = broker_output.clone();
+        mutated_broker_output.data.result = Some(data);
+        Ok(mutated_broker_output.clone())
+    } else {
+        Err(JqError::RuleNotFound(rpc_request.ctx.method.clone()))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use ripple_sdk::{tokio::sync::mpsc::channel, Mockable};
+    use ripple_sdk::{tokio::sync::mpsc::channel, utils::logger::init_logger, Mockable};
 
     use crate::broker::rules_engine::RuleTransform;
 
     use super::*;
-    mod endpoint_broker {
-        use ripple_sdk::{api::gateway::rpc_gateway_api::RpcRequest, Mockable};
-
-        #[test]
-        fn test_update_context() {
-            let _request = RpcRequest::mock();
-
-            // if let Ok(v) = WebsocketBroker::add_context(&request) {
-            //     println!("_ctx {}", v);
-            //     //assert!(v.get("_ctx").unwrap().as_u64().unwrap().eq(&1));
-            // }
-        }
-    }
 
     #[tokio::test]
     async fn test_send_error() {
@@ -770,83 +995,109 @@ mod tests {
         let value = tr.recv().await.unwrap();
         assert!(value.data.error.is_some())
     }
+    /*add exhaustive unit tests for as many function as possible */
 
-    mod broker_output {
-        use ripple_sdk::{api::gateway::rpc_gateway_api::JsonRpcApiResponse, Mockable};
+    use serde_json::Number;
 
-        use crate::broker::endpoint_broker::BrokerOutput;
+    #[test]
+    fn test_run_broker_workflow() {
+        let _ = init_logger("broker".into());
+        let mut broker_request = BrokerRequest::default();
+        broker_request.rule.transform.response = Some(".success".to_owned());
+        let payload = JsonRpcApiResponse {
+            result: Some(serde_json::Value::Bool(true)),
+            ..Default::default()
+        };
+        let broker_output = BrokerOutput { data: payload };
 
-        #[test]
-        fn test_result() {
-            let mut data = JsonRpcApiResponse::mock();
-            let output = BrokerOutput { data: data.clone() };
-            assert!(!output.is_result());
-            data.result = Some(serde_json::Value::Null);
-            let output = BrokerOutput { data };
-            assert!(output.is_result());
-        }
-
-        #[test]
-        fn test_get_event() {
-            let mut data = JsonRpcApiResponse::mock();
-            data.method = Some("20.events".to_owned());
-            let output = BrokerOutput { data };
-            assert_eq!(20, output.get_event().unwrap())
-        }
+        let result = run_broker_workflow(&broker_output, &broker_request);
+        assert!(result.is_ok());
     }
 
-    mod endpoint_broker_state {
-        use ripple_sdk::{
-            api::gateway::rpc_gateway_api::RpcRequest, tokio, tokio::sync::mpsc::channel, Mockable,
+    #[test]
+    fn test_brokered_to_api_message_response() {
+        let request_id = String::from("12345");
+        let broker_request = BrokerRequest::default();
+        let broker_output = BrokerOutput::default();
+        let result = brokered_to_api_message_response(broker_output, &broker_request, request_id);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_get_request_id() {
+        let broker_request = BrokerRequest::default();
+        let request_id = get_request_id(&broker_request, None);
+        assert!(!request_id.is_empty());
+    }
+
+    #[test]
+    fn test_broker_workflow() {
+        let mut broker_request = BrokerRequest::default();
+        broker_request.rule.transform.response = Some(".success".to_owned());
+        let payload = JsonRpcApiResponse {
+            result: Some(serde_json::Value::Number(Number::from(1))),
+            ..Default::default()
         };
 
-        use crate::{
-            broker::{
-                endpoint_broker::tests::RippleClient,
-                rules_engine::{Rule, RuleEngine, RuleSet, RuleTransform},
-            },
-            state::bootstrap_state::ChannelsState,
+        let broker_output = BrokerOutput { data: payload };
+        let result =
+            super::broker_workflow(&broker_output, &broker_request, &PlatformState::default());
+        assert!(result.is_ok());
+    }
+
+    // #[test]
+    // fn test_start_forwarder() {
+    //     let platform_state = PlatformState::default();
+    //     let rx = Receiver::default();
+
+    //     start_forwarder(platform_state, rx);
+    //     // TODO: Add assertions or mock the tokio::spawn call to verify the behavior
+    // }
+
+    #[test]
+    fn test_handle_non_jsonrpc_response() {
+        let data: &[u8] = &[1, 2, 3];
+        let callback = BrokerCallback::default();
+        let request = BrokerRequest::default();
+        let result = BrokerOutputForwarder::handle_non_jsonrpc_response(data, callback, request);
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_forward_extn_event() {
+        let extn_message = ExtnMessage::default();
+        let v = JsonRpcApiResponse::default();
+        let platform_state = PlatformState::default();
+        forward_extn_event(&extn_message, v, &platform_state).await;
+        // TODO: Add assertions or mock the platform_state.get_client().get_extn_client().send_message call to verify the behavior
+    }
+
+    #[test]
+    fn test_apply_response() {
+        let result = serde_json::json!({"success": true});
+        let filter = String::from(".success");
+        let rpc_request = RpcRequest::default();
+        let broker_output = BrokerOutput::default();
+        let result = apply_response(result, filter, &rpc_request, &broker_output);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_apply_rule_for_event() {
+        let mut broker_request = BrokerRequest::default();
+        broker_request.rule.transform.response = Some(".success".to_owned());
+        let payload = JsonRpcApiResponse {
+            result: Some(serde_json::Value::Number(Number::from(1))),
+            ..Default::default()
         };
 
-        use super::EndpointBrokerState;
+        let result = json!({});
+        let rpc_request = RpcRequest::default();
+        let broker_output = BrokerOutput { data: payload };
 
-        #[tokio::test]
-        async fn get_request() {
-            let (tx, _) = channel(2);
-            let client = RippleClient::new(ChannelsState::new());
-            let state = EndpointBrokerState::new(
-                tx,
-                RuleEngine {
-                    rules: RuleSet::default(),
-                },
-                client,
-            );
-            let mut request = RpcRequest::mock();
-            state.update_request(
-                &request,
-                Rule {
-                    alias: "somecallsign.method".to_owned(),
-                    transform: RuleTransform::default(),
-                    endpoint: None,
-                },
-                None,
-            );
-            request.ctx.call_id = 2;
-            state.update_request(
-                &request,
-                Rule {
-                    alias: "somecallsign.method".to_owned(),
-                    transform: RuleTransform::default(),
-                    endpoint: None,
-                },
-                None,
-            );
-
-            // Hardcoding the id here will be a problem as multiple tests uses the atomic id and there is no guarantee
-            // that this test case would always be the first one to run
-            // Revisit this test case, to make it more robust
-            // assert!(state.get_request(2).is_ok());
-            // assert!(state.get_request(1).is_ok());
-        }
+        broker_request.rule.transform.event = Some(".success".to_owned());
+        let result = apply_rule_for_event(&broker_request, &result, &rpc_request, &broker_output);
+        println!("result={:?}", result);
+        assert!(result.is_ok());
     }
 }

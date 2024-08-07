@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 
 pub extern crate jsonschema;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct FireboltOpenRpc {
     pub apis: HashMap<String, FireboltOpenRpcSpec>,
 }
