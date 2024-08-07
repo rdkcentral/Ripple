@@ -371,7 +371,7 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
             }
             Err(e) => {
                 debug!("Encountered primtive value in jq_rule={}, input {:?} , reference={}, error={}. Returning value {}", filter, input, reference,e,input);
-                Err(JqError::RuleFailedToProcess(reference))
+                Ok(input)
             }
         },
         None => {

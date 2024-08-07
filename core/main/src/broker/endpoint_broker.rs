@@ -967,7 +967,7 @@ fn apply_rule_for_event(
 
 #[cfg(test)]
 mod tests {
-    use ripple_sdk::{tokio::sync::mpsc::channel, Mockable};
+    use ripple_sdk::{tokio::sync::mpsc::channel, utils::logger::init_logger, Mockable};
 
     use crate::broker::rules_engine::RuleTransform;
 
@@ -1001,10 +1001,11 @@ mod tests {
 
     #[test]
     fn test_run_broker_workflow() {
+        let _ = init_logger("broker".into());
         let mut broker_request = BrokerRequest::default();
         broker_request.rule.transform.response = Some(".success".to_owned());
         let payload = JsonRpcApiResponse {
-            result: Some(serde_json::Value::Number(Number::from(1))),
+            result: Some(serde_json::Value::Bool(true)),
             ..Default::default()
         };
         let broker_output = BrokerOutput { data: payload };
