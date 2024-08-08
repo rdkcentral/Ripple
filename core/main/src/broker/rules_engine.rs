@@ -120,7 +120,6 @@ impl RuleTransform {
             RuleTransformType::Request => self.request.clone(),
             RuleTransformType::Event => self.event.clone(),
             RuleTransformType::Response => self.response.clone(),
-            RuleTransformType::ErrorResponse => self.error_response.clone(),
         }
     }
 }
@@ -128,7 +127,6 @@ impl RuleTransform {
 pub enum RuleTransformType {
     Request,
     Response,
-    ErrorResponse,
     Event,
 }
 
