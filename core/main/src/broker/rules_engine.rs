@@ -209,6 +209,7 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
     let mut defs = ParseCtx::new(Vec::new());
     defs.insert_natives(jaq_core::core());
     defs.insert_defs(jaq_std::std());
+
     // parse the filter
     let (f, errs) = jaq_parse::parse(filter, jaq_parse::main());
     if !errs.is_empty() {
