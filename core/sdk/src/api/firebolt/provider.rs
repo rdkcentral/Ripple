@@ -23,9 +23,7 @@ use crate::api::device::entertainment_data::{
 
 use super::{
     fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
-    fb_pin::{
-        PinChallengeRequest, PinChallengeResponse, PIN_CHALLENGE_CAPABILITY, PIN_CHALLENGE_EVENT,
-    },
+    fb_pin::{PinChallengeRequest, PinChallengeResponse},
 };
 
 pub const ACK_CHALLENGE_EVENT: &str = "acknowledgechallenge.onRequestChallenge";
@@ -39,7 +37,7 @@ pub enum ProviderRequestPayload {
     AckChallenge(Challenge),
     EntityInfoRequest(EntityInfoParameters),
     PurchasedContentRequest(PurchasedContentParameters),
-    Generic(String),
+    Generic(serde_json::Value),
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -50,6 +48,7 @@ pub enum ProviderResponsePayloadType {
     KeyboardResult,
     EntityInfoResponse,
     PurchasedContentResponse,
+    Generic,
 }
 
 impl ToString for ProviderResponsePayloadType {
@@ -63,6 +62,7 @@ impl ToString for ProviderResponsePayloadType {
             ProviderResponsePayloadType::PurchasedContentResponse => {
                 "PurchasedContentResponse".into()
             }
+            ProviderResponsePayloadType::Generic => "GenericResponse".into(),
         }
     }
 }
@@ -77,6 +77,7 @@ pub enum ProviderResponsePayload {
     KeyboardResult(KeyboardSessionResponse),
     EntityInfoResponse(Option<EntityInfoResult>),
     PurchasedContentResponse(PurchasedContentResult),
+    Generic(serde_json::Value),
 }
 
 impl ProviderResponsePayload {
@@ -119,6 +120,22 @@ impl ProviderResponsePayload {
             _ => None,
         }
     }
+
+    pub fn as_value(&self) -> serde_json::Value {
+        match self {
+            ProviderResponsePayload::ChallengeResponse(res) => serde_json::to_value(res).unwrap(),
+            ProviderResponsePayload::ChallengeError(res) => serde_json::to_value(res).unwrap(),
+            ProviderResponsePayload::PinChallengeResponse(res) => {
+                serde_json::to_value(res).unwrap()
+            }
+            ProviderResponsePayload::KeyboardResult(res) => serde_json::to_value(res).unwrap(),
+            ProviderResponsePayload::EntityInfoResponse(res) => serde_json::to_value(res).unwrap(),
+            ProviderResponsePayload::PurchasedContentResponse(res) => {
+                serde_json::to_value(res).unwrap()
+            }
+            ProviderResponsePayload::Generic(res) => res.clone(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -159,37 +176,28 @@ pub struct ExternalProviderError {
 #[derive(Debug, Clone, Serialize)]
 
 pub struct ProviderAttributes {
-    pub event: &'static str,
     pub response_payload_type: ProviderResponsePayloadType,
     pub error_payload_type: ProviderResponsePayloadType,
-    pub capability: &'static str,
-    pub method: &'static str,
 }
 
 impl ProviderAttributes {
     pub fn get(module: &str) -> Option<&'static ProviderAttributes> {
         match module {
             "AcknowledgeChallenge" => Some(&ACKNOWLEDGE_CHALLENGE_ATTRIBS),
-            "PinChallenge" => Some(&ACKNOWLEDGE_CHALLENGE_ATTRIBS),
+            "PinChallenge" => Some(&PIN_CHALLENGE_ATTRIBS),
             _ => None,
         }
     }
 }
 
 pub const ACKNOWLEDGE_CHALLENGE_ATTRIBS: ProviderAttributes = ProviderAttributes {
-    event: ACK_CHALLENGE_EVENT,
     response_payload_type: ProviderResponsePayloadType::ChallengeResponse,
     error_payload_type: ProviderResponsePayloadType::ChallengeError,
-    capability: ACK_CHALLENGE_CAPABILITY,
-    method: "challenge",
 };
 
 pub const PIN_CHALLENGE_ATTRIBS: ProviderAttributes = ProviderAttributes {
-    event: PIN_CHALLENGE_EVENT,
     response_payload_type: ProviderResponsePayloadType::PinChallengeResponse,
     error_payload_type: ProviderResponsePayloadType::ChallengeError,
-    capability: PIN_CHALLENGE_CAPABILITY,
-    method: "challenge",
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
