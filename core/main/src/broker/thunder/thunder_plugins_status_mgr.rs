@@ -319,7 +319,7 @@ impl StatusManager {
                     if !pending_requests.is_empty() {
                         for pending_request in pending_requests {
                             if expired {
-                                error!("Expired request: {:?}", pending_request);
+                                error!("Expired request: {:?} ", pending_request);
                                 callback
                                     .send_error(pending_request, RippleError::ServiceError)
                                     .await;
