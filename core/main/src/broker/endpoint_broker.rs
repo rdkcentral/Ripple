@@ -25,7 +25,7 @@ use ripple_sdk::{
     },
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
-    log::error,
+    log::{error, trace},
     tokio::{
         self,
         sync::mpsc::{self, Receiver, Sender},
@@ -481,6 +481,7 @@ pub trait EndpointBroker {
     /// just before sending the data through the protocol
     fn update_request(rpc_request: &BrokerRequest) -> Result<String, RippleError> {
         let v = Self::apply_request_rule(rpc_request)?;
+        trace!("transformed request {:?}", v);
         let id = rpc_request.rpc.ctx.call_id;
         let method = rpc_request.rule.alias.clone();
         if let Value::Null = v {
@@ -692,8 +693,18 @@ fn apply_response(result: Value, filter: String, rpc_request: &RpcRequest, v: &m
         format!("{}_response", rpc_request.ctx.method),
     ) {
         Ok(r) => {
+            ripple_sdk::log::trace!(
+                "jq rendered output {:?} original input {:?} for filter {}",
+                r,
+                v,
+                filter
+            );
+            /*
+            weird corner case where the filter is "then \"null\"" which is a jq way to return null
+            */
             if r.to_string().to_lowercase().contains("null") {
-                v.data.result = Some(Value::Null)
+                v.data.result = Some(Value::Null);
+                v.data.error = None;
             } else if result.get("success").is_some() {
                 v.data.result = Some(r);
                 v.data.error = None;
@@ -701,6 +712,7 @@ fn apply_response(result: Value, filter: String, rpc_request: &RpcRequest, v: &m
                 v.data.error = Some(r);
                 v.data.result = None;
             }
+            trace!("mutated output {:?}", v);
         }
         Err(e) => error!("jq_compile error {:?}", e),
     }
@@ -729,24 +741,9 @@ fn apply_rule_for_event(
 
 #[cfg(test)]
 mod tests {
-    use ripple_sdk::{tokio::sync::mpsc::channel, Mockable};
-
-    use crate::broker::rules_engine::RuleTransform;
-
     use super::*;
-    mod endpoint_broker {
-        use ripple_sdk::{api::gateway::rpc_gateway_api::RpcRequest, Mockable};
-
-        #[test]
-        fn test_update_context() {
-            let _request = RpcRequest::mock();
-
-            // if let Ok(v) = WebsocketBroker::add_context(&request) {
-            //     println!("_ctx {}", v);
-            //     //assert!(v.get("_ctx").unwrap().as_u64().unwrap().eq(&1));
-            // }
-        }
-    }
+    use crate::broker::rules_engine::RuleTransform;
+    use ripple_sdk::{tokio::sync::mpsc::channel, Mockable};
 
     #[tokio::test]
     async fn test_send_error() {
