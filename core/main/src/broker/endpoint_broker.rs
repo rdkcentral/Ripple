@@ -753,7 +753,6 @@ fn apply_response(
     rpc_request: &RpcRequest,
     v: &mut BrokerOutput,
 ) {
-<<<<<<< HEAD
     match serde_json::to_value(rcp_response) {
         Ok(input) => {
             match jq_compile(
@@ -782,29 +781,6 @@ fn apply_response(
         Err(e) => {
             v.data.error = Some(json!(e.to_string()));
             error!("json rpc response error {:?}", e);
-=======
-    let input = serde_json::to_value(rcp_response).unwrap();
-    match jq_compile(
-        input,
-        &result_response_filter,
-        format!("{}_response", rpc_request.ctx.method),
-    ) {
-        Ok(r) => {
-            if r.to_string().to_lowercase().contains("null") {
-                v.data.result = Some(Value::Null)
-            }
-            if r.to_string().to_lowercase().contains("error") {
-                v.data.error = Some(r);
-                v.data.result = None;
-            } else {
-                v.data.result = Some(r);
-                v.data.error = None;
-            }
-        }
-        Err(e) => {
-            v.data.error = Some(json!(e.to_string()));
-            error!("jq_compile error {:?}", e);
->>>>>>> c522219f (update code)
         }
     }
 }
