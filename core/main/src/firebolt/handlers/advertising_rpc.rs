@@ -351,7 +351,7 @@ impl AdvertisingServer for AdvertisingImpl {
             .await
             .unwrap_or(false);
 
-        let ad_opt_out = PrivacyImpl::get_allow_app_content_ad_targeting(&self.state).await;
+        let ad_opt_out = !PrivacyImpl::get_allow_app_content_ad_targeting(&self.state).await;
 
         let mut privacy_data = privacy_rpc::get_allow_app_content_ad_targeting_settings(
             &self.state,
