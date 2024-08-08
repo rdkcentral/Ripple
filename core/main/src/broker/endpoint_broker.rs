@@ -651,17 +651,7 @@ impl BrokerOutputForwarder {
                                     super::rules_engine::RuleTransformType::Response,
                                 )
                             {
-                                let error_response_filter =
-                                    broker_request.rule.transform.get_filter(
-                                        super::rules_engine::RuleTransformType::ErrorResponse,
-                                    );
-                                apply_response(
-                                    v.data.clone(),
-                                    filter,
-                                    error_response_filter,
-                                    &rpc_request,
-                                    &mut v,
-                                );
+                                apply_response(v.data.clone(), filter, &rpc_request, &mut v);
                             }
                         }
 
@@ -760,10 +750,10 @@ async fn forward_extn_event(
 fn apply_response(
     rcp_response: JsonRpcApiResponse,
     result_response_filter: String,
-    error_response_filter: Option<String>,
     rpc_request: &RpcRequest,
     v: &mut BrokerOutput,
 ) {
+<<<<<<< HEAD
     match serde_json::to_value(rcp_response) {
         Ok(input) => {
             match jq_compile(
@@ -792,6 +782,29 @@ fn apply_response(
         Err(e) => {
             v.data.error = Some(json!(e.to_string()));
             error!("json rpc response error {:?}", e);
+=======
+    let input = serde_json::to_value(rcp_response).unwrap();
+    match jq_compile(
+        input,
+        &result_response_filter,
+        format!("{}_response", rpc_request.ctx.method),
+    ) {
+        Ok(r) => {
+            if r.to_string().to_lowercase().contains("null") {
+                v.data.result = Some(Value::Null)
+            }
+            if r.to_string().to_lowercase().contains("error") {
+                v.data.error = Some(r);
+                v.data.result = None;
+            } else {
+                v.data.result = Some(r);
+                v.data.error = None;
+            }
+        }
+        Err(e) => {
+            v.data.error = Some(json!(e.to_string()));
+            error!("jq_compile error {:?}", e);
+>>>>>>> c522219f (update code)
         }
     }
 }
@@ -948,8 +961,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_apply_response_contains_error() {
-        let result = json!({"make":"SerComm","bluetooth_mac":"F0:46:3B:5B:EB:16","success": true});
-        let error = json!({"code":5,"message":"The service is in an illegal state!!!."});
+        let error = json!({"code":-32601,"message":"The service is in an illegal state!!!."});
         let ctx = CallContext::new(
             "session_id".to_string(),
             "request_id".to_string(),
@@ -963,24 +975,19 @@ mod tests {
         let rpc_request = RpcRequest::new("new_method".to_string(), "params".to_string(), ctx);
         let data = JsonRpcApiResponse::mock();
         let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
-        let filter = "if .success then ( .make ) else {\"code\": -32100, \"message\": \"couldn't get device make\"} end".to_string();
-        let error_filter = "{\"code\": .code, \"message\": .message}".to_string();
+        let filter = "if .result and .result.success then (.result.stbVersion | split(\"_\") [0]) elif .error then if .error.code == -32601 then {\"error\":\"Unknown method.\"} else \"Error occurred with a different code\" end else \"No result or recognizable error\" end".to_string();
         let mut response = JsonRpcApiResponse::mock();
-        response.result = Some(result);
         response.error = Some(error.clone());
-        apply_response(
-            response,
-            filter,
-            Some(error_filter),
-            &rpc_request,
-            &mut output,
+        apply_response(response, filter, &rpc_request, &mut output);
+        assert_eq!(
+            output.data.error.unwrap(),
+            json!({"error":"Unknown method."})
         );
-        assert_eq!(output.data.error.unwrap(), error);
     }
 
     #[tokio::test]
     async fn test_apply_response_do_not_contains_error() {
-        let result = json!({"make":"SerComm","bluetooth_mac":"F0:46:3B:5B:EB:16","success": true});
+        let result = json!({"stbVersion":"SCXI11BEI_VBN_24Q3_sprint_20240717150752sdy_FG","receiverVersion":"7.6.0.0","stbTimestamp":"Wed 17 Jul 2024 15:07:52 UTC","success":true});
         let ctx = CallContext::new(
             "session_id".to_string(),
             "request_id".to_string(),
@@ -994,17 +1001,10 @@ mod tests {
         let rpc_request = RpcRequest::new("new_method".to_string(), "params".to_string(), ctx);
         let data = JsonRpcApiResponse::mock();
         let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
-        let filter = "if .success then ( .make ) else {\"code\": -32100, \"message\": \"couldn't get device make\"} end".to_string();
-        let error_filter = "{\"code\": .code, \"message\": .message}".to_string();
+        let filter = "if .result and .result.success then (.result.stbVersion | split(\"_\") [0]) elif .error then if .error.code == -32601 then {\"error\":\"Unknown method.\"} else \"Error occurred with a different code\" end else \"No result or recognizable error\" end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
-        apply_response(
-            response,
-            filter,
-            Some(error_filter),
-            &rpc_request,
-            &mut output,
-        );
-        assert_eq!(output.data.result.unwrap(), "SerComm".to_string());
+        apply_response(response, filter, &rpc_request, &mut output);
+        assert_eq!(output.data.result.unwrap(), "SCXI11BEI".to_string());
     }
 }
