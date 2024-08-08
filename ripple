@@ -117,6 +117,11 @@ case ${1} in
         cargo build --features local_dev
         cargo run --features local_dev core/main
     ;;
+    "--version")
+        # Navigate to an actual package directory within the workspace
+        workspace_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+        echo "Ripple version $(cargo pkgid --manifest-path "${workspace_dir}/core/main/Cargo.toml" | sed 's/.*#//')"
+    ;;
     "-h")
         print_help
     ;;

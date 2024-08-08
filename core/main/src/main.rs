@@ -22,6 +22,7 @@ use ripple_sdk::{
     utils::logger::init_and_configure_logger,
 };
 use state::bootstrap_state::BootstrapState;
+use std::env;
 pub mod bootstrap;
 pub mod broker;
 pub mod firebolt;
@@ -33,12 +34,19 @@ include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
 #[tokio::main(worker_threads = 2)]
 async fn main() {
+    // Check for --version flag
+    let args: Vec<String> = env::args().collect();
+    if args.contains(&"--version".to_string()) {
+        println!("Sakshi ripple {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+
     // Init logger
     if let Err(e) = init_and_configure_logger(SEMVER_LIGHTWEIGHT, "gateway".into()) {
         println!("{:?} logger init error", e);
         return;
     }
-    info!("version {}", SEMVER_LIGHTWEIGHT);
+    info!("version {}", env!("CARGO_PKG_VERSION"));
     let bootstate = BootstrapState::build().expect("Failure to init state for bootstrap");
 
     // bootstrap
