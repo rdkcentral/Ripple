@@ -97,7 +97,6 @@ pub struct Rule {
 pub struct RuleTransform {
     pub request: Option<String>,
     pub response: Option<String>,
-    pub error_response: Option<String>,
     pub event: Option<String>,
     pub event_decorator_method: Option<String>,
 }
