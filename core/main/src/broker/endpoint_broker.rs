@@ -50,6 +50,7 @@ use crate::{
 };
 
 use super::{
+    event_management_utility::EventManagementUtility,
     http_broker::HttpBroker,
     rules_engine::{jq_compile, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine},
     thunder_broker::ThunderBroker,
@@ -509,7 +510,7 @@ pub trait EndpointBroker {
                     if let Some(filter) = rpc_request
                         .rule
                         .transform
-                        .get_filter(super::rules_engine::RuleTransformType::Request)
+                        .get_transform_data(super::rules_engine::RuleTransformType::Request)
                     {
                         return jq_compile(
                             last,
@@ -548,6 +549,11 @@ pub struct BrokerOutputForwarder;
 
 impl BrokerOutputForwarder {
     pub fn start_forwarder(platform_state: PlatformState, mut rx: Receiver<BrokerOutput>) {
+        // set up the event utility
+        let event_utility = Arc::new(EventManagementUtility::new());
+        event_utility.register_custom_functions();
+        let event_utility_clone = event_utility.clone();
+
         tokio::spawn(async move {
             while let Some(mut v) = rx.recv().await {
                 let mut is_event = false;
@@ -575,6 +581,61 @@ impl BrokerOutputForwarder {
                                     &rpc_request,
                                     &mut v,
                                 );
+                                if !apply_filter(&broker_request, &result, &rpc_request) {
+                                    continue;
+                                }
+                                // check if the request transform has event_decorator_method
+                                if let Some(decorator_method) =
+                                    broker_request.rule.transform.event_decorator_method.clone()
+                                {
+                                    if let Some(func) =
+                                        event_utility_clone.get_function(&decorator_method)
+                                    {
+                                        // spawn a tokio thread to run the function and continue the main thread.
+                                        let session_id = rpc_request.ctx.get_id();
+                                        let request_id = rpc_request.ctx.call_id;
+                                        let protocol = rpc_request.ctx.protocol.clone();
+                                        let platform_state_c = platform_state.clone();
+                                        let ctx = rpc_request.ctx.clone();
+                                        tokio::spawn(async move {
+                                            if let Ok(value) = func(
+                                                platform_state_c.clone(),
+                                                ctx.clone(),
+                                                Some(result.clone()),
+                                            )
+                                            .await
+                                            {
+                                                v.data.result = Some(value.expect("REASON"));
+                                            }
+                                            v.data.id = Some(request_id);
+
+                                            let message = ApiMessage {
+                                                request_id: request_id.to_string(),
+                                                protocol,
+                                                jsonrpc_msg: serde_json::to_string(&v.data)
+                                                    .unwrap(),
+                                            };
+
+                                            if let Some(session) = platform_state_c
+                                                .session_state
+                                                .get_session_for_connection_id(&session_id)
+                                            {
+                                                return_api_message_for_transport(
+                                                    session,
+                                                    message,
+                                                    platform_state_c,
+                                                )
+                                                .await
+                                            }
+                                        });
+                                        continue;
+                                    } else {
+                                        error!(
+                                            "Failed to invoke decorator method {:?}",
+                                            decorator_method
+                                        );
+                                    }
+                                }
                             } else if is_subscription {
                                 if sub_processed {
                                     continue;
@@ -584,10 +645,10 @@ impl BrokerOutputForwarder {
                                     "event" : rpc_request.ctx.method
                                 }));
                                 platform_state.endpoint_state.update_unsubscribe_request(id);
-                            } else if let Some(filter) = broker_request
-                                .rule
-                                .transform
-                                .get_filter(super::rules_engine::RuleTransformType::Response)
+                            } else if let Some(filter) =
+                                broker_request.rule.transform.get_transform_data(
+                                    super::rules_engine::RuleTransformType::Response,
+                                )
                             {
                                 apply_response(result, filter, &rpc_request, &mut v);
                             }
@@ -715,7 +776,7 @@ fn apply_rule_for_event(
     if let Some(filter) = broker_request
         .rule
         .transform
-        .get_filter(super::rules_engine::RuleTransformType::Event)
+        .get_transform_data(super::rules_engine::RuleTransformType::Event)
     {
         if let Ok(r) = jq_compile(
             result.clone(),
@@ -725,6 +786,24 @@ fn apply_rule_for_event(
             v.data.result = Some(r);
         }
     }
+}
+
+fn apply_filter(broker_request: &BrokerRequest, result: &Value, rpc_request: &RpcRequest) -> bool {
+    if let Some(filter) = broker_request.rule.filter.clone() {
+        if let Ok(r) = jq_compile(
+            result.clone(),
+            &filter,
+            format!("{}_event filter", rpc_request.ctx.method),
+        ) {
+            if r.is_null() {
+                return false;
+            } else {
+                // get bool value for r and return
+                return r.as_bool().unwrap();
+            }
+        }
+    }
+    true
 }
 
 #[cfg(test)]
@@ -761,6 +840,7 @@ mod tests {
                         alias: "somecallsign.method".to_owned(),
                         transform: RuleTransform::default(),
                         endpoint: None,
+                        filter: None,
                     },
                     subscription_processed: None,
                 },
@@ -828,6 +908,7 @@ mod tests {
                     alias: "somecallsign.method".to_owned(),
                     transform: RuleTransform::default(),
                     endpoint: None,
+                    filter: None,
                 },
                 None,
             );
@@ -838,6 +919,7 @@ mod tests {
                     alias: "somecallsign.method".to_owned(),
                     transform: RuleTransform::default(),
                     endpoint: None,
+                    filter: None,
                 },
                 None,
             );
