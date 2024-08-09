@@ -64,26 +64,26 @@ impl ProviderRelationSet {
     }
 }
 
+fn is_provider_enabled(method: &str, checksets: &Vec<String>) -> bool {
+    let method_lower_case = method.to_lowercase();
+    for checkset in checksets {
+        if checkset.to_lowercase().eq(&method_lower_case) {
+            return true;
+        }
+    }
+    false
+}
+
 pub fn build_provider_relation_sets(
     openrpc_methods: &Vec<FireboltOpenRpcMethod>,
+    checksets: &Vec<String>,
 ) -> HashMap<String, ProviderRelationSet> {
     let mut provider_relation_sets = HashMap::default();
 
     for method in openrpc_methods {
         let mut has_x_provides = None;
 
-        // Only build provider sets for those indicated below, for now.
-        if !method.name.starts_with("AcknowledgeChallenge.")
-            && !method.name.starts_with("PinChallenge.")
-            && !method.name.starts_with("Discovery.userInterest")
-            && !method.name.starts_with("Discovery.onRequestUserInterest")
-            && !method.name.starts_with("Discovery.userInterestResponse")
-            && !method.name.starts_with("Content.requestUserInterest")
-            && !method.name.starts_with("Content.onUserInterest")
-            && !method.name.starts_with("Player.")
-            && !method.name.starts_with("StreamingPlayer.")
-            && !method.name.starts_with("BroadcastPlayer.")
-        {
+        if !is_provider_enabled(&method.name, checksets) {
             continue;
         }
 
@@ -198,6 +198,7 @@ pub struct OpenRpcState {
     extended_rpc: Arc<RwLock<Vec<FireboltOpenRpc>>>,
     provider_relation_map: Arc<RwLock<HashMap<String, ProviderRelationSet>>>,
     openrpc_validator: Arc<RwLock<FireboltOpenRpcValidator>>,
+    provider_registrations: Vec<String>,
 }
 
 impl OpenRpcState {
@@ -240,7 +241,8 @@ impl OpenRpcState {
     pub fn add_extension_open_rpc(&self, path: &str) -> Result<(), RippleError> {
         match Self::load_open_rpc(path) {
             Some(open_rpc) => {
-                let provider_relation_sets = build_provider_relation_sets(&open_rpc.methods);
+                let provider_relation_sets =
+                    build_provider_relation_sets(&open_rpc.methods, &self.provider_registrations);
                 self.provider_relation_map
                     .write()
                     .unwrap()
@@ -287,7 +289,11 @@ impl OpenRpcState {
         version_manifest
     }
 
-    pub fn new(exclusory: Option<ExclusoryImpl>, extn_sdks: Vec<String>) -> OpenRpcState {
+    pub fn new(
+        exclusory: Option<ExclusoryImpl>,
+        extn_sdks: Vec<String>,
+        provider_registrations: Vec<String>,
+    ) -> OpenRpcState {
         let version_manifest = Self::load_firebolt_open_rpc();
 
         let firebolt_open_rpc: FireboltOpenRpc = version_manifest.clone().into();
@@ -307,8 +313,10 @@ impl OpenRpcState {
             extended_rpc: Arc::new(RwLock::new(Vec::new())),
             provider_relation_map: Arc::new(RwLock::new(build_provider_relation_sets(
                 &firebolt_open_rpc.methods,
+                &provider_registrations.clone(),
             ))),
             openrpc_validator: Arc::new(RwLock::new(openrpc_validator)),
+            provider_registrations,
         };
 
         for path in extn_sdks {
@@ -480,5 +488,53 @@ impl OpenRpcState {
 
     pub fn get_openrpc_validator(&self) -> FireboltOpenRpcValidator {
         self.openrpc_validator.read().unwrap().clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ripple_sdk::api::manifest::extn_manifest::default_providers;
+
+    use super::is_provider_enabled;
+
+    #[test]
+    fn test_provider_support() {
+        assert!(is_provider_enabled(
+            "AcknowledgeChallenge.",
+            &default_providers()
+        ));
+        assert!(is_provider_enabled("PinChallenge.", &default_providers()));
+        assert!(is_provider_enabled(
+            "Discovery.userInterest",
+            &default_providers()
+        ));
+        assert!(is_provider_enabled(
+            "Discovery.onRequestUserInterest",
+            &default_providers()
+        ));
+        assert!(is_provider_enabled(
+            "Discovery.userInterestResponse",
+            &default_providers()
+        ));
+        assert!(is_provider_enabled(
+            "Content.requestUserInterest",
+            &default_providers()
+        ));
+        assert!(is_provider_enabled(
+            "Content.onUserInterest",
+            &default_providers()
+        ));
+        assert!(is_provider_enabled(
+            "IntegratedPlayer.",
+            &default_providers()
+        ));
+        assert!(is_provider_enabled(
+            "integratedPlayer.",
+            &default_providers()
+        ));
+        assert!(is_provider_enabled(
+            "integratedplayer.",
+            &default_providers()
+        ));
     }
 }
