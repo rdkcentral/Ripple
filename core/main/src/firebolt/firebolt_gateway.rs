@@ -215,7 +215,9 @@ impl FireboltGateway {
                     TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
                         &platform_state.clone(),
                         metrics_timer,
-                        format!("{}", JSON_RPC_STANDARD_ERROR_INVALID_PARAMS),
+                        Some(ripple_sdk::api::observability::MetricStatus::ServiceError(
+                            JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+                        )),
                     )
                     .await;
 
@@ -288,7 +290,7 @@ impl FireboltGateway {
                     TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
                         &platform_state.clone(),
                         metrics_timer,
-                        format!("{}", deny_reason.get_observability_error_code()),
+                        Some(deny_reason.clone().into()),
                     )
                     .await;
 

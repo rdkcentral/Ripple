@@ -43,11 +43,11 @@ use ripple_sdk::api::app_catalog::{AppCatalogRequest, AppOperationComplete, Apps
 use ripple_sdk::api::device::device_apps::DeviceAppMetadata;
 use ripple_sdk::api::device::device_operator::{DeviceResponseMessage, DeviceSubscribeRequest};
 use ripple_sdk::api::firebolt::fb_capabilities::FireboltPermissions;
-use ripple_sdk::api::firebolt::fb_metrics::{Timer, TimerType};
-use ripple_sdk::api::observability::metrics_util::{
-    start_service_metrics_timer, stop_and_send_service_metrics_timer,
+use ripple_sdk::api::observability::{
+    emit_observability, fb_interaction_counter, MetricStatus, Timer, TimerType,
 };
 
+use ripple_sdk::api::observability::start_service_metrics_timer;
 #[cfg(not(test))]
 use ripple_sdk::log::{debug, error, info};
 use ripple_sdk::tokio;
@@ -212,7 +212,7 @@ impl Operation {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum OperationStatus {
     Succeeded,
     Failed,
@@ -266,6 +266,24 @@ impl OperationStatus {
 
     pub fn succeeded(&self) -> bool {
         matches!(self, OperationStatus::Succeeded)
+    }
+}
+impl From<OperationStatus> for MetricStatus {
+    fn from(status: OperationStatus) -> Self {
+        match status {
+            OperationStatus::Succeeded => MetricStatus::Success,
+            OperationStatus::Failed => MetricStatus::Failure,
+            OperationStatus::NotStarted => MetricStatus::Unknown,
+            OperationStatus::Downloading => MetricStatus::Unknown,
+            OperationStatus::Downloaded => MetricStatus::Unknown,
+            OperationStatus::DownloadFailed => MetricStatus::Failure,
+            OperationStatus::Verifying => MetricStatus::Unknown,
+            OperationStatus::VerificationFailed => MetricStatus::Failure,
+            OperationStatus::InstallationFailed => MetricStatus::Failure,
+            OperationStatus::Cancelled => MetricStatus::Failure,
+            OperationStatus::NotEnoughStorage => MetricStatus::Failure,
+            OperationStatus::Unknown => MetricStatus::Unknown,
+        }
     }
 }
 
@@ -327,6 +345,11 @@ impl AppsOperationStatus {
             status,
             details,
         }
+    }
+}
+impl From<AppsOperationStatus> for MetricStatus {
+    fn from(status: AppsOperationStatus) -> Self {
+        OperationStatus::new(&status.status).into()
     }
 }
 
@@ -417,11 +440,12 @@ impl ThunderPackageManagerRequestProcessor {
                             operation_status.id.clone(),
                             AppData::new(operation_status.version.clone()),
                         );
+
                         Self::add_or_remove_operation(
                             state_for_event_handler.clone(),
                             operation_status.handle,
                             operation,
-                            Some(operation_status.status),
+                            Some(status.clone().into()),
                         );
                         let op_comp = AppOperationComplete {
                             id: operation_status.id,
@@ -493,14 +517,16 @@ impl ThunderPackageManagerRequestProcessor {
         state: ThunderPackageManagerState,
         handle: String,
         operation: Operation,
-        status: Option<String>,
+        status: Option<MetricStatus>,
     ) {
         let mut active_operations = state.active_operations.lock().unwrap();
         match active_operations.get(&handle) {
             Some(op) => {
                 let mut timer = op.timer.clone();
+                if let Some(stat) = status {
+                    timer.status = stat;
+                }
                 timer.stop();
-                timer.insert_tag("status".to_string(), status.unwrap_or("".to_string()));
                 rdk_telemetry_emit(timer);
                 active_operations.remove(&handle);
             }
@@ -599,11 +625,20 @@ impl ThunderPackageManagerRequestProcessor {
                     ExtnResponse::Error(RippleError::ProcessorError),
                 ),
             };
+        /*
+        use associated function in case we don't have  Some() */
+        let metrics_timer = Timer::status(metrics_timer, status.clone().into());
+        let fb_counter = fb_interaction_counter(
+            &thunder_state.get_client().clone(),
+            Some(ThunderMetricsTimerName::PackageManagerGetList.to_string()),
+            Some(status.into()),
+            None,
+        );
 
-        stop_and_send_service_metrics_timer(
+        emit_observability(
             thunder_state.get_client().clone(),
-            metrics_timer,
-            status.to_string(),
+            vec![metrics_timer],
+            vec![fb_counter],
         )
         .await;
 
@@ -677,11 +712,18 @@ impl ThunderPackageManagerRequestProcessor {
         } else {
             ThunderResponseStatus::Failure
         };
+        let metrics_timer = Timer::status(metrics_timer, status.clone().into());
+        let fb_counter = fb_interaction_counter(
+            &state.thunder_state.get_client().clone(),
+            Some(ThunderMetricsTimerName::PackageManagerInstall.to_string()),
+            Some(status.clone().into()),
+            None,
+        );
 
-        stop_and_send_service_metrics_timer(
+        emit_observability(
             state.thunder_state.get_client().clone(),
-            metrics_timer,
-            status.to_string(),
+            vec![metrics_timer],
+            vec![fb_counter],
         )
         .await;
 
@@ -691,7 +733,7 @@ impl ThunderPackageManagerRequestProcessor {
                     state.clone(),
                     handle.clone(),
                     operation,
-                    Some(status.to_string()),
+                    Some(status.into()),
                 );
 
                 ExtnResponse::String(handle)
@@ -760,11 +802,17 @@ impl ThunderPackageManagerRequestProcessor {
         } else {
             ThunderResponseStatus::Failure
         };
+        let fb_counter = fb_interaction_counter(
+            &state.thunder_state.get_client().clone(),
+            Some(ThunderMetricsTimerName::PackageManagerUninstall.to_string()),
+            Some(status.clone().into()),
+            None,
+        );
 
-        stop_and_send_service_metrics_timer(
+        emit_observability(
             state.thunder_state.get_client().clone(),
-            metrics_timer,
-            status.to_string(),
+            vec![metrics_timer],
+            vec![fb_counter],
         )
         .await;
 
@@ -774,7 +822,7 @@ impl ThunderPackageManagerRequestProcessor {
                     state.clone(),
                     handle.clone(),
                     operation,
-                    Some(status.to_string()),
+                    Some(status.into()),
                 );
                 ExtnResponse::String(handle)
             }
@@ -909,10 +957,17 @@ impl ThunderPackageManagerRequestProcessor {
             ThunderResponseStatus::Failure
         };
 
-        stop_and_send_service_metrics_timer(
+        let fb_counter = fb_interaction_counter(
+            &state.thunder_state.get_client().clone(),
+            Some(ThunderMetricsTimerName::PackageManagerGetMetadata.to_string()),
+            Some(status.clone().into()),
+            None,
+        );
+
+        emit_observability(
             state.thunder_state.get_client().clone(),
-            metrics_timer,
-            status.to_string(),
+            vec![metrics_timer],
+            vec![fb_counter],
         )
         .await;
 
@@ -973,10 +1028,17 @@ impl ThunderPackageManagerRequestProcessor {
             ThunderResponseStatus::Failure
         };
 
-        stop_and_send_service_metrics_timer(
+        let fb_counter = fb_interaction_counter(
+            &state.thunder_state.get_client().clone(),
+            Some(ThunderMetricsTimerName::PackageManagerUninstall.to_string()),
+            Some(status.clone().into()),
+            None,
+        );
+
+        emit_observability(
             state.thunder_state.get_client().clone(),
-            metrics_timer,
-            status.to_string(),
+            vec![metrics_timer],
+            vec![fb_counter],
         )
         .await;
     }
@@ -1029,11 +1091,11 @@ impl ExtnRequestProcessor for ThunderPackageManagerRequestProcessor {
 /*
 RDK Telemetry  message processing/emitting
 */
-pub fn rdk_telemetry_emit(timer: ripple_sdk::api::firebolt::fb_metrics::Timer) {
+pub fn rdk_telemetry_emit(timer: Timer) {
     emit(format_timer(timer));
 }
 
-fn format_timer(timer: ripple_sdk::api::firebolt::fb_metrics::Timer) -> String {
+fn format_timer(timer: Timer) -> String {
     /*
     emit - name: <appId>,<appVersion>,<status>,<duration>
     */
@@ -1073,7 +1135,6 @@ pub mod tests {
     };
     use ripple_sdk::extn::mock_extension_client::*;
     use ripple_sdk::{
-        api::firebolt::fb_metrics::Timer,
         tokio::{self, time::sleep},
         uuid::Uuid,
     };
@@ -1085,24 +1146,21 @@ pub mod tests {
         let mut tags: HashMap<String, String> = HashMap::new();
         tags.insert("app_id".to_string(), "xumo".to_string());
         tags.insert("app_version".to_string(), "1.2.3".to_string());
-        tags.insert("status".to_string(), "success".to_string());
         let mut timer = Timer::start(timer_name, Some(tags), None);
         sleep(Duration::from_millis(1000)).await;
         timer.stop();
         let rendered = format_timer(timer);
-        assert!(rendered.starts_with("test_timer: xumo,1.2.3,success,"));
+        assert!(rendered.starts_with("test_timer: xumo,1.2.3,0,"));
     }
 
     #[tokio::test]
     pub async fn test_format_timer_some_tags() {
         let timer_name = "test_timer".to_string();
-        let mut tags: HashMap<String, String> = HashMap::new();
-        tags.insert("status".to_string(), "success".to_string());
-        let mut timer = Timer::start(timer_name, Some(tags), None);
+        let mut timer = Timer::start(timer_name, None, None);
         sleep(Duration::from_millis(1000)).await;
         timer.stop();
         let rendered = format_timer(timer);
-        assert!(rendered.starts_with("test_timer: ,,success,"));
+        assert!(rendered.starts_with("test_timer: ,,0,"));
     }
 
     #[tokio::test]
@@ -1146,7 +1204,7 @@ pub mod tests {
             state.clone(),
             "asdf".to_string(),
             operation,
-            Some("success".to_string()),
+            Some(MetricStatus::Success),
         );
         assert!(state.active_operations.lock().unwrap().is_empty());
     }
@@ -1179,7 +1237,7 @@ pub mod tests {
             state.clone(),
             "asdf".to_string(),
             operation,
-            Some("success".to_string()),
+            Some(MetricStatus::Success),
         );
         assert!(sessions.eq(&state.active_operations.lock().unwrap().clone()));
     }

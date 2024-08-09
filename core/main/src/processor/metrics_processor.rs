@@ -18,14 +18,12 @@
 use ripple_sdk::{
     api::{
         distributor::distributor_privacy::DataEventType,
-        firebolt::{
-            fb_metrics::{
-                AppDataGovernanceState, BehavioralMetricContext, BehavioralMetricPayload,
-                BehavioralMetricRequest, MetricsPayload, MetricsRequest,
-            },
-            fb_telemetry::OperationalMetricRequest,
+        firebolt::fb_metrics::{
+            AppDataGovernanceState, BehavioralMetricContext, BehavioralMetricPayload,
+            BehavioralMetricRequest, MetricsPayload, MetricsRequest,
         },
         gateway::rpc_gateway_api::CallContext,
+        observability::OperationalMetricRequest,
     },
     async_trait::async_trait,
     extn::{

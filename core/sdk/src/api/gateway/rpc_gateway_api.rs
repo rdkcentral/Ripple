@@ -22,7 +22,10 @@ use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
 use crate::{
-    api::firebolt::{fb_general::ListenRequest, fb_openrpc::FireboltOpenRpcMethod},
+    api::{
+        firebolt::{fb_general::ListenRequest, fb_openrpc::FireboltOpenRpcMethod},
+        observability::MetricStatus,
+    },
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
 };
@@ -125,6 +128,14 @@ pub struct ApiMessage {
     pub protocol: ApiProtocol,
     pub jsonrpc_msg: String,
     pub request_id: String,
+}
+impl From<Result<ApiMessage, crate::utils::error::RippleError>> for MetricStatus {
+    fn from(result: Result<ApiMessage, crate::utils::error::RippleError>) -> Self {
+        match result {
+            Ok(_) => MetricStatus::Success,
+            Err(_) => MetricStatus::Failure,
+        }
+    }
 }
 
 /// Holds a message in jsonrpc protocol format and the protocol that it should be converted into
