@@ -249,6 +249,7 @@ mod tests {
                 alias: "".to_owned(),
                 transform: RuleTransform::default(),
                 endpoint: None,
+                filter: None,
             },
             subscription_processed: None,
         };
@@ -287,6 +288,7 @@ mod tests {
                 alias: "".to_owned(),
                 transform: RuleTransform::default(),
                 endpoint: None,
+                filter: None,
             },
             subscription_processed: None,
         };
