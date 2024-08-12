@@ -1,238 +1,239 @@
   {
-  "configuration": {
-    "ws_configuration": {
-      "enabled": true,
-      "gateway": "127.0.0.1:3473"
-    },
-    "internal_ws_configuration": {
-      "enabled": true,
-      "gateway": "127.0.0.1:3474"
-    },
-    "platform_parameters": {
-      "gateway": "ws://127.0.0.1:9998/jsonrpc"
-    },
-    "distribution_tenant": "reference",
-    "form_factor": "ipstb",
-    "default_values": {
-      "country_code": "US",
-      "language": "en",
-      "locale": "en-US",
-      "name": "Living Room",
-      "captions": {
-        "enabled": false,
-        "font_family": "monospaced_sanserif",
-        "font_size": 1,
-        "font_color": "#ffffff",
-        "font_edge": "none",
-        "font_edge_color": "#7F7F7F",
-        "font_opacity": 100,
-        "background_color": "#000000",
-        "background_opacity": 12,
-        "text_align": "center",
-        "text_align_vertical": "middle"
+    "configuration": {
+      "ws_configuration": {
+        "enabled": true,
+        "gateway": "127.0.0.1:3473"
       },
-      "voice": {
-        "enabled": false,
-        "speed": 5
-      }
-    },
-    "model_friendly_names": {
-      "RSPPI": "Raspberry PI"
-    },
-    "distributor_experience_id": "0000",
-    "exclusory": {
-      "app_authorization_rules": {
-        "app_ignore_rules": {
-          "foo-insecure": [
-            "*"
-          ],
-          "refui": [
-            "*"
-          ]
+      "internal_ws_configuration": {
+        "enabled": true,
+        "gateway": "127.0.0.1:3474"
+      },
+      "platform_parameters": {
+        "gateway": "ws://127.0.0.1:9998/jsonrpc"
+      },
+      "distribution_tenant": "reference",
+      "form_factor": "ipstb",
+      "default_values": {
+        "country_code": "US",
+        "language": "en",
+        "locale": "en-US",
+        "name": "Living Room",
+        "captions": {
+          "enabled": false,
+          "font_family": "monospaced_sanserif",
+          "font_size": 1,
+          "font_color": "#ffffff",
+          "font_edge": "none",
+          "font_edge_color": "#7F7F7F",
+          "font_opacity": 100,
+          "background_color": "#000000",
+          "background_opacity": 12,
+          "text_align": "center",
+          "text_align_vertical": "middle"
+        },
+        "voice": {
+          "enabled": false,
+          "speed": 5
         }
       },
-      "method_ignore_rules": [
-        "lifecycle.ready",
-        "lifecycle.onInactive",
-        "lifecycle.onForeground",
-        "lifecycle.onBackground",
-        "lifecycle.onSuspended",
-        "lifecycle.onUnloading",
-        "lifecycle.close",
-        "lifecycle.finished",
-        "discovery.onNavigateTo",
-        "parameters.initialization",
-        "capabilities.supported",
-        "capabilities.available",
-        "capabilities.permitted",
-        "capabilities.granted",
-        "capabilities.info",
-        "capabilities.request",
-        "capabilities.onAvailable",
-        "capabilities.onUnavailable",
-        "capabilities.onGranted",
-        "capabilities.onRevoked",
-        "some.nonexistent.method"
+      "model_friendly_names": {
+        "RSPPI": "Raspberry PI"
+      },
+      "distributor_experience_id": "0000",
+      "exclusory": {
+        "app_authorization_rules": {
+          "app_ignore_rules": {
+            "foo-insecure": [
+              "*"
+            ],
+            "refui": [
+              "*"
+            ]
+          }
+        },
+        "method_ignore_rules": [
+          "lifecycle.ready",
+          "lifecycle.onInactive",
+          "lifecycle.onForeground",
+          "lifecycle.onBackground",
+          "lifecycle.onSuspended",
+          "lifecycle.onUnloading",
+          "lifecycle.close",
+          "lifecycle.finished",
+          "discovery.onNavigateTo",
+          "parameters.initialization",
+          "capabilities.supported",
+          "capabilities.available",
+          "capabilities.permitted",
+          "capabilities.granted",
+          "capabilities.info",
+          "capabilities.request",
+          "capabilities.onAvailable",
+          "capabilities.onUnavailable",
+          "capabilities.onGranted",
+          "capabilities.onRevoked",
+          "some.nonexistent.method"
+        ]
+      }
+    },
+    "capabilities": {
+      "supported": [
+        "xrn:firebolt:capability:accessory:pair",
+        "xrn:firebolt:capability:accessory:list",
+        "xrn:firebolt:capability:accessibility:closedcaptions",
+        "xrn:firebolt:capability:accessibility:voiceguidance",
+        "xrn:firebolt:capability:account:id",
+        "xrn:firebolt:capability:account:uid",
+        "xrn:firebolt:capability:accessory:list",
+        "xrn:firebolt:capability:advertising:configuration",
+        "xrn:firebolt:capability:advertising:identifier",
+        "xrn:firebolt:capability:approve:content",
+        "xrn:firebolt:capability:approve:purchase",
+        "xrn:firebolt:capability:data:app-usage",
+        "xrn:firebolt:capability:device:distributor",
+        "xrn:firebolt:capability:device:id",
+        "xrn:firebolt:capability:device:info",
+        "xrn:firebolt:capability:device:make",
+        "xrn:firebolt:capability:device:model",
+        "xrn:firebolt:capability:device:name",
+        "xrn:firebolt:capability:device:sku",
+        "xrn:firebolt:capability:device:uid",
+        "xrn:firebolt:capability:discovery:entity-info",
+        "xrn:firebolt:capability:discovery:navigate-to",
+        "xrn:firebolt:capability:discovery:policy",
+        "xrn:firebolt:capability:discovery:purchased-content",
+        "xrn:firebolt:capability:discovery:watched",
+        "xrn:firebolt:capability:discovery:watch-next",
+        "xrn:firebolt:capability:discovery:content-access",
+        "xrn:firebolt:capability:grants:state",
+        "xrn:firebolt:capability:lifecycle:initialize",
+        "xrn:firebolt:capability:lifecycle:launch",
+        "xrn:firebolt:capability:lifecycle:ready",
+        "xrn:firebolt:capability:lifecycle:state",
+        "xrn:firebolt:capability:localization:country-code",
+        "xrn:firebolt:capability:localization:language",
+        "xrn:firebolt:capability:localization:locale",
+        "xrn:firebolt:capability:localization:locality",
+        "xrn:firebolt:capability:localization:postal-code",
+        "xrn:firebolt:capability:localization:time-zone",
+        "xrn:firebolt:capability:metrics:general",
+        "xrn:firebolt:capability:metrics:media",
+        "xrn:firebolt:capability:network:status",
+        "xrn:firebolt:capability:power:state",
+        "xrn:firebolt:capability:privacy:advertising",
+        "xrn:firebolt:capability:privacy:content",
+        "xrn:firebolt:capability:privacy:settings",
+        "xrn:firebolt:capability:profile:flags",
+        "xrn:firebolt:capability:usergrant:pinchallenge",
+        "xrn:firebolt:capability:usergrant:acknowledgechallenge",
+        "xrn:firebolt:capability:input:keyboard",
+        "xrn:firebolt:capability:remote:ble",
+        "xrn:firebolt:capability:storage:secure",
+        "xrn:firebolt:capability:token:account",
+        "xrn:firebolt:capability:token:platform",
+        "xrn:firebolt:capability:token:device",
+        "xrn:firebolt:capability:token:session",
+        "xrn:firebolt:capability:token:root",
+        "xrn:firebolt:capability:player:base"
+      ],
+      "grantPolicies": {
+        "xrn:firebolt:capability:device:id": {
+          "use": {
+            "options": [
+              {
+                "steps": [
+                  {
+                    "capability": "xrn:firebolt:capability:usergrant:acknowledgechallenge"
+                  }
+                ]
+              }
+            ],
+            "scope": "app",
+            "lifespan": "seconds",
+            "lifespanTtl": 120,
+            "overridable": false,
+            "persistence": "device",
+            "privacySetting": {
+              "property": "Privacy.allowWatchHistory",
+              "autoApplyPolicy": "never",
+              "updateProperty": false
+            }
+          }
+        },
+        "xrn:firebolt:capability:device:model": {
+          "use": {
+            "options": [
+              {
+                "steps": [
+                  {
+                    "capability": "xrn:firebolt:capability:usergrant:pinchallenge",
+                    "configuration": {
+                      "pinSpace": "purchase"
+                    }
+                  }
+                ]
+              }
+            ],
+            "scope": "app",
+            "lifespan": "seconds",
+            "lifespanTtl": 120,
+            "overridable": false,
+            "persistence": "device",
+            "privacySetting": {
+              "property": "Privacy.allowWatchHistory",
+              "autoApplyPolicy": "never",
+              "updateProperty": false
+            }
+          }
+        },
+        "xrn:firebolt:capability:device:make": {
+          "use": {
+            "options": [
+              {
+                "steps": [
+                  {
+                    "capability": "xrn:firebolt:capability:usergrant:pinchallenge",
+                    "configuration": {
+                      "pinSpace": "purchase"
+                    }
+                  },
+                  {
+                    "capability": "xrn:firebolt:capability:usergrant:acknowledgechallenge"
+                  }
+                ]
+              }
+            ],
+            "scope": "app",
+            "lifespan": "seconds",
+            "lifespanTtl": 10,
+            "overridable": false,
+            "persistence": "device",
+            "privacySetting": {
+              "property": "Privacy.allowWatchHistory",
+              "autoApplyPolicy": "never",
+              "updateProperty": false
+            }
+          }
+        }
+      }
+    },
+    "lifecycle": {
+      "appReadyTimeoutMs": 30000,
+      "appFinishedTimeoutMs": 2000,
+      "maxLoadedApps": 5,
+      "minAvailableMemoryKb": 1024,
+      "prioritized": [
+        "refui",
+        "comcast.test.firecert"
       ]
-    }
-  },
-  "capabilities": {
-    "supported": [
-      "xrn:firebolt:capability:accessory:pair",
-      "xrn:firebolt:capability:accessory:list",
-      "xrn:firebolt:capability:accessibility:closedcaptions",
-      "xrn:firebolt:capability:accessibility:voiceguidance",
-      "xrn:firebolt:capability:account:id",
-      "xrn:firebolt:capability:account:uid",
-      "xrn:firebolt:capability:accessory:list",
-      "xrn:firebolt:capability:advertising:configuration",
-      "xrn:firebolt:capability:advertising:identifier",
-      "xrn:firebolt:capability:approve:content",
-      "xrn:firebolt:capability:approve:purchase",
-      "xrn:firebolt:capability:data:app-usage",
-      "xrn:firebolt:capability:device:distributor",
-      "xrn:firebolt:capability:device:id",
-      "xrn:firebolt:capability:device:info",
-      "xrn:firebolt:capability:device:make",
-      "xrn:firebolt:capability:device:model",
-      "xrn:firebolt:capability:device:name",
-      "xrn:firebolt:capability:device:sku",
-      "xrn:firebolt:capability:device:uid",
-      "xrn:firebolt:capability:discovery:entity-info",
-      "xrn:firebolt:capability:discovery:navigate-to",
-      "xrn:firebolt:capability:discovery:policy",
-      "xrn:firebolt:capability:discovery:purchased-content",
-      "xrn:firebolt:capability:discovery:watched",
-      "xrn:firebolt:capability:discovery:watch-next",
-      "xrn:firebolt:capability:discovery:content-access",
-      "xrn:firebolt:capability:grants:state",
-      "xrn:firebolt:capability:lifecycle:initialize",
-      "xrn:firebolt:capability:lifecycle:launch",
-      "xrn:firebolt:capability:lifecycle:ready",
-      "xrn:firebolt:capability:lifecycle:state",
-      "xrn:firebolt:capability:localization:country-code",
-      "xrn:firebolt:capability:localization:language",
-      "xrn:firebolt:capability:localization:locale",
-      "xrn:firebolt:capability:localization:locality",
-      "xrn:firebolt:capability:localization:postal-code",
-      "xrn:firebolt:capability:localization:time-zone",
-      "xrn:firebolt:capability:metrics:general",
-      "xrn:firebolt:capability:metrics:media",
-      "xrn:firebolt:capability:network:status",
-      "xrn:firebolt:capability:power:state",
-      "xrn:firebolt:capability:privacy:advertising",
-      "xrn:firebolt:capability:privacy:content",
-      "xrn:firebolt:capability:privacy:settings",
-      "xrn:firebolt:capability:profile:flags",
-      "xrn:firebolt:capability:usergrant:pinchallenge",
-      "xrn:firebolt:capability:usergrant:acknowledgechallenge",
-      "xrn:firebolt:capability:input:keyboard",
-      "xrn:firebolt:capability:remote:ble",
-      "xrn:firebolt:capability:storage:secure",
-      "xrn:firebolt:capability:token:account",
-      "xrn:firebolt:capability:token:platform",
-      "xrn:firebolt:capability:token:device",
-      "xrn:firebolt:capability:token:session",
-      "xrn:firebolt:capability:token:root"
-    ],
-    "grantPolicies": {
-      "xrn:firebolt:capability:device:id": {
-        "use": {
-          "options": [
-            {
-              "steps": [
-                {
-                  "capability": "xrn:firebolt:capability:usergrant:acknowledgechallenge"
-                }
-              ]
-            }
-          ],
-          "scope": "app",
-          "lifespan": "seconds",
-          "lifespanTtl": 120,
-          "overridable": false,
-          "persistence": "device",
-          "privacySetting": {
-            "property": "Privacy.allowWatchHistory",
-            "autoApplyPolicy": "never",
-            "updateProperty": false
-          }
-        }
-      },
-      "xrn:firebolt:capability:device:model": {
-        "use": {
-          "options": [
-            {
-              "steps": [
-                {
-                  "capability": "xrn:firebolt:capability:usergrant:pinchallenge",
-                  "configuration": {
-                    "pinSpace": "purchase"
-                  }
-                }
-              ]
-            }
-          ],
-          "scope": "app",
-          "lifespan": "seconds",
-          "lifespanTtl": 120,
-          "overridable": false,
-          "persistence": "device",
-          "privacySetting": {
-            "property": "Privacy.allowWatchHistory",
-            "autoApplyPolicy": "never",
-            "updateProperty": false
-          }
-        }
-      },
-      "xrn:firebolt:capability:device:make": {
-        "use": {
-          "options": [
-            {
-              "steps": [
-                {
-                  "capability": "xrn:firebolt:capability:usergrant:pinchallenge",
-                  "configuration": {
-                    "pinSpace": "purchase"
-                  }
-                },
-                {
-                  "capability": "xrn:firebolt:capability:usergrant:acknowledgechallenge"
-                }
-              ]
-            }
-          ],
-          "scope": "app",
-          "lifespan": "seconds",
-          "lifespanTtl": 10,
-          "overridable": false,
-          "persistence": "device",
-          "privacySetting": {
-            "property": "Privacy.allowWatchHistory",
-            "autoApplyPolicy": "never",
-            "updateProperty": false
-          }
-        }
-      }
-    }
-  },
-  "lifecycle": {
-    "appReadyTimeoutMs": 30000,
-    "appFinishedTimeoutMs": 2000,
-    "maxLoadedApps": 5,
-    "minAvailableMemoryKb": 1024,
-    "prioritized": [
-      "refui",
-      "comcast.test.firecert"
-    ]
-  },
-  "applications": {
-    "distribution": {
-      "library": "/etc/firebolt-app-library.json"
     },
-    "defaults": {
-      "xrn:firebolt:application-type:main": "refui",
-      "xrn:firebolt:application-type:settings": ""
+    "applications": {
+      "distribution": {
+        "library": "/etc/firebolt-app-library.json"
+      },
+      "defaults": {
+        "xrn:firebolt:application-type:main": "refui",
+        "xrn:firebolt:application-type:settings": ""
+      }
     }
   }
-}

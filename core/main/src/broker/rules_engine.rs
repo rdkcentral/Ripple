@@ -37,7 +37,15 @@ pub struct RuleSet {
 impl RuleSet {
     pub fn append(&mut self, rule_set: RuleSet) {
         self.endpoints.extend(rule_set.endpoints);
-        self.rules.extend(rule_set.rules);
+        let rules: HashMap<String, Rule> = rule_set
+            .rules
+            .into_iter()
+            .map(|(k, v)| {
+                debug!("Loading JQ Rule for {}", k.to_lowercase());
+                (k.to_lowercase(), v)
+            })
+            .collect();
+        self.rules.extend(rules);
     }
 }
 
@@ -47,6 +55,19 @@ pub struct RuleEndpoint {
     pub url: String,
     #[serde(default = "default_autostart")]
     pub jsonrpc: bool,
+}
+
+impl RuleEndpoint {
+    pub fn get_url(&self) -> String {
+        if cfg!(feature = "local_dev") {
+            if let Ok(host_override) = std::env::var("DEVICE_HOST") {
+                if !host_override.is_empty() {
+                    return self.url.replace("127.0.0.1", &host_override);
+                }
+            }
+        }
+        self.url.clone()
+    }
 }
 
 fn default_autostart() -> bool {
@@ -68,6 +89,7 @@ pub struct Rule {
     // Not every rule needs transform
     #[serde(default)]
     pub transform: RuleTransform,
+    pub filter: Option<String>,
     pub endpoint: Option<String>,
 }
 
@@ -76,6 +98,7 @@ pub struct RuleTransform {
     pub request: Option<String>,
     pub response: Option<String>,
     pub event: Option<String>,
+    pub event_decorator_method: Option<String>,
 }
 
 impl RuleTransform {
@@ -93,7 +116,7 @@ impl RuleTransform {
         }
     }
 
-    pub fn get_filter(&self, typ: RuleTransformType) -> Option<String> {
+    pub fn get_transform_data(&self, typ: RuleTransformType) -> Option<String> {
         match typ {
             RuleTransformType::Request => self.request.clone(),
             RuleTransformType::Event => self.event.clone(),
@@ -131,8 +154,7 @@ impl RuleEngine {
             if let Some(p) = Path::new(&path_for_rule).to_str() {
                 if let Ok(contents) = fs::read_to_string(p) {
                     debug!("Rule content {}", contents);
-                    if let Ok((path, rule_set)) = Self::load_from_content(contents) {
-                        debug!("Rules loaded from path={}", path);
+                    if let Ok((_, rule_set)) = Self::load_from_content(contents) {
                         engine.rules.append(rule_set)
                     } else {
                         warn!("invalid rule found in path {}", path)
@@ -158,13 +180,22 @@ impl RuleEngine {
     }
 
     pub fn has_rule(&self, request: &RpcRequest) -> bool {
-        self.rules.rules.contains_key(&request.ctx.method)
+        self.rules
+            .rules
+            .contains_key(&request.ctx.method.to_lowercase())
     }
 
     pub fn get_rule(&self, rpc_request: &RpcRequest) -> Option<Rule> {
-        if let Some(mut rule) = self.rules.rules.get(&rpc_request.method).cloned() {
+        if let Some(mut rule) = self
+            .rules
+            .rules
+            .get(&rpc_request.method.to_lowercase())
+            .cloned()
+        {
             rule.transform.apply_context(rpc_request);
             return Some(rule);
+        } else {
+            info!("Rule not available for {}", rpc_request.method);
         }
         None
     }
@@ -176,15 +207,16 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
     // start out only from core filters,
     // which do not include filters in the standard library
     // such as `map`, `select` etc.
-    let mut defs = ParseCtx::new(Vec::new());
 
+    let mut defs = ParseCtx::new(Vec::new());
+    defs.insert_natives(jaq_core::core());
+    defs.insert_defs(jaq_std::std());
     // parse the filter
     let (f, errs) = jaq_parse::parse(filter, jaq_parse::main());
     if !errs.is_empty() {
         error!("Error in rule {:?}", errs);
         return Err(RippleError::RuleError);
     }
-
     // compile the filter in the context of the given definitions
     let f = defs.compile(f.unwrap());
     if !defs.errs.is_empty() {
@@ -196,10 +228,8 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
     }
 
     let inputs = RcIter::new(core::iter::empty());
-
     // iterator over the output values
     let mut out = f.run((Ctx::new([], &inputs), Val::from(input)));
-
     if let Some(Ok(v)) = out.next() {
         info!(
             "Ripple Gateway Rule Processing Time: {},{}",
@@ -210,4 +240,58 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
     }
 
     Err(RippleError::ParseError)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ripple_sdk::serde_json::json;
+
+    #[test]
+    fn test_jq_compile() {
+        let filter = "if .success then ( .stbVersion | split(\"_\")[0] ) else { code: -32100, message: \"couldn't get version\" } end";
+        let input = json!({
+            "stbVersion":"SCXI11BEI_VBN_24Q2_sprint_20240620140024sdy_FG_GRT",
+            "receiverVersion":"7.2.0.0",
+            "stbTimestamp":"Thu 20 Jun 2024 14:00:24 UTC",
+            "success":true
+        });
+        let resp = jq_compile(input, filter, String::new());
+        assert_eq!(resp.unwrap(), "SCXI11BEI".to_string());
+
+        let filter = "{ namespace: \"refui\", scope: .scope, key: .key, value: .value }";
+        let input = json!({
+            "key": "key3",
+            "scope": "account",
+            "value": "value2"
+        });
+        let resp = jq_compile(input, filter, String::new());
+        let expected = json!({
+           "namespace": "refui",
+           "key": "key3",
+           "scope": "account",
+           "value": "value2"
+        });
+        assert_eq!(resp.unwrap(), expected);
+
+        let filter = "if .success and ( .supportedHDCPVersion | contains(\"2.2\")) then {\"hdcp2.2\": true} elif .success and ( .supportedHDCPVersion | contains(\"1.4\")) then {\"hdcp1.4\": true}  else {\"code\": -32100, \"message\": \"couldn't get version\"} end";
+        let input = json!({
+            "supportedHDCPVersion":"2.2",
+            "isHDCPSupported":true,
+            "success":true
+        });
+        let resp = jq_compile(input, filter, String::new());
+        let expected = json!({
+           "hdcp2.2": true
+        });
+        assert_eq!(resp.unwrap(), expected);
+
+        let filter = "if .success then (.value | fromjson | .value) else { \"code\": -32100, \"message\": \"couldn't get language\" } end";
+        let input = json!({
+           "value": "{\"update_time\":\"2024-07-26T23:39:57.831726080Z\",\"value\":\"EN\"}",
+           "success":true
+        });
+        let resp = jq_compile(input, filter, String::new());
+        assert_eq!(resp.unwrap(), "EN".to_string());
+    }
 }

@@ -195,14 +195,25 @@ impl ProviderRegistrar {
         context: Arc<RpcModuleContext>,
     ) -> Result<ListenerResponse, Error> {
         info!("callback_app_event_listener: method={}", context.method);
-        info!(
-            "*** DEBUG: callback_app_event_listener: method/event={}",
-            context.method
-        );
 
         let mut params_sequence = params.sequence();
-        let call_context: CallContext = params_sequence.next().unwrap();
-        let request: ListenRequest = params_sequence.next().unwrap();
+
+        let call_context: CallContext = match params_sequence.next() {
+            Ok(context) => context,
+            Err(e) => {
+                error!("callback_app_event_listener: Error: {:?}", e);
+                return Err(Error::Custom("Missing call context".to_string()));
+            }
+        };
+
+        let request: ListenRequest = match params_sequence.next() {
+            Ok(r) => r,
+            Err(e) => {
+                error!("callback_app_event_listener: Error: {:?}", e);
+                return Err(Error::Custom("Missing request".to_string()));
+            }
+        };
+
         let listen = request.listen;
 
         AppEvents::add_listener(
@@ -225,8 +236,23 @@ impl ProviderRegistrar {
 
         if let Some(capability) = &context.provider_relation_set.capability {
             let mut params_sequence = params.sequence();
-            let call_context: CallContext = params_sequence.next().unwrap();
-            let request: ListenRequest = params_sequence.next().unwrap();
+
+            let call_context: CallContext = match params_sequence.next() {
+                Ok(context) => context,
+                Err(e) => {
+                    error!("callback_register_provider: Error: {:?}", e);
+                    return Err(Error::Custom("Missing call context".to_string()));
+                }
+            };
+
+            let request: ListenRequest = match params_sequence.next() {
+                Ok(r) => r,
+                Err(e) => {
+                    error!("callback_register_provider: Error: {:?}", e);
+                    return Err(Error::Custom("Missing request".to_string()));
+                }
+            };
+
             let listening = request.listen;
 
             ProviderBroker::register_or_unregister_provider(
@@ -258,8 +284,15 @@ impl ProviderRegistrar {
         );
         if let Some(event) = &context.provider_relation_set.provides_to {
             let mut params_sequence = params.sequence();
-            let _call_context: CallContext = params_sequence.next().unwrap();
-            let result: Value = params_sequence.next().unwrap();
+            let _call_context: Option<CallContext> = params_sequence.next().ok();
+
+            let result: Value = match params_sequence.next() {
+                Ok(r) => r,
+                Err(e) => {
+                    error!("callback_app_event_emitter: Error: {:?}", e);
+                    return Err(Error::Custom("Missing result".to_string()));
+                }
+            };
 
             AppEvents::emit(
                 &context.platform_state,
@@ -302,8 +335,21 @@ impl ProviderRegistrar {
         context: Arc<RpcModuleContext>,
     ) -> Result<Value, Error> {
         let mut params_sequence = params.sequence();
-        let call_context: CallContext = params_sequence.next().unwrap();
-        let params: Value = params_sequence.next().unwrap();
+        let call_context: CallContext = match params_sequence.next() {
+            Ok(context) => context,
+            Err(e) => {
+                error!("callback_provider_invoker: Error: {:?}", e);
+                return Err(Error::Custom("Missing call context".to_string()));
+            }
+        };
+
+        let params: Value = match params_sequence.next() {
+            Ok(p) => p,
+            Err(e) => {
+                error!("callback_provider_invoker: Error: {:?}", e);
+                return Err(Error::Custom("Missing params".to_string()));
+            }
+        };
 
         info!("callback_provider_invoker: method={}", context.method);
 
@@ -374,8 +420,22 @@ impl ProviderRegistrar {
 
         if let Some(capability) = &context.provider_relation_set.capability {
             let mut params_sequence = params.sequence();
-            let call_context: CallContext = params_sequence.next().unwrap();
-            let request: FocusRequest = params_sequence.next().unwrap();
+
+            let call_context: CallContext = match params_sequence.next() {
+                Ok(context) => context,
+                Err(e) => {
+                    error!("callback_focus: Error: {:?}", e);
+                    return Err(Error::Custom("Missing call context".to_string()));
+                }
+            };
+
+            let request: FocusRequest = match params_sequence.next() {
+                Ok(r) => r,
+                Err(e) => {
+                    error!("callback_focus: Error: {:?}", e);
+                    return Err(Error::Custom("Missing request".to_string()));
+                }
+            };
 
             ProviderBroker::focus(
                 &context.platform_state,
@@ -517,7 +577,7 @@ mod tests {
     async fn test_register_methods() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new());
 
         let mut provider_relation_map: HashMap<String, ProviderRelationSet> = HashMap::new();
         provider_relation_map.insert("some.method".to_string(), ProviderRelationSet::new());
@@ -537,7 +597,7 @@ mod tests {
     async fn test_register_method_event_provided_by() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new());
 
         let provider_relation_set = ProviderRelationSet {
             event: true,
@@ -563,7 +623,7 @@ mod tests {
     async fn test_register_method_event_provides() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new());
 
         let provider_relation_set = ProviderRelationSet {
             event: true,
@@ -589,7 +649,7 @@ mod tests {
     async fn test_register_method_event_provides_to() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new());
 
         let provider_relation_set = ProviderRelationSet {
             event: true,
@@ -615,7 +675,7 @@ mod tests {
     async fn test_register_method_provides_to() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new());
 
         let provider_relation_set = ProviderRelationSet {
             event: true,
@@ -641,7 +701,7 @@ mod tests {
     async fn test_register_method_error_for() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new());
 
         let provider_relation_set = ProviderRelationSet {
             error_for: Some("some.other.method".to_string()),
@@ -666,7 +726,7 @@ mod tests {
     async fn test_register_method_provided_by() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new());
 
         let provider_relation_set = ProviderRelationSet {
             provided_by: Some("some.other.method".to_string()),
@@ -691,7 +751,7 @@ mod tests {
     async fn test_register_method_allow_focus_for() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new());
 
         let provider_relation_set = ProviderRelationSet {
             allow_focus_for: Some("some.other.method".to_string()),
@@ -716,7 +776,7 @@ mod tests {
     async fn test_register_method_response_for() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new());
 
         let provider_relation_set = ProviderRelationSet {
             response_for: Some("some.other.method".to_string()),
@@ -742,7 +802,7 @@ mod tests {
         const METHOD_NAME: &str = "some.method";
 
         let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None);
+        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new());
 
         let provider_relation_set = ProviderRelationSet {
             response_for: Some("some.other.method".to_string()),
