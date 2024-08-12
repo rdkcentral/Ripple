@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs};
 
 use jsonschema::JSONSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 
 pub extern crate jsonschema;
 
@@ -36,9 +36,48 @@ impl FireboltOpenRpc {
     }
 
     // <pca>
-    pub fn get_result_schema_by_name(&self, name: &str) -> Option<Value> {
+    pub fn get_result_schema_map_by_name(&self, name: &str) -> Option<Map<String, Value>> {
         if let Some(method) = self.get_method_by_name(name) {
-            return Some(method.result.schema.clone());
+            if let Some(result_schema_map) = method.result.schema.as_object() {
+                println!(
+                    "*** _DEBUG: get_result_schema_by_name: result_schema_map={:?}",
+                    result_schema_map
+                );
+                if let Some(result_schema_value) = result_schema_map.get("$ref") {
+                    if let Some(result_schema_string) = result_schema_value.as_str() {
+                        println!(
+                            "*** _DEBUG: get_result_schema_by_name: result_schema_string={}",
+                            result_schema_string
+                        );
+                        let result_type_string = result_schema_string.split("/").last().unwrap();
+                        println!(
+                            "*** _DEBUG: get_result_schema_by_name: result_type_string={}",
+                            result_type_string
+                        );
+                        for spec in self.apis.values() {
+                            if let Value::Object(components) = &spec.components {
+                                if let Some(schemas_value) = components.get("schemas") {
+                                    println!(
+                                        "*** _DEBUG: get_result_schema_by_name: schemas_value={:?}",
+                                        schemas_value
+                                    );
+                                    if let Value::Object(schemas_map) = schemas_value {
+                                        if let Some(result_type_value) =
+                                            schemas_map.get(result_type_string)
+                                        {
+                                            println!(
+                                                "*** _DEBUG: get_result_schema_by_name: result_type_value={:?}",
+                                                result_type_value
+                                            );
+                                            return result_type_value.as_object().cloned();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
         None
     }

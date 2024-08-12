@@ -453,30 +453,12 @@ impl ProviderRegistrar {
                                         validator
                                     );
 
-                                    if let Some(result_schema) =
-                                        validator.get_result_schema_by_name(&context.method)
+                                    if let Some(result_schema_map) =
+                                        validator.get_result_schema_map_by_name(&context.method)
                                     {
-                                        println!("*** _DEBUG: callback_provider_invoker: result_schema={:?}", result_schema);
-                                        if let Some(result_schema_map) = result_schema.as_object() {
-                                            println!("*** _DEBUG: callback_provider_invoker: result_schema_map={:?}", result_schema_map);
-                                            if let Some(result_schema_value) =
-                                                result_schema_map.get("$ref")
-                                            {
-                                                if let Some(result_schema_string) =
-                                                    result_schema_value.as_str()
-                                                {
-                                                    println!("*** _DEBUG: callback_provider_invoker: result_schema_string={}", result_schema_string);
-                                                    let result_type_string = result_schema_string
-                                                        .split("/")
-                                                        .last()
-                                                        .unwrap();
-                                                    println!("*** _DEBUG: callback_provider_invoker: result_type_string={}", result_type_string);
-                                                    // <pca> YAH: Create something like validator.get_result_schema_by_name(&context.method) which returns
-                                                    // the actual Value of the result type, e.g. A Value::Object containing a map of what's in InterestResult.
-                                                    // Do the above internal to this method but reach all the way into apis.1.compnents.schemas. </pca>
-                                                }
-                                            }
-                                        }
+                                        println!("*** _DEBUG: callback_provider_invoker: result_schema_map={:?}", result_schema_map);
+                                        // <pca> YAH: Build the response (e.g. for content.requestUserInterest) based on what's in result_schema_map
+                                        // and what was sent from the provider in provider_response_payload. </pca>
                                     }
 
                                     return Ok(inject_provider_app_id(
