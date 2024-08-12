@@ -24,7 +24,7 @@ use crate::{extn::extn_id::ExtnId, utils::error::RippleError};
 
 /// Contains the default path for the manifest
 /// file extension type based on platform
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Deserialize, Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct ExtnManifest {
     pub default_path: String,
@@ -39,6 +39,23 @@ pub struct ExtnManifest {
     pub extn_sdks: Vec<String>,
     #[serde(default = "default_providers")]
     pub provider_registrations: Vec<String>,
+}
+
+/// Some unit tests which use defaults are failing because we need default providers for unit testing
+impl Default for ExtnManifest {
+    fn default() -> Self {
+        Self {
+            default_path: String::default(),
+            default_extension: String::default(),
+            extns: Vec::new(),
+            required_contracts: Vec::new(),
+            rpc_aliases: HashMap::new(),
+            timeout: None,
+            rules_path: Vec::new(),
+            extn_sdks: Vec::new(),
+            provider_registrations: default_providers(),
+        }
+    }
 }
 
 pub fn default_providers() -> Vec<String> {
