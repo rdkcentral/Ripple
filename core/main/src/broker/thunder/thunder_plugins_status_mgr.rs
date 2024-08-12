@@ -23,7 +23,6 @@ use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse,
     chrono::{DateTime, Duration, Utc},
     log::{error, info, warn},
-    log::{error, info, warn},
     utils::error::RippleError,
 };
 use serde::{Deserialize, Serialize};
