@@ -1078,24 +1078,24 @@ mod tests {
 
         assert_eq!(output.data.result.unwrap(), "null");
 
-         // securestorage.get
-         let result = json!({"value": "some_value","success": true,"ttl": 100});
-         let data = JsonRpcApiResponse::mock();
-         let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
-         let filter = "if .result.success then .result.value else  \"null\" end".to_string();
-         let mut response = JsonRpcApiResponse::mock();
-         response.result = Some(result);
-         apply_response(response, filter, &rpc_request, &mut output);
-         assert_eq!(output.data.result.unwrap(), "some_value");
+        // securestorage.get
+        let result = json!({"value": "some_value","success": true,"ttl": 100});
+        let data = JsonRpcApiResponse::mock();
+        let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
+        let filter = "if .result.success then .result.value else  \"null\" end".to_string();
+        let mut response = JsonRpcApiResponse::mock();
+        response.result = Some(result);
+        apply_response(response, filter, &rpc_request, &mut output);
+        assert_eq!(output.data.result.unwrap(), "some_value");
 
-         // localization.countryCode
-         let result = json!({"territory": "USA","success": true});
-         let data = JsonRpcApiResponse::mock();
-         let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
-         let filter = "if .result.success then if .result.territory == \"ITA\" then \"IT\" elif .result.territory == \"GBR\" then \"GB\" elif .result.territory == \"IRL\" then \"IE\" elif .result.territory == \"DEU\" then \"DE\" elif .result.territory == \"AUS\" then \"AU\" else \"GB\" end end".to_string();
-         let mut response = JsonRpcApiResponse::mock();
-         response.result = Some(result);
-         apply_response(response, filter, &rpc_request, &mut output);
-         assert_eq!(output.data.result.unwrap(), "GB");
+        // localization.countryCode
+        let result = json!({"territory": "USA","success": true});
+        let data = JsonRpcApiResponse::mock();
+        let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
+        let filter = "if .result.success then if .result.territory == \"ITA\" then \"IT\" elif .result.territory == \"GBR\" then \"GB\" elif .result.territory == \"IRL\" then \"IE\" elif .result.territory == \"DEU\" then \"DE\" elif .result.territory == \"AUS\" then \"AU\" else \"GB\" end end".to_string();
+        let mut response = JsonRpcApiResponse::mock();
+        response.result = Some(result);
+        apply_response(response, filter, &rpc_request, &mut output);
+        assert_eq!(output.data.result.unwrap(), "GB");
     }
 }
