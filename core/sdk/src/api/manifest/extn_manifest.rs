@@ -284,17 +284,7 @@ mod tests {
             }
         "#;
 
-        let expected_manifest = ExtnManifest {
-            default_path: "".to_string(),
-            default_extension: "".to_string(),
-            extns: vec![],
-            required_contracts: vec![],
-            rpc_aliases: HashMap::new(),
-            timeout: None,
-            rules_path: Vec::new(),
-            extn_sdks: Vec::new(),
-            provider_registrations: Vec::new(),
-        };
+        let expected_manifest = ExtnManifest::default();
 
         assert_eq!(
             ExtnManifest::load_from_content(contents.to_string()),

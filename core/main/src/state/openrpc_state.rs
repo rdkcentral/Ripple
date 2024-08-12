@@ -67,7 +67,7 @@ impl ProviderRelationSet {
 fn is_provider_enabled(method: &str, checksets: &Vec<String>) -> bool {
     let method_lower_case = method.to_lowercase();
     for checkset in checksets {
-        if checkset.to_lowercase().eq(&method_lower_case) {
+        if method_lower_case.starts_with(&checkset.to_lowercase()) {
             return true;
         }
     }
@@ -85,6 +85,8 @@ pub fn build_provider_relation_sets(
 
         if !is_provider_enabled(&method.name, checksets) {
             continue;
+        } else {
+            debug!("Provider enabled {:?}", method.name);
         }
 
         if let Some(tags) = &method.tags {
@@ -500,7 +502,7 @@ mod tests {
     #[test]
     fn test_provider_support() {
         assert!(is_provider_enabled(
-            "AcknowledgeChallenge.",
+            "AcknowledgeChallenge.onRequestChalleng",
             &default_providers()
         ));
         assert!(is_provider_enabled("PinChallenge.", &default_providers()));

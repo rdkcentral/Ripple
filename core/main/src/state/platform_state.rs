@@ -225,6 +225,7 @@ impl PlatformState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ripple_sdk::api::manifest::extn_manifest::default_providers;
     use ripple_tdk::utils::test_utils::Mockable;
 
     impl Mockable for PlatformState {
@@ -236,12 +237,12 @@ mod tests {
                     .to_string(),
             )
             .unwrap();
-            let (_, extn_manifest) = ExtnManifest::load_from_content(
+            let (_, mut extn_manifest) = ExtnManifest::load_from_content(
                 include_str!("../../../../examples/manifest/extn-manifest-example.json")
                     .to_string(),
             )
             .unwrap();
-
+            extn_manifest.provider_registrations = default_providers();
             Self::new(
                 extn_manifest,
                 manifest,
