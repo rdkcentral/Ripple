@@ -35,6 +35,15 @@ impl FireboltOpenRpc {
         None
     }
 
+    // <pca>
+    pub fn get_result_schema_by_name(&self, name: &str) -> Option<Value> {
+        if let Some(method) = self.get_method_by_name(name) {
+            return Some(method.result.schema.clone());
+        }
+        None
+    }
+    // </pca>
+
     pub fn params_validator(
         &self,
         version: String,
@@ -205,7 +214,10 @@ pub struct RpcParam {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RpcResult {
     name: String,
-    schema: Value,
+    // <pca>
+    //schema: Value,
+    pub schema: Value,
+    // </pca>
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

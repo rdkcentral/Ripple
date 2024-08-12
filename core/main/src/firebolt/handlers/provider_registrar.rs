@@ -50,7 +50,10 @@ use ripple_sdk::{
 use serde_json::Value;
 
 // TODO: Add to config
-const DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS: u64 = 15000;
+// <pca> debug
+//const DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS: u64 = 15000;
+const DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS: u64 = 30000;
+// </pca>
 
 #[derive(Debug)]
 enum MethodType {
@@ -83,6 +86,42 @@ impl RpcModuleContext {
         }
     }
 }
+
+// <pca>
+fn inject_provider_app_id(
+    provider_response_payload: ProviderResponsePayload,
+    app_id: Option<String>,
+) -> ProviderResponsePayload {
+    println!(
+        "*** _DEBUG: inject_provider_app_id: provider_response_payload={:?}, app_id={:?}",
+        provider_response_payload, app_id
+    );
+    let mut payload = provider_response_payload;
+    if let Some(id) = app_id {
+        if let ProviderResponsePayload::Generic(ref mut value) = payload {
+            if let Value::Object(ref mut map) = value {
+                let inject_app_id = if let Some(existing_id) = map.get("app_id") {
+                    match existing_id {
+                        Value::Null => true,
+                        Value::String(s) => s.is_empty(),
+                        _ => false,
+                    }
+                } else {
+                    false
+                };
+
+                if inject_app_id {
+                    map.insert("app_id".to_string(), Value::String(id));
+                    payload = ProviderResponsePayload::Generic(Value::Object(map.clone()));
+                }
+            }
+        }
+    }
+
+    println!("*** _DEBUG: inject_provider_app_id: payload={:?}", payload);
+    payload
+}
+// </pca>
 
 pub struct ProviderRegistrar;
 
@@ -352,6 +391,10 @@ impl ProviderRegistrar {
         };
 
         info!("callback_provider_invoker: method={}", context.method);
+        info!(
+            "*** _DEBUG: callback_provider_invoker: method={}, context={:?}",
+            context.method, call_context
+        );
 
         if let Some(provided_by) = &context.provider_relation_set.provided_by {
             let provider_relation_map = context
@@ -380,8 +423,14 @@ impl ProviderRegistrar {
                         app_id: None,
                     };
 
-                    ProviderBroker::invoke_method(&context.platform_state, provider_broker_request)
-                        .await;
+                    // <pca>
+                    // ProviderBroker::invoke_method(&context.platform_state, provider_broker_request)
+                    //     .await;
+                    let provider_app_id = ProviderBroker::invoke_method(
+                        &context.platform_state,
+                        provider_broker_request,
+                    )
+                    .await;
 
                     match timeout(
                         Duration::from_millis(DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS),
@@ -389,16 +438,61 @@ impl ProviderRegistrar {
                     )
                     .await
                     {
-                        Ok(result) => match result {
-                            Ok(provider_response_payload) => {
-                                return Ok(provider_response_payload.as_value());
+                        Ok(result) => {
+                            match result {
+                                Ok(provider_response_payload) => {
+                                    // <pca>
+                                    //return Ok(provider_response_payload.as_value());
+                                    let validator = context
+                                        .platform_state
+                                        .open_rpc_state
+                                        .get_openrpc_validator();
+
+                                    println!(
+                                        "*** _DEBUG: callback_provider_invoker: validator={:?}",
+                                        validator
+                                    );
+
+                                    if let Some(result_schema) =
+                                        validator.get_result_schema_by_name(&context.method)
+                                    {
+                                        println!("*** _DEBUG: callback_provider_invoker: result_schema={:?}", result_schema);
+                                        if let Some(result_schema_map) = result_schema.as_object() {
+                                            println!("*** _DEBUG: callback_provider_invoker: result_schema_map={:?}", result_schema_map);
+                                            if let Some(result_schema_value) =
+                                                result_schema_map.get("$ref")
+                                            {
+                                                if let Some(result_schema_string) =
+                                                    result_schema_value.as_str()
+                                                {
+                                                    println!("*** _DEBUG: callback_provider_invoker: result_schema_string={}", result_schema_string);
+                                                    let result_type_string = result_schema_string
+                                                        .split("/")
+                                                        .last()
+                                                        .unwrap();
+                                                    println!("*** _DEBUG: callback_provider_invoker: result_type_string={}", result_type_string);
+                                                    // <pca> YAH: Create something like validator.get_result_schema_by_name(&context.method) which returns
+                                                    // the actual Value of the result type, e.g. A Value::Object containing a map of what's in InterestResult.
+                                                    // Do the above internal to this method but reach all the way into apis.1.compnents.schemas. </pca>
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    return Ok(inject_provider_app_id(
+                                        provider_response_payload,
+                                        provider_app_id,
+                                    )
+                                    .as_value());
+                                    // </pca>
+                                }
+                                Err(_) => {
+                                    return Err(Error::Custom(String::from(
+                                        "Error returning from provider",
+                                    )));
+                                }
                             }
-                            Err(_) => {
-                                return Err(Error::Custom(String::from(
-                                    "Error returning from provider",
-                                )));
-                            }
-                        },
+                        }
                         Err(_) => {
                             return Err(Error::Custom(String::from("Provider response timeout")));
                         }
