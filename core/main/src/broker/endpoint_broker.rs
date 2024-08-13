@@ -1088,7 +1088,7 @@ mod tests {
         response.result = Some(result);
         apply_response(response, filter, &rpc_request, &mut output);
 
-        assert_eq!(output.data.result.unwrap(), "null");
+        assert_eq!(output.data.result.unwrap(), serde_json::Value::Null);
 
         // securestorage.get
         let result = json!({"value": "some_value","success": true,"ttl": 100});
