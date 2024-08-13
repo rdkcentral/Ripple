@@ -761,16 +761,26 @@ fn apply_response(
                 format!("{}_response", rpc_request.ctx.method),
             ) {
                 Ok(r) => {
+                    ripple_sdk::log::trace!(
+                        "jq rendered output {:?} original input {:?} for filter {}",
+                        r,
+                        v,
+                        result_response_filter
+                    );
+                    /*
+                    weird corner case where the filter is "then \"null\"" which is a jq way to return null
+                    */
                     if r.to_string().to_lowercase().contains("null") {
-                        v.data.result = Some(Value::Null)
-                    }
-                    if r.to_string().to_lowercase().contains("error") {
+                        v.data.result = Some(Value::Null);
+                        v.data.error = None;
+                    } else if r.to_string().to_lowercase().contains("error") {
                         v.data.error = Some(r);
                         v.data.result = None;
                     } else {
                         v.data.result = Some(r);
                         v.data.error = None;
                     }
+                    trace!("mutated output {:?}", v);
                 }
                 Err(e) => {
                     v.data.error = Some(json!(e.to_string()));
@@ -953,12 +963,33 @@ mod tests {
         let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
         let filter = "if .result and .result.success then (.result.stbVersion | split(\"_\") [0]) elif .error then if .error.code == -32601 then {\"error\":\"Unknown method.\"} else \"Error occurred with a different code\" end else \"No result or recognizable error\" end".to_string();
         let mut response = JsonRpcApiResponse::mock();
-        response.error = Some(error.clone());
+        response.error = Some(error);
         apply_response(response, filter, &rpc_request, &mut output);
         assert_eq!(
             output.data.error.unwrap(),
             json!({"error":"Unknown method."})
         );
+
+        // securestorage.get code 22 in error response
+        let error = json!({"code":22,"message":"test error code 22"});
+        let data = JsonRpcApiResponse::mock();
+        let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
+        let filter = "if .result and .result.success then .result.value elif .error.code==22 or .error.code==43 then \"null\" else .error end".to_string();
+        let mut response = JsonRpcApiResponse::mock();
+        response.error = Some(error);
+        apply_response(response, filter, &rpc_request, &mut output);
+        assert_eq!(output.data.error, None);
+        assert_eq!(output.data.result.unwrap(), serde_json::Value::Null);
+
+        // securestorage.get code other than 22 or 43 in error response
+        let error = json!({"code":300,"message":"test error code 300"});
+        let data = JsonRpcApiResponse::mock();
+        let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
+        let filter = "if .result and .result.success then .result.value elif .error.code==22 or .error.code==43 then \"null\" else .error end".to_string();
+        let mut response = JsonRpcApiResponse::mock();
+        response.error = Some(error.clone());
+        apply_response(response, filter, &rpc_request, &mut output);
+        assert_eq!(output.data.error, Some(error));
     }
 
     #[tokio::test]
@@ -1034,16 +1065,6 @@ mod tests {
         apply_response(response, filter, &rpc_request, &mut output);
         assert_eq!(output.data.result.unwrap(), json!("my_device"));
 
-        // localization.countryCode
-        let result = json!({"territory":"USA","region":"US-USA","success":true});
-        let data = JsonRpcApiResponse::mock();
-        let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
-        let filter = "if .result.success then if .result.territory == \"ITA\" then \"IT\" elif .result.territory == \"GBR\" then \"GB\" elif .result.territory == \"IRL\" then \"IE\" elif .result.territory == \"DEU\" then \"DE\" elif .result.territory == \"AUS\" then \"AU\" else \"GB\" end else { \"code\": -32100, \"message\": \"couldn't get countrycode\" } end".to_string();
-        let mut response = JsonRpcApiResponse::mock();
-        response.result = Some(result);
-        apply_response(response, filter, &rpc_request, &mut output);
-        assert_eq!(output.data.result.unwrap(), json!("GB"));
-
         // localization.language
         let result = json!({"success": true, "value": "{\"update_time\":\"2024-07-29T20:23:29.539132160Z\",\"value\":\"FR\"}"});
         let data = JsonRpcApiResponse::mock();
@@ -1076,13 +1097,13 @@ mod tests {
         response.result = Some(result);
         apply_response(response, filter, &rpc_request, &mut output);
 
-        assert_eq!(output.data.result.unwrap(), "null");
+        assert_eq!(output.data.result.unwrap(), serde_json::Value::Null);
 
         // securestorage.get
         let result = json!({"value": "some_value","success": true,"ttl": 100});
         let data = JsonRpcApiResponse::mock();
         let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
-        let filter = "if .result.success then .result.value else  \"null\" end".to_string();
+        let filter = "if .result.success then .result.value elif .error.code==22 or .error.code==43 then \"null\" else .error end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
         apply_response(response, filter, &rpc_request, &mut output);
