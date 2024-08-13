@@ -761,6 +761,15 @@ fn apply_response(
                 format!("{}_response", rpc_request.ctx.method),
             ) {
                 Ok(r) => {
+                    ripple_sdk::log::trace!(
+                        "jq rendered output {:?} original input {:?} for filter {}",
+                        r,
+                        v,
+                        result_response_filter
+                    );
+                    /*
+                    weird corner case where the filter is "then \"null\"" which is a jq way to return null
+                    */
                     if r.to_string().to_lowercase().contains("null") {
                         v.data.result = Some(Value::Null);
                         v.data.error = None;
