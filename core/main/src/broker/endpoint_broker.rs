@@ -762,22 +762,18 @@ fn apply_response(
             ) {
                 Ok(r) => {
                     if r.to_string().to_lowercase().contains("null") {
-                        println!("^^^ apply resp 1");
                         v.data.result = Some(Value::Null);
                         v.data.error = None;
                     } else if r.to_string().to_lowercase().contains("error") {
-                        println!("^^^ apply resp 2");
                         v.data.error = Some(r);
                         v.data.result = None;
                     } else {
-                        println!("^^^ apply resp 3");
                         v.data.result = Some(r);
                         v.data.error = None;
                     }
                     trace!("mutated output {:?}", v);
                 }
                 Err(e) => {
-                    println!("^^^ apply resp 4");
                     v.data.error = Some(json!(e.to_string()));
                     error!("jq_compile error {:?}", e);
                 }
