@@ -17,7 +17,7 @@
 
 [package]
 name = "main"
-version = "2.1.5"
+version = "1.1.0"
 edition = "2021"
 repository = "https://github.com/rdkcentral/Ripple"
 build = "build.rs"
@@ -59,10 +59,10 @@ jaq-core = "1.5.0"
 jaq-std = { version = "1.5.1", default-features = false }
 
 openrpc_validator = { path = "../../openrpc_validator" }
+cargo-release = "0.25.10"
 
 [build-dependencies]
 vergen = "1"
-cargo-release = "0.25.10"
 
 [dev-dependencies]
 ripple_tdk = { path = "../tdk" }

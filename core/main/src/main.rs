@@ -37,7 +37,7 @@ async fn main() {
     // Check for --version flag
     let args: Vec<String> = env::args().collect();
     if args.contains(&"--version".to_string()) {
-        println!("Sakshi ripple {}", env!("CARGO_PKG_VERSION"));
+        println!("Ripple version {}", env!("CARGO_PKG_VERSION"));
         return;
     }
 
