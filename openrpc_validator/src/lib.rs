@@ -269,7 +269,7 @@ pub mod tests {
         for spec in rpc.apis.values() {
             let open_rpc_spec: OpenRpcSpec = spec.clone().into();
             for method in &spec.methods {
-                if let Some(examples) = method.examples{
+                if let Some(examples) = &method.examples {
                     for ex in examples {
                         let example_json = ex.to_json();
 
