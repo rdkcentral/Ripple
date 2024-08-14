@@ -285,9 +285,8 @@ pub mod tests {
                         assert_valid(&method.name, res);
 
                         // validate result
-                        let validator = open_rpc_spec
-                            .result_validator(method.name.clone())
-                            .unwrap();
+                        let validator =
+                            open_rpc_spec.result_validator(method.name.clone()).unwrap();
                         let res = validator.validate(&ex.result.value);
                         assert_valid(&method.name, res);
                     }
