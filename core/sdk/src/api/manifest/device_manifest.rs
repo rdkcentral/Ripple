@@ -1020,7 +1020,6 @@ pub(crate) mod tests {
     fn test_get_supported_caps_use_role_based_support_false() {
         let manifest = DeviceManifest::mock();
         let supported_perms = manifest.get_supported_caps();
-        println!("^^^ perms {:?}", supported_perms);
         assert!(supported_perms.contains(&FireboltPermission {
             cap: FireboltCap::Full("main".to_owned()),
             role: CapabilityRole::Manage
