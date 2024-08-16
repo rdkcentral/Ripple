@@ -37,7 +37,6 @@ use crate::{
 use super::{apps::AppManifest, exclusory::ExclusoryImpl, remote_feature::FeatureFlag};
 pub const PARTNER_EXCLUSION_REFRESH_TIMEOUT: u32 = 12 * 60 * 60; // 12 hours
 pub const METRICS_LOGGING_PERCENTAGE_DEFAULT: u32 = 10;
-use serde_json::json;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct RippleConfiguration {
@@ -792,22 +791,9 @@ impl DeviceManifest {
     }
 
     pub fn get_supported_caps(&self) -> Vec<FireboltPermission> {
-        let supported_caps = self.clone().capabilities.supported;
-        let mut fb_perm_list = Vec::new();
+        let supported = self.clone().capabilities.supported;
         let role_based_support = self.configuration.default_values.role_based_support;
-        for mut i in supported_caps {
-            fb_perm_list.push(FireboltPermission::deserialize(json!(i)).unwrap());
-            if !(role_based_support || i.ends_with("[manage]") || i.ends_with("[provide]")) {
-                let s: String = "[manage]".to_owned();
-                i = format!("{i}{s}");
-                fb_perm_list.push(FireboltPermission::deserialize(json!(i)).unwrap());
-            } else if role_based_support && i.ends_with("[manage]") {
-                i.truncate(i.len() - "[manage]".len());
-                fb_perm_list.push(FireboltPermission::deserialize(json!(i)).unwrap());
-            }
-        }
-        fb_perm_list
-        // FireboltCap::from_vec_string(self.clone().capabilities.supported)
+        FireboltPermission::from_vec_string(supported, role_based_support)
     }
 
     pub fn get_caps_requiring_grant(&self) -> Vec<String> {
@@ -1034,6 +1020,7 @@ pub(crate) mod tests {
     fn test_get_supported_caps_use_role_based_support_false() {
         let manifest = DeviceManifest::mock();
         let supported_perms = manifest.get_supported_caps();
+        println!("^^^ perms {:?}", supported_perms);
         assert!(supported_perms.contains(&FireboltPermission {
             cap: FireboltCap::Full("main".to_owned()),
             role: CapabilityRole::Manage
@@ -1045,6 +1032,10 @@ pub(crate) mod tests {
         assert!(supported_perms.contains(&FireboltPermission {
             cap: FireboltCap::Full("test".to_owned()),
             role: CapabilityRole::Use
+        }));
+        assert!(supported_perms.contains(&FireboltPermission {
+            cap: FireboltCap::Full("test".to_owned()),
+            role: CapabilityRole::Provide
         }));
     }
 

@@ -159,6 +159,67 @@ pub struct FireboltPermission {
     pub role: CapabilityRole,
 }
 
+impl FireboltPermission {
+    pub fn from_vec_string(
+        perm_strings: Vec<String>,
+        role_based_support: bool,
+    ) -> Vec<FireboltPermission> {
+        let mut perm_list: Vec<FireboltPermission> = Vec::new();
+        for perm in perm_strings {
+            if role_based_support {
+                let pattern = r"^xrn:firebolt:capability:([a-z0-9\\-]+)((:[a-z0-9\\-]+)?)$";
+                if Regex::new(pattern).unwrap().is_match(perm.as_str()) {
+                    // Default Capability which without [role] at the end of capability string for e.g `xrn:firebolt:capability:account:session`,
+                    // we add use role to the capability
+                    perm_list.push(FireboltPermission {
+                        cap: FireboltCap::Full(perm.to_owned()),
+                        role: CapabilityRole::Use,
+                    });
+                } else if perm.ends_with("[manage]") {
+                    let mut cap = perm.clone();
+                    cap.truncate(perm.len() - "[manage]".len());
+
+                    perm_list.push(FireboltPermission {
+                        cap: FireboltCap::Full(cap.to_owned()),
+                        role: CapabilityRole::Use,
+                    });
+                    perm_list.push(FireboltPermission {
+                        cap: FireboltCap::Full(cap),
+                        role: CapabilityRole::Manage,
+                    });
+                }
+            } else if !(perm.ends_with("[manage]") || perm.ends_with("[provide]")) {
+                // Default Capability which without [role] at the end of capability string for e.g `xrn:firebolt:capability:account:session`,
+                // we add use, manage and provide roles to the capability
+                perm_list.push(FireboltPermission {
+                    cap: FireboltCap::Full(perm.to_owned()),
+                    role: CapabilityRole::Use,
+                });
+                perm_list.push(FireboltPermission {
+                    cap: FireboltCap::Full(perm.to_owned()),
+                    role: CapabilityRole::Manage,
+                });
+                perm_list.push(FireboltPermission {
+                    cap: FireboltCap::Full(perm),
+                    role: CapabilityRole::Provide,
+                });
+            } else if perm.ends_with("[manage]") {
+                let mut cap = perm.clone();
+                cap.truncate(perm.len() - "[manage]".len());
+                perm_list.push(FireboltPermission {
+                    cap: FireboltCap::Full(cap.to_owned()),
+                    role: CapabilityRole::Use,
+                });
+                perm_list.push(FireboltPermission {
+                    cap: FireboltCap::Full(cap.to_owned()),
+                    role: CapabilityRole::Manage,
+                });
+            }
+        }
+        perm_list
+    }
+}
+
 impl From<RoleInfo> for FireboltPermission {
     fn from(role_info: RoleInfo) -> Self {
         FireboltPermission {
@@ -225,7 +286,7 @@ impl Serialize for FireboltPermission {
     {
         let s = self.cap.as_str();
         let suffix = match self.role {
-            CapabilityRole::Use => "[use]",
+            CapabilityRole::Use => "",
             CapabilityRole::Manage => "[manage]",
             CapabilityRole::Provide => "[provide]",
         };
@@ -621,10 +682,7 @@ mod tests {
             role: CapabilityRole::Use,
         };
         let serialized = serde_json::to_string(&perm).unwrap();
-        assert_eq!(
-            serialized,
-            "\"xrn:firebolt:capability:account:session[use]\""
-        );
+        assert_eq!(serialized, "\"xrn:firebolt:capability:account:session\"");
     }
 
     #[test]
