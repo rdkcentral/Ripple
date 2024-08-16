@@ -225,7 +225,7 @@ impl Serialize for FireboltPermission {
     {
         let s = self.cap.as_str();
         let suffix = match self.role {
-            CapabilityRole::Use => "",
+            CapabilityRole::Use => "[use]",
             CapabilityRole::Manage => "[manage]",
             CapabilityRole::Provide => "[provide]",
         };
@@ -621,7 +621,10 @@ mod tests {
             role: CapabilityRole::Use,
         };
         let serialized = serde_json::to_string(&perm).unwrap();
-        assert_eq!(serialized, "\"xrn:firebolt:capability:account:session\"");
+        assert_eq!(
+            serialized,
+            "\"xrn:firebolt:capability:account:session[use]\""
+        );
     }
 
     #[test]

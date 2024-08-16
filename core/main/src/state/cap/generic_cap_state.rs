@@ -29,6 +29,8 @@ use ripple_sdk::{
     },
     log::debug,
 };
+use serde::Deserialize;
+use serde_json::json;
 
 use crate::state::platform_state::PlatformState;
 
@@ -54,14 +56,14 @@ impl GenericCapState {
         cap_state
     }
 
-    pub fn ingest_supported(&self, request: Vec<FireboltCap>) {
+    pub fn ingest_supported(&self, request: Vec<FireboltPermission>) {
         let mut supported = self.supported.write().unwrap();
         supported.extend(
             request
                 .iter()
-                .map(|a| a.as_str())
+                .map(|a: &FireboltPermission| serde_json::to_string(a).unwrap())
                 .collect::<HashSet<String>>(),
-        )
+        );
     }
 
     pub fn ingest_availability(&self, request: Vec<FireboltCap>, is_available: bool) {
@@ -79,9 +81,21 @@ impl GenericCapState {
     pub fn check_for_processor(&self, request: Vec<String>) -> HashMap<String, bool> {
         let supported = self.supported.read().unwrap();
         let mut result = HashMap::new();
+        let supported_cap: Vec<String> = supported
+            .clone()
+            .iter()
+            .map(|f| {
+                FireboltPermission::deserialize(json!(f))
+                    .unwrap()
+                    .cap
+                    .as_str()
+            })
+            .collect();
+
         for cap in request {
-            result.insert(cap.clone(), supported.contains(&cap));
+            result.insert(cap.clone(), supported_cap.contains(&cap));
         }
+
         result
     }
 
@@ -89,7 +103,7 @@ impl GenericCapState {
         let supported = self.supported.read().unwrap();
         let not_supported: Vec<FireboltCap> = request
             .iter()
-            .filter(|fb_perm| !supported.contains(&fb_perm.cap.as_str()))
+            .filter(|fb_perm| !supported.contains(&serde_json::to_string(fb_perm).unwrap()))
             .map(|fb_perm| fb_perm.cap.clone())
             .collect();
 

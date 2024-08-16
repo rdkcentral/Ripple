@@ -28,7 +28,7 @@ use crate::{
     api::{
         device::device_user_grants_data::{GrantExclusionFilter, GrantPolicies},
         distributor::distributor_privacy::DataEventType,
-        firebolt::fb_capabilities::{FireboltCap, FireboltPermission},
+        firebolt::fb_capabilities::FireboltPermission,
         storage_property::StorageProperty,
     },
     utils::error::RippleError,
@@ -37,6 +37,7 @@ use crate::{
 use super::{apps::AppManifest, exclusory::ExclusoryImpl, remote_feature::FeatureFlag};
 pub const PARTNER_EXCLUSION_REFRESH_TIMEOUT: u32 = 12 * 60 * 60; // 12 hours
 pub const METRICS_LOGGING_PERCENTAGE_DEFAULT: u32 = 10;
+use serde_json::json;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct RippleConfiguration {
@@ -332,6 +333,8 @@ pub struct DefaultValues {
     pub media_progress_as_watched_events: bool,
     #[serde(default)]
     pub accessibility_audio_description_settings: bool,
+    #[serde(default)]
+    pub role_based_support: bool,
 }
 
 pub fn name_default() -> String {
@@ -441,6 +444,7 @@ impl Default for DefaultValues {
             lifecycle_transition_validate: false,
             media_progress_as_watched_events: false,
             accessibility_audio_description_settings: false,
+            role_based_support: false,
         }
     }
 }
@@ -787,8 +791,23 @@ impl DeviceManifest {
         }
     }
 
-    pub fn get_supported_caps(&self) -> Vec<FireboltCap> {
-        FireboltCap::from_vec_string(self.clone().capabilities.supported)
+    pub fn get_supported_caps(&self) -> Vec<FireboltPermission> {
+        let supported_caps = self.clone().capabilities.supported;
+        let mut fb_perm_list = Vec::new();
+        let role_based_support = self.configuration.default_values.role_based_support;
+        for mut i in supported_caps {
+            fb_perm_list.push(FireboltPermission::deserialize(json!(i)).unwrap());
+            if !(role_based_support || i.ends_with("[manage]") || i.ends_with("[provide]")) {
+                let s: String = "[manage]".to_owned();
+                i = format!("{i}{s}");
+                fb_perm_list.push(FireboltPermission::deserialize(json!(i)).unwrap());
+            } else if role_based_support && i.ends_with("[manage]") {
+                i.truncate(i.len() - "[manage]".len());
+                fb_perm_list.push(FireboltPermission::deserialize(json!(i)).unwrap());
+            }
+        }
+        fb_perm_list
+        // FireboltCap::from_vec_string(self.clone().capabilities.supported)
     }
 
     pub fn get_caps_requiring_grant(&self) -> Vec<String> {
@@ -834,6 +853,7 @@ impl DeviceManifest {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::api::firebolt::fb_capabilities::{CapabilityRole, FireboltCap};
     pub trait Mockable {
         fn mock() -> DeviceManifest
         where
@@ -906,6 +926,7 @@ pub(crate) mod tests {
                         lifecycle_transition_validate: true,
                         media_progress_as_watched_events: true,
                         accessibility_audio_description_settings: false,
+                        role_based_support: false,
                     },
                     settings_defaults_per_app: HashMap::new(),
                     model_friendly_names: {
@@ -934,7 +955,7 @@ pub(crate) mod tests {
                     metrics_logging_percentage: 10,
                 },
                 capabilities: CapabilityConfiguration {
-                    supported: vec!["main".to_string()],
+                    supported: vec!["main[manage]".to_string(), "test".to_string()],
                     grant_policies: None,
                     grant_exclusion_filters: vec![GrantExclusionFilter {
                         id: Some("test-id".to_string()),
@@ -1010,11 +1031,21 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_get_supported_caps() {
+    fn test_get_supported_caps_use_role_based_support_false() {
         let manifest = DeviceManifest::mock();
-        let supported_caps = manifest.get_supported_caps();
-
-        assert_eq!(supported_caps, vec![FireboltCap::Full("main".to_string())]);
+        let supported_perms = manifest.get_supported_caps();
+        assert!(supported_perms.contains(&FireboltPermission {
+            cap: FireboltCap::Full("main".to_owned()),
+            role: CapabilityRole::Manage
+        }));
+        assert!(supported_perms.contains(&FireboltPermission {
+            cap: FireboltCap::Full("test".to_owned()),
+            role: CapabilityRole::Manage
+        }));
+        assert!(supported_perms.contains(&FireboltPermission {
+            cap: FireboltCap::Full("test".to_owned()),
+            role: CapabilityRole::Use
+        }));
     }
 
     #[test]
