@@ -19,6 +19,7 @@ use std::hash::{Hash, Hasher};
 
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::json;
 
 use super::fb_openrpc::CapabilitySet;
 use crate::api::gateway::rpc_error::RpcError;
@@ -167,53 +168,32 @@ impl FireboltPermission {
         let mut perm_list: Vec<FireboltPermission> = Vec::new();
         for perm in perm_strings {
             if role_based_support {
-                let pattern = r"^xrn:firebolt:capability:([a-z0-9\\-]+)((:[a-z0-9\\-]+)?)$";
-                if Regex::new(pattern).unwrap().is_match(perm.as_str()) {
-                    // Default Capability which without [role] at the end of capability string for e.g `xrn:firebolt:capability:account:session`,
-                    // we add use role to the capability
-                    perm_list.push(FireboltPermission {
-                        cap: FireboltCap::Full(perm.to_owned()),
-                        role: CapabilityRole::Use,
-                    });
-                } else if perm.ends_with("[manage]") {
+                perm_list.push(FireboltPermission::deserialize(json!(perm)).unwrap());
+                if perm.ends_with("[manage]") {
                     let mut cap = perm.clone();
                     cap.truncate(perm.len() - "[manage]".len());
-
-                    perm_list.push(FireboltPermission {
-                        cap: FireboltCap::Full(cap.to_owned()),
-                        role: CapabilityRole::Use,
-                    });
-                    perm_list.push(FireboltPermission {
-                        cap: FireboltCap::Full(cap),
-                        role: CapabilityRole::Manage,
-                    });
+                    perm_list.push(FireboltPermission::deserialize(json!(cap)).unwrap());
                 }
-            } else if !(perm.ends_with("[manage]") || perm.ends_with("[provide]")) {
-                // Default Capability which without [role] at the end of capability string for e.g `xrn:firebolt:capability:account:session`,
-                // we add use, manage and provide roles to the capability
-                perm_list.push(FireboltPermission {
-                    cap: FireboltCap::Full(perm.to_owned()),
-                    role: CapabilityRole::Use,
-                });
-                perm_list.push(FireboltPermission {
-                    cap: FireboltCap::Full(perm.to_owned()),
-                    role: CapabilityRole::Manage,
-                });
-                perm_list.push(FireboltPermission {
-                    cap: FireboltCap::Full(perm),
-                    role: CapabilityRole::Provide,
-                });
-            } else if perm.ends_with("[manage]") {
-                let mut cap = perm.clone();
-                cap.truncate(perm.len() - "[manage]".len());
-                perm_list.push(FireboltPermission {
-                    cap: FireboltCap::Full(cap.to_owned()),
-                    role: CapabilityRole::Use,
-                });
-                perm_list.push(FireboltPermission {
-                    cap: FireboltCap::Full(cap.to_owned()),
-                    role: CapabilityRole::Manage,
-                });
+            } else {
+                perm_list.push(FireboltPermission::deserialize(json!(perm)).unwrap());
+                perm_list.push(
+                    FireboltPermission::deserialize(json!(format!(
+                        "{}{}",
+                        perm.as_str(),
+                        "[manage]"
+                    )
+                    .as_str()))
+                    .unwrap(),
+                );
+                perm_list.push(
+                    FireboltPermission::deserialize(json!(format!(
+                        "{}{}",
+                        perm.as_str(),
+                        "[provide]"
+                    )
+                    .as_str()))
+                    .unwrap(),
+                );
             }
         }
         perm_list
