@@ -31,7 +31,6 @@ pub const NAMESPACE_CLOSED_CAPTIONS: &str = "ClosedCaptions";
 pub const NAMESPACE_PRIVACY: &str = "Privacy";
 pub const NAMESPACE_DEVICE_NAME: &str = "DeviceName";
 pub const NAMESPACE_LOCALIZATION: &str = "Localization";
-pub const NAMESPACE_USER_GRANT: &str = "UserGrant";
 pub const NAMESPACE_ADVERTISING: &str = "Advertising";
 pub const NAMESPACE_AUDIO_DESCRIPTION: &str = "AudioDescription";
 
@@ -56,7 +55,6 @@ pub const KEY_LANGUAGE: &str = "language";
 pub const KEY_LOCALE: &str = "locale";
 pub const KEY_LATLON: &str = "latlon";
 pub const KEY_ADDITIONAL_INFO: &str = "additionalInfo";
-pub const KEY_USER_GRANT: &str = "userGrantKey";
 pub const KEY_ALLOW_ACR_COLLECTION: &str = "allowACRCollection";
 pub const KEY_ALLOW_APP_CONTENT_AD_TARGETING: &str = "allowAppContentAdTargetting";
 pub const KEY_ALLOW_BUSINESS_ANALYTICS: &str = "allowBusinessAnalytics";
@@ -302,11 +300,6 @@ const PROPERTY_DATA_DEVICE_NAME: PropertyData = PropertyData {
         EVENT_SECOND_SCREEN_FRIENDLY_NAME_CHANGED,
     ]),
 };
-const PROPERTY_DATA_USER_GRANT: PropertyData = PropertyData {
-    key: KEY_USER_GRANT,
-    namespace: NAMESPACE_USER_GRANT,
-    event_names: None,
-};
 
 const PROPERTY_DATA_ALLOW_ACR_COLLECTION: PropertyData = PropertyData {
     key: KEY_ALLOW_ACR_COLLECTION,
@@ -470,7 +463,6 @@ pub enum StorageProperty {
     LatLon,
     AdditionalInfo,
     DeviceName,
-    UserGrants,
     AllowAcrCollection,
     AllowAppContentAdTargeting,
     AllowBusinessAnalytics,
@@ -529,7 +521,6 @@ impl StorageProperty {
             StorageProperty::LatLon => PROPERTY_DATA_LATLON,
             StorageProperty::AdditionalInfo => PROPERTY_DATA_ADDITIONAL_INFO,
             StorageProperty::DeviceName => PROPERTY_DATA_DEVICE_NAME,
-            StorageProperty::UserGrants => PROPERTY_DATA_USER_GRANT,
             StorageProperty::AllowAcrCollection => PROPERTY_DATA_ALLOW_ACR_COLLECTION,
             StorageProperty::AllowAppContentAdTargeting => {
                 PROPERTY_DATA_ALLOW_APP_CONTENT_AD_TARGETING
