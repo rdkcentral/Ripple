@@ -17,7 +17,7 @@
 
 use hyper::{Body, Client, Method, Request, Uri};
 use ripple_sdk::{
-    log::error,
+    log::{debug, error},
     tokio::{self, sync::mpsc},
 };
 
@@ -38,31 +38,29 @@ impl EndpointBroker for HttpBroker {
         let broker = BrokerSender { sender: tx };
         let is_json_rpc = endpoint.jsonrpc;
         let uri: Uri = endpoint.get_url().parse().unwrap();
-        // let mut headers = HeaderMap::new();
-        // headers.insert("Content-Type", "application/json".parse().unwrap());
-        // if let Some(auth) = &endpoint.authentication {
-        //     if auth.to_lowercase().contains("bearer") {
-        //         if let Some(session) = session {
-        //             headers.insert(
-        //                 "Authorization",
-        //                 format!("Bearer {}", session.token).parse().unwrap(),
-        //             );
-        //         }
-        //     }
-        // }
-
         let client = Client::new();
         tokio::spawn(async move {
             while let Some(request) = tr.recv().await {
+                let method = request.clone().rule.alias;
                 if let Ok(broker_request) = Self::update_request(&request) {
-                    let body = Body::from(broker_request);
+                    let body = Body::from(broker_request.clone());
                     let http_request = Request::new(body);
                     let (mut parts, body) = http_request.into_parts();
-                    parts.method = Method::POST;
-                    parts.uri = uri.clone();
+                    //TODO, need to refactor to support other methods
+                    parts.method = Method::GET;
+                    let uri: Uri = format!("{}{}", uri, method).parse().unwrap();
+                    let new_request = Request::builder().uri(uri).body(()).unwrap();
+                    let (uri_parts, _) = new_request.into_parts();
+
+                    parts.uri = uri_parts.uri;
                     //parts.headers = headers.clone();
 
                     let http_request = Request::from_parts(parts, body);
+                    debug!(
+                        "Sending request ={} for broker_request={}",
+                        http_request.uri(),
+                        broker_request
+                    );
                     if let Ok(v) = client.request(http_request).await {
                         let (parts, body) = v.into_parts();
                         if !parts.status.is_success() {
