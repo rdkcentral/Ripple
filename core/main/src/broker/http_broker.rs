@@ -117,12 +117,26 @@ impl EndpointBroker for HttpBroker {
         let client = Client::new();
         tokio::spawn(async move {
             while let Some(request) = tr.recv().await {
+                debug!("http broker received request={:?}", request);
                 match send_http_request(&client, Method::GET, &uri, &request.clone().rule.alias)
                     .await
                 {
                     Ok(response) => {
                         let (parts, body) = response.into_parts();
+
                         let body = body_to_bytes(body).await;
+                        let mut request = request;
+
+                        let v = vec![serde_json::from_slice::<serde_json::Value>(&body).unwrap()];
+
+                        request.rpc.params_json = serde_json::to_string(&v).unwrap().to_string();
+
+                        let response = Self::update_request(&request);
+                        debug!(
+                            "http broker response={:?} to request: {:?} using rule={:?}",
+                            response, request, request.rule
+                        );
+
                         send_broker_response(&callback, &request, &body).await;
                         if !parts.status.is_success() {
                             error!(
