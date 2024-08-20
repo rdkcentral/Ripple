@@ -15,20 +15,97 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use hyper::{Body, Client, Method, Request, Uri};
+use hyper::{client::HttpConnector, Body, Client, Method, Request, Response, Uri};
 use ripple_sdk::{
     log::{debug, error},
     tokio::{self, sync::mpsc},
+    utils::error::RippleError,
 };
 
+use tokio_tungstenite::tungstenite::http::uri::InvalidUri;
+
 use super::endpoint_broker::{
-    BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerSender,
-    EndpointBroker,
+    BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerRequest,
+    BrokerSender, EndpointBroker,
 };
 
 pub struct HttpBroker {
     sender: BrokerSender,
     cleaner: BrokerCleaner,
+}
+/*
+
+*/
+
+async fn send_http_request(
+    client: &Client<HttpConnector>,
+    method: Method,
+    uri: &Uri,
+    path: &str,
+) -> Result<Response<Body>, RippleError> {
+    /*
+    TODO? we may need to support body for POST request in the future
+    */
+    let http_request = Request::new(Body::empty());
+    let (mut parts, _) = http_request.into_parts();
+    //TODO, need to refactor to support other methods
+    parts.method = method.clone();
+    /*
+    mix endpoint url with method
+    */
+    /*
+    TODONT: unwraps are bad, need to handle errors
+    */
+
+    let uri: Uri = format!("{}{}", uri, path)
+        .parse()
+        .map_err(|e: InvalidUri| RippleError::BrokerError(e.to_string()))?;
+    let new_request = Request::builder()
+        .uri(uri)
+        .body(Body::empty())
+        .map_err(|e| RippleError::BrokerError(e.to_string()))?;
+    let (uri_parts, _) = new_request.into_parts();
+
+    parts.uri = uri_parts.uri;
+
+    let http_request = Request::from_parts(parts, Body::empty());
+
+    debug!(
+        "http_broker sending {} request={}",
+        method,
+        http_request.uri(),
+    );
+    match client.request(http_request).await {
+        Ok(v) => Ok(v),
+        Err(e) => {
+            error!("Error in server");
+            Err(RippleError::BrokerError(e.to_string()))
+        }
+    }
+}
+async fn send_broker_response(callback: &BrokerCallback, request: &BrokerRequest, body: &[u8]) {
+    match BrokerOutputForwarder::handle_non_jsonrpc_response(
+        body,
+        callback.clone(),
+        request.clone(),
+    ) {
+        Ok(_) => {}
+        Err(e) => {
+            error!("Error message from http broker {:?}", e)
+        }
+    }
+}
+async fn body_to_bytes(body: Body) -> Vec<u8> {
+    match hyper::body::to_bytes(body).await {
+        Ok(bytes) => {
+            let value: Vec<u8> = bytes.into();
+            value.as_slice().to_vec()
+        }
+        Err(e) => format!("error in http broker transforming body to bytes {}", e)
+            .to_string()
+            .as_bytes()
+            .to_vec(),
+    }
 }
 
 impl EndpointBroker for HttpBroker {
@@ -36,55 +113,31 @@ impl EndpointBroker for HttpBroker {
         let endpoint = request.endpoint.clone();
         let (tx, mut tr) = mpsc::channel(10);
         let broker = BrokerSender { sender: tx };
-        let is_json_rpc = endpoint.jsonrpc;
         let uri: Uri = endpoint.get_url().parse().unwrap();
         let client = Client::new();
         tokio::spawn(async move {
             while let Some(request) = tr.recv().await {
-                let method = request.clone().rule.alias;
-                if let Ok(broker_request) = Self::update_request(&request) {
-                    let body = Body::from(broker_request.clone());
-                    let http_request = Request::new(body);
-                    let (mut parts, body) = http_request.into_parts();
-                    //TODO, need to refactor to support other methods
-                    parts.method = Method::GET;
-                    let uri: Uri = format!("{}{}", uri, method).parse().unwrap();
-                    let new_request = Request::builder().uri(uri).body(()).unwrap();
-                    let (uri_parts, _) = new_request.into_parts();
-
-                    parts.uri = uri_parts.uri;
-                    //parts.headers = headers.clone();
-
-                    let http_request = Request::from_parts(parts, body);
-                    debug!(
-                        "Sending request ={} for broker_request={}",
-                        http_request.uri(),
-                        broker_request
-                    );
-                    if let Ok(v) = client.request(http_request).await {
-                        let (parts, body) = v.into_parts();
+                match send_http_request(&client, Method::GET, &uri, &request.clone().rule.alias)
+                    .await
+                {
+                    Ok(response) => {
+                        let (parts, body) = response.into_parts();
+                        let body = body_to_bytes(body).await;
+                        send_broker_response(&callback, &request, &body).await;
                         if !parts.status.is_success() {
-                            error!("Error in server");
+                            error!(
+                                "http error {} returned from http service in http broker {:?}",
+                                parts.status, body
+                            );
                         }
-                        if let Ok(bytes) = hyper::body::to_bytes(body).await {
-                            let value: Vec<u8> = bytes.into();
-                            let value = value.as_slice();
-                            if is_json_rpc {
-                                Self::handle_jsonrpc_response(value, callback.clone());
-                            } else if let Err(e) =
-                                BrokerOutputForwarder::handle_non_jsonrpc_response(
-                                    value,
-                                    callback.clone(),
-                                    request.clone(),
-                                )
-                            {
-                                error!("Error forwarding {:?}", e)
-                            }
-                        }
+                    }
+                    Err(err) => {
+                        error!("An error message from calling the downstream http service={} in http broker {:?}", uri, err);
                     }
                 }
             }
         });
+
         Self {
             sender: broker,
             cleaner: BrokerCleaner { cleaner: None },
