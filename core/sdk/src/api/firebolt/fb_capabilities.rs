@@ -168,7 +168,10 @@ impl FireboltPermission {
         let mut perm_list: Vec<FireboltPermission> = Vec::new();
         for permission in perm_strings {
             if role_based_support {
-                perm_list.push(FireboltPermission::deserialize(json!(permission)).unwrap());
+                let perm = FireboltPermission::deserialize(json!(permission));
+                if let Ok(p) = perm {
+                    perm_list.push(p);
+                }
                 if permission.ends_with("[manage]") {
                     let mut cap = permission.clone();
 
