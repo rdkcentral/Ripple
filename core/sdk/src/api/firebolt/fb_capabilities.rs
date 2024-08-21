@@ -166,34 +166,43 @@ impl FireboltPermission {
         role_based_support: bool,
     ) -> Vec<FireboltPermission> {
         let mut perm_list: Vec<FireboltPermission> = Vec::new();
-        for perm in perm_strings {
+        for permission in perm_strings {
             if role_based_support {
-                perm_list.push(FireboltPermission::deserialize(json!(perm)).unwrap());
-                if perm.ends_with("[manage]") {
-                    let mut cap = perm.clone();
-                    cap.truncate(perm.len() - "[manage]".len());
-                    perm_list.push(FireboltPermission::deserialize(json!(cap)).unwrap());
+                perm_list.push(FireboltPermission::deserialize(json!(permission)).unwrap());
+                if permission.ends_with("[manage]") {
+                    let mut cap = permission.clone();
+
+                    cap.truncate(permission.len() - "[manage]".len());
+                    let perm = FireboltPermission::deserialize(json!(cap));
+                    if let Ok(p) = perm {
+                        perm_list.push(p);
+                    }
                 }
             } else {
-                perm_list.push(FireboltPermission::deserialize(json!(perm)).unwrap());
-                perm_list.push(
-                    FireboltPermission::deserialize(json!(format!(
-                        "{}{}",
-                        perm.as_str(),
-                        "[manage]"
-                    )
-                    .as_str()))
-                    .unwrap(),
-                );
-                perm_list.push(
-                    FireboltPermission::deserialize(json!(format!(
-                        "{}{}",
-                        perm.as_str(),
-                        "[provide]"
-                    )
-                    .as_str()))
-                    .unwrap(),
-                );
+                let perm = FireboltPermission::deserialize(json!(permission));
+                if let Ok(p) = perm {
+                    perm_list.push(p);
+                }
+
+                let perm = FireboltPermission::deserialize(json!(format!(
+                    "{}{}",
+                    permission.as_str(),
+                    "[manage]"
+                )
+                .as_str()));
+                if let Ok(p) = perm {
+                    perm_list.push(p);
+                };
+
+                let perm = FireboltPermission::deserialize(json!(format!(
+                    "{}{}",
+                    permission.as_str(),
+                    "[provide]"
+                )
+                .as_str()));
+                if let Ok(p) = perm {
+                    perm_list.push(p);
+                };
             }
         }
         perm_list
