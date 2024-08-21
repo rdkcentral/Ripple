@@ -466,7 +466,6 @@ impl EndpointBrokerState {
         let mut broker_sender = None;
         let mut found_rule = None;
         if let Some(rule) = self.rule_engine.get_rule(&rpc_request) {
-            // ==> handle_brokerage: Rule { alias: "static", transform: RuleTransform { request: None, response: Some("WPE"), event: None, event_decorator_method: None }, filter: None, endpoint: None }
             let _ = found_rule.insert(rule.clone());
             if let Some(endpoint) = rule.endpoint {
                 if let Some(endpoint) = self.get_sender(&endpoint) {
@@ -489,7 +488,6 @@ impl EndpointBrokerState {
             let updated_request = self.update_request(&rpc_request, rule, extn_message);
             tokio::spawn(async move {
                 if let Err(e) = broker.send(updated_request.clone()).await {
-                    // send some rpc error
                     callback.send_error(updated_request, e).await
                 }
             });
