@@ -326,6 +326,16 @@ impl EndpointBrokerState {
         rule: Rule,
         extn_message: Option<ExtnMessage>,
     ) -> BrokerRequest {
+        let (_id, req) = self.update_request2(rpc_request, rule, extn_message);
+        req
+    }
+
+    fn update_request2(
+        &self,
+        rpc_request: &RpcRequest,
+        rule: Rule,
+        extn_message: Option<ExtnMessage>,
+    ) -> (u64, BrokerRequest) {
         let id = Self::get_next_id();
         let mut rpc_request_c = rpc_request.clone();
         {
@@ -346,7 +356,7 @@ impl EndpointBrokerState {
         }
 
         rpc_request_c.ctx.call_id = id;
-        BrokerRequest::new(&rpc_request_c, rule)
+        (id, BrokerRequest::new(&rpc_request_c, rule))
     }
 
     pub fn build_thunder_endpoint(&mut self) {
@@ -404,6 +414,55 @@ impl EndpointBrokerState {
         }
     }
 
+    fn handle_static_ruquest(&self, 
+        rpc_request: RpcRequest,
+        extn_message: Option<ExtnMessage>,
+        rule: Rule, 
+        callback: BrokerCallback) {
+        println!("==> handle_static_ruquest: {:?}", rule);
+        let mut data = JsonRpcApiResponse::default();
+        if let Some(response) = rule.clone().transform.response {
+            let (id, updated_request) = self.update_request2(&rpc_request, rule, extn_message);
+            //data.id = Some(id);
+            //data.result = Some(response.into());
+
+            //let jv : Value = response.clone().into();
+            //if jv.is_object() {
+            //    let obj = jv.as_object();
+            //    println!("=== handle_static_ruquest:{} {:?}", line!(), obj);
+            //}
+            let result = serde_json::from_str::<serde_json::Value>(&response);
+            match result {
+                Ok(val) => {
+                    println!("==> handle_static_ruquest: {:?}", val);
+                    println!("==> handle_static_ruquest: is_obj={:?}", val.is_object());
+                    if val.is_object() && val.get("code").is_some() && val.get("message").is_some() {
+                        data.error = Some(val);
+                    } else {
+                        data.result = Some(val);
+                    }
+
+                    data.id = Some(id);
+                    let output = BrokerOutput { data };
+                    println!("=== handle_static_ruquest:{} output={:?}", line!(), output);
+                    tokio::spawn(async move { callback.sender.send(output).await });
+                }
+                Err(_) => {
+                    // err bad response
+                    tokio::spawn(async move {
+                        callback
+                            .send_error(updated_request, RippleError::ParseError)
+                            .await
+                    });
+                }
+            }            
+
+            //let output = BrokerOutput { data };
+            //tokio::spawn(async move { callback.sender.send(output).await });
+        }
+        println!("<== handle_static_ruquest:");
+    }
+    
     fn get_sender(&self, hash: &str) -> Option<BrokerSender> {
         self.endpoint_map.read().unwrap().get(hash).cloned()
     }
@@ -419,6 +478,7 @@ impl EndpointBrokerState {
         let mut broker_sender = None;
         let mut found_rule = None;
         if let Some(rule) = self.rule_engine.get_rule(&rpc_request) {
+            // ==> handle_brokerage: Rule { alias: "static", transform: RuleTransform { request: None, response: Some("WPE"), event: None, event_decorator_method: None }, filter: None, endpoint: None }
             let _ = found_rule.insert(rule.clone());
             if let Some(endpoint) = rule.endpoint {
                 if let Some(endpoint) = self.get_sender(&endpoint) {
@@ -433,14 +493,21 @@ impl EndpointBrokerState {
             return false;
         }
         let rule = found_rule.unwrap();
-        let broker = broker_sender.unwrap();
-        let updated_request = self.update_request(&rpc_request, rule, extn_message);
-        tokio::spawn(async move {
-            if let Err(e) = broker.send(updated_request.clone()).await {
-                // send some rpc error
-                callback.send_error(updated_request, e).await
-            }
-        });
+
+        if rule.alias == "static" {
+            self.handle_static_ruquest(rpc_request, extn_message, rule, callback);
+        } else {
+            let broker = broker_sender.unwrap();
+            let updated_request = self.update_request(&rpc_request, rule, extn_message);
+            tokio::spawn(async move {
+                if let Err(e) = broker.send(updated_request.clone()).await {
+                    // send some rpc error
+                    callback.send_error(updated_request, e).await
+                }
+            });
+        }
+
+        println!("<== handle_brokerage:");
         true
     }
 
@@ -557,6 +624,7 @@ impl BrokerOutputForwarder {
 
         tokio::spawn(async move {
             while let Some(mut v) = rx.recv().await {
+                println!("=== start_forwarder:{} {:?}", line!(), v);
                 let mut is_event = false;
                 // First validate the id check if it could be an event
                 let id = if let Some(e) = v.get_event() {
@@ -567,7 +635,9 @@ impl BrokerOutputForwarder {
                 };
 
                 if let Some(id) = id {
+                    println!("=== start_forwarder:{} {:?}", line!(), v);
                     if let Ok(broker_request) = platform_state.endpoint_state.get_request(id) {
+                        println!("=== start_forwarder:{} {:?}", line!(), broker_request);
                         let sub_processed = broker_request.is_subscription_processed();
                         let rpc_request = broker_request.rpc.clone();
                         let session_id = rpc_request.ctx.get_id();
@@ -653,6 +723,8 @@ impl BrokerOutputForwarder {
                             {
                                 apply_response(v.data.clone(), filter, &rpc_request, &mut v);
                             }
+                        } else {
+                            println!("=== start_forwarder:{} null result", line!());
                         }
 
                         let request_id = rpc_request.ctx.call_id;
@@ -664,6 +736,7 @@ impl BrokerOutputForwarder {
                             protocol: rpc_request.ctx.protocol.clone(),
                             jsonrpc_msg: serde_json::to_string(&v.data).unwrap(),
                         };
+                        println!("=== start_forwarder:{} {:?}", line!(), message);
 
                         // Step 3: Handle Non Extension
                         if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
@@ -688,6 +761,8 @@ impl BrokerOutputForwarder {
                             )
                             .await
                         }
+                    } else {
+                        error!("=== start_forwarder:{} request not found {:?}", line!(), v);
                     }
                 } else {
                     error!("Error couldnt broker the event {:?}", v)
@@ -753,6 +828,7 @@ fn apply_response(
     rpc_request: &RpcRequest,
     v: &mut BrokerOutput,
 ) {
+    println!("=== apply_response:{:?} {:?}", rcp_response, result_response_filter);
     match serde_json::to_value(rcp_response) {
         Ok(input) => {
             match jq_compile(
