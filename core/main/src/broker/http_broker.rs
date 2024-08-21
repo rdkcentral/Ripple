@@ -15,9 +15,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::vec;
+
 use hyper::{client::HttpConnector, Body, Client, Method, Request, Response, Uri};
 use ripple_sdk::{
-    log::{debug, error},
+    chrono::format,
+    log::{debug, error, warn},
     tokio::{self, sync::mpsc},
     utils::error::RippleError,
 };
@@ -95,6 +98,11 @@ async fn send_broker_response(callback: &BrokerCallback, request: &BrokerRequest
         }
     }
 }
+fn error_string_to_json(msg: &str) -> serde_json::Value {
+    serde_json::json!({
+        "error": msg
+    })
+}
 async fn body_to_bytes(body: Body) -> Vec<u8> {
     match hyper::body::to_bytes(body).await {
         Ok(bytes) => {
@@ -113,9 +121,8 @@ impl EndpointBroker for HttpBroker {
         let endpoint = request.endpoint.clone();
         let (tx, mut tr) = mpsc::channel(10);
         let broker = BrokerSender { sender: tx };
-        let uri: Uri = endpoint.get_url().parse().unwrap();
         let client = Client::new();
-        tokio::spawn(async move {
+        let _ =  endpoint.get_url().parse().map_err(|e| error!("broker url {:?} in endpoint is invalid, cannot start http broker. error={}",endpoint,e) ).map(|uri| tokio::spawn(async move {
             while let Some(request) = tr.recv().await {
                 debug!("http broker received request={:?}", request);
                 match send_http_request(&client, Method::GET, &uri, &request.clone().rule.alias)
@@ -123,34 +130,40 @@ impl EndpointBroker for HttpBroker {
                 {
                     Ok(response) => {
                         let (parts, body) = response.into_parts();
-
                         let body = body_to_bytes(body).await;
                         let mut request = request;
-
-                        let v = vec![serde_json::from_slice::<serde_json::Value>(&body).unwrap()];
-
-                        request.rpc.params_json = serde_json::to_string(&v).unwrap().to_string();
-
-                        let response = Self::update_request(&request);
-                        debug!(
-                            "http broker response={:?} to request: {:?} using rule={:?}",
-                            response, request, request.rule
-                        );
-
-                        send_broker_response(&callback, &request, &body).await;
-                        if !parts.status.is_success() {
-                            error!(
-                                "http error {} returned from http service in http broker {:?}",
-                                parts.status, body
+                        if let Ok(json_str) = serde_json::from_slice::<serde_json::Value>(&body)
+                            .and_then(|v| Ok(vec![v]))
+                            .and_then(|v| serde_json::to_string(&v))
+                        {
+                            request.rpc.params_json = json_str;
+                            let response = Self::update_request(&request);
+                            trace!(
+                                "http broker response={:?} to request: {:?} using rule={:?}",
+                                response, request, request.rule
                             );
+
+                            send_broker_response(&callback, &request, &body).await;
+                            if !parts.status.is_success() {
+                                error!(
+                                    "http error {} returned from http service in http broker {:?}",
+                                    parts.status, body
+                                );
+                            }
+                        } else {
+                            let msg = format!("Error in http broker parsing response from http service at {}. status={:?}",uri, parts.status);
+                            error!("{}",msg);
+                            send_broker_response(&callback, &request,  error_string_to_json(msg.as_str()).to_string().as_bytes()).await;
                         }
                     }
                     Err(err) => {
-                        error!("An error message from calling the downstream http service={} in http broker {:?}", uri, err);
+                        let msg = format!("An error message from calling the downstream http service={} in http broker {:?}", uri, err);
+                        error!("{}",msg);
+                        send_broker_response(&callback, &request,  error_string_to_json(msg.as_str()).to_string().as_bytes()).await;
                     }
                 }
             }
-        });
+        }));
 
         Self {
             sender: broker,
