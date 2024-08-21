@@ -19,8 +19,7 @@ use std::vec;
 
 use hyper::{client::HttpConnector, Body, Client, Method, Request, Response, Uri};
 use ripple_sdk::{
-    chrono::format,
-    log::{debug, error, warn},
+    log::{debug, error, trace},
     tokio::{self, sync::mpsc},
     utils::error::RippleError,
 };
@@ -132,8 +131,7 @@ impl EndpointBroker for HttpBroker {
                         let (parts, body) = response.into_parts();
                         let body = body_to_bytes(body).await;
                         let mut request = request;
-                        if let Ok(json_str) = serde_json::from_slice::<serde_json::Value>(&body)
-                            .and_then(|v| Ok(vec![v]))
+                        if let Ok(json_str) = serde_json::from_slice::<serde_json::Value>(&body).map(|v| vec![v])
                             .and_then(|v| serde_json::to_string(&v))
                         {
                             request.rpc.params_json = json_str;
