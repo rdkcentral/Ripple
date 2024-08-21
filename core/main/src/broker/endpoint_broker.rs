@@ -25,7 +25,7 @@ use ripple_sdk::{
     },
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
-    log::{error, trace},
+    log::{debug, error, trace},
     tokio::{
         self,
         sync::mpsc::{self, Receiver, Sender},
@@ -414,55 +414,43 @@ impl EndpointBrokerState {
         }
     }
 
-    fn handle_static_ruquest(&self, 
+    fn handle_static_ruquest(
+        &self,
         rpc_request: RpcRequest,
         extn_message: Option<ExtnMessage>,
-        rule: Rule, 
-        callback: BrokerCallback) {
-        println!("==> handle_static_ruquest: {:?}", rule);
+        rule: Rule,
+        callback: BrokerCallback,
+    ) {
         let mut data = JsonRpcApiResponse::default();
         if let Some(response) = rule.clone().transform.response {
-            let (id, updated_request) = self.update_request2(&rpc_request, rule, extn_message);
-            //data.id = Some(id);
-            //data.result = Some(response.into());
-
-            //let jv : Value = response.clone().into();
-            //if jv.is_object() {
-            //    let obj = jv.as_object();
-            //    println!("=== handle_static_ruquest:{} {:?}", line!(), obj);
-            //}
+            let (id, updated_request) =
+                self.update_request2(&rpc_request, rule.clone(), extn_message);
             let result = serde_json::from_str::<serde_json::Value>(&response);
             match result {
                 Ok(val) => {
-                    println!("==> handle_static_ruquest: {:?}", val);
-                    println!("==> handle_static_ruquest: is_obj={:?}", val.is_object());
-                    if val.is_object() && val.get("code").is_some() && val.get("message").is_some() {
+                    if val.is_object() && val.get("code").is_some() && val.get("message").is_some()
+                    {
                         data.error = Some(val);
                     } else {
                         data.result = Some(val);
                     }
-
                     data.id = Some(id);
                     let output = BrokerOutput { data };
-                    println!("=== handle_static_ruquest:{} output={:?}", line!(), output);
+                    debug!("handle_static_ruquest: rule={:?} output={:?}", rule, output);
                     tokio::spawn(async move { callback.sender.send(output).await });
                 }
-                Err(_) => {
-                    // err bad response
+                Err(e) => {
+                    error!("error processing rule {:?} error: {:?}", rule, e);
                     tokio::spawn(async move {
                         callback
                             .send_error(updated_request, RippleError::ParseError)
                             .await
                     });
                 }
-            }            
-
-            //let output = BrokerOutput { data };
-            //tokio::spawn(async move { callback.sender.send(output).await });
+            }
         }
-        println!("<== handle_static_ruquest:");
     }
-    
+
     fn get_sender(&self, hash: &str) -> Option<BrokerSender> {
         self.endpoint_map.read().unwrap().get(hash).cloned()
     }
@@ -506,8 +494,6 @@ impl EndpointBrokerState {
                 }
             });
         }
-
-        println!("<== handle_brokerage:");
         true
     }
 
@@ -624,7 +610,6 @@ impl BrokerOutputForwarder {
 
         tokio::spawn(async move {
             while let Some(mut v) = rx.recv().await {
-                println!("=== start_forwarder:{} {:?}", line!(), v);
                 let mut is_event = false;
                 // First validate the id check if it could be an event
                 let id = if let Some(e) = v.get_event() {
@@ -635,9 +620,7 @@ impl BrokerOutputForwarder {
                 };
 
                 if let Some(id) = id {
-                    println!("=== start_forwarder:{} {:?}", line!(), v);
                     if let Ok(broker_request) = platform_state.endpoint_state.get_request(id) {
-                        println!("=== start_forwarder:{} {:?}", line!(), broker_request);
                         let sub_processed = broker_request.is_subscription_processed();
                         let rpc_request = broker_request.rpc.clone();
                         let session_id = rpc_request.ctx.get_id();
@@ -724,7 +707,7 @@ impl BrokerOutputForwarder {
                                 apply_response(v.data.clone(), filter, &rpc_request, &mut v);
                             }
                         } else {
-                            println!("=== start_forwarder:{} null result", line!());
+                            trace!("start_forwarder: null result");
                         }
 
                         let request_id = rpc_request.ctx.call_id;
@@ -736,7 +719,6 @@ impl BrokerOutputForwarder {
                             protocol: rpc_request.ctx.protocol.clone(),
                             jsonrpc_msg: serde_json::to_string(&v.data).unwrap(),
                         };
-                        println!("=== start_forwarder:{} {:?}", line!(), message);
 
                         // Step 3: Handle Non Extension
                         if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
@@ -828,7 +810,6 @@ fn apply_response(
     rpc_request: &RpcRequest,
     v: &mut BrokerOutput,
 ) {
-    println!("=== apply_response:{:?} {:?}", rcp_response, result_response_filter);
     match serde_json::to_value(rcp_response) {
         Ok(input) => {
             match jq_compile(
@@ -837,7 +818,7 @@ fn apply_response(
                 format!("{}_response", rpc_request.ctx.method),
             ) {
                 Ok(r) => {
-                    ripple_sdk::log::trace!(
+                    trace!(
                         "jq rendered output {:?} original input {:?} for filter {}",
                         r,
                         v,
