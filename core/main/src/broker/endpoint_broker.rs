@@ -414,20 +414,20 @@ impl EndpointBrokerState {
         }
     }
 
-    fn handle_static_ruquest(
+    fn handle_static_request(
         &self,
         rpc_request: RpcRequest,
         extn_message: Option<ExtnMessage>,
         rule: Rule,
         callback: BrokerCallback,
     ) {
-        let mut data = JsonRpcApiResponse::default();
         if let Some(response) = rule.clone().transform.response {
             let (id, updated_request) =
                 self.update_request2(&rpc_request, rule.clone(), extn_message);
             let result = serde_json::from_str::<serde_json::Value>(&response);
             match result {
                 Ok(val) => {
+                    let mut data = JsonRpcApiResponse::default();
                     if val.is_object() && val.get("code").is_some() && val.get("message").is_some()
                     {
                         data.error = Some(val);
@@ -436,7 +436,7 @@ impl EndpointBrokerState {
                     }
                     data.id = Some(id);
                     let output = BrokerOutput { data };
-                    debug!("handle_static_ruquest: rule={:?} output={:?}", rule, output);
+                    debug!("handle_static_request: rule={:?} output={:?}", rule, output);
                     tokio::spawn(async move { callback.sender.send(output).await });
                 }
                 Err(e) => {
@@ -482,7 +482,7 @@ impl EndpointBrokerState {
         let rule = found_rule.unwrap();
 
         if rule.alias == "static" {
-            self.handle_static_ruquest(rpc_request, extn_message, rule, callback);
+            self.handle_static_request(rpc_request, extn_message, rule, callback);
         } else {
             let broker = broker_sender.unwrap();
             let updated_request = self.update_request(&rpc_request, rule, extn_message);
