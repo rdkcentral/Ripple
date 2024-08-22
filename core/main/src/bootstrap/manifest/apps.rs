@@ -31,7 +31,10 @@ impl LoadAppLibraryStep {
         if cfg!(feature = "local_dev") {
             // Try to get the APP_LIBRARY environment variable
             if let Ok(app_library_path) = std::env::var("APP_LIBRARY") {
-                info!("Loading app library from APP_LIBRARY environment variable: {}", app_library_path);
+                info!(
+                    "Loading app library from APP_LIBRARY environment variable: {}",
+                    app_library_path
+                );
                 let p = Path::new(&app_library_path);
                 let result = match fs::read_to_string(p) {
                     Ok(contents) => match serde_json::from_str::<DefaultLibrary>(&contents) {
