@@ -421,33 +421,15 @@ impl EndpointBrokerState {
         rule: Rule,
         callback: BrokerCallback,
     ) {
-        if let Some(response) = rule.clone().transform.response {
-            let (id, updated_request) =
+        if rule.transform.response.is_some() {
+            let (id, _updated_request) =
                 self.update_request2(&rpc_request, rule.clone(), extn_message);
-            let result = serde_json::from_str::<serde_json::Value>(&response);
-            match result {
-                Ok(val) => {
-                    let mut data = JsonRpcApiResponse::default();
-                    if val.is_object() && val.get("code").is_some() && val.get("message").is_some()
-                    {
-                        data.error = Some(val);
-                    } else {
-                        data.result = Some(val);
-                    }
-                    data.id = Some(id);
-                    let output = BrokerOutput { data };
-                    debug!("handle_static_request: rule={:?} output={:?}", rule, output);
-                    tokio::spawn(async move { callback.sender.send(output).await });
-                }
-                Err(e) => {
-                    error!("error processing rule {:?} error: {:?}", rule, e);
-                    tokio::spawn(async move {
-                        callback
-                            .send_error(updated_request, RippleError::ParseError)
-                            .await
-                    });
-                }
-            }
+            let mut data = JsonRpcApiResponse::default();
+            // return em[ty result and handle the rest with jq rule
+            data.result = Some("".into());
+            data.id = Some(id);
+            let output = BrokerOutput { data };
+            tokio::spawn(async move { callback.sender.send(output).await });
         }
     }
 
@@ -742,7 +724,7 @@ impl BrokerOutputForwarder {
                             .await
                         }
                     } else {
-                        error!("=== start_forwarder:{} request not found {:?}", line!(), v);
+                        error!("start_forwarder:{} request not found {:?}", line!(), v);
                     }
                 } else {
                     error!("Error couldnt broker the event {:?}", v)
