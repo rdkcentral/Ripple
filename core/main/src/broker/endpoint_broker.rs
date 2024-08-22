@@ -25,7 +25,7 @@ use ripple_sdk::{
     },
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
-    log::{debug, error, trace},
+    log::{error, trace},
     tokio::{
         self,
         sync::mpsc::{self, Receiver, Sender},
@@ -325,16 +325,6 @@ impl EndpointBrokerState {
         rpc_request: &RpcRequest,
         rule: Rule,
         extn_message: Option<ExtnMessage>,
-    ) -> BrokerRequest {
-        let (_id, req) = self.update_request2(rpc_request, rule, extn_message);
-        req
-    }
-
-    fn update_request2(
-        &self,
-        rpc_request: &RpcRequest,
-        rule: Rule,
-        extn_message: Option<ExtnMessage>,
     ) -> (u64, BrokerRequest) {
         let id = Self::get_next_id();
         let mut rpc_request_c = rpc_request.clone();
@@ -421,16 +411,13 @@ impl EndpointBrokerState {
         rule: Rule,
         callback: BrokerCallback,
     ) {
-        if rule.transform.response.is_some() {
-            let (id, _updated_request) =
-                self.update_request2(&rpc_request, rule.clone(), extn_message);
-            let mut data = JsonRpcApiResponse::default();
-            // return em[ty result and handle the rest with jq rule
-            data.result = Some("".into());
-            data.id = Some(id);
-            let output = BrokerOutput { data };
-            tokio::spawn(async move { callback.sender.send(output).await });
-        }
+        let (id, _updated_request) = self.update_request(&rpc_request, rule.clone(), extn_message);
+        let mut data = JsonRpcApiResponse::default();
+        // return em[ty result and handle the rest with jq rule
+        data.result = Some("".into());
+        data.id = Some(id);
+        let output = BrokerOutput { data };
+        tokio::spawn(async move { callback.sender.send(output).await });
     }
 
     fn get_sender(&self, hash: &str) -> Option<BrokerSender> {
@@ -444,6 +431,7 @@ impl EndpointBrokerState {
         rpc_request: RpcRequest,
         extn_message: Option<ExtnMessage>,
     ) -> bool {
+        let mut handled: bool = true;
         let callback = self.callback.clone();
         let mut broker_sender = None;
         let mut found_rule = None;
@@ -458,23 +446,27 @@ impl EndpointBrokerState {
             }
         }
 
-        if broker_sender.is_none() || found_rule.is_none() {
-            return false;
-        }
-        let rule = found_rule.unwrap();
+        if found_rule.is_some() {
+            let rule = found_rule.unwrap();
 
-        if rule.alias == "static" {
-            self.handle_static_request(rpc_request, extn_message, rule, callback);
+            if rule.alias == "static" {
+                self.handle_static_request(rpc_request, extn_message, rule, callback);
+            } else if broker_sender.is_some() {
+                let broker = broker_sender.unwrap();
+                let (_, updated_request) = self.update_request(&rpc_request, rule, extn_message);
+                tokio::spawn(async move {
+                    if let Err(e) = broker.send(updated_request.clone()).await {
+                        callback.send_error(updated_request, e).await
+                    }
+                });
+            } else {
+                handled = false;
+            }
         } else {
-            let broker = broker_sender.unwrap();
-            let updated_request = self.update_request(&rpc_request, rule, extn_message);
-            tokio::spawn(async move {
-                if let Err(e) = broker.send(updated_request.clone()).await {
-                    callback.send_error(updated_request, e).await
-                }
-            });
+            handled = false;
         }
-        true
+
+        handled
     }
 
     pub fn get_rule(&self, rpc_request: &RpcRequest) -> Option<Rule> {
