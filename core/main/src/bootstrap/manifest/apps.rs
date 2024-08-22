@@ -27,6 +27,33 @@ pub struct LoadAppLibraryStep;
 
 impl LoadAppLibraryStep {
     pub fn load_app_library(path: String) -> Result<Vec<AppLibraryEntry>, RippleError> {
+        // Check if the "local_dev" feature is enabled
+        if cfg!(feature = "local_dev") {
+            // Try to get the APP_LIBRARY environment variable
+            if let Ok(app_library_path) = std::env::var("APP_LIBRARY") {
+                info!("Loading app library from APP_LIBRARY environment variable: {}", app_library_path);
+                let p = Path::new(&app_library_path);
+                let result = match fs::read_to_string(p) {
+                    Ok(contents) => match serde_json::from_str::<DefaultLibrary>(&contents) {
+                        Ok(al) => Ok(al.default_library),
+                        Err(_) => {
+                            warn!("Could not load app library from path {}", app_library_path);
+                            Err(RippleError::InvalidInput)
+                        }
+                    },
+                    Err(e) => {
+                        info!("Error reading file from APP_LIBRARY path: {}", e);
+                        Err(RippleError::MissingInput)
+                    }
+                };
+                return result;
+            } else {
+                warn!("APP_LIBRARY environment variable is not set");
+                return Err(RippleError::MissingInput);
+            }
+        }
+
+        // Existing code for when "local_dev" feature is not enabled
         info!("Trying to load app library from {}", path);
         if let Some(p) = Path::new(&path).to_str() {
             let result = match fs::read_to_string(p) {
