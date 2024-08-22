@@ -414,7 +414,8 @@ impl EndpointBrokerState {
         let (id, _updated_request) = self.update_request(&rpc_request, rule.clone(), extn_message);
         let mut data = JsonRpcApiResponse::default();
         // return em[ty result and handle the rest with jq rule
-        data.result = Some("".into());
+        let jv: Value = "".into();
+        data.result = Some(jv);
         data.id = Some(id);
         let output = BrokerOutput { data };
         tokio::spawn(async move { callback.sender.send(output).await });
