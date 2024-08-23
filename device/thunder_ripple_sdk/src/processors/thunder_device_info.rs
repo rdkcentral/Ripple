@@ -721,22 +721,17 @@ impl ThunderDeviceInfoRequestProcessor {
 
     async fn get_hdcp_status(state: &CachedState) -> HDCPStatus {
         let mut response: HDCPStatus = HDCPStatus::default();
-        match state.get_hdcp_status() {
-            Some(status) => response = status,
-            None => {
-                let resp = state
-                    .get_thunder_client()
-                    .call(DeviceCallRequest {
-                        method: ThunderPlugin::Hdcp.method("getHDCPStatus"),
-                        params: None,
-                    })
-                    .await;
-                info!("{}", resp.message);
-                if let Ok(thdcp) = serde_json::from_value::<ThunderHDCPStatus>(resp.message) {
-                    response = thdcp.hdcp_status;
-                    state.update_hdcp_status(response.clone());
-                }
-            }
+        let resp = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::Hdcp.method("getHDCPStatus"),
+                params: None,
+            })
+            .await;
+        info!("{}", resp.message);
+        if let Ok(thdcp) = serde_json::from_value::<ThunderHDCPStatus>(resp.message) {
+            response = thdcp.hdcp_status;
+            state.update_hdcp_status(response.clone());
         }
         response
     }
