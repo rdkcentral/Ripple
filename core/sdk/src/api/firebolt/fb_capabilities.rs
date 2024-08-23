@@ -180,6 +180,23 @@ impl FireboltPermission {
                     if let Ok(p) = perm {
                         perm_list.push(p);
                     }
+                } else if permission.ends_with("[provide]") {
+                    let mut cap = permission.clone();
+
+                    cap.truncate(permission.len() - "[provide]".len());
+                    let perm = FireboltPermission::deserialize(json!(cap));
+                    if let Ok(p) = perm {
+                        perm_list.push(p);
+                    }
+                    let perm = FireboltPermission::deserialize(json!(format!(
+                        "{}{}",
+                        cap.as_str(),
+                        "[manage]"
+                    )
+                    .as_str()));
+                    if let Ok(p) = perm {
+                        perm_list.push(p);
+                    }
                 }
             } else {
                 let perm = FireboltPermission::deserialize(json!(permission));
