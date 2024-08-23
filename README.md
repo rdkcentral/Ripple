@@ -1,4 +1,4 @@
-# Ripple
+# RippleZ
 
 Ripple is a synonym for Firebolt Implementation, it is a Rust based Application gateway which supports loading dynamic extensions. Ripple will provide a Firebolt Gateway which will be used by Distributors and App Developers to interact with the Application platform to discover, launch and manage video streaming applications.
 > let's ripple better
