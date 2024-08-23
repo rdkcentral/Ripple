@@ -442,8 +442,10 @@ impl EndpointBrokerState {
                 if let Some(endpoint) = self.get_sender(&endpoint) {
                     let _ = broker_sender.insert(endpoint);
                 }
-            } else if let Some(endpoint) = self.get_sender("thunder") {
-                let _ = broker_sender.insert(endpoint);
+            } else if rule.alias != "static"  {
+                if  let Some(endpoint) = self.get_sender("thunder") {
+                    let _ = broker_sender.insert(endpoint);
+                }
             }
         }
 
