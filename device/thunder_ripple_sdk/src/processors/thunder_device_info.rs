@@ -184,10 +184,6 @@ impl CachedState {
         let _ = hdcp.hdcp_support.insert(value);
     }
 
-    fn get_hdcp_status(&self) -> Option<HDCPStatus> {
-        self.cached.read().unwrap().hdcp_status.clone()
-    }
-
     fn update_hdcp_status(&self, value: HDCPStatus) {
         let mut hdcp = self.cached.write().unwrap();
         let _ = hdcp.hdcp_status.insert(value);
