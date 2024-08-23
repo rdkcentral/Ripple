@@ -787,6 +787,7 @@ fn apply_response(
                     error!("jq_compile error {:?}", e);
                 }
             }
+            trace!("mutated output {:?}", v);
         }
         Err(e) => {
             v.data.error = Some(json!(e.to_string()));
