@@ -26,54 +26,72 @@ use ripple_sdk::{
 pub struct LoadAppLibraryStep;
 
 impl LoadAppLibraryStep {
-    pub fn load_app_library(path: String) -> Result<Vec<AppLibraryEntry>, RippleError> {
-        // Check if the "local_dev" feature is enabled
-        if cfg!(feature = "local_dev") {
-            // Try to get the APP_LIBRARY environment variable
-            if let Ok(app_library_path) = std::env::var("APP_LIBRARY") {
-                info!(
-                    "Loading app library from APP_LIBRARY environment variable: {}",
-                    app_library_path
-                );
-                let p = Path::new(&app_library_path);
-                let result = match fs::read_to_string(p) {
-                    Ok(contents) => match serde_json::from_str::<DefaultLibrary>(&contents) {
-                        Ok(al) => Ok(al.default_library),
-                        Err(_) => {
-                            warn!("Could not load app library from path {}", app_library_path);
-                            Err(RippleError::InvalidInput)
-                        }
-                    },
-                    Err(e) => {
-                        info!("Error reading file from APP_LIBRARY path: {}", e);
-                        Err(RippleError::MissingInput)
-                    }
-                };
-                return result;
-            } else {
-                warn!("APP_LIBRARY environment variable is not set");
-                return Err(RippleError::MissingInput);
-            }
+    pub fn load_app_library() -> Vec<AppLibraryEntry> {
+        let r = try_app_library_files();
+        if let Ok(r) = r {
+            return r;
         }
 
-        // Existing code for when "local_dev" feature is not enabled
-        info!("Trying to load app library from {}", path);
-        if let Some(p) = Path::new(&path).to_str() {
-            let result = match fs::read_to_string(p) {
-                Ok(contents) => match serde_json::from_str::<DefaultLibrary>(&contents) {
-                    Ok(al) => Ok(al.default_library),
-                    Err(_) => {
-                        warn!("could not load app library from path {}", path);
-                        Err(RippleError::InvalidInput)
-                    }
-                },
-                Err(e) => {
-                    info!("Error: e={}", e);
-                    Err(RippleError::MissingInput)
-                }
-            };
-            return Ok(result.expect("Need valid App Library"));
+        r.expect("Need valid App Library")
+    }
+}
+
+type AppLibraryLoader = Vec<fn() -> Result<(String, Vec<AppLibraryEntry>), RippleError>>;
+
+fn try_app_library_files() -> Result<Vec<AppLibraryEntry>, RippleError> {
+    let al_arr: AppLibraryLoader = if cfg!(feature = "local_dev") {
+        vec![load_from_env, load_from_home]
+    } else if cfg!(test) {
+        vec![load_from_env]
+    } else {
+        vec![load_from_etc]
+    };
+
+    for al_provider in al_arr {
+        if let Ok((p, al)) = al_provider() {
+            info!("loaded_app_library_file_content={}", p);
+            return Ok(al);
         }
+    }
+    Err(RippleError::BootstrapError)
+}
+
+fn load_from_env() -> Result<(String, Vec<AppLibraryEntry>), RippleError> {
+    match std::env::var("APP_LIBRARY") {
+        Ok(path) => load(path),
+        Err(_) => Err(RippleError::MissingInput),
+    }
+}
+
+fn load_from_home() -> Result<(String, Vec<AppLibraryEntry>), RippleError> {
+    match std::env::var("HOME") {
+        Ok(home) => load(format!("{}/.ripple/firebolt-app-library.json", home)),
+        Err(_) => Err(RippleError::MissingInput),
+    }
+}
+
+fn load_from_etc() -> Result<(String, Vec<AppLibraryEntry>), RippleError> {
+    load("/etc/firebolt-app-library.json".into())
+}
+
+fn load(path: String) -> Result<(String, Vec<AppLibraryEntry>), RippleError> {
+    info!("Trying to load app library from {}", path);
+    let p = Path::new(&path);
+    if let Some(p_str) = p.to_str() {
+        match fs::read_to_string(p_str) {
+            Ok(contents) => match serde_json::from_str::<DefaultLibrary>(&contents) {
+                Ok(al) => Ok((path, al.default_library)),
+                Err(_) => {
+                    warn!("Could not parse app library from path {}", path);
+                    Err(RippleError::InvalidInput)
+                }
+            },
+            Err(e) => {
+                info!("Error reading file: {}", e);
+                Err(RippleError::MissingInput)
+            }
+        }
+    } else {
         Err(RippleError::BootstrapError)
     }
 }
