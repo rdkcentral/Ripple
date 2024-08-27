@@ -190,7 +190,7 @@ pub struct RpcMethod {
     pub name: String,
     pub params: Vec<RpcParam>,
     pub result: RpcResult,
-    pub examples: Vec<MethodExample>,
+    pub examples: Option<Vec<MethodExample>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -344,24 +344,27 @@ pub mod tests {
         for spec in rpc.apis.values() {
             let open_rpc_spec: OpenRpcSpec = spec.clone().into();
             for method in &spec.methods {
-                for ex in &method.examples {
-                    let example_json = ex.to_json();
+                if let Some(examples) = &method.examples {
+                    for ex in examples {
+                        let example_json = ex.to_json();
 
-                    let request = &JsonRpcRequest {
-                        method: method.name.clone(),
-                        params: example_json,
-                    };
-                    // validate params
-                    let validator = open_rpc_spec
-                        .params_validator(&request.method.clone())
-                        .unwrap();
-                    let res = validator.validate(&request.params);
-                    assert_valid(&method.name, res);
+                        let request = &JsonRpcRequest {
+                            method: method.name.clone(),
+                            params: example_json,
+                        };
+                        // validate params
+                        let validator = open_rpc_spec
+                            .params_validator(&request.method.clone())
+                            .unwrap();
+                        let res = validator.validate(&request.params);
+                        assert_valid(&method.name, res);
 
-                    // validate result
-                    let validator = open_rpc_spec.result_validator(method.name.clone()).unwrap();
-                    let res = validator.validate(&ex.result.value);
-                    assert_valid(&method.name, res);
+                        // validate result
+                        let validator =
+                            open_rpc_spec.result_validator(method.name.clone()).unwrap();
+                        let res = validator.validate(&ex.result.value);
+                        assert_valid(&method.name, res);
+                    }
                 }
             }
         }
