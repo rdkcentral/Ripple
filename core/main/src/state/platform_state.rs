@@ -121,6 +121,7 @@ impl PlatformState {
         let broker_sender = client.get_broker_sender();
         let rule_engine = RuleEngine::build(&extn_manifest);
         let extn_sdks = extn_manifest.extn_sdks.clone();
+        let provider_registations = extn_manifest.provider_registrations.clone();
         Self {
             extn_manifest,
             cap_state: CapState::new(manifest.clone()),
@@ -131,7 +132,7 @@ impl PlatformState {
             app_events_state: AppEventsState::default(),
             provider_broker_state: ProviderBrokerState::default(),
             app_manager_state: AppManagerState::new(&manifest.configuration.saved_dir),
-            open_rpc_state: OpenRpcState::new(Some(exclusory), extn_sdks),
+            open_rpc_state: OpenRpcState::new(Some(exclusory), extn_sdks, provider_registations),
             router_state: RouterState::new(),
             data_governance: DataGovernanceState::default(),
             metrics: MetricsState::default(),
@@ -224,6 +225,7 @@ impl PlatformState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ripple_sdk::api::manifest::extn_manifest::default_providers;
     use ripple_tdk::utils::test_utils::Mockable;
 
     impl Mockable for PlatformState {
@@ -235,12 +237,12 @@ mod tests {
                     .to_string(),
             )
             .unwrap();
-            let (_, extn_manifest) = ExtnManifest::load_from_content(
+            let (_, mut extn_manifest) = ExtnManifest::load_from_content(
                 include_str!("../../../../examples/manifest/extn-manifest-example.json")
                     .to_string(),
             )
             .unwrap();
-
+            extn_manifest.provider_registrations = default_providers();
             Self::new(
                 extn_manifest,
                 manifest,

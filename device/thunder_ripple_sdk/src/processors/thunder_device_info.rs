@@ -96,6 +96,7 @@ pub mod hdr_flags {
     pub const HDRSTANDARD_HLG: u32 = 0x02;
     pub const HDRSTANDARD_DOLBY_VISION: u32 = 0x04;
     pub const HDRSTANDARD_TECHNICOLOR_PRIME: u32 = 0x08;
+    pub const HDRSTANDARD_HDR10PLUS: u32 = 0x10;
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -797,6 +798,10 @@ impl ThunderDeviceInfoRequestProcessor {
         hm.insert(
             HdrProfile::Technicolor,
             0 != (supported_cap & hdr_flags::HDRSTANDARD_TECHNICOLOR_PRIME),
+        );
+        hm.insert(
+            HdrProfile::Hdr10plus,
+            0 != (supported_cap & hdr_flags::HDRSTANDARD_HDR10PLUS),
         );
         hm
     }
