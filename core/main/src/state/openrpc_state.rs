@@ -64,130 +64,6 @@ impl ProviderRelationSet {
     }
 }
 
-pub fn build_provider_relation_sets(
-    openrpc_methods: &Vec<FireboltOpenRpcMethod>,
-) -> HashMap<String, ProviderRelationSet> {
-    let mut provider_relation_sets = HashMap::default();
-
-    for method in openrpc_methods {
-        let mut has_x_provides = None;
-
-        // Only build provider sets for those indicated below, for now.
-        if !method.name.starts_with("AcknowledgeChallenge.")
-            && !method.name.starts_with("PinChallenge.")
-            && !method.name.starts_with("Discovery.userInterest")
-            && !method.name.starts_with("Discovery.onRequestUserInterest")
-            && !method.name.starts_with("Discovery.userInterestResponse")
-            && !method.name.starts_with("Content.requestUserInterest")
-            && !method.name.starts_with("Content.onUserInterest")
-            && !method.name.starts_with("Player.")
-            && !method.name.starts_with("StreamingPlayer.")
-            && !method.name.starts_with("BroadcastPlayer.")
-        {
-            continue;
-        }
-
-        if let Some(tags) = &method.tags {
-            let mut has_event = false;
-            let mut x_allow_focus_for = None;
-            let mut x_response_for = None;
-            let mut x_error_for = None;
-            let mut x_provided_by = None;
-            let mut x_provides = None;
-            let mut x_uses = None;
-
-            for tag in tags {
-                if tag.name.eq("event") {
-                    has_event = true;
-                } else if tag.name.eq("capabilities") {
-                    has_x_provides = tag.get_provides();
-                    x_allow_focus_for = tag.allow_focus_for.clone();
-                    x_response_for = tag.response_for.clone();
-                    x_error_for = tag.error_for.clone();
-                    x_provided_by = tag.provided_by.clone();
-                    x_provides = tag.provides.clone();
-                    x_uses = tag.uses.clone();
-                }
-            }
-
-            let mut provider_relation_set = provider_relation_sets
-                .get(&FireboltOpenRpcMethod::name_with_lowercase_module(
-                    &method.name,
-                ))
-                .unwrap_or(&ProviderRelationSet::new())
-                .clone();
-
-            if has_x_provides.is_some() {
-                provider_relation_set.allow_focus_for = x_allow_focus_for;
-                provider_relation_set.response_for = x_response_for;
-                provider_relation_set.error_for = x_error_for;
-                provider_relation_set.capability = x_provides;
-            } else {
-                // x-provided-by can only be set if x-provides isn't.
-                provider_relation_set.provided_by = x_provided_by.clone();
-                if let Some(provided_by) = x_provided_by {
-                    let mut provided_by_set = provider_relation_sets
-                        .get(&provided_by)
-                        .unwrap_or(&ProviderRelationSet::new())
-                        .clone();
-
-                    provided_by_set.provides_to = Some(method.name.clone());
-
-                    provider_relation_sets.insert(
-                        FireboltOpenRpcMethod::name_with_lowercase_module(&provided_by),
-                        provided_by_set.to_owned(),
-                    );
-                }
-            }
-
-            provider_relation_set.uses = x_uses;
-            provider_relation_set.event = has_event;
-
-            // If this is an event, then it provides the capability.
-            if provider_relation_set.event {
-                provider_relation_set.provides = provider_relation_set.capability.clone();
-            }
-
-            let module: Vec<&str> = method.name.split('.').collect();
-            provider_relation_set.attributes = ProviderAttributes::get(module[0]);
-
-            provider_relation_sets.insert(
-                FireboltOpenRpcMethod::name_with_lowercase_module(&method.name),
-                provider_relation_set.to_owned(),
-            );
-        }
-    }
-
-    // Post-process sets to set 'provides' for methods that provide-to other methods.
-
-    let provides_to_array: Vec<(String, String)> = provider_relation_sets
-        .iter()
-        .filter_map(|(method_name, provider_relation_set)| {
-            provider_relation_set
-                .provides_to
-                .as_ref()
-                .map(|provides_to| (method_name.clone(), provides_to.clone()))
-        })
-        .collect();
-
-    for (provider_method, provides_to_method) in provides_to_array {
-        let provided_to_capability =
-            if let Some(provided_to_set) = provider_relation_sets.get(&provides_to_method) {
-                provided_to_set.capability.clone()
-            } else {
-                None
-            };
-
-        if let Some(provider_set) = provider_relation_sets.get_mut(&provider_method) {
-            if provider_set.provides.is_none() {
-                provider_set.provides = provided_to_capability.clone();
-            }
-        }
-    }
-
-    provider_relation_sets
-}
-
 #[derive(Debug, Clone)]
 pub struct OpenRpcState {
     open_rpc: FireboltOpenRpc,
@@ -198,6 +74,7 @@ pub struct OpenRpcState {
     extended_rpc: Arc<RwLock<Vec<FireboltOpenRpc>>>,
     provider_relation_map: Arc<RwLock<HashMap<String, ProviderRelationSet>>>,
     openrpc_validator: Arc<RwLock<FireboltOpenRpcValidator>>,
+    provider_registrations: Vec<String>,
 }
 
 impl OpenRpcState {
@@ -240,11 +117,7 @@ impl OpenRpcState {
     pub fn add_extension_open_rpc(&self, path: &str) -> Result<(), RippleError> {
         match Self::load_open_rpc(path) {
             Some(open_rpc) => {
-                let provider_relation_sets = build_provider_relation_sets(&open_rpc.methods);
-                self.provider_relation_map
-                    .write()
-                    .unwrap()
-                    .extend(provider_relation_sets);
+                self.build_provider_relation_sets(&open_rpc.methods);
                 self.add_open_rpc(open_rpc);
                 Ok(())
             }
@@ -287,7 +160,11 @@ impl OpenRpcState {
         version_manifest
     }
 
-    pub fn new(exclusory: Option<ExclusoryImpl>, extn_sdks: Vec<String>) -> OpenRpcState {
+    pub fn new(
+        exclusory: Option<ExclusoryImpl>,
+        extn_sdks: Vec<String>,
+        provider_registrations: Vec<String>,
+    ) -> OpenRpcState {
         let version_manifest = Self::load_firebolt_open_rpc();
 
         let firebolt_open_rpc: FireboltOpenRpc = version_manifest.clone().into();
@@ -305,11 +182,11 @@ impl OpenRpcState {
             cap_policies: Arc::new(RwLock::new(version_manifest.capabilities)),
             open_rpc: firebolt_open_rpc.clone(),
             extended_rpc: Arc::new(RwLock::new(Vec::new())),
-            provider_relation_map: Arc::new(RwLock::new(build_provider_relation_sets(
-                &firebolt_open_rpc.methods,
-            ))),
+            provider_relation_map: Arc::new(RwLock::new(HashMap::new())),
             openrpc_validator: Arc::new(RwLock::new(openrpc_validator)),
+            provider_registrations,
         };
+        v.build_provider_relation_sets(&firebolt_open_rpc.methods);
 
         for path in extn_sdks {
             if v.add_extension_open_rpc(&path).is_err() {
@@ -480,5 +357,123 @@ impl OpenRpcState {
 
     pub fn get_openrpc_validator(&self) -> FireboltOpenRpcValidator {
         self.openrpc_validator.read().unwrap().clone()
+    }
+
+    fn is_provider_enabled(&self, method: &str) -> bool {
+        let method_lower_case = method.to_lowercase();
+        self.provider_registrations
+            .iter()
+            .any(|x| method_lower_case.starts_with(&x.to_lowercase()))
+    }
+
+    pub fn build_provider_relation_sets(&self, openrpc_methods: &Vec<FireboltOpenRpcMethod>) {
+        let mut provider_relation_sets: HashMap<String, ProviderRelationSet> = HashMap::default();
+
+        for method in openrpc_methods {
+            let mut has_x_provides = None;
+
+            if !self.is_provider_enabled(&method.name) {
+                continue;
+            } else {
+                debug!("Provider enabled {:?}", method.name);
+            }
+
+            if let Some(tags) = &method.tags {
+                let mut has_event = false;
+                let mut x_allow_focus_for = None;
+                let mut x_response_for = None;
+                let mut x_error_for = None;
+                let mut x_provided_by = None;
+                let mut x_provides = None;
+                let mut x_uses = None;
+
+                for tag in tags {
+                    if tag.name.eq("event") {
+                        has_event = true;
+                    } else if tag.name.eq("capabilities") {
+                        has_x_provides = tag.get_provides();
+                        x_allow_focus_for = tag.allow_focus_for.clone();
+                        x_response_for = tag.response_for.clone();
+                        x_error_for = tag.error_for.clone();
+                        x_provided_by = tag.provided_by.clone();
+                        x_provides = tag.provides.clone();
+                        x_uses = tag.uses.clone();
+                    }
+                }
+
+                let mut provider_relation_set = provider_relation_sets
+                    .get(&FireboltOpenRpcMethod::name_with_lowercase_module(
+                        &method.name,
+                    ))
+                    .unwrap_or(&ProviderRelationSet::new())
+                    .clone();
+
+                if has_x_provides.is_some() {
+                    provider_relation_set.allow_focus_for = x_allow_focus_for;
+                    provider_relation_set.response_for = x_response_for;
+                    provider_relation_set.error_for = x_error_for;
+                    provider_relation_set.capability = x_provides;
+                } else {
+                    // x-provided-by can only be set if x-provides isn't.
+                    provider_relation_set.provided_by = x_provided_by.clone();
+                    if let Some(provided_by) = x_provided_by {
+                        let mut provided_by_set = provider_relation_sets
+                            .get(&provided_by)
+                            .unwrap_or(&ProviderRelationSet::new())
+                            .clone();
+
+                        provided_by_set.provides_to = Some(method.name.clone());
+
+                        provider_relation_sets.insert(
+                            FireboltOpenRpcMethod::name_with_lowercase_module(&provided_by),
+                            provided_by_set.to_owned(),
+                        );
+                    }
+                }
+
+                provider_relation_set.uses = x_uses;
+                provider_relation_set.event = has_event;
+
+                // If this is an event, then it provides the capability.
+                if provider_relation_set.event {
+                    provider_relation_set.provides = provider_relation_set.capability.clone();
+                }
+
+                let module: Vec<&str> = method.name.split('.').collect();
+                provider_relation_set.attributes = ProviderAttributes::get(module[0]);
+
+                provider_relation_sets.insert(
+                    FireboltOpenRpcMethod::name_with_lowercase_module(&method.name),
+                    provider_relation_set.to_owned(),
+                );
+            }
+        }
+
+        self.provider_relation_map
+            .write()
+            .unwrap()
+            .extend(provider_relation_sets)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ripple_sdk::api::manifest::extn_manifest::default_providers;
+
+    use crate::state::openrpc_state::OpenRpcState;
+
+    #[test]
+    fn test_provider_support() {
+        let state = OpenRpcState::new(None, Vec::new(), default_providers());
+        assert!(state.is_provider_enabled("AcknowledgeChallenge.onRequestChallenge"));
+        assert!(state.is_provider_enabled("PinChallenge."));
+        assert!(state.is_provider_enabled("Discovery.userInterest"));
+        assert!(state.is_provider_enabled("Discovery.onRequestUserInterest"));
+        assert!(state.is_provider_enabled("Discovery.userInterestResponse"));
+        assert!(state.is_provider_enabled("Content.requestUserInterest"));
+        assert!(state.is_provider_enabled("Content.onUserInterest"));
+        assert!(state.is_provider_enabled("IntegratedPlayer."));
+        assert!(state.is_provider_enabled("integratedPlayer."));
+        assert!(state.is_provider_enabled("integratedplayer."));
     }
 }

@@ -197,38 +197,39 @@ impl FireboltGateway {
 
         tokio::spawn(async move {
             let start = Utc::now().timestamp_millis();
+
+            // Validate incoming request parameters.
+            if let Err(error_string) = validate_request(open_rpc_state, &request_c) {
+                let now = Utc::now().timestamp_millis();
+
+                RpcRouter::log_rdk_telemetry_message(
+                    &request.ctx.app_id,
+                    &request.method,
+                    JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+                    now - start,
+                );
+
+                TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
+                    &platform_state.clone(),
+                    metrics_timer,
+                    format!("{}", JSON_RPC_STANDARD_ERROR_INVALID_PARAMS),
+                )
+                .await;
+
+                let json_rpc_error = JsonRpcError {
+                    code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+                    message: error_string,
+                    data: None,
+                };
+
+                send_json_rpc_error(&platform_state, &request, json_rpc_error).await;
+                return;
+            }
+
             let result = if extn_request {
                 // extn protocol means its an internal Ripple request skip permissions.
                 Ok(())
             } else {
-                // Validate incoming request parameters.
-                if let Err(error_string) = validate_request(open_rpc_state, &request_c) {
-                    let now = Utc::now().timestamp_millis();
-
-                    RpcRouter::log_rdk_telemetry_message(
-                        &request.ctx.app_id,
-                        &request.method,
-                        JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
-                        now - start,
-                    );
-
-                    TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
-                        &platform_state.clone(),
-                        metrics_timer,
-                        format!("{}", JSON_RPC_STANDARD_ERROR_INVALID_PARAMS),
-                    )
-                    .await;
-
-                    let json_rpc_error = JsonRpcError {
-                        code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
-                        message: error_string,
-                        data: None,
-                    };
-
-                    send_json_rpc_error(&platform_state, &request, json_rpc_error).await;
-                    return;
-                }
-
                 FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await
             };
 
