@@ -202,6 +202,19 @@ pub struct JsonRpcApiResponse {
     pub params: Option<Value>,
 }
 
+impl Default for JsonRpcApiResponse {
+    fn default() -> Self {
+        JsonRpcApiResponse {
+            id: None,
+            jsonrpc: "2.0".to_string(),
+            result: None,
+            error: None,
+            method: None,
+            params: None,
+        }
+    }
+}
+
 impl crate::Mockable for JsonRpcApiResponse {
     fn mock() -> Self {
         JsonRpcApiResponse {

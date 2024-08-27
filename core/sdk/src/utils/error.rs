@@ -39,6 +39,7 @@ pub enum RippleError {
     NotAvailable,
     RuleError,
     ServiceNotReady,
+    BrokerError(String),
 }
 impl std::fmt::Display for RippleError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -61,6 +62,10 @@ impl std::fmt::Display for RippleError {
             RippleError::NotAvailable => write!(f, "NotAvailable"),
             RippleError::RuleError => write!(f, "RuleError"),
             RippleError::ServiceNotReady => write!(f, "ServiceNotReady"),
+            RippleError::BrokerError(msg) => {
+                let msg = format!("BrokerError {}", msg);
+                write!(f, "{}", msg)
+            }
         }
     }
 }
