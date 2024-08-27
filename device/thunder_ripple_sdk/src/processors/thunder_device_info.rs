@@ -148,7 +148,7 @@ pub struct CachedDeviceInfo {
     model: Option<String>,
     make: Option<String>,
     hdcp_support: Option<HashMap<HdcpProfile, bool>>,
-    hdcp_status: Option<HDCPStatus>,
+    //hdcp_status: Option<HDCPStatus>,
     hdr_profile: Option<HashMap<HdrProfile, bool>>,
     version: Option<FireboltSemanticVersion>,
 }
@@ -184,10 +184,14 @@ impl CachedState {
         let _ = hdcp.hdcp_support.insert(value);
     }
 
-    fn update_hdcp_status(&self, value: HDCPStatus) {
-        let mut hdcp = self.cached.write().unwrap();
-        let _ = hdcp.hdcp_status.insert(value);
-    }
+    // fn get_hdcp_status(&self) -> Option<HDCPStatus> {
+    //     self.cached.read().unwrap().hdcp_status.clone()
+    // }
+
+    // fn update_hdcp_status(&self, value: HDCPStatus) {
+    //     let mut hdcp = self.cached.write().unwrap();
+    //     let _ = hdcp.hdcp_status.insert(value);
+    // }
 
     fn get_hdr(&self) -> Option<HashMap<HdrProfile, bool>> {
         self.cached.read().unwrap().hdr_profile.clone()
@@ -715,8 +719,31 @@ impl ThunderDeviceInfoRequestProcessor {
         .is_ok()
     }
 
+    // async fn get_hdcp_status(state: &CachedState) -> HDCPStatus {
+    //     let mut response: HDCPStatus = HDCPStatus::default();
+    //     match state.get_hdcp_status() {
+    //         Some(status) => response = status,
+    //         None => {
+    //             let resp = state
+    //                 .get_thunder_client()
+    //                 .call(DeviceCallRequest {
+    //                     method: ThunderPlugin::Hdcp.method("getHDCPStatus"),
+    //                     params: None,
+    //                 })
+    //                 .await;
+    //             info!("{}", resp.message);
+    //             if let Ok(thdcp) = serde_json::from_value::<ThunderHDCPStatus>(resp.message) {
+    //                 response = thdcp.hdcp_status;
+    //                 state.update_hdcp_status(response.clone());
+    //             }
+    //         }
+    //     }
+    //     response
+    // }
+
     async fn get_hdcp_status(state: &CachedState) -> HDCPStatus {
         let mut response: HDCPStatus = HDCPStatus::default();
+        println!("@@@NNA : get_hdcp_status() before get_thunder_client()");
         let resp = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -727,7 +754,6 @@ impl ThunderDeviceInfoRequestProcessor {
         info!("{}", resp.message);
         if let Ok(thdcp) = serde_json::from_value::<ThunderHDCPStatus>(resp.message) {
             response = thdcp.hdcp_status;
-            state.update_hdcp_status(response.clone());
         }
         response
     }
