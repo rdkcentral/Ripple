@@ -188,7 +188,8 @@ pub enum AccessoryProtocol {
 
 impl AccessoryProtocol {
     pub fn get_supported_protocol(value: DeviceManifest) -> Self {
-        let supported_caps = value.get_supported_caps();
+        let supported_perms = value.get_supported_caps();
+        let supported_caps: Vec<FireboltCap> = supported_perms.into_iter().map(|x| x.cap).collect();
         if supported_caps.contains(&FireboltCap::short("remote:rf4ce")) {
             AccessoryProtocol::RF4CE
         } else {

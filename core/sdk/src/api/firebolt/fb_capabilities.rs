@@ -19,6 +19,7 @@ use std::hash::{Hash, Hasher};
 
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::json;
 
 use super::fb_openrpc::CapabilitySet;
 use crate::api::gateway::rpc_error::RpcError;
@@ -157,6 +158,75 @@ impl Hash for CapabilityRole {
 pub struct FireboltPermission {
     pub cap: FireboltCap,
     pub role: CapabilityRole,
+}
+
+impl FireboltPermission {
+    pub fn from_vec_string(
+        perm_strings: Vec<String>,
+        role_based_support: bool,
+    ) -> Vec<FireboltPermission> {
+        let mut perm_list: Vec<FireboltPermission> = Vec::new();
+        for permission in perm_strings {
+            if role_based_support {
+                let perm = FireboltPermission::deserialize(json!(permission));
+                if let Ok(p) = perm {
+                    perm_list.push(p);
+                }
+                if permission.ends_with("[manage]") {
+                    let mut cap = permission.clone();
+
+                    cap.truncate(permission.len() - "[manage]".len());
+                    let perm = FireboltPermission::deserialize(json!(cap));
+                    if let Ok(p) = perm {
+                        perm_list.push(p);
+                    }
+                } else if permission.ends_with("[provide]") {
+                    let mut cap = permission.clone();
+
+                    cap.truncate(permission.len() - "[provide]".len());
+                    let perm = FireboltPermission::deserialize(json!(cap));
+                    if let Ok(p) = perm {
+                        perm_list.push(p);
+                    }
+                    let perm = FireboltPermission::deserialize(json!(format!(
+                        "{}{}",
+                        cap.as_str(),
+                        "[manage]"
+                    )
+                    .as_str()));
+                    if let Ok(p) = perm {
+                        perm_list.push(p);
+                    }
+                }
+            } else {
+                let perm = FireboltPermission::deserialize(json!(permission));
+                if let Ok(p) = perm {
+                    perm_list.push(p);
+                }
+
+                let perm = FireboltPermission::deserialize(json!(format!(
+                    "{}{}",
+                    permission.as_str(),
+                    "[manage]"
+                )
+                .as_str()));
+                if let Ok(p) = perm {
+                    perm_list.push(p);
+                };
+
+                let perm = FireboltPermission::deserialize(json!(format!(
+                    "{}{}",
+                    permission.as_str(),
+                    "[provide]"
+                )
+                .as_str()));
+                if let Ok(p) = perm {
+                    perm_list.push(p);
+                };
+            }
+        }
+        perm_list
+    }
 }
 
 impl From<RoleInfo> for FireboltPermission {
