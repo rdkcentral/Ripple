@@ -95,4 +95,3 @@ fn load(path: String) -> Result<(String, Vec<AppLibraryEntry>), RippleError> {
         Err(RippleError::BootstrapError)
     }
 }
-
