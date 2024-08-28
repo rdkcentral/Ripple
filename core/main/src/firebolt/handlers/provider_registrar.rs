@@ -377,6 +377,20 @@ impl ProviderRegistrar {
             );
             // </pca>
 
+            // <pca> debug
+            let result_schema_map = context
+                .platform_state
+                .open_rpc_state
+                .get_openrpc_validator()
+                .get_result_properties_schema_by_name(event);
+
+            println!(
+                "*** _DEBUG: callback_app_event_emitter: result_schema_map={:?}",
+                result_schema_map
+            );
+
+            // </pca>
+
             // <pca> YAH: See if we can modify get_result_properties_schema_by_name() to also fetch against methods like Content.onUserInterest
             // where the result.schema has "anyOf" like:
             //
