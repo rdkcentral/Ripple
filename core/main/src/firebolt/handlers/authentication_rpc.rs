@@ -63,10 +63,12 @@ impl AuthenticationServer for AuthenticationImpl {
         match token_request._type {
             TokenType::Platform => {
                 let cap = FireboltCap::Short("token:platform".into());
-                let supported_caps = self
+                let supported_perms = self
                     .platform_state
                     .get_device_manifest()
                     .get_supported_caps();
+                let supported_caps: Vec<FireboltCap> =
+                    supported_perms.into_iter().map(|x| x.cap).collect();
                 if supported_caps.contains(&cap) {
                     self.token(TokenType::Platform, ctx).await
                 } else {
@@ -81,10 +83,13 @@ impl AuthenticationServer for AuthenticationImpl {
             TokenType::Device => self.token(TokenType::Device, ctx).await,
             TokenType::Distributor => {
                 let cap = FireboltCap::Short("token:session".into());
-                let supported_caps = self
+                let supported_perms = self
                     .platform_state
                     .get_device_manifest()
                     .get_supported_caps();
+
+                let supported_caps: Vec<FireboltCap> =
+                    supported_perms.into_iter().map(|x| x.cap).collect();
                 if supported_caps.contains(&cap) {
                     self.token(TokenType::Distributor, ctx).await
                 } else {
