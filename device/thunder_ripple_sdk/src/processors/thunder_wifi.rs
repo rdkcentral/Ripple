@@ -273,7 +273,10 @@ impl ThunderWifiRequestProcessor {
                     Ok(response) => response,
                     Err(e) => {
                         let access_point_list = AccessPointList { list: Vec::new() };
-                        info!("Failed to parse SSIDEventResponse: {}. Access point list: {:#?}", e, access_point_list);
+                        info!(
+                            "Failed to parse SSIDEventResponse: {}. Access point list: {:#?}",
+                            e, access_point_list
+                        );
                         tx.send(access_point_list).await.unwrap();
                         return;
                     }
