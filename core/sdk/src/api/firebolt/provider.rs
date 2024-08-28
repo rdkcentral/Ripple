@@ -48,7 +48,7 @@ pub enum ProviderResponsePayloadType {
     KeyboardResult,
     EntityInfoResponse,
     PurchasedContentResponse,
-    Generic,
+    GenericResponse,
     GenericError,
 }
 
@@ -63,7 +63,7 @@ impl ToString for ProviderResponsePayloadType {
             ProviderResponsePayloadType::PurchasedContentResponse => {
                 "PurchasedContentResponse".into()
             }
-            ProviderResponsePayloadType::Generic => "GenericResponse".into(),
+            ProviderResponsePayloadType::GenericResponse => "GenericResponse".into(),
             ProviderResponsePayloadType::GenericError => "GenericError".into(),
         }
     }

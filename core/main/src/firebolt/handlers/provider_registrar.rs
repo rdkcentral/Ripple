@@ -133,7 +133,7 @@ impl ProviderRegistrar {
                     Err(e) => error!("get provide response Error {:?}", e),
                 }
             }
-            ProviderResponsePayloadType::Generic => {
+            ProviderResponsePayloadType::GenericResponse => {
                 let external_provider_response: Result<ExternalProviderResponse<Value>, CallError> =
                     params_sequence.next();
 
@@ -469,7 +469,7 @@ impl ProviderRegistrar {
 
         let response_payload_type = match &context.provider_relation_set.attributes {
             Some(attributes) => attributes.response_payload_type.clone(),
-            None => ProviderResponsePayloadType::Generic,
+            None => ProviderResponsePayloadType::GenericResponse,
         };
 
         if let Some(provider_response) =
