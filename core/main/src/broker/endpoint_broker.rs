@@ -25,7 +25,7 @@ use ripple_sdk::{
     },
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
-    log::{error, trace},
+    log::{debug, error, trace},
     tokio::{
         self,
         sync::mpsc::{self, Receiver, Sender},
@@ -413,7 +413,7 @@ impl EndpointBrokerState {
     ) {
         let (id, _updated_request) = self.update_request(&rpc_request, rule.clone(), extn_message);
         let mut data = JsonRpcApiResponse::default();
-        // return em[ty result and handle the rest with jq rule
+        // return empty result and handle the rest with jq rule
         let jv: Value = "".into();
         data.result = Some(jv);
         data.id = Some(id);
@@ -682,7 +682,12 @@ impl BrokerOutputForwarder {
                                 apply_response(v.data.clone(), filter, &rpc_request, &mut v);
                             }
                         } else {
-                            trace!("start_forwarder: null result");
+                            debug!("start_forwarder: no result {:?}", v);
+                            if let Some(filter) = broker_request.rule.transform.get_transform_data(
+                                super::rules_engine::RuleTransformType::Response,
+                            ) {
+                                apply_response(v.data.clone(), filter, &rpc_request, &mut v);
+                            }
                         }
 
                         let request_id = rpc_request.ctx.call_id;
@@ -793,21 +798,18 @@ fn apply_response(
                 format!("{}_response", rpc_request.ctx.method),
             ) {
                 Ok(r) => {
-                    trace!(
+                    debug!(
                         "jq rendered output {:?} original input {:?} for filter {}",
-                        r,
-                        v,
-                        result_response_filter
+                        r, v, result_response_filter
                     );
-                    /*
-                    weird corner case where the filter is "then \"null\"" which is a jq way to return null
-                    */
-                    if r.to_string().to_lowercase().contains("null") {
-                        v.data.result = Some(Value::Null);
-                        v.data.error = None;
-                    } else if r.to_string().to_lowercase().contains("error") {
-                        v.data.error = Some(r);
-                        v.data.result = None;
+                    if r.is_object() {
+                        if let Some(error) = r.get("error") {
+                            v.data.error = Some(error.clone());
+                            v.data.result = None;
+                        } else {
+                            v.data.result = Some(r);
+                            v.data.error = None;
+                        }
                     } else {
                         v.data.result = Some(r);
                         v.data.error = None;

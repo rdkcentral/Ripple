@@ -164,8 +164,12 @@ impl ThunderBroker {
         let mut new_response = response.clone();
         if response.params.is_some() {
             new_response.result = response.params.clone();
-        } else if response.error.is_some() {
-            new_response.result = response.error.clone();
+
+            // {"jsonrpc": "2.0","id": 1000, "method": "SecureStorage.get",  "params": {"scope": "device", "key": "foo"} }
+            // {"jsonrpc":"2.0","id":1000,"result":{"code":22,"message":"ERROR_UNKNOWN_KEY"},"error":{"code":22,"message":"ERROR_UNKNOWN_KEY"}}
+
+            //} else if response.error.is_some() {
+            //    new_response.result = response.error.clone();
         }
         new_response
     }
