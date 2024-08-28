@@ -119,15 +119,14 @@ impl ProviderRegistrar {
                     });
                 }
             }
-            ProviderResponsePayloadType::ChallengeError
-            | ProviderResponsePayloadType::GenericError => {
+            ProviderResponsePayloadType::GenericError => {
                 let external_provider_error: Result<ExternalProviderError, CallError> =
                     params_sequence.next();
                 match external_provider_error {
                     Ok(r) => {
                         return Some(ProviderResponse {
                             correlation_id: r.correlation_id,
-                            result: ProviderResponsePayload::ChallengeError(r.error),
+                            result: ProviderResponsePayload::GenericError(r.error),
                         });
                     }
                     Err(e) => error!("get provide response Error {:?}", e),
@@ -140,7 +139,7 @@ impl ProviderRegistrar {
                 if let Ok(r) = external_provider_response {
                     return Some(ProviderResponse {
                         correlation_id: r.correlation_id,
-                        result: ProviderResponsePayload::Generic(r.result),
+                        result: ProviderResponsePayload::GenericResponse(r.result),
                     });
                 }
             }
@@ -857,7 +856,7 @@ mod tests {
         )
         .unwrap();
         assert!(result.correlation_id.eq("someid"));
-        if let ProviderResponsePayload::ChallengeError(c) = result.result {
+        if let ProviderResponsePayload::GenericError(c) = result.result {
             assert!(c.code == 301);
             assert!(c.message.eq("The Player with 'ipa' id does not exist"))
         }
