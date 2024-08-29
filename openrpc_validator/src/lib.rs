@@ -44,17 +44,9 @@ impl FireboltOpenRpc {
                 let result_type_string = result_schema_string.split('/').last().unwrap();
                 for spec in self.apis.values() {
                     if let Value::Object(components) = &spec.components {
-                        // if let Some(schemas_value) = components.get("schemas") {
-                        //     if let Value::Object(schemas_map) = schemas_value {
                         if let Some(Value::Object(schemas_map)) = components.get("schemas") {
                             if let Some(result_type_value) = schemas_map.get(result_type_string) {
                                 if let Some(result_type_map) = result_type_value.as_object() {
-                                    // if let Some(result_properties) =
-                                    //     result_type_map.get("properties")
-                                    // {
-                                    //     if let Value::Object(result_properties_map) =
-                                    //         result_properties
-                                    //     {
                                     if let Some(Value::Object(result_properties_map)) =
                                         result_type_map.get("properties")
                                     {
