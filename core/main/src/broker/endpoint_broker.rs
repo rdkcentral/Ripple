@@ -991,20 +991,21 @@ mod tests {
         let rpc_request = RpcRequest::new("new_method".to_string(), "params".to_string(), ctx);
         let data = JsonRpcApiResponse::mock();
         let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
-        let filter = "if .result and .result.success then (.result.stbVersion | split(\"_\") [0]) elif .error then if .error.code == -32601 then {\"error\":\"Unknown method.\"} else \"Error occurred with a different code\" end else \"No result or recognizable error\" end".to_string();
+        let filter = "if .result and .result.success then (.result.stbVersion | split(\"_\") [0]) elif .error then if .error.code == -32601 then {error: { code: -1, message: \"Unknown method.\" }} else \"Error occurred with a different code\" end else \"No result or recognizable error\" end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.error = Some(error);
         apply_response(response, filter, &rpc_request, &mut output);
+        //let msg = output.data.error.unwrap().get("message").unwrap().clone();
         assert_eq!(
-            output.data.error.unwrap(),
-            json!({"error":"Unknown method."})
+            output.data.error.unwrap().get("message").unwrap().clone(),
+            json!("Unknown method.".to_string())
         );
 
         // securestorage.get code 22 in error response
         let error = json!({"code":22,"message":"test error code 22"});
         let data = JsonRpcApiResponse::mock();
         let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
-        let filter = "if .result and .result.success then .result.value elif .error.code==22 or .error.code==43 then \"null\" else .error end".to_string();
+        let filter = "if .result and .result.success then .result.value elif .error.code==22 or .error.code==43 then null else .error end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.error = Some(error);
         apply_response(response, filter, &rpc_request, &mut output);
@@ -1015,7 +1016,7 @@ mod tests {
         let error = json!({"code":300,"message":"test error code 300"});
         let data = JsonRpcApiResponse::mock();
         let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
-        let filter = "if .result and .result.success then .result.value elif .error.code==22 or .error.code==43 then \"null\" else .error end".to_string();
+        let filter = "if .result and .result.success then .result.value elif .error.code==22 or .error.code==43 then null else { error: .error } end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.error = Some(error.clone());
         apply_response(response, filter, &rpc_request, &mut output);
@@ -1122,7 +1123,7 @@ mod tests {
         let result = json!({"success":true});
         let data = JsonRpcApiResponse::mock();
         let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
-        let filter = "if .result.success then \"null\" else { code: -32100, message: \"couldn't set skip restriction\" } end".to_string();
+        let filter = "if .result.success then null else { code: -32100, message: \"couldn't set skip restriction\" } end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
         apply_response(response, filter, &rpc_request, &mut output);
