@@ -41,23 +41,24 @@ impl FireboltOpenRpc {
     ) -> Option<Map<String, Value>> {
         if let Some(result_schema_value) = result_schema_map.get("$ref") {
             if let Some(result_schema_string) = result_schema_value.as_str() {
-                let result_type_string = result_schema_string.split("/").last().unwrap();
+                let result_type_string = result_schema_string.split('/').last().unwrap();
                 for spec in self.apis.values() {
                     if let Value::Object(components) = &spec.components {
-                        if let Some(schemas_value) = components.get("schemas") {
-                            if let Value::Object(schemas_map) = schemas_value {
-                                if let Some(result_type_value) = schemas_map.get(result_type_string)
-                                {
-                                    if let Some(result_type_map) = result_type_value.as_object() {
-                                        if let Some(result_properties) =
-                                            result_type_map.get("properties")
-                                        {
-                                            if let Value::Object(result_properties_map) =
-                                                result_properties
-                                            {
-                                                return Some(result_properties_map.clone());
-                                            }
-                                        }
+                        // if let Some(schemas_value) = components.get("schemas") {
+                        //     if let Value::Object(schemas_map) = schemas_value {
+                        if let Some(Value::Object(schemas_map)) = components.get("schemas") {
+                            if let Some(result_type_value) = schemas_map.get(result_type_string) {
+                                if let Some(result_type_map) = result_type_value.as_object() {
+                                    // if let Some(result_properties) =
+                                    //     result_type_map.get("properties")
+                                    // {
+                                    //     if let Value::Object(result_properties_map) =
+                                    //         result_properties
+                                    //     {
+                                    if let Some(Value::Object(result_properties_map)) =
+                                        result_type_map.get("properties")
+                                    {
+                                        return Some(result_properties_map.clone());
                                     }
                                 }
                             }
@@ -74,9 +75,9 @@ impl FireboltOpenRpc {
             if let Some(result_schema_map) = method.result.schema.as_object() {
                 if let Some(any_of_map) = result_schema_map.get("anyOf") {
                     if let Some(any_of_array) = any_of_map.as_array() {
-                        for (_k, v) in any_of_array.iter().enumerate() {
+                        for value in any_of_array.iter() {
                             if let Some(result_properties_map) =
-                                self.get_result_ref_schemas(v.as_object().unwrap())
+                                self.get_result_ref_schemas(value.as_object().unwrap())
                             {
                                 return Some(result_properties_map);
                             }
