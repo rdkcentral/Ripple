@@ -711,7 +711,6 @@ impl ThunderDeviceInfoRequestProcessor {
 
     async fn get_hdcp_status(state: &CachedState) -> HDCPStatus {
         let mut response: HDCPStatus = HDCPStatus::default();
-        println!("@@@NNA : get_hdcp_status() before get_thunder_client()");
         let resp = state
             .get_thunder_client()
             .call(DeviceCallRequest {
