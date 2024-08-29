@@ -800,7 +800,9 @@ fn apply_response(
                 Ok(jq_out) => {
                     trace!(
                         "jq rendered output {:?} original input {:?} for filter {}",
-                        jq_out, v, result_response_filter
+                        jq_out,
+                        v,
+                        result_response_filter
                     );
 
                     if jq_out.is_object() && jq_out.get("error").is_some() {
