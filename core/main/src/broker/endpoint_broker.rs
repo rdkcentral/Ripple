@@ -600,6 +600,7 @@ impl BrokerOutputForwarder {
                         let rpc_request = broker_request.rpc.clone();
                         let session_id = rpc_request.ctx.get_id();
                         let is_subscription = rpc_request.is_subscription();
+                        let mut apply_response_needed = false;
 
                         // Step 1: Create the data
                         if let Some(result) = v.data.result.clone() {
@@ -674,15 +675,14 @@ impl BrokerOutputForwarder {
                                     "event" : rpc_request.ctx.method
                                 }));
                                 platform_state.endpoint_state.update_unsubscribe_request(id);
-                            } else if let Some(filter) =
-                                broker_request.rule.transform.get_transform_data(
-                                    super::rules_engine::RuleTransformType::Response,
-                                )
-                            {
-                                apply_response(v.data.clone(), filter, &rpc_request, &mut v);
+                            } else {
+                                apply_response_needed = true;
                             }
                         } else {
                             debug!("start_forwarder: no result {:?}", v);
+                            apply_response_needed = true;
+                        }
+                        if apply_response_needed {
                             if let Some(filter) = broker_request.rule.transform.get_transform_data(
                                 super::rules_engine::RuleTransformType::Response,
                             ) {
@@ -797,21 +797,17 @@ fn apply_response(
                 &result_response_filter,
                 format!("{}_response", rpc_request.ctx.method),
             ) {
-                Ok(r) => {
+                Ok(jq_out) => {
                     debug!(
                         "jq rendered output {:?} original input {:?} for filter {}",
-                        r, v, result_response_filter
+                        jq_out, v, result_response_filter
                     );
-                    if r.is_object() {
-                        if let Some(error) = r.get("error") {
-                            v.data.error = Some(error.clone());
-                            v.data.result = None;
-                        } else {
-                            v.data.result = Some(r);
-                            v.data.error = None;
-                        }
+
+                    if jq_out.is_object() && jq_out.get("error").is_some() {
+                        v.data.error = Some(jq_out.get("error").unwrap().clone());
+                        v.data.result = None;
                     } else {
-                        v.data.result = Some(r);
+                        v.data.result = Some(jq_out);
                         v.data.error = None;
                     }
                     trace!("mutated output {:?}", v);
