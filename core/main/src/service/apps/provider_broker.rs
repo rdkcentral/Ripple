@@ -220,55 +220,6 @@ impl ProviderBroker {
         ProviderResult::new(result)
     }
 
-    // <pca>
-    // pub async fn invoke_method(pst: &PlatformState, request: ProviderBrokerRequest) {
-    //     let cap_method = format!(
-    //         "{}:{}",
-    //         request.capability,
-    //         FireboltOpenRpcMethod::name_with_lowercase_module(&request.method)
-    //     );
-    //     debug!("invoking provider for {}", cap_method);
-
-    //     let provider_opt = {
-    //         let provider_methods = pst.provider_broker_state.provider_methods.read().unwrap();
-    //         provider_methods.get(&cap_method).cloned()
-    //     };
-    //     if let Some(provider) = provider_opt {
-    //         let event_name = provider.event_name.clone();
-    //         let req_params = request.request.clone();
-    //         let app_id_opt = request.app_id.clone();
-    //         let c_id = ProviderBroker::start_provider_session(pst, request, provider);
-    //         if let Some(app_id) = app_id_opt {
-    //             debug!("Sending request to specific app {}", app_id);
-    //             AppEvents::emit_to_app(
-    //                 pst,
-    //                 app_id,
-    //                 &event_name,
-    //                 &serde_json::to_value(ProviderRequest {
-    //                     correlation_id: c_id,
-    //                     parameters: req_params,
-    //                 })
-    //                 .unwrap(),
-    //             )
-    //             .await;
-    //         } else {
-    //             debug!("Broadcasting request to all the apps!!");
-    //             AppEvents::emit(
-    //                 pst,
-    //                 &event_name,
-    //                 &serde_json::to_value(ProviderRequest {
-    //                     correlation_id: c_id,
-    //                     parameters: req_params,
-    //                 })
-    //                 .unwrap(),
-    //             )
-    //             .await;
-    //         }
-    //     } else {
-    //         debug!("queuing provider request");
-    //         ProviderBroker::queue_provider_request(pst, request);
-    //     }
-    // }
     pub async fn invoke_method(
         pst: &PlatformState,
         request: ProviderBrokerRequest,
@@ -282,7 +233,6 @@ impl ProviderBroker {
         );
 
         debug!("invoking provider for {}", cap_method);
-        debug!("*** _DEBUG: invoking provider for {}", cap_method);
 
         let provider_opt = {
             let provider_methods = pst.provider_broker_state.provider_methods.read().unwrap();
@@ -290,7 +240,6 @@ impl ProviderBroker {
         };
 
         if let Some(provider_method) = provider_opt {
-            println!("*** _DEBUG: invoke_method: provider: {:?}", provider_method);
             let event_name = provider_method.event_name.clone();
             let req_params = request.request.clone();
             let app_id_opt = request.app_id.clone();
@@ -329,14 +278,8 @@ impl ProviderBroker {
             ProviderBroker::queue_provider_request(pst, request);
         }
 
-        println!(
-            "*** _DEBUG: invoke_method: provider_app_id={:?}",
-            provider_app_id
-        );
-
         provider_app_id
     }
-    // </pca>
 
     fn start_provider_session(
         pst: &PlatformState,
@@ -346,10 +289,6 @@ impl ProviderBroker {
         let c_id = Uuid::new_v4().to_string();
         let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
         debug!("started provider session {} {}", c_id, request.capability);
-        debug!(
-            "*** _DEBUG: start_provider_session: c_id={} request.capability={}",
-            c_id, request.capability
-        );
         active_sessions.insert(
             c_id.clone(),
             ProviderSession {
@@ -377,45 +316,14 @@ impl ProviderBroker {
         request_queue.push(request);
     }
 
-    // <pca>
-    // pub async fn provider_response(pst: &PlatformState, resp: ProviderResponse) {
-    //     debug!(
-    //         "provider_response, {}, {:?}",
-    //         resp.correlation_id, resp.result
-    //     );
-    //     let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
-    //     match active_sessions.remove(&resp.correlation_id) {
-    //         Some(session) => {
-    //             oneshot_send_and_log(session.caller.tx, resp.result, "ProviderResponse");
-    //             if session.focused {
-    //                 let app_id = session.provider.provider.app_id;
-    //                 let event = LifecycleManagementEventRequest::Provide(
-    //                     LifecycleManagementProviderEvent::Remove(app_id),
-    //                 );
-    //                 let client = pst.clone().get_client();
-    //                 if let Err(e) = client.send_event(event) {
-    //                     error!("send event error {:?}", e);
-    //                 }
-    //             }
-    //         }
-    //         None => {
-    //             error!("Ignored provider response because there was no active session waiting")
-    //         }
-    //     }
-    // }
     pub async fn provider_response(pst: &PlatformState, resp: ProviderResponse) {
         debug!(
             "provider_response, {}, {:?}",
             resp.correlation_id, resp.result
         );
-        debug!(
-            "*** _DEBUG: provider_response: resp.correlation_id={}, resp.result={:?}",
-            resp.correlation_id, resp.result
-        );
         let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
         match active_sessions.remove(&resp.correlation_id) {
             Some(session) => {
-                println!("*** _DEBUG: provider_response: session: {:?}", session);
                 oneshot_send_and_log(session.caller.tx, resp.result, "ProviderResponse");
                 if session.focused {
                     let app_id = session.provider.provider.app_id;
@@ -429,12 +337,10 @@ impl ProviderBroker {
                 }
             }
             None => {
-                error!("*** _DEBUG: provider_response: Ignored provider response because there was no active session waiting");
                 error!("Ignored provider response because there was no active session waiting")
             }
         }
     }
-    // </pca>
 
     fn cleanup_caps_for_unregister(pst: &PlatformState, session_id: String) -> Vec<String> {
         let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
