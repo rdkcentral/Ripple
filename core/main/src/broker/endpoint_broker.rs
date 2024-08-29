@@ -25,7 +25,7 @@ use ripple_sdk::{
     },
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
-    log::{debug, error, trace},
+    log::{error, trace},
     tokio::{
         self,
         sync::mpsc::{self, Receiver, Sender},
@@ -679,7 +679,7 @@ impl BrokerOutputForwarder {
                                 apply_response_needed = true;
                             }
                         } else {
-                            debug!("start_forwarder: no result {:?}", v);
+                            trace!("start_forwarder: no result {:?}", v);
                             apply_response_needed = true;
                         }
                         if apply_response_needed {
@@ -798,7 +798,7 @@ fn apply_response(
                 format!("{}_response", rpc_request.ctx.method),
             ) {
                 Ok(jq_out) => {
-                    debug!(
+                    trace!(
                         "jq rendered output {:?} original input {:?} for filter {}",
                         jq_out, v, result_response_filter
                     );
