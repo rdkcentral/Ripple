@@ -30,7 +30,7 @@ use ripple_sdk::{
     tokio::{self, sync::mpsc},
     utils::error::RippleError,
 };
-use serde_json::json;
+use serde_json::{json, Value};
 use std::{
     sync::{Arc, RwLock},
     vec,
@@ -161,10 +161,42 @@ impl ThunderBroker {
     }
 
     fn update_response(response: &JsonRpcApiResponse) -> JsonRpcApiResponse {
-        let mut new_response = response.clone();
+        let mut new_response = JsonRpcApiResponse::default();
+        new_response.id = response.id;
+        new_response.jsonrpc = response.jsonrpc.clone();
+
+        println!("=====> update_response: {:?}", response);
         if response.params.is_some() {
+            new_response = response.clone();
             new_response.result = response.params.clone();
+        } else if response.error.is_some() {
+            new_response.error = response.error.clone();
+        } else {
+            if let Some(result) = response.result.clone() {
+                if result.is_object() {
+                    let mut new_result = result.as_object().unwrap().clone();
+                    for (key, value) in result.as_object().unwrap() {
+                        if key.eq("success") {
+                            if let Some(succes) = value.as_bool() {
+                                if succes == false {
+                                    let error: Value =
+                                        r#"{ "code": 1, "message": "ERROR_GENERAL"}"#.into();
+                                    new_response.error = Some(error);
+                                    new_response.result = None;
+                                } else {
+                                    let _ = new_result.remove(key);
+                                }
+                            }
+                            break;
+                        }
+                    }
+                    new_response.result = Some(Value::Object(new_result));
+                } else {
+                    new_response.result = response.result.clone();
+                }
+            }
         }
+        println!("<===== update_response: {:?}", new_response);
         new_response
     }
 

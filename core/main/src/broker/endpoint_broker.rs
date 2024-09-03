@@ -25,7 +25,7 @@ use ripple_sdk::{
     },
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
-    log::{error, trace},
+    log::{debug as trace, error},
     tokio::{
         self,
         sync::mpsc::{self, Receiver, Sender},
@@ -584,14 +584,15 @@ impl BrokerOutputForwarder {
         let event_utility_clone = event_utility.clone();
 
         tokio::spawn(async move {
-            while let Some(mut v) = rx.recv().await {
+            while let Some(output) = rx.recv().await {
+                let mut response = output.data.clone();
                 let mut is_event = false;
                 // First validate the id check if it could be an event
-                let id = if let Some(e) = v.get_event() {
+                let id = if let Some(e) = output.get_event() {
                     is_event = true;
                     Some(e)
                 } else {
-                    v.data.id
+                    response.id
                 };
 
                 if let Some(id) = id {
@@ -603,13 +604,17 @@ impl BrokerOutputForwarder {
                         let mut apply_response_needed = false;
 
                         // Step 1: Create the data
-                        if let Some(result) = v.data.result.clone() {
+                        if let Some(mut result) = response.result.clone() {
                             if is_event {
+                                //if !process_event(response.clone()) {
+                                //    continue;
+                                //}
+                                /* */
                                 apply_rule_for_event(
                                     &broker_request,
-                                    &result,
+                                    &mut result,
                                     &rpc_request,
-                                    &mut v,
+                                    &mut response,
                                 );
                                 if !apply_filter(&broker_request, &result, &rpc_request) {
                                     continue;
@@ -635,14 +640,14 @@ impl BrokerOutputForwarder {
                                             )
                                             .await
                                             {
-                                                v.data.result = Some(value.expect("REASON"));
+                                                response.result = Some(value.expect("REASON"));
                                             }
-                                            v.data.id = Some(request_id);
+                                            response.id = Some(request_id);
 
                                             let message = ApiMessage {
                                                 request_id: request_id.to_string(),
                                                 protocol,
-                                                jsonrpc_msg: serde_json::to_string(&v.data)
+                                                jsonrpc_msg: serde_json::to_string(&response)
                                                     .unwrap(),
                                             };
 
@@ -666,11 +671,12 @@ impl BrokerOutputForwarder {
                                         );
                                     }
                                 }
+                                /* */
                             } else if is_subscription {
                                 if sub_processed {
                                     continue;
                                 }
-                                v.data.result = Some(json!({
+                                response.result = Some(json!({
                                     "listening" : rpc_request.is_listening(),
                                     "event" : rpc_request.ctx.method
                                 }));
@@ -678,26 +684,32 @@ impl BrokerOutputForwarder {
                             } else {
                                 apply_response_needed = true;
                             }
-                        } else {
-                            trace!("start_forwarder: no result {:?}", v);
+                        } else if response.error.is_some() {
+                            trace!("processing error {:?}", response); // XXX:
                             apply_response_needed = true;
+                        } else {
+                            trace!("No result and No error?! {:?}", response);
+                            // GIGO
+                            response.result = Some(Value::Null);
+                            println!("====== response: {:?}", response)
                         }
+
                         if apply_response_needed {
                             if let Some(filter) = broker_request.rule.transform.get_transform_data(
                                 super::rules_engine::RuleTransformType::Response,
                             ) {
-                                apply_response(v.data.clone(), filter, &rpc_request, &mut v);
+                                apply_response(&mut response, filter, &rpc_request);
                             }
                         }
 
                         let request_id = rpc_request.ctx.call_id;
-                        v.data.id = Some(request_id);
+                        response.id = Some(request_id);
 
                         // Step 2: Create the message
                         let message = ApiMessage {
                             request_id: request_id.to_string(),
                             protocol: rpc_request.ctx.protocol.clone(),
-                            jsonrpc_msg: serde_json::to_string(&v.data).unwrap(),
+                            jsonrpc_msg: serde_json::to_string(&response).unwrap(),
                         };
 
                         // Step 3: Handle Non Extension
@@ -706,7 +718,7 @@ impl BrokerOutputForwarder {
                                 platform_state.endpoint_state.get_extn_message(id, is_event)
                             {
                                 if is_event {
-                                    forward_extn_event(&extn_message, v.data, &platform_state)
+                                    forward_extn_event(&extn_message, response, &platform_state)
                                         .await;
                                 } else {
                                     return_extn_response(message, extn_message)
@@ -724,10 +736,14 @@ impl BrokerOutputForwarder {
                             .await
                         }
                     } else {
-                        error!("start_forwarder:{} request not found {:?}", line!(), v);
+                        error!(
+                            "start_forwarder:{} request not found {:?}",
+                            line!(),
+                            response
+                        );
                     }
                 } else {
-                    error!("Error couldnt broker the event {:?}", v)
+                    error!("Error couldnt broker the event {:?}", response)
                 }
             }
         });
@@ -785,12 +801,12 @@ async fn forward_extn_event(
 }
 
 fn apply_response(
-    rcp_response: JsonRpcApiResponse,
+    response: &mut JsonRpcApiResponse,
     result_response_filter: String,
     rpc_request: &RpcRequest,
-    v: &mut BrokerOutput,
+    //v: &mut BrokerOutput,
 ) {
-    match serde_json::to_value(rcp_response) {
+    match serde_json::to_value(response.clone()) {
         Ok(input) => {
             match jq_compile(
                 input,
@@ -801,38 +817,86 @@ fn apply_response(
                     trace!(
                         "jq rendered output {:?} original input {:?} for filter {}",
                         jq_out,
-                        v,
+                        response,
                         result_response_filter
                     );
 
                     if jq_out.is_object() && jq_out.get("error").is_some() {
-                        v.data.error = Some(jq_out.get("error").unwrap().clone());
-                        v.data.result = None;
+                        response.error = Some(jq_out.get("error").unwrap().clone());
+                        response.result = None;
                     } else {
-                        v.data.result = Some(jq_out);
-                        v.data.error = None;
+                        response.result = Some(jq_out);
+                        response.error = None;
                     }
-                    trace!("mutated output {:?}", v);
+                    trace!("mutated output {:?}", response);
                 }
                 Err(e) => {
-                    v.data.error = Some(json!(e.to_string()));
+                    response.error = Some(json!(e.to_string()));
                     error!("jq_compile error {:?}", e);
                 }
             }
         }
         Err(e) => {
-            v.data.error = Some(json!(e.to_string()));
+            response.error = Some(json!(e.to_string()));
             error!("json rpc response error {:?}", e);
         }
     }
 }
 
+fn process_event(response: &mut JsonRpcApiResponse) -> bool {
+    println!("====== process_event: {:?}", response);
+    /*
+    apply_rule_for_event(&broker_request, &result, &rpc_request, &mut v);
+    if !apply_filter(&broker_request, &result, &rpc_request) {
+        false;
+    }
+    // check if the request transform has event_decorator_method
+    if let Some(decorator_method) = broker_request.rule.transform.event_decorator_method.clone() {
+        if let Some(func) = event_utility_clone.get_function(&decorator_method) {
+            // spawn a tokio thread to run the function and continue the main thread.
+            let session_id = rpc_request.ctx.get_id();
+            let request_id = rpc_request.ctx.call_id;
+            let protocol = rpc_request.ctx.protocol.clone();
+            let platform_state_c = platform_state.clone();
+            let ctx = rpc_request.ctx.clone();
+            tokio::spawn(async move {
+                if let Ok(value) =
+                    func(platform_state_c.clone(), ctx.clone(), Some(result.clone())).await
+                {
+                    response.result = Some(value.expect("REASON"));
+                }
+                response.id = Some(request_id);
+
+                let message = ApiMessage {
+                    request_id: request_id.to_string(),
+                    protocol,
+                    jsonrpc_msg: serde_json::to_string(&data).unwrap(),
+                };
+
+                if let Some(session) = platform_state_c
+                    .session_state
+                    .get_session_for_connection_id(&session_id)
+                {
+                    return_api_message_for_transport(session, message, platform_state_c).await
+                }
+            });
+            false;
+        } else {
+            error!("Failed to invoke decorator method {:?}", decorator_method);
+        }
+    }
+    */
+    true
+}
+
 fn apply_rule_for_event(
     broker_request: &BrokerRequest,
-    result: &Value,
+    result: &mut Value,
     rpc_request: &RpcRequest,
-    v: &mut BrokerOutput,
+    data: &mut JsonRpcApiResponse,
+    //v: &mut BrokerOutput,
 ) {
+    println!("=====> apply_rule_for_event: {:?}", result);
     if let Some(filter) = broker_request
         .rule
         .transform
@@ -843,9 +907,11 @@ fn apply_rule_for_event(
             &filter,
             format!("{}_event", rpc_request.ctx.method),
         ) {
-            v.data.result = Some(r);
+            data.result = Some(r);
+            //*result = r; //Some(r);
         }
     }
+    println!("<===== apply_rule_for_event: {:?}", result);
 }
 
 fn apply_filter(broker_request: &BrokerRequest, result: &Value, rpc_request: &RpcRequest) -> bool {
@@ -856,6 +922,7 @@ fn apply_filter(broker_request: &BrokerRequest, result: &Value, rpc_request: &Rp
             format!("{}_event filter", rpc_request.ctx.method),
         ) {
             if r.is_null() {
+                println!("======> apply_filter returns null");
                 return false;
             } else {
                 // get bool value for r and return
