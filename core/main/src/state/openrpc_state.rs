@@ -198,7 +198,7 @@ impl OpenRpcState {
 
     pub fn load_ext_sdk_rpc(&self, path: &str) -> Result<(), RippleError> {
         info!("Loading extension OpenRPC from {path}");
-    
+
         let content = if path.contains("ripple-rpc.json") {
             fs::read_to_string(path).map_err(|e| {
                 error!("Failed to read the file at {}: {:?}", path, e);
@@ -210,13 +210,13 @@ impl OpenRpcState {
                 RippleError::ParseError
             });
         };
-    
+
         let mut ripple_open_rpc = FireboltOpenRpc::default();
         Self::load_additional_rpc(&mut ripple_open_rpc, &content);
         self.add_open_rpc(ripple_open_rpc);
         info!("Successfully loaded extn_sdk from {path}");
         Ok(())
-    }    
+    }
 
     pub fn add_open_rpc(&self, open_rpc: FireboltOpenRpc) {
         let cap_map = open_rpc.get_methods_caps();
