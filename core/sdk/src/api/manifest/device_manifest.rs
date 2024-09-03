@@ -150,11 +150,11 @@ impl Default for DistributionConfiguration {
         let library_path = if cfg!(feature = "local_dev") {
             std::env::var("HOME").unwrap_or_default() + "/firebolt-app-library.json"
         } else {
-            "/etc/firebolt-app-library.json".into()
+            "/etc/firebolt-app-library.json".to_string()
         };
 
         DistributionConfiguration {
-            library: library_path.into(),
+            library: library_path,
         }
     }
 }
