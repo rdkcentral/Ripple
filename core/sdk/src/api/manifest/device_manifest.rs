@@ -147,8 +147,14 @@ pub struct DistributionConfiguration {
 
 impl Default for DistributionConfiguration {
     fn default() -> Self {
+        let library_path = if cfg!(feature = "local_dev") {
+            std::env::var("HOME").unwrap_or_default() + "/firebolt-app-library.json"
+        } else {
+            "/etc/firebolt-app-library.json".into()
+        };
+
         DistributionConfiguration {
-            library: "/etc/firebolt-app-library.json".into(),
+            library: library_path.into(),
         }
     }
 }

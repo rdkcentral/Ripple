@@ -64,10 +64,17 @@ fn load_from_env() -> Result<(String, Vec<AppLibraryEntry>), RippleError> {
 }
 
 fn load_from_home() -> Result<(String, Vec<AppLibraryEntry>), RippleError> {
-    match std::env::var("HOME") {
-        Ok(home) => load(format!("{}/.ripple/firebolt-app-library.json", home)),
-        Err(_) => Err(RippleError::MissingInput),
-    }
+    std::env::var("HOME").map_or_else(
+        |_| Err(RippleError::MissingInput),
+        |home| {
+            let sub_path = if cfg!(feature = "local_dev") {
+                "firebolt-app-library.json"
+            } else {
+                ".ripple/firebolt-app-library.json"
+            };
+            load(format!("{}/{}", home, sub_path))
+        },
+    )
 }
 
 fn load_from_etc() -> Result<(String, Vec<AppLibraryEntry>), RippleError> {

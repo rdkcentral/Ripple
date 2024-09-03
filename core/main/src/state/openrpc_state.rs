@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use jsonrpsee::tracing::info;
 use ripple_sdk::log::{debug, error};
 use ripple_sdk::{api::firebolt::fb_openrpc::CapabilityPolicy, serde_json};
 use ripple_sdk::{
@@ -33,6 +34,7 @@ use ripple_sdk::{
 };
 use std::{
     collections::HashMap,
+    fs,
     sync::{Arc, RwLock},
 };
 
@@ -78,7 +80,7 @@ pub struct OpenRpcState {
 }
 
 impl OpenRpcState {
-    fn load_additional_rpc(rpc: &mut FireboltOpenRpc, file_contents: &'static str) {
+    fn load_additional_rpc(rpc: &mut FireboltOpenRpc, file_contents: &str) {
         match serde_json::from_str::<OpenRPCParser>(file_contents) {
             Ok(addl_rpc) => {
                 for m in addl_rpc.methods {
@@ -101,8 +103,8 @@ impl OpenRpcState {
                     Ok(fvm) => {
                         return Some(fvm.into());
                     }
-                    _ => {
-                        error!("load_open_rpc: can't parse {path}");
+                    e => {
+                        error!("load_open_rpc: can't parse {path} e={:?}", e);
                     }
                 }
             }
@@ -166,11 +168,8 @@ impl OpenRpcState {
         provider_registrations: Vec<String>,
     ) -> OpenRpcState {
         let version_manifest = Self::load_firebolt_open_rpc();
-
         let firebolt_open_rpc: FireboltOpenRpc = version_manifest.clone().into();
-        let ripple_rpc_file = std::include_str!("./ripple-rpc.json");
-        let mut ripple_open_rpc: FireboltOpenRpc = FireboltOpenRpc::default();
-        Self::load_additional_rpc(&mut ripple_open_rpc, ripple_rpc_file);
+        let ripple_open_rpc: FireboltOpenRpc = FireboltOpenRpc::default();
 
         let openrpc_validator: FireboltOpenRpcValidator =
             serde_json::from_str(std::include_str!("./firebolt-open-rpc.json")).unwrap();
@@ -189,13 +188,35 @@ impl OpenRpcState {
         v.build_provider_relation_sets(&firebolt_open_rpc.methods);
 
         for path in extn_sdks {
-            if v.add_extension_open_rpc(&path).is_err() {
+            if v.load_ext_sdk_rpc(&path).is_err() {
                 error!("Error adding extn_sdk from {path}");
             }
         }
 
         v
     }
+
+    pub fn load_ext_sdk_rpc(&self, path: &str) -> Result<(), RippleError> {
+        info!("Loading extension OpenRPC from {path}");
+    
+        let content = if path.contains("ripple-rpc.json") {
+            fs::read_to_string(path).map_err(|e| {
+                error!("Failed to read the file at {}: {:?}", path, e);
+                RippleError::ParseError
+            })?
+        } else {
+            return self.add_extension_open_rpc(path).map_err(|_| {
+                error!("Error adding extn_sdk from {path}");
+                RippleError::ParseError
+            });
+        };
+    
+        let mut ripple_open_rpc = FireboltOpenRpc::default();
+        Self::load_additional_rpc(&mut ripple_open_rpc, &content);
+        self.add_open_rpc(ripple_open_rpc);
+        info!("Successfully loaded extn_sdk from {path}");
+        Ok(())
+    }    
 
     pub fn add_open_rpc(&self, open_rpc: FireboltOpenRpc) {
         let cap_map = open_rpc.get_methods_caps();
