@@ -190,7 +190,9 @@ impl ThunderBroker {
                             break;
                         }
                     }
-                    new_response.result = Some(Value::Object(new_result));
+                    if !new_result.is_empty() {
+                        new_response.result = Some(Value::Object(new_result));
+                    }
                 } else {
                     new_response.result = response.result.clone();
                 }
