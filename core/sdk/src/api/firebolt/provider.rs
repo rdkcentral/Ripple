@@ -213,7 +213,7 @@ pub struct DataObject {}
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct GenericProviderError {
-    pub code: u32,
+    pub code: i32,
     pub message: String,
     pub data: Option<DataObject>,
 }

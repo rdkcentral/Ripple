@@ -845,7 +845,7 @@ mod tests {
     fn test_generic_error() {
         let ctx = CallContext::mock();
         let p = format!(
-            r#"[{},{{"correlationId":"someid","error":{{"code":301,"message":"The Player with 'ipa' id does not exist"}}}}]"#,
+            r#"[{},{{"correlationId":"someid","error":{{"code":-60001,"message":"The Player with 'ipa' id does not exist"}}}}]"#,
             serde_json::to_string(&ctx).unwrap()
         );
         let params = Params::new(Some(&p));
@@ -857,7 +857,7 @@ mod tests {
         .unwrap();
         assert!(result.correlation_id.eq("someid"));
         if let ProviderResponsePayload::GenericError(c) = result.result {
-            assert!(c.code == 301);
+            assert!(c.code == -60001);
             assert!(c.message.eq("The Player with 'ipa' id does not exist"))
         }
     }
