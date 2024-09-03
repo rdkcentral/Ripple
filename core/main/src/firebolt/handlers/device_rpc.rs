@@ -472,7 +472,10 @@ impl DeviceServer for DeviceImpl {
 
         match resp {
             Ok(response) => match response.payload.extract().unwrap() {
-                DeviceResponse::HdrResponse(value) => Ok(value),
+                DeviceResponse::HdrResponse(value) => Ok(value
+                    .into_iter()
+                    .filter(|&(p, _)| p != HdrProfile::Technicolor)
+                    .collect()),
                 _ => Err(jsonrpsee::core::Error::Custom(String::from(
                     "Hdr capabilities error response TBD",
                 ))),

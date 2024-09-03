@@ -53,15 +53,15 @@ pub enum HdcpProfile {
 
 #[derive(Hash, Eq, PartialEq, Debug, Serialize, Deserialize, Clone, Copy)]
 pub enum HdrProfile {
-    #[serde(rename = "HDR10")]
+    #[serde(rename = "hdr10")]
     Hdr10,
-    #[serde(rename = "HDR10+")]
+    #[serde(rename = "hdr10Plus")]
     Hdr10plus,
-    #[serde(rename = "HLG")]
+    #[serde(rename = "hlg")]
     Hlg,
-    #[serde(rename = "Dolby Vision")]
+    #[serde(rename = "dolbyVision")]
     DolbyVision,
-    #[serde(rename = "Technicolor")]
+    #[serde(rename = "technicolor")]
     Technicolor,
 }
 

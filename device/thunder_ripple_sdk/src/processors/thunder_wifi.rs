@@ -127,6 +127,7 @@ struct ThunderSSID {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SSIDEventResponse {
+    #[serde(default)]
     more_data: bool,
     ssids: Vec<ThunderSSID>,
 }
@@ -268,7 +269,19 @@ impl ThunderWifiRequestProcessor {
         tokio::spawn(async move {
             if let Ok(Some(m)) = timeout(Duration::from_secs(timeout_value), sub_rx.recv()).await {
                 let mut list = Vec::new();
-                let ssid_response: SSIDEventResponse = serde_json::from_value(m.message).unwrap();
+                let ssid_response: SSIDEventResponse = match serde_json::from_value(m.message) {
+                    Ok(response) => response,
+                    Err(e) => {
+                        let access_point_list = AccessPointList { list: Vec::new() };
+                        info!(
+                            "Failed to parse SSIDEventResponse: {}. Access point list: {:#?}",
+                            e, access_point_list
+                        );
+                        tx.send(access_point_list).await.unwrap();
+                        return;
+                    }
+                };
+
                 let mut dedup = Vec::new();
                 for ssid in ssid_response.ssids {
                     let check_ssid = ssid.ssid.clone();
@@ -300,7 +313,6 @@ impl ThunderWifiRequestProcessor {
         });
 
         // Receive the access point list sent from the Tokio task
-
         rx.recv().await.unwrap()
     }
 
