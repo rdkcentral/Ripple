@@ -286,28 +286,29 @@ impl ProviderRegistrar {
             let mut params_sequence = params.sequence();
             let call_context: Option<CallContext> = params_sequence.next().ok();
 
-            let mut result: Value = match params_sequence.next() {
+            let mut event_data: Value = match params_sequence.next() {
                 Ok(r) => r,
                 Err(e) => {
                     error!("callback_app_event_emitter: Error: {:?}", e);
-                    return Err(Error::Custom("Missing result".to_string()));
+                    return Err(Error::Custom("Missing event_data".to_string()));
                 }
             };
 
-            // Look at the result schema and inject the app ID into the result if the field exists
+            // Inject the app ID if the field exists in the event schema
 
-            let mut modified_result = None;
-            if let Some(result_map) = result.as_object_mut() {
-                if let Some(result_schema_map) = context
+            let mut modified_event_data = None;
+            if let Some(event_data_map) = event_data.as_object_mut() {
+                if let Some(event_schema_map) = context
                     .platform_state
                     .open_rpc_state
                     .get_openrpc_validator()
                     .get_result_properties_schema_by_name(event)
                 {
-                    if result_schema_map.get("appId").is_some() {
+                    if event_schema_map.get("appId").is_some() {
                         if let Some(context) = call_context {
-                            result_map.insert("appId".to_string(), Value::String(context.app_id));
-                            modified_result = Some(Value::Object(result_map.clone()));
+                            event_data_map
+                                .insert("appId".to_string(), Value::String(context.app_id));
+                            modified_event_data = Some(Value::Object(event_data_map.clone()));
                         }
                     }
                 } else {
@@ -315,15 +316,15 @@ impl ProviderRegistrar {
                 }
             } else {
                 warn!(
-                    "callback_app_event_emitter: result is not an object: result={:?}",
-                    result
+                    "callback_app_event_emitter: result is not an object: event_data={:?}",
+                    event_data
                 );
             }
 
             AppEvents::emit(
                 &context.platform_state,
                 &FireboltOpenRpcMethod::name_with_lowercase_module(event),
-                &modified_result.unwrap_or(result),
+                &modified_event_data.unwrap_or(event_data),
             )
             .await;
         } else {
