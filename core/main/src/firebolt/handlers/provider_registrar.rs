@@ -133,13 +133,17 @@ impl ProviderRegistrar {
                 }
             }
             ProviderResponsePayloadType::GenericResponse => {
-                let external_provider_response: Result<ExternalProviderResponse<Value>, CallError> =
-                    params_sequence.next();
+                let external_provider_response: Result<
+                    ExternalProviderResponse<Option<Value>>,
+                    CallError,
+                > = params_sequence.next();
 
                 if let Ok(r) = external_provider_response {
                     return Some(ProviderResponse {
                         correlation_id: r.correlation_id,
-                        result: ProviderResponsePayload::GenericResponse(r.result),
+                        result: ProviderResponsePayload::GenericResponse(
+                            r.result.unwrap_or(Value::Null),
+                        ),
                     });
                 }
             }
