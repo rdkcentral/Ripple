@@ -195,7 +195,10 @@ impl RuleEngine {
             rule.transform.apply_context(rpc_request);
             return Some(rule);
         } else {
-            info!("Rule not available for {}", rpc_request.method);
+            info!(
+                "Rule not available for {}, hence falling back to extension handler",
+                rpc_request.method
+            );
         }
         None
     }
