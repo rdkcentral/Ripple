@@ -1133,8 +1133,8 @@ mod tests {
 
         // advertising.setSkipRestriction
         let result = json!({"success":true});
-        let data = JsonRpcApiResponse::mock();
-        let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
+        //let data = JsonRpcApiResponse::mock();
+        //let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
         let filter = "if .result.success then null else { code: -32100, message: \"couldn't set skip restriction\" } end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
@@ -1144,8 +1144,8 @@ mod tests {
 
         // securestorage.get
         let result = json!({"value": "some_value","success": true,"ttl": 100});
-        let data = JsonRpcApiResponse::mock();
-        let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
+        //let data = JsonRpcApiResponse::mock();
+        //let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
         let filter = "if .result.success then .result.value elif .error.code==22 or .error.code==43 then \"null\" else .error end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
@@ -1154,8 +1154,8 @@ mod tests {
 
         // localization.countryCode
         let result = json!({"territory": "USA","success": true});
-        let data = JsonRpcApiResponse::mock();
-        let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
+        //let data = JsonRpcApiResponse::mock();
+        //let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
         let filter = "if .result.success then if .result.territory == \"ITA\" then \"IT\" elif .result.territory == \"GBR\" then \"GB\" elif .result.territory == \"IRL\" then \"IE\" elif .result.territory == \"DEU\" then \"DE\" elif .result.territory == \"AUS\" then \"AU\" else \"GB\" end end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
