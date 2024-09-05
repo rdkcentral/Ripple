@@ -300,9 +300,6 @@ impl ProviderRegistrar {
                 }
             };
 
-            // Inject the app ID if the field exists in the event schema
-
-            let mut modified_event_data = None;
             if let Some(event_data_map) = event_data.as_object_mut() {
                 if let Some(event_schema_map) = context
                     .platform_state
@@ -310,29 +307,46 @@ impl ProviderRegistrar {
                     .get_openrpc_validator()
                     .get_result_properties_schema_by_name(event)
                 {
-                    if event_schema_map.get("appId").is_some() {
-                        if let Some(context) = call_context {
-                            event_data_map
-                                .insert("appId".to_string(), Value::String(context.app_id));
-                            modified_event_data = Some(Value::Object(event_data_map.clone()));
+                    // Populate the event result, injecting the app ID if the field exists in the event schema
+
+                    let mut result_map = Map::new();
+
+                    for key in event_schema_map.keys() {
+                        if let Some(event_value) = event_data_map.get(key) {
+                            result_map.insert(key.clone(), event_value.clone());
+                        } else if key.eq("appId") {
+                            if let Some(context) = call_context.clone() {
+                                result_map.insert(key.clone(), Value::String(context.app_id));
+                            } else {
+                                error!("callback_app_event_emitter: Missing call context, could not determine app ID");
+                                result_map.insert(key.clone(), Value::Null);
+                            }
+                        } else {
+                            error!(
+                                "callback_app_event_emitter: Missing field in event data: field={}",
+                                key
+                            );
+                            result_map.insert(key.clone(), Value::Null);
                         }
                     }
+
+                    AppEvents::emit(
+                        &context.platform_state,
+                        &FireboltOpenRpcMethod::name_with_lowercase_module(event),
+                        &Value::Object(result_map),
+                    )
+                    .await;
                 } else {
                     error!("callback_app_event_emitter: Result schema not found");
+                    return Err(Error::Custom(String::from("Result schema not found")));
                 }
             } else {
                 warn!(
-                    "callback_app_event_emitter: result is not an object: event_data={:?}",
+                    "callback_app_event_emitter: event data is not an object: event_data={:?}",
                     event_data
                 );
+                return Err(Error::Custom(String::from("Event data is not an object")));
             }
-
-            AppEvents::emit(
-                &context.platform_state,
-                &FireboltOpenRpcMethod::name_with_lowercase_module(event),
-                &modified_event_data.unwrap_or(event_data),
-            )
-            .await;
         } else {
             return Err(Error::Custom(String::from(
                 "Unexpected schema configuration",
@@ -435,8 +449,9 @@ impl ProviderRegistrar {
                     .await
                     {
                         if let Ok(provider_response_payload) = result {
-                            if let ProviderResponsePayload::Generic(provider_response_value) =
-                                provider_response_payload
+                            if let ProviderResponsePayload::GenericResponse(
+                                provider_response_value,
+                            ) = provider_response_payload
                             {
                                 if let Some(result_properties_map) = context
                                     .platform_state
