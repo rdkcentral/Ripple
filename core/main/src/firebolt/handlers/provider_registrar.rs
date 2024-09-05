@@ -119,25 +119,31 @@ impl ProviderRegistrar {
                     });
                 }
             }
-            ProviderResponsePayloadType::ChallengeError => {
+            ProviderResponsePayloadType::GenericError => {
                 let external_provider_error: Result<ExternalProviderError, CallError> =
                     params_sequence.next();
-
-                if let Ok(r) = external_provider_error {
-                    return Some(ProviderResponse {
-                        correlation_id: r.correlation_id,
-                        result: ProviderResponsePayload::ChallengeError(r.error),
-                    });
+                match external_provider_error {
+                    Ok(r) => {
+                        return Some(ProviderResponse {
+                            correlation_id: r.correlation_id,
+                            result: ProviderResponsePayload::GenericError(r.error),
+                        });
+                    }
+                    Err(e) => error!("get provide response Error {:?}", e),
                 }
             }
-            ProviderResponsePayloadType::Generic => {
-                let external_provider_response: Result<ExternalProviderResponse<Value>, CallError> =
-                    params_sequence.next();
+            ProviderResponsePayloadType::GenericResponse => {
+                let external_provider_response: Result<
+                    ExternalProviderResponse<Option<Value>>,
+                    CallError,
+                > = params_sequence.next();
 
                 if let Ok(r) = external_provider_response {
                     return Some(ProviderResponse {
                         correlation_id: r.correlation_id,
-                        result: ProviderResponsePayload::Generic(r.result),
+                        result: ProviderResponsePayload::GenericResponse(
+                            r.result.unwrap_or(Value::Null),
+                        ),
                     });
                 }
             }
@@ -319,9 +325,14 @@ impl ProviderRegistrar {
             ) {
                 ProviderBroker::provider_response(&context.platform_state, provider_response).await;
             }
+        } else if let Some(provider_response) = ProviderRegistrar::get_provider_response(
+            ProviderResponsePayloadType::GenericError,
+            params_sequence,
+        ) {
+            ProviderBroker::provider_response(&context.platform_state, provider_response).await;
         } else {
             error!(
-                "callback_error: NO ATTRIBUTES: context.method={}",
+                "callback_error: NO Valid ATTRIBUTES: context.method={}",
                 context.method
             );
             return Err(Error::Custom(String::from("Missing provider attributes")));
@@ -461,7 +472,7 @@ impl ProviderRegistrar {
 
         let response_payload_type = match &context.provider_relation_set.attributes {
             Some(attributes) => attributes.response_payload_type.clone(),
-            None => ProviderResponsePayloadType::Generic,
+            None => ProviderResponsePayloadType::GenericResponse,
         };
 
         if let Some(provider_response) =
@@ -571,7 +582,7 @@ mod tests {
 
     use super::*;
     use jsonrpsee::core::server::rpc_module::Methods;
-    use ripple_sdk::tokio;
+    use ripple_sdk::{tokio, Mockable};
 
     #[tokio::test]
     async fn test_register_methods() {
@@ -832,5 +843,26 @@ mod tests {
         );
 
         assert!(!result);
+    }
+
+    #[test]
+    fn test_generic_error() {
+        let ctx = CallContext::mock();
+        let p = format!(
+            r#"[{},{{"correlationId":"someid","error":{{"code":-60001,"message":"The Player with 'ipa' id does not exist"}}}}]"#,
+            serde_json::to_string(&ctx).unwrap()
+        );
+        let params = Params::new(Some(&p));
+        let params_sequence = params.sequence();
+        let result = ProviderRegistrar::get_provider_response(
+            ProviderResponsePayloadType::GenericError,
+            params_sequence,
+        )
+        .unwrap();
+        assert!(result.correlation_id.eq("someid"));
+        if let ProviderResponsePayload::GenericError(c) = result.result {
+            assert!(c.code == -60001);
+            assert!(c.message.eq("The Player with 'ipa' id does not exist"))
+        }
     }
 }
