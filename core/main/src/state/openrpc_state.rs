@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use jsonrpsee::tracing::info;
 use ripple_sdk::log::{debug, error};
 use ripple_sdk::{api::firebolt::fb_openrpc::CapabilityPolicy, serde_json};
 use ripple_sdk::{
@@ -24,7 +23,7 @@ use ripple_sdk::{
             fb_capabilities::FireboltPermission,
             fb_openrpc::{
                 CapabilitySet, FireboltOpenRpc, FireboltOpenRpcMethod, FireboltSemanticVersion,
-                FireboltVersionManifest, OpenRPCParser,
+                FireboltVersionManifest,
             },
             provider::ProviderAttributes,
         },
@@ -34,7 +33,6 @@ use ripple_sdk::{
 };
 use std::{
     collections::HashMap,
-    fs,
     sync::{Arc, RwLock},
 };
 
@@ -80,19 +78,6 @@ pub struct OpenRpcState {
 }
 
 impl OpenRpcState {
-    fn load_additional_rpc(rpc: &mut FireboltOpenRpc, file_contents: &str) {
-        match serde_json::from_str::<OpenRPCParser>(file_contents) {
-            Ok(addl_rpc) => {
-                for m in addl_rpc.methods {
-                    rpc.methods.push(m.clone());
-                }
-            }
-            Err(_) => {
-                error!("Could not read additional RPC file");
-            }
-        }
-    }
-
     fn load_open_rpc(path: &str) -> Option<FireboltOpenRpc> {
         match std::fs::read_to_string(path) {
             Ok(content) => {
