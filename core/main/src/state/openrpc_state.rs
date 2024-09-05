@@ -188,34 +188,12 @@ impl OpenRpcState {
         v.build_provider_relation_sets(&firebolt_open_rpc.methods);
 
         for path in extn_sdks {
-            if v.load_ext_sdk_rpc(&path).is_err() {
+            if v.add_extension_open_rpc(&path).is_err() {
                 error!("Error adding extn_sdk from {path}");
             }
         }
 
         v
-    }
-
-    pub fn load_ext_sdk_rpc(&self, path: &str) -> Result<(), RippleError> {
-        info!("Loading extension OpenRPC from {path}");
-
-        let content = if path.contains("ripple-rpc.json") {
-            fs::read_to_string(path).map_err(|e| {
-                error!("Failed to read the file at {}: {:?}", path, e);
-                RippleError::ParseError
-            })?
-        } else {
-            return self.add_extension_open_rpc(path).map_err(|_| {
-                error!("Error adding extn_sdk from {path}");
-                RippleError::ParseError
-            });
-        };
-
-        let mut ripple_open_rpc = FireboltOpenRpc::default();
-        Self::load_additional_rpc(&mut ripple_open_rpc, &content);
-        self.add_open_rpc(ripple_open_rpc);
-        info!("Successfully loaded extn_sdk from {path}");
-        Ok(())
     }
 
     pub fn add_open_rpc(&self, open_rpc: FireboltOpenRpc) {
