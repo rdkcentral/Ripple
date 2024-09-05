@@ -426,7 +426,7 @@ fn load_firebolt_open_rpc_path() -> Option<String> {
     let mut fb_open_rpc_file = "/etc/ripple/openrpc/firebolt-open-rpc.json".to_string();
 
     //open_rpc file is taken from environment variable set path if local_dev feature is enabled
-    if (cfg!(feature = "local_dev") || cfg!(test)) {
+    if cfg!(feature = "local_dev") || cfg!(test) {
         let key = "FIREBOLT_OPEN_RPC";
         let env_var = std::env::var(key);
         if let Ok(path) = env_var {
