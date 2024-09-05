@@ -421,8 +421,8 @@ impl OpenRpcState {
     }
 }
 
-fn load_firebolt_open_rpc_path() -> Result<String, RippleError> {
-    // By default open_rpc file is taken from /etc/.. path
+fn load_firebolt_open_rpc_path() -> Option<String> {
+    // By default open_rpc file is taken from /etc/.. path set by the build system
     let mut fb_open_rpc_file = "/etc/ripple/openrpc/firebolt-open-rpc.json".to_string();
 
     //open_rpc file is taken from environment variable set path if local_dev feature is enabled
@@ -434,18 +434,19 @@ fn load_firebolt_open_rpc_path() -> Result<String, RippleError> {
         };
     }
 
-    match std::fs::read_to_string(fb_open_rpc_file.clone()) {
-        Ok(str) => {
-            let mut content = "".to_string();
-            content = str;
-            debug!("loading firebolt_open_rpc from {fb_open_rpc_file}");
-            return Ok(content);
+    match std::fs::read_to_string(&fb_open_rpc_file) {
+        Ok(content) => {
+            debug!("loading firebolt_open_rpc from {}", &fb_open_rpc_file);
+            Some(content)
         }
         Err(_e) => {
-            error!("can't read firebolt_open_rpc from path :{fb_open_rpc_file}");
-            return Err(RippleError::BootstrapError);
+            error!(
+                "can't read firebolt_open_rpc from path :{}",
+                &fb_open_rpc_file
+            );
+            None
         }
-    };
+    }
 }
 
 #[cfg(test)]
