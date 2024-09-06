@@ -422,16 +422,17 @@ impl OpenRpcState {
 }
 
 fn load_firebolt_open_rpc_path() -> Option<String> {
-    // By default open_rpc file is taken from /etc/.. path set by the build system
-    let mut fb_open_rpc_file = "/etc/ripple/openrpc/firebolt-open-rpc.json".to_string();
+    let mut fb_open_rpc_file = "".to_string();
 
-    //open_rpc file is taken from environment variable set path if local_dev feature is enabled
+    //open_rpc file is taken from environment variable set path if local_dev/test feature is enabled
     if cfg!(feature = "local_dev") || cfg!(test) {
         let key = "FIREBOLT_OPEN_RPC";
         let env_var = std::env::var(key);
         if let Ok(path) = env_var {
             fb_open_rpc_file = path;
         };
+    } else {
+        fb_open_rpc_file = "/etc/ripple/openrpc/firebolt-open-rpc.json".to_string();
     }
 
     match std::fs::read_to_string(&fb_open_rpc_file) {
