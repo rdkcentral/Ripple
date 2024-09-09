@@ -100,6 +100,8 @@ case ${1} in
         workspace_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
         mkdir -p target/manifests
         rm -rf target/manifests/*
+        mkdir -p target/openrpc
+        rm -rf target/openrpc/*
         cp examples/manifest/mock/mock-device-manifest.json target/manifests/firebolt-device-manifest.json
         cp examples/manifest/mock/mock-app-library.json target/manifests/firebolt-app-library.json
         cp examples/manifest/mock/mock-extn-manifest.json target/manifests/firebolt-extn-manifest.json
