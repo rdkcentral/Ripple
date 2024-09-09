@@ -104,6 +104,7 @@ case ${1} in
         cp examples/manifest/mock/mock-app-library.json target/manifests/firebolt-app-library.json
         cp examples/manifest/mock/mock-extn-manifest.json target/manifests/firebolt-extn-manifest.json
         cp examples/manifest/mock/mock-thunder-device.json target/manifests/mock-thunder-device.json
+        cp openrpc_validator/src/test/firebolt-open-rpc.json target/openrpc/firebolt-open-rpc.json
 
         sed -i "" "s@\"default_path\": \"/usr/lib/rust/\"@\"default_path\": \"$workspace_dir/target/debug/\"@" target/manifests/firebolt-extn-manifest.json
         default_extension=$(get_default_extension)
