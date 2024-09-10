@@ -130,15 +130,15 @@ impl OpenRpcState {
         extn_sdks: Vec<String>,
         provider_registrations: Vec<String>,
     ) -> OpenRpcState {
-        let open_rpc_path = load_firebolt_open_rpc_path().expect("Need valid RPC file");
-        let version_manifest: FireboltVersionManifest =
-            serde_json::from_str(&open_rpc_path).expect("Need valid RPC file");
+        let open_rpc_path = load_firebolt_open_rpc_path().expect("Need valid open-rpc file");
+        let version_manifest: FireboltVersionManifest = serde_json::from_str(&open_rpc_path)
+            .expect("Failed parsing FireboltVersionManifest from open RPC file");
         let firebolt_open_rpc: FireboltOpenRpc = version_manifest.clone().into();
         let ripple_rpc_file = std::include_str!("./ripple-rpc.json");
         let mut ripple_open_rpc: FireboltOpenRpc = FireboltOpenRpc::default();
         Self::load_additional_rpc(&mut ripple_open_rpc, ripple_rpc_file);
-        let openrpc_validator: FireboltOpenRpcValidator =
-            serde_json::from_str(&open_rpc_path).expect("Need valid RPC file");
+        let openrpc_validator: FireboltOpenRpcValidator = serde_json::from_str(&open_rpc_path)
+            .expect("Failed parsing FireboltOpenRpcValidator from open RPC file");
 
         let v = OpenRpcState {
             firebolt_cap_map: Arc::new(RwLock::new(firebolt_open_rpc.get_methods_caps())),
@@ -423,8 +423,6 @@ impl OpenRpcState {
 
 fn load_firebolt_open_rpc_path() -> Option<String> {
     let mut fb_open_rpc_file = "".to_string();
-
-    //open_rpc file is taken from environment variable set path if local_dev/test feature is enabled
     if cfg!(feature = "local_dev") {
         let key = "FIREBOLT_OPEN_RPC";
         let env_var = std::env::var(key);
@@ -432,8 +430,7 @@ fn load_firebolt_open_rpc_path() -> Option<String> {
             fb_open_rpc_file = path;
         };
     } else if cfg!(test) {
-        fb_open_rpc_file =
-            "../../../../openrpc_validator/src/test/firebolt-open-rpc.json".to_string();
+        fb_open_rpc_file = "../../openrpc_validator/src/test/firebolt-open-rpc.json".to_string();
     } else {
         fb_open_rpc_file = "/etc/ripple/openrpc/firebolt-open-rpc.json".to_string();
     }
@@ -443,10 +440,10 @@ fn load_firebolt_open_rpc_path() -> Option<String> {
             debug!("loading firebolt_open_rpc from {}", &fb_open_rpc_file);
             Some(content)
         }
-        Err(_e) => {
+        Err(e) => {
             error!(
-                "can't read firebolt_open_rpc from path :{}",
-                &fb_open_rpc_file
+                "can't read firebolt_open_rpc from path :{}, e={:?}",
+                &fb_open_rpc_file, e
             );
             None
         }
