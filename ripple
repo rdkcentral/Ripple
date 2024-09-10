@@ -81,7 +81,6 @@ case ${1} in
         cp ./examples/manifest/app-library-example.json ~/.ripple/firebolt-app-library.json
         cp ./examples/manifest/device-manifest-example.json ~/.ripple/firebolt-device-manifest.json
         cp ./examples/manifest/extn-manifest-example.json ~/.ripple/firebolt-extn-manifest.json
-        cp ./openrpc_validator/src/test/firebolt-open-rpc.json ~/.ripple/firebolt-open-rpc.json
 
         ## Update firebolt-extn-manifest.json
         sed -i "" "s@\"default_path\": \"/usr/lib/rust/\"@\"default_path\": \"$workspace_dir/target/debug/\"@" ~/.ripple/firebolt-extn-manifest.json
@@ -101,13 +100,10 @@ case ${1} in
         workspace_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
         mkdir -p target/manifests
         rm -rf target/manifests/*
-        mkdir -p target/openrpc
-        rm -rf target/openrpc/*
         cp examples/manifest/mock/mock-device-manifest.json target/manifests/firebolt-device-manifest.json
         cp examples/manifest/mock/mock-app-library.json target/manifests/firebolt-app-library.json
         cp examples/manifest/mock/mock-extn-manifest.json target/manifests/firebolt-extn-manifest.json
         cp examples/manifest/mock/mock-thunder-device.json target/manifests/mock-thunder-device.json
-        cp openrpc_validator/src/test/firebolt-open-rpc.json target/openrpc/firebolt-open-rpc.json
 
         sed -i "" "s@\"default_path\": \"/usr/lib/rust/\"@\"default_path\": \"$workspace_dir/target/debug/\"@" target/manifests/firebolt-extn-manifest.json
         default_extension=$(get_default_extension)
