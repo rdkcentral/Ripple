@@ -97,14 +97,6 @@ case ${1} in
         cargo build --features local_dev
         DEVICE_HOST=${2} cargo run --features local_dev core/main 
     ;;
-    "test")
-        mkdir -p target/openrpc
-        rm -rf target/openrpc/*
-        workspace_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-        cp openrpc_validator/src/test/firebolt-open-rpc.json target/openrpc/firebolt-open-rpc.json
-        export FIREBOLT_OPEN_RPC=${workspace_dir}/target/openrpc/firebolt-open-rpc.json
-        cargo test
-    ;;
     "run-mock")
         workspace_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
         mkdir -p target/manifests
