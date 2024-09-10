@@ -136,6 +136,14 @@ impl ProviderResponsePayload {
             ProviderResponsePayload::GenericResponse(res) => res.clone(),
         }
     }
+
+    pub fn is_error(&self) -> Option<GenericProviderError> {
+        if let ProviderResponsePayload::GenericError(e) = self {
+            Some(e.clone())
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -371,5 +379,18 @@ mod tests {
                 entries: vec![],
             })
         );
+    }
+
+    #[test]
+    fn test_error_payload() {
+        let error = ProviderResponsePayload::GenericError(GenericProviderError {
+            code: -32121,
+            message: "some error message".into(),
+            data: None,
+        });
+        let er = error.is_error().unwrap();
+        assert!(er.code.eq(&-32121));
+        assert!(er.message.eq("some error message"));
+        assert!(er.data.is_none());
     }
 }
