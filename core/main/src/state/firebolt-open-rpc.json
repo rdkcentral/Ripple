@@ -111,21 +111,6 @@
 				"negotiable": false
 			}
 		},
-		"xrn:firebolt:capability:advertising:policy": {
-			"level": "must",
-			"use": {
-				"public": true,
-				"negotiable": true
-			},
-			"manage": {
-				"public": false,
-				"negotiable": false
-			},
-			"provide": {
-				"public": false,
-				"negotiable": false
-			}
-		},
 		"xrn:firebolt:capability:approve:content": {
 			"level": "must",
 			"use": {
@@ -726,6 +711,21 @@
 				"negotiable": false
 			}
 		},
+		"xrn:firebolt:capability:privacy:advertising": {
+			"level": "could",
+			"use": {
+				"public": true,
+				"negotiable": true
+			},
+			"manage": {
+				"public": false,
+				"negotiable": false
+			},
+			"provide": {
+				"public": false,
+				"negotiable": false
+			}
+		},
 		"xrn:firebolt:capability:privacy:settings": {
 			"level": "could",
 			"use": {
@@ -927,7 +927,7 @@
 			"openrpc": "1.2.4",
 			"info": {
 				"title": "Firebolt JSON-RPC API",
-				"version": "1.3.1-next.1",
+				"version": "1.3.0",
 				"x-module-descriptions": {
 					"Internal": "Internal methods for SDK / FEE integration",
 					"Accessibility": "The `Accessibility` module provides access to the user/device settings for closed captioning and voice guidance.\n\nApps **SHOULD** attempt o respect these settings, rather than manage and persist seprate settings, which would be different per-app.",
@@ -1015,7 +1015,17 @@
 						"name": "session",
 						"summary": "Info about the SDK/FEE session",
 						"schema": {
-							"$ref": "#/components/schemas/InitializeResult"
+							"type": "object",
+							"required": [
+								"version"
+							],
+							"properties": {
+								"version": {
+									"$ref": "#/x-schemas/Types/SemanticVersion",
+									"description": "The semantic version of the FEE."
+								}
+							},
+							"additionalProperties": false
 						}
 					},
 					"examples": [
@@ -1955,7 +1965,8 @@
 						{
 							"name": "capabilities",
 							"x-uses": [
-								"xrn:firebolt:capability:advertising:policy"
+								"xrn:firebolt:capability:privacy:advertising",
+								"xrn:firebolt:capability:advertising:configuration"
 							]
 						}
 					],
@@ -2030,7 +2041,7 @@
 							]
 						}
 					],
-					"summary": "Get the IAB compliant identifier for advertising (IFA). It is recommended to use the IFA to manage advertising related activities while respecting the user's privacy settings.",
+					"summary": "Get the advertising ID",
 					"params": [
 						{
 							"name": "options",
@@ -2045,7 +2056,21 @@
 						"name": "advertisingId",
 						"summary": "the advertising ID",
 						"schema": {
-							"$ref": "#/components/schemas/AdvertisingIdResult"
+							"type": "object",
+							"properties": {
+								"ifa": {
+									"type": "string"
+								},
+								"ifa_type": {
+									"type": "string"
+								},
+								"lmt": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"ifa"
+							]
 						}
 					},
 					"examples": [
@@ -2056,7 +2081,7 @@
 								"name": "Default Result",
 								"value": {
 									"ifa": "01234567-89AB-CDEF-GH01-23456789ABCD",
-									"ifa_type": "sspid",
+									"ifa_type": "idfa",
 									"lmt": "0"
 								}
 							}
@@ -2078,7 +2103,7 @@
 								"name": "Default Result",
 								"value": {
 									"ifa": "01234567-89AB-CDEF-GH01-23456789ABCD",
-									"ifa_type": "sspid",
+									"ifa_type": "idfa",
 									"lmt": "0"
 								}
 							}
@@ -2162,7 +2187,7 @@
 							"params": [],
 							"result": {
 								"name": "Default Result",
-								"value": "app.operator"
+								"value": "operator.app"
 							}
 						}
 					]
@@ -2290,7 +2315,8 @@
 						{
 							"name": "capabilities",
 							"x-uses": [
-								"xrn:firebolt:capability:advertising:policy"
+								"xrn:firebolt:capability:privacy:advertising",
+								"xrn:firebolt:capability:advertising:configuration"
 							]
 						}
 					],
@@ -2593,7 +2619,22 @@
 						"name": "token",
 						"summary": "the token value, type, and expiration",
 						"schema": {
-							"$ref": "#/components/schemas/AuthenticationTokenResult"
+							"type": "object",
+							"properties": {
+								"value": {
+									"type": "string"
+								},
+								"expires": {
+									"type": "string",
+									"format": "date-time"
+								},
+								"type": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"value"
+							]
 						}
 					},
 					"examples": [
@@ -6958,7 +6999,34 @@
 						"name": "versions",
 						"summary": "the versions",
 						"schema": {
-							"$ref": "#/components/schemas/DeviceVersion"
+							"type": "object",
+							"properties": {
+								"sdk": {
+									"$ref": "#/x-schemas/Types/SemanticVersion",
+									"description": "The Firebolt SDK version"
+								},
+								"api": {
+									"$ref": "#/x-schemas/Types/SemanticVersion",
+									"description": "The lateset Firebolt API version supported by the curent device."
+								},
+								"firmware": {
+									"$ref": "#/x-schemas/Types/SemanticVersion",
+									"description": "The device firmware version."
+								},
+								"os": {
+									"$ref": "#/x-schemas/Types/SemanticVersion",
+									"description": "**Deprecated** Use `firmware`, instead."
+								},
+								"debug": {
+									"type": "string",
+									"description": "Detail version as a string, for debugging purposes"
+								}
+							},
+							"required": [
+								"api",
+								"firmware",
+								"os"
+							]
 						}
 					},
 					"examples": [
@@ -7000,7 +7068,7 @@
 				},
 				{
 					"name": "Device.hdcp",
-					"summary": "Get the negotiated HDCP profiles for a connected device. \n\n For devices that do not require additional connections (e.g. panels), `true` will be returned for all profiles.",
+					"summary": "Get the supported HDCP profiles",
 					"params": [],
 					"tags": [
 						{
@@ -7014,15 +7082,15 @@
 						}
 					],
 					"result": {
-						"name": "supportedHdcpVersions",
-						"summary": "the supported HDCP versions",
+						"name": "supportedHdcpProfiles",
+						"summary": "the supported HDCP profiles",
 						"schema": {
-							"$ref": "#/components/schemas/HDCPVersionMap"
+							"$ref": "#/x-schemas/Types/BooleanMap"
 						}
 					},
 					"examples": [
 						{
-							"name": "Getting the supported HDCP versions",
+							"name": "Getting the supported HDCP profiles",
 							"params": [],
 							"result": {
 								"name": "Default Result",
@@ -7036,7 +7104,7 @@
 				},
 				{
 					"name": "Device.hdr",
-					"summary": "Get the negotiated HDR formats for the connected display and device",
+					"summary": "Get the supported HDR profiles",
 					"params": [],
 					"tags": [
 						{
@@ -7050,15 +7118,15 @@
 						}
 					],
 					"result": {
-						"name": "supportedHdrFormats",
-						"summary": "the supported HDR formats",
+						"name": "supportedHdrProfiles",
+						"summary": "the supported HDR profiles",
 						"schema": {
-							"$ref": "#/components/schemas/HDRFormatMap"
+							"$ref": "#/x-schemas/Types/BooleanMap"
 						}
 					},
 					"examples": [
 						{
-							"name": "Getting the supported HDR formats",
+							"name": "Getting the supported HDR profiles",
 							"params": [],
 							"result": {
 								"name": "Default Result",
@@ -7074,7 +7142,7 @@
 				},
 				{
 					"name": "Device.audio",
-					"summary": "Get the supported audio profiles for the connected devices. \n\n It is not recommended to use this API for visual badging on content within your app since this does not reflect the settings of the user.",
+					"summary": "Get the supported audio profiles",
 					"params": [],
 					"tags": [
 						{
@@ -7112,7 +7180,7 @@
 				},
 				{
 					"name": "Device.screenResolution",
-					"summary": "Get the resolution for the graphical surface of the app. \n\nThe pairs returned will be of a [width, height] format and will correspond to the following values: \n\nNTSC Standard Definition (SD): [720, 480] \n\nPAL Standard Definition (SD): [720, 576] \n\nHigh Definition (HD): [1280, 720] \n\nFull HD (FHD): [1920, 1080]\n\n4K Ultra High Definition (UHD): [3840, 2160]",
+					"summary": "Get the current screen resolution",
 					"params": [],
 					"tags": [
 						{
@@ -7148,7 +7216,7 @@
 				},
 				{
 					"name": "Device.videoResolution",
-					"summary": "Get the maximum supported video resolution of the currently connected device and display. \n\nThe pairs returned will be of a [width, height] format and will correspond to the following values: \n\nNTSC Standard Definition (SD): [720, 480] \n\nPAL Standard Definition (SD): [720, 576] \n\nHigh Definition (HD): [1280, 720] \n\nFull HD (FHD): [1920, 1080]\n\n4K Ultra High Definition (UHD): [3840, 2160]",
+					"summary": "Get the current video resolution",
 					"params": [],
 					"tags": [
 						{
@@ -7300,7 +7368,19 @@
 						"name": "networkInfo",
 						"summary": "the status and type",
 						"schema": {
-							"$ref": "#/components/schemas/NetworkInfoResult"
+							"type": "object",
+							"properties": {
+								"state": {
+									"$ref": "#/components/schemas/NetworkState"
+								},
+								"type": {
+									"$ref": "#/components/schemas/NetworkType"
+								}
+							},
+							"required": [
+								"state",
+								"type"
+							]
 						}
 					},
 					"examples": [
@@ -7475,7 +7555,7 @@
 				},
 				{
 					"name": "Device.onHdcpChanged",
-					"summary": "Get the negotiated HDCP profiles for a connected device. \n\n For devices that do not require additional connections (e.g. panels), `true` will be returned for all profiles.",
+					"summary": "Get the supported HDCP profiles",
 					"params": [
 						{
 							"name": "listen",
@@ -7502,22 +7582,22 @@
 						}
 					],
 					"result": {
-						"name": "supportedHdcpVersions",
-						"summary": "the supported HDCP versions",
+						"name": "supportedHdcpProfiles",
+						"summary": "the supported HDCP profiles",
 						"schema": {
 							"anyOf": [
 								{
 									"$ref": "#/x-schemas/Types/ListenResponse"
 								},
 								{
-									"$ref": "#/components/schemas/HDCPVersionMap"
+									"$ref": "#/x-schemas/Types/BooleanMap"
 								}
 							]
 						}
 					},
 					"examples": [
 						{
-							"name": "Getting the supported HDCP versions",
+							"name": "Getting the supported HDCP profiles",
 							"params": [
 								{
 									"name": "listen",
@@ -7536,7 +7616,7 @@
 				},
 				{
 					"name": "Device.onHdrChanged",
-					"summary": "Get the negotiated HDR formats for the connected display and device",
+					"summary": "Get the supported HDR profiles",
 					"params": [
 						{
 							"name": "listen",
@@ -7563,22 +7643,22 @@
 						}
 					],
 					"result": {
-						"name": "supportedHdrFormats",
-						"summary": "the supported HDR formats",
+						"name": "supportedHdrProfiles",
+						"summary": "the supported HDR profiles",
 						"schema": {
 							"anyOf": [
 								{
 									"$ref": "#/x-schemas/Types/ListenResponse"
 								},
 								{
-									"$ref": "#/components/schemas/HDRFormatMap"
+									"$ref": "#/x-schemas/Types/BooleanMap"
 								}
 							]
 						}
 					},
 					"examples": [
 						{
-							"name": "Getting the supported HDR formats",
+							"name": "Getting the supported HDR profiles",
 							"params": [
 								{
 									"name": "listen",
@@ -7599,7 +7679,7 @@
 				},
 				{
 					"name": "Device.onAudioChanged",
-					"summary": "Get the supported audio profiles for the connected devices. \n\n It is not recommended to use this API for visual badging on content within your app since this does not reflect the settings of the user.",
+					"summary": "Get the supported audio profiles",
 					"params": [
 						{
 							"name": "listen",
@@ -7662,7 +7742,7 @@
 				},
 				{
 					"name": "Device.onScreenResolutionChanged",
-					"summary": "Get the resolution for the graphical surface of the app. \n\nThe pairs returned will be of a [width, height] format and will correspond to the following values: \n\nNTSC Standard Definition (SD): [720, 480] \n\nPAL Standard Definition (SD): [720, 576] \n\nHigh Definition (HD): [1280, 720] \n\nFull HD (FHD): [1920, 1080]\n\n4K Ultra High Definition (UHD): [3840, 2160]",
+					"summary": "Get the current screen resolution",
 					"params": [
 						{
 							"name": "listen",
@@ -7723,7 +7803,7 @@
 				},
 				{
 					"name": "Device.onVideoResolutionChanged",
-					"summary": "Get the maximum supported video resolution of the currently connected device and display. \n\nThe pairs returned will be of a [width, height] format and will correspond to the following values: \n\nNTSC Standard Definition (SD): [720, 480] \n\nPAL Standard Definition (SD): [720, 576] \n\nHigh Definition (HD): [1280, 720] \n\nFull HD (FHD): [1920, 1080]\n\n4K Ultra High Definition (UHD): [3840, 2160]",
+					"summary": "Get the current video resolution",
 					"params": [
 						{
 							"name": "listen",
@@ -7819,7 +7899,19 @@
 									"$ref": "#/x-schemas/Types/ListenResponse"
 								},
 								{
-									"$ref": "#/components/schemas/NetworkInfoResult"
+									"type": "object",
+									"properties": {
+										"state": {
+											"$ref": "#/components/schemas/NetworkState"
+										},
+										"type": {
+											"$ref": "#/components/schemas/NetworkType"
+										}
+									},
+									"required": [
+										"state",
+										"type"
+									]
 								}
 							]
 						}
@@ -19285,20 +19377,6 @@
 			],
 			"components": {
 				"schemas": {
-					"InitializeResult": {
-						"title": "InitializeResult",
-						"type": "object",
-						"required": [
-							"version"
-						],
-						"properties": {
-							"version": {
-								"$ref": "#/x-schemas/Types/SemanticVersion",
-								"description": "The semantic version of the FEE."
-							}
-						},
-						"additionalProperties": false
-					},
 					"AudioDescriptionSettings": {
 						"title": "AudioDescriptionSettings",
 						"type": "object",
@@ -19473,33 +19551,6 @@
 							}
 						}
 					},
-					"AdvertisingIdResult": {
-						"title": "AdvertisingIdResult",
-						"type": "object",
-						"properties": {
-							"ifa": {
-								"type": "string",
-								"description": "UUID conforming to IAB standard"
-							},
-							"ifa_type": {
-								"type": "string",
-								"description": "source of the IFA as defined by IAB"
-							},
-							"lmt": {
-								"type": "string",
-								"enum": [
-									"0",
-									"1"
-								],
-								"description": "boolean that if set to 1, user has requested ad tracking and measurement is disabled"
-							}
-						},
-						"required": [
-							"ifa",
-							"ifa_type",
-							"lmt"
-						]
-					},
 					"TokenType": {
 						"title": "TokenType",
 						"type": "string",
@@ -19507,25 +19558,6 @@
 							"platform",
 							"device",
 							"distributor"
-						]
-					},
-					"AuthenticationTokenResult": {
-						"title": "AuthenticationTokenResult",
-						"type": "object",
-						"properties": {
-							"value": {
-								"type": "string"
-							},
-							"expires": {
-								"type": "string",
-								"format": "date-time"
-							},
-							"type": {
-								"type": "string"
-							}
-						},
-						"required": [
-							"value"
 						]
 					},
 					"CapabilityOption": {
@@ -19601,98 +19633,18 @@
 						]
 					},
 					"Resolution": {
-						"oneOf": [
+						"type": "array",
+						"items": [
 							{
-								"type": "array",
-								"items": [
-									{
-										"type": "integer",
-										"const": 720,
-										"description": "Width in pixels"
-									},
-									{
-										"type": "integer",
-										"const": 480,
-										"description": "Height in pixels"
-									}
-								],
-								"additionalItems": false,
-								"minItems": 2,
-								"maxItems": 2
+								"type": "integer"
 							},
 							{
-								"type": "array",
-								"items": [
-									{
-										"type": "integer",
-										"const": 720,
-										"description": "Width in pixels"
-									},
-									{
-										"type": "integer",
-										"const": 576,
-										"description": "Height in pixels"
-									}
-								],
-								"additionalItems": false,
-								"minItems": 2,
-								"maxItems": 2
-							},
-							{
-								"type": "array",
-								"items": [
-									{
-										"type": "integer",
-										"const": 1280,
-										"description": "Width in pixels"
-									},
-									{
-										"type": "integer",
-										"const": 720,
-										"description": "Height in pixels"
-									}
-								],
-								"additionalItems": false,
-								"minItems": 2,
-								"maxItems": 2
-							},
-							{
-								"type": "array",
-								"items": [
-									{
-										"type": "integer",
-										"const": 1920,
-										"description": "Width in pixels"
-									},
-									{
-										"type": "integer",
-										"const": 1080,
-										"description": "Height in pixels"
-									}
-								],
-								"additionalItems": false,
-								"minItems": 2,
-								"maxItems": 2
-							},
-							{
-								"type": "array",
-								"items": [
-									{
-										"type": "integer",
-										"const": 3840,
-										"description": "Width in pixels"
-									},
-									{
-										"type": "integer",
-										"const": 2160,
-										"description": "Height in pixels"
-									}
-								],
-								"additionalItems": false,
-								"minItems": 2,
-								"maxItems": 2
+								"type": "integer"
 							}
-						]
+						],
+						"additionalItems": false,
+						"minItems": 2,
+						"maxItems": 2
 					},
 					"NetworkType": {
 						"title": "NetworkType",
@@ -19715,115 +19667,16 @@
 					},
 					"AudioProfiles": {
 						"title": "AudioProfiles",
-						"type": "object",
-						"properties": {
-							"stereo": {
-								"type": "boolean"
+						"allOf": [
+							{
+								"$ref": "#/x-schemas/Types/BooleanMap"
 							},
-							"dolbyDigital5.1": {
-								"type": "boolean"
-							},
-							"dolbyDigital5.1+": {
-								"type": "boolean"
-							},
-							"dolbyAtmos": {
-								"type": "boolean"
+							{
+								"type": "object",
+								"propertyNames": {
+									"$ref": "#/x-schemas/Types/AudioProfile"
+								}
 							}
-						},
-						"required": [
-							"stereo",
-							"dolbyDigital5.1",
-							"dolbyDigital5.1+",
-							"dolbyAtmos"
-						]
-					},
-					"HDRFormatMap": {
-						"title": "HDRFormatMap",
-						"type": "object",
-						"properties": {
-							"hdr10": {
-								"type": "boolean"
-							},
-							"hdr10Plus": {
-								"type": "boolean"
-							},
-							"dolbyVision": {
-								"type": "boolean"
-							},
-							"hlg": {
-								"type": "boolean"
-							}
-						},
-						"required": [
-							"hdr10",
-							"hdr10Plus",
-							"dolbyVision",
-							"hlg"
-						],
-						"description": "The type of HDR format that is supported"
-					},
-					"HDCPVersionMap": {
-						"title": "HDCPVersionMap",
-						"type": "object",
-						"properties": {
-							"hdcp1.4": {
-								"type": "boolean"
-							},
-							"hdcp2.2": {
-								"type": "boolean"
-							}
-						},
-						"required": [
-							"hdcp1.4",
-							"hdcp2.2"
-						],
-						"description": "The type of HDCP versions that is supported"
-					},
-					"DeviceVersion": {
-						"title": "DeviceVersion",
-						"type": "object",
-						"properties": {
-							"sdk": {
-								"$ref": "#/x-schemas/Types/SemanticVersion",
-								"description": "The Firebolt SDK version"
-							},
-							"api": {
-								"$ref": "#/x-schemas/Types/SemanticVersion",
-								"description": "The latest Firebolt API version supported by the current device."
-							},
-							"firmware": {
-								"$ref": "#/x-schemas/Types/SemanticVersion",
-								"description": "The firmware version as reported by the device"
-							},
-							"os": {
-								"$ref": "#/x-schemas/Types/SemanticVersion",
-								"description": "**Deprecated** Use `firmware`, instead."
-							},
-							"debug": {
-								"type": "string",
-								"description": "Detailed version as a string, for debugging purposes"
-							}
-						},
-						"required": [
-							"api",
-							"firmware",
-							"os"
-						]
-					},
-					"NetworkInfoResult": {
-						"title": "NetworkInfoResult",
-						"type": "object",
-						"properties": {
-							"state": {
-								"$ref": "#/components/schemas/NetworkState"
-							},
-							"type": {
-								"$ref": "#/components/schemas/NetworkType"
-							}
-						},
-						"required": [
-							"state",
-							"type"
 						]
 					},
 					"DiscoveryPolicy": {
@@ -20975,9 +20828,18 @@
 						"enum": [
 							"stereo",
 							"dolbyDigital5.1",
+							"dolbyDigital7.1",
 							"dolbyDigital5.1+",
+							"dolbyDigital7.1+",
 							"dolbyAtmos"
 						]
+					},
+					"BooleanMap": {
+						"title": "BooleanMap",
+						"type": "object",
+						"additionalProperties": {
+							"type": "boolean"
+						}
 					},
 					"LocalizedString": {
 						"title": "LocalizedString",
@@ -21017,13 +20879,6 @@
 							]
 						}
 					},
-					"BooleanMap": {
-						"title": "BooleanMap",
-						"type": "object",
-						"additionalProperties": {
-							"type": "boolean"
-						}
-					},
 					"Timeout": {
 						"title": "Timeout",
 						"description": "Defines the timeout in seconds. If the threshold for timeout is passed for any operation without a result it will throw an error.",
@@ -21039,7 +20894,8 @@
 						"title": "ClosedCaptionsSettings",
 						"type": "object",
 						"required": [
-							"enabled"
+							"enabled",
+							"styles"
 						],
 						"properties": {
 							"enabled": {
@@ -21084,7 +20940,8 @@
 						"title": "VoiceGuidanceSettings",
 						"type": "object",
 						"required": [
-							"enabled"
+							"enabled",
+							"speed"
 						],
 						"properties": {
 							"enabled": {
