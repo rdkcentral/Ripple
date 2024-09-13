@@ -402,7 +402,15 @@ impl ProviderRegistrar {
                     {
                         Ok(result) => match result {
                             Ok(provider_response_payload) => {
-                                return Ok(provider_response_payload.as_value());
+                                return if let Some(e) = provider_response_payload.is_error() {
+                                    Err(Error::Call(CallError::Custom {
+                                        code: e.code,
+                                        message: e.message,
+                                        data: None,
+                                    }))
+                                } else {
+                                    Ok(provider_response_payload.as_value())
+                                };
                             }
                             Err(_) => {
                                 return Err(Error::Custom(String::from(
