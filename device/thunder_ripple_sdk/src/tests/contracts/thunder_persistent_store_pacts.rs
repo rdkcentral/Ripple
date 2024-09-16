@@ -171,10 +171,7 @@ async fn test_device_get_persistent_value(with_scope: bool) {
     );
     params.insert("key".into(), ContractMatcher::MatchType("testKey".into()));
     if with_scope {
-        params.insert(
-            "scope".into(),
-            ContractMatcher::MatchType("device".into()),
-        );
+        params.insert("scope".into(), ContractMatcher::MatchType("device".into()));
     }
 
     let given_statement = format!(
@@ -261,10 +258,7 @@ async fn test_device_delete_persistent_value_by_key(with_scope: bool) {
     );
     params.insert("key".into(), ContractMatcher::MatchType("testKey".into()));
     if with_scope {
-        params.insert(
-            "scope".into(),
-            ContractMatcher::MatchType("device".into()),
-        );
+        params.insert("scope".into(), ContractMatcher::MatchType("device".into()));
     }
 
     let given_statement = format!(
