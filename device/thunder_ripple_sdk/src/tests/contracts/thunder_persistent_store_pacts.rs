@@ -56,7 +56,7 @@ async fn test_device_set_persistent_value(with_scope: bool) {
         .await;
 
     let scope = if with_scope {
-        "matching(type, 'testScope')"
+        "matching(type, 'device')"
     } else {
         "matching(type, '')"
     };
@@ -116,7 +116,7 @@ async fn test_device_set_persistent_value(with_scope: bool) {
     };
     let mut scope = None;
     if with_scope {
-        scope = Some("testScope".to_string());
+        scope = Some("device".to_string());
     }
     let set_params = SetStorageProperty {
         namespace: namespace.to_string(),
@@ -173,13 +173,13 @@ async fn test_device_get_persistent_value(with_scope: bool) {
     if with_scope {
         params.insert(
             "scope".into(),
-            ContractMatcher::MatchType("testScope".into()),
+            ContractMatcher::MatchType("device".into()),
         );
     }
 
     let given_statement = format!(
         "\"key:{}\", \"namespace:{}\", \"scope:{}\" is retrieved from persistentStore with value \"{}\"",
-        "testKey", "testNamespace", if with_scope { "testScope" } else { "" }, "testValue1"
+        "testKey", "testNamespace", if with_scope { "device" } else { "" }, "testValue1"
     );
 
     pact_builder_async
@@ -207,7 +207,7 @@ async fn test_device_get_persistent_value(with_scope: bool) {
     let key = "testKey";
     let mut scope = None;
     if with_scope {
-        scope = Some("testScope".to_string());
+        scope = Some("device".to_string());
     }
     let get_params = GetStorageProperty {
         namespace: namespace.to_string(),
@@ -263,7 +263,7 @@ async fn test_device_delete_persistent_value_by_key(with_scope: bool) {
     if with_scope {
         params.insert(
             "scope".into(),
-            ContractMatcher::MatchType("testScope".into()),
+            ContractMatcher::MatchType("device".into()),
         );
     }
 
@@ -271,7 +271,7 @@ async fn test_device_delete_persistent_value_by_key(with_scope: bool) {
         "\"key:{}\", \"namespace:{}\", \"scope:{}\" is deleted from persistentStore",
         "testKey",
         "testNamespace",
-        if with_scope { "testScope" } else { "" }
+        if with_scope { "device" } else { "" }
     );
 
     pact_builder_async
@@ -299,7 +299,7 @@ async fn test_device_delete_persistent_value_by_key(with_scope: bool) {
     let key = "testKey";
     let mut scope = None;
     if with_scope {
-        scope = Some("testScope".to_string());
+        scope = Some("device".to_string());
     }
     let delete_params = DeleteStorageProperty {
         namespace: namespace.to_string(),
