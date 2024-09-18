@@ -692,6 +692,8 @@ impl BrokerOutputForwarder {
                                 super::rules_engine::RuleTransformType::Response,
                             ) {
                                 apply_response(filter, &rpc_request, &mut response);
+                            } else if response.result.is_none() && response.error.is_none() {
+                                response.result = Some(Value::Null);
                             }
                         }
 
