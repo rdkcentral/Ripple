@@ -39,7 +39,7 @@ const DEFAULT_PLUGIN_ACTIVATION_TIMEOUT: i64 = 8;
 // But it didn't work, most probably a documentation issue.
 // const STATE_CHANGE_EVENT_METHOD: &str = "client.events.1.statechange";
 
-const STATE_CHANGE_EVENT_METHOD: &str = "client.Controller.1.events.statechange";
+const STATE_CHANGE_EVENT_METHOD: &str = "thunder.Broker.Controller.events.statechange";
 
 #[derive(Debug, Deserialize, PartialEq, Serialize, Clone)]
 pub struct Status {
@@ -271,7 +271,7 @@ impl StatusManager {
             "method": format!("{}register", controller_call_sign),
             "params": json!({
                 "event": "statechange",
-                "id": "client.Controller.1.events"
+                "id": "thunder.Broker.Controller.events"
             })
         })
         .to_string();
@@ -330,8 +330,7 @@ impl StatusManager {
                     }
                 }
 
-                // return false from here so that other subscribers can also process the response
-                return false;
+                return true;
             }
         }
 
