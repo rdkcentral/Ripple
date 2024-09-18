@@ -466,6 +466,10 @@ impl ThunderClient {
         Ok(())
     }
     fn extract_callsign_from_register_method(method: &str) -> Option<String> {
+        println!(
+            "*** _DBEUG: extract_callsign_from_register_method: method={}",
+            method
+        );
         // capture the initial string before an optional version number, followed by ".register"
         let re = Regex::new(r"^(.*?)(?:\.\d+)?\.register$").unwrap();
 

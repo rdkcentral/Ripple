@@ -25,7 +25,7 @@ use ripple_sdk::{
             },
             fb_telemetry::OperationalMetricRequest,
         },
-        gateway::rpc_gateway_api::CallContext,
+        gateway::rpc_gateway_api::{CallContext, RpcRequest},
     },
     async_trait::async_trait,
     extn::{
@@ -59,6 +59,25 @@ pub async fn send_metric(
         debug!("drop data is true, not sending BI metrics");
         return Ok(());
     }
+    // <pca> Added
+    // debug!("*** _DEBUG: send_metric: Mark 1");
+    // if let Ok(payload_value) = serde_json::to_value(&payload) {
+    //     let rpc_request = RpcRequest::get_new_internal(
+    //         InternalRule::AnalyticsProcessor.to_string(),
+    //         Some(payload_value),
+    //     );
+    //     debug!("*** _DEBUG: send_metric: rpc_request={:?}", rpc_request);
+
+    //     if platform_state
+    //         .endpoint_state
+    //         .handle_brokerage(rpc_request, None)
+    //     {
+    //         debug!("*** _DEBUG: send_metric: Brokerage handled");
+    //         return Ok(());
+    //     }
+    // }
+    // </pca>
+
     if let Some(session) = platform_state.session_state.get_account_session() {
         let request = BehavioralMetricRequest {
             context: Some(platform_state.metrics.get_context()),
@@ -69,6 +88,7 @@ pub async fn send_metric(
             .get_client()
             .send_extn_request_transient(request);
     }
+    // </pca>
     Err(ripple_sdk::utils::error::RippleError::ProcessorError)
 }
 

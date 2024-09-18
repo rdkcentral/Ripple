@@ -432,6 +432,7 @@ impl EndpointBrokerState {
         rpc_request: RpcRequest,
         extn_message: Option<ExtnMessage>,
     ) -> bool {
+        println!("*** _DEBUG: handle_brokerage: entry");
         let mut handled: bool = true;
         let callback = self.callback.clone();
         let mut broker_sender = None;
@@ -458,7 +459,9 @@ impl EndpointBrokerState {
                 let broker = broker_sender.unwrap();
                 let (_, updated_request) = self.update_request(&rpc_request, rule, extn_message);
                 tokio::spawn(async move {
+                    println!("*** _DEBUG: handle_brokerage: Mark 1");
                     if let Err(e) = broker.send(updated_request.clone()).await {
+                        println!("*** _DEBUG: handle_brokerage: Mark 2");
                         callback.send_error(updated_request, e).await
                     }
                 });

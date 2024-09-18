@@ -62,6 +62,7 @@ use crate::{
         },
         gateway::rpc_gateway_api::RpcRequest,
         manifest::device_manifest::AppLibraryEntry,
+        observability::analytics::AnalyticsEvent,
         protocol::BridgeProtocolRequest,
         pubsub::{PubSubEvents, PubSubRequest, PubSubResponse},
         session::{AccountSessionRequest, AccountSessionResponse, SessionTokenRequest},
@@ -396,6 +397,9 @@ pub enum ExtnEvent {
     PubSubEvent(PubSubEvents),
     TimeZone(TimeZone),
     AppsUpdate(AppsUpdate),
+    // <pca> 2
+    Analytics(AnalyticsEvent),
+    // </pca>
 }
 
 impl ExtnPayloadProvider for ExtnEvent {

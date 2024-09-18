@@ -31,14 +31,20 @@ pub async fn boot_thunder(
     plugin_param: ThunderPluginBootParam,
 ) -> Option<ThunderBootstrapStateWithClient> {
     info!("Booting thunder");
+    println!("*** _DEBUG: boot_thunder: Mark 0");
     if let Ok(state) = ThunderGetConfigStep::setup(state, plugin_param).await {
+        info!("*** _DEBUG: boot_thunder: Mark 1");
         if let Ok(state) = ThunderPoolStep::setup(state).await {
+            info!("*** _DEBUG: boot_thunder: Mark 2");
+            // <pca> YAH: See if we get here now </pca>
             SetupThunderProcessor::setup(state.clone()).await;
             return Some(state);
         } else {
+            info!("*** _DEBUG: boot_thunder: Mark 3");
             error!("Unable to connect to Thuner, error in ThunderPoolStep");
         }
     } else {
+        info!("*** _DEBUG: boot_thunder: Mark 4");
         error!("Unable to connect to Thuner, error in ThunderGetConfigStep");
     }
     None

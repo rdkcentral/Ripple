@@ -48,6 +48,9 @@ pub mod processors {
     pub mod thunder_telemetry;
     pub mod thunder_wifi;
     pub mod thunder_window_manager;
+    // <pca> 2
+    pub mod thunder_analytics;
+    // </pca>
 }
 
 pub mod utils;
