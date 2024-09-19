@@ -149,6 +149,7 @@ pub struct CachedDeviceInfo {
     make: Option<String>,
     hdcp_support: Option<HashMap<HdcpProfile, bool>>,
     hdr_profile: Option<HashMap<HdrProfile, bool>>,
+    hdcp_status: Option<HDCPStatus>,
     version: Option<FireboltSemanticVersion>,
 }
 
@@ -181,6 +182,15 @@ impl CachedState {
     fn update_hdcp_support(&self, value: HashMap<HdcpProfile, bool>) {
         let mut hdcp = self.cached.write().unwrap();
         let _ = hdcp.hdcp_support.insert(value);
+    }
+
+    fn get_hdcp_status(&self) -> Option<HDCPStatus> {
+        self.cached.read().unwrap().hdcp_status.clone()
+    }
+
+    fn update_hdcp_status(&self, value: HDCPStatus) {
+        let mut hdcp = self.cached.write().unwrap();
+        let _ = hdcp.hdcp_status.insert(value);
     }
 
     fn get_hdr(&self) -> Option<HashMap<HdrProfile, bool>> {
@@ -644,7 +654,12 @@ impl ThunderDeviceInfoRequestProcessor {
         .is_ok()
     }
 
-    pub async fn get_hdcp_support(state: ThunderState) -> HashMap<HdcpProfile, bool> {
+    pub async fn update_hdcp_cache(state: CachedState) -> HashMap<HdcpProfile, bool> {
+        Self::get_hdcp_status(&state).await;
+        Self::get_hdcp_support(state.clone()).await
+    }
+
+    pub async fn get_hdcp_support(state: CachedState) -> HashMap<HdcpProfile, bool> {
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -679,6 +694,9 @@ impl ThunderDeviceInfoRequestProcessor {
             hdcp_response.insert(HdcpProfile::Hdcp2_2, is_hdcp_supported);
         }
 
+        // update cache
+        state.update_hdcp_support(hdcp_response.clone());
+
         hdcp_response
     }
 
@@ -686,9 +704,7 @@ impl ThunderDeviceInfoRequestProcessor {
         if let Some(v) = state.get_hdcp_support() {
             v
         } else {
-            let v = Self::get_hdcp_support(state.clone().state).await;
-            state.update_hdcp_support(v.clone());
-            v
+            Self::get_hdcp_support(state.clone()).await
         }
     }
 
@@ -722,11 +738,23 @@ impl ThunderDeviceInfoRequestProcessor {
         if let Ok(thdcp) = serde_json::from_value::<ThunderHDCPStatus>(resp.message) {
             response = thdcp.hdcp_status;
         }
+
+        // update cache
+        state.update_hdcp_status(response.clone());
+
         response
     }
 
+    async fn get_cached_hdcp_status(state: &CachedState) -> HDCPStatus {
+        if let Some(v) = state.get_hdcp_status() {
+            v
+        } else {
+            Self::get_hdcp_status(state).await
+        }
+    }
+
     async fn hdcp_status(state: CachedState, req: ExtnMessage) -> bool {
-        let response = Self::get_hdcp_status(&state).await;
+        let response = Self::get_cached_hdcp_status(&state).await;
 
         Self::respond(
             state.get_client(),
@@ -747,13 +775,13 @@ impl ThunderDeviceInfoRequestProcessor {
         if let Some(v) = state.get_hdr() {
             v
         } else {
-            let v = Self::get_hdr(state.clone().state).await;
+            let v = Self::get_hdr(state.clone()).await;
             state.update_hdr_support(v.clone());
             v
         }
     }
 
-    pub async fn get_hdr(state: ThunderState) -> HashMap<HdrProfile, bool> {
+    pub async fn get_hdr(state: CachedState) -> HashMap<HdrProfile, bool> {
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -787,6 +815,10 @@ impl ThunderDeviceInfoRequestProcessor {
             HdrProfile::Hdr10plus,
             0 != (supported_cap & hdr_flags::HDRSTANDARD_HDR10PLUS),
         );
+
+        // update cache
+        state.update_hdr_support(hm.clone());
+
         hm
     }
 
@@ -1392,7 +1424,7 @@ impl ThunderDeviceInfoRequestProcessor {
             },
             async {
                 if device_info_authorized {
-                    Some(Self::get_hdcp_status(&state).await)
+                    Some(Self::get_cached_hdcp_status(&state).await)
                 } else {
                     None
                 }

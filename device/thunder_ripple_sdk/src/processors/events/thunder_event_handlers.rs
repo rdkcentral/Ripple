@@ -59,8 +59,8 @@ use super::super::thunder_device_info::{
     get_dimension_from_resolution, ThunderDeviceInfoRequestProcessor,
 };
 
-pub fn is_active_input(value: ThunderEventMessage) -> bool {
-    if let ThunderEventMessage::ActiveInput(_) = value {
+pub fn is_display_connection_changed(value: ThunderEventMessage) -> bool {
+    if let ThunderEventMessage::DisplayConnection(_) = value {
         return true;
     }
     false
@@ -74,7 +74,7 @@ pub fn is_resolution(value: ThunderEventMessage) -> bool {
 }
 
 // -----------------------
-// Active Input Changed
+// Display Connection Changed
 pub struct HDCPEventHandler;
 
 impl HDCPEventHandler {
@@ -83,14 +83,15 @@ impl HDCPEventHandler {
         value: ThunderEventMessage,
         callback_type: DeviceEventCallback,
     ) {
-        if let ThunderEventMessage::ActiveInput(input) = value {
-            if input.active_input {
-                debug!("activeInput changed");
-            }
+        if let ThunderEventMessage::DisplayConnection(_connection) = value {
+            debug!("HDCPEventHandler: display connection changed");
         }
+
         let state_c = state.clone();
+        let cached_state = CachedState::new(state.clone());
+
         tokio::spawn(async move {
-            let map = ThunderDeviceInfoRequestProcessor::get_hdcp_support(state).await;
+            let map = ThunderDeviceInfoRequestProcessor::update_hdcp_cache(cached_state).await;
             if let Ok(v) = Self::get_extn_event(map, callback_type) {
                 ThunderEventHandler::callback_device_event(state_c, Self::get_mapped_event(), v)
             }
@@ -104,7 +105,7 @@ impl ThunderEventHandlerProvider for HDCPEventHandler {
         ThunderEventHandler {
             request: Self::get_device_request(),
             handle: Self::handle,
-            is_valid: is_active_input,
+            is_valid: is_display_connection_changed,
             listeners: vec![id],
             id: Self::get_mapped_event(),
             callback_type,
@@ -116,7 +117,7 @@ impl ThunderEventHandlerProvider for HDCPEventHandler {
     }
 
     fn event_name() -> String {
-        "activeInputChanged".into()
+        "onDisplayConnectionChanged".into()
     }
 
     fn module() -> String {
@@ -135,14 +136,15 @@ impl HDREventHandler {
         value: ThunderEventMessage,
         callback_type: DeviceEventCallback,
     ) {
-        if let ThunderEventMessage::ActiveInput(input) = value {
-            if input.active_input {
-                debug!("activeInput changed");
-            }
+        if let ThunderEventMessage::DisplayConnection(_connection) = value {
+            debug!("HDREventHandler: display connection changed");
         }
+
         let state_c = state.clone();
+        let cached_state = CachedState::new(state.clone());
+
         tokio::spawn(async move {
-            let map = ThunderDeviceInfoRequestProcessor::get_hdr(state).await;
+            let map = ThunderDeviceInfoRequestProcessor::get_hdr(cached_state).await;
             if let Ok(v) = Self::get_extn_event(map, callback_type) {
                 ThunderEventHandler::callback_device_event(state_c, Self::get_mapped_event(), v)
             }
@@ -157,7 +159,7 @@ impl ThunderEventHandlerProvider for HDREventHandler {
         ThunderEventHandler {
             request: Self::get_device_request(),
             handle: Self::handle,
-            is_valid: is_active_input,
+            is_valid: is_display_connection_changed,
             listeners: vec![id],
             id: Self::get_mapped_event(),
             callback_type,
@@ -169,7 +171,7 @@ impl ThunderEventHandlerProvider for HDREventHandler {
     }
 
     fn event_name() -> String {
-        "activeInputChanged".into()
+        "onDisplayConnectionChanged".into()
     }
 
     fn module() -> String {

@@ -29,8 +29,8 @@ use ripple_sdk::{
             device_events::{DeviceEvent, DeviceEventCallback},
             device_operator::DeviceSubscribeRequest,
             device_request::{
-                AudioProfile, InternetConnectionStatus, NetworkResponse, NetworkState, NetworkType,
-                PowerState, SystemPowerState, VoiceGuidanceState,
+                AudioProfile, HDCPStatus, InternetConnectionStatus, NetworkResponse, NetworkState,
+                NetworkType, PowerState, SystemPowerState, VoiceGuidanceState,
             },
         },
     },
@@ -42,12 +42,6 @@ use ripple_sdk::{
 use serde::{Deserialize, Serialize};
 
 use crate::{thunder_state::ThunderState, utils::get_audio_profile_from_value};
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ActiveInputThunderEvent {
-    pub active_input: bool,
-}
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -67,9 +61,16 @@ pub struct ResolutionChangedEvent {
     pub resolution: String,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DisplayConnectionChangedEvent {
+    #[serde(rename = "HDCPStatus")]
+    pub hdcp_status: HDCPStatus,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub enum ThunderEventMessage {
-    ActiveInput(ActiveInputThunderEvent),
+    DisplayConnection(DisplayConnectionChangedEvent),
     Resolution(ResolutionChangedEvent),
     Network(NetworkResponse),
     Internet(InternetConnectionStatus),
@@ -85,7 +86,7 @@ impl ThunderEventMessage {
             match device_event {
                 DeviceEvent::InputChanged | DeviceEvent::HdrChanged => {
                     if let Ok(v) = serde_json::from_value(value.clone()) {
-                        return Some(ThunderEventMessage::ActiveInput(v));
+                        return Some(ThunderEventMessage::DisplayConnection(v));
                     }
                 }
                 DeviceEvent::ScreenResolutionChanged | DeviceEvent::VideoResolutionChanged => {

@@ -75,6 +75,34 @@ impl ContextManager {
             warn!("No processor to set TimeZoneChanged status listener")
         }
 
+        // Setup the DisplayConnectionChanged status listener
+        debug!("Subscribing for change in Display Connection");
+        if ps
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::InputChanged,
+                subscribe: true,
+                callback_type: DeviceEventCallback::ExtnEvent,
+            })
+            .await
+            .is_err()
+        {
+            warn!("No processor to set InputChanged listener")
+        }
+
+        if ps
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::HdrChanged,
+                subscribe: true,
+                callback_type: DeviceEventCallback::ExtnEvent,
+            })
+            .await
+            .is_err()
+        {
+            warn!("No processor to set HdrChanged listener")
+        }
+
         let ps_c = ps.clone();
 
         // Asynchronously get context and update the state
