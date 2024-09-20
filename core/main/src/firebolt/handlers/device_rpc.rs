@@ -221,35 +221,8 @@ pub async fn get_uid(state: &PlatformState, app_id: String) -> RpcResult<String>
         StorageManager::set_string_for_scope(state, &new_data, None).await?;
         return Ok(uid);
     }
-    // XXX: Remove the followin block ?!
-    // Fetch and handle the device ID
-    let device_id = get_device_id(state)
-        .await
-        .map_err(|_| rpc_err("parse error"))?;
-    // check if the state supports encoding
-    if state.supports_encoding() {
-        let response = state
-            .get_client()
-            .send_extn_request(EncoderRequest {
-                reference: device_id,
-                scope: app_id.clone(),
-            })
-            .await;
-
-        if let Ok(resp) = response {
-            if let Some(ExtnResponse::String(enc_device_id)) =
-                resp.payload.extract::<ExtnResponse>()
-            {
-                let mut new_data = data.clone();
-                new_data.value = enc_device_id.clone();
-                StorageManager::set_string_for_scope(state, &new_data, None).await?;
-                state
-                    .app_manager_state
-                    .persist_migrated_state(&app_id, DEVICE_UID.to_string());
-                return Ok(enc_device_id);
-            }
-        }
-    }
+    
+    // XXX: if uid is not in storage & app is not migrated then what ?!
 
     Err(jsonrpsee::core::Error::Call(CallError::Custom {
         code: CAPABILITY_NOT_SUPPORTED,
