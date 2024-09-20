@@ -142,12 +142,8 @@ impl RpcRouter {
         let resources = state.router_state.resources.clone();
 
         let method = req.method.clone();
-        if let Some(overriden_method) = state
-            .get_manifest()
-            .has_rpc_override_method(&req.method)
-        {
-            req.method = overriden_method;
-            println!("route: overridding ")
+        if let Some(overridden_method) = state.get_manifest().has_rpc_override_method(&req.method) {
+            req.method = overridden_method;
         }
 
         tokio::spawn(async move {

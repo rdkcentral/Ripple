@@ -46,7 +46,6 @@ use ripple_sdk::{
                 AudioProfile, DeviceVersionResponse, HdcpProfile, HdrProfile, NetworkResponse,
             },
         },
-        distributor::distributor_encoder::EncoderRequest,
         firebolt::{
             fb_capabilities::CAPABILITY_NOT_SUPPORTED,
             fb_general::{ListenRequest, ListenerResponse},
@@ -221,7 +220,7 @@ pub async fn get_uid(state: &PlatformState, app_id: String) -> RpcResult<String>
         StorageManager::set_string_for_scope(state, &new_data, None).await?;
         return Ok(uid);
     }
-    
+
     // XXX: if uid is not in storage & app is not migrated then what ?!
 
     Err(jsonrpsee::core::Error::Call(CallError::Custom {
