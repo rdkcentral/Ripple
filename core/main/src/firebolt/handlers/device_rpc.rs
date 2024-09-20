@@ -221,7 +221,7 @@ pub async fn get_uid(state: &PlatformState, app_id: String) -> RpcResult<String>
         StorageManager::set_string_for_scope(state, &new_data, None).await?;
         return Ok(uid);
     }
-
+    // XXX: Remove the followin block ?!
     // Fetch and handle the device ID
     let device_id = get_device_id(state)
         .await
