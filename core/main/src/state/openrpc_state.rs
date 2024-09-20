@@ -156,8 +156,8 @@ impl OpenRpcState {
             if v.add_extension_open_rpc(&path).is_err() {
                 error!("Error adding extn_sdk from {path}");
             }
-            if v.load_extension_open_rpc_to_validator(path).is_err() {
-                error!("Error loading openrpc extn_sdk to validator");
+            if v.add_extension_open_rpc_to_validator(path).is_err() {
+                error!("Error adding openrpc extn_sdk to validator");
             }
         }
 
@@ -181,7 +181,7 @@ impl OpenRpcState {
     }
 
     // Add extension open rpc to the validator
-    pub fn load_extension_open_rpc_to_validator(&self, path: String) -> Result<(), RippleError> {
+    pub fn add_extension_open_rpc_to_validator(&self, path: String) -> Result<(), RippleError> {
         let extension_open_rpc_string = load_extension_open_rpc(path);
         if let Some(open_rpc) = extension_open_rpc_string {
             return match serde_json::from_str::<FireboltOpenRpcValidator>(&open_rpc) {
