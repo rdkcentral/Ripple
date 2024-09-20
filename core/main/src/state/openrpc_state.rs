@@ -36,10 +36,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use openrpc_validator::{
-    FireboltOpenRpc as FireboltOpenRpcValidator,
-    FireboltOpenRpcSpec as FireboltOpenRpcSpecValidator,
-};
+use openrpc_validator::FireboltOpenRpc as FireboltOpenRpcValidator;
 
 #[derive(Debug, Clone)]
 pub enum ApiSurface {
@@ -159,12 +156,9 @@ impl OpenRpcState {
             if v.add_extension_open_rpc(&path).is_err() {
                 error!("Error adding extn_sdk from {path}");
             }
-            let extension_open_rpc_string =
-                load_extension_open_rpc(path).expect("Need valid open-rpc file");
-            let additional_open_rpc_validator: FireboltOpenRpcValidator =
-                serde_json::from_str(&extension_open_rpc_string)
-                    .expect("Failed parsing FireboltOpenRpcValidator from open RPC file");
-            v.load_additional_open_rpc_to_validator(additional_open_rpc_validator.apis);
+            if v.load_extension_open_rpc_to_validator(path).is_err() {
+                error!("Error loading openrpc extn_sdk to validator");
+            }
         }
 
         v
@@ -186,15 +180,22 @@ impl OpenRpcState {
         false
     }
 
-    // Add additional open rpc to the validator
-    pub fn load_additional_open_rpc_to_validator(
-        &self,
-        open_rpc: HashMap<String, FireboltOpenRpcSpecValidator>,
-    ) {
-        let mut validator = self.openrpc_validator.write().unwrap();
-        for (k, v) in open_rpc {
-            validator.apis.insert(k, v);
-        }
+    // Add extension open rpc to the validator
+    pub fn load_extension_open_rpc_to_validator(&self, path: String) -> Result<(), RippleError> {
+        let extension_open_rpc_string = load_extension_open_rpc(path);
+        if let Some(open_rpc) = extension_open_rpc_string {
+            return match serde_json::from_str::<FireboltOpenRpcValidator>(&open_rpc) {
+                Ok(additional_open_rpc_validator) => {
+                    let mut validator = self.openrpc_validator.write().unwrap();
+                    for (k, v) in additional_open_rpc_validator.apis {
+                        validator.apis.insert(k, v);
+                    }
+                    return Ok(());
+                }
+                Err(_) => Err(RippleError::ParseError),
+            };
+        };
+        Err(RippleError::ParseError)
     }
 
     pub fn is_excluded(&self, method: String, app_id: String) -> bool {
