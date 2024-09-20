@@ -33,7 +33,7 @@ pub struct ExtnManifest {
     pub required_contracts: Vec<String>,
     pub rpc_aliases: HashMap<String, Vec<String>>,
     #[serde(default)]
-    pub rpc_overriddes: HashMap<String, String>,
+    pub rpc_overrides: HashMap<String, String>,
     pub timeout: Option<u64>,
     #[serde(default)]
     pub rules_path: Vec<String>,
@@ -171,7 +171,7 @@ impl ExtnManifest {
     }
 
     pub fn has_rpc_override_method(&self, method: &str) -> Option<String> {
-        self.rpc_overriddes.get(method).cloned()
+        self.rpc_overrides.get(method).cloned()
     }
 }
 #[cfg(test)]
