@@ -81,7 +81,6 @@ case ${1} in
         cp ./examples/manifest/app-library-example.json ~/.ripple/firebolt-app-library.json
         cp ./examples/manifest/device-manifest-example.json ~/.ripple/firebolt-device-manifest.json
         cp ./examples/manifest/extn-manifest-example.json ~/.ripple/firebolt-extn-manifest.json
-        cp ./openrpc_validator/src/test/firebolt-open-rpc.json ~/.ripple/firebolt-open-rpc.json
 
         ## Update firebolt-extn-manifest.json
         sed -i "" "s@\"default_path\": \"/usr/lib/rust/\"@\"default_path\": \"$workspace_dir/target/debug/\"@" ~/.ripple/firebolt-extn-manifest.json
@@ -90,7 +89,6 @@ case ${1} in
 
         ## Update firebolt-device-manifest.json
         sed -i "" "s@\"library\": \"/etc/firebolt-app-library.json\"@\"library\": \"$HOME/.ripple/firebolt-app-library.json\"@" ~/.ripple/firebolt-device-manifest.json
-        export FIREBOLT_OPEN_RPC=${workspace_dir}/target/openrpc/firebolt-open-rpc.json
         echo "All Done!"
     ;;
     "run")
@@ -115,7 +113,6 @@ case ${1} in
         sed -i "" "s@\"mock_data_file\": \"mock-device.json\"@\"mock_data_file\": \"$workspace_dir/target/manifests/mock-thunder-device.json\"@" target/manifests/firebolt-extn-manifest.json
         export EXTN_MANIFEST=${workspace_dir}/target/manifests/firebolt-extn-manifest.json
         export DEVICE_MANIFEST=${workspace_dir}/target/manifests/firebolt-device-manifest.json
-        export FIREBOLT_OPEN_RPC=${workspace_dir}/target/openrpc/firebolt-open-rpc.json
         cargo build --features local_dev
         cargo run --features local_dev core/main
     ;;
