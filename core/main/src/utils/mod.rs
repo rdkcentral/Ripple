@@ -18,6 +18,7 @@
 pub mod router_utils;
 pub mod rpc_utils;
 pub mod serde_utils;
+pub mod utils;
 
 #[cfg(test)]
 pub mod test_utils;

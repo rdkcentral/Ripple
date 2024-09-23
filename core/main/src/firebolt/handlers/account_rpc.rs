@@ -35,14 +35,16 @@ use crate::{
     utils::rpc_utils::rpc_err,
 };
 
+const KEY_FIREBOLT_ACCOUNT_UID: &str = "fireboltAccountUid";
+
 #[rpc(server)]
 pub trait Account {
     #[method(name = "account.session")]
     async fn session(&self, ctx: CallContext, a_t_r: AccountSessionTokenRequest) -> RpcResult<()>;
     #[method(name = "account.id")]
-    async fn id_rpc(&self, ctx: CallContext) -> RpcResult<String>;
+    async fn id(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "account.uid")]
-    async fn uid_rpc(&self, ctx: CallContext) -> RpcResult<String>;
+    async fn uid(&self, ctx: CallContext) -> RpcResult<String>;
 }
 
 #[derive(Debug, Clone)]
@@ -68,31 +70,13 @@ impl AccountServer for AccountImpl {
         Ok(())
     }
 
-    async fn id_rpc(&self, _ctx: CallContext) -> RpcResult<String> {
+    async fn id(&self, _ctx: CallContext) -> RpcResult<String> {
         self.id().await
     }
 
-    async fn uid_rpc(&self, ctx: CallContext) -> RpcResult<String> {
-        if let Ok(id) = self.id().await {
-            if self.platform_state.supports_encoding() {
-                if let Ok(resp) = self
-                    .platform_state
-                    .get_client()
-                    .send_extn_request(EncoderRequest {
-                        reference: id.clone(),
-                        scope: ctx.app_id.clone(),
-                    })
-                    .await
-                {
-                    if let Some(ExtnResponse::String(s)) = resp.payload.extract() {
-                        return Ok(s);
-                    }
-                }
-            }
-            return Ok(id);
-        }
-
-        Err(rpc_err("Account.uid: some failure"))
+    async fn uid(&self, ctx: CallContext) -> RpcResult<String> {
+        crate::utils::utils::get_uid(&self.platform_state, ctx.app_id, KEY_FIREBOLT_ACCOUNT_UID)
+            .await
     }
 }
 impl AccountImpl {
