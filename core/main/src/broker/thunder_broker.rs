@@ -110,7 +110,6 @@ impl ThunderBroker {
                         match broker_c.prepare_request(&request) {
                             Ok(updated_request) => {
                                 debug!("Sending request to broker {:?}", updated_request);
-                                debug!("*** _DEBUG: Sending request to broker {:?}", updated_request);
                                 for r in updated_request {
                                     let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
                                     let _flush = ws_tx.flush().await;

@@ -27,6 +27,7 @@ use ripple_sdk::{
             rpc_error::RpcError,
             rpc_gateway_api::{ApiMessage, ApiProtocol, RpcRequest},
         },
+        observability::analytics::AnalyticsRequest,
     },
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,
@@ -177,6 +178,7 @@ impl FireboltGateway {
             }
         }
         let platform_state = self.state.platform_state.clone();
+
         /*
          * The reason for spawning a new thread is that when request-1 comes, and it waits for
          * user grant. The response from user grant, (eg ChallengeResponse) comes as rpc which

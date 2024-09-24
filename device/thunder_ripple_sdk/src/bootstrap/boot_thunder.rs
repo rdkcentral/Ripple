@@ -36,7 +36,6 @@ pub async fn boot_thunder(
         info!("*** _DEBUG: boot_thunder: Mark 1");
         if let Ok(state) = ThunderPoolStep::setup(state).await {
             info!("*** _DEBUG: boot_thunder: Mark 2");
-            // <pca> YAH: See if we get here now </pca>
             SetupThunderProcessor::setup(state.clone()).await;
             return Some(state);
         } else {

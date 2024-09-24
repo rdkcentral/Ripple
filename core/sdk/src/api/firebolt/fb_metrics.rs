@@ -1023,6 +1023,21 @@ pub fn get_metrics_tags(
     Some(tags)
 }
 
+// <pca>
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct BehavioralMetricsEvent {
+    pub event_name: String,
+    pub event_version: Option<String>,
+    pub source_name: String,
+    pub source_version: String,
+    pub cet_list: Vec<String>,
+    pub epoch_timestamp: Option<u64>,
+    pub uptime_timestamp: Option<u64>,
+    //pub payload: BehavioralMetricPayload,
+    pub payload: String,
+}
+// </pca>
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -16,20 +16,21 @@
 //
 
 use ripple_sdk::{
-    api::observability::analytics::AnalyticsEvent,
+    api::observability::analytics::AnalyticsRequest,
     async_trait::async_trait,
     extn::{
-        client::extn_processor::{
-            DefaultExtnStreamer, ExtnEventProcessor, ExtnStreamProcessor, ExtnStreamer,
+        client::{
+            extn_client::ExtnClient,
+            extn_processor::{
+                DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
+            },
         },
-        extn_client_message::ExtnMessage,
+        extn_client_message::{ExtnMessage, ExtnResponse},
     },
     tokio::sync::mpsc::{Receiver as MReceiver, Sender as MSender},
-    utils::error::RippleError,
 };
-use serde::{Deserialize, Serialize};
 
-use crate::{client::thunder_plugin::ThunderPlugin, thunder_state::ThunderState};
+use crate::thunder_state::ThunderState;
 
 #[derive(Debug)]
 pub struct ThunderAnalyticsProcessor {
@@ -48,7 +49,7 @@ impl ThunderAnalyticsProcessor {
 }
 
 impl ExtnStreamProcessor for ThunderAnalyticsProcessor {
-    type VALUE = AnalyticsEvent;
+    type VALUE = AnalyticsRequest;
     type STATE = ThunderState;
 
     fn get_state(&self) -> Self::STATE {
@@ -65,25 +66,91 @@ impl ExtnStreamProcessor for ThunderAnalyticsProcessor {
 }
 
 #[async_trait]
-impl ExtnEventProcessor for ThunderAnalyticsProcessor {
-    async fn process_event(
+impl ExtnRequestProcessor for ThunderAnalyticsProcessor {
+    fn get_client(&self) -> ExtnClient {
+        self.state.get_client()
+    }
+
+    async fn process_request(
         state: Self::STATE,
-        _msg: ExtnMessage,
+        msg: ExtnMessage,
         extracted_message: Self::VALUE,
-    ) -> Option<bool> {
+    ) -> bool {
         println!(
-            "*** _DEBUG: ThunderAnalyticsProcessor::process_event: extracted_message={:?}",
+            "*** _DEBUG: 2 ThunderAnalyticsProcessor::process_request: extracted_message={:?}",
             extracted_message
         );
+
         match extracted_message {
-            AnalyticsEvent::SendMetrics(data) => {
+            AnalyticsRequest::SendMetrics(data) => {
                 println!(
-                    "*** _DEBUG: ThunderAnalyticsProcessor::process_event: data={:?}",
+                    "*** _DEBUG: ThunderAnalyticsProcessor::process_request: data={:?}",
                     data
                 );
             }
         }
 
-        None
+        Self::respond(state.get_client(), msg, ExtnResponse::None(()))
+            .await
+            .is_ok()
+    }
+}
+
+async fn send_metrics(state: ThunderState, metrics: Value) -> ExtnResponse {
+    /*
+    setup operation at higher scope to allow it to time itself
+    */
+    let operation = Operation::new(
+        AppsOperationType::Install,
+        app.clone().id,
+        AppData::new(app.clone().version),
+    );
+
+    let method: String = ThunderPlugin::PackageManager.method("install");
+    let request = InstallAppRequest::new(app.clone());
+
+    let metrics_timer = start_service_metrics_timer(
+        &state.thunder_state.get_client(),
+        ThunderMetricsTimerName::PackageManagerInstall.to_string(),
+    );
+
+    let device_response = state
+        .thunder_state
+        .get_thunder_client()
+        .call(DeviceCallRequest {
+            method,
+            params: Some(DeviceChannelParams::Json(
+                serde_json::to_string(&request).unwrap(),
+            )),
+        })
+        .await;
+
+    let thunder_resp = serde_json::from_value::<String>(device_response.message);
+
+    let status = if thunder_resp.is_ok() {
+        ThunderResponseStatus::Success
+    } else {
+        ThunderResponseStatus::Failure
+    };
+
+    stop_and_send_service_metrics_timer(
+        state.thunder_state.get_client().clone(),
+        metrics_timer,
+        status.to_string(),
+    )
+    .await;
+
+    match thunder_resp {
+        Ok(handle) => {
+            Self::add_or_remove_operation(
+                state.clone(),
+                handle.clone(),
+                operation,
+                Some(status.to_string()),
+            );
+
+            ExtnResponse::String(handle)
+        }
+        Err(_) => ExtnResponse::Error(RippleError::ProcessorError),
     }
 }

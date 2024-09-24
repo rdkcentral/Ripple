@@ -1,24 +1,24 @@
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 use crate::{
-    extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
+    api::firebolt::fb_metrics::BehavioralMetricsEvent,
+    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
 };
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub enum AnalyticsEvent {
-    SendMetrics(Value),
+pub enum AnalyticsRequest {
+    SendMetrics(BehavioralMetricsEvent),
 }
 
-impl ExtnPayloadProvider for AnalyticsEvent {
+impl ExtnPayloadProvider for AnalyticsRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Event(ExtnEvent::Analytics(self.clone()))
+        ExtnPayload::Request(ExtnRequest::Analytics(self.clone()))
     }
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        if let ExtnPayload::Event(ExtnEvent::Analytics(analytics_event)) = payload {
-            return Some(analytics_event);
+        if let ExtnPayload::Request(ExtnRequest::Analytics(analytics_request)) = payload {
+            return Some(analytics_request);
         }
         None
     }

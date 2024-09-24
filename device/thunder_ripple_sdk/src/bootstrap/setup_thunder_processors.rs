@@ -17,6 +17,7 @@
 
 use ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest;
 use ripple_sdk::api::status_update::ExtnStatus;
+use ripple_sdk::extn::client::extn_processor::ExtnStreamProcessor;
 use ripple_sdk::log::error;
 
 use crate::processors::thunder_analytics::ThunderAnalyticsProcessor;
@@ -74,8 +75,8 @@ impl SetupThunderProcessor {
 
         // <pca> 2
         // TODO: Config check here
-        println!("*** _DEBUG: setup");
-        extn_client.add_event_processor(ThunderAnalyticsProcessor::new(state.clone().state));
+        let thunder_analytics_processor = ThunderAnalyticsProcessor::new(state.clone().state);
+        extn_client.add_request_processor(thunder_analytics_processor);
         // </pca>
         extn_client.add_request_processor(ThunderRFCProcessor::new(state.clone().state));
         let _ = extn_client.event(ExtnStatus::Ready);
