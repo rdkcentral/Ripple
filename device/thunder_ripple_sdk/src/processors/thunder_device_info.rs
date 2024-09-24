@@ -246,6 +246,17 @@ impl CachedState {
         let mut cached = self.cached.write().unwrap();
         let _ = cached.version.insert(version);
     }
+
+    pub fn invalidate_hdcp_cache(&self) {
+        let mut cache = self.cached.write().unwrap();
+        cache.hdcp_support = None;
+        cache.hdcp_status = None;
+    }
+
+    pub fn invalidate_hdr_cache(&self) {
+        let mut cache = self.cached.write().unwrap();
+        cache.hdr_profile = None;
+    }
 }
 
 pub struct ThunderNetworkService;

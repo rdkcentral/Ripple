@@ -91,6 +91,7 @@ impl HDCPEventHandler {
         let cached_state = CachedState::new(state.clone());
 
         tokio::spawn(async move {
+            cached_state.invalidate_hdcp_cache();
             let map = ThunderDeviceInfoRequestProcessor::update_hdcp_cache(cached_state).await;
             if let Ok(v) = Self::get_extn_event(map, callback_type) {
                 ThunderEventHandler::callback_device_event(state_c, Self::get_mapped_event(), v)
@@ -144,6 +145,7 @@ impl HDREventHandler {
         let cached_state = CachedState::new(state.clone());
 
         tokio::spawn(async move {
+            cached_state.invalidate_hdr_cache();
             let map = ThunderDeviceInfoRequestProcessor::get_hdr(cached_state).await;
             if let Ok(v) = Self::get_extn_event(map, callback_type) {
                 ThunderEventHandler::callback_device_event(state_c, Self::get_mapped_event(), v)
