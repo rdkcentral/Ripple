@@ -22,11 +22,11 @@ use jsonrpsee::{
 };
 use ripple_sdk::{
     api::{
-        distributor::distributor_encoder::EncoderRequest,
+        //distributor::distributor_encoder::EncoderRequest,
         gateway::rpc_gateway_api::CallContext,
         session::{AccountSessionRequest, AccountSessionTokenRequest},
     },
-    extn::extn_client_message::ExtnResponse,
+    //extn::extn_client_message::ExtnResponse,
     log::error,
 };
 
@@ -75,7 +75,7 @@ impl AccountServer for AccountImpl {
     }
 
     async fn uid(&self, ctx: CallContext) -> RpcResult<String> {
-        crate::utils::utils::get_uid(&self.platform_state, ctx.app_id, KEY_FIREBOLT_ACCOUNT_UID)
+        crate::utils::common::get_uid(&self.platform_state, ctx.app_id, KEY_FIREBOLT_ACCOUNT_UID)
             .await
     }
 }

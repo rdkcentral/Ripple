@@ -194,6 +194,7 @@ mod tests {
                 extns: vec![],
                 required_contracts: vec![],
                 rpc_aliases: HashMap::new(),
+                rpc_overrides: HashMap::new(),
                 timeout: Some(5000),
                 rules_path: Vec::new(),
             }
@@ -259,6 +260,7 @@ mod tests {
             extns: vec![],
             required_contracts: vec![],
             rpc_aliases: HashMap::new(),
+            rpc_overrides: HashMap::new(),
             timeout: None,
             rules_path: Vec::new(),
         };

@@ -278,7 +278,7 @@ impl DeviceServer for DeviceImpl {
     }
 
     async fn uid(&self, ctx: CallContext) -> RpcResult<String> {
-        crate::utils::utils::get_uid(&self.state, ctx.app_id, KEY_FIREBOLT_DEVICE_UID).await
+        crate::utils::common::get_uid(&self.state, ctx.app_id, KEY_FIREBOLT_DEVICE_UID).await
     }
 
     async fn platform(&self, _ctx: CallContext) -> RpcResult<String> {

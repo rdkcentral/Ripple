@@ -10,7 +10,7 @@ pub async fn get_uid(
     app_id: String,
     key: &'static str,
 ) -> RpcResult<String> {
-    let mut uid = String::new();
+    let uid: String;
     let mut data = StoragePropertyData {
         scope: Some(UID_SCOPE.to_string()),
         key,
@@ -26,5 +26,5 @@ pub async fn get_uid(
         StorageManager::set_string_for_scope(state, &data, None).await?;
         uid = data.value;
     }
-    return Ok(uid);
+    Ok(uid)
 }
