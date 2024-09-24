@@ -139,7 +139,6 @@ impl OpenRpcState {
         Self::load_additional_rpc(&mut ripple_open_rpc, ripple_rpc_file);
         let openrpc_validator: FireboltOpenRpcValidator = serde_json::from_str(&open_rpc_path)
             .expect("Failed parsing FireboltOpenRpcValidator from open RPC file");
-
         let v = OpenRpcState {
             firebolt_cap_map: Arc::new(RwLock::new(firebolt_open_rpc.get_methods_caps())),
             ripple_cap_map: Arc::new(RwLock::new(ripple_open_rpc.get_methods_caps())),
@@ -156,6 +155,9 @@ impl OpenRpcState {
         for path in extn_sdks {
             if v.add_extension_open_rpc(&path).is_err() {
                 error!("Error adding extn_sdk from {path}");
+            }
+            if v.add_extension_open_rpc_to_validator(path).is_err() {
+                error!("Error adding openrpc extn_sdk to validator");
             }
         }
 
@@ -176,6 +178,24 @@ impl OpenRpcState {
         }
 
         false
+    }
+
+    // Add extension open rpc to the validator
+    pub fn add_extension_open_rpc_to_validator(&self, path: String) -> Result<(), RippleError> {
+        let extension_open_rpc_string = load_extension_open_rpc(path);
+        if let Some(open_rpc) = extension_open_rpc_string {
+            return match serde_json::from_str::<FireboltOpenRpcValidator>(&open_rpc) {
+                Ok(additional_open_rpc_validator) => {
+                    let mut validator = self.openrpc_validator.write().unwrap();
+                    for (k, v) in additional_open_rpc_validator.apis {
+                        validator.apis.insert(k, v);
+                    }
+                    return Ok(());
+                }
+                Err(_) => Err(RippleError::ParseError),
+            };
+        };
+        Err(RippleError::ParseError)
     }
 
     pub fn is_excluded(&self, method: String, app_id: String) -> bool {
@@ -447,6 +467,22 @@ fn load_firebolt_open_rpc_path() -> Option<String> {
             error!(
                 "can't read firebolt_open_rpc from path :{}, e={:?}",
                 &fb_open_rpc_file, e
+            );
+            None
+        }
+    }
+}
+
+fn load_extension_open_rpc(path: String) -> Option<String> {
+    match std::fs::read_to_string(&path) {
+        Ok(content) => {
+            debug!("loading extension open_rpc from {}", &path);
+            Some(content)
+        }
+        Err(e) => {
+            error!(
+                "can't read extension_open_rpc from path :{}, e={:?}",
+                &path, e
             );
             None
         }
