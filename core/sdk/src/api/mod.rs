@@ -32,9 +32,6 @@ pub mod status_update;
 pub mod storage_property;
 pub mod usergrant_entry;
 pub mod wifi;
-// <pca> Added
-//pub mod rules;
-// </pca>
 
 pub mod gateway {
     pub mod rpc_error;
@@ -75,9 +72,7 @@ pub mod firebolt {
 }
 
 pub mod observability {
+    pub mod analytics;
     pub mod metrics_util;
     pub mod operational_metrics;
-    // <pca> 2
-    pub mod analytics;
-    // </pca>
 }

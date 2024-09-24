@@ -27,7 +27,6 @@ use ripple_sdk::{
             rpc_error::RpcError,
             rpc_gateway_api::{ApiMessage, ApiProtocol, RpcRequest},
         },
-        observability::analytics::AnalyticsRequest,
     },
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,

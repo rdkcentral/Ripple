@@ -478,7 +478,6 @@ impl ExtnClient {
                     }
                 }
             } else {
-                warn!("*** _DEBUG: No valid processors for the event {:?}", msg);
                 warn!("No valid processors for the event {:?}", msg)
             }
         };

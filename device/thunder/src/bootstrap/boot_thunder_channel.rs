@@ -23,7 +23,6 @@ use thunder_ripple_sdk::{
 
 pub async fn boot_thunder_channel(state: ExtnClient) {
     info!("Booting thunder");
-    println!("*** _DEBUG: Booting thunder 2");
     let _ = boot_thunder(
         state,
         ThunderPluginBootParam {

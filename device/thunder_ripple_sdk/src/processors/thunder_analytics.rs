@@ -16,7 +16,13 @@
 //
 
 use ripple_sdk::{
-    api::observability::analytics::AnalyticsRequest,
+    api::{
+        device::device_operator::{
+            DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
+        },
+        firebolt::fb_metrics::BehavioralMetricsEvent,
+        observability::analytics::AnalyticsRequest,
+    },
     async_trait::async_trait,
     extn::{
         client::{
@@ -27,10 +33,12 @@ use ripple_sdk::{
         },
         extn_client_message::{ExtnMessage, ExtnResponse},
     },
+    serde_json,
     tokio::sync::mpsc::{Receiver as MReceiver, Sender as MSender},
+    utils::error::RippleError,
 };
 
-use crate::thunder_state::ThunderState;
+use crate::{client::thunder_plugin::ThunderPlugin, thunder_state::ThunderState};
 
 #[derive(Debug)]
 pub struct ThunderAnalyticsProcessor {
@@ -40,7 +48,6 @@ pub struct ThunderAnalyticsProcessor {
 
 impl ThunderAnalyticsProcessor {
     pub fn new(state: ThunderState) -> ThunderAnalyticsProcessor {
-        println!("*** _DEBUG: ThunderAnalyticsProcessor::new: entry");
         ThunderAnalyticsProcessor {
             state,
             streamer: DefaultExtnStreamer::new(),
@@ -76,81 +83,40 @@ impl ExtnRequestProcessor for ThunderAnalyticsProcessor {
         msg: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
-        println!(
-            "*** _DEBUG: 2 ThunderAnalyticsProcessor::process_request: extracted_message={:?}",
-            extracted_message
-        );
+        let response_message = match extracted_message {
+            AnalyticsRequest::SendMetrics(event) => send_metrics(state.clone(), event).await,
+        };
 
-        match extracted_message {
-            AnalyticsRequest::SendMetrics(data) => {
-                println!(
-                    "*** _DEBUG: ThunderAnalyticsProcessor::process_request: data={:?}",
-                    data
-                );
+        let extn_response = match response_message.message["success"].as_bool() {
+            Some(success) => {
+                if success {
+                    ExtnResponse::None(())
+                } else {
+                    ExtnResponse::Error(RippleError::ExtnError)
+                }
             }
-        }
+            None => ExtnResponse::Error(RippleError::ExtnError),
+        };
 
-        Self::respond(state.get_client(), msg, ExtnResponse::None(()))
+        Self::respond(state.get_client(), msg, extn_response)
             .await
             .is_ok()
     }
 }
 
-async fn send_metrics(state: ThunderState, metrics: Value) -> ExtnResponse {
-    /*
-    setup operation at higher scope to allow it to time itself
-    */
-    let operation = Operation::new(
-        AppsOperationType::Install,
-        app.clone().id,
-        AppData::new(app.clone().version),
-    );
+async fn send_metrics(
+    thunder_state: ThunderState,
+    metrics_event: BehavioralMetricsEvent,
+) -> DeviceResponseMessage {
+    let method: String = ThunderPlugin::Analytics.method("sendEvent");
 
-    let method: String = ThunderPlugin::PackageManager.method("install");
-    let request = InstallAppRequest::new(app.clone());
-
-    let metrics_timer = start_service_metrics_timer(
-        &state.thunder_state.get_client(),
-        ThunderMetricsTimerName::PackageManagerInstall.to_string(),
-    );
-
-    let device_response = state
-        .thunder_state
+    thunder_state
         .get_thunder_client()
         .call(DeviceCallRequest {
             method,
             params: Some(DeviceChannelParams::Json(
-                serde_json::to_string(&request).unwrap(),
+                serde_json::to_string(&metrics_event).unwrap(),
             )),
         })
-        .await;
-
-    let thunder_resp = serde_json::from_value::<String>(device_response.message);
-
-    let status = if thunder_resp.is_ok() {
-        ThunderResponseStatus::Success
-    } else {
-        ThunderResponseStatus::Failure
-    };
-
-    stop_and_send_service_metrics_timer(
-        state.thunder_state.get_client().clone(),
-        metrics_timer,
-        status.to_string(),
-    )
-    .await;
-
-    match thunder_resp {
-        Ok(handle) => {
-            Self::add_or_remove_operation(
-                state.clone(),
-                handle.clone(),
-                operation,
-                Some(status.to_string()),
-            );
-
-            ExtnResponse::String(handle)
-        }
-        Err(_) => ExtnResponse::Error(RippleError::ProcessorError),
-    }
+        .await
 }

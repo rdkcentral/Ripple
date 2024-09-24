@@ -41,6 +41,7 @@ pub mod processors {
     pub mod events {
         pub mod thunder_event_handlers;
     }
+    pub mod thunder_analytics;
     pub mod thunder_package_manager;
     pub mod thunder_persistent_store;
     pub mod thunder_remote;
@@ -48,9 +49,6 @@ pub mod processors {
     pub mod thunder_telemetry;
     pub mod thunder_wifi;
     pub mod thunder_window_manager;
-    // <pca> 2
-    pub mod thunder_analytics;
-    // </pca>
 }
 
 pub mod utils;
