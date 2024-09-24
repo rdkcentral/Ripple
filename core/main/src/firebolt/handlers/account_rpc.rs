@@ -22,11 +22,9 @@ use jsonrpsee::{
 };
 use ripple_sdk::{
     api::{
-        //distributor::distributor_encoder::EncoderRequest,
         gateway::rpc_gateway_api::CallContext,
         session::{AccountSessionRequest, AccountSessionTokenRequest},
     },
-    //extn::extn_client_message::ExtnResponse,
     log::error,
 };
 
