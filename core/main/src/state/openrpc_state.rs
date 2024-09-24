@@ -165,6 +165,9 @@ impl OpenRpcState {
     pub fn add_open_rpc(&self, open_rpc: FireboltOpenRpc) {
         let cap_map = open_rpc.get_methods_caps();
         self.extend_caps(cap_map);
+
+        let mut ext_rpcs = self.extended_rpc.write().unwrap();
+        ext_rpcs.push(open_rpc);
     }
 
     pub fn is_app_excluded(&self, app_id: &str) -> bool {
