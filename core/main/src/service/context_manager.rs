@@ -87,7 +87,7 @@ impl ContextManager {
             .await
             .is_err()
         {
-            warn!("No processor to set InputChanged listener")
+            warn!("No processor to set HdcpChanged listener")
         }
 
         if ps
