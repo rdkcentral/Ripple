@@ -449,42 +449,51 @@ impl ProviderRegistrar {
                     .await
                     {
                         if let Ok(provider_response_payload) = result {
-                            if let ProviderResponsePayload::GenericResponse(
-                                provider_response_value,
-                            ) = provider_response_payload
-                            {
-                                if let Some(result_properties_map) = context
-                                    .platform_state
-                                    .open_rpc_state
-                                    .get_openrpc_validator()
-                                    .get_result_properties_schema_by_name(&context.method)
-                                {
-                                    // Inject the provider app ID if the field exists in the provided-to response schema, the other field will be
-                                    // the provider response. The firebolt spec is not ideal in that the provider response data is captured
-                                    // within a field of the provided-to's response object, hence the somewhat arbritrary logic here. Ideally
-                                    // the provided-to response object would be identical to the provider response object aside from an optional
-                                    // appId field.
+                            match provider_response_payload {
+                                ProviderResponsePayload::GenericResponse(
+                                    provider_response_value,
+                                ) => {
+                                    if let Some(result_properties_map) = context
+                                        .platform_state
+                                        .open_rpc_state
+                                        .get_openrpc_validator()
+                                        .get_result_properties_schema_by_name(&context.method)
+                                    {
+                                        // Inject the provider app ID if the field exists in the provided-to response schema, the other field will be
+                                        // the provider response. The firebolt spec is not ideal in that the provider response data is captured
+                                        // within a field of the provided-to's response object, hence the somewhat arbritrary logic here. Ideally
+                                        // the provided-to response object would be identical to the provider response object aside from an optional
+                                        // appId field.
 
-                                    let mut response_map = Map::new();
-                                    for key in result_properties_map.keys() {
-                                        if key.eq("appId") {
-                                            response_map.insert(
-                                                key.clone(),
-                                                Value::String(
-                                                    provider_app_id.clone().unwrap_or_default(),
-                                                ),
-                                            );
-                                        } else {
-                                            response_map.insert(
-                                                key.clone(),
-                                                provider_response_value.clone(),
-                                            );
+                                        let mut response_map = Map::new();
+                                        for key in result_properties_map.keys() {
+                                            if key.eq("appId") {
+                                                response_map.insert(
+                                                    key.clone(),
+                                                    Value::String(
+                                                        provider_app_id.clone().unwrap_or_default(),
+                                                    ),
+                                                );
+                                            } else {
+                                                response_map.insert(
+                                                    key.clone(),
+                                                    provider_response_value.clone(),
+                                                );
+                                            }
                                         }
+                                        return Ok(Value::Object(response_map));
                                     }
-                                    return Ok(Value::Object(response_map));
                                 }
-                            } else {
-                                return Ok(provider_response_payload.as_value());
+                                ProviderResponsePayload::GenericError(e) => {
+                                    return Err(Error::Call(CallError::Custom {
+                                        code: e.code,
+                                        message: e.message,
+                                        data: None,
+                                    }));
+                                }
+                                _ => {
+                                    return Ok(provider_response_payload.as_value());
+                                }
                             }
                         } else {
                             return Err(Error::Custom(String::from(

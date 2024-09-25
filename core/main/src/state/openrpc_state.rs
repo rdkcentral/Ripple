@@ -125,56 +125,20 @@ impl OpenRpcState {
         }
     }
 
-    fn load_firebolt_open_rpc() -> FireboltVersionManifest {
-        let mut fb_open_rpc_file = "/etc/ripple/openrpc/firebolt-open-rpc.json".to_string();
-
-        if cfg!(feature = "local_dev") {
-            let key = "FIREBOLT_OPEN_RPC";
-            let env_var = std::env::var(key);
-            if let Ok(path) = env_var {
-                fb_open_rpc_file = path;
-            };
-        }
-
-        let mut content = "".to_string();
-        match std::fs::read_to_string(fb_open_rpc_file.clone()) {
-            Ok(str) => {
-                debug!("loading from {fb_open_rpc_file}");
-                content = str
-            }
-            Err(e) => error!("can't read {fb_open_rpc_file}: {:?}", e),
-        };
-
-        let version_manifest: FireboltVersionManifest = match serde_json::from_str(&content) {
-            Ok(fvm) => fvm,
-            _ => {
-                if content.is_empty() {
-                    debug!("loading default");
-                } else {
-                    error!("failed to parse firebolt-open-rpc, loading default");
-                };
-                serde_json::from_str(std::include_str!("./firebolt-open-rpc.json")).unwrap()
-            }
-        };
-
-        version_manifest
-    }
-
     pub fn new(
         exclusory: Option<ExclusoryImpl>,
         extn_sdks: Vec<String>,
         provider_registrations: Vec<String>,
     ) -> OpenRpcState {
-        let version_manifest = Self::load_firebolt_open_rpc();
-
+        let open_rpc_path = load_firebolt_open_rpc_path().expect("Need valid open-rpc file");
+        let version_manifest: FireboltVersionManifest = serde_json::from_str(&open_rpc_path)
+            .expect("Failed parsing FireboltVersionManifest from open RPC file");
         let firebolt_open_rpc: FireboltOpenRpc = version_manifest.clone().into();
         let ripple_rpc_file = std::include_str!("./ripple-rpc.json");
         let mut ripple_open_rpc: FireboltOpenRpc = FireboltOpenRpc::default();
         Self::load_additional_rpc(&mut ripple_open_rpc, ripple_rpc_file);
-
-        let openrpc_validator: FireboltOpenRpcValidator =
-            serde_json::from_str(std::include_str!("./firebolt-open-rpc.json")).unwrap();
-
+        let openrpc_validator: FireboltOpenRpcValidator = serde_json::from_str(&open_rpc_path)
+            .expect("Failed parsing FireboltOpenRpcValidator from open RPC file");
         let v = OpenRpcState {
             firebolt_cap_map: Arc::new(RwLock::new(firebolt_open_rpc.get_methods_caps())),
             ripple_cap_map: Arc::new(RwLock::new(ripple_open_rpc.get_methods_caps())),
@@ -192,6 +156,9 @@ impl OpenRpcState {
             if v.add_extension_open_rpc(&path).is_err() {
                 error!("Error adding extn_sdk from {path}");
             }
+            if v.add_extension_open_rpc_to_validator(path).is_err() {
+                error!("Error adding openrpc extn_sdk to validator");
+            }
         }
 
         v
@@ -200,6 +167,9 @@ impl OpenRpcState {
     pub fn add_open_rpc(&self, open_rpc: FireboltOpenRpc) {
         let cap_map = open_rpc.get_methods_caps();
         self.extend_caps(cap_map);
+
+        let mut ext_rpcs = self.extended_rpc.write().unwrap();
+        ext_rpcs.push(open_rpc);
     }
 
     pub fn is_app_excluded(&self, app_id: &str) -> bool {
@@ -208,6 +178,24 @@ impl OpenRpcState {
         }
 
         false
+    }
+
+    // Add extension open rpc to the validator
+    pub fn add_extension_open_rpc_to_validator(&self, path: String) -> Result<(), RippleError> {
+        let extension_open_rpc_string = load_extension_open_rpc(path);
+        if let Some(open_rpc) = extension_open_rpc_string {
+            return match serde_json::from_str::<FireboltOpenRpcValidator>(&open_rpc) {
+                Ok(additional_open_rpc_validator) => {
+                    let mut validator = self.openrpc_validator.write().unwrap();
+                    for (k, v) in additional_open_rpc_validator.apis {
+                        validator.apis.insert(k, v);
+                    }
+                    return Ok(());
+                }
+                Err(_) => Err(RippleError::ParseError),
+            };
+        };
+        Err(RippleError::ParseError)
     }
 
     pub fn is_excluded(&self, method: String, app_id: String) -> bool {
@@ -453,6 +441,51 @@ impl OpenRpcState {
             .write()
             .unwrap()
             .extend(provider_relation_sets)
+    }
+}
+
+fn load_firebolt_open_rpc_path() -> Option<String> {
+    let mut fb_open_rpc_file = "".to_string();
+    if cfg!(feature = "local_dev") {
+        let key = "FIREBOLT_OPEN_RPC";
+        let env_var = std::env::var(key);
+        if let Ok(path) = env_var {
+            fb_open_rpc_file = path;
+        };
+    } else if cfg!(test) {
+        fb_open_rpc_file = "../../openrpc_validator/src/test/firebolt-open-rpc.json".to_string();
+    } else {
+        fb_open_rpc_file = "/etc/ripple/openrpc/firebolt-open-rpc.json".to_string();
+    }
+
+    match std::fs::read_to_string(&fb_open_rpc_file) {
+        Ok(content) => {
+            debug!("loading firebolt_open_rpc from {}", &fb_open_rpc_file);
+            Some(content)
+        }
+        Err(e) => {
+            error!(
+                "can't read firebolt_open_rpc from path :{}, e={:?}",
+                &fb_open_rpc_file, e
+            );
+            None
+        }
+    }
+}
+
+fn load_extension_open_rpc(path: String) -> Option<String> {
+    match std::fs::read_to_string(&path) {
+        Ok(content) => {
+            debug!("loading extension open_rpc from {}", &path);
+            Some(content)
+        }
+        Err(e) => {
+            error!(
+                "can't read extension_open_rpc from path :{}, e={:?}",
+                &path, e
+            );
+            None
+        }
     }
 }
 
