@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use ripple_sdk::log::{debug, error};
+use ripple_sdk::log::{debug, error, info};
 use ripple_sdk::{api::firebolt::fb_openrpc::CapabilityPolicy, serde_json};
 use ripple_sdk::{
     api::{
@@ -444,33 +444,53 @@ impl OpenRpcState {
     }
 }
 
-fn load_firebolt_open_rpc_path() -> Option<String> {
-    let mut fb_open_rpc_file = "".to_string();
-    if cfg!(feature = "local_dev") {
-        let key = "FIREBOLT_OPEN_RPC";
-        let env_var = std::env::var(key);
-        if let Ok(path) = env_var {
-            fb_open_rpc_file = path;
-        };
-    } else if cfg!(test) {
-        fb_open_rpc_file = "../../openrpc_validator/src/test/firebolt-open-rpc.json".to_string();
-    } else {
-        fb_open_rpc_file = "/etc/ripple/openrpc/firebolt-open-rpc.json".to_string();
-    }
-
-    match std::fs::read_to_string(&fb_open_rpc_file) {
+fn load_firebolt_open_rpc_from_file(fb_open_rpc_file: &str) -> Result<String, RippleError> {
+    match std::fs::read_to_string(fb_open_rpc_file) {
         Ok(content) => {
             debug!("loading firebolt_open_rpc from {}", &fb_open_rpc_file);
-            Some(content)
+            Ok(content)
         }
         Err(e) => {
             error!(
-                "can't read firebolt_open_rpc from path :{}, e={:?}",
+                "can't read firebolt_open_rpc from path: {}, e={:?}",
                 &fb_open_rpc_file, e
             );
-            None
+            Err(RippleError::ProcessorError)
         }
     }
+}
+/*
+this is only used once so far, but a bit more maintainable as a const
+*/
+
+/*
+test , local_dev and contract tests load the firebolt open rpc file from either a path or from the openrpc_validator version as compiled in.
+*/
+#[cfg(any(feature = "local_dev", feature = "contract_tests", test))]
+fn load_firebolt_open_rpc_path() -> Result<String, RippleError> {
+    if let Ok(path) = std::env::var("FIREBOLT_OPEN_RPC") {
+        info!(
+            " loading firebolt_open_rpc from FIREBOLT_OPEN_RPC env var path: {}",
+            &path
+        );
+        load_firebolt_open_rpc_from_file(&path)
+    } else {
+        info!(" local_dev or contract_tests: loading firebolt_open_rpc from file openrpc_validator/src/test/firebolt-open-rpc.json");
+        let fb_open_rpc_file =
+            include_str!("../../../../openrpc_validator/src/test/firebolt-open-rpc.json");
+        Ok(fb_open_rpc_file.to_string())
+    }
+}
+// /*
+// Production load of the firebolt open rpc file
+// */
+#[cfg(not(any(feature = "local_dev", feature = "contract_tests", test)))]
+fn load_firebolt_open_rpc_path() -> Result<String, RippleError> {
+    info!(
+        "production: loading firebolt_open_rpc from file {}",
+        "/etc/ripple/openrpc/firebolt-open-rpc.json"
+    );
+    load_firebolt_open_rpc_from_file("/etc/ripple/openrpc/firebolt-open-rpc.json")
 }
 
 fn load_extension_open_rpc(path: String) -> Option<String> {
