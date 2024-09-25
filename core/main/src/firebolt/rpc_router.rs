@@ -134,15 +134,19 @@ async fn resolve_route(
 impl RpcRouter {
     pub async fn route(
         state: PlatformState,
-        req: RpcRequest,
+        mut req: RpcRequest,
         session: Session,
         timer: Option<Timer>,
     ) {
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
 
+        let method = req.method.clone();
+        if let Some(overridden_method) = state.get_manifest().has_rpc_override_method(&req.method) {
+            req.method = overridden_method;
+        }
+
         tokio::spawn(async move {
-            let method = req.method.clone();
             let app_id = req.ctx.app_id.clone();
             let start = Utc::now().timestamp_millis();
             let resp = resolve_route(methods, resources, req.clone()).await;
