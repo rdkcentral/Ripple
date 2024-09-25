@@ -452,7 +452,7 @@ fn load_firebolt_open_rpc_from_file(fb_open_rpc_file: &str) -> Result<String, Ri
         }
         Err(e) => {
             error!(
-                "can't read firebolt_open_rpc from path :{}, e={:?}",
+                "can't read firebolt_open_rpc from path: {}, e={:?}",
                 &fb_open_rpc_file, e
             );
             Err(RippleError::ProcessorError)
@@ -466,7 +466,7 @@ this is only used once so far, but a bit more maintainable as a const
 /*
 test , local_dev and contract tests load the firebolt open rpc file from either a path or from the openrpc_validator version as compiled in.
 */
-#[cfg(any(feature = "local_dev", feature = "contract_tests"))]
+#[cfg(any(feature = "local_dev", feature = "test", feature = "contract_tests"))]
 fn load_firebolt_open_rpc_path() -> Result<String, RippleError> {
     if let Ok(path) = std::env::var("FIREBOLT_OPEN_RPC") {
         load_firebolt_open_rpc_from_file(&path)
@@ -474,7 +474,7 @@ fn load_firebolt_open_rpc_path() -> Result<String, RippleError> {
         info!(" local_dev or contract_tests: loading firebolt_open_rpc from file openrpc_validator/src/test/firebolt-open-rpc.json");
         let fb_open_rpc_file =
             include_str!("../../../../openrpc_validator/src/test/firebolt-open-rpc.json");
-        Ok(fb_open_rpc_file.to_string())
+        load_firebolt_open_rpc_from_file(&fb_open_rpc_file)
     }
 }
 // /*
