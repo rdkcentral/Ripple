@@ -475,13 +475,10 @@ fn load_firebolt_open_rpc_path() -> Result<String, RippleError> {
         );
         load_firebolt_open_rpc_from_file(&path)
     } else {
+        info!(" local_dev or contract_tests: loading firebolt_open_rpc from file openrpc_validator/src/test/firebolt-open-rpc.json");
         let fb_open_rpc_file =
-            "../../openrpc_validator/src/test/firebolt-open-rpc.json".to_string();
-        info!(
-            " loading firebolt_open_rpc from openrpc_validator path: {}",
-            fb_open_rpc_file
-        );
-        load_firebolt_open_rpc_from_file(&fb_open_rpc_file)
+            include_str!("../../../../openrpc_validator/src/test/firebolt-open-rpc.json");
+        Ok(fb_open_rpc_file.to_string())
     }
 }
 // /*
