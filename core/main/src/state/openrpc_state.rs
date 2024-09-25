@@ -470,14 +470,17 @@ test , local_dev and contract tests load the firebolt open rpc file from either 
 fn load_firebolt_open_rpc_path() -> Result<String, RippleError> {
     if let Ok(path) = std::env::var("FIREBOLT_OPEN_RPC") {
         info!(
-            " loading firebolt_open_rpc from FIREBOLT_OPEN_RPC env var: {}",
+            " loading firebolt_open_rpc from FIREBOLT_OPEN_RPC env var path: {}",
             &path
         );
         load_firebolt_open_rpc_from_file(&path)
     } else {
-        info!(" local_dev or contract_tests: loading firebolt_open_rpc from file openrpc_validator/src/test/firebolt-open-rpc.json");
         let fb_open_rpc_file =
             include_str!("../../../../openrpc_validator/src/test/firebolt-open-rpc.json");
+        info!(
+            " loading firebolt_open_rpc from openrpc_validator path: {}",
+            fb_open_rpc_file
+        );
         load_firebolt_open_rpc_from_file(fb_open_rpc_file)
     }
 }
