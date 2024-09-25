@@ -33,7 +33,6 @@ local_dev = []
 sysd = ["sd-notify"]
 pre_prod = []
 contract_tests = []
-test = []
 
 [dependencies]
 base64.workspace = true

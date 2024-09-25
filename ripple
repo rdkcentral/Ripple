@@ -112,7 +112,7 @@ case ${1} in
         sed -i "" "s@\"library\": \"/etc/firebolt-app-library.json\"@\"library\": \"$workspace_dir/target/manifests/firebolt-app-library.json\"@" target/manifests/firebolt-device-manifest.json
         sed -i "" "s@\"mock_data_file\": \"mock-device.json\"@\"mock_data_file\": \"$workspace_dir/target/manifests/mock-thunder-device.json\"@" target/manifests/firebolt-extn-manifest.json
         export EXTN_MANIFEST=${workspace_dir}/target/manifests/firebolt-extn-manifest.json
-        export DEVICE_MANIFEST=${workspace_dir}/target/manifests/firebolt-device-manifest.json
+        export DEVICE_MANIFEST=${workspace_dir}/target/manifests/firebolt-device-manifest.jsons
         cargo build --features local_dev
         cargo run --features local_dev core/main
     ;;
