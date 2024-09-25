@@ -481,6 +481,7 @@ fn load_firebolt_open_rpc_path() -> Result<String, RippleError> {
         Ok(fb_open_rpc_file.to_string())
     }
 }
+
 // /*
 // Production load of the firebolt open rpc file
 // */
