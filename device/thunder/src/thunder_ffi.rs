@@ -46,7 +46,7 @@ fn init_library() -> CExtnMetadata {
             RippleContract::WindowManager,
             RippleContract::Browser,
             RippleContract::RippleContext,
-            RippleContract::DeviceEvents(EventAdjective::Input),
+            RippleContract::DeviceEvents(EventAdjective::Hdcp),
             RippleContract::DeviceEvents(EventAdjective::Hdr),
             RippleContract::DeviceEvents(EventAdjective::ScreenResolution),
             RippleContract::DeviceEvents(EventAdjective::VideoResolution),

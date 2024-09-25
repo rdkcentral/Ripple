@@ -447,7 +447,7 @@ impl DeviceServer for DeviceImpl {
             .state
             .get_client()
             .send_extn_request(DeviceEventRequest {
-                event: DeviceEvent::InputChanged,
+                event: DeviceEvent::DisplayChanged,
                 subscribe: listen,
                 callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
             })

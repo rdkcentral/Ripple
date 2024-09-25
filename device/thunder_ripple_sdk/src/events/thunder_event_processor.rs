@@ -84,7 +84,7 @@ impl ThunderEventMessage {
     pub fn get(event: &str, value: &Value) -> Option<Self> {
         if let Ok(device_event) = DeviceEvent::from_str(event) {
             match device_event {
-                DeviceEvent::InputChanged | DeviceEvent::HdrChanged => {
+                DeviceEvent::DisplayChanged | DeviceEvent::HdrChanged => {
                     if let Ok(v) = serde_json::from_value(value.clone()) {
                         return Some(ThunderEventMessage::DisplayConnection(v));
                     }

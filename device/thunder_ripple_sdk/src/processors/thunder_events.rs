@@ -78,7 +78,7 @@ impl ExtnStreamProcessor for ThunderOpenEventsProcessor {
     }
     fn fulfills_mutiple(&self) -> Option<Vec<RippleContract>> {
         Some(vec![
-            RippleContract::DeviceEvents(EventAdjective::Input),
+            RippleContract::DeviceEvents(EventAdjective::Hdcp),
             RippleContract::DeviceEvents(EventAdjective::Hdr),
             RippleContract::DeviceEvents(EventAdjective::ScreenResolution),
             RippleContract::DeviceEvents(EventAdjective::VideoResolution),
@@ -118,7 +118,7 @@ impl ExtnRequestProcessor for ThunderOpenEventsProcessor {
                 id.clone(),
                 HDREventHandler::provide(id, callback_type),
             )),
-            DeviceEvent::InputChanged => Some(state.handle_listener(
+            DeviceEvent::DisplayChanged => Some(state.handle_listener(
                 listen,
                 id.clone(),
                 HDCPEventHandler::provide(id, callback_type),

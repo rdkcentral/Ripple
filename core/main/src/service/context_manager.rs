@@ -80,7 +80,7 @@ impl ContextManager {
         if ps
             .get_client()
             .send_extn_request(DeviceEventRequest {
-                event: DeviceEvent::InputChanged,
+                event: DeviceEvent::DisplayChanged,
                 subscribe: true,
                 callback_type: DeviceEventCallback::ExtnEvent,
             })
