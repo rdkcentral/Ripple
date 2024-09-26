@@ -63,6 +63,8 @@ use ripple_sdk::{
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
+const KEY_FIREBOLT_DEVICE_UID: &str = "fireboltDeviceUid";
+
 // #[derive(Serialize, Clone, Debug, Deserialize)]
 // #[serde(rename_all = "camelCase")]
 // pub struct ProvisionRequest {
@@ -192,30 +194,6 @@ pub async fn get_device_id(state: &PlatformState) -> RpcResult<String> {
     }
 }
 
-pub async fn get_uid(state: &PlatformState, app_id: String) -> RpcResult<String> {
-    if let Ok(device_id) = get_device_id(state).await {
-        if state.supports_encoding() {
-            if let Ok(resp) = state
-                .get_client()
-                .send_extn_request(EncoderRequest {
-                    reference: device_id.clone(),
-                    scope: app_id,
-                })
-                .await
-            {
-                if let Some(ExtnResponse::String(enc_device_id)) =
-                    resp.payload.extract::<ExtnResponse>()
-                {
-                    return Ok(enc_device_id);
-                }
-            }
-        }
-        Ok(device_id)
-    } else {
-        Err(rpc_err("parse error"))
-    }
-}
-
 pub async fn get_ll_mac_addr(state: PlatformState) -> RpcResult<String> {
     let resp = state
         .get_client()
@@ -304,7 +282,7 @@ impl DeviceServer for DeviceImpl {
     }
 
     async fn uid(&self, ctx: CallContext) -> RpcResult<String> {
-        get_uid(&self.state, ctx.app_id).await
+        crate::utils::common::get_uid(&self.state, ctx.app_id, KEY_FIREBOLT_DEVICE_UID).await
     }
 
     async fn platform(&self, _ctx: CallContext) -> RpcResult<String> {
