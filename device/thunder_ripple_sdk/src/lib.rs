@@ -38,6 +38,7 @@ pub mod processors {
     pub mod thunder_browser;
     pub mod thunder_device_info;
     pub mod thunder_events;
+    pub mod thunder_user_settings;
     pub mod events {
         pub mod thunder_event_handlers;
     }

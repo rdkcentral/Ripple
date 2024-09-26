@@ -27,8 +27,8 @@ use std::str::FromStr;
 use super::{
     device_accessory::RemoteAccessoryRequest, device_apps::AppsRequest,
     device_browser::BrowserRequest, device_info_request::DeviceInfoRequest,
-    device_peristence::DevicePersistenceRequest, device_wifi::WifiRequest,
-    device_window_manager::WindowManagerRequest,
+    device_peristence::DevicePersistenceRequest, device_user_settings::UserSettingsRequest,
+    device_wifi::WifiRequest, device_window_manager::WindowManagerRequest,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,6 +41,9 @@ pub enum DeviceRequest {
     Wifi(WifiRequest),
     Accessory(RemoteAccessoryRequest),
     Apps(AppsRequest),
+    // <pca>
+    UserSettings(UserSettingsRequest),
+    // </pca>
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]

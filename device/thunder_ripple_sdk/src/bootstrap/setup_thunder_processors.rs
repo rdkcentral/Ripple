@@ -22,6 +22,7 @@ use ripple_sdk::log::error;
 use crate::processors::thunder_package_manager::ThunderPackageManagerRequestProcessor;
 use crate::processors::thunder_rfc::ThunderRFCProcessor;
 use crate::processors::thunder_telemetry::ThunderTelemetryProcessor;
+use crate::processors::thunder_user_settings::ThunderUserSettingsRequestProcessor;
 use crate::thunder_state::ThunderBootstrapStateWithClient;
 
 use crate::processors::{
@@ -48,6 +49,11 @@ impl SetupThunderProcessor {
         extn_client.add_request_processor(ThunderBrowserRequestProcessor::new(state.clone().state));
         extn_client.add_request_processor(ThunderWifiRequestProcessor::new(state.clone().state));
         extn_client.add_request_processor(ThunderStorageRequestProcessor::new(state.clone().state));
+        // <pca>
+        extn_client.add_request_processor(ThunderUserSettingsRequestProcessor::new(
+            state.clone().state,
+        ));
+        // </pca>
         extn_client.add_request_processor(ThunderWindowManagerRequestProcessor::new(
             state.state.clone(),
         ));

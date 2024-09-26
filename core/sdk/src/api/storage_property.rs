@@ -440,7 +440,7 @@ pub struct PropertyData {
     pub event_names: Option<&'static [&'static str]>,
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Hash)]
 pub enum StorageProperty {
     ClosedCaptionsEnabled,
     ClosedCaptionsFontFamily,

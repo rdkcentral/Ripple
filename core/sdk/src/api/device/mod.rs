@@ -28,3 +28,4 @@ pub mod device_user_grants_data;
 pub mod device_wifi;
 pub mod device_window_manager;
 pub mod entertainment_data;
+pub mod device_user_settings;
