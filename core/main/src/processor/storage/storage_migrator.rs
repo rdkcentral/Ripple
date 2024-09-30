@@ -18,23 +18,42 @@
 use ripple_sdk::{
     api::{device::device_user_settings::UserSettingsRequest, storage_property::StorageProperty},
     extn::extn_client_message::ExtnResponse,
-    log::error,
+    log::{error, info},
 };
 
 use crate::state::platform_state::PlatformState;
 
 use super::storage_manager::StorageManager;
 
+use std::time::{SystemTime, UNIX_EPOCH};
+
+fn get_current_time_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis()
+        .try_into()
+        .unwrap()
+}
+
 static STORAGE_PROPERTIES: &[StorageProperty] = &[
     StorageProperty::AudioDescriptionEnabled,
-    // StorageProperty::PreferredAudioLanguages,
-    // StorageProperty::CCPreferredLanguages,
-    // StorageProperty::ClosedCaptionsEnabled,
+    StorageProperty::PreferredAudioLanguages,
+    StorageProperty::CCPreferredLanguages,
+    StorageProperty::ClosedCaptionsEnabled,
 ];
+
+#[derive(Debug, PartialEq)]
+enum MigrationState {
+    NotStarted,
+    NotNeeded,
+    Succeeded,
+    Failed,
+}
 
 struct MigrationStatus {
     storage_property: StorageProperty,
-    migrated: bool,
+    migration_state: MigrationState,
 }
 
 pub struct StorageMigrator {
@@ -48,7 +67,7 @@ impl StorageMigrator {
         for storage_property in STORAGE_PROPERTIES.iter() {
             migration_statuses.push(MigrationStatus {
                 storage_property: storage_property.clone(),
-                migrated: false,
+                migration_state: MigrationState::NotStarted,
             });
         }
         Self {
@@ -59,60 +78,195 @@ impl StorageMigrator {
 
     pub async fn migrate(&mut self) {
         println!("*** _DEBUG: StorageMigrator::migrate: entry");
+        let start_time_ms = get_current_time_ms();
+
         for migration_status in &mut self.migration_statuses {
-            if !migration_status.migrated {
-                let success = match migration_status.storage_property {
+            if [MigrationState::NotStarted, MigrationState::Failed]
+                .contains(&migration_status.migration_state)
+            {
+                migration_status.migration_state = match migration_status.storage_property {
                     StorageProperty::AudioDescriptionEnabled => {
                         migrate_audio_description_enabled(&self.platform_state).await
+                    }
+                    StorageProperty::PreferredAudioLanguages => {
+                        migrate_preferred_audio_languages(&self.platform_state).await
+                    }
+                    StorageProperty::CCPreferredLanguages => {
+                        migrate_preferred_cc_languages(&self.platform_state).await
+                    }
+                    StorageProperty::ClosedCaptionsEnabled => {
+                        migrate_cc_enabled(&self.platform_state).await
                     }
                     _ => {
                         error!(
                             "migrate: Unsupported property: {:?}",
                             migration_status.storage_property
                         );
-                        false
+                        error!(
+                            "*** _DEBUG: migrate: Unsupported property: {:?}",
+                            migration_status.storage_property
+                        );
+                        MigrationState::Failed
                     }
                 };
-
-                println!("migrate: success={}", success);
-
-                if success {
-                    migration_status.migrated = true;
-                }
             }
         }
+
+        info!(
+            "migrate: Total time taken: {} ms",
+            get_current_time_ms() - start_time_ms
+        );
+        info!(
+            "*** _DEBUG: migrate: Total time taken: {} ms",
+            get_current_time_ms() - start_time_ms
+        );
     }
 }
 
-async fn migrate_audio_description_enabled(platform_state: &PlatformState) -> bool {
+async fn migrate_audio_description_enabled(platform_state: &PlatformState) -> MigrationState {
+    println!("*** _DEBUG: migrate_audio_description_enabled: entry");
+    let mut migration_state = MigrationState::Failed;
+    let start_time_ms = get_current_time_ms();
+
     if let Ok(enabled) =
         StorageManager::get_bool(platform_state, StorageProperty::AudioDescriptionEnabled).await
     {
-        let result = platform_state
+        if let Ok(extn_menssage) = platform_state
             .get_client()
             .send_extn_request(UserSettingsRequest::SetAudioDescription(enabled))
-            .await;
-
-        println!(
-            "*** _DEBUG: migrate_audio_description_enabled: result={:?}",
-            result
-        );
-
-        match result {
-            //Ok(msg) => msg.payload.extract().is_some(),
-            Ok(msg) => {
-                if let Some(ExtnResponse::Error(_)) = msg.payload.as_response() {
-                    false
-                } else {
-                    true
-                }
+            .await
+        {
+            if let Some(ExtnResponse::None(())) = extn_menssage.payload.as_response() {
+                migration_state = MigrationState::Succeeded;
             }
-            Err(_) => false,
         }
-    } else {
-        error!(
-            "migrate_audio_description_enabled: Failed to retrieve value from persistent storage"
-        );
-        false
     }
+
+    info!(
+        "migrate_audio_description_enabled: migration_state={:?}, Time taken: {} ms",
+        migration_state,
+        get_current_time_ms() - start_time_ms
+    );
+    info!(
+        "*** _DEBUG: migrate_audio_description_enabled: migration_state={:?}, Time taken: {} ms",
+        migration_state,
+        get_current_time_ms() - start_time_ms
+    );
+
+    migration_state
+}
+
+async fn migrate_preferred_audio_languages(platform_state: &PlatformState) -> MigrationState {
+    println!("*** _DEBUG: migrate_preferred_audio_languages: entry");
+    let mut migration_state = MigrationState::Failed;
+    let start_time_ms = get_current_time_ms();
+
+    let preferred_cc_languages =
+        StorageManager::get_vec_string(platform_state, StorageProperty::PreferredAudioLanguages)
+            .await
+            .unwrap_or_default();
+
+    println!(
+        "*** _DEBUG: migrate_preferred_audio_languages: preferred_cc_languages={:?}",
+        preferred_cc_languages
+    );
+
+    if let Ok(extn_menssage) = platform_state
+        .get_client()
+        .send_extn_request(UserSettingsRequest::SetPreferredAudioLanguages(
+            preferred_cc_languages,
+        ))
+        .await
+    {
+        if let Some(ExtnResponse::None(())) = extn_menssage.payload.as_response() {
+            migration_state = MigrationState::Succeeded;
+        }
+    }
+
+    info!(
+        "migrate_preferred_audio_languages: migration_state={:?}, Time taken: {} ms",
+        migration_state,
+        get_current_time_ms() - start_time_ms
+    );
+    info!(
+        "*** _DEBUG: migrate_preferred_audio_languages: migration_state={:?}, Time taken: {} ms",
+        migration_state,
+        get_current_time_ms() - start_time_ms
+    );
+
+    migration_state
+}
+
+async fn migrate_preferred_cc_languages(platform_state: &PlatformState) -> MigrationState {
+    println!("*** _DEBUG: migrate_preferred_cc_languages: entry");
+    let mut migration_state = MigrationState::Failed;
+    let start_time_ms = get_current_time_ms();
+
+    let preferred_cc_languages =
+        StorageManager::get_vec_string(platform_state, StorageProperty::CCPreferredLanguages)
+            .await
+            .unwrap_or_default();
+
+    println!(
+        "*** _DEBUG: migrate_preferred_cc_languages: preferred_cc_languages={:?}",
+        preferred_cc_languages
+    );
+
+    if let Ok(extn_menssage) = platform_state
+        .get_client()
+        .send_extn_request(UserSettingsRequest::SetPreferredCaptionsLanguages(
+            preferred_cc_languages,
+        ))
+        .await
+    {
+        if let Some(ExtnResponse::None(())) = extn_menssage.payload.as_response() {
+            migration_state = MigrationState::Succeeded;
+        }
+    }
+
+    info!(
+        "migrate_preferred_cc_languages: migration_state={:?}, Time taken: {} ms",
+        migration_state,
+        get_current_time_ms() - start_time_ms
+    );
+    info!(
+        "*** _DEBUG: migrate_preferred_cc_languages: migration_state={:?}, Time taken: {} ms",
+        migration_state,
+        get_current_time_ms() - start_time_ms
+    );
+
+    migration_state
+}
+
+async fn migrate_cc_enabled(platform_state: &PlatformState) -> MigrationState {
+    println!("*** _DEBUG: migrate_cc_enabled: entry");
+    let mut migration_state = MigrationState::Failed;
+    let start_time_ms = get_current_time_ms();
+
+    if let Ok(enabled) =
+        StorageManager::get_bool(platform_state, StorageProperty::ClosedCaptionsEnabled).await
+    {
+        if let Ok(extn_menssage) = platform_state
+            .get_client()
+            .send_extn_request(UserSettingsRequest::SetClosedCaptionsEnabled(enabled))
+            .await
+        {
+            if let Some(ExtnResponse::None(())) = extn_menssage.payload.as_response() {
+                migration_state = MigrationState::Succeeded;
+            }
+        }
+    }
+
+    info!(
+        "migrate_cc_enabled: migration_state={:?}, Time taken: {} ms",
+        migration_state,
+        get_current_time_ms() - start_time_ms
+    );
+    info!(
+        "*** _DEBUG: migrate_cc_enabled: migration_state={:?}, Time taken: {} ms",
+        migration_state,
+        get_current_time_ms() - start_time_ms
+    );
+
+    migration_state
 }

@@ -144,6 +144,7 @@ impl ExtnClient {
         } else {
             vec![processor.contract()]
         };
+
         let contracts_supported: Vec<RippleContract> = contracts
             .into_iter()
             .filter(|contract| self.sender.check_contract_fulfillment(contract.clone()))

@@ -30,6 +30,7 @@ impl Bootstep<BootstrapState> for StartStorageMigratorStep {
     }
 
     async fn setup(&self, bootstrap_state: BootstrapState) -> Result<(), RippleError> {
+        println!("*** _DEBUG: StartStorageMigratorStep::setup: entry");
         tokio::spawn(async move {
             let mut migrator = StorageMigrator::new(&bootstrap_state.platform_state);
             migrator.migrate().await;

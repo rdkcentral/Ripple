@@ -12,17 +12,17 @@ pub enum UserSettingsRequest {
     GetAudioDescription,
     SetAudioDescription(bool),
     GetPreferredAudioLanguages,
-    SetPreferredAudioLanguages,
+    SetPreferredAudioLanguages(Vec<String>),
     GetPresentationLanguage,
     SetPresentationLanguage,
-    GetCaptions,
-    SetCaptions,
+    GetClosedCaptionsEnabled,
+    SetClosedCaptionsEnabled(bool),
     GetPreferredCaptionsLanguages,
-    SetPreferredCaptionsLanguages,
+    SetPreferredCaptionsLanguages(Vec<String>),
     GetPreferredClosedCaptionService,
-    SetPreferredClosedCaptionService,
+    SetPreferredClosedCaptionService(String),
     GetPrivacyMode,
-    SetPrivacyMode,
+    SetPrivacyMode(String),
 }
 
 impl ExtnPayloadProvider for UserSettingsRequest {
