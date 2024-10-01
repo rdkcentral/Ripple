@@ -41,9 +41,7 @@ pub enum DeviceRequest {
     Wifi(WifiRequest),
     Accessory(RemoteAccessoryRequest),
     Apps(AppsRequest),
-    // <pca>
     UserSettings(UserSettingsRequest),
-    // </pca>
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]

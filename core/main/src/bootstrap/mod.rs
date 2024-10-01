@@ -22,7 +22,5 @@ pub mod setup_extn_client_step;
 pub mod start_app_manager_step;
 pub mod start_communication_broker;
 pub mod start_fbgateway_step;
-pub mod start_ws_step;
-// <pca>
 pub mod start_storage_migrator_step;
-// </pca>
+pub mod start_ws_step;

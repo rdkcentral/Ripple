@@ -73,9 +73,7 @@ pub async fn boot(state: BootstrapState) -> RippleResponse {
     execute_step(LoadDistributorValuesStep, &bootstrap).await?;
     execute_step(CheckLauncherStep, &bootstrap).await?;
     execute_step(StartWsStep, &bootstrap).await?;
-    // <pca>
     execute_step(StartStorageMigratorStep, &bootstrap).await?;
-    // </pca>
     execute_step(FireboltGatewayStep, &bootstrap).await?;
     Ok(())
 }
