@@ -48,11 +48,29 @@ pub struct ThunderUserSettingsRequestProcessor {
 
 impl ThunderUserSettingsRequestProcessor {
     pub fn new(state: ThunderState) -> ThunderUserSettingsRequestProcessor {
-        println!("*** _DEBUG: ThunderUserSettingsRequestProcessor::new: entry");
         ThunderUserSettingsRequestProcessor {
             state,
             streamer: DefaultExtnStreamer::new(),
         }
+    }
+
+    async fn set(state: ThunderState, req: ExtnMessage, method: String, params: String) -> bool {
+        let thunder_resp = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method,
+                params: Some(DeviceChannelParams::Json(params)),
+            })
+            .await;
+
+        let extn_resp = match serde_json::from_value::<ThunderError>(thunder_resp.message) {
+            Ok(_) => ExtnResponse::Error(RippleError::ExtnError),
+            Err(_) => ExtnResponse::None(()),
+        };
+
+        Self::respond(state.get_client(), req, extn_resp)
+            .await
+            .is_ok()
     }
 
     async fn get_audio_description(state: ThunderState, req: ExtnMessage) -> bool {
@@ -69,139 +87,6 @@ impl ThunderUserSettingsRequestProcessor {
             Some(v) => ExtnResponse::Boolean(v),
             None => ExtnResponse::Error(RippleError::InvalidOutput),
         };
-
-        Self::respond(state.get_client(), req, extn_resp)
-            .await
-            .is_ok()
-    }
-
-    async fn set_audio_description(state: ThunderState, req: ExtnMessage, enabled: bool) -> bool {
-        println!("*** _DEBUG: set_audio_description: enabled={}", enabled);
-        let thunder_method = ThunderPlugin::UserSettings.method("setAudioDescription");
-        let thunder_resp = state
-            .get_thunder_client()
-            .call(DeviceCallRequest {
-                method: thunder_method,
-                params: Some(DeviceChannelParams::Json(
-                    json!({"enabled": enabled}).to_string(),
-                )),
-            })
-            .await;
-
-        let extn_resp = match serde_json::from_value::<ThunderError>(thunder_resp.message) {
-            Ok(_) => ExtnResponse::Error(RippleError::ExtnError),
-            Err(_) => ExtnResponse::None(()),
-        };
-
-        println!(
-            "*** _DEBUG: set_audio_description: ripple_resp={:?}",
-            extn_resp
-        );
-
-        Self::respond(state.get_client(), req, extn_resp)
-            .await
-            .is_ok()
-    }
-
-    async fn set_preferred_audio_languages(
-        state: ThunderState,
-        req: ExtnMessage,
-        languages: Vec<String>,
-    ) -> bool {
-        println!(
-            "*** _DEBUG: set_preferred_audio_languages: languages={:?}",
-            languages
-        );
-        let thunder_method = ThunderPlugin::UserSettings.method("setPreferredAudioLanguages");
-        let thunder_resp = state
-            .get_thunder_client()
-            .call(DeviceCallRequest {
-                method: thunder_method,
-                params: Some(DeviceChannelParams::Json(
-                    json!({"preferredLanguages": languages.join(",")}).to_string(),
-                )),
-            })
-            .await;
-
-        let extn_resp = match serde_json::from_value::<ThunderError>(thunder_resp.message) {
-            Ok(_) => ExtnResponse::Error(RippleError::ExtnError),
-            Err(_) => ExtnResponse::None(()),
-        };
-
-        println!(
-            "*** _DEBUG: set_preferred_audio_languages: ripple_resp={:?}",
-            extn_resp
-        );
-
-        Self::respond(state.get_client(), req, extn_resp)
-            .await
-            .is_ok()
-    }
-
-    async fn set_preferred_cc_languages(
-        state: ThunderState,
-        req: ExtnMessage,
-        languages: Vec<String>,
-    ) -> bool {
-        println!(
-            "*** _DEBUG: set_preferred_cc_languages: languages={:?}",
-            languages
-        );
-        let thunder_method = ThunderPlugin::UserSettings.method("setPreferredCaptionsLanguages");
-        let thunder_resp = state
-            .get_thunder_client()
-            .call(DeviceCallRequest {
-                method: thunder_method,
-                params: Some(DeviceChannelParams::Json(
-                    json!({"preferredLanguages": languages.join(",")}).to_string(),
-                )),
-            })
-            .await;
-
-        let extn_resp = match serde_json::from_value::<ThunderError>(thunder_resp.message) {
-            Ok(_) => ExtnResponse::Error(RippleError::ExtnError),
-            Err(_) => ExtnResponse::None(()),
-        };
-
-        println!(
-            "*** _DEBUG: set_preferred_cc_languages: ripple_resp={:?}",
-            extn_resp
-        );
-
-        Self::respond(state.get_client(), req, extn_resp)
-            .await
-            .is_ok()
-    }
-
-    async fn set_closed_captions_enabled(
-        state: ThunderState,
-        req: ExtnMessage,
-        enabled: bool,
-    ) -> bool {
-        println!(
-            "*** _DEBUG: set_closed_captions_enabled: enabled={}",
-            enabled
-        );
-        let thunder_method = ThunderPlugin::UserSettings.method("setCaptions");
-        let thunder_resp = state
-            .get_thunder_client()
-            .call(DeviceCallRequest {
-                method: thunder_method,
-                params: Some(DeviceChannelParams::Json(
-                    json!({"enabled": enabled}).to_string(),
-                )),
-            })
-            .await;
-
-        let extn_resp = match serde_json::from_value::<ThunderError>(thunder_resp.message) {
-            Ok(_) => ExtnResponse::Error(RippleError::ExtnError),
-            Err(_) => ExtnResponse::None(()),
-        };
-
-        println!(
-            "*** _DEBUG: set_closed_captions_enabled: ripple_resp={:?}",
-            extn_resp
-        );
 
         Self::respond(state.get_client(), req, extn_resp)
             .await
@@ -236,23 +121,138 @@ impl ExtnRequestProcessor for ThunderUserSettingsRequestProcessor {
         msg: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
-        println!("*** _DEBUG: ThunderUserSettingsRequestProcessor::process_request: msg={:?}, extracted_message={:?}", msg, extracted_message);
         match extracted_message {
             UserSettingsRequest::GetAudioDescription => {
                 Self::get_audio_description(state.clone(), msg).await
             }
             UserSettingsRequest::SetAudioDescription(enabled) => {
-                Self::set_audio_description(state.clone(), msg, enabled).await
+                Self::set(
+                    state.clone(),
+                    msg,
+                    ThunderPlugin::UserSettings.method("setAudioDescription"),
+                    json!({"enabled": enabled}).to_string(),
+                )
+                .await
             }
             UserSettingsRequest::SetPreferredAudioLanguages(languages) => {
-                Self::set_preferred_audio_languages(state.clone(), msg, languages).await
+                Self::set(
+                    state.clone(),
+                    msg,
+                    ThunderPlugin::UserSettings.method("setPreferredAudioLanguages"),
+                    json!({"preferredLanguages": languages.join(",")}).to_string(),
+                )
+                .await
             }
             UserSettingsRequest::SetPreferredCaptionsLanguages(languages) => {
-                Self::set_preferred_cc_languages(state.clone(), msg, languages).await
+                Self::set(
+                    state.clone(),
+                    msg,
+                    ThunderPlugin::UserSettings.method("setPreferredCaptionsLanguages"),
+                    json!({"preferredLanguages": languages.join(",")}).to_string(),
+                )
+                .await
             }
             UserSettingsRequest::SetClosedCaptionsEnabled(enabled) => {
-                Self::set_closed_captions_enabled(state.clone(), msg, enabled).await
+                Self::set(
+                    state.clone(),
+                    msg,
+                    ThunderPlugin::UserSettings.method("setCaptions"),
+                    json!({"enabled": enabled}).to_string(),
+                )
+                .await
             }
+            UserSettingsRequest::SetClosedCaptionsFontFamily(family) => {
+                Self::set(
+                    state.clone(),
+                    msg,
+                    ThunderPlugin::TextTrack.method("setFontFamily"),
+                    json!({"fontFamily": family}).to_string(),
+                )
+                .await
+            }
+
+            UserSettingsRequest::SetClosedCaptionsFontSize(size) => {
+                Self::set(
+                    state.clone(),
+                    msg,
+                    ThunderPlugin::TextTrack.method("setFontSize"),
+                    json!({"fontSize": size}).to_string(),
+                )
+                .await
+            }
+            UserSettingsRequest::SetClosedCaptionsFontColor(color) => {
+                Self::set(
+                    state.clone(),
+                    msg,
+                    ThunderPlugin::TextTrack.method("setFontColor"),
+                    json!({"fontColor": color}).to_string(),
+                )
+                .await
+            }
+            UserSettingsRequest::SetClosedCaptionsFontOpacity(opacity) => {
+                Self::set(
+                    state.clone(),
+                    msg,
+                    ThunderPlugin::TextTrack.method("setFontOpacity"),
+                    json!({"fontOpacity": opacity}).to_string(),
+                )
+                .await
+            }
+            UserSettingsRequest::SetClosedCaptionsFontEdge(edge) => {
+                Self::set(
+                    state.clone(),
+                    msg,
+                    ThunderPlugin::TextTrack.method("setFontEdge"),
+                    json!({"fontEdge": edge}).to_string(),
+                )
+                .await
+            }
+            UserSettingsRequest::SetClosedCaptionsFontEdgeColor(color) => {
+                Self::set(
+                    state.clone(),
+                    msg,
+                    ThunderPlugin::TextTrack.method("setFontEdgeColor"),
+                    json!({"fontEdgeColor": color}).to_string(),
+                )
+                .await
+            }
+            UserSettingsRequest::SetClosedCaptionsBackgroundColor(color) => {
+                Self::set(
+                    state.clone(),
+                    msg,
+                    ThunderPlugin::TextTrack.method("setBackgroundColor"),
+                    json!({"backgroundColor": color}).to_string(),
+                )
+                .await
+            }
+            UserSettingsRequest::SetClosedCaptionsBackgroundOpacity(opacity) => {
+                Self::set(
+                    state.clone(),
+                    msg,
+                    ThunderPlugin::TextTrack.method("setBackgroundOpacity"),
+                    json!({"backgroundOpacity": opacity}).to_string(),
+                )
+                .await
+            }
+            UserSettingsRequest::SetClosedCaptionsWindowColor(color) => {
+                Self::set(
+                    state.clone(),
+                    msg,
+                    ThunderPlugin::TextTrack.method("setWindowColor"),
+                    json!({"windowColor": color}).to_string(),
+                )
+                .await
+            }
+            UserSettingsRequest::SetClosedCaptionsWindowOpacity(opacity) => {
+                Self::set(
+                    state.clone(),
+                    msg,
+                    ThunderPlugin::TextTrack.method("setWindowOpacity"),
+                    json!({"windowOpacity": opacity}).to_string(),
+                )
+                .await
+            }
+
             // TODO: Implement the rest if we wind up going this route.
             _ => Self::respond(
                 state.get_client(),

@@ -37,6 +37,7 @@ pub enum ThunderPlugin {
     PackageManager,
     // <pca>
     UserSettings,
+    TextTrack,
     // </pca>
 }
 const CONTROLLER_CFG: Cfg = Cfg::new("Controller", false, true);
@@ -55,6 +56,7 @@ const TELEMETRY_CFG: Cfg = Cfg::new("org.rdk.Telemetry", false, false);
 const PACKAGE_MANAGER_CFG: Cfg = Cfg::new("org.rdk.PackageManager", false, false);
 // <pca>
 const USER_SETTINGS_CFG: Cfg = Cfg::new("org.rdk.UserSettings", false, false);
+const TEXT_TRACK_CFG: Cfg = Cfg::new("org.rdk.TextTrack", false, false);
 // </pca>
 
 impl ThunderPlugin {
@@ -77,6 +79,7 @@ impl ThunderPlugin {
             PackageManager => PACKAGE_MANAGER_CFG,
             // <pca>
             UserSettings => USER_SETTINGS_CFG,
+            TextTrack => TEXT_TRACK_CFG,
             // </pca>
         }
     }

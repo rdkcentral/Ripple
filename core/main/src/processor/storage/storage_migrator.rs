@@ -41,6 +41,19 @@ static STORAGE_PROPERTIES: &[StorageProperty] = &[
     StorageProperty::PreferredAudioLanguages,
     StorageProperty::CCPreferredLanguages,
     StorageProperty::ClosedCaptionsEnabled,
+    StorageProperty::ClosedCaptionsFontFamily,
+    StorageProperty::ClosedCaptionsFontSize,
+    StorageProperty::ClosedCaptionsFontColor,
+    StorageProperty::ClosedCaptionsFontEdge,
+    StorageProperty::ClosedCaptionsFontEdgeColor,
+    StorageProperty::ClosedCaptionsFontOpacity,
+    StorageProperty::ClosedCaptionsBackgroundColor,
+    StorageProperty::ClosedCaptionsBackgroundOpacity,
+    StorageProperty::ClosedCaptionsWindowColor,
+    StorageProperty::ClosedCaptionsWindowOpacity,
+    // NOTE: Neither UserSettings nor TextTrack supports these:
+    // StorageProperty::ClosedCaptionsTextAlign,
+    // StorageProperty::ClosedCaptionsTextAlignVertical,
 ];
 
 #[derive(Debug, PartialEq)]
@@ -76,57 +89,104 @@ impl StorageMigrator {
         }
     }
 
-    pub async fn migrate(&mut self) {
-        println!("*** _DEBUG: StorageMigrator::migrate: entry");
+    pub async fn migrate(&mut self) -> u64 {
+        info!("migrate: entry");
         let start_time_ms = get_current_time_ms();
 
         for migration_status in &mut self.migration_statuses {
-            if [MigrationState::NotStarted, MigrationState::Failed]
-                .contains(&migration_status.migration_state)
-            {
-                migration_status.migration_state = match migration_status.storage_property {
-                    StorageProperty::AudioDescriptionEnabled => {
-                        migrate_audio_description_enabled(&self.platform_state).await
-                    }
-                    StorageProperty::PreferredAudioLanguages => {
-                        migrate_preferred_audio_languages(&self.platform_state).await
-                    }
-                    StorageProperty::CCPreferredLanguages => {
-                        migrate_preferred_cc_languages(&self.platform_state).await
-                    }
-                    StorageProperty::ClosedCaptionsEnabled => {
-                        migrate_cc_enabled(&self.platform_state).await
-                    }
-                    _ => {
-                        error!(
-                            "migrate: Unsupported property: {:?}",
-                            migration_status.storage_property
-                        );
-                        error!(
-                            "*** _DEBUG: migrate: Unsupported property: {:?}",
-                            migration_status.storage_property
-                        );
-                        MigrationState::Failed
-                    }
-                };
-            }
+            migration_status.migration_state =
+                migrate_property(&self.platform_state, &migration_status.storage_property).await;
         }
 
+        let total_duration_ms = get_current_time_ms() - start_time_ms;
+        info!("migrate: Total duration: {} ms", total_duration_ms);
+        total_duration_ms
+    }
+
+    const TEST_ITERATIONS: u64 = 10;
+    pub async fn migration_test(&mut self) {
+        let mut duration_ms = 0;
+        for i in 1..Self::TEST_ITERATIONS + 1 {
+            info!("migration_test: Iteration: {}", i);
+            duration_ms += self.migrate().await;
+        }
         info!(
-            "migrate: Total time taken: {} ms",
-            get_current_time_ms() - start_time_ms
-        );
-        info!(
-            "*** _DEBUG: migrate: Total time taken: {} ms",
-            get_current_time_ms() - start_time_ms
+            "migration_test: Average duration: {} ms",
+            duration_ms / Self::TEST_ITERATIONS
         );
     }
 }
 
-async fn migrate_audio_description_enabled(platform_state: &PlatformState) -> MigrationState {
-    println!("*** _DEBUG: migrate_audio_description_enabled: entry");
+async fn migrate_property(
+    platform_state: &PlatformState,
+    storage_property: &StorageProperty,
+) -> MigrationState {
     let mut migration_state = MigrationState::Failed;
     let start_time_ms = get_current_time_ms();
+
+    match storage_property {
+        StorageProperty::AudioDescriptionEnabled => {
+            migration_state = migrate_audio_description_enabled(platform_state).await;
+        }
+        StorageProperty::PreferredAudioLanguages => {
+            migration_state = migrate_preferred_audio_languages(platform_state).await;
+        }
+        StorageProperty::CCPreferredLanguages => {
+            migration_state = migrate_preferred_cc_languages(platform_state).await;
+        }
+        StorageProperty::ClosedCaptionsEnabled => {
+            migration_state = migrate_cc_enabled(platform_state).await;
+        }
+        StorageProperty::ClosedCaptionsFontFamily => {
+            migration_state = migrate_font_family(platform_state).await;
+        }
+        StorageProperty::ClosedCaptionsFontSize => {
+            migration_state = migrate_font_size(platform_state).await;
+        }
+        StorageProperty::ClosedCaptionsFontColor => {
+            migration_state = migrate_font_color(platform_state).await;
+        }
+        StorageProperty::ClosedCaptionsFontEdge => {
+            migration_state = migrate_font_edge(platform_state).await;
+        }
+        StorageProperty::ClosedCaptionsFontEdgeColor => {
+            migration_state = migrate_font_edge_color(platform_state).await;
+        }
+        StorageProperty::ClosedCaptionsFontOpacity => {
+            migration_state = migrate_font_opacity(platform_state).await;
+        }
+        StorageProperty::ClosedCaptionsBackgroundColor => {
+            migration_state = migrate_background_color(platform_state).await;
+        }
+        StorageProperty::ClosedCaptionsBackgroundOpacity => {
+            migration_state = migrate_background_opacity(platform_state).await;
+        }
+        StorageProperty::ClosedCaptionsWindowColor => {
+            migration_state = migrate_window_color(platform_state).await;
+        }
+        StorageProperty::ClosedCaptionsWindowOpacity => {
+            migration_state = migrate_window_opacity(platform_state).await;
+        }
+        _ => {
+            error!(
+                "migrate_property: Unsupported property: {:?}",
+                storage_property
+            );
+        }
+    }
+
+    info!(
+        "migrate_property: storage_property={:?}, migration_state={:?}, Time taken: {} ms",
+        storage_property,
+        migration_state,
+        get_current_time_ms() - start_time_ms
+    );
+
+    migration_state
+}
+
+async fn migrate_audio_description_enabled(platform_state: &PlatformState) -> MigrationState {
+    let mut migration_state = MigrationState::Failed;
 
     if let Ok(enabled) =
         StorageManager::get_bool(platform_state, StorageProperty::AudioDescriptionEnabled).await
@@ -142,34 +202,16 @@ async fn migrate_audio_description_enabled(platform_state: &PlatformState) -> Mi
         }
     }
 
-    info!(
-        "migrate_audio_description_enabled: migration_state={:?}, Time taken: {} ms",
-        migration_state,
-        get_current_time_ms() - start_time_ms
-    );
-    info!(
-        "*** _DEBUG: migrate_audio_description_enabled: migration_state={:?}, Time taken: {} ms",
-        migration_state,
-        get_current_time_ms() - start_time_ms
-    );
-
     migration_state
 }
 
 async fn migrate_preferred_audio_languages(platform_state: &PlatformState) -> MigrationState {
-    println!("*** _DEBUG: migrate_preferred_audio_languages: entry");
     let mut migration_state = MigrationState::Failed;
-    let start_time_ms = get_current_time_ms();
 
     let preferred_cc_languages =
         StorageManager::get_vec_string(platform_state, StorageProperty::PreferredAudioLanguages)
             .await
             .unwrap_or_default();
-
-    println!(
-        "*** _DEBUG: migrate_preferred_audio_languages: preferred_cc_languages={:?}",
-        preferred_cc_languages
-    );
 
     if let Ok(extn_menssage) = platform_state
         .get_client()
@@ -183,34 +225,16 @@ async fn migrate_preferred_audio_languages(platform_state: &PlatformState) -> Mi
         }
     }
 
-    info!(
-        "migrate_preferred_audio_languages: migration_state={:?}, Time taken: {} ms",
-        migration_state,
-        get_current_time_ms() - start_time_ms
-    );
-    info!(
-        "*** _DEBUG: migrate_preferred_audio_languages: migration_state={:?}, Time taken: {} ms",
-        migration_state,
-        get_current_time_ms() - start_time_ms
-    );
-
     migration_state
 }
 
 async fn migrate_preferred_cc_languages(platform_state: &PlatformState) -> MigrationState {
-    println!("*** _DEBUG: migrate_preferred_cc_languages: entry");
     let mut migration_state = MigrationState::Failed;
-    let start_time_ms = get_current_time_ms();
 
     let preferred_cc_languages =
         StorageManager::get_vec_string(platform_state, StorageProperty::CCPreferredLanguages)
             .await
             .unwrap_or_default();
-
-    println!(
-        "*** _DEBUG: migrate_preferred_cc_languages: preferred_cc_languages={:?}",
-        preferred_cc_languages
-    );
 
     if let Ok(extn_menssage) = platform_state
         .get_client()
@@ -224,24 +248,11 @@ async fn migrate_preferred_cc_languages(platform_state: &PlatformState) -> Migra
         }
     }
 
-    info!(
-        "migrate_preferred_cc_languages: migration_state={:?}, Time taken: {} ms",
-        migration_state,
-        get_current_time_ms() - start_time_ms
-    );
-    info!(
-        "*** _DEBUG: migrate_preferred_cc_languages: migration_state={:?}, Time taken: {} ms",
-        migration_state,
-        get_current_time_ms() - start_time_ms
-    );
-
     migration_state
 }
 
 async fn migrate_cc_enabled(platform_state: &PlatformState) -> MigrationState {
-    println!("*** _DEBUG: migrate_cc_enabled: entry");
     let mut migration_state = MigrationState::Failed;
-    let start_time_ms = get_current_time_ms();
 
     if let Ok(enabled) =
         StorageManager::get_bool(platform_state, StorageProperty::ClosedCaptionsEnabled).await
@@ -257,16 +268,209 @@ async fn migrate_cc_enabled(platform_state: &PlatformState) -> MigrationState {
         }
     }
 
-    info!(
-        "migrate_cc_enabled: migration_state={:?}, Time taken: {} ms",
-        migration_state,
-        get_current_time_ms() - start_time_ms
-    );
-    info!(
-        "*** _DEBUG: migrate_cc_enabled: migration_state={:?}, Time taken: {} ms",
-        migration_state,
-        get_current_time_ms() - start_time_ms
-    );
+    migration_state
+}
+
+async fn migrate_font_family(platform_state: &PlatformState) -> MigrationState {
+    let mut migration_state = MigrationState::Failed;
+
+    let family =
+        StorageManager::get_string(platform_state, StorageProperty::ClosedCaptionsFontFamily)
+            .await
+            .unwrap_or_default();
+    if let Ok(extn_menssage) = platform_state
+        .get_client()
+        .send_extn_request(UserSettingsRequest::SetClosedCaptionsFontFamily(family))
+        .await
+    {
+        if let Some(ExtnResponse::None(())) = extn_menssage.payload.as_response() {
+            migration_state = MigrationState::Succeeded;
+        }
+    }
+
+    migration_state
+}
+
+async fn migrate_font_size(platform_state: &PlatformState) -> MigrationState {
+    let mut migration_state = MigrationState::Failed;
+
+    let size = StorageManager::get_string(platform_state, StorageProperty::ClosedCaptionsFontSize)
+        .await
+        .unwrap_or_default();
+    if let Ok(extn_menssage) = platform_state
+        .get_client()
+        .send_extn_request(UserSettingsRequest::SetClosedCaptionsFontSize(size))
+        .await
+    {
+        if let Some(ExtnResponse::None(())) = extn_menssage.payload.as_response() {
+            migration_state = MigrationState::Succeeded;
+        }
+    }
+
+    migration_state
+}
+
+async fn migrate_font_color(platform_state: &PlatformState) -> MigrationState {
+    let mut migration_state = MigrationState::Failed;
+
+    let color =
+        StorageManager::get_string(platform_state, StorageProperty::ClosedCaptionsFontColor)
+            .await
+            .unwrap_or_default();
+    if let Ok(extn_menssage) = platform_state
+        .get_client()
+        .send_extn_request(UserSettingsRequest::SetClosedCaptionsFontColor(color))
+        .await
+    {
+        if let Some(ExtnResponse::None(())) = extn_menssage.payload.as_response() {
+            migration_state = MigrationState::Succeeded;
+        }
+    }
+
+    migration_state
+}
+
+async fn migrate_font_edge(platform_state: &PlatformState) -> MigrationState {
+    let mut migration_state = MigrationState::Failed;
+
+    let edge = StorageManager::get_string(platform_state, StorageProperty::ClosedCaptionsFontEdge)
+        .await
+        .unwrap_or_default();
+    if let Ok(extn_menssage) = platform_state
+        .get_client()
+        .send_extn_request(UserSettingsRequest::SetClosedCaptionsFontEdge(edge))
+        .await
+    {
+        if let Some(ExtnResponse::None(())) = extn_menssage.payload.as_response() {
+            migration_state = MigrationState::Succeeded;
+        }
+    }
+
+    migration_state
+}
+
+async fn migrate_font_edge_color(platform_state: &PlatformState) -> MigrationState {
+    let mut migration_state = MigrationState::Failed;
+
+    let color =
+        StorageManager::get_string(platform_state, StorageProperty::ClosedCaptionsFontEdgeColor)
+            .await
+            .unwrap_or_default();
+    if let Ok(extn_menssage) = platform_state
+        .get_client()
+        .send_extn_request(UserSettingsRequest::SetClosedCaptionsFontEdgeColor(color))
+        .await
+    {
+        if let Some(ExtnResponse::None(())) = extn_menssage.payload.as_response() {
+            migration_state = MigrationState::Succeeded;
+        }
+    }
+
+    migration_state
+}
+
+async fn migrate_font_opacity(platform_state: &PlatformState) -> MigrationState {
+    let mut migration_state = MigrationState::Failed;
+
+    let opacity =
+        StorageManager::get_string(platform_state, StorageProperty::ClosedCaptionsFontOpacity)
+            .await
+            .unwrap_or_default();
+    if let Ok(extn_menssage) = platform_state
+        .get_client()
+        .send_extn_request(UserSettingsRequest::SetClosedCaptionsFontOpacity(opacity))
+        .await
+    {
+        if let Some(ExtnResponse::None(())) = extn_menssage.payload.as_response() {
+            migration_state = MigrationState::Succeeded;
+        }
+    }
+
+    migration_state
+}
+
+async fn migrate_background_color(platform_state: &PlatformState) -> MigrationState {
+    let mut migration_state = MigrationState::Failed;
+
+    let color = StorageManager::get_string(
+        platform_state,
+        StorageProperty::ClosedCaptionsBackgroundColor,
+    )
+    .await
+    .unwrap_or_default();
+    if let Ok(extn_menssage) = platform_state
+        .get_client()
+        .send_extn_request(UserSettingsRequest::SetClosedCaptionsBackgroundColor(color))
+        .await
+    {
+        if let Some(ExtnResponse::None(())) = extn_menssage.payload.as_response() {
+            migration_state = MigrationState::Succeeded;
+        }
+    }
+
+    migration_state
+}
+
+async fn migrate_background_opacity(platform_state: &PlatformState) -> MigrationState {
+    let mut migration_state = MigrationState::Failed;
+
+    let opacity = StorageManager::get_string(
+        platform_state,
+        StorageProperty::ClosedCaptionsBackgroundOpacity,
+    )
+    .await
+    .unwrap_or_default();
+    if let Ok(extn_menssage) = platform_state
+        .get_client()
+        .send_extn_request(UserSettingsRequest::SetClosedCaptionsBackgroundOpacity(
+            opacity,
+        ))
+        .await
+    {
+        if let Some(ExtnResponse::None(())) = extn_menssage.payload.as_response() {
+            migration_state = MigrationState::Succeeded;
+        }
+    }
+
+    migration_state
+}
+
+async fn migrate_window_color(platform_state: &PlatformState) -> MigrationState {
+    let mut migration_state = MigrationState::Failed;
+
+    let color =
+        StorageManager::get_string(platform_state, StorageProperty::ClosedCaptionsWindowColor)
+            .await
+            .unwrap_or_default();
+    if let Ok(extn_menssage) = platform_state
+        .get_client()
+        .send_extn_request(UserSettingsRequest::SetClosedCaptionsWindowColor(color))
+        .await
+    {
+        if let Some(ExtnResponse::None(())) = extn_menssage.payload.as_response() {
+            migration_state = MigrationState::Succeeded;
+        }
+    }
+
+    migration_state
+}
+
+async fn migrate_window_opacity(platform_state: &PlatformState) -> MigrationState {
+    let mut migration_state = MigrationState::Failed;
+
+    let opacity =
+        StorageManager::get_string(platform_state, StorageProperty::ClosedCaptionsWindowOpacity)
+            .await
+            .unwrap_or_default();
+    if let Ok(extn_menssage) = platform_state
+        .get_client()
+        .send_extn_request(UserSettingsRequest::SetClosedCaptionsWindowOpacity(opacity))
+        .await
+    {
+        if let Some(ExtnResponse::None(())) = extn_menssage.payload.as_response() {
+            migration_state = MigrationState::Succeeded;
+        }
+    }
 
     migration_state
 }

@@ -50,9 +50,6 @@ impl SetupThunderProcessor {
         extn_client.add_request_processor(ThunderWifiRequestProcessor::new(state.clone().state));
         extn_client.add_request_processor(ThunderStorageRequestProcessor::new(state.clone().state));
         // <pca>
-        println!(
-            "*** _DEBUG: SetupThunderProcessor::setup: adding ThunderUserSettingsRequestProcessor"
-        );
         extn_client.add_request_processor(ThunderUserSettingsRequestProcessor::new(
             state.clone().state,
         ));
