@@ -46,6 +46,7 @@ pub mod processors {
     pub mod thunder_remote;
     pub mod thunder_rfc;
     pub mod thunder_telemetry;
+    pub mod thunder_user_settings;
     pub mod thunder_wifi;
     pub mod thunder_window_manager;
 }

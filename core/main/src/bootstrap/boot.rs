@@ -35,6 +35,7 @@ use super::{
     start_app_manager_step::StartAppManagerStep,
     start_communication_broker::{StartCommunicationBroker, StartOtherBrokers},
     start_fbgateway_step::FireboltGatewayStep,
+    start_storage_migrator_step::StartStorageMigratorStep,
     start_ws_step::StartWsStep,
 };
 /// Starts up Ripple uses `PlatformState` to manage State
@@ -72,6 +73,7 @@ pub async fn boot(state: BootstrapState) -> RippleResponse {
     execute_step(LoadDistributorValuesStep, &bootstrap).await?;
     execute_step(CheckLauncherStep, &bootstrap).await?;
     execute_step(StartWsStep, &bootstrap).await?;
+    execute_step(StartStorageMigratorStep, &bootstrap).await?;
     execute_step(FireboltGatewayStep, &bootstrap).await?;
     Ok(())
 }
