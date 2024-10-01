@@ -56,10 +56,9 @@ static STORAGE_PROPERTIES: &[StorageProperty] = &[
     // StorageProperty::ClosedCaptionsTextAlignVertical,
 ];
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 enum MigrationState {
     NotStarted,
-    NotNeeded,
     Succeeded,
     Failed,
 }
