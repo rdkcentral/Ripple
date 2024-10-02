@@ -17,7 +17,9 @@
 
 use ripple_sdk::framework::bootstrap::Bootstep;
 use ripple_sdk::log::info;
-use ripple_sdk::tokio;
+// <pca> debug
+//use ripple_sdk::tokio;
+// </pca>
 use ripple_sdk::{async_trait::async_trait, framework::RippleResponse};
 
 use crate::processor::main_context_processor::MainContextProcessor;
@@ -40,7 +42,7 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
         // tokio::spawn(async move {
         //     MetricsState::initialize(&ps).await;
         // });
-        MetricsState::initialize(&ps).await;
+        MetricsState::initialize(&s.platform_state).await;
         // </pca>
         info!("setup: Calling MainContextProcessor::remove_expired_and_inactive_entries");
         MainContextProcessor::remove_expired_and_inactive_entries(&s.platform_state);
