@@ -34,28 +34,28 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
     }
 
     async fn setup(&self, s: BootstrapState) -> RippleResponse {
-        info!("setup: Calling MetricsState::initialize");
+        println!("setup: Calling MetricsState::initialize");
         let ps = s.platform_state.clone();
         tokio::spawn(async move {
             MetricsState::initialize(&ps).await;
         });
-        info!("setup: Calling MainContextProcessor::remove_expired_and_inactive_entries");
+        println!("setup: Calling MainContextProcessor::remove_expired_and_inactive_entries");
         MainContextProcessor::remove_expired_and_inactive_entries(&s.platform_state);
-        info!("setup: Calling ContextManager::setup");
+        println!("setup: Calling ContextManager::setup");
         ContextManager::setup(&s.platform_state).await; // <pca> Also makes some thunder calls </pca>
-        info!("setup: Calling Mark 4");
+        println!("setup: Calling Mark 4");
         if !s.platform_state.supports_session() {
-            info!("setup: Session not supported");
+            println!("setup: Session not supported");
             return Ok(());
         }
-        info!("setup: Calling MainContextProcessor::initialize_session");
+        println!("setup: Calling MainContextProcessor::initialize_session");
         MainContextProcessor::initialize_session(&s.platform_state).await;
-        info!("setup: Calling add_event_processor(MainContextProcessor)");
+        println!("setup: Calling add_event_processor(MainContextProcessor)");
 
         s.platform_state
             .get_client()
             .add_event_processor(MainContextProcessor::new(s.platform_state.clone()));
-        info!("setup: Exiting");
+        println!("setup: Exiting");
         Ok(())
     }
 }
