@@ -34,7 +34,7 @@ use super::{
 };
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ActivationStatus {
     NotActivated,
     AccountToken(AccountToken),
