@@ -27,9 +27,12 @@ use crate::{
 use serde::{Deserialize, Serialize};
 
 use super::{
-    device::device_request::{AccountToken, InternetConnectionStatus, SystemPowerState, TimeZone},
+    device::device_request::{
+        AccountToken, HdcpProfile, HdrProfile, InternetConnectionStatus, SystemPowerState, TimeZone,
+    },
     firebolt::fb_metrics::MetricsContext,
 };
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ActivationStatus {
@@ -65,6 +68,8 @@ pub struct RippleContext {
     pub update_type: Option<RippleContextUpdateType>,
     pub features: Vec<String>,
     pub metrics_context: Option<MetricsContext>,
+    pub hdcp: Option<HashMap<HdcpProfile, bool>>,
+    pub hdr: Option<HashMap<HdrProfile, bool>>,
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -76,26 +81,35 @@ pub enum RippleContextUpdateType {
     TimeZoneChanged,
     FeaturesChanged,
     MetricsContextChanged,
+    HdcpChanged,
+    HdrChanged,
+}
+
+#[derive(Default)]
+pub struct RippleContextParams {
+    pub activation_status: Option<ActivationStatus>,
+    pub internet_connectivity: Option<InternetConnectionStatus>,
+    pub system_power_state: Option<SystemPowerState>,
+    pub time_zone: Option<TimeZone>,
+    pub update_type: Option<RippleContextUpdateType>,
+    pub features: Vec<String>,
+    pub metrics_context: Option<MetricsContext>,
+    pub hdcp: Option<HashMap<HdcpProfile, bool>>,
+    pub hdr: Option<HashMap<HdrProfile, bool>>,
 }
 
 impl RippleContext {
-    pub fn new(
-        activation_status: Option<ActivationStatus>,
-        internet_connectivity: Option<InternetConnectionStatus>,
-        system_power_state: Option<SystemPowerState>,
-        time_zone: Option<TimeZone>,
-        update_type: Option<RippleContextUpdateType>,
-        features: Vec<String>,
-        metrics_context: Option<MetricsContext>,
-    ) -> RippleContext {
+    pub fn new(params: RippleContextParams) -> RippleContext {
         RippleContext {
-            activation_status,
-            internet_connectivity,
-            system_power_state,
-            time_zone,
-            update_type,
-            features,
-            metrics_context,
+            activation_status: params.activation_status,
+            internet_connectivity: params.internet_connectivity,
+            system_power_state: params.system_power_state,
+            time_zone: params.time_zone,
+            update_type: params.update_type,
+            features: params.features,
+            metrics_context: params.metrics_context,
+            hdcp: params.hdcp,
+            hdr: params.hdr,
         }
     }
 
@@ -195,6 +209,26 @@ impl RippleContext {
                 self.update_type = Some(RippleContextUpdateType::MetricsContextChanged);
                 true
             }
+            RippleContextUpdateRequest::Hdcp(map) => {
+                if let Some(h) = self.hdcp.as_ref() {
+                    if h == &map {
+                        return false;
+                    }
+                }
+                self.hdcp = Some(map);
+                self.update_type = Some(RippleContextUpdateType::HdcpChanged);
+                true
+            }
+            RippleContextUpdateRequest::Hdr(map) => {
+                if let Some(h) = self.hdr.as_ref() {
+                    if h == &map {
+                        return false;
+                    }
+                }
+                self.hdr = Some(map);
+                self.update_type = Some(RippleContextUpdateType::HdrChanged);
+                true
+            }
         }
     }
 
@@ -204,6 +238,8 @@ impl RippleContext {
         self.time_zone = context.time_zone;
         self.features = context.features;
         self.metrics_context = context.metrics_context;
+        self.hdcp = context.hdcp;
+        self.hdr = context.hdr;
     }
 
     pub fn get_event_message(&self) -> ExtnMessage {
@@ -223,6 +259,10 @@ impl RippleContext {
             RippleContextUpdateType::InternetConnectionChanged
         } else if self.time_zone != context.time_zone {
             RippleContextUpdateType::TimeZoneChanged
+        } else if self.hdcp != context.hdcp {
+            RippleContextUpdateType::HdcpChanged
+        } else if self.hdr != context.hdr {
+            RippleContextUpdateType::HdrChanged
         } else {
             RippleContextUpdateType::ActivationStatusChanged
         }
@@ -269,6 +309,8 @@ pub enum RippleContextUpdateRequest {
     UpdateFeatures(Vec<FeatureUpdate>),
     MetricsContext(MetricsContext),
     RefreshContext(Option<RippleContextUpdateType>),
+    Hdcp(HashMap<HdcpProfile, bool>),
+    Hdr(HashMap<HdrProfile, bool>),
 }
 
 impl RippleContextUpdateRequest {
@@ -338,6 +380,8 @@ mod tests {
             update_type: None,
             features: Vec::default(),
             metrics_context: Some(MetricsContext::default()),
+            hdcp: Some(HashMap::default()),
+            hdr: Some(HashMap::default()),
         };
 
         let context2 = RippleContext {
@@ -351,6 +395,8 @@ mod tests {
             update_type: None,
             features: Vec::default(),
             metrics_context: Some(MetricsContext::default()),
+            hdcp: Some(HashMap::default()),
+            hdr: Some(HashMap::default()),
         };
 
         assert_eq!(
@@ -382,6 +428,8 @@ mod tests {
             update_type: None,
             features: Vec::default(),
             metrics_context: Some(MetricsContext::default()),
+            hdcp: Some(HashMap::default()),
+            hdr: Some(HashMap::default()),
         };
 
         let contract_type: RippleContract = RippleContract::RippleContext;
@@ -392,15 +440,11 @@ mod tests {
     fn test_update_features_enabled_not_exists() {
         let name = String::from("foo");
         let some_other_feature = String::from("bar");
-        let mut ripple_context = RippleContext::new(
-            None,
-            None,
-            None,
-            None,
-            None,
-            vec![some_other_feature.clone()],
-            None,
-        );
+        let params = RippleContextParams {
+            features: vec![some_other_feature.clone()],
+            ..Default::default()
+        };
+        let mut ripple_context = RippleContext::new(params);
         let changed = ripple_context.update(RippleContextUpdateRequest::UpdateFeatures(vec![
             FeatureUpdate::new(name.clone(), true),
         ]));
@@ -413,15 +457,11 @@ mod tests {
     fn test_update_features_enabled_exists() {
         let name = String::from("foo");
         let some_other_feature = String::from("bar");
-        let mut ripple_context = RippleContext::new(
-            None,
-            None,
-            None,
-            None,
-            None,
-            vec![some_other_feature.clone()],
-            None,
-        );
+        let params = RippleContextParams {
+            features: vec![some_other_feature.clone()],
+            ..Default::default()
+        };
+        let mut ripple_context = RippleContext::new(params);
         ripple_context.update(RippleContextUpdateRequest::UpdateFeatures(vec![
             FeatureUpdate::new(name.clone(), true),
         ]));
@@ -437,15 +477,11 @@ mod tests {
     fn test_update_features_disabled_not_exists() {
         let name = String::from("foo");
         let some_other_feature = String::from("bar");
-        let mut ripple_context = RippleContext::new(
-            None,
-            None,
-            None,
-            None,
-            None,
-            vec![some_other_feature.clone()],
-            None,
-        );
+        let params = RippleContextParams {
+            features: vec![some_other_feature.clone()],
+            ..Default::default()
+        };
+        let mut ripple_context = RippleContext::new(params);
         let changed = ripple_context.update(RippleContextUpdateRequest::UpdateFeatures(vec![
             FeatureUpdate::new(name.clone(), false),
         ]));
@@ -458,15 +494,11 @@ mod tests {
     fn test_update_features_disabled_exists() {
         let name = String::from("foo");
         let some_other_feature = String::from("bar");
-        let mut ripple_context = RippleContext::new(
-            None,
-            None,
-            None,
-            None,
-            None,
-            vec![some_other_feature.clone()],
-            None,
-        );
+        let params = RippleContextParams {
+            features: vec![some_other_feature.clone()],
+            ..Default::default()
+        };
+        let mut ripple_context = RippleContext::new(params);
         ripple_context.update(RippleContextUpdateRequest::UpdateFeatures(vec![
             FeatureUpdate::new(name.clone(), true),
         ]));

@@ -25,7 +25,7 @@ use ripple_sdk::api::{
         device_events::{
             INTERNET_CHANGED_EVENT, TIME_ZONE_CHANGED, VOICE_GUIDANCE_SETTINGS_CHANGED,
         },
-        device_request::{InternetConnectionStatus, TimeZone, VoiceGuidanceState},
+        device_request::{HdcpProfile, InternetConnectionStatus, TimeZone, VoiceGuidanceState},
     },
 };
 use ripple_sdk::serde_json;
@@ -43,9 +43,7 @@ use crate::{
                 POWER_STATE_CHANGED, SCREEN_RESOLUTION_CHANGED_EVENT,
                 VIDEO_RESOLUTION_CHANGED_EVENT,
             },
-            device_request::{
-                AudioProfile, HdcpProfile, HdrProfile, NetworkResponse, SystemPowerState,
-            },
+            device_request::{AudioProfile, HdrProfile, NetworkResponse, SystemPowerState},
         },
         extn::extn_client_message::ExtnEvent,
         log::debug,
@@ -81,20 +79,32 @@ impl HDCPEventHandler {
     pub fn handle(
         state: ThunderState,
         value: ThunderEventMessage,
-        callback_type: DeviceEventCallback,
+        _callback_type: DeviceEventCallback,
     ) {
         if let ThunderEventMessage::DisplayConnection(_connection) = value {
             debug!("HDCPEventHandler: display connection changed");
-
-            let state_c = state.clone();
             let cached_state = CachedState::new(state.clone());
 
             tokio::spawn(async move {
                 cached_state.invalidate_hdcp_cache();
-                let map = ThunderDeviceInfoRequestProcessor::update_hdcp_cache(cached_state).await;
-                if let Ok(v) = Self::get_extn_event(map, callback_type) {
-                    ThunderEventHandler::callback_device_event(state_c, Self::get_mapped_event(), v)
-                }
+                let hdcp = ThunderDeviceInfoRequestProcessor::update_hdcp_cache(cached_state).await;
+
+                let event = ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
+                    event_name: HDCP_CHANGED_EVENT.to_string(),
+                    result: serde_json::to_value(hdcp.clone()).unwrap(),
+                    context: None,
+                    app_id: None,
+                }));
+                ThunderEventHandler::callback_device_event(
+                    state.clone(),
+                    HDCP_CHANGED_EVENT.to_string(),
+                    event,
+                );
+
+                ThunderEventHandler::callback_context_update(
+                    state,
+                    RippleContextUpdateRequest::Hdcp(hdcp),
+                );
             });
         }
     }
@@ -122,7 +132,27 @@ impl ThunderEventHandlerProvider for HDCPEventHandler {
     }
 
     fn module() -> String {
-        ThunderPlugin::DisplaySettings.callsign_string()
+        ThunderPlugin::Hdcp.callsign_string()
+    }
+
+    fn get_id(&self) -> String {
+        Self::get_mapped_event()
+    }
+
+    fn get_device_request() -> ripple_sdk::api::device::device_operator::DeviceSubscribeRequest {
+        ripple_sdk::api::device::device_operator::DeviceSubscribeRequest {
+            module: Self::module(),
+            event_name: Self::event_name(),
+            params: None,
+            sub_id: Some(Self::get_mapped_event()),
+        }
+    }
+
+    fn get_extn_event(
+        _r: Self::EVENT,
+        _callback_type: DeviceEventCallback,
+    ) -> Result<ExtnEvent, RippleError> {
+        Err(RippleError::InvalidOutput)
     }
 }
 
@@ -135,20 +165,32 @@ impl HDREventHandler {
     pub fn handle(
         state: ThunderState,
         value: ThunderEventMessage,
-        callback_type: DeviceEventCallback,
+        _callback_type: DeviceEventCallback,
     ) {
         if let ThunderEventMessage::DisplayConnection(_connection) = value {
             debug!("HDREventHandler: display connection changed");
-
-            let state_c = state.clone();
             let cached_state = CachedState::new(state.clone());
 
             tokio::spawn(async move {
                 cached_state.invalidate_hdr_cache();
-                let map = ThunderDeviceInfoRequestProcessor::get_hdr(cached_state).await;
-                if let Ok(v) = Self::get_extn_event(map, callback_type) {
-                    ThunderEventHandler::callback_device_event(state_c, Self::get_mapped_event(), v)
-                }
+                let hdr = ThunderDeviceInfoRequestProcessor::get_hdr(cached_state).await;
+
+                let event = ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
+                    event_name: HDR_CHANGED_EVENT.to_string(),
+                    result: serde_json::to_value(hdr.clone()).unwrap(),
+                    context: None,
+                    app_id: None,
+                }));
+                ThunderEventHandler::callback_device_event(
+                    state.clone(),
+                    HDR_CHANGED_EVENT.to_string(),
+                    event,
+                );
+
+                ThunderEventHandler::callback_context_update(
+                    state,
+                    RippleContextUpdateRequest::Hdr(hdr),
+                );
             });
         }
     }
@@ -177,7 +219,14 @@ impl ThunderEventHandlerProvider for HDREventHandler {
     }
 
     fn module() -> String {
-        ThunderPlugin::DisplaySettings.callsign_string()
+        ThunderPlugin::Hdcp.callsign_string()
+    }
+
+    fn get_extn_event(
+        _r: Self::EVENT,
+        _callback_type: DeviceEventCallback,
+    ) -> Result<ExtnEvent, RippleError> {
+        Err(RippleError::InvalidOutput)
     }
 }
 

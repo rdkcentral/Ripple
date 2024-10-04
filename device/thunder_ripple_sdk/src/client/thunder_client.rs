@@ -242,6 +242,7 @@ impl DeviceOperator for ThunderClient {
 pub struct ThunderSubscription {
     handle: JoinHandle<()>,
     params: Option<String>,
+    sub_ids_list: HashMap<String, Vec<String>>,
     listeners: HashMap<String, MpscSender<DeviceResponseMessage>>,
     rpc_response: DeviceResponseMessage,
 }
@@ -267,6 +268,11 @@ impl ThunderClient {
         let mut subscriptions = subscriptions_map.lock().await;
         if let Some(sub) = subscriptions.get_mut(&subscribe_method) {
             // rpc subscription already exists, just add a listener
+            sub.sub_ids_list
+                .entry(subscribe_method.clone())
+                .or_insert_with(Vec::new)
+                .push(sub_id.clone());
+
             sub.listeners
                 .insert(sub_id.clone(), thunder_message.handler);
             if let Some(cb) = thunder_message.callback {
@@ -275,11 +281,11 @@ impl ThunderClient {
             }
             return;
         }
-        // rpc subscription does not exist, set it up
-        let subscription_res = client
-            .subscribe_to_method::<Value>(subscribe_method.as_str())
-            .await;
 
+        // rpc subscription does not exist, set it up
+        let mut sub_ids_list = HashMap::new();
+        sub_ids_list.insert(subscribe_method.clone(), vec![sub_id.clone()]);
+        let subscription_res = client.subscribe_to_method::<Value>(&subscribe_method).await;
         let mut subscription = match subscription_res {
             Ok(subscription) => subscription,
             Err(e) => {
@@ -310,15 +316,31 @@ impl ThunderClient {
         })
         .send_request(client)
         .await;
-        let handler_channel = thunder_message.handler.clone();
-        let sub_id_c = sub_id.clone();
+
+        let subscribe_method_clone = subscribe_method.clone();
+
+        // Spawn an async task to handle event subscription
+        let subscriptions_map_clone = Arc::clone(subscriptions_map);
         let handle = ripple_sdk::tokio::spawn(async move {
             while let Some(ev_res) = subscription.next().await {
                 match ev_res {
                     Ok(ev) => {
-                        let msg = DeviceResponseMessage::sub(ev, sub_id_c.clone());
-                        mpsc_send_and_log(&thunder_message.handler, msg, "ThunderSubscribeEvent")
-                            .await;
+                        let mut subscriptions = subscriptions_map_clone.lock().await;
+                        if let Some(sub) = subscriptions.get_mut(&subscribe_method_clone) {
+                            if let Some(sub_id_list) = sub.sub_ids_list.get(&subscribe_method_clone)
+                            {
+                                for sub_id in sub_id_list {
+                                    let msg =
+                                        DeviceResponseMessage::sub(ev.clone(), sub_id.clone());
+                                    mpsc_send_and_log(
+                                        &sub.listeners[sub_id],
+                                        msg,
+                                        "ThunderSubscribeEvent",
+                                    )
+                                    .await;
+                                }
+                            }
+                        }
                     }
                     Err(e) => error!("Thunder event error {e:?}"),
                 }
@@ -335,14 +357,20 @@ impl ThunderClient {
         });
 
         let msg = DeviceResponseMessage::sub(response, sub_id.clone());
-        let mut tsub = ThunderSubscription {
+        let new_subscription = ThunderSubscription {
             handle,
             params: thunder_message.params.clone(),
-            listeners: HashMap::default(),
+            sub_ids_list,
+            listeners: {
+                let mut listeners = HashMap::new();
+                listeners.insert(sub_id.clone(), thunder_message.handler.clone());
+                listeners
+            },
             rpc_response: msg.clone(),
         };
-        tsub.listeners.insert(sub_id, handler_channel);
-        subscriptions.insert(subscribe_method, tsub);
+
+        subscriptions.insert(subscribe_method.clone(), new_subscription);
+
         if let Some(cb) = thunder_message.callback {
             oneshot_send_and_log(cb, msg, "ThunderRegisterResponse");
         }
