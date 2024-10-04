@@ -16,7 +16,6 @@
 //
 
 use ripple_sdk::framework::bootstrap::Bootstep;
-use ripple_sdk::log::info;
 use ripple_sdk::tokio;
 use ripple_sdk::{async_trait::async_trait, framework::RippleResponse};
 
