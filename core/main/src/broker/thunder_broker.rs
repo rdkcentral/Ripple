@@ -330,3 +330,197 @@ impl EndpointBroker for ThunderBroker {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        broker::{
+            endpoint_broker::{
+                BrokerCallback, BrokerConnectRequest, BrokerOutput, BrokerRequest, EndpointBroker,
+            },
+            rules_engine::{Rule, RuleEndpoint, RuleTransform},
+        },
+        utils::test_utils::{MockWebsocket, WSMockData},
+    };
+    use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
+    use serde_json::json;
+    use std::time::Duration;
+    use tokio::sync::mpsc;
+
+    async fn get_thunderbroker(
+        tx: mpsc::Sender<bool>,
+        send_data: Vec<WSMockData>,
+        sender: mpsc::Sender<BrokerOutput>,
+        on_close: bool,
+    ) -> ThunderBroker {
+        // setup mock websocket server
+        let port = MockWebsocket::start(send_data, Vec::new(), tx, on_close).await;
+
+        let endpoint = RuleEndpoint {
+            url: format!("ws://127.0.0.1:{}", port),
+            protocol: crate::broker::rules_engine::RuleEndpointProtocol::Websocket,
+            jsonrpc: false,
+        };
+        let (tx, _) = mpsc::channel(1);
+        let request = BrokerConnectRequest::new("somekey".to_owned(), endpoint, tx);
+        let callback = BrokerCallback { sender };
+        ThunderBroker::get_broker(request, callback)
+    }
+
+    #[tokio::test]
+    async fn test_thunderbroker_start() {
+        let (tx, mut _rx) = mpsc::channel(1);
+        let (sender, mut rec) = mpsc::channel(1);
+        let send_data = vec![WSMockData::get(json!({"key":"value"}).to_string())];
+
+        let thndr_broker = get_thunderbroker(tx, send_data, sender, false).await;
+
+        // Use Broker to connect to it
+        let request = BrokerRequest {
+            rpc: RpcRequest::get_new_internal("some_method".to_owned(), None),
+            rule: Rule {
+                alias: "".to_owned(),
+                transform: RuleTransform::default(),
+                endpoint: None,
+                filter: None,
+            },
+            subscription_processed: None,
+        };
+
+        thndr_broker.sender.send(request).await.unwrap();
+
+        let _v = tokio::time::timeout(Duration::from_secs(2), rec.recv())
+            .await
+            .expect("Timeout while waiting for response");
+
+        assert!(_rx.recv().await.unwrap());
+
+        //invoke prepare_request()
+        let rpc_request = BrokerRequest {
+            rpc: RpcRequest::get_new_internal("some_method".to_owned(), None),
+            rule: Rule {
+                alias: "".to_owned(),
+                transform: RuleTransform::default(),
+                endpoint: None,
+                filter: None,
+            },
+            subscription_processed: None,
+        };
+
+        match thndr_broker.prepare_request(&rpc_request) {
+            Ok(requests) => {
+                for request in requests {
+                    println!("Prepared request: {}", request);
+                }
+            }
+            Err(e) => {
+                error!("Failed to prepare request: {:?}", e);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_thunderbroker_get_cleaner() {
+        let (tx, mut _rx) = mpsc::channel(1);
+        let (sender, _rec) = mpsc::channel(1);
+        let send_data = vec![WSMockData::get(json!({"key":"value"}).to_string())];
+
+        let thndr_broker = get_thunderbroker(tx, send_data, sender, false).await;
+
+        let cleaner = thndr_broker.get_cleaner();
+        assert!(cleaner.cleaner.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_thunderbroker_handle_jsonrpc_response() {
+        let (tx, mut _rx) = mpsc::channel(1);
+        let (sender, mut rec) = mpsc::channel(1);
+        let send_data = vec![WSMockData::get(json!({"key":"value"}).to_string())];
+
+        let _thndr_broker = get_thunderbroker(tx, send_data, sender.clone(), false).await;
+
+        let response = json!({
+            "jsonrpc": "2.0",
+            "result": {
+                "key": "value"
+            }
+        });
+
+        let callback = BrokerCallback {
+            sender: sender.clone(),
+        };
+        ThunderBroker::handle_jsonrpc_response(response.to_string().as_bytes(), callback);
+
+        let v = tokio::time::timeout(Duration::from_secs(2), rec.recv())
+            .await
+            .expect("Timeout while waiting for response");
+
+        if let Some(broker_output) = v {
+            let data = broker_output
+                .data
+                .result
+                .expect("No result in response data");
+            let key_value = data.get("key").expect("Key not found in response data");
+            let key_str = key_value.as_str().expect("Value is not a string");
+            assert_eq!(key_str, "value");
+        } else {
+            panic!("Received None instead of a valid response");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_thunderbroker_subscribe() {
+        let (tx, mut _rx) = mpsc::channel(1);
+        let (sender, _rec) = mpsc::channel(1);
+        let send_data = vec![WSMockData::get(json!({"key":"value"}).to_string())];
+
+        let thndr_broker = get_thunderbroker(tx, send_data, sender.clone(), false).await;
+
+        let request = BrokerRequest {
+            rpc: RpcRequest::get_new_internal("some_method".to_owned(), None),
+            rule: Rule {
+                alias: "".to_owned(),
+                transform: RuleTransform::default(),
+                endpoint: None,
+                filter: None,
+            },
+            subscription_processed: None,
+        };
+
+        let response = thndr_broker.subscribe(&request);
+        assert!(response.is_none());
+
+        let sub_map = thndr_broker.subscription_map.read().unwrap();
+        let app_id = &request.rpc.ctx.session_id;
+        assert!(sub_map.contains_key(app_id));
+    }
+
+    #[tokio::test]
+    async fn test_thunderbroker_update_response() {
+        let response = JsonRpcApiResponse {
+            jsonrpc: "2.0".to_string(),
+            result: Some(json!({"key": "value"})),
+            error: None,
+            id: Some(1),
+            params: Some(json!({"param_key": "param_value"})),
+            method: None,
+        };
+
+        let updated_response = ThunderBroker::update_response(&response);
+        assert_eq!(updated_response.result, response.params);
+    }
+
+    #[tokio::test]
+    async fn test_thunderbroker_get_callsign_and_method_from_alias() {
+        let alias = "plugin.method";
+        let (callsign, method) = ThunderBroker::get_callsign_and_method_from_alias(alias);
+        assert_eq!(callsign, "plugin");
+        assert_eq!(method, Some("method"));
+
+        let alias = "plugin2.";
+        let (callsign, method) = ThunderBroker::get_callsign_and_method_from_alias(alias);
+        assert_eq!(callsign, "plugin2");
+        assert!(!(method.is_none()));
+    }
+}
