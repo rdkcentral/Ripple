@@ -15,6 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use ripple_sdk::framework::bootstrap::Bootstep;
 use ripple_sdk::tokio;
 use ripple_sdk::{async_trait::async_trait, framework::RippleResponse};
@@ -26,6 +28,17 @@ use crate::state::metrics_state::MetricsState;
 
 pub struct LoadDistributorValuesStep;
 
+// <pca> debug
+fn get_current_time_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis()
+        .try_into()
+        .unwrap()
+}
+// </pca>
+
 #[async_trait]
 impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
     fn get_name(&self) -> String {
@@ -33,28 +46,43 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
     }
 
     async fn setup(&self, s: BootstrapState) -> RippleResponse {
-        println!("setup: Calling MetricsState::initialize");
+        println!(
+            "setup: Calling MetricsState::initialize: {}",
+            get_current_time_ms()
+        );
         let ps = s.platform_state.clone();
         tokio::spawn(async move {
             MetricsState::initialize(&ps).await;
         });
-        println!("setup: Calling MainContextProcessor::remove_expired_and_inactive_entries");
+        println!(
+            "setup: Calling MainContextProcessor::remove_expired_and_inactive_entries: {}",
+            get_current_time_ms()
+        );
         MainContextProcessor::remove_expired_and_inactive_entries(&s.platform_state);
-        println!("setup: Calling ContextManager::setup");
+        println!(
+            "setup: Calling ContextManager::setup: {}",
+            get_current_time_ms()
+        );
         ContextManager::setup(&s.platform_state).await; // <pca> Also makes some thunder calls </pca>
-        println!("setup: Calling Mark 4");
+        println!("setup: Calling Mark 4: {}", get_current_time_ms());
         if !s.platform_state.supports_session() {
-            println!("setup: Session not supported");
+            println!("setup: Session not supported: {}", get_current_time_ms());
             return Ok(());
         }
-        println!("setup: Calling MainContextProcessor::initialize_session");
+        println!(
+            "setup: Calling MainContextProcessor::initialize_session: {}",
+            get_current_time_ms()
+        );
         MainContextProcessor::initialize_session(&s.platform_state).await;
-        println!("setup: Calling add_event_processor(MainContextProcessor)");
+        println!(
+            "setup: Calling add_event_processor(MainContextProcessor): {}",
+            get_current_time_ms()
+        );
 
         s.platform_state
             .get_client()
             .add_event_processor(MainContextProcessor::new(s.platform_state.clone()));
-        println!("setup: Exiting");
+        println!("setup: Exiting: {}", get_current_time_ms());
         Ok(())
     }
 }
