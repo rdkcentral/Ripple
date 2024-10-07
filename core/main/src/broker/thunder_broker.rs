@@ -521,6 +521,6 @@ mod tests {
         let alias = "plugin2.";
         let (callsign, method) = ThunderBroker::get_callsign_and_method_from_alias(alias);
         assert_eq!(callsign, "plugin2");
-        assert!(!(method.is_none()));
+        assert!(method.is_some());
     }
 }
