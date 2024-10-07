@@ -392,7 +392,15 @@ impl ThunderClient {
                 // unsubscribe through rpc
                 let mut subscriptions = subscriptions_map.lock().await;
                 if let Some(sub) = subscriptions.get_mut(&subscribe_method) {
+                    // Remove the listener for the given sub_id
                     sub.listeners.remove(&sub_id);
+                    
+                    sub.sub_ids_list.get_mut(&subscribe_method).map(|sub_ids| {
+                        // Remove the sub_id from the list of sub_ids
+                        sub_ids.retain(|id| id != &sub_id);
+                    });
+
+                    // Check if there are any listeners left
                     if sub.listeners.is_empty() {
                         unregister = true;
                         if let Some(s) = subscriptions.remove(&subscribe_method) {
