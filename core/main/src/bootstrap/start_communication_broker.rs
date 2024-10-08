@@ -68,7 +68,7 @@ impl Bootstep<BootstrapState> for StartOtherBrokers {
         let session = ps.session_state.get_account_session();
         // Setup the endpoints from the manifests
         let mut endpoint_state = ps.endpoint_state;
-        endpoint_state.build_other_endpoints(session);
+        endpoint_state.build_other_endpoints(session.clone());
         Ok(())
     }
 }

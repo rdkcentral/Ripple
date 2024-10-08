@@ -187,6 +187,59 @@ impl JsonRpcApiRequest {
         }
     }
 }
+#[derive(Clone, Default)]
+pub struct JsonRpcApiError {
+    pub code: i32,
+    pub id: Option<u64>,
+    pub message: String,
+    pub method: Option<String>,
+    pub params: Option<Value>,
+}
+impl JsonRpcApiError {
+    pub fn new(
+        code: i32,
+        id: Option<u64>,
+        message: String,
+        method: Option<String>,
+        params: Option<Value>,
+    ) -> Self {
+        JsonRpcApiError {
+            code,
+            id,
+            message,
+            method,
+            params,
+        }
+    }
+    pub fn with_method(mut self, method: String) -> Self {
+        self.method = Some(method);
+        self
+    }
+    pub fn with_params(mut self, params: Option<Value>) -> Self {
+        self.params = params;
+        self
+    }
+    pub fn with_id(mut self, id: u64) -> Self {
+        self.id = Some(id);
+        self
+    }
+    pub fn with_message(mut self, message: String) -> Self {
+        self.message = message;
+        self
+    }
+    pub fn with_code(mut self, code: i32) -> Self {
+        self.code = code;
+        self
+    }
+    pub fn to_response(&self) -> JsonRpcApiResponse {
+        JsonRpcApiResponse::error(self)
+    }
+}
+impl From<JsonRpcApiError> for JsonRpcApiResponse {
+    fn from(error: JsonRpcApiError) -> Self {
+        JsonRpcApiResponse::error(&error)
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcApiResponse {
@@ -215,6 +268,50 @@ impl Default for JsonRpcApiResponse {
     }
 }
 
+impl JsonRpcApiResponse {
+    pub fn error(error: &JsonRpcApiError) -> Self {
+        JsonRpcApiResponse {
+            jsonrpc: "2.0".to_owned(),
+            id: error.id,
+            result: None,
+            error: Some(json!({"code": error.code, "message": error.message})),
+            method: error.method.clone(),
+            params: error.params.clone(),
+        }
+    }
+
+    pub fn as_bytes(&self) -> Vec<u8> {
+        serde_json::to_string(self).unwrap().as_bytes().to_vec()
+    }
+    pub fn with_result(mut self, result: Option<Value>) -> Self {
+        self.result = result;
+        self.error = None;
+        self
+    }
+    pub fn with_method(mut self, method: Option<String>) -> Self {
+        self.method = method;
+        self
+    }
+    pub fn with_params(mut self, params: Option<Value>) -> Self {
+        self.params = params;
+        self
+    }
+    pub fn with_id(mut self, id: u64) -> Self {
+        self.id = Some(id);
+        self
+    }
+    pub fn with_error(mut self, error: Value) -> Self {
+        self.error = Some(error);
+        self.result = None;
+        self
+    }
+    pub fn is_error(&self) -> bool {
+        self.error.is_some()
+    }
+    pub fn is_success(&self) -> bool {
+        self.result.is_some()
+    }
+}
 impl crate::Mockable for JsonRpcApiResponse {
     fn mock() -> Self {
         JsonRpcApiResponse {
