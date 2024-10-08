@@ -89,7 +89,6 @@ case ${1} in
 
         ## Update firebolt-device-manifest.json
         sed -i "" "s@\"library\": \"/etc/firebolt-app-library.json\"@\"library\": \"$HOME/.ripple/firebolt-app-library.json\"@" ~/.ripple/firebolt-device-manifest.json
-
         echo "All Done!"
     ;;
     "run")
@@ -114,7 +113,6 @@ case ${1} in
         sed -i "" "s@\"mock_data_file\": \"mock-device.json\"@\"mock_data_file\": \"$workspace_dir/target/manifests/mock-thunder-device.json\"@" target/manifests/firebolt-extn-manifest.json
         export EXTN_MANIFEST=${workspace_dir}/target/manifests/firebolt-extn-manifest.json
         export DEVICE_MANIFEST=${workspace_dir}/target/manifests/firebolt-device-manifest.json
-        export FIREBOLT_OPEN_RPC=${workspace_dir}/target/openrpc/firebolt-open-rpc.json
         cargo build --features local_dev
         cargo run --features local_dev core/main
     ;;
