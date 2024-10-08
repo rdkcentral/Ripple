@@ -285,6 +285,14 @@ impl ExtnClient {
                                 let mut ripple_context = self.ripple_context.write().unwrap();
                                 ripple_context.deep_copy(context);
                             }
+                            let is_ripple_context =
+                                RippleContext::is_ripple_context(&message.payload).is_none();
+
+                            if self.has_event_listener(&message.target.as_clear_string()) {
+                                continue;
+                            } else if !is_ripple_context {
+                                warn!("No valid processors for the event {:?}", message);
+                            }
                         }
                     }
                     Self::handle_vec_stream(message, self.event_processors.clone());
@@ -391,6 +399,11 @@ impl ExtnClient {
             debug!("Context information is already updated. Hence not propagating");
         }
         Self::handle_vec_stream(message, self.event_processors.clone());
+    }
+
+    fn has_event_listener(&self, input: &str) -> bool {
+        let processors = self.event_processors.read().unwrap();
+        processors.contains_key(input)
     }
 
     fn handle_no_processor_error(&self, message: ExtnMessage) {
