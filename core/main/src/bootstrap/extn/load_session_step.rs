@@ -18,7 +18,9 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use ripple_sdk::framework::bootstrap::Bootstep;
-use ripple_sdk::tokio;
+// <pca> debug
+//use ripple_sdk::tokio;
+// </pca>
 use ripple_sdk::{async_trait::async_trait, framework::RippleResponse};
 
 use crate::processor::main_context_processor::MainContextProcessor;
@@ -47,13 +49,16 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
 
     async fn setup(&self, s: BootstrapState) -> RippleResponse {
         println!(
-            "setup: Calling MetricsState::initialize: {}",
+            "setup: Calling MetricsState::initialize (same thread): {}",
             get_current_time_ms()
         );
-        let ps = s.platform_state.clone();
-        tokio::spawn(async move {
-            MetricsState::initialize(&ps).await;
-        });
+        // <pca> debug
+        // let ps = s.platform_state.clone();
+        // tokio::spawn(async move {
+        //     MetricsState::initialize(&ps).await;
+        // });
+        MetricsState::initialize(&s.platform_state).await;
+        // </pca>
         println!(
             "setup: Calling MainContextProcessor::remove_expired_and_inactive_entries: {}",
             get_current_time_ms()
