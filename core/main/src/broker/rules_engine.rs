@@ -201,7 +201,7 @@ impl RuleEngine {
         match serde_json::from_str::<RuleSet>(&contents) {
             Ok(manifest) => Ok((contents, manifest)),
             Err(err) => {
-                println!("{:?} could not load rule", err);
+                error!("{:?} could not load rule", err);
                 Err(RippleError::InvalidInput)
             }
         }
@@ -248,7 +248,7 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
     // parse the filter
     let (f, errs) = jaq_parse::parse(filter, jaq_parse::main());
     if !errs.is_empty() {
-        println!("Error in rule {:?}", errs);
+        error!("Error in rule {:?}", errs);
         return Err(RippleError::RuleError);
     }
     // compile the filter in the context of the given definitions
@@ -287,8 +287,8 @@ pub fn compose_json_values(values: Vec<Value>) -> Value {
     }
     jq_compile(Value::Array(values), &composition_filter, String::new()).unwrap()
 }
-pub fn clean_name(name: &str) -> String {
-    name.replace([' ', '.', ','], "_").to_lowercase()
+pub fn make_name_json_safe(name: &str) -> String {
+    name.replace([' ', '.', ','], "_")
 }
 
 #[cfg(test)]

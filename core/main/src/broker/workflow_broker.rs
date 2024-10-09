@@ -4,7 +4,7 @@ use super::endpoint_broker::{
 };
 use super::rules_engine::JsonDataSource;
 use crate::broker::endpoint_broker::{BrokerOutput, EndpointBrokerState};
-use crate::broker::rules_engine::{clean_name, compose_json_values};
+use crate::broker::rules_engine::{compose_json_values, make_name_json_safe};
 
 use futures::future::try_join_all;
 use ripple_sdk::api::gateway::rpc_gateway_api::{JsonRpcApiError, JsonRpcApiResponse, RpcRequest};
@@ -47,7 +47,7 @@ async fn subbroker_call(
                     msg.get_error_string(),
                 )))
             } else {
-                Ok(json!({clean_name(
+                Ok(json!({make_name_json_safe(
                     &source
                         .clone()
                         .namespace

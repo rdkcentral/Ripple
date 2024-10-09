@@ -56,9 +56,6 @@ async fn send_http_request(
     /*
     mix endpoint url with method
     */
-    /*
-    TODONT: unwraps are bad, need to handle errors
-    */
 
     let uri: Uri = format!("{}{}", uri, path)
         .parse()
@@ -160,7 +157,6 @@ impl EndpointBroker for HttpBroker {
                                 JsonRpcApiError::default()
                                 .with_id(request.rpc.ctx.call_id)
                                 .with_message(msg.to_string()).into());
-                            //send_broker_response(&callback, &request,  error_string_to_json(msg.as_str()).to_string().as_bytes()).await;
                         }
                     }
                     Err(err) => {
