@@ -79,7 +79,7 @@ impl BrokerCleaner {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct BrokerRequest {
     pub rpc: RpcRequest,
     pub rule: Rule,
@@ -96,6 +96,17 @@ pub struct BrokerConnectRequest {
     pub sub_map: BrokerSubMap,
     pub session: Option<AccountSession>,
     pub reconnector: Sender<BrokerConnectRequest>,
+}
+impl Default for BrokerConnectRequest {
+    fn default() -> Self {
+        Self {
+            key: "".to_owned(),
+            endpoint: RuleEndpoint::default(),
+            sub_map: HashMap::new(),
+            session: None,
+            reconnector: mpsc::channel(2).0,
+        }
+    }
 }
 impl From<BrokerRequest> for JsonRpcApiRequest {
     fn from(value: BrokerRequest) -> Self {
@@ -182,6 +193,13 @@ impl BrokerRequest {
 pub struct BrokerCallback {
     pub sender: Sender<BrokerOutput>,
 }
+impl Default for BrokerCallback {
+    fn default() -> Self {
+        Self {
+            sender: mpsc::channel(2).0,
+        }
+    }
+}
 
 static ATOMIC_ID: AtomicU64 = AtomicU64::new(0);
 
@@ -214,7 +232,7 @@ pub struct BrokerContext {
     pub app_id: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct BrokerOutput {
     pub data: JsonRpcApiResponse,
 }
@@ -287,6 +305,19 @@ pub struct EndpointBrokerState {
     cleaner_list: Arc<RwLock<Vec<BrokerCleaner>>>,
     reconnect_tx: Sender<BrokerConnectRequest>,
 }
+impl Default for EndpointBrokerState {
+    fn default() -> Self {
+        Self {
+            endpoint_map: Arc::new(RwLock::new(HashMap::new())),
+            callback: BrokerCallback::default(),
+            request_map: Arc::new(RwLock::new(HashMap::new())),
+            extension_request_map: Arc::new(RwLock::new(HashMap::new())),
+            rule_engine: RuleEngine::default(),
+            cleaner_list: Arc::new(RwLock::new(Vec::new())),
+            reconnect_tx: mpsc::channel(2).0,
+        }
+    }
+}
 
 impl EndpointBrokerState {
     pub fn new(
@@ -306,6 +337,10 @@ impl EndpointBrokerState {
         };
         state.reconnect_thread(rec_tr, ripple_client);
         state
+    }
+    pub fn with_rules_engine(mut self, rule_engine: RuleEngine) -> Self {
+        self.rule_engine = rule_engine;
+        self
     }
 
     fn reconnect_thread(&self, mut rx: Receiver<BrokerConnectRequest>, client: RippleClient) {
@@ -514,24 +549,22 @@ impl EndpointBrokerState {
         let mut found_rule = None;
         if let Some(rule) = self.rule_engine.get_rule(&rpc_request) {
             found_rule = Some(rule.clone());
-            //let _ = found_rule.insert(rule.clone());
             if let Some(endpoint) = rule.endpoint {
                 if let Some(endpoint) = self.get_sender(&endpoint) {
                     broker_sender = Some(endpoint);
-                    //let _ = broker_sender.insert(endpoint);
                 }
             } else if rule.alias != "static" {
                 if let Some(endpoint) = self.get_sender("thunder") {
-                    //let _ = broker_sender.insert(endpoint);
                     broker_sender = Some(endpoint);
                 }
             }
         }
-
+        trace!("found rule {:?}", found_rule);
         if found_rule.is_some() {
             let rule = found_rule.unwrap();
 
             if rule.alias == "static" {
+                trace!("handling static request for {:?}", rpc_request);
                 self.handle_static_request(
                     rpc_request,
                     extn_message,
@@ -540,6 +573,7 @@ impl EndpointBrokerState {
                     requestor_callback,
                 );
             } else if broker_sender.is_some() {
+                trace!("handling not static request for {:?}", rpc_request);
                 let broker = broker_sender.unwrap();
                 let (_, updated_request) =
                     self.update_request(&rpc_request, rule, extn_message, requestor_callback);

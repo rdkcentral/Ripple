@@ -53,7 +53,7 @@ impl From<CallContext> for AppIdentification {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct CallContext {
     pub session_id: String,
     pub request_id: String,
@@ -113,10 +113,11 @@ impl crate::Mockable for CallContext {
     }
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Default)]
 pub enum ApiProtocol {
     Bridge,
     Extn,
+    #[default]
     JsonRpc,
 }
 
@@ -187,7 +188,7 @@ impl JsonRpcApiRequest {
         }
     }
 }
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct JsonRpcApiError {
     pub code: i32,
     pub id: Option<u64>,
@@ -325,7 +326,7 @@ impl crate::Mockable for JsonRpcApiResponse {
     }
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Default)]
 pub struct RpcRequest {
     pub method: String,
     pub params_json: String,

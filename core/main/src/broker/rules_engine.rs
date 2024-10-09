@@ -50,7 +50,7 @@ impl RuleSet {
     }
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Default)]
 pub struct RuleEndpoint {
     pub protocol: RuleEndpointProtocol,
     pub url: String,
@@ -75,10 +75,11 @@ fn default_autostart() -> bool {
     true
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "lowercase")]
 #[cfg_attr(test, derive(PartialEq))]
 pub enum RuleEndpointProtocol {
+    #[default]
     Websocket,
     Http,
     Thunder,
@@ -91,7 +92,7 @@ pub struct JsonDataSource {
     pub method: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct Rule {
     pub alias: String,
     // Not every rule needs transform
@@ -154,18 +155,21 @@ impl RuleEngine {
         }
     }
 
-    pub fn load(path: &str, rule_engine: &mut RuleEngine) -> Result<RuleEngine, RippleError> {
+    pub fn load(path: &str) -> Result<RuleEngine, RippleError> {
         let path = Path::new(path);
         if path.exists() {
             let contents = fs::read_to_string(path).unwrap();
-            let (_content, rule_set) = Self::load_from_content(contents)?;
-            info!("loading rules from path {}", path.display());
-            rule_engine.rules.append(rule_set);
-            Ok(rule_engine.clone())
+            Self::load_from_string_literal(contents)
         } else {
             warn!("path for the rule is invalid {}", path.display());
             Err(RippleError::InvalidInput)
         }
+    }
+    pub fn load_from_string_literal(contents: String) -> Result<RuleEngine, RippleError> {
+        let (_content, rule_set) = Self::load_from_content(contents)?;
+        let mut rules_engine = RuleEngine::default();
+        rules_engine.rules.append(rule_set);
+        Ok(rules_engine.clone())
     }
 
     pub fn build(extn_manifest: &ExtnManifest) -> Self {
@@ -197,7 +201,7 @@ impl RuleEngine {
         match serde_json::from_str::<RuleSet>(&contents) {
             Ok(manifest) => Ok((contents, manifest)),
             Err(err) => {
-                warn!("{:?} could not load rule", err);
+                println!("{:?} could not load rule", err);
                 Err(RippleError::InvalidInput)
             }
         }
