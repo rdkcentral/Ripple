@@ -39,6 +39,7 @@ impl<S: Clone> Bootstrap<S> {
         s.setup(self.state.clone()).await?;
 
         debug!("---Successful Bootstep {}---", s.get_name());
+        debug!("--- *** Successful Bootstep {}---", s.get_name());
         Ok(self)
     }
 }
