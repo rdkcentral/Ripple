@@ -497,6 +497,73 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_thunderbroker_event_handling() {
+        let (tx, mut _rx) = mpsc::channel(1);
+        let (sender, mut rec) = mpsc::channel(1);
+        let send_data = vec![WSMockData::get(
+            json!({
+                "jsonrpc": "2.0",
+                "method": "AcknowledgeChallenge.onRequestChallenge",
+                "params": {
+                    "challenge": "test_challenge"
+                }
+            })
+            .to_string(),
+        )];
+
+        let thndr_broker = get_thunderbroker(tx, send_data, sender.clone(), false).await;
+
+        // Subscribe to an event
+        let subscribe_request = BrokerRequest {
+            rpc: RpcRequest::get_new_internal(
+                "AcknowledgeChallenge.onRequestChallenge".to_owned(),
+                None,
+            ),
+            rule: Rule {
+                alias: "AcknowledgeChallenge.onRequestChallenge".to_owned(),
+                transform: RuleTransform::default(),
+                endpoint: None,
+                filter: None,
+            },
+            subscription_processed: Some(false),
+        };
+
+        thndr_broker.subscribe(&subscribe_request);
+
+        // Simulate receiving an event
+        let response = json!({
+            "jsonrpc": "2.0",
+            "method": "AcknowledgeChallenge.onRequestChallenge",
+            "params": {
+                "challenge": "test_challenge"
+            }
+        });
+
+        let callback = BrokerCallback {
+            sender: sender.clone(),
+        };
+        ThunderBroker::handle_jsonrpc_response(response.to_string().as_bytes(), callback);
+
+        let v = tokio::time::timeout(Duration::from_secs(2), rec.recv())
+            .await
+            .expect("Timeout while waiting for response");
+
+        if let Some(broker_output) = v {
+            let data = broker_output
+                .data
+                .result
+                .expect("No result in response data");
+            let challenge_value = data
+                .get("challenge")
+                .expect("Challenge not found in response data");
+            let challenge_str = challenge_value.as_str().expect("Value is not a string");
+            assert_eq!(challenge_str, "test_challenge");
+        } else {
+            panic!("Received None instead of a valid response");
+        }
+    }
+
+    #[tokio::test]
     async fn test_thunderbroker_update_response() {
         let response = JsonRpcApiResponse {
             jsonrpc: "2.0".to_string(),
