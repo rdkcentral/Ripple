@@ -33,7 +33,7 @@ use ripple_sdk::{
     chrono::{DateTime, Utc},
     extn::client::extn_client::ExtnClient,
     framework::RippleResponse,
-    log::{debug, error},
+    log::{error, trace},
 };
 use serde_json::Value;
 
@@ -226,7 +226,7 @@ impl TelemetryBuilder {
     ) -> Option<Timer> {
         let metrics_tags = get_metrics_tags(extn_client, InteractionType::Firebolt, Some(app_id))?;
 
-        debug!("start_firebolt_metrics_timer: {}: {:?}", name, metrics_tags);
+        trace!("start_firebolt_metrics_timer: {}: {:?}", name, metrics_tags);
 
         Some(Timer::start(
             name,

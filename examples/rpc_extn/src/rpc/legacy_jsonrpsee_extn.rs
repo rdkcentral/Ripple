@@ -17,10 +17,9 @@
 
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
+    api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest, RpcStats},
     async_trait::async_trait,
-    extn::client::extn_client::ExtnClient,
-    extn::extn_client_message::ExtnResponse,
+    extn::{client::extn_client::ExtnClient, extn_client_message::ExtnResponse},
     tokio::runtime::Runtime,
     utils::extn_utils::ExtnUtils,
 };
@@ -58,6 +57,7 @@ impl LegacyServer for LegacyImpl {
         let rpc_request = RpcRequest {
             ctx: new_ctx.clone(),
             method: "device.make".into(),
+            stats: RpcStats::default(),
             params_json: RpcRequest::prepend_ctx(Some(serde_json::Value::Null), &new_ctx),
         };
         if let Ok(Ok(ExtnResponse::Value(v))) = self
@@ -80,6 +80,7 @@ impl LegacyServer for LegacyImpl {
         let rpc_request = RpcRequest {
             ctx: new_ctx.clone(),
             method: "device.model".into(),
+            stats: RpcStats::default(),
             params_json: RpcRequest::prepend_ctx(Some(serde_json::Value::Null), &new_ctx),
         };
         if let Ok(msg) = client.request(rpc_request).await {
