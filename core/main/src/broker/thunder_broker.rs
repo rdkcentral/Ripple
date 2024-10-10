@@ -470,34 +470,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_thunderbroker_subscribe() {
-        let (tx, mut _rx) = mpsc::channel(1);
-        let (sender, _rec) = mpsc::channel(1);
-        let send_data = vec![WSMockData::get(json!({"key":"value"}).to_string())];
-
-        let thndr_broker = get_thunderbroker(tx, send_data, sender.clone(), false).await;
-
-        let request = BrokerRequest {
-            rpc: RpcRequest::get_new_internal("some_method".to_owned(), None),
-            rule: Rule {
-                alias: "".to_owned(),
-                transform: RuleTransform::default(),
-                endpoint: None,
-                filter: None,
-            },
-            subscription_processed: None,
-        };
-
-        let response = thndr_broker.subscribe(&request);
-        assert!(response.is_none());
-
-        let sub_map = thndr_broker.subscription_map.read().unwrap();
-        let app_id = &request.rpc.ctx.session_id;
-        assert!(sub_map.contains_key(app_id));
-    }
-
-    #[tokio::test]
-    async fn test_thunderbroker_event_handling() {
+    async fn test_thunderbroker_subscribe_unsubscribe() {
         let (tx, mut _rx) = mpsc::channel(1);
         let (sender, mut rec) = mpsc::channel(1);
         let send_data = vec![WSMockData::get(
@@ -558,6 +531,60 @@ mod tests {
                 .expect("Challenge not found in response data");
             let challenge_str = challenge_value.as_str().expect("Value is not a string");
             assert_eq!(challenge_str, "test_challenge");
+            assert_eq!(
+                broker_output.data.method.unwrap(),
+                "AcknowledgeChallenge.onRequestChallenge"
+            );
+        } else {
+            panic!("Received None instead of a valid response");
+        }
+
+        // Unsubscribe from the event
+        let unsubscribe_request = BrokerRequest {
+            rpc: RpcRequest::get_unsubscribe(&subscribe_request.rpc),
+            rule: Rule {
+                alias: "AcknowledgeChallenge.onRequestChallenge".to_owned(),
+                transform: RuleTransform::default(),
+                endpoint: None,
+                filter: None,
+            },
+            subscription_processed: Some(true),
+        };
+
+        thndr_broker.subscribe(&unsubscribe_request);
+
+        // Simulate receiving an event
+        let response = json!({
+            "jsonrpc": "2.0",
+            "method": "AcknowledgeChallenge.onRequestChallenge",
+            "params": {
+                "challenge": "test_challenge"
+            }
+        });
+
+        let callback = BrokerCallback {
+            sender: sender.clone(),
+        };
+        ThunderBroker::handle_jsonrpc_response(response.to_string().as_bytes(), callback);
+
+        let v = tokio::time::timeout(Duration::from_secs(2), rec.recv())
+            .await
+            .expect("Timeout while waiting for response");
+
+        if let Some(broker_output) = v {
+            let data = broker_output
+                .data
+                .result
+                .expect("No result in response data");
+            let challenge_value = data
+                .get("challenge")
+                .expect("Challenge not found in response data");
+            let challenge_str = challenge_value.as_str().expect("Value is not a string");
+            assert_eq!(challenge_str, "test_challenge");
+            assert_eq!(
+                broker_output.data.method.unwrap(),
+                "AcknowledgeChallenge.onRequestChallenge"
+            );
         } else {
             panic!("Received None instead of a valid response");
         }
