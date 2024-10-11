@@ -27,6 +27,7 @@ use jsonrpsee::{
     types::error::CallError,
     RpcModule,
 };
+use ripple_sdk::api::gateway::rpc_gateway_api::RpcStats;
 use ripple_sdk::{
     api::{
         device::device_peristence::SetBoolProperty,
@@ -92,6 +93,7 @@ impl AllowAppContentAdTargetingSettings {
             ctx: new_ctx.clone(),
             method: "localization.countryCode".into(),
             params_json: RpcRequest::prepend_ctx(None, &new_ctx),
+            stats: RpcStats::default(),
         };
 
         let resp = platform_state

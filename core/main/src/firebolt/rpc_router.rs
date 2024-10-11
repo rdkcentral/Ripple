@@ -30,20 +30,24 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         firebolt::fb_metrics::Timer,
-        gateway::rpc_gateway_api::{ApiMessage, RpcRequest},
+        gateway::rpc_gateway_api::{ApiMessage, ApiStats, RpcRequest},
     },
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,
     log::{error, info},
-    tokio::{self},
+    tokio,
     utils::error::RippleError,
 };
 use std::sync::{Arc, RwLock};
 
 use crate::{
+    firebolt::firebolt_gateway::JsonRpcMessage,
     service::telemetry_builder::TelemetryBuilder,
     state::{platform_state::PlatformState, session_state::Session},
-    utils::router_utils::{return_api_message_for_transport, return_extn_response},
+    utils::router_utils::{
+        add_telemetry_status_code, capture_stage, get_rpc_header, return_api_message_for_transport,
+        return_extn_response,
+    },
 };
 
 pub struct RpcRouter;
@@ -85,6 +89,7 @@ async fn resolve_route(
 ) -> Result<ApiMessage, RippleError> {
     info!("Routing {}", req.method);
     let id = Id::Number(req.ctx.call_id);
+    let mut request_c = req.clone();
     let (sink_tx, mut sink_rx) = futures_channel::mpsc::unbounded::<String>();
     let sink = MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES);
     let mut method_executors = Vec::new();
@@ -125,7 +130,27 @@ async fn resolve_route(
 
     join_all(method_executors).await;
     if let Some(r) = sink_rx.next().await {
-        return Ok(ApiMessage::new(req.ctx.protocol, r, req.ctx.request_id));
+        let rpc_header = get_rpc_header(&req);
+        let protocol = req.ctx.protocol.clone();
+        let request_id = req.ctx.request_id;
+        let status_code = if let Ok(r) = serde_json::from_str::<JsonRpcMessage>(&r) {
+            if let Some(ec) = r.error {
+                ec.code
+            } else {
+                1
+            }
+        } else {
+            1
+        };
+        capture_stage(&mut request_c, "routing");
+
+        let mut msg = ApiMessage::new(protocol, r, request_id);
+        msg.stats = Some(ApiStats {
+            stats_ref: add_telemetry_status_code(&rpc_header, status_code.to_string().as_str()),
+            stats: request_c.stats,
+        });
+
+        return Ok(msg);
     }
     Err(RippleError::InvalidOutput)
 }
@@ -140,13 +165,11 @@ impl RpcRouter {
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
 
-        let method = req.method.clone();
         if let Some(overridden_method) = state.get_manifest().has_rpc_override_method(&req.method) {
             req.method = overridden_method;
         }
 
         tokio::spawn(async move {
-            let app_id = req.ctx.app_id.clone();
             let start = Utc::now().timestamp_millis();
             let resp = resolve_route(methods, resources, req.clone()).await;
 
@@ -166,24 +189,6 @@ impl RpcRouter {
             if let Ok(msg) = resp {
                 let now = Utc::now().timestamp_millis();
                 let success = !msg.is_error();
-                // log firebolt response message in RDKTelemetry 1.0 friendly format
-                let status_code = match msg.get_error_code_from_msg() {
-                    Ok(Some(code)) => {
-                        // error response
-                        code
-                    }
-                    Ok(None) => {
-                        // success response
-                        1
-                    }
-                    Err(e) => {
-                        error!("Error getting error code from msg.jsonrpc_msg {:?}", e);
-                        1
-                    }
-                };
-
-                Self::log_rdk_telemetry_message(&app_id, &method, status_code, now - start);
-
                 TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start, success, &msg);
 
                 return_api_message_for_transport(session, msg, state).await;
@@ -203,15 +208,5 @@ impl RpcRouter {
                 return_extn_response(msg, extn_msg);
             }
         });
-    }
-
-    pub fn log_rdk_telemetry_message(app_id: &str, method: &str, status_code: i32, duration: i64) {
-        info!(
-            "Sending Firebolt response: {},{},{},{}",
-            app_id,      // appId
-            method,      // method
-            status_code, // status, 1 if pass, else the errorCode
-            duration,    // Duration
-        );
     }
 }

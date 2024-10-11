@@ -26,7 +26,7 @@ use ripple_sdk::{
         storage_property::{StorageProperty, StoragePropertyData},
     },
     extn::extn_client_message::ExtnResponse,
-    log::debug,
+    log::trace,
     serde_json::{json, Value},
     tokio,
     utils::error::RippleError,
@@ -104,7 +104,7 @@ impl StorageManager {
         context: Option<Value>,
     ) -> RpcResult<()> {
         let data = property.as_data();
-        debug!("Storage property: {:?} as data: {:?}", property, data);
+        trace!("Storage property: {:?} as data: {:?}", property, data);
         if let Some(val) = state
             .ripple_cache
             .get_cached_bool_storage_property(&property)
@@ -387,7 +387,7 @@ impl StorageManager {
         namespace: String,
         key: &'static str,
     ) -> Result<StorageManagerResponse<bool>, StorageManagerError> {
-        debug!("get_bool: namespace={}, key={}", namespace, key);
+        trace!("get_bool: namespace={}, key={}", namespace, key);
         let resp = StorageManager::get(state, &namespace, &key.to_string(), None).await;
         match storage_to_bool_rpc_result(resp) {
             Ok(value) => Ok(StorageManagerResponse::Ok(value)),
@@ -453,7 +453,7 @@ impl StorageManager {
         key: &'static str,
         scope: Option<String>,
     ) -> Result<StorageManagerResponse<String>, StorageManagerError> {
-        debug!("get_string: namespace={}, key={}", namespace, key);
+        trace!("get_string: namespace={}, key={}", namespace, key);
         let resp = StorageManager::get(state, &namespace, &key.to_string(), scope).await;
         match storage_to_string_rpc_result(resp) {
             Ok(value) => Ok(StorageManagerResponse::Ok(value)),
@@ -474,7 +474,7 @@ impl StorageManager {
         namespace: String,
         key: &'static str,
     ) -> Result<StorageManagerResponse<u32>, StorageManagerError> {
-        debug!("get_string: namespace={}, key={}", namespace, key);
+        trace!("get_string: namespace={}, key={}", namespace, key);
         let resp = StorageManager::get(state, &namespace, &key.to_string(), None).await;
         match storage_to_u32_rpc_result(resp) {
             Ok(value) => Ok(StorageManagerResponse::Ok(value)),
@@ -497,9 +497,10 @@ impl StorageManager {
         namespace: String,
         key: &'static str,
     ) -> Result<StorageManagerResponse<f32>, StorageManagerError> {
-        debug!(
+        trace!(
             "get_number_as_f32_from_namespace: namespace={}, key={}",
-            namespace, key
+            namespace,
+            key
         );
         let resp = StorageManager::get(state, &namespace, &key.to_string(), None).await;
 
@@ -551,7 +552,7 @@ impl StorageManager {
         key: &String,
         scope: Option<String>,
     ) -> Result<ExtnResponse, RippleError> {
-        debug!("get: namespace={}, key={}", namespace, key);
+        trace!("get: namespace={}, key={}", namespace, key);
         let data = GetStorageProperty {
             namespace: namespace.clone(),
             key: key.clone(),
@@ -580,7 +581,7 @@ impl StorageManager {
         key: &String,
         scope: Option<String>,
     ) -> Result<ExtnResponse, RippleError> {
-        debug!("delete: namespace={}, key={}", namespace, key);
+        trace!("delete: namespace={}, key={}", namespace, key);
         let data = DeleteStorageProperty {
             namespace: namespace.clone(),
             key: key.clone(),
@@ -676,7 +677,7 @@ impl StorageManager {
                 let ctx = context.clone();
                 let evt = String::from(*event);
                 tokio::spawn(async move {
-                    debug!("notify: Sending event {:?} ctx {:?}", evt, ctx);
+                    trace!("notify: Sending event {:?} ctx {:?}", evt, ctx);
                     AppEvents::emit_with_context(&state_for_event, &evt, &result, ctx).await;
                 });
             }

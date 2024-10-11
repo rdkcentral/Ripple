@@ -27,7 +27,7 @@ use ripple_sdk::{
         },
         manifest::device_manifest::DeviceManifest,
     },
-    log::debug,
+    log::{error, info, trace},
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -75,7 +75,7 @@ impl GenericCapState {
                 not_available.insert(cap.as_str());
             }
         }
-        debug!("Caps that are not available: {:?}", not_available);
+        info!("Caps that are not available: {:?}", not_available);
     }
 
     pub fn check_for_processor(&self, request: Vec<String>) -> HashMap<String, bool> {
@@ -139,11 +139,14 @@ impl GenericCapState {
                 result.push(fb_perm.cap.clone())
             }
         }
-        debug!(
+        trace!(
             "checking availability of caps request={:?}, not_available={:?}, result: {:?}",
-            request, not_available, result
+            request,
+            not_available,
+            result
         );
         if !result.is_empty() {
+            error!("Availability Error for {:?}", result);
             return Err(DenyReasonWithCap::new(DenyReason::Unavailable, result));
         }
         Ok(())

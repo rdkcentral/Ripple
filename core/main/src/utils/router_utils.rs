@@ -17,10 +17,10 @@
 use ripple_sdk::{
     api::{
         apps::EffectiveTransport,
-        gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse},
+        gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
     },
     extn::extn_client_message::{ExtnMessage, ExtnResponse},
-    log::error,
+    log::{error, trace},
     serde_json::{self, Result as SResult},
     utils::error::RippleError,
 };
@@ -75,4 +75,30 @@ pub fn return_extn_response(msg: ApiMessage, extn_msg: ExtnMessage) {
             error!("Not a Request object {:?}", extn_msg);
         }
     }
+}
+
+pub fn get_rpc_header_with_status(request: &RpcRequest, status_code: i32) -> String {
+    format!(
+        "{},{},{}",
+        request.ctx.app_id, request.ctx.method, status_code
+    )
+}
+
+pub fn get_rpc_header(request: &RpcRequest) -> String {
+    format!("{},{}", request.ctx.app_id, request.ctx.method)
+}
+
+pub fn add_telemetry_status_code(original_ref: &str, status_code: &str) -> String {
+    format!("{},{}", original_ref, status_code)
+}
+
+pub fn capture_stage(request: &mut RpcRequest, stage: &str) {
+    let duration = request.stats.update_stage(stage);
+    trace!(
+        "Firebolt processing stage: {},{},{},{}",
+        request.ctx.app_id,
+        request.ctx.method,
+        stage,
+        duration
+    )
 }

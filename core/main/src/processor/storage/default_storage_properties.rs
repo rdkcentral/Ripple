@@ -30,7 +30,7 @@ use ripple_sdk::{
         NAMESPACE_AUDIO_DESCRIPTION, NAMESPACE_CLOSED_CAPTIONS, NAMESPACE_DEVICE_NAME,
         NAMESPACE_LOCALIZATION, NAMESPACE_PRIVACY,
     },
-    log::debug,
+    log::trace,
 };
 
 use crate::state::platform_state::PlatformState;
@@ -51,7 +51,7 @@ impl DefaultStorageProperties {
         namespace: &String,
         key: &'static str,
     ) -> Result<bool, DefaultStoragePropertiesError> {
-        debug!("get_bool: namespace={}, key={}", namespace, key);
+        trace!("get_bool: namespace={}, key={}", namespace, key);
         if namespace.eq(NAMESPACE_CLOSED_CAPTIONS) {
             match key {
                 KEY_ENABLED => Ok(state
@@ -158,7 +158,7 @@ impl DefaultStorageProperties {
         namespace: &String,
         key: &'static str,
     ) -> Result<String, DefaultStoragePropertiesError> {
-        debug!("get_string: namespace={}, key={}", namespace, key);
+        trace!("get_string: namespace={}, key={}", namespace, key);
         if namespace.eq(NAMESPACE_CLOSED_CAPTIONS) {
             let captions = state
                 .get_device_manifest()
@@ -272,7 +272,7 @@ impl DefaultStorageProperties {
         namespace: &String,
         key: &'static str,
     ) -> Result<u32, DefaultStoragePropertiesError> {
-        debug!("get_number_as_u32: namespace={}, key={}", namespace, key);
+        trace!("get_number_as_u32: namespace={}, key={}", namespace, key);
         if namespace.eq(NAMESPACE_CLOSED_CAPTIONS) {
             let captions = state
                 .get_device_manifest()
@@ -309,7 +309,7 @@ impl DefaultStorageProperties {
         namespace: &String,
         key: &'static str,
     ) -> Result<f32, DefaultStoragePropertiesError> {
-        debug!("get_number_as_f32: namespace={}, key={}", namespace, key);
+        trace!("get_number_as_f32: namespace={}, key={}", namespace, key);
         if namespace.eq(NAMESPACE_CLOSED_CAPTIONS) {
             let captions = state
                 .get_device_manifest()

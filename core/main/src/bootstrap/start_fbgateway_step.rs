@@ -15,6 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::time::Instant;
+
 use crate::{
     firebolt::{
         firebolt_gateway::FireboltGateway,
@@ -40,7 +42,7 @@ use crate::{
     state::{bootstrap_state::BootstrapState, platform_state::PlatformState},
 };
 use jsonrpsee::core::{async_trait, server::rpc_module::Methods};
-use ripple_sdk::log::debug;
+use ripple_sdk::log::{debug, info};
 use ripple_sdk::{framework::bootstrap::Bootstep, utils::error::RippleError};
 pub struct FireboltGatewayStep;
 
@@ -108,6 +110,10 @@ impl Bootstep<BootstrapState> for FireboltGatewayStep {
             return Err(RippleError::BootstrapError);
         }
         TelemetryBuilder::send_ripple_telemetry(&state.platform_state);
+        info!(
+            "Ripple Total Bootstrap time: {}",
+            Instant::now().duration_since(state.start_time).as_millis()
+        );
         gateway.start().await;
 
         Err(RippleError::ServiceError)
