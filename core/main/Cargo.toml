@@ -33,6 +33,7 @@ local_dev = []
 sysd = ["sd-notify"]
 pre_prod = []
 contract_tests = []
+unstable-split = []
 
 [dependencies]
 base64.workspace = true
@@ -41,6 +42,8 @@ jsonrpsee = { workspace = true, features = ["macros", "ws-server"] }
 futures-channel.workspace = true
 futures.workspace = true
 tokio-tungstenite = { workspace = true, features = ["handshake"] }
+fastwebsockets = { version = "0.8.0", features = ["upgrade", "unstable-split"]}
+hyper-util = { version = "0.1.0", features = ["tokio"] }
 querystring.workspace = true
 serde.workspace = true
 regex.workspace = true
@@ -53,7 +56,10 @@ exitcode = "1.1.2"
 rand = { version = "0.8", default-features = false }
 url.workspace = true
 futures-util = { version = "0.3.28", features = ["sink", "std"], default-features = false}
-hyper = { version = "=0.14.27", features = ["client", "http1", "tcp"], default-features = false }
+hyper = { version = "=1.1.0", features = ["client", "http1", "server"], default-features = false }
+http-body-util = { version = "0.1.0" }
+http = { version = "1.1.0"}
+reqwest = { version = "0.11", features = ["json"] }
 jaq-interpret = { version = "1.5.0", default-features = false }
 jaq-parse = { version = "1.0.2", default-features = false }
 jaq-core = "1.5.0"
