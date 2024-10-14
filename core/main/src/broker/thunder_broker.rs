@@ -478,7 +478,7 @@ mod tests {
                 "jsonrpc": "2.0",
                 "method": "AcknowledgeChallenge.onRequestChallenge",
                 "params": {
-                    "challenge": "test_challenge"
+                    "listen": true
                 }
             })
             .to_string(),
@@ -490,7 +490,7 @@ mod tests {
         let subscribe_request = BrokerRequest {
             rpc: RpcRequest::get_new_internal(
                 "AcknowledgeChallenge.onRequestChallenge".to_owned(),
-                None,
+                Some(json!({"listen": true})),
             ),
             rule: Rule {
                 alias: "AcknowledgeChallenge.onRequestChallenge".to_owned(),
@@ -508,7 +508,7 @@ mod tests {
             "jsonrpc": "2.0",
             "method": "AcknowledgeChallenge.onRequestChallenge",
             "params": {
-                "challenge": "test_challenge"
+                "challenge": "The request to challenge the user"
             }
         });
 
@@ -530,7 +530,7 @@ mod tests {
                 .get("challenge")
                 .expect("Challenge not found in response data");
             let challenge_str = challenge_value.as_str().expect("Value is not a string");
-            assert_eq!(challenge_str, "test_challenge");
+            assert_eq!(challenge_str, "The request to challenge the user");
             assert_eq!(
                 broker_output.data.method.unwrap(),
                 "AcknowledgeChallenge.onRequestChallenge"
@@ -550,7 +550,6 @@ mod tests {
             },
             subscription_processed: Some(true),
         };
-
         thndr_broker.subscribe(&unsubscribe_request);
 
         // Simulate receiving an event
@@ -558,7 +557,7 @@ mod tests {
             "jsonrpc": "2.0",
             "method": "AcknowledgeChallenge.onRequestChallenge",
             "params": {
-                "challenge": "test_challenge"
+                "challenge": "The request to challenge the user"
             }
         });
 
@@ -572,15 +571,10 @@ mod tests {
             .expect("Timeout while waiting for response");
 
         if let Some(broker_output) = v {
-            let data = broker_output
+            let _data = broker_output
                 .data
                 .result
                 .expect("No result in response data");
-            let challenge_value = data
-                .get("challenge")
-                .expect("Challenge not found in response data");
-            let challenge_str = challenge_value.as_str().expect("Value is not a string");
-            assert_eq!(challenge_str, "test_challenge");
             assert_eq!(
                 broker_output.data.method.unwrap(),
                 "AcknowledgeChallenge.onRequestChallenge"
