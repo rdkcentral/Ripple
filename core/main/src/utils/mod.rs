@@ -16,7 +16,6 @@
 //
 
 pub mod common;
-pub mod router_utils;
 pub mod rpc_utils;
 pub mod serde_utils;
 
