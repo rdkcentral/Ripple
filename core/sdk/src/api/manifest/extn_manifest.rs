@@ -24,7 +24,7 @@ use crate::{extn::extn_id::ExtnId, utils::error::RippleError};
 
 /// Contains the default path for the manifest
 /// file extension type based on platform
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct ExtnManifest {
     pub default_path: String,
     pub default_extension: String,
@@ -206,7 +206,6 @@ impl ExtnManifest {
         self.rpc_overrides.get(method).cloned()
     }
 }
-
 #[cfg(test)]
 mod tests {
     use crate::extn::extn_id::{ExtnClassId, ExtnType};
