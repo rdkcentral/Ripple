@@ -288,7 +288,7 @@ impl ExtnClient {
                             let is_ripple_context =
                                 RippleContext::is_ripple_context(&message.payload).is_none();
 
-                            if self.has_event_listener(&message.target.as_clear_string()) {
+                            if !self.has_event_listener(&message.target.as_clear_string()) {
                                 continue;
                             } else if !is_ripple_context {
                                 warn!("No valid processors for the event {:?}", message);
