@@ -288,6 +288,7 @@ impl ExtnClient {
                             let is_ripple_context =
                                 RippleContext::is_ripple_context(&message.payload).is_none();
 
+                            //continue if there are no event listeners
                             if !self.has_event_listener(&message.target.as_clear_string()) {
                                 continue;
                             } else if !is_ripple_context {
