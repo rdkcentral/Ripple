@@ -368,6 +368,20 @@ mod tests {
         ThunderBroker::get_broker(request, callback)
     }
 
+    //function to create a BrokerRequest
+    fn create_broker_request(method: &str, alias: &str) -> BrokerRequest {
+        BrokerRequest {
+            rpc: RpcRequest::get_new_internal(method.to_owned(), None),
+            rule: Rule {
+                alias: alias.to_owned(),
+                transform: RuleTransform::default(),
+                endpoint: None,
+                filter: None,
+            },
+            subscription_processed: None,
+        }
+    }
+
     #[tokio::test]
     async fn test_thunderbroker_start() {
         let (tx, mut _rx) = mpsc::channel(1);
@@ -377,16 +391,7 @@ mod tests {
         let thndr_broker = get_thunderbroker(tx, send_data, sender, false).await;
 
         // Use Broker to connect to it
-        let request = BrokerRequest {
-            rpc: RpcRequest::get_new_internal("some_method".to_owned(), None),
-            rule: Rule {
-                alias: "".to_owned(),
-                transform: RuleTransform::default(),
-                endpoint: None,
-                filter: None,
-            },
-            subscription_processed: None,
-        };
+        let request = create_broker_request("some_method", "");
 
         thndr_broker.sender.send(request).await.unwrap();
 
@@ -396,27 +401,50 @@ mod tests {
 
         assert!(_rx.recv().await.unwrap());
 
-        //invoke prepare_request()
-        let rpc_request = BrokerRequest {
-            rpc: RpcRequest::get_new_internal("some_method".to_owned(), None),
-            rule: Rule {
-                alias: "".to_owned(),
-                transform: RuleTransform::default(),
-                endpoint: None,
-                filter: None,
-            },
-            subscription_processed: None,
-        };
+        let rpc_request = create_broker_request("some_method", "");
 
-        match thndr_broker.prepare_request(&rpc_request) {
-            Ok(requests) => {
-                for request in requests {
-                    println!("Prepared request: {}", request);
-                }
-            }
-            Err(e) => {
-                error!("Failed to prepare request: {:?}", e);
-            }
+        let prepared_requests = thndr_broker.prepare_request(&rpc_request);
+        assert!(
+            prepared_requests.is_ok(),
+            "Failed to prepare request: {:?}",
+            prepared_requests
+        );
+
+        let requests = prepared_requests.unwrap();
+
+        for request in requests {
+            assert!(
+                request.contains("jsonrpc"),
+                "Prepared request does not contain 'jsonrpc': {}",
+                request
+            );
+            assert!(
+                request.contains("method"),
+                "Prepared request does not contain 'method': {}",
+                request
+            );
+        }
+
+        let prepared_requests = thndr_broker.prepare_request(&rpc_request);
+        assert!(
+            prepared_requests.is_ok(),
+            "Failed to prepare request: {:?}",
+            prepared_requests
+        );
+
+        let requests = prepared_requests.unwrap();
+
+        for request in requests {
+            assert!(
+                request.contains("jsonrpc"),
+                "Prepared request does not contain 'jsonrpc': {}",
+                request
+            );
+            assert!(
+                request.contains("method"),
+                "Prepared request does not contain 'method': {}",
+                request
+            );
         }
     }
 
@@ -427,9 +455,7 @@ mod tests {
         let send_data = vec![WSMockData::get(json!({"key":"value"}).to_string())];
 
         let thndr_broker = get_thunderbroker(tx, send_data, sender, false).await;
-
-        let cleaner = thndr_broker.get_cleaner();
-        assert!(cleaner.cleaner.is_some());
+        assert!(thndr_broker.get_cleaner().cleaner.is_some());
     }
 
     #[tokio::test]
@@ -447,26 +473,26 @@ mod tests {
             }
         });
 
-        let callback = BrokerCallback {
-            sender: sender.clone(),
-        };
-        ThunderBroker::handle_jsonrpc_response(response.to_string().as_bytes(), callback);
+        ThunderBroker::handle_jsonrpc_response(
+            response.to_string().as_bytes(),
+            BrokerCallback {
+                sender: sender.clone(),
+            },
+        );
 
         let v = tokio::time::timeout(Duration::from_secs(2), rec.recv())
             .await
             .expect("Timeout while waiting for response");
 
-        if let Some(broker_output) = v {
-            let data = broker_output
-                .data
-                .result
-                .expect("No result in response data");
-            let key_value = data.get("key").expect("Key not found in response data");
-            let key_str = key_value.as_str().expect("Value is not a string");
-            assert_eq!(key_str, "value");
-        } else {
-            panic!("Received None instead of a valid response");
-        }
+        assert!(v.is_some(), "Expected some value, but got None");
+        let broker_output = v.unwrap();
+        let data = broker_output
+            .data
+            .result
+            .expect("No result in response data");
+        let key_value = data.get("key").expect("Key not found");
+        let key_str = key_value.as_str().expect("Value is not a string");
+        assert_eq!(key_str, "value");
     }
 
     #[tokio::test]
@@ -512,10 +538,12 @@ mod tests {
             }
         });
 
-        let callback = BrokerCallback {
-            sender: sender.clone(),
-        };
-        ThunderBroker::handle_jsonrpc_response(response.to_string().as_bytes(), callback);
+        ThunderBroker::handle_jsonrpc_response(
+            response.to_string().as_bytes(),
+            BrokerCallback {
+                sender: sender.clone(),
+            },
+        );
 
         let v = tokio::time::timeout(Duration::from_secs(2), rec.recv())
             .await
@@ -561,10 +589,12 @@ mod tests {
             }
         });
 
-        let callback = BrokerCallback {
-            sender: sender.clone(),
-        };
-        ThunderBroker::handle_jsonrpc_response(response.to_string().as_bytes(), callback);
+        ThunderBroker::handle_jsonrpc_response(
+            response.to_string().as_bytes(),
+            BrokerCallback {
+                sender: sender.clone(),
+            },
+        );
 
         let v = tokio::time::timeout(Duration::from_secs(2), rec.recv())
             .await
