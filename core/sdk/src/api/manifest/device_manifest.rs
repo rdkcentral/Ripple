@@ -334,6 +334,10 @@ pub struct DefaultValues {
     pub accessibility_audio_description_settings: bool,
     #[serde(default)]
     pub role_based_support: bool,
+    #[serde(default = "country_postal_code_default")]
+    pub country_postal_code: HashMap<String, String>,
+    #[serde(default = "countries_using_us_privacy_default")]
+    pub countries_using_us_privacy: Vec<String>,
 }
 
 pub fn name_default() -> String {
@@ -354,6 +358,17 @@ pub fn default_skip_restriction() -> String {
 
 pub fn default_video_dimensions() -> Vec<i32> {
     vec![1920, 1080]
+}
+
+pub fn countries_using_us_privacy_default() -> Vec<String> {
+    Vec::new()
+}
+
+fn country_postal_code_default() -> HashMap<String, String> {
+    let mut default_map = HashMap::default();
+    default_map.insert("USA".to_string(), "66952".to_string());
+    default_map.insert("CAN".to_string(), "L6T 0C1".to_string());
+    default_map
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
@@ -444,6 +459,8 @@ impl Default for DefaultValues {
             media_progress_as_watched_events: false,
             accessibility_audio_description_settings: false,
             role_based_support: false,
+            country_postal_code: country_postal_code_default(),
+            countries_using_us_privacy: countries_using_us_privacy_default(),
         }
     }
 }
@@ -913,6 +930,8 @@ pub(crate) mod tests {
                         media_progress_as_watched_events: true,
                         accessibility_audio_description_settings: false,
                         role_based_support: false,
+                        country_postal_code: HashMap::new(),
+                        countries_using_us_privacy: Vec::new(),
                     },
                     settings_defaults_per_app: HashMap::new(),
                     model_friendly_names: {

@@ -192,6 +192,13 @@ impl FireboltGateway {
             request_c.method.clone(),
             request_c.ctx.app_id.clone(),
         );
+        let fail_open = matches!(
+            platform_state
+                .get_device_manifest()
+                .get_features()
+                .intent_validation,
+            ripple_sdk::api::manifest::device_manifest::IntentValidation::FailOpen
+        );
 
         let open_rpc_state = self.state.platform_state.open_rpc_state.clone();
 
@@ -199,7 +206,7 @@ impl FireboltGateway {
             let start = Utc::now().timestamp_millis();
 
             // Validate incoming request parameters.
-            if let Err(error_string) = validate_request(open_rpc_state, &request_c) {
+            if let Err(error_string) = validate_request(open_rpc_state, &request_c, fail_open) {
                 let now = Utc::now().timestamp_millis();
 
                 RpcRouter::log_rdk_telemetry_message(
@@ -312,7 +319,20 @@ impl FireboltGateway {
     }
 }
 
-fn validate_request(open_rpc_state: OpenRpcState, request: &RpcRequest) -> Result<(), String> {
+fn validate_request(
+    open_rpc_state: OpenRpcState,
+    request: &RpcRequest,
+    fail_open: bool,
+) -> Result<(), String> {
+    // Existing fail open configuration should work where the
+    // call should be delegated to the actual handler
+    if fail_open {
+        match request.method.to_lowercase().as_str() {
+            "lifecyclemanagement.session" | "discovery.launch" => return Ok(()),
+            _ => {}
+        }
+    }
+
     let major_version = open_rpc_state.get_version().major.to_string();
     let openrpc_validator = open_rpc_state.get_openrpc_validator();
 
