@@ -22,11 +22,12 @@ use jsonrpsee::{
 };
 use ripple_sdk::{
     api::{
-        gateway::rpc_gateway_api::CallContext,
-        session::{AccountSessionRequest, AccountSessionTokenRequest},
+        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
+        session::AccountSessionTokenRequest,
     },
     log::error,
 };
+use serde_json::json;
 
 use crate::{
     firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState,
@@ -52,14 +53,27 @@ pub struct AccountImpl {
 
 #[async_trait]
 impl AccountServer for AccountImpl {
-    async fn session(&self, _ctx: CallContext, a_t_r: AccountSessionTokenRequest) -> RpcResult<()> {
+    async fn session(
+        &self,
+        mut _ctx: CallContext,
+        a_t_r: AccountSessionTokenRequest,
+    ) -> RpcResult<()> {
         self.platform_state
             .session_state
             .insert_session_token(a_t_r.token.clone());
+        _ctx.protocol = ApiProtocol::Extn;
         let resp = self
             .platform_state
             .get_client()
-            .send_extn_request(AccountSessionRequest::SetAccessToken(a_t_r))
+            .get_extn_client()
+            .main_internal_request(RpcRequest {
+                ctx: _ctx.clone(),
+                method: "account.setServiceAccessToken".into(),
+                params_json: RpcRequest::prepend_ctx(
+                    Some(json!({"token": a_t_r.token, "expires": a_t_r.expires_in})),
+                    &_ctx,
+                ),
+            })
             .await;
         if resp.is_err() {
             error!("Error in session {:?}", resp);
