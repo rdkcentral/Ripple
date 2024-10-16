@@ -194,6 +194,16 @@ impl ThunderBroker {
                                             }
                                         }
                                     }
+                                    else { // Data migrator consumed the request
+                                        if let Some(response) = response {
+                                            let broker_clone = broker_c.clone();
+                                            tokio::spawn(async move {
+                                                if let Err(e) = broker_clone.get_default_callback().sender.send(response).await {
+                                                    error!("Failed to send response: {:?}", e);
+                                                }
+                                            });
+                                        }
+                                    }
                                 }
                             }
                             Err(e) => {

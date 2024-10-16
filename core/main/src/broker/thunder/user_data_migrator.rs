@@ -16,11 +16,13 @@
 //
 
 use std::collections::HashMap;
+use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::path::Path;
 use std::sync::Arc;
 
 use ripple_sdk::tokio::net::TcpStream;
+use ripple_sdk::utils::error::RippleError;
 use ripple_sdk::{
     log::{debug, error, info},
     tokio::{
@@ -34,8 +36,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::broker::endpoint_broker::{
-    BrokerCallback, BrokerOutput, BrokerRequest, EndpointBrokerState,
+    self, BrokerCallback, BrokerOutput, BrokerRequest, EndpointBrokerState,
 };
+use crate::broker::rules_engine::{Rule, RuleTransformType};
+
 use futures::stream::SplitSink;
 use futures_util::SinkExt;
 
@@ -43,12 +47,40 @@ use crate::broker::thunder_broker::ThunderBroker;
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 const USER_DATA_MIGRATION_CONFIG_FILE_NAME: &str = "user_data_migration_config.json";
 
+#[derive(Debug)]
+enum UserDataMigratorError {
+    ThunderRequestError(String),
+    ResponseError(String),
+    SetterRuleNotAvailable,
+    RequestTransformError(String),
+    TimeoutError,
+}
+
+impl fmt::Display for UserDataMigratorError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            UserDataMigratorError::ThunderRequestError(msg) => {
+                write!(f, "Thunder request error: {}", msg)
+            }
+            UserDataMigratorError::ResponseError(msg) => write!(f, "Response error: {}", msg),
+            UserDataMigratorError::TimeoutError => write!(f, "Timeout error"),
+            UserDataMigratorError::SetterRuleNotAvailable => {
+                write!(f, "Setter rule is not available")
+            }
+            UserDataMigratorError::RequestTransformError(msg) => {
+                write!(f, "Request transform error: {}", msg)
+            }
+        }
+    }
+}
+impl std::error::Error for UserDataMigratorError {}
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MigrationConfigEntry {
     namespace: String,
     key: String,
     default: Value,
     getter: String,
+    setter_rule: Option<Rule>,
     setter: String,
     migrated: bool,
 }
@@ -92,7 +124,7 @@ impl UserDataMigrator {
         None
     }
 
-    async fn get_matching_migration_entry_on_method(
+    async fn get_matching_migration_entry_by_method(
         &self,
         method: &str,
     ) -> Option<MigrationConfigEntry> {
@@ -109,9 +141,9 @@ impl UserDataMigrator {
         broker: &ThunderBroker,
         ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
         request: &mut BrokerRequest,
-    ) -> (bool, Option<Value>) {
+    ) -> (bool, Option<BrokerOutput>) {
         let method = request.rpc.method.clone();
-        if let Some(config_entry) = self.get_matching_migration_entry_on_method(&method).await {
+        if let Some(config_entry) = self.get_matching_migration_entry_by_method(&method).await {
             // migration entry found for either getter or setter method
             // for setter case, irrespective of the migration status, update the new value in the new storage and sync
             // with the legacy storage
@@ -127,8 +159,7 @@ impl UserDataMigrator {
                     &config_entry.key,
                     &broker,
                     ws_tx.clone(),
-                    &request,
-                    &config_entry.default,
+                    &request.rpc.params_json,
                 )
                 .await;
                 // returning false to continue with the original setter request
@@ -137,9 +168,18 @@ impl UserDataMigrator {
                 // perform the getter migration logic asynchronously
                 if !config_entry.migrated {
                     let migrated_value = self
-                        .perform_getter_migration(&broker, &request, &config_entry)
+                        .perform_getter_migration(&broker, ws_tx.clone(), &request, &config_entry)
                         .await;
-                    return (false, Some(migrated_value));
+                    match migrated_value {
+                        Ok((status, value)) => {
+                            return (status, value);
+                        }
+                        Err(e) => {
+                            error!("Error performing getter migration and continuing without migration {:?}", e);
+                            // return false to continue with the original request
+                            return (false, None);
+                        }
+                    }
                 } else {
                     // the migration is already done, continue with the original request
                     return (false, None);
@@ -151,25 +191,22 @@ impl UserDataMigrator {
         (false, None)
     }
 
-    async fn write_to_legacy_storage(
+    async fn read_from_legacy_storage(
         &self,
         namespace: &str,
         key: &str,
         broker: &ThunderBroker,
         ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
-        _request: &BrokerRequest,
-        value: &Value,
-    ) {
+    ) -> Result<Value, UserDataMigratorError> {
         let request_id = EndpointBrokerState::get_next_id();
         let call_sign = "org.rdk.PersistentStore.1.".to_owned();
         let thunder_request = json!({
             "jsonrpc": "2.0",
             "id": request_id,
-            "method": format!("{}setValue", call_sign),
+            "method": format!("{}getValue", call_sign),
             "params": json!({
                 "namespace": namespace,
                 "key": key,
-                "value": value.to_string(),
                 "scope": "device",
             })
         })
@@ -187,7 +224,78 @@ impl UserDataMigrator {
 
         // send the request to the legacy storage
         if let Err(e) = self.send_thunder_request(&ws_tx, &thunder_request).await {
-            error!("Failed to send thunder request: {:?}", e);
+            error!(
+                "read_from_legacy_storage: Failed to send thunder request: {:?}",
+                e
+            );
+            // Unregister the custom callback and return
+            broker.unregister_custom_callback(request_id).await;
+            return Err(e);
+        }
+        // get the response from the custom callback
+        let response_rx = self.response_rx.clone();
+        let broker_clone = broker.clone();
+        // get the response and check if the response is successful by checking result or error field.
+        // Value::Null is a valid response, return Err if the response is not successful
+        let response =
+            UserDataMigrator::wait_for_response(response_rx, broker_clone, request_id).await;
+        match response {
+            Ok(response) => {
+                if let Some(result) = response.data.result {
+                    return Ok(result);
+                } else {
+                    return Err(UserDataMigratorError::ResponseError(
+                        "No result in response".to_string(),
+                    ));
+                }
+            }
+            Err(e) => {
+                return Err(e);
+            }
+        }
+    }
+
+    async fn write_to_legacy_storage(
+        &self,
+        namespace: &str,
+        key: &str,
+        broker: &ThunderBroker,
+        ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
+        params_json: &str,
+    ) {
+        let request_id = EndpointBrokerState::get_next_id();
+        let call_sign = "org.rdk.PersistentStore.1.".to_owned();
+        let thunder_request = json!({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": format!("{}setValue", call_sign),
+            "params": json!({
+                "namespace": namespace,
+                "key": key,
+                "value": params_json,
+                "scope": "device",
+            })
+        })
+        .to_string();
+
+        // Register custom callback to handle the response
+        broker
+            .register_custom_callback(
+                request_id,
+                BrokerCallback {
+                    sender: self.response_tx.clone(),
+                },
+            )
+            .await;
+
+        // send the request to the legacy storage
+        if let Err(e) = self.send_thunder_request(&ws_tx, &thunder_request).await {
+            error!(
+                "write_to_legacy_storage: Failed to send thunder request: {:?}",
+                e
+            );
+            // Unregister the custom callback and return
+            broker.unregister_custom_callback(request_id).await;
             return;
         }
 
@@ -195,22 +303,165 @@ impl UserDataMigrator {
         let response_rx = self.response_rx.clone();
         let broker_clone = broker.clone();
         tokio::spawn(async move {
-            if let Err(e) =
-                UserDataMigrator::wait_for_response(response_rx, broker_clone, request_id).await
-            {
-                error!("Error waiting for response: {:?}", e);
+            match UserDataMigrator::wait_for_response(response_rx, broker_clone, request_id).await {
+                Ok(response) => {
+                    // Handle the successful response here
+                    info!(
+                        "write_to_legacy_storage: Successfully received response: {:?}",
+                        response
+                    );
+                }
+                Err(e) => {
+                    error!("Error waiting for response: {:?}", e);
+                }
             }
         });
+    }
+
+    async fn read_from_true_north_plugin(
+        &self,
+        broker: &ThunderBroker,
+        ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
+        request: &BrokerRequest,
+    ) -> Result<BrokerOutput, UserDataMigratorError> {
+        // no params for the getter function
+        let request_id = EndpointBrokerState::get_next_id();
+        let thunder_plugin_request = json!({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": request.rule.alias,
+        })
+        .to_string();
+
+        // Register custom callback to handle the response
+        broker
+            .register_custom_callback(
+                request_id,
+                BrokerCallback {
+                    sender: self.response_tx.clone(),
+                },
+            )
+            .await;
+
+        // send the request to the new pluin as thunder request
+        if let Err(e) = self
+            .send_thunder_request(&ws_tx, &thunder_plugin_request)
+            .await
+        {
+            error!(
+                "perform_getter_migration: Failed to send thunder request: {:?}",
+                e
+            );
+            broker.unregister_custom_callback(request_id).await;
+            return Err(e);
+        }
+
+        // get the response from the custom callback
+        let response_rx = self.response_rx.clone();
+        let broker_clone = broker.clone();
+
+        UserDataMigrator::wait_for_response(response_rx, broker_clone, request_id).await
+    }
+
+    fn transform_requets_params(
+        params_json: &str,
+        rule: &Rule,
+        method: &str,
+    ) -> Result<Value, RippleError> {
+        if let Ok(mut params) = serde_json::from_str::<Vec<Value>>(&params_json) {
+            if params.len() > 1 {
+                if let Some(last) = params.pop() {
+                    if let Some(filter) = rule
+                        .transform
+                        .get_transform_data(RuleTransformType::Request)
+                    {
+                        return crate::broker::rules_engine::jq_compile(
+                            last,
+                            &filter,
+                            format!("{}_request", method),
+                        );
+                    }
+                    return Ok(serde_json::to_value(&last).unwrap());
+                }
+            } else {
+                return Ok(Value::Null);
+            }
+        }
+        Err(RippleError::ParseError)
+    }
+    async fn write_to_true_north_plugin(
+        &self,
+        broker: &ThunderBroker,
+        ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
+        config_entry: &MigrationConfigEntry,
+        params_json: &str, // param from the legacy storage
+    ) -> Result<BrokerOutput, UserDataMigratorError> {
+        // get the setter rule from the rule engine by giving the setter method name
+        let setter_rule = Self::retrive_setter_rule_from_rule_engine(config_entry)?;
+        // apply the setter rule to the params_json
+        let transformed_params =
+            Self::transform_requets_params(params_json, &setter_rule, &config_entry.setter);
+        // rerurn error if the transform fails
+        let transformed_params = match transformed_params {
+            Ok(params) => params,
+            Err(e) => {
+                return Err(UserDataMigratorError::RequestTransformError(e.to_string()));
+            }
+        };
+        // create the request to the new plugin
+        let request_id = EndpointBrokerState::get_next_id();
+        let thunder_plugin_request = json!({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": setter_rule.alias,
+            "params": transformed_params,
+        })
+        .to_string();
+
+        // Register custom callback to handle the response
+        broker
+            .register_custom_callback(
+                request_id,
+                BrokerCallback {
+                    sender: self.response_tx.clone(),
+                },
+            )
+            .await;
+
+        // send the request to the new plugin as thunder request
+        if let Err(e) = self
+            .send_thunder_request(&ws_tx, &thunder_plugin_request)
+            .await
+        {
+            error!(
+                "write_to_true_north_plugin: Failed to send thunder request: {:?}",
+                e
+            );
+            broker.unregister_custom_callback(request_id).await;
+            return Err(e);
+        }
+
+        // get the response from the custom callback
+        let response_rx = self.response_rx.clone();
+        let broker_clone = broker.clone();
+
+        UserDataMigrator::wait_for_response(response_rx, broker_clone, request_id).await
     }
 
     async fn send_thunder_request(
         &self,
         ws_tx: &Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
         request: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), UserDataMigratorError> {
         let mut ws_tx = ws_tx.lock().await;
-        ws_tx.feed(Message::Text(request.to_string())).await?;
-        ws_tx.flush().await?;
+        ws_tx
+            .feed(Message::Text(request.to_string()))
+            .await
+            .map_err(|e| UserDataMigratorError::ThunderRequestError(e.to_string()))?;
+        ws_tx
+            .flush()
+            .await
+            .map_err(|e| UserDataMigratorError::ThunderRequestError(e.to_string()))?;
         Ok(())
     }
 
@@ -218,36 +469,149 @@ impl UserDataMigrator {
         response_rx: Arc<Mutex<tokio::sync::mpsc::Receiver<BrokerOutput>>>,
         broker: ThunderBroker,
         request_id: u64,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<BrokerOutput, UserDataMigratorError> {
         let mut response_rx = response_rx.lock().await;
-        match timeout(Duration::from_secs(30), response_rx.recv()).await {
+        let response = match timeout(Duration::from_secs(30), response_rx.recv()).await {
             Ok(Some(response)) => {
                 info!(
                     "Received response at custom write_to_legacy_storage: {:?}",
                     response
                 );
+                response
             }
             Ok(None) => {
-                error!("Failed to receive response");
+                error!("No response received at custom write_to_legacy_storage");
+                return Err(UserDataMigratorError::TimeoutError);
             }
             Err(_) => {
-                error!("Timeout waiting for response");
+                error!("Error receiving response at custom write_to_legacy_storage");
+                return Err(UserDataMigratorError::TimeoutError);
             }
-        }
+        };
         broker.unregister_custom_callback(request_id).await;
-        Ok(())
+        Ok(response)
     }
-    // function to perform the getter migration logic asynchronously
+
+    fn retrive_setter_rule_from_rule_engine(
+        config_entry: &MigrationConfigEntry,
+    ) -> Result<Rule, UserDataMigratorError> {
+        // TBD: get the getter rule from the rule engine by giving the setter method name
+        let setter_rule = config_entry.setter_rule.clone();
+        // return rule if available else return error
+        if let Some(rule) = setter_rule {
+            return Ok(rule);
+        } else {
+            return Err(UserDataMigratorError::SetterRuleNotAvailable);
+        }
+    }
+
     async fn perform_getter_migration(
         &self,
         broker: &ThunderBroker,
+        ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
         request: &BrokerRequest,
         config_entry: &MigrationConfigEntry,
-    ) -> Value {
-        let mut new_storage_value = Value::Null;
-        // Get the value from the new storage
-        //new_storage_value = self.get_new_storage_value(&broker, &request).await;
-        new_storage_value
+    ) -> Result<(bool, Option<BrokerOutput>), UserDataMigratorError> {
+        let legacy_value = self
+            .read_from_legacy_storage(
+                &config_entry.namespace,
+                &config_entry.key,
+                broker,
+                ws_tx.clone(),
+            )
+            .await;
+
+        match legacy_value {
+            Ok(legacy_value) => {
+                let value_from_plugin = self
+                    .read_from_true_north_plugin(broker, ws_tx.clone(), request)
+                    .await;
+                match value_from_plugin {
+                    Ok(value_from_plugin) => {
+                        // apply the response transform rule if any
+                        let mut data = value_from_plugin.clone().data;
+                        if let Some(filter) = request
+                            .rule
+                            .transform
+                            .get_transform_data(RuleTransformType::Response)
+                        {
+                            endpoint_broker::apply_response(filter, &request.rule.alias, &mut data);
+                        }
+                        if let Some(result) = data.clone().result {
+                            // if the plugins has a non default value, assuming that it is holding the latest value
+                            // update the legacy storage with the new value
+                            if result != config_entry.default {
+                                self.write_to_legacy_storage(
+                                    &config_entry.namespace,
+                                    &config_entry.key,
+                                    broker,
+                                    ws_tx.clone(),
+                                    &result.to_string(),
+                                )
+                                .await;
+                                self.set_migration_status(
+                                    &config_entry.namespace,
+                                    &config_entry.key,
+                                )
+                                .await;
+
+                                // create broker output with the result
+                                let response = BrokerOutput { data };
+                                return Ok((true, Some(response)));
+                            } else {
+                                // plugin has the default value, now check if the legacy storage has a non default value
+                                // if so, update the plugin with the value from the legacy storage
+                                if legacy_value != config_entry.default {
+                                    let response = self
+                                        .write_to_true_north_plugin(
+                                            broker,
+                                            ws_tx.clone(),
+                                            config_entry,
+                                            &legacy_value.to_string(),
+                                        )
+                                        .await;
+                                    match response {
+                                        Ok(response) => {
+                                            self.set_migration_status(
+                                                &config_entry.namespace,
+                                                &config_entry.key,
+                                            )
+                                            .await;
+                                            return Ok((true, Some(response)));
+                                        }
+                                        Err(e) => {
+                                            return Err(e);
+                                        }
+                                    }
+                                } else {
+                                    // both the plugin and the legacy storage has the default value, no need to update
+                                    // continue with the original request
+                                    self.set_migration_status(
+                                        &config_entry.namespace,
+                                        &config_entry.key,
+                                    )
+                                    .await;
+                                    // create broker output with the result
+                                    let response = BrokerOutput { data };
+                                    return Ok((true, Some(response)));
+                                }
+                            }
+                        } else {
+                            return Err(UserDataMigratorError::ResponseError(
+                                "No result in response".to_string(),
+                            ));
+                        }
+                    }
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            }
+            Err(e) => {
+                // TBD : Add more detailed error code like no entry in legacy storage, etc
+                return Err(e);
+            }
+        }
     }
 
     // function to set the migration flag to true and update the migration map in the config file
@@ -255,7 +619,7 @@ impl UserDataMigrator {
         let mut config_entry_changed = false;
         {
             let mut migration_map = self.migration_config.lock().await;
-            if let Some(mut config_entry) = migration_map
+            if let Some(config_entry) = migration_map
                 .values_mut()
                 .find(|entry| entry.namespace == namespace && entry.key == key)
             {
