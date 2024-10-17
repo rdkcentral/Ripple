@@ -51,8 +51,6 @@ pub struct RippleConfiguration {
     #[serde(default)]
     pub default_values: DefaultValues,
     #[serde(default)]
-    pub settings_defaults_per_app: HashMap<String, SettingsDefaults>,
-    #[serde(default)]
     pub model_friendly_names: HashMap<String, String>,
     pub distributor_experience_id: String,
     pub distributor_services: Option<Value>,
@@ -365,10 +363,7 @@ pub fn countries_using_us_privacy_default() -> Vec<String> {
 }
 
 fn country_postal_code_default() -> HashMap<String, String> {
-    let mut default_map = HashMap::default();
-    default_map.insert("USA".to_string(), "66952".to_string());
-    default_map.insert("CAN".to_string(), "L6T 0C1".to_string());
-    default_map
+    HashMap::default()
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
@@ -726,7 +721,6 @@ impl Default for RippleConfiguration {
             distribution_id_salt: None,
             form_factor: Default::default(),
             default_values: DefaultValues::default(),
-            settings_defaults_per_app: Default::default(),
             model_friendly_names: Default::default(),
             distributor_experience_id: Default::default(),
             distributor_services: None,
@@ -836,10 +830,6 @@ impl DeviceManifest {
         self.configuration.features.clone()
     }
 
-    pub fn get_settings_defaults_per_app(&self) -> HashMap<String, SettingsDefaults> {
-        self.configuration.clone().settings_defaults_per_app
-    }
-
     pub fn get_model_friendly_names(&self) -> HashMap<String, String> {
         self.configuration.model_friendly_names.clone()
     }
@@ -933,7 +923,6 @@ pub(crate) mod tests {
                         country_postal_code: HashMap::new(),
                         countries_using_us_privacy: Vec::new(),
                     },
-                    settings_defaults_per_app: HashMap::new(),
                     model_friendly_names: {
                         let mut names = HashMap::new();
                         names.insert("RSPPI".to_string(), "Raspberry PI".to_string());
@@ -1112,14 +1101,6 @@ pub(crate) mod tests {
                 },
             }
         );
-    }
-
-    #[test]
-    fn test_get_settings_defaults_per_app() {
-        let manifest = DeviceManifest::mock();
-        let settings_defaults_per_app = manifest.get_settings_defaults_per_app();
-
-        assert_eq!(settings_defaults_per_app, HashMap::new());
     }
 
     #[test]
