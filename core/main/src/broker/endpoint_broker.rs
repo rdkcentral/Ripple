@@ -862,7 +862,6 @@ fn apply_filter(broker_request: &BrokerRequest, result: &Value, rpc_request: &Rp
             &filter,
             format!("{}_event filter", rpc_request.ctx.method),
         ) {
-            println!("apply_filter: {:?}", r);
             if r.is_null() {
                 return false;
             } else {
