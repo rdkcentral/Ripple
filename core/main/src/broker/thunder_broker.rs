@@ -73,7 +73,7 @@ impl ThunderBroker {
         self
     }
 
-    fn get_default_callback(&self) -> BrokerCallback {
+    pub fn get_default_callback(&self) -> BrokerCallback {
         self.default_callback.clone()
     }
 
@@ -172,9 +172,8 @@ impl ThunderBroker {
                                     // empty request means plugin is activated and ready to process the request
                                     // Intercept the request for data migration
                                     let mut request_consumed = false;
-                                    let mut response = None;
                                     if let Some(user_data_migrator) = broker_c.data_migrator.clone() {
-                                        (request_consumed, response) = user_data_migrator.intercept_broker_request(&broker_c, ws_tx_wrap.clone(), &mut request).await;
+                                        request_consumed = user_data_migrator.intercept_broker_request(&broker_c, ws_tx_wrap.clone(), &mut request).await;
                                     }
 
                                     // If the request is not consumed by the data migrator, continue with the request
@@ -192,16 +191,6 @@ impl ThunderBroker {
                                             Err(e) => {
                                                 broker_c.get_default_callback().send_error(request,e).await
                                             }
-                                        }
-                                    }
-                                    else { // Data migrator consumed the request
-                                        if let Some(response) = response {
-                                            let broker_clone = broker_c.clone();
-                                            tokio::spawn(async move {
-                                                if let Err(e) = broker_clone.get_default_callback().sender.send(response).await {
-                                                    error!("Failed to send response: {:?}", e);
-                                                }
-                                            });
                                         }
                                     }
                                 }

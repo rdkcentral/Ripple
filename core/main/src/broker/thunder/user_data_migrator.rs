@@ -21,7 +21,7 @@ use std::fs::{File, OpenOptions};
 use std::path::Path;
 use std::sync::Arc;
 
-use jsonrpsee::types::params;
+use openrpc_validator::jsonschema::output;
 use ripple_sdk::tokio::net::TcpStream;
 use ripple_sdk::utils::error::RippleError;
 use ripple_sdk::{
@@ -142,7 +142,7 @@ impl UserDataMigrator {
         broker: &ThunderBroker,
         ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
         request: &mut BrokerRequest,
-    ) -> (bool, Option<BrokerOutput>) {
+    ) -> bool {
         let method = request.rpc.method.clone();
         if let Some(config_entry) = self.get_matching_migration_entry_by_method(&method).await {
             // migration entry found for either getter or setter method
@@ -172,41 +172,38 @@ impl UserDataMigrator {
                     "intercept_broker_request: Updating legacy storage with new value: {:?}",
                     params
                 );
-                self.write_to_legacy_storage(
-                    &config_entry.namespace,
-                    &config_entry.key,
-                    &broker,
-                    ws_tx.clone(),
-                    params.to_string().as_str(),
-                )
-                .await;
+                let _ = self
+                    .write_to_legacy_storage(
+                        &config_entry.namespace,
+                        &config_entry.key,
+                        &broker,
+                        ws_tx.clone(),
+                        params.to_string().as_str(),
+                    )
+                    .await;
                 // returning false to continue with the original setter request
-                return (false, None);
+                return false;
             } else {
                 // perform the getter migration logic asynchronously
                 if !config_entry.migrated {
-                    let migrated_value = self
-                        .perform_getter_migration(&broker, ws_tx.clone(), &request, &config_entry)
+                    let self_arc = Arc::new(self.clone());
+                    let _ = self_arc
+                        .call_perform_getter_migration(
+                            &broker,
+                            ws_tx.clone(),
+                            &request,
+                            &config_entry,
+                        )
                         .await;
-                    match migrated_value {
-                        Ok((status, value)) => {
-                            return (status, value);
-                        }
-                        Err(e) => {
-                            error!("Error performing getter migration and continuing without migration {:?}", e);
-                            // return false to continue with the original request
-                            return (false, None);
-                        }
-                    }
+                    return true;
                 } else {
                     // the migration is already done, continue with the original request
-                    return (false, None);
+                    return false;
                 }
             }
         }
-
         // continue with the original request
-        (false, None)
+        false
     }
 
     async fn read_from_legacy_storage(
@@ -260,16 +257,20 @@ impl UserDataMigrator {
         match response {
             Ok(response) => {
                 if let Some(result) = response.data.result {
-                    return Ok(result);
+                    // extract the value field from the result
+                    if let Some(value) = result.get("value") {
+                        return Ok(value.clone());
+                    }
+                    Err(UserDataMigratorError::ResponseError(
+                        "No value field in response".to_string(),
+                    ))
                 } else {
-                    return Err(UserDataMigratorError::ResponseError(
+                    Err(UserDataMigratorError::ResponseError(
                         "No result in response".to_string(),
-                    ));
+                    ))
                 }
             }
-            Err(e) => {
-                return Err(e);
-            }
+            Err(e) => Err(e),
         }
     }
 
@@ -280,7 +281,7 @@ impl UserDataMigrator {
         broker: &ThunderBroker,
         ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
         params_json: &str,
-    ) {
+    ) -> Result<(), UserDataMigratorError> {
         let request_id = EndpointBrokerState::get_next_id();
         let call_sign = "org.rdk.PersistentStore.1.".to_owned();
         let thunder_request = json!({
@@ -295,10 +296,6 @@ impl UserDataMigrator {
             })
         })
         .to_string();
-        println!(
-            "write_to_legacy_storage: thunder_request: {:?}",
-            thunder_request
-        );
         // Register custom callback to handle the response
         broker
             .register_custom_callback(
@@ -317,7 +314,7 @@ impl UserDataMigrator {
             );
             // Unregister the custom callback and return
             broker.unregister_custom_callback(request_id).await;
-            return;
+            return Ok(());
         }
 
         // Spawn a task to wait for the response as we don't want to block the main thread
@@ -337,6 +334,7 @@ impl UserDataMigrator {
                 }
             }
         });
+        Ok(())
     }
 
     async fn read_from_true_north_plugin(
@@ -512,10 +510,87 @@ impl UserDataMigrator {
         let setter_rule = config_entry.setter_rule.clone();
         // return rule if available else return error
         if let Some(rule) = setter_rule {
-            return Ok(rule);
+            Ok(rule)
         } else {
-            return Err(UserDataMigratorError::SetterRuleNotAvailable);
+            Err(UserDataMigratorError::SetterRuleNotAvailable)
         }
+    }
+
+    async fn call_perform_getter_migration(
+        self: Arc<Self>,
+        broker: &ThunderBroker,
+        ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
+        request: &BrokerRequest,
+        config_entry: &MigrationConfigEntry,
+    ) -> (bool, Option<BrokerOutput>) {
+        // Clone the parameters to move into the spawned task
+        let broker_clone = broker.clone();
+        let ws_tx_clone = ws_tx.clone();
+        let request_clone = request.clone();
+        let config_entry_clone = config_entry.clone();
+        let self_clone = Arc::clone(&self);
+
+        tokio::spawn(async move {
+            match self_clone
+                .perform_getter_migration(
+                    &broker_clone,
+                    ws_tx_clone.clone(),
+                    &request_clone,
+                    &config_entry_clone,
+                )
+                .await
+            {
+                Ok((_, Some(mut output))) => {
+                    let broker_clone = broker_clone.clone();
+                    output.data.id = Some(request_clone.rpc.ctx.call_id);
+                    tokio::spawn(async move {
+                        if let Err(e) = broker_clone
+                            .get_default_callback()
+                            .sender
+                            .send(output)
+                            .await
+                        {
+                            error!("Failed to send response: {:?}", e);
+                        }
+                    });
+                }
+                Ok((_, None)) | Err(_) => {
+                    // Handle the case where no output is returned
+                    let value_from_plugin = self_clone
+                        .read_from_true_north_plugin(
+                            &broker_clone,
+                            ws_tx_clone.clone(),
+                            &request_clone,
+                        )
+                        .await;
+                    match value_from_plugin {
+                        Ok(mut value_from_plugin) => {
+                            let broker_clone = broker_clone.clone();
+                            value_from_plugin.data.id = Some(request_clone.rpc.ctx.call_id);
+                            tokio::spawn(async move {
+                                if let Err(e) = broker_clone
+                                    .get_default_callback()
+                                    .sender
+                                    .send(value_from_plugin)
+                                    .await
+                                {
+                                    error!("Failed to send response: {:?}", e);
+                                }
+                            });
+                        }
+                        Err(_e) => {
+                            broker_clone
+                                .get_default_callback()
+                                .send_error(request_clone, RippleError::ProcessorError)
+                                .await
+                        }
+                    }
+                }
+            }
+        });
+
+        // Always return (false, None) to free up the calling thread
+        (false, None)
     }
 
     async fn perform_getter_migration(
@@ -532,101 +607,198 @@ impl UserDataMigrator {
                 broker,
                 ws_tx.clone(),
             )
-            .await;
+            .await?;
 
-        match legacy_value {
-            Ok(legacy_value) => {
-                let value_from_plugin = self
-                    .read_from_true_north_plugin(broker, ws_tx.clone(), request)
+        let value_from_plugin = self
+            .read_from_true_north_plugin(broker, ws_tx.clone(), request)
+            .await?;
+
+        let mut data = value_from_plugin.clone().data;
+        if let Some(filter) = request
+            .rule
+            .transform
+            .get_transform_data(RuleTransformType::Response)
+        {
+            endpoint_broker::apply_response(filter, &request.rule.alias, &mut data);
+        }
+
+        if let Some(result) = data.clone().result {
+            if result != config_entry.default {
+                info!(
+                    "perform_getter_migration: Plugin has non-default value. Updating legacy storage with new value: {:?}",
+                    result
+                );
+                self.update_legacy_storage(
+                    &config_entry.namespace,
+                    &config_entry.key,
+                    broker,
+                    ws_tx.clone(),
+                    &result.to_string(),
+                )
+                .await?;
+                self.set_migration_status(&config_entry.namespace, &config_entry.key)
                     .await;
-                match value_from_plugin {
-                    Ok(value_from_plugin) => {
-                        // apply the response transform rule if any
-                        let mut data = value_from_plugin.clone().data;
-                        if let Some(filter) = request
-                            .rule
-                            .transform
-                            .get_transform_data(RuleTransformType::Response)
-                        {
-                            endpoint_broker::apply_response(filter, &request.rule.alias, &mut data);
-                        }
-                        if let Some(result) = data.clone().result {
-                            // if the plugins has a non default value, assuming that it is holding the latest value
-                            // update the legacy storage with the new value
-                            if result != config_entry.default {
-                                self.write_to_legacy_storage(
-                                    &config_entry.namespace,
-                                    &config_entry.key,
-                                    broker,
-                                    ws_tx.clone(),
-                                    &result.to_string(),
-                                )
-                                .await;
-                                self.set_migration_status(
-                                    &config_entry.namespace,
-                                    &config_entry.key,
-                                )
-                                .await;
+                return Ok((true, Some(BrokerOutput { data })));
+            } else if legacy_value != config_entry.default {
+                info!(
+                    "perform_getter_migration: Plugin has default value and Legacy storage has the latest value. Updating plugin with value from legacy storage: {:?}",
+                    legacy_value
+                );
+                let response = self
+                    .update_plugin_from_legacy(
+                        broker,
+                        ws_tx.clone(),
+                        config_entry,
+                        &legacy_value.to_string(),
+                    )
+                    .await?;
+                self.set_migration_status(&config_entry.namespace, &config_entry.key)
+                    .await;
+                return Ok((true, Some(response)));
+            } else {
+                info!(
+                    "perform_getter_migration: Both plugin and legacy storage have default value. Continuing with the original request"
+                );
+                self.set_migration_status(&config_entry.namespace, &config_entry.key)
+                    .await;
+                return Ok((true, Some(BrokerOutput { data })));
+            }
+        } else {
+            Err(UserDataMigratorError::ResponseError(
+                "No result in response".to_string(),
+            ))
+        }
+    }
 
-                                // create broker output with the result
-                                let response = BrokerOutput { data };
-                                return Ok((true, Some(response)));
-                            } else {
-                                // plugin has the default value, now check if the legacy storage has a non default value
-                                // if so, update the plugin with the value from the legacy storage
-                                if legacy_value != config_entry.default {
-                                    let response = self
-                                        .write_to_true_north_plugin(
-                                            broker,
-                                            ws_tx.clone(),
-                                            config_entry,
-                                            &legacy_value.to_string(),
-                                        )
-                                        .await;
-                                    match response {
-                                        Ok(response) => {
-                                            self.set_migration_status(
-                                                &config_entry.namespace,
-                                                &config_entry.key,
-                                            )
-                                            .await;
-                                            return Ok((true, Some(response)));
-                                        }
-                                        Err(e) => {
-                                            return Err(e);
-                                        }
-                                    }
-                                } else {
-                                    // both the plugin and the legacy storage has the default value, no need to update
-                                    // continue with the original request
+    async fn update_legacy_storage(
+        &self,
+        namespace: &str,
+        key: &str,
+        broker: &ThunderBroker,
+        ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
+        value: &str,
+    ) -> Result<(), UserDataMigratorError> {
+        self.write_to_legacy_storage(namespace, key, broker, ws_tx, value)
+            .await
+    }
+
+    async fn update_plugin_from_legacy(
+        &self,
+        broker: &ThunderBroker,
+        ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
+        config_entry: &MigrationConfigEntry,
+        value: &str,
+    ) -> Result<BrokerOutput, UserDataMigratorError> {
+        self.write_to_true_north_plugin(broker, ws_tx, config_entry, value)
+            .await
+    }
+
+    /*
+        async fn perform_getter_migration(
+            &self,
+            broker: &ThunderBroker,
+            ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
+            request: &BrokerRequest,
+            config_entry: &MigrationConfigEntry,
+        ) -> Result<(bool, Option<BrokerOutput>), UserDataMigratorError> {
+            let legacy_value = self
+                .read_from_legacy_storage(
+                    &config_entry.namespace,
+                    &config_entry.key,
+                    broker,
+                    ws_tx.clone(),
+                )
+                .await;
+
+            match legacy_value {
+                Ok(legacy_value) => {
+                    let value_from_plugin = self
+                        .read_from_true_north_plugin(broker, ws_tx.clone(), request)
+                        .await;
+                    match value_from_plugin {
+                        Ok(value_from_plugin) => {
+                            // apply the response transform rule if any
+                            let mut data = value_from_plugin.clone().data;
+                            if let Some(filter) = request
+                                .rule
+                                .transform
+                                .get_transform_data(RuleTransformType::Response)
+                            {
+                                endpoint_broker::apply_response(filter, &request.rule.alias, &mut data);
+                            }
+                            if let Some(result) = data.clone().result {
+                                // if the plugins has a non default value, assuming that it is holding the latest value
+                                // update the legacy storage with the new value
+                                if result != config_entry.default {
+                                    self.write_to_legacy_storage(
+                                        &config_entry.namespace,
+                                        &config_entry.key,
+                                        broker,
+                                        ws_tx.clone(),
+                                        &result.to_string(),
+                                    )
+                                    .await;
                                     self.set_migration_status(
                                         &config_entry.namespace,
                                         &config_entry.key,
                                     )
                                     .await;
+
                                     // create broker output with the result
                                     let response = BrokerOutput { data };
-                                    return Ok((true, Some(response)));
+                                    Ok((true, Some(response)))
+                                } else {
+                                    // plugin has the default value, now check if the legacy storage has a non default value
+                                    // if so, update the plugin with the value from the legacy storage
+                                    if legacy_value != config_entry.default {
+                                        let response = self
+                                            .write_to_true_north_plugin(
+                                                broker,
+                                                ws_tx.clone(),
+                                                config_entry,
+                                                &legacy_value.to_string(),
+                                            )
+                                            .await;
+                                        match response {
+                                            Ok(response) => {
+                                                self.set_migration_status(
+                                                    &config_entry.namespace,
+                                                    &config_entry.key,
+                                                )
+                                                .await;
+                                                Ok((true, Some(response)))
+                                            }
+                                            Err(e) => Err(e),
+                                        }
+                                    } else {
+                                        // both the plugin and the legacy storage has the default value, no need to update
+                                        // continue with the original request
+                                        self.set_migration_status(
+                                            &config_entry.namespace,
+                                            &config_entry.key,
+                                        )
+                                        .await;
+                                        // create broker output with the result
+                                        let response = BrokerOutput { data };
+                                        Ok((true, Some(response)))
+                                    }
                                 }
+                            } else {
+                                Err(UserDataMigratorError::ResponseError(
+                                    "No result in response".to_string(),
+                                ))
                             }
-                        } else {
-                            return Err(UserDataMigratorError::ResponseError(
-                                "No result in response".to_string(),
-                            ));
                         }
-                    }
-                    Err(e) => {
-                        return Err(e);
+                        Err(e) => Err(e),
                     }
                 }
-            }
-            Err(e) => {
-                // TBD : Add more detailed error code like no entry in legacy storage, etc
-                return Err(e);
+                Err(e) => {
+                    // TBD : Add more detailed error code like no entry in legacy storage, etc
+                    Err(e)
+                }
             }
         }
-    }
-
+    */
     // function to set the migration flag to true and update the migration map in the config file
     async fn set_migration_status(&self, namespace: &str, key: &str) {
         let mut config_entry_changed = false;
