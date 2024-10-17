@@ -91,7 +91,7 @@ use super::{extn_id::ExtnId, ffi::ffi_message::CExtnMessage};
 ///
 /// `callback` |Async Channel [async_channel::Sender<CExtnMessage>] | Usually added by `Main` to the `target` to respond back to the `requestor`|
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ExtnMessage {
     pub id: String,
     pub requestor: ExtnId,
@@ -182,6 +182,11 @@ pub enum ExtnPayload {
     Request(ExtnRequest),
     Response(ExtnResponse),
     Event(ExtnEvent),
+}
+impl Default for ExtnPayload {
+    fn default() -> Self {
+        ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName))
+    }
 }
 
 impl ExtnPayload {

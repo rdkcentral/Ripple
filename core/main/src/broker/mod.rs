@@ -22,3 +22,4 @@ pub mod rules_engine;
 pub mod thunder;
 pub mod thunder_broker;
 pub mod websocket_broker;
+pub mod workflow_broker;

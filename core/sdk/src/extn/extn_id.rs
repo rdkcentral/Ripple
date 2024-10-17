@@ -24,13 +24,14 @@ use serde_json::Value;
 
 use super::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum ExtnClassId {
     Gateway,
     Device,
     DataGovernance,
     Distributor,
     Protected,
+    #[default]
     Jsonrpsee,
     Launcher,
     Internal,
@@ -67,8 +68,9 @@ impl ExtnClassId {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum ExtnType {
+    #[default]
     Main,
     Channel,
     Extn,
@@ -140,7 +142,7 @@ impl ExtnClassType {
 /// Below capability means the given plugin offers a JsonRpsee rpc extension for a service named bridge
 ///
 /// `ripple:extn:jsonrpsee:bridge`
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct ExtnId {
     pub _type: ExtnType,
     pub class: ExtnClassId,
