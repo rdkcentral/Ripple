@@ -610,11 +610,10 @@ impl BrokerOutputForwarder {
                                 apply_rule_for_event(
                                     &broker_request,
                                     &result,
-                                    &rpc_request.ctx.method,
+                                    &rpc_request,
                                     &mut response,
                                 );
-                                if !apply_filter(&broker_request, &result, &rpc_request.ctx.method)
-                                {
+                                if !apply_filter(&broker_request, &result, &rpc_request) {
                                     continue;
                                 }
                                 // check if the request transform has event_decorator_method
@@ -675,7 +674,7 @@ impl BrokerOutputForwarder {
                                 }
                                 response.result = Some(json!({
                                     "listening" : rpc_request.is_listening(),
-                                    "event" : &rpc_request.ctx.method
+                                    "event" : rpc_request.ctx.method
                                 }));
                                 platform_state.endpoint_state.update_unsubscribe_request(id);
                             } else {
@@ -838,7 +837,7 @@ pub fn apply_response(
 fn apply_rule_for_event(
     broker_request: &BrokerRequest,
     result: &Value,
-    method: &str,
+    rpc_request: &RpcRequest,
     response: &mut JsonRpcApiResponse,
 ) {
     if let Some(filter) = broker_request
@@ -846,15 +845,23 @@ fn apply_rule_for_event(
         .transform
         .get_transform_data(super::rules_engine::RuleTransformType::Event)
     {
-        if let Ok(r) = jq_compile(result.clone(), &filter, format!("{}_event", method)) {
+        if let Ok(r) = jq_compile(
+            result.clone(),
+            &filter,
+            format!("{}_event", rpc_request.ctx.method),
+        ) {
             response.result = Some(r);
         }
     }
 }
 
-fn apply_filter(broker_request: &BrokerRequest, result: &Value, method: &str) -> bool {
+fn apply_filter(broker_request: &BrokerRequest, result: &Value, rpc_request: &RpcRequest) -> bool {
     if let Some(filter) = broker_request.rule.filter.clone() {
-        if let Ok(r) = jq_compile(result.clone(), &filter, format!("{}_event filter", method)) {
+        if let Ok(r) = jq_compile(
+            result.clone(),
+            &filter,
+            format!("{}_event filter", rpc_request.ctx.method),
+        ) {
             println!("apply_filter: {:?}", r);
             if r.is_null() {
                 return false;

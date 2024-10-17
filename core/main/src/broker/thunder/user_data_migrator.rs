@@ -21,6 +21,7 @@ use std::fs::{File, OpenOptions};
 use std::path::Path;
 use std::sync::Arc;
 
+use jsonrpsee::types::params;
 use ripple_sdk::tokio::net::TcpStream;
 use ripple_sdk::utils::error::RippleError;
 use ripple_sdk::{
@@ -153,13 +154,30 @@ impl UserDataMigrator {
                 // update legacy storage with the new value as fire and forget operation
                 self.set_migration_status(&config_entry.namespace, &config_entry.key)
                     .await;
-                // TBD: apply transform rule if any and get the params.
+
+                let mut params = Value::Null;
+
+                // Get the params from the request as is. No need to transform the params for legacy storage
+                if let Ok(mut extract) =
+                    serde_json::from_str::<Vec<Value>>(&request.rpc.params_json)
+                {
+                    // Get the param to use in write to legacy storage
+                    if let Some(last) = extract.pop() {
+                        // Extract the value field from the last
+                        params = last.get("value").cloned().unwrap_or(last);
+                    }
+                }
+
+                info!(
+                    "intercept_broker_request: Updating legacy storage with new value: {:?}",
+                    params
+                );
                 self.write_to_legacy_storage(
                     &config_entry.namespace,
                     &config_entry.key,
                     &broker,
                     ws_tx.clone(),
-                    &request.rpc.params_json,
+                    params.to_string().as_str(),
                 )
                 .await;
                 // returning false to continue with the original setter request
@@ -277,7 +295,10 @@ impl UserDataMigrator {
             })
         })
         .to_string();
-
+        println!(
+            "write_to_legacy_storage: thunder_request: {:?}",
+            thunder_request
+        );
         // Register custom callback to handle the response
         broker
             .register_custom_callback(
@@ -299,7 +320,7 @@ impl UserDataMigrator {
             return;
         }
 
-        // Spawn a task to wait for the response
+        // Spawn a task to wait for the response as we don't want to block the main thread
         let response_rx = self.response_rx.clone();
         let broker_clone = broker.clone();
         tokio::spawn(async move {
@@ -368,26 +389,21 @@ impl UserDataMigrator {
         rule: &Rule,
         method: &str,
     ) -> Result<Value, RippleError> {
-        if let Ok(mut params) = serde_json::from_str::<Vec<Value>>(&params_json) {
-            if params.len() > 1 {
-                if let Some(last) = params.pop() {
-                    if let Some(filter) = rule
-                        .transform
-                        .get_transform_data(RuleTransformType::Request)
-                    {
-                        return crate::broker::rules_engine::jq_compile(
-                            last,
-                            &filter,
-                            format!("{}_request", method),
-                        );
-                    }
-                    return Ok(serde_json::to_value(&last).unwrap());
-                }
-            } else {
-                return Ok(Value::Null);
-            }
+        let data: Value = json!({
+            "value": params_json
+        });
+
+        if let Some(filter) = rule
+            .transform
+            .get_transform_data(RuleTransformType::Request)
+        {
+            return crate::broker::rules_engine::jq_compile(
+                data,
+                &filter,
+                format!("{}_request", method),
+            );
         }
-        Err(RippleError::ParseError)
+        Ok(serde_json::to_value(&data).unwrap())
     }
     async fn write_to_true_north_plugin(
         &self,
@@ -473,10 +489,7 @@ impl UserDataMigrator {
         let mut response_rx = response_rx.lock().await;
         let response = match timeout(Duration::from_secs(30), response_rx.recv()).await {
             Ok(Some(response)) => {
-                info!(
-                    "Received response at custom write_to_legacy_storage: {:?}",
-                    response
-                );
+                info!("wait_for_response : Received response : {:?}", response);
                 response
             }
             Ok(None) => {
