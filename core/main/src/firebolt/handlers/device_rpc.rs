@@ -762,7 +762,15 @@ impl DeviceServer for DeviceImpl {
 
 fn rpc_request_setter(response: Result<ExtnMessage, RippleError>) -> bool {
     if response.clone().is_ok() {
-        return true;
+        if let Ok(res) = response {
+            if let Some(ExtnResponse::Value(v)) = res.payload.extract::<ExtnResponse>() {
+                if v.is_boolean() {
+                    if let Some(b) = v.as_bool() {
+                        return b;
+                    }
+                }
+            }
+        }
     }
     false
 }
