@@ -24,7 +24,7 @@ use ripple_sdk::{
             fb_capabilities::FireboltPermission,
             fb_openrpc::{
                 CapabilitySet, FireboltOpenRpc, FireboltOpenRpcMethod, FireboltSemanticVersion,
-                FireboltVersionManifest, OpenRPCParser,
+                FireboltVersionManifest,
             },
             provider::ProviderAttributes,
         },
@@ -81,19 +81,6 @@ pub struct OpenRpcState {
 }
 
 impl OpenRpcState {
-    fn load_additional_rpc(rpc: &mut FireboltOpenRpc, file_contents: &'static str) {
-        match serde_json::from_str::<OpenRPCParser>(file_contents) {
-            Ok(addl_rpc) => {
-                for m in addl_rpc.methods {
-                    rpc.methods.push(m.clone());
-                }
-            }
-            Err(_) => {
-                error!("Could not read additional RPC file");
-            }
-        }
-    }
-
     fn load_open_rpc(path: &str) -> Option<FireboltOpenRpc> {
         match std::fs::read_to_string(path) {
             Ok(content) => {
@@ -137,9 +124,7 @@ impl OpenRpcState {
         let version_manifest: FireboltVersionManifest = serde_json::from_str(&open_rpc_path)
             .expect("Failed parsing FireboltVersionManifest from open RPC file");
         let firebolt_open_rpc: FireboltOpenRpc = version_manifest.clone().into();
-        let ripple_rpc_file = std::include_str!("./ripple-rpc.json");
-        let mut ripple_open_rpc: FireboltOpenRpc = FireboltOpenRpc::default();
-        Self::load_additional_rpc(&mut ripple_open_rpc, ripple_rpc_file);
+        let ripple_open_rpc: FireboltOpenRpc = FireboltOpenRpc::default();
         let openrpc_validator: FireboltOpenRpcValidator = serde_json::from_str(&open_rpc_path)
             .expect("Failed parsing FireboltOpenRpcValidator from open RPC file");
         let v = OpenRpcState {

@@ -193,13 +193,20 @@ impl FireboltGateway {
             request_c.method.clone(),
             request_c.ctx.app_id.clone(),
         );
+        let fail_open = matches!(
+            platform_state
+                .get_device_manifest()
+                .get_features()
+                .intent_validation,
+            ripple_sdk::api::manifest::device_manifest::IntentValidation::FailOpen
+        );
 
         let open_rpc_state = self.state.platform_state.open_rpc_state.clone();
 
         tokio::spawn(async move {
             capture_stage(&mut request_c, "context_ready");
             // Validate incoming request parameters.
-            if let Err(error_string) = validate_request(open_rpc_state, &mut request_c) {
+            if let Err(error_string) = validate_request(open_rpc_state, &request_c, fail_open) {
                 TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
                     &platform_state.clone(),
                     metrics_timer,
@@ -296,7 +303,20 @@ impl FireboltGateway {
     }
 }
 
-fn validate_request(open_rpc_state: OpenRpcState, request: &mut RpcRequest) -> Result<(), String> {
+fn validate_request(
+    open_rpc_state: OpenRpcState,
+    request: &RpcRequest,
+    fail_open: bool,
+) -> Result<(), String> {
+    // Existing fail open configuration should work where the
+    // call should be delegated to the actual handler
+    if fail_open {
+        match request.method.to_lowercase().as_str() {
+            "lifecyclemanagement.session" | "discovery.launch" => return Ok(()),
+            _ => {}
+        }
+    }
+
     // Params should be valid given we get the request from Firebolt WS Call context is decorated
     // in index 0
     if let Ok(params) = serde_json::from_str::<Vec<serde_json::Value>>(&request.params_json) {
