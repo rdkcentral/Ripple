@@ -44,6 +44,33 @@ pub enum DeviceChannelRequest {
     Unsubscribe(DeviceUnsubscribeRequest),
 }
 
+impl DeviceChannelRequest {
+    pub fn get_callsign_method(&self) -> (String,String) {
+        match self {
+            DeviceChannelRequest::Call(c) => {
+                let mut collection: Vec<&str> = c.method.split('.').collect();
+                let method = collection.pop().unwrap_or_default();
+                let callsign = collection.join(".");
+                (callsign, method.into())
+            },
+            DeviceChannelRequest::Subscribe(s) => (s.module.clone(), s.event_name.clone()),
+            DeviceChannelRequest::Unsubscribe(u) => (u.module.clone(), u.event_name.clone())
+        }
+    }
+
+    pub fn is_subscription(&self) -> bool {
+        !matches!(self, DeviceChannelRequest::Call(_))
+    }
+
+    pub fn is_unsubscribe(&self) -> Option<DeviceUnsubscribeRequest> {
+        if let DeviceChannelRequest::Unsubscribe(u) = self {
+            Some(u.clone())
+        } else {
+            None
+        }
+    }
+ }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceCallRequest {
     pub method: String,
