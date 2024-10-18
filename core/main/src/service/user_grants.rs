@@ -53,7 +53,7 @@ use ripple_sdk::{
         usergrant_entry::UserGrantInfo,
     },
     framework::file_store::FileStore,
-    log::{debug, error, warn},
+    log::{debug, error, trace, warn},
     serde_json::Value,
     tokio::sync::oneshot,
     utils::error::RippleError,
@@ -568,7 +568,7 @@ impl GrantState {
             .await;
 
             if caps_needing_grant_in_request.is_empty() {
-                debug!("check_with_roles: caps_needing_grant_in_request list is empty() after applying grant_exclusion_filters");
+                trace!("check_with_roles: caps_needing_grant_in_request list is empty() after applying grant_exclusion_filters");
                 return Ok(());
             }
         }

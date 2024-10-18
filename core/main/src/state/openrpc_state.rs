@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use openrpc_validator::jsonschema::JSONSchema;
 use ripple_sdk::log::{debug, error, info};
 use ripple_sdk::{api::firebolt::fb_openrpc::CapabilityPolicy, serde_json};
 use ripple_sdk::{
@@ -31,6 +32,7 @@ use ripple_sdk::{
     },
     utils::error::RippleError,
 };
+use serde_json::Value;
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
@@ -75,6 +77,7 @@ pub struct OpenRpcState {
     provider_relation_map: Arc<RwLock<HashMap<String, ProviderRelationSet>>>,
     openrpc_validator: Arc<RwLock<FireboltOpenRpcValidator>>,
     provider_registrations: Vec<String>,
+    json_schema_cache: Arc<RwLock<HashMap<String, JSONSchema>>>,
 }
 
 impl OpenRpcState {
@@ -134,6 +137,7 @@ impl OpenRpcState {
             provider_relation_map: Arc::new(RwLock::new(HashMap::new())),
             openrpc_validator: Arc::new(RwLock::new(openrpc_validator)),
             provider_registrations,
+            json_schema_cache: Arc::new(RwLock::new(HashMap::new())),
         };
         v.build_provider_relation_sets(&firebolt_open_rpc.methods);
 
@@ -426,6 +430,28 @@ impl OpenRpcState {
             .write()
             .unwrap()
             .extend(provider_relation_sets)
+    }
+
+    pub fn add_json_schema_cache(&self, method: String, schema: JSONSchema) {
+        let mut json_cache = self.json_schema_cache.write().unwrap();
+        let _ = json_cache.insert(method, schema);
+    }
+
+    pub fn validate_schema(&self, method: &str, value: &Value) -> Result<(), Option<String>> {
+        let json_cache = self.json_schema_cache.read().unwrap();
+        if let Some(schema) = json_cache.get(method) {
+            if let Err(e) = schema.validate(value) {
+                let mut error_string = String::new();
+                for error in e {
+                    error_string.push_str(&format!("{} ", error));
+                }
+                Err(Some(error_string))
+            } else {
+                Ok(())
+            }
+        } else {
+            Err(None)
+        }
     }
 }
 

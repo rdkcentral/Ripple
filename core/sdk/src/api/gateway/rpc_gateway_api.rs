@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use chrono::Utc;
 use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -125,6 +126,13 @@ pub struct ApiMessage {
     pub protocol: ApiProtocol,
     pub jsonrpc_msg: String,
     pub request_id: String,
+    pub stats: Option<ApiStats>,
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct ApiStats {
+    pub stats_ref: String,
+    pub stats: RpcStats,
 }
 
 /// Holds a message in jsonrpc protocol format and the protocol that it should be converted into
@@ -137,6 +145,7 @@ impl ApiMessage {
             protocol,
             jsonrpc_msg,
             request_id,
+            stats: None,
         }
     }
 
@@ -229,10 +238,55 @@ impl crate::Mockable for JsonRpcApiResponse {
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct RpcStats {
+    pub start_time: i64,
+    pub last_stage: i64,
+    stage_durations: String,
+}
+
+impl Default for RpcStats {
+    fn default() -> Self {
+        Self {
+            start_time: Utc::now().timestamp_millis(),
+            last_stage: 0,
+            stage_durations: String::new(),
+        }
+    }
+}
+
+impl RpcStats {
+    pub fn update_stage(&mut self, stage: &str) -> i64 {
+        let current_time = Utc::now().timestamp_millis();
+        let mut last_stage = self.last_stage;
+        if last_stage == 0 {
+            last_stage = self.start_time;
+        }
+        self.last_stage = current_time;
+        let duration = current_time - last_stage;
+        if self.stage_durations.is_empty() {
+            self.stage_durations = format!("{}={}", stage, duration);
+        } else {
+            self.stage_durations = format!("{},{}={}", self.stage_durations, stage, duration);
+        }
+        duration
+    }
+
+    pub fn get_total_time(&self) -> i64 {
+        let current_time = Utc::now().timestamp_millis();
+        current_time - self.start_time
+    }
+
+    pub fn get_stage_durations(&self) -> String {
+        self.stage_durations.clone()
+    }
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct RpcRequest {
     pub method: String,
     pub params_json: String,
     pub ctx: CallContext,
+    pub stats: RpcStats,
 }
 
 impl ExtnPayloadProvider for RpcRequest {
@@ -258,6 +312,7 @@ impl crate::Mockable for RpcRequest {
             method: "module.method".to_owned(),
             params_json: "{}".to_owned(),
             ctx: CallContext::mock(),
+            stats: RpcStats::default(),
         }
     }
 }
@@ -271,6 +326,7 @@ impl RpcRequest {
             method,
             params_json,
             ctx,
+            stats: RpcStats::default(),
         }
     }
     /// Serializes a parameter so that the given ctx becomes the first list in a json array of
@@ -379,6 +435,7 @@ impl RpcRequest {
             params_json: Self::prepend_ctx(Some(request), &ctx),
             ctx,
             method,
+            stats: RpcStats::default(),
         }
     }
 }
@@ -526,11 +583,11 @@ mod tests {
 
     #[test]
     fn test_is_errors() {
-        let api_message = ApiMessage {
-            protocol: ApiProtocol::Bridge,
-            jsonrpc_msg: "Custom error: error".to_string(),
-            request_id: "request_id".to_string(),
-        };
+        let api_message = ApiMessage::new(
+            ApiProtocol::Bridge,
+            "Custom error: error".to_string(),
+            "request_id".to_string(),
+        );
 
         assert!(api_message.is_error());
     }
@@ -656,6 +713,7 @@ mod tests {
             method: "some_method".to_string(),
             params_json: r#"{"key": "value"}"#.to_string(),
             ctx: call_context,
+            stats: RpcStats::default(),
         };
         let contract_type: RippleContract = RippleContract::Rpc;
         test_extn_payload_provider(rpc_request, contract_type);
@@ -663,11 +721,12 @@ mod tests {
 
     #[test]
     fn test_get_error_code_from_msg() {
-        let api_message = ApiMessage {
-            protocol: ApiProtocol::JsonRpc,
-            jsonrpc_msg: r#"{"jsonrpc": "2.0", "id": 123, "error": {"code": 456, "message": "error message"}}"#.to_string(),
-            request_id: "request_id".to_string(),
-        };
+        let api_message = ApiMessage::new(
+            ApiProtocol::JsonRpc,
+            r#"{"jsonrpc": "2.0", "id": 123, "error": {"code": 456, "message": "error message"}}"#
+                .to_string(),
+            "request_id".to_string(),
+        );
 
         let result = api_message.get_error_code_from_msg();
 
@@ -678,12 +737,11 @@ mod tests {
 
     #[test]
     fn test_get_error_code_from_msg_error_code_not_present() {
-        let api_message = ApiMessage {
-            protocol: ApiProtocol::JsonRpc,
-            jsonrpc_msg: r#"{"jsonrpc": "2.0", "id": 123, "error": {"message": "error message"}}"#
-                .to_string(),
-            request_id: "request_id".to_string(),
-        };
+        let api_message = ApiMessage::new(
+            ApiProtocol::JsonRpc,
+            r#"{"jsonrpc": "2.0", "id": 123, "error": {"message": "error message"}}"#.to_string(),
+            "request_id".to_string(),
+        );
 
         let result = api_message.get_error_code_from_msg();
 
@@ -694,11 +752,11 @@ mod tests {
 
     #[test]
     fn test_get_error_code_from_msg_result_present() {
-        let api_message = ApiMessage {
-            protocol: ApiProtocol::JsonRpc,
-            jsonrpc_msg: r#"{"jsonrpc": "2.0", "id": 123, "result": null}"#.to_string(),
-            request_id: "request_id".to_string(),
-        };
+        let api_message = ApiMessage::new(
+            ApiProtocol::JsonRpc,
+            r#"{"jsonrpc": "2.0", "id": 123, "result": null}"#.to_string(),
+            "request_id".to_string(),
+        );
 
         let result = api_message.get_error_code_from_msg();
 

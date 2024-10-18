@@ -269,6 +269,8 @@ impl AppEvents {
             result: data,
             id: Id::Number(listener.call_ctx.call_id),
         };
+
+        // Events are pass through no stats
         let api_message = ApiMessage::new(
             protocol,
             json!(event).to_string(),
