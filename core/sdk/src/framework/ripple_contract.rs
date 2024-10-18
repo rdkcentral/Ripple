@@ -35,10 +35,11 @@ use serde_json::Value;
 /// b. Distributor Extn/Channel
 /// c. Combination of a Device + Distributor Extensions
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum RippleContract {
     /// Used by Main application to provide internal contracts for Extensions
+    #[default]
     Internal,
     /// Provided by the distributor useful for adding Governance implementation for handling
     /// privacy information and other sensitive data.

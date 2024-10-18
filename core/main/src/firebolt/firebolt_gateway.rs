@@ -242,10 +242,11 @@ impl FireboltGateway {
 
             match result {
                 Ok(_) => {
-                    if !platform_state
-                        .endpoint_state
-                        .handle_brokerage(request_c.clone(), extn_msg.clone())
-                    {
+                    if !platform_state.endpoint_state.handle_brokerage(
+                        request_c.clone(),
+                        extn_msg.clone(),
+                        None,
+                    ) {
                         // Route
                         match request.clone().ctx.protocol {
                             ApiProtocol::Extn => {
