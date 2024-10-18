@@ -1023,6 +1023,22 @@ pub fn get_metrics_tags(
     Some(tags)
 }
 
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct BehavioralMetricsEvent {
+    pub event_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub event_version: Option<String>,
+    pub event_source: String,
+    pub event_source_version: String,
+    pub cet_list: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub epoch_timestamp: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uptime_timestamp: Option<u64>,
+    pub event_payload: Value,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
