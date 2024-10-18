@@ -114,12 +114,23 @@ impl AllowAppContentAdTargetingSettings {
         };
 
         [
-            (country_code == "US").then(|| (US_PRIVACY_KEY.to_owned(), self.us_privacy.to_owned())),
+            (country_code == "US"
+                || Self::allow_using_us_privacy(platform_state.clone(), &country_code.to_string()))
+            .then(|| (US_PRIVACY_KEY.to_owned(), self.us_privacy.to_owned())),
             Some((LMT_KEY.to_owned(), self.lmt.to_owned())),
         ]
         .into_iter()
         .flatten()
         .collect()
+    }
+
+    fn allow_using_us_privacy(state: PlatformState, country_code: &String) -> bool {
+        let countries_using_us_privacy = state
+            .get_device_manifest()
+            .configuration
+            .default_values
+            .countries_using_us_privacy;
+        countries_using_us_privacy.contains(country_code)
     }
 }
 
