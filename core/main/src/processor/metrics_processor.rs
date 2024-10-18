@@ -25,7 +25,7 @@ use ripple_sdk::{
             },
             fb_telemetry::OperationalMetricRequest,
         },
-        gateway::rpc_gateway_api::{CallContext, RpcRequest},
+        gateway::rpc_gateway_api::CallContext,
     },
     async_trait::async_trait,
     extn::{
