@@ -825,17 +825,8 @@ impl BrokerOutputForwarder {
                             trace!("start_forwarder: no result {:?}", response);
                             apply_response_needed = true;
                         }
-                        if output.is_error() {
-                            if let Some(workflow_callback) = workflow_callback.clone() {
-                                debug!("sending to workflow callback {:?}", response);
-                                let _ = workflow_callback
-                                    .sender
-                                    .send(BrokerOutput {
-                                        data: response.clone(),
-                                    })
-                                    .await;
-                            }
-                        } else if apply_response_needed {
+
+                        if apply_response_needed {
                             if let Some(filter) = broker_request.rule.transform.get_transform_data(
                                 super::rules_engine::RuleTransformType::Response,
                             ) {

@@ -85,11 +85,12 @@ pub enum RuleEndpointProtocol {
     Thunder,
     Workflow,
 }
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct JsonDataSource {
     // configurable namespace to "stuff" an in individual result payload into
     pub namespace: Option<String>,
     pub method: String,
+    pub params: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -285,7 +286,13 @@ pub fn compose_json_values(values: Vec<Value>) -> Value {
     for v in 1..values.len() {
         composition_filter = format!("{} * .[{}]", composition_filter, v);
     }
-    jq_compile(Value::Array(values), &composition_filter, String::new()).unwrap()
+    match jq_compile(Value::Array(values), &composition_filter, String::new()) {
+        Ok(composed_value) => composed_value,
+        Err(err) => {
+            error!("Failed to compose JSON values with error: {:?}", err);
+            Value::Null // Return a default value on failure
+        }
+    }
 }
 pub fn make_name_json_safe(name: &str) -> String {
     name.replace([' ', '.', ','], "_")

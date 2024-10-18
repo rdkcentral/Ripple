@@ -5,6 +5,8 @@ use super::endpoint_broker::{
 use super::rules_engine::JsonDataSource;
 use crate::broker::endpoint_broker::{BrokerOutput, EndpointBrokerState};
 use crate::broker::rules_engine::{compose_json_values, make_name_json_safe};
+use futures::future::BoxFuture;
+use futures::FutureExt;
 
 use futures::future::try_join_all;
 use ripple_sdk::api::gateway::rpc_gateway_api::{JsonRpcApiError, JsonRpcApiResponse, RpcRequest};
@@ -65,22 +67,54 @@ async fn subbroker_call(
 }
 
 impl WorkflowBroker {
-    /*
-    TODO: possibly add a batch size to limit the number of concurrent requests
-    */
     pub fn create_the_futures(
         sources: Vec<JsonDataSource>,
         rpc_request: RpcRequest,
         endpoint_broker: EndpointBrokerState,
-    ) -> Vec<impl std::future::Future<Output = Result<serde_json::Value, SubBrokerErr>>> {
+    ) -> Vec<BoxFuture<'static, Result<serde_json::Value, SubBrokerErr>>> {
         let mut futures = vec![];
+
         for source in sources.clone() {
             trace!("Source {:?}", source.clone());
 
             let mut rpc_request = rpc_request.clone();
             rpc_request.method = source.method.clone();
 
-            let t = subbroker_call(endpoint_broker.clone(), rpc_request, source);
+            // Deserialize the existing params_json
+            let mut existing_params =
+                match serde_json::from_str::<serde_json::Value>(&rpc_request.params_json) {
+                    Ok(params) => params,
+                    Err(e) => {
+                        error!("Failed to parse existing params_json: {:?}", e);
+                        continue;
+                    }
+                };
+
+            // Handle new params from the rule source
+            if let Some(ref params) = source.params {
+                // Ensure params is valid JSON
+                match serde_json::from_str::<serde_json::Value>(params) {
+                    Ok(new_params) => {
+                        // Merge the new params with existing params
+                        if let Some(existing_array) = existing_params.as_array_mut() {
+                            existing_array.push(new_params);
+                        } else {
+                            error!(
+                                "Existing params_json is not an array: {:?}",
+                                existing_params
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        error!("Invalid params JSON string: {:?}", e);
+                        continue;
+                    }
+                }
+            }
+
+            // Serialize the merged parameters back into params_json
+            rpc_request.params_json = serde_json::to_string(&existing_params).unwrap();
+            let t = subbroker_call(endpoint_broker.clone(), rpc_request, source).boxed(); // source is still usable here
             futures.push(t);
         }
         futures
@@ -90,7 +124,7 @@ impl WorkflowBroker {
         broker_request: &BrokerRequest,
         endpoint_broker: EndpointBrokerState,
     ) -> SubBrokerResult {
-        let futures = Self::create_the_futures(
+        let mut futures = Self::create_the_futures(
             broker_request.rule.sources.clone().unwrap_or_default(),
             broker_request.rpc.clone(),
             endpoint_broker.clone(),
@@ -99,34 +133,40 @@ impl WorkflowBroker {
         workflow steps are currently all or nothing/sudden death: if one step fails, the whole workflow fails
         */
 
-        match try_join_all(futures).await {
-            Ok(success) => {
-                let mut results = vec![];
-                for r in success {
-                    results.push(r);
-                }
-                let composed: JsonRpcApiResponse = broker_request.clone().into();
-                let composed = composed.with_result(Some(compose_json_values(results)));
-                trace!("Composed {:?}", composed.result);
-                Ok(composed)
-            }
-            Err(e) => {
-                error!(
-                    "Error {:?} in subbroker call for workflow: {}",
-                    e, broker_request.rpc.method
-                );
+        // Define your batch size here
+        let batch_size = 10; 
+        let mut results = vec![];
 
-                Err(SubBrokerErr::JsonRpcApiError(
-                    JsonRpcApiError::default()
-                        .with_code(-32001)
-                        .with_message(format!(
-                            "workflow error {:?}: for api {}",
+        for chunk in futures.chunks_mut(batch_size) {
+            match try_join_all(chunk.iter_mut().map(|f| f.as_mut()).collect::<Vec<_>>()).await {
+                Ok(success) => {
+                    results.extend(success);
+                }
+                Err(e) => {
+                    error!(
+                        "Error {:?} in subbroker call for workflow: {}",
+                        e, broker_request.rpc.method
+                    );
+
                             e, broker_request.rpc.method
-                        ))
-                        .with_id(broker_request.rpc.ctx.call_id),
-                ))
+                    return Err(SubBrokerErr::JsonRpcApiError(
+                        JsonRpcApiError::default()
+                            .with_code(-32001)
+                            .with_message(format!(
+                                "workflow error {:?}: for api {}",
+                                e, broker_request.rpc.method
+                            ))
+                            .with_id(broker_request.rpc.ctx.call_id),
+                    ));
+                }
             }
         }
+
+        // Return an Ok result if the loop has zero elements to iterate on
+        let composed: JsonRpcApiResponse = broker_request.clone().into();
+        let composed = composed.with_result(Some(compose_json_values(results)));
+        trace!("Composed {:?}", composed.result);
+        Ok(composed)
     }
     pub fn start(callback: BrokerCallback, endpoint_broker: EndpointBrokerState) -> BrokerSender {
         let (tx, mut rx) = mpsc::channel::<BrokerRequest>(10);
@@ -213,6 +253,7 @@ pub mod tests {
         let source = JsonDataSource {
             method: "module.method".to_string(),
             namespace: Some("module".to_string()),
+            ..Default::default()
         };
 
         rule.sources = Some(vec![source]);
