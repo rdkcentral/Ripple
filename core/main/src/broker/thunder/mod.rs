@@ -15,3 +15,4 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 pub mod thunder_plugins_status_mgr;
+pub mod user_data_migrator;
