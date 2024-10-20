@@ -285,14 +285,9 @@ impl ExtnClient {
                                 let mut ripple_context = self.ripple_context.write().unwrap();
                                 ripple_context.deep_copy(context);
                             }
-                            let is_ripple_context =
-                                RippleContext::is_ripple_context(&message.payload).is_none();
-
-                            //continue if there are no event listeners
+                            //continue if there are no event listeners for Ripple context
                             if !self.has_event_listener(&message.target.as_clear_string()) {
                                 continue;
-                            } else if !is_ripple_context {
-                                warn!("No valid processors for the event {:?}", message);
                             }
                         }
                     }
