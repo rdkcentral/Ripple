@@ -359,7 +359,7 @@ pub fn default_video_dimensions() -> Vec<i32> {
 }
 
 pub fn countries_using_us_privacy_default() -> Vec<String> {
-    Vec::new()
+    vec!("CA".to_string())
 }
 
 fn country_postal_code_default() -> HashMap<String, String> {
