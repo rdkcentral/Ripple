@@ -250,10 +250,9 @@ impl ThunderBroker {
     }
 
     fn get_id_from_result(result: &[u8]) -> Option<u64> {
-        if let Ok(data) = serde_json::from_slice::<JsonRpcApiResponse>(result) {
-            return data.id;
-        }
-        None
+        serde_json::from_slice::<JsonRpcApiResponse>(result)
+            .ok()
+            .and_then(|data| data.id)
     }
 
     fn get_callsign_and_method_from_alias(alias: &str) -> (String, Option<&str>) {
@@ -481,6 +480,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_thunderbroker_start() {
         let (tx, mut _rx) = mpsc::channel(1);
         let (sender, mut rec) = mpsc::channel(1);

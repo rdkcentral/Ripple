@@ -209,10 +209,7 @@ impl RuleEngine {
         None
     }
     pub fn get_rule_by_method(&self, method: &str) -> Option<Rule> {
-        if let Some(rule) = self.rules.rules.get(&method.to_lowercase()).cloned() {
-            return Some(rule);
-        }
-        None
+        self.rules.rules.get(&method.to_lowercase()).cloned()
     }
 }
 

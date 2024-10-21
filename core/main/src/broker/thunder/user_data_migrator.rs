@@ -59,7 +59,7 @@ const USER_DATA_MIGRATION_CONFIG_FILE_NAME: &str = "user_data_migration_config.j
 #[derive(Debug)]
 enum UserDataMigratorError {
     ThunderRequestError(String),
-    ResponseError(String),
+    ThunderResponseError(String),
     SetterRuleNotAvailable,
     RequestTransformError(String),
     TimeoutError,
@@ -71,7 +71,9 @@ impl fmt::Display for UserDataMigratorError {
             UserDataMigratorError::ThunderRequestError(msg) => {
                 write!(f, "Thunder request error: {}", msg)
             }
-            UserDataMigratorError::ResponseError(msg) => write!(f, "Response error: {}", msg),
+            UserDataMigratorError::ThunderResponseError(msg) => {
+                write!(f, "Thunder response error: {}", msg)
+            }
             UserDataMigratorError::TimeoutError => write!(f, "Timeout error"),
             UserDataMigratorError::SetterRuleNotAvailable => {
                 write!(f, "Setter rule is not available")
@@ -310,23 +312,23 @@ impl UserDataMigrator {
         info!("process_response_from_legacy_storage: Processing response");
         let response = response.map_err(|e| {
             error!("Failed to get response: {}", e);
-            UserDataMigratorError::ResponseError(e.to_string())
+            UserDataMigratorError::ThunderResponseError(e.to_string())
         })?;
 
         let result = response.data.result.ok_or_else(|| {
-            UserDataMigratorError::ResponseError("No result field in response".to_string())
+            UserDataMigratorError::ThunderResponseError("No result field in response".to_string())
         })?;
 
         let value = result.get("value").ok_or_else(|| {
-            UserDataMigratorError::ResponseError("No value field in response".to_string())
+            UserDataMigratorError::ThunderResponseError("No value field in response".to_string())
         })?;
 
         let value_str = value.as_str().ok_or_else(|| {
-            UserDataMigratorError::ResponseError("Value is not a string".to_string())
+            UserDataMigratorError::ThunderResponseError("Value is not a string".to_string())
         })?;
 
         let storage_data: StorageData = serde_json::from_str(value_str).map_err(|_e| {
-            UserDataMigratorError::ResponseError("Failed to deserialize JSON".to_string())
+            UserDataMigratorError::ThunderResponseError("Failed to deserialize JSON".to_string())
         })?;
 
         let final_value = storage_data.value;
@@ -458,7 +460,7 @@ impl UserDataMigrator {
         Self::wait_for_response(self.response_rx.clone(), broker.clone(), request_id).await
     }
 
-    fn transform_requets_params(
+    fn transform_request_params(
         params_json: &Value,
         rule: &Rule,
         method: &str,
@@ -479,7 +481,7 @@ impl UserDataMigrator {
         }
         serde_json::to_value(&data).map_err(|e| {
             error!(
-                "Failed to serialize data in transform_requets_params: {}",
+                "Failed to serialize data in transform_request_params: {}",
                 e
             );
             RippleError::BrokerError(e.to_string())
@@ -497,7 +499,7 @@ impl UserDataMigrator {
         let setter_rule = Self::retrive_setter_rule_from_rule_engine(config_entry)?;
         // apply the setter rule to the params_json
         let transformed_params =
-            Self::transform_requets_params(params_json, &setter_rule, &config_entry.setter);
+            Self::transform_request_params(params_json, &setter_rule, &config_entry.setter);
         // rerurn error if the transform fails
         let transformed_params = match transformed_params {
             Ok(params) => params,
@@ -726,7 +728,7 @@ impl UserDataMigrator {
                 .await;
         }
 
-        Err(UserDataMigratorError::ResponseError(
+        Err(UserDataMigratorError::ThunderResponseError(
             "No data collected from Legacy Storage".to_string(),
         ))
     }
