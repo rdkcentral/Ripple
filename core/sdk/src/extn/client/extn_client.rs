@@ -286,12 +286,13 @@ impl ExtnClient {
                                 ripple_context.deep_copy(context);
                             }
                             //continue if there are no event listeners for Ripple context
-                            if !self.has_event_listener(&message.target.as_clear_string()) {
+                            if self.has_event_listener(&message.target.as_clear_string()) {
+                                Self::handle_vec_stream(message, self.event_processors.clone());
+                            } else {
                                 continue;
                             }
                         }
                     }
-                    Self::handle_vec_stream(message, self.event_processors.clone());
                 }
             } else {
                 let current_cap = self.sender.get_cap();
@@ -394,7 +395,14 @@ impl ExtnClient {
         } else {
             debug!("Context information is already updated. Hence not propagating");
         }
-        Self::handle_vec_stream(message, self.event_processors.clone());
+        let is_ripple_context = RippleContext::is_ripple_context(&message.payload).is_none();
+        if is_ripple_context {
+            if !self.has_event_listener(&message.target.as_clear_string()) {
+                return;
+            }
+        } else {
+            Self::handle_vec_stream(message, self.event_processors.clone());
+        }
     }
 
     fn has_event_listener(&self, input: &str) -> bool {
