@@ -19,7 +19,7 @@ use std::{collections::HashMap, pin::Pin};
 
 use futures::Future;
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
+    api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest, RpcStats},
     extn::extn_client_message::ExtnResponse,
     log::info,
     utils::error::RippleError,
@@ -85,6 +85,7 @@ impl EventManagementUtility {
         let rpc_request = RpcRequest {
             ctx: new_ctx.clone(),
             method: "advertising.policy".into(),
+            stats: RpcStats::default(),
             params_json: RpcRequest::prepend_ctx(None, &new_ctx),
         };
 
