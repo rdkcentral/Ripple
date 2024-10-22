@@ -387,10 +387,10 @@ impl ExtnClient {
                     trace!("Send to other client result: {:?}", send_res);
                 }
             }
+            Self::handle_vec_stream(message, self.event_processors.clone());
         } else {
             debug!("Context information is already updated. Hence not propagating");
         }
-        Self::handle_vec_stream(message, self.event_processors.clone());
     }
 
     fn handle_no_processor_error(&self, message: ExtnMessage) {
