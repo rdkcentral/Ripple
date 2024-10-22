@@ -294,16 +294,8 @@ impl ExtnClient {
                                 continue;
                             }
                         }
-                    } else {
-                        if is_context && self.has_event_listener(&message.target.as_clear_string())
-                        {
-                            Self::handle_vec_stream(message, self.event_processors.clone());
-                        } else {
-                            continue;
-                        }
                     }
                 }
-            } else {
                 let current_cap = self.sender.get_cap();
                 let target_contract = message.clone().target;
                 if current_cap.is_main() {
