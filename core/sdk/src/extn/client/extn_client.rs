@@ -276,26 +276,25 @@ impl ExtnClient {
                 } else {
                     let context = RippleContext::is_ripple_context(&message.payload);
                     let is_context = context.is_some();
-                    if !is_main {
-                        if is_context {
-                            trace!(
-                                "Received ripple context in {} message: {:?}",
-                                self.sender.get_cap().to_string(),
-                                message
-                            );
-                            {
-                                let mut ripple_context = self.ripple_context.write().unwrap();
-                                ripple_context.deep_copy(context.unwrap());
-                            }
-                            //continue if there are no event listeners for Ripple context
-                            if self.has_event_listener(&message.target.as_clear_string()) {
-                                Self::handle_vec_stream(message, self.event_processors.clone());
-                            } else {
-                                continue;
-                            }
+                    if !is_main && is_context {
+                        trace!(
+                            "Received ripple context in {} message: {:?}",
+                            self.sender.get_cap().to_string(),
+                            message
+                        );
+                        {
+                            let mut ripple_context = self.ripple_context.write().unwrap();
+                            ripple_context.deep_copy(context.unwrap());
+                        }
+                        //continue if there are no event listeners for Ripple context
+                        if !self.has_event_listener(&message.target.as_clear_string()) {
+                            continue;
+                        } else {
+                            Self::handle_vec_stream(message.clone(), self.event_processors.clone());
                         }
                     }
                 }
+            } else {
                 let current_cap = self.sender.get_cap();
                 let target_contract = message.clone().target;
                 if current_cap.is_main() {
