@@ -395,14 +395,7 @@ impl ExtnClient {
         } else {
             debug!("Context information is already updated. Hence not propagating");
         }
-        let is_ripple_context = RippleContext::is_ripple_context(&message.payload).is_none();
-        if is_ripple_context {
-            if !self.has_event_listener(&message.target.as_clear_string()) {
-                return;
-            }
-        } else {
-            Self::handle_vec_stream(message, self.event_processors.clone());
-        }
+        Self::handle_vec_stream(message, self.event_processors.clone());
     }
 
     fn has_event_listener(&self, input: &str) -> bool {
