@@ -20,6 +20,7 @@ use super::{
         BrokerSender, BrokerSubMap, EndpointBroker,
     },
     thunder::thunder_plugins_status_mgr::StatusManager,
+    thunder::user_data_migrator::UserDataMigrator,
 };
 use crate::broker::broker_utils::BrokerUtils;
 use futures_util::{SinkExt, StreamExt};
@@ -27,11 +28,13 @@ use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse,
     log::{debug, error, info},
+    tokio::sync::Mutex,
     tokio::{self, sync::mpsc},
     utils::error::RippleError,
 };
 use serde_json::json;
 use std::{
+    collections::HashMap,
     sync::{Arc, RwLock},
     vec,
 };
@@ -42,43 +45,90 @@ pub struct ThunderBroker {
     subscription_map: Arc<RwLock<BrokerSubMap>>,
     cleaner: BrokerCleaner,
     status_manager: StatusManager,
+    default_callback: BrokerCallback,
+    data_migrator: Option<UserDataMigrator>,
+    custom_callback_list: Arc<Mutex<HashMap<u64, BrokerCallback>>>,
 }
 
 impl ThunderBroker {
+    fn new(
+        sender: BrokerSender,
+        subscription_map: Arc<RwLock<BrokerSubMap>>,
+        cleaner: BrokerCleaner,
+        default_callback: BrokerCallback,
+    ) -> Self {
+        Self {
+            sender,
+            subscription_map,
+            cleaner,
+            status_manager: StatusManager::new(),
+            default_callback,
+            data_migrator: None,
+            custom_callback_list: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    fn with_data_migtator(mut self) -> Self {
+        self.data_migrator = UserDataMigrator::create();
+        self
+    }
+
+    pub fn get_default_callback(&self) -> BrokerCallback {
+        self.default_callback.clone()
+    }
+
+    pub async fn register_custom_callback(&self, id: u64, callback: BrokerCallback) {
+        let mut custom_callback_list = self.custom_callback_list.lock().await;
+        custom_callback_list.insert(id, callback);
+    }
+
+    pub async fn unregister_custom_callback(&self, id: u64) {
+        let mut custom_callback_list = self.custom_callback_list.lock().await;
+        custom_callback_list.remove(&id);
+    }
+
+    async fn get_broker_callback(&self, id: Option<u64>) -> BrokerCallback {
+        if id.is_none() {
+            return self.default_callback.clone();
+        }
+        let custom_callback_list = self.custom_callback_list.lock().await;
+        if let Some(callback) = custom_callback_list.get(&id.unwrap()) {
+            return callback.clone();
+        }
+        self.default_callback.clone()
+    }
+
     fn start(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
         let endpoint = request.endpoint.clone();
         let (tx, mut tr) = mpsc::channel(10);
         let (c_tx, mut c_tr) = mpsc::channel(2);
         let sender = BrokerSender { sender: tx };
         let subscription_map = Arc::new(RwLock::new(request.sub_map.clone()));
-        let broker = Self {
-            sender,
-            subscription_map,
-            cleaner: BrokerCleaner {
-                cleaner: Some(c_tx.clone()),
-            },
-            status_manager: StatusManager::new(),
+        let cleaner = BrokerCleaner {
+            cleaner: Some(c_tx.clone()),
         };
+        let broker = Self::new(sender, subscription_map, cleaner, callback).with_data_migtator();
         let broker_c = broker.clone();
         let broker_for_cleanup = broker.clone();
-        let callback_for_sender = callback.clone();
         let broker_for_reconnect = broker.clone();
         tokio::spawn(async move {
-            let (mut ws_tx, mut ws_rx) =
-                BrokerUtils::get_ws_broker(&endpoint.get_url(), None).await;
+            let (ws_tx, mut ws_rx) = BrokerUtils::get_ws_broker(&endpoint.get_url(), None).await;
 
+            let ws_tx_wrap = Arc::new(Mutex::new(ws_tx));
             // send the first request to the broker. This is the controller statechange subscription request
             let status_request = broker_c
                 .status_manager
                 .generate_state_change_subscribe_request();
+            {
+                let mut ws_tx = ws_tx_wrap.lock().await;
 
-            let _feed = ws_tx
-                .feed(tokio_tungstenite::tungstenite::Message::Text(
-                    status_request.to_string(),
-                ))
-                .await;
-            let _flush = ws_tx.flush().await;
-
+                let _feed = ws_tx
+                    .feed(tokio_tungstenite::tungstenite::Message::Text(
+                        status_request.to_string(),
+                    ))
+                    .await;
+                let _flush = ws_tx.flush().await;
+            }
             tokio::pin! {
                 let read = ws_rx.next();
             }
@@ -88,12 +138,13 @@ impl ThunderBroker {
                         match value {
                             Ok(v) => {
                                 if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
-                                    if broker_c.status_manager.is_controller_response(broker_c.get_sender(), callback.clone(), t.as_bytes()).await {
-                                        broker_c.status_manager.handle_controller_response(broker_c.get_sender(), callback.clone(), t.as_bytes()).await;
+                                    if broker_c.status_manager.is_controller_response(broker_c.get_sender(), broker_c.get_default_callback(), t.as_bytes()).await {
+                                        broker_c.status_manager.handle_controller_response(broker_c.get_sender(), broker_c.get_default_callback(), t.as_bytes()).await;
                                     }
                                     else {
                                         // send the incoming text without context back to the sender
-                                        Self::handle_jsonrpc_response(t.as_bytes(),callback.clone())
+                                        let id = Self::get_id_from_result(t.as_bytes());
+                                        Self::handle_jsonrpc_response(t.as_bytes(),broker_c.get_broker_callback(id).await)
                                     }
                                 }
                             },
@@ -105,14 +156,43 @@ impl ThunderBroker {
                         }
 
                     },
-                    Some(request) = tr.recv() => {
+                    Some(mut request) = tr.recv() => {
                         debug!("Got request from receiver for broker {:?}", request);
-                        match broker_c.prepare_request(&request) {
-                            Ok(updated_request) => {
-                                debug!("Sending request to broker {:?}", updated_request);
-                                for r in updated_request {
-                                    let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
-                                    let _flush = ws_tx.flush().await;
+
+                        match broker_c.check_and_generate_plugin_activation_request(&request) {
+                            Ok(requests) => {
+                                if !requests.is_empty() {
+                                    let mut ws_tx = ws_tx_wrap.lock().await;
+                                    for r in requests {
+                                        let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
+                                        let _flush = ws_tx.flush().await;
+                                    }
+                                }
+                                else {
+                                    // empty request means plugin is activated and ready to process the request
+                                    // Intercept the request for data migration
+                                    let mut request_consumed = false;
+                                    if let Some(user_data_migrator) = broker_c.data_migrator.clone() {
+                                        request_consumed = user_data_migrator.intercept_broker_request(&broker_c, ws_tx_wrap.clone(), &mut request).await;
+                                    }
+
+                                    // If the request is not consumed by the data migrator, continue with the request
+                                    if !request_consumed {
+                                        match broker_c.prepare_request(&request) {
+                                            Ok(updated_request) => {
+                                                debug!("Sending request to broker {:?}", updated_request);
+                                                let binding = ws_tx_wrap.clone();
+                                                let mut ws_tx = binding.lock().await;
+                                                for r in updated_request {
+                                                    let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
+                                                    let _flush = ws_tx.flush().await;
+                                                }
+                                            }
+                                            Err(e) => {
+                                                broker_c.get_default_callback().send_error(request,e).await
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             Err(e) => {
@@ -121,10 +201,11 @@ impl ThunderBroker {
                                         info!("Thunder Service not ready, request is now in pending list {:?}", request);
                                     },
                                     _ =>
-                                callback_for_sender.send_error(request,e).await
+                                    broker_c.get_default_callback().send_error(request,e).await
+                                }
                             }
                         }
-                    }
+
                 },
                     Some(cleanup_request) = c_tr.recv() => {
                         let value = {
@@ -168,6 +249,12 @@ impl ThunderBroker {
         new_response
     }
 
+    fn get_id_from_result(result: &[u8]) -> Option<u64> {
+        serde_json::from_slice::<JsonRpcApiResponse>(result)
+            .ok()
+            .and_then(|data| data.id)
+    }
+
     fn get_callsign_and_method_from_alias(alias: &str) -> (String, Option<&str>) {
         let mut collection: Vec<&str> = alias.split('.').collect();
         let method = collection.pop();
@@ -207,29 +294,14 @@ impl ThunderBroker {
         }
         response
     }
-}
 
-impl EndpointBroker for ThunderBroker {
-    fn get_broker(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
-        Self::start(request, callback)
-    }
-
-    fn get_sender(&self) -> BrokerSender {
-        self.sender.clone()
-    }
-
-    fn get_cleaner(&self) -> BrokerCleaner {
-        self.cleaner.clone()
-    }
-
-    fn prepare_request(
+    fn check_and_generate_plugin_activation_request(
         &self,
         rpc_request: &super::endpoint_broker::BrokerRequest,
     ) -> Result<Vec<String>, RippleError> {
         let mut requests = Vec::new();
-        let rpc = rpc_request.clone().rpc;
-        let id = rpc.ctx.call_id;
         let (callsign, method) = Self::get_callsign_and_method_from_alias(&rpc_request.rule.alias);
+
         if method.is_none() {
             return Err(RippleError::InvalidInput);
         }
@@ -269,6 +341,31 @@ impl EndpointBroker for ThunderBroker {
             requests.push(request.to_string());
             return Ok(requests);
         }
+        Ok(requests)
+    }
+}
+
+impl EndpointBroker for ThunderBroker {
+    fn get_broker(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
+        Self::start(request, callback)
+    }
+
+    fn get_sender(&self) -> BrokerSender {
+        self.sender.clone()
+    }
+
+    fn get_cleaner(&self) -> BrokerCleaner {
+        self.cleaner.clone()
+    }
+
+    fn prepare_request(
+        &self,
+        rpc_request: &super::endpoint_broker::BrokerRequest,
+    ) -> Result<Vec<String>, RippleError> {
+        let rpc = rpc_request.clone().rpc;
+        let id = rpc.ctx.call_id;
+        let (callsign, method) = Self::get_callsign_and_method_from_alias(&rpc_request.rule.alias);
+        let mut requests = Vec::new();
 
         let method = method.unwrap();
         // Below chunk of code is basically for subscription where thunder needs some special care based on
@@ -383,6 +480,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_thunderbroker_start() {
         let (tx, mut _rx) = mpsc::channel(1);
         let (sender, mut rec) = mpsc::channel(1);

@@ -25,7 +25,7 @@ use ripple_sdk::{
     serde_json::Value,
     utils::error::RippleError,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::{fs, path::Path};
 
@@ -84,21 +84,27 @@ pub enum RuleEndpointProtocol {
     Thunder,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Rule {
     pub alias: String,
     // Not every rule needs transform
     #[serde(default)]
     pub transform: RuleTransform,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub filter: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub endpoint: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, Default, Serialize)]
 pub struct RuleTransform {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub request: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub response: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub event: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub event_decorator_method: Option<String>,
 }
 
@@ -202,6 +208,9 @@ impl RuleEngine {
             );
         }
         None
+    }
+    pub fn get_rule_by_method(&self, method: &str) -> Option<Rule> {
+        self.rules.rules.get(&method.to_lowercase()).cloned()
     }
 }
 
