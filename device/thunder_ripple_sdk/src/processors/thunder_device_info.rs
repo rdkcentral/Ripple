@@ -1116,16 +1116,6 @@ impl ThunderDeviceInfoRequestProcessor {
 
         // If timezone or offset is None or empty
         if let Some(tz) = Self::get_timezone_and_offset(&state).await {
-            let cloned_state = state.clone();
-            let cloned_tz = tz.clone();
-
-            cloned_state
-                .get_client()
-                .context_update(RippleContextUpdateRequest::TimeZone(TimeZone {
-                    time_zone: cloned_tz.time_zone,
-                    offset: cloned_tz.offset,
-                }));
-
             return Self::respond(
                 state.get_client(),
                 req,
