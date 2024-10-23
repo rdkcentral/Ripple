@@ -17,12 +17,11 @@
 
 use std::time::Duration;
 
-use crate::utils::rpc_utils::extract_tcp_port;
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::StreamExt;
 use ripple_sdk::{
     log::{error, info},
-    tokio::{self, net::TcpStream},
+    tokio::{self, net::TcpStream}, utils::rpc_utils::extract_tcp_port,
 };
 use tokio_tungstenite::{client_async, tungstenite::Message, WebSocketStream};
 
