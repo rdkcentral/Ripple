@@ -447,7 +447,7 @@ pub mod tests {
                     contracts: vec![
                         RippleContract::Internal,
                         RippleContract::Session(SessionAdjective::Device),
-                        RippleContract::DeviceEvents(EventAdjective::Input),
+                        RippleContract::DeviceEvents(EventAdjective::Hdcp),
                     ],
                 },
                 streamer: DefaultExtnStreamer::new(),
@@ -624,7 +624,7 @@ pub mod tests {
             Some(vec![
                 RippleContract::Internal,
                 RippleContract::Session(SessionAdjective::Device),
-                RippleContract::DeviceEvents(EventAdjective::Input),
+                RippleContract::DeviceEvents(EventAdjective::Hdcp),
             ])
         );
     }

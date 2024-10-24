@@ -44,7 +44,7 @@ pub const TIME_ZONE_CHANGED: &str = "localization.onTimeZoneChanged";
 // Is this from the device to thunder event handler???
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum DeviceEvent {
-    InputChanged,
+    DisplayChanged,
     HdrChanged,
     ScreenResolutionChanged,
     VideoResolutionChanged,
@@ -61,7 +61,7 @@ impl FromStr for DeviceEvent {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "device.onHdcpChanged" => Ok(Self::InputChanged),
+            "device.onHdcpChanged" => Ok(Self::DisplayChanged),
             "device.onHdrChanged" => Ok(Self::HdrChanged),
             "device.onScreenResolutionChanged" => Ok(Self::ScreenResolutionChanged),
             "device.onVideoResolutionChanged" => Ok(Self::VideoResolutionChanged),
@@ -112,7 +112,7 @@ impl ExtnPayloadProvider for DeviceEventRequest {
     }
     fn get_contract(&self) -> RippleContract {
         match self.event {
-            DeviceEvent::InputChanged => RippleContract::DeviceEvents(EventAdjective::Input),
+            DeviceEvent::DisplayChanged => RippleContract::DeviceEvents(EventAdjective::Hdcp),
             DeviceEvent::HdrChanged => RippleContract::DeviceEvents(EventAdjective::Hdr),
             DeviceEvent::ScreenResolutionChanged => {
                 RippleContract::DeviceEvents(EventAdjective::ScreenResolution)
@@ -136,7 +136,7 @@ impl ExtnPayloadProvider for DeviceEventRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::DeviceEvents(EventAdjective::Input)
+        RippleContract::DeviceEvents(EventAdjective::Hdcp)
     }
 }
 
@@ -147,7 +147,7 @@ mod tests {
     use rstest::rstest;
 
     #[rstest(input, expected,
-            case("device.onHdcpChanged", Ok(DeviceEvent::InputChanged)),
+            case("device.onHdcpChanged", Ok(DeviceEvent::DisplayChanged)),
             case("localization.onTimeZoneChanged", Ok(DeviceEvent::TimeZoneChanged)),
             case("invalid_event", Err(())),
         )]
@@ -168,11 +168,11 @@ mod tests {
     #[test]
     fn test_extn_request_device_event() {
         let device_event_request = DeviceEventRequest {
-            event: DeviceEvent::InputChanged,
+            event: DeviceEvent::DisplayChanged,
             subscribe: true,
             callback_type: DeviceEventCallback::FireboltAppEvent("id".to_string()),
         };
-        let contract_type: RippleContract = RippleContract::DeviceEvents(EventAdjective::Input);
+        let contract_type: RippleContract = RippleContract::DeviceEvents(EventAdjective::Hdcp);
         test_extn_payload_provider(device_event_request, contract_type);
     }
 }
