@@ -179,6 +179,7 @@ impl FireboltGateway {
             }
         }
         let platform_state = self.state.platform_state.clone();
+
         /*
          * The reason for spawning a new thread is that when request-1 comes, and it waits for
          * user grant. The response from user grant, (eg ChallengeResponse) comes as rpc which
