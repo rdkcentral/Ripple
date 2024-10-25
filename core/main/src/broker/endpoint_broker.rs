@@ -19,7 +19,7 @@ use ripple_sdk::{
     api::{
         firebolt::fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
         gateway::rpc_gateway_api::{
-            ApiMessage, ApiProtocol, CallContext, JsonRpcApiResponse, RpcRequest,
+            ApiMessage, ApiProtocol, ApiStats, CallContext, JsonRpcApiResponse, RpcRequest,
         },
         session::AccountSession,
     },
@@ -46,7 +46,10 @@ use crate::{
     firebolt::firebolt_gateway::{FireboltGatewayCommand, JsonRpcError},
     service::extn::ripple_client::RippleClient,
     state::platform_state::PlatformState,
-    utils::router_utils::{return_api_message_for_transport, return_extn_response},
+    utils::router_utils::{
+        add_telemetry_status_code, get_rpc_header, return_api_message_for_transport,
+        return_extn_response,
+    },
 };
 
 use super::{
@@ -641,12 +644,11 @@ impl BrokerOutputForwarder {
                                             }
                                             response.id = Some(request_id);
 
-                                            let message = ApiMessage {
-                                                request_id: request_id.to_string(),
+                                            let message = ApiMessage::new(
                                                 protocol,
-                                                jsonrpc_msg: serde_json::to_string(&response)
-                                                    .unwrap(),
-                                            };
+                                                serde_json::to_string(&response).unwrap(),
+                                                request_id.to_string(),
+                                            );
 
                                             if let Some(session) = platform_state_c
                                                 .session_state
@@ -696,13 +698,29 @@ impl BrokerOutputForwarder {
 
                         let request_id = rpc_request.ctx.call_id;
                         response.id = Some(request_id);
-
+                        let tm_str = get_rpc_header(&rpc_request);
                         // Step 2: Create the message
-                        let message = ApiMessage {
-                            request_id: request_id.to_string(),
-                            protocol: rpc_request.ctx.protocol.clone(),
-                            jsonrpc_msg: serde_json::to_string(&response).unwrap(),
-                        };
+                        let mut message = ApiMessage::new(
+                            rpc_request.ctx.protocol.clone(),
+                            serde_json::to_string(&response).unwrap(),
+                            request_id.to_string(),
+                        );
+                        let mut status_code: i64 = 1;
+                        if let Some(e) = &response.error {
+                            if let Some(Value::Number(n)) = e.get("code") {
+                                if let Some(v) = n.as_i64() {
+                                    status_code = v;
+                                }
+                            }
+                        }
+
+                        message.stats = Some(ApiStats {
+                            stats_ref: add_telemetry_status_code(
+                                &tm_str,
+                                status_code.to_string().as_str(),
+                            ),
+                            stats: rpc_request.stats,
+                        });
 
                         // Step 3: Handle Non Extension
                         if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {

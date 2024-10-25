@@ -15,6 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::time::Instant;
+
 use ripple_sdk::{
     api::apps::AppRequest,
     async_channel::{unbounded, Receiver as CReceiver, Sender as CSender},
@@ -107,6 +109,7 @@ impl Default for ChannelsState {
 
 #[derive(Debug, Clone)]
 pub struct BootstrapState {
+    pub start_time: Instant,
     pub platform_state: PlatformState,
     pub channels_state: ChannelsState,
     pub extn_state: ExtnState,
@@ -160,6 +163,7 @@ impl BootstrapState {
             None
         }
         Ok(BootstrapState {
+            start_time: Instant::now(),
             platform_state,
             channels_state,
             extn_state,
