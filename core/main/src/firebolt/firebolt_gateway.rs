@@ -25,16 +25,15 @@ use ripple_sdk::{
         },
         gateway::{
             rpc_error::RpcError,
-            rpc_gateway_api::{ApiMessage, ApiProtocol, RpcRequest},
+            rpc_gateway_api::{ApiMessage, ApiProtocol, ApiStats, RpcRequest},
         },
     },
-    chrono::Utc,
     extn::extn_client_message::ExtnMessage,
-    log::{debug, error, info, warn},
+    log::{debug, error, info, trace, warn},
     serde_json::{self, Value},
     tokio,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     firebolt::firebolt_gatekeeper::FireboltGatekeeper,
@@ -46,6 +45,7 @@ use crate::{
         bootstrap_state::BootstrapState, openrpc_state::OpenRpcState,
         platform_state::PlatformState, session_state::Session,
     },
+    utils::router_utils::{capture_stage, get_rpc_header_with_status},
 };
 
 use super::rpc_router::RpcRouter;
@@ -53,7 +53,7 @@ pub struct FireboltGateway {
     state: BootstrapState,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct JsonRpcMessage {
     pub jsonrpc: TwoPointZero,
     pub id: u64,
@@ -61,7 +61,7 @@ pub struct JsonRpcMessage {
     pub error: Option<JsonRpcError>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct JsonRpcError {
     pub code: i32,
     pub message: String,
@@ -98,7 +98,7 @@ impl FireboltGateway {
     }
 
     pub async fn start(&self) {
-        info!("Starting Gateway Listener");
+        trace!("Starting Gateway Listener");
         let mut firebolt_gateway_rx = self
             .state
             .channels_state
@@ -145,9 +145,11 @@ impl FireboltGateway {
     }
 
     pub async fn handle(&self, request: RpcRequest, extn_msg: Option<ExtnMessage>) {
-        info!(
+        trace!(
             "firebolt_gateway Received Firebolt request {} {} {}",
-            request.ctx.request_id, request.method, request.params_json
+            request.ctx.request_id,
+            request.method,
+            request.params_json
         );
         let mut extn_request = false;
         // First check sender if no sender no need to process
@@ -186,7 +188,6 @@ impl FireboltGateway {
          */
         let mut request_c = request.clone();
         request_c.method = FireboltOpenRpcMethod::name_with_lowercase_module(&request.method);
-
         let metrics_timer = TelemetryBuilder::start_firebolt_metrics_timer(
             &platform_state.get_client().get_extn_client(),
             request_c.method.clone(),
@@ -203,19 +204,9 @@ impl FireboltGateway {
         let open_rpc_state = self.state.platform_state.open_rpc_state.clone();
 
         tokio::spawn(async move {
-            let start = Utc::now().timestamp_millis();
-
+            capture_stage(&mut request_c, "context_ready");
             // Validate incoming request parameters.
             if let Err(error_string) = validate_request(open_rpc_state, &request_c, fail_open) {
-                let now = Utc::now().timestamp_millis();
-
-                RpcRouter::log_rdk_telemetry_message(
-                    &request.ctx.app_id,
-                    &request.method,
-                    JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
-                    now - start,
-                );
-
                 TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
                     &platform_state.clone(),
                     metrics_timer,
@@ -232,6 +223,7 @@ impl FireboltGateway {
                 send_json_rpc_error(&platform_state, &request, json_rpc_error).await;
                 return;
             }
+            capture_stage(&mut request_c, "openrpc_val");
 
             let result = if extn_request {
                 // extn protocol means its an internal Ripple request skip permissions.
@@ -239,6 +231,7 @@ impl FireboltGateway {
             } else {
                 FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await
             };
+            capture_stage(&mut request_c, "permission");
 
             match result {
                 Ok(_) => {
@@ -285,15 +278,6 @@ impl FireboltGateway {
                 Err(e) => {
                     let deny_reason = e.reason;
                     // log firebolt response message in RDKTelemetry 1.0 friendly format
-                    let now = Utc::now().timestamp_millis();
-
-                    RpcRouter::log_rdk_telemetry_message(
-                        &request.ctx.app_id,
-                        &request.method,
-                        deny_reason.get_rpc_error_code(),
-                        now - start,
-                    );
-
                     TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
                         &platform_state.clone(),
                         metrics_timer,
@@ -334,32 +318,54 @@ fn validate_request(
         }
     }
 
-    let major_version = open_rpc_state.get_version().major.to_string();
-    let openrpc_validator = open_rpc_state.get_openrpc_validator();
-
-    if let Some(rpc_method) = openrpc_validator.get_method_by_name(&request.method) {
-        let validator = openrpc_validator
-            .params_validator(major_version, &rpc_method.name)
-            .unwrap();
-
-        if let Ok(params) = serde_json::from_str::<Vec<serde_json::Value>>(&request.params_json) {
-            if params.len() > 1 {
-                if let Err(errors) = validator.validate(&params[1]) {
-                    let mut error_string = String::new();
-                    for error in errors {
-                        error_string.push_str(&format!("{} ", error));
-                    }
-                    return Err(error_string);
-                }
-            }
+    // Params should be valid given we get the request from Firebolt WS Call context is decorated
+    // in index 0
+    if let Ok(params) = serde_json::from_str::<Vec<serde_json::Value>>(&request.params_json) {
+        // Check if there are params
+        let param = params.get(1);
+        if param.is_none() {
+            // if params are necessary then handler or jq rule will fail
+            // This method can unblock other calls.
+            return Ok(());
         }
-    } else {
-        // TODO: Currently LifecycleManagement and other APIs are not in the schema. Let these pass through to their
-        // respective handlers for now.
-        debug!(
-            "validate_request: Method not found in schema: {}",
-            request.method
-        );
+        let param = param.unwrap();
+        let method_name = request.method.to_lowercase();
+
+        // Check if the cache is already created using add_json_schema_cache below
+        let v = open_rpc_state.validate_schema(&method_name, param);
+        if v.is_ok() {
+            // Params are valid
+            return Ok(());
+        } else if let Err(Some(s)) = v {
+            // Params are not valid
+            return Err(s);
+        }
+        let major_version = open_rpc_state.get_version().major.to_string();
+        let openrpc_validator = open_rpc_state.get_openrpc_validator();
+        // Get Method from the validator
+        if let Some(rpc_method) = openrpc_validator.get_method_by_name(&method_name) {
+            // Get schema validator
+            let validator = openrpc_validator
+                .params_validator(major_version, &rpc_method.name)
+                .unwrap();
+            // validate
+            if let Err(errors) = validator.validate(param) {
+                let mut error_string = String::new();
+                for error in errors {
+                    error_string.push_str(&format!("{} ", error));
+                }
+                return Err(error_string);
+            }
+            // store validator in runtime for future validations of the same api
+            open_rpc_state.add_json_schema_cache(method_name, validator);
+        } else {
+            // TODO: Currently LifecycleManagement and other APIs are not in the schema. Let these pass through to their
+            // respective handlers for now.
+            debug!(
+                "validate_request: Method not found in schema: {}",
+                request.method
+            );
+        }
     }
 
     Ok(())
@@ -375,6 +381,7 @@ async fn send_json_rpc_error(
         .session_state
         .get_session(&request.ctx)
     {
+        let status_code = json_rpc_error.code;
         let error_message = JsonRpcMessage {
             jsonrpc: TwoPointZero {},
             id: request.ctx.call_id,
@@ -382,11 +389,16 @@ async fn send_json_rpc_error(
         };
 
         if let Ok(error_message) = serde_json::to_string(&error_message) {
-            let api_message = ApiMessage::new(
+            let mut api_message = ApiMessage::new(
                 request.clone().ctx.protocol,
                 error_message,
                 request.clone().ctx.request_id,
             );
+
+            api_message.stats = Some(ApiStats {
+                stats_ref: get_rpc_header_with_status(request, status_code),
+                stats: request.stats.clone(),
+            });
 
             match session.get_transport() {
                 EffectiveTransport::Websocket => {

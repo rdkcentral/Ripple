@@ -20,7 +20,8 @@ use ripple_sdk::{
     api::{
         firebolt::fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
         gateway::rpc_gateway_api::{
-            ApiMessage, ApiProtocol, CallContext, JsonRpcApiRequest, JsonRpcApiResponse, RpcRequest,
+            ApiMessage, ApiProtocol, ApiStats, CallContext, JsonRpcApiRequest, JsonRpcApiResponse,
+            RpcRequest,
         },
         session::AccountSession,
     },
@@ -47,7 +48,10 @@ use crate::{
     firebolt::firebolt_gateway::{FireboltGatewayCommand, JsonRpcError},
     service::extn::ripple_client::RippleClient,
     state::platform_state::PlatformState,
-    utils::router_utils::{return_api_message_for_transport, return_extn_response},
+    utils::router_utils::{
+        add_telemetry_status_code, get_rpc_header, return_api_message_for_transport,
+        return_extn_response,
+    },
 };
 
 use super::{
@@ -782,12 +786,11 @@ impl BrokerOutputForwarder {
                                             }
                                             response.id = Some(request_id);
 
-                                            let message = ApiMessage {
-                                                request_id: request_id.to_string(),
+                                            let message = ApiMessage::new(
                                                 protocol,
-                                                jsonrpc_msg: serde_json::to_string(&response)
-                                                    .unwrap(),
-                                            };
+                                                serde_json::to_string(&response).unwrap(),
+                                                request_id.to_string(),
+                                            );
 
                                             if let Some(session) = platform_state_c
                                                 .session_state
@@ -830,7 +833,7 @@ impl BrokerOutputForwarder {
                             if let Some(filter) = broker_request.rule.transform.get_transform_data(
                                 super::rules_engine::RuleTransformType::Response,
                             ) {
-                                apply_response(filter, &rpc_request, &mut response);
+                                apply_response(filter, &rpc_request.ctx.method, &mut response);
                             } else if response.result.is_none() && response.error.is_none() {
                                 response.result = Some(Value::Null);
                             }
@@ -848,12 +851,29 @@ impl BrokerOutputForwarder {
                                 })
                                 .await;
                         } else {
+                            let tm_str = get_rpc_header(&rpc_request);
                             // Step 2: Create the message
-                            let message = ApiMessage {
-                                request_id: request_id.to_string(),
-                                protocol: rpc_request.ctx.protocol.clone(),
-                                jsonrpc_msg: serde_json::to_string(&response).unwrap(),
-                            };
+                            let mut message = ApiMessage::new(
+                                rpc_request.ctx.protocol.clone(),
+                                serde_json::to_string(&response).unwrap(),
+                                request_id.to_string(),
+                            );
+                            let mut status_code: i64 = 1;
+                            if let Some(e) = &response.error {
+                                if let Some(Value::Number(n)) = e.get("code") {
+                                    if let Some(v) = n.as_i64() {
+                                        status_code = v;
+                                    }
+                                }
+                            }
+
+                            message.stats = Some(ApiStats {
+                                stats_ref: add_telemetry_status_code(
+                                    &tm_str,
+                                    status_code.to_string().as_str(),
+                                ),
+                                stats: rpc_request.stats,
+                            });
 
                             // Step 3: Handle Non Extension
                             if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
@@ -978,9 +998,9 @@ async fn forward_extn_event(
     }
 }
 
-fn apply_response(
+pub fn apply_response(
     result_response_filter: String,
-    rpc_request: &RpcRequest,
+    method: &str,
     response: &mut JsonRpcApiResponse,
 ) {
     match serde_json::to_value(response.clone()) {
@@ -988,7 +1008,7 @@ fn apply_response(
             match jq_compile(
                 input,
                 &result_response_filter,
-                format!("{}_response", rpc_request.ctx.method),
+                format!("{}_response", method),
             ) {
                 Ok(jq_out) => {
                     trace!(
@@ -1048,7 +1068,6 @@ fn apply_filter(broker_request: &BrokerRequest, result: &Value, rpc_request: &Rp
             &filter,
             format!("{}_event filter", rpc_request.ctx.method),
         ) {
-            println!("apply_filter: {:?}", r);
             if r.is_null() {
                 return false;
             } else {
@@ -1197,7 +1216,7 @@ mod tests {
         let filter = "if .result and .result.success then (.result.stbVersion | split(\"_\") [0]) elif .error then if .error.code == -32601 then {error: { code: -1, message: \"Unknown method.\" }} else \"Error occurred with a different code\" end else \"No result or recognizable error\" end".to_string();
         //let mut response = JsonRpcApiResponse::mock();
         //response.error = Some(error);
-        apply_response(filter, &rpc_request, &mut output.data);
+        apply_response(filter, &rpc_request.ctx.method, &mut output.data);
         //let msg = output.data.error.unwrap().get("message").unwrap().clone();
         assert_eq!(
             output.data.error.unwrap().get("message").unwrap().clone(),
@@ -1212,7 +1231,7 @@ mod tests {
         let filter = "if .result and .result.success then .result.value elif .error.code==22 or .error.code==43 then null else .error end".to_string();
         //let mut response = JsonRpcApiResponse::mock();
         //response.error = Some(error);
-        apply_response(filter, &rpc_request, &mut output.data);
+        apply_response(filter, &rpc_request.ctx.method, &mut output.data);
         assert_eq!(output.data.error, None);
         assert_eq!(output.data.result.unwrap(), serde_json::Value::Null);
 
@@ -1224,7 +1243,7 @@ mod tests {
         let filter = "if .result and .result.success then .result.value elif .error.code==22 or .error.code==43 then null else { error: .error } end".to_string();
         //let mut response = JsonRpcApiResponse::mock();
         //response.error = Some(error.clone());
-        apply_response(filter, &rpc_request, &mut output.data);
+        apply_response(filter, &rpc_request.ctx.method, &mut output.data);
         assert_eq!(output.data.error, Some(error));
     }
 
@@ -1251,7 +1270,7 @@ mod tests {
         let mut data = JsonRpcApiResponse::mock();
         data.result = Some(result);
         let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
-        apply_response(filter, &rpc_request, &mut output.data);
+        apply_response(filter, &rpc_request.ctx.method, &mut output.data);
         assert_eq!(output.data.result.unwrap(), "SCXI11BEI".to_string());
 
         // device.videoResolution
@@ -1261,7 +1280,7 @@ mod tests {
         response.result = Some(result);
         //let data = JsonRpcApiResponse::mock();
         //let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
-        apply_response(filter, &rpc_request, &mut response);
+        apply_response(filter, &rpc_request.ctx.method, &mut response);
         assert_eq!(response.result.unwrap(), json!([1920, 1080]));
 
         // device.audio
@@ -1271,7 +1290,7 @@ mod tests {
         let filter = "if .result and .result.success then .result | {\"stereo\": (.supportedAudioFormat |  index(\"PCM\") > 0),\"dolbyDigital5.1\": (.supportedAudioFormat |  index(\"DOLBY AC3\") > 0),\"dolbyDigital5.1plus\": (.supportedAudioFormat |  index(\"DOLBY EAC3\") > 0),\"dolbyAtmos\": (.supportedAudioFormat |  index(\"DOLBY EAC3 ATMOS\") > 0)} elif .error then if .error.code == -32601 then \"Unknown method.\" else \"Error occurred with a different code\" end else \"No result or recognizable error\" end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
-        apply_response(filter, &rpc_request, &mut response);
+        apply_response(filter, &rpc_request.ctx.method, &mut response);
         assert_eq!(
             response.result.unwrap(),
             json!({"dolbyAtmos": true, "dolbyDigital5.1": true, "dolbyDigital5.1plus": false, "stereo": true})
@@ -1286,7 +1305,7 @@ mod tests {
         let filter = "if .result and .result.success then (.result.interfaces | .[] | select(.connected) | {\"state\": \"connected\",\"type\": .interface | ascii_downcase }) elif .error then if .error.code == -32601 then \"Unknown method.\" else \"Error occurred with a different code\" end else \"No result or recognizable error\" end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
-        apply_response(filter, &rpc_request, &mut response);
+        apply_response(filter, &rpc_request.ctx.method, &mut response);
         assert_eq!(
             response.result.unwrap(),
             json!({"state":"connected", "type":"wifi"})
@@ -1299,7 +1318,7 @@ mod tests {
         let filter = "if .result.success then (if .result.friendlyName | length == 0 then \"Living Room\" else .result.friendlyName end) else \"Living Room\" end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
-        apply_response(filter, &rpc_request, &mut response);
+        apply_response(filter, &rpc_request.ctx.method, &mut response);
         assert_eq!(response.result.unwrap(), json!("my_device"));
 
         // localization.language
@@ -1310,7 +1329,7 @@ mod tests {
             .to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
-        apply_response(filter, &rpc_request, &mut response);
+        apply_response(filter, &rpc_request.ctx.method, &mut response);
 
         assert_eq!(response.result.unwrap(), json!("FR"));
 
@@ -1321,7 +1340,7 @@ mod tests {
         let filter = "if .result.success then (if .result.friendlyName | length == 0 then \"Living Room\" else .result.friendlyName end) else \"Living Room\" end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
-        apply_response(filter, &rpc_request, &mut response);
+        apply_response(filter, &rpc_request.ctx.method, &mut response);
 
         assert_eq!(response.result.unwrap(), json!("my_device"));
 
@@ -1332,7 +1351,7 @@ mod tests {
         let filter = "if .result.success then null else { code: -32100, message: \"couldn't set skip restriction\" } end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
-        apply_response(filter, &rpc_request, &mut response);
+        apply_response(filter, &rpc_request.ctx.method, &mut response);
 
         assert_eq!(response.result.unwrap(), serde_json::Value::Null);
 
@@ -1343,7 +1362,7 @@ mod tests {
         let filter = "if .result.success then .result.value elif .error.code==22 or .error.code==43 then \"null\" else .error end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
-        apply_response(filter, &rpc_request, &mut response);
+        apply_response(filter, &rpc_request.ctx.method, &mut response);
         assert_eq!(response.result.unwrap(), "some_value");
 
         // localization.countryCode
@@ -1353,7 +1372,7 @@ mod tests {
         let filter = "if .result.success then if .result.territory == \"ITA\" then \"IT\" elif .result.territory == \"GBR\" then \"GB\" elif .result.territory == \"IRL\" then \"IE\" elif .result.territory == \"DEU\" then \"DE\" elif .result.territory == \"AUS\" then \"AU\" else \"GB\" end end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
-        apply_response(filter, &rpc_request, &mut response);
+        apply_response(filter, &rpc_request.ctx.method, &mut response);
         assert_eq!(response.result.unwrap(), "GB");
     }
 }

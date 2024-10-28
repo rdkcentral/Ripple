@@ -18,7 +18,7 @@
 use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
-use log::debug;
+use log::info;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::utils::error::RippleError;
@@ -35,11 +35,10 @@ impl<S: Clone> Bootstrap<S> {
     }
 
     pub async fn step(&self, s: impl Bootstep<S>) -> Result<&Self, RippleError> {
-        debug!(">>>Starting Bootstep {}<<<", s.get_name());
+        info!(">>>Starting Bootstep {}<<<", s.get_name());
         s.setup(self.state.clone()).await?;
 
-        debug!("---Successful Bootstep {}---", s.get_name());
-        debug!("--- *** Successful Bootstep {}---", s.get_name());
+        info!("---Successful Bootstep {}---", s.get_name());
         Ok(self)
     }
 }

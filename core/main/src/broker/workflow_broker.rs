@@ -134,7 +134,7 @@ impl WorkflowBroker {
         */
 
         // Define your batch size here
-        let batch_size = 10; 
+        let batch_size = 10;
         let mut results = vec![];
 
         for chunk in futures.chunks_mut(batch_size) {
@@ -147,8 +147,6 @@ impl WorkflowBroker {
                         "Error {:?} in subbroker call for workflow: {}",
                         e, broker_request.rpc.method
                     );
-
-                            e, broker_request.rpc.method
                     return Err(SubBrokerErr::JsonRpcApiError(
                         JsonRpcApiError::default()
                             .with_code(-32001)
