@@ -200,7 +200,7 @@ impl MockWebSocketServer {
             let path = request.uri().path();
             if path != self.conn_path {
                 *response.status_mut() = StatusCode::NOT_FOUND;
-                debug!("Connection response {:?}", response);
+                debug!("Connection response {:?} for non existent path: {} which is not: {}", response,path.clone(),self.conn_path.clone());
             }
 
             if !self.conn_headers.iter().all(|(header_name, header_value)| {
