@@ -46,16 +46,18 @@ use ripple_sdk::{
             },
         },
         firebolt::fb_general::{ListenRequest, ListenerResponse},
-        gateway::rpc_gateway_api::CallContext,
-        session::{AccountSessionRequest, ProvisionRequest},
+        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest, RpcStats},
+        session::ProvisionRequest,
         storage_property::{
             StorageProperty, EVENT_DEVICE_DEVICE_NAME_CHANGED, EVENT_DEVICE_NAME_CHANGED,
         },
     },
-    extn::extn_client_message::ExtnResponse,
+    extn::extn_client_message::{ExtnMessage, ExtnResponse},
     log::error,
     tokio::time::timeout,
+    utils::error::RippleError,
 };
+use serde_json::json;
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
@@ -685,7 +687,7 @@ impl DeviceServer for DeviceImpl {
 
     async fn provision(
         &self,
-        _ctx: CallContext,
+        mut _ctx: CallContext,
         provision_request: ProvisionRequest,
     ) -> RpcResult<()> {
         // clear the cached distributor session
@@ -693,19 +695,60 @@ impl DeviceServer for DeviceImpl {
             .session_state
             .update_account_session(provision_request.clone());
 
-        let resp = self
-            .state
-            .get_client()
-            .send_extn_request(AccountSessionRequest::Provision(provision_request))
-            .await;
-        match resp {
-            Ok(payload) => match payload.payload.extract().unwrap() {
-                ExtnResponse::None(()) => Ok(()),
-                _ => Err(rpc_err("Provision Status error response TBD")),
-            },
-            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-                "Provision Status error response TBD",
-            ))),
+        if provision_request.distributor_id.is_none() {
+            return Err(rpc_err(
+                "set_provision: session.distributor_id is not set, cannot set provisioning",
+            ));
+        };
+        _ctx.protocol = ApiProtocol::Extn;
+        let success = rpc_request_setter(
+            self.state
+                .get_client()
+                .get_extn_client()
+                .main_internal_request(RpcRequest {
+                    ctx: _ctx.clone(),
+                    method: "account.setServiceAccountId".into(),
+                    params_json: RpcRequest::prepend_ctx(
+                        Some(json!({"serviceAccountId": provision_request.account_id})),
+                        &_ctx,
+                    ),
+                    stats: RpcStats::default(),
+                })
+                .await,
+        ) && rpc_request_setter(
+            self.state
+                .get_client()
+                .get_extn_client()
+                .main_internal_request(RpcRequest {
+                    ctx: _ctx.clone(),
+                    method: "account.setXDeviceId".into(),
+                    params_json: RpcRequest::prepend_ctx(
+                        Some(json!({"xDeviceId": provision_request.device_id})),
+                        &_ctx,
+                    ),
+                    stats: RpcStats::default(),
+                })
+                .await,
+        ) && rpc_request_setter(
+            self.state
+                .get_client()
+                .get_extn_client()
+                .main_internal_request(RpcRequest {
+                    ctx: _ctx.clone(),
+                    method: "account.setPartnerId".into(),
+                    params_json: RpcRequest::prepend_ctx(
+                        Some(json!({"partnerId": provision_request.distributor_id })),
+                        &_ctx,
+                    ),
+                    stats: RpcStats::default(),
+                })
+                .await,
+        );
+
+        if success {
+            Ok(())
+        } else {
+            Err(rpc_err("Provision Status error response TBD"))
         }
     }
 
@@ -718,6 +761,21 @@ impl DeviceServer for DeviceImpl {
             )))
         }
     }
+}
+
+fn rpc_request_setter(response: Result<ExtnMessage, RippleError>) -> bool {
+    if response.clone().is_ok() {
+        if let Ok(res) = response {
+            if let Some(ExtnResponse::Value(v)) = res.payload.extract::<ExtnResponse>() {
+                if v.is_boolean() {
+                    if let Some(b) = v.as_bool() {
+                        return b;
+                    }
+                }
+            }
+        }
+    }
+    false
 }
 
 pub struct DeviceRPCProvider;
