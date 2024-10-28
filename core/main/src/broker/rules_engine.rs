@@ -85,7 +85,7 @@ pub enum RuleEndpointProtocol {
     Thunder,
     Workflow,
 }
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct JsonDataSource {
     // configurable namespace to "stuff" an in individual result payload into
     pub namespace: Option<String>,
@@ -103,6 +103,7 @@ pub struct Rule {
     pub filter: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub endpoint: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sources: Option<Vec<JsonDataSource>>,
 }
 

@@ -9,7 +9,7 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 
 use futures::future::try_join_all;
-use ripple_sdk::api::gateway::rpc_gateway_api::{JsonRpcApiError, JsonRpcApiResponse, RpcRequest};
+use ripple_sdk::api::gateway::rpc_gateway_api::{JsonRpcApiResponse, RpcRequest, JsonRpcApiError};
 use ripple_sdk::utils::error::RippleError;
 use ripple_sdk::{
     log::{error, trace},

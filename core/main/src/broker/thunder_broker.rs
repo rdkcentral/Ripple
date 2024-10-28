@@ -17,7 +17,7 @@
 use super::{
     endpoint_broker::{
         BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutput, BrokerRequest,
-        BrokerSender, BrokerSubMap, EndpointBroker,
+        BrokerSender, BrokerSubMap, EndpointBroker, EndpointBrokerState,
     },
     thunder::thunder_plugins_status_mgr::StatusManager,
     thunder::user_data_migrator::UserDataMigrator,
@@ -25,7 +25,6 @@ use super::{
 use crate::broker::broker_utils::BrokerUtils;
 use futures_util::{SinkExt, StreamExt};
 
-use crate::broker::endpoint_broker::EndpointBrokerState;
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse,
     log::{debug, error, info},
@@ -347,7 +346,11 @@ impl ThunderBroker {
 }
 
 impl EndpointBroker for ThunderBroker {
-    fn get_broker(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
+    fn get_broker(
+        request: BrokerConnectRequest,
+        callback: BrokerCallback,
+        _broker_state: &mut EndpointBrokerState,
+    ) -> Self {
         Self::start(request, callback)
     }
 
@@ -463,7 +466,7 @@ mod tests {
         let (tx, _) = mpsc::channel(1);
         let request = BrokerConnectRequest::new("somekey".to_owned(), endpoint, tx);
         let callback = BrokerCallback { sender };
-        ThunderBroker::get_broker(request, callback)
+        ThunderBroker::get_broker(request, callback, &mut EndpointBrokerState::default())
     }
 
     //function to create a BrokerRequest

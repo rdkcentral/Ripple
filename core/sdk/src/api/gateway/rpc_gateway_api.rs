@@ -197,6 +197,7 @@ impl JsonRpcApiRequest {
         }
     }
 }
+
 #[derive(Clone, Default, Debug)]
 pub struct JsonRpcApiError {
     pub code: i32,
@@ -322,6 +323,7 @@ impl JsonRpcApiResponse {
         self.result.is_some()
     }
 }
+
 impl crate::Mockable for JsonRpcApiResponse {
     fn mock() -> Self {
         JsonRpcApiResponse {
@@ -332,6 +334,50 @@ impl crate::Mockable for JsonRpcApiResponse {
             method: None,
             params: None,
         }
+    }
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct RpcStats {
+    pub start_time: i64,
+    pub last_stage: i64,
+    stage_durations: String,
+}
+
+impl Default for RpcStats {
+    fn default() -> Self {
+        Self {
+            start_time: Utc::now().timestamp_millis(),
+            last_stage: 0,
+            stage_durations: String::new(),
+        }
+    }
+}
+
+impl RpcStats {
+    pub fn update_stage(&mut self, stage: &str) -> i64 {
+        let current_time = Utc::now().timestamp_millis();
+        let mut last_stage = self.last_stage;
+        if last_stage == 0 {
+            last_stage = self.start_time;
+        }
+        self.last_stage = current_time;
+        let duration = current_time - last_stage;
+        if self.stage_durations.is_empty() {
+            self.stage_durations = format!("{}={}", stage, duration);
+        } else {
+            self.stage_durations = format!("{},{}={}", self.stage_durations, stage, duration);
+        }
+        duration
+    }
+
+    pub fn get_total_time(&self) -> i64 {
+        let current_time = Utc::now().timestamp_millis();
+        current_time - self.start_time
+    }
+
+    pub fn get_stage_durations(&self) -> String {
+        self.stage_durations.clone()
     }
 }
 
