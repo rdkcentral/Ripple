@@ -215,12 +215,6 @@ pub struct OnInternetConnectedRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
-pub struct LanguageProperty {
-    #[serde(with = "language_code_serde")]
-    pub value: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct TimezoneProperty {
     // Original Regex in the Firebolt Timezone openrpc spec seems to be allowing
     // even blank strings so the below test case is failing leaving it here
@@ -384,16 +378,6 @@ mod tests {
     fn test_audio_profile_fmt(#[case] audio_profile: AudioProfile, #[case] expected_result: &str) {
         let formatted = format!("{}", audio_profile);
         assert_eq!(formatted, expected_result);
-    }
-
-    #[test]
-    fn test_language_serializer() {
-        let lang_key = "{\"value\":\"\"}";
-        assert!(serde_json::from_str::<LanguageProperty>(lang_key).is_err());
-        let lang_key = "{\"value\":\"ens\"}";
-        assert!(serde_json::from_str::<LanguageProperty>(lang_key).is_err());
-        let lang_key = "{\"value\":\"en\"}";
-        assert!(serde_json::from_str::<LanguageProperty>(lang_key).is_ok());
     }
 
     // Original Regex in the Firebolt Timezone openrpc spec seems to be allowing

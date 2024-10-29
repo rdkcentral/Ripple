@@ -50,8 +50,8 @@ pub const KEY_TEXT_ALIGN_VERTICAL: &str = "textAlignVertical";
 pub const KEY_NAME: &str = "name";
 pub const KEY_POSTAL_CODE: &str = "postalCode";
 pub const KEY_LOCALITY: &str = "locality";
-pub const KEY_COUNTRY_CODE: &str = "countryCode";
-pub const KEY_LANGUAGE: &str = "language";
+//pub const KEY_COUNTRY_CODE: &str = "countryCode";
+//pub const KEY_LANGUAGE: &str = "language";
 pub const KEY_LOCALE: &str = "locale";
 pub const KEY_LATLON: &str = "latlon";
 pub const KEY_ADDITIONAL_INFO: &str = "additionalInfo";
@@ -92,8 +92,6 @@ pub const EVENT_CLOSED_CAPTIONS_TEXT_ALIGN: &str = "closedcaptions.onTextAlignCh
 pub const EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL: &str =
     "closedcaptions.onTextAlignVerticalChanged";
 pub const EVENT_LOCALITY: &str = "localization.onLocalityChanged";
-pub const EVENT_COUNTRY_CODE: &str = "localization.onCountryCodeChanged";
-pub const EVENT_LANGUAGE: &str = "localization.onLanguageChanged";
 pub const EVENT_POSTAL_CODE: &str = "localization.onPostalCodeChanged";
 pub const EVENT_LOCALE: &str = "localization.onLocaleChanged";
 pub const EVENT_LATLON: &str = "localization.onLatlonChanged";
@@ -250,18 +248,6 @@ const PROPERTY_DATA_LOCALITY: PropertyData = PropertyData {
     key: KEY_LOCALITY,
     namespace: NAMESPACE_LOCALIZATION,
     event_names: Some(&[EVENT_LOCALITY]),
-};
-
-const PROPERTY_DATA_COUNTRY_CODE: PropertyData = PropertyData {
-    key: KEY_COUNTRY_CODE,
-    namespace: NAMESPACE_LOCALIZATION,
-    event_names: Some(&[EVENT_COUNTRY_CODE]),
-};
-
-const PROPERTY_DATA_LANGUAGE: PropertyData = PropertyData {
-    key: KEY_LANGUAGE,
-    namespace: NAMESPACE_LOCALIZATION,
-    event_names: Some(&[EVENT_LANGUAGE]),
 };
 
 const PROPERTY_DATA_POSTAL_CODE: PropertyData = PropertyData {
@@ -453,8 +439,6 @@ pub enum StorageProperty {
     ClosedCaptionsTextAlign,
     ClosedCaptionsTextAlignVertical,
     Locality,
-    CountryCode,
-    Language,
     PostalCode,
     Locale,
     LatLon,
@@ -511,8 +495,6 @@ impl StorageProperty {
                 PROPERTY_DATA_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL
             }
             StorageProperty::Locality => PROPERTY_DATA_LOCALITY,
-            StorageProperty::CountryCode => PROPERTY_DATA_COUNTRY_CODE,
-            StorageProperty::Language => PROPERTY_DATA_LANGUAGE,
             StorageProperty::PostalCode => PROPERTY_DATA_POSTAL_CODE,
             StorageProperty::Locale => PROPERTY_DATA_LOCALE,
             StorageProperty::LatLon => PROPERTY_DATA_LATLON,
