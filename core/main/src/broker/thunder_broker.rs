@@ -481,7 +481,6 @@ mod tests {
 
     #[ignore]
     #[tokio::test]
-    #[ignore]
     async fn test_thunderbroker_start() {
         let (tx, mut _rx) = mpsc::channel(1);
         let (sender, mut rec) = mpsc::channel(1);
