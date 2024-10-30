@@ -27,7 +27,7 @@ use ripple_sdk::{
     tokio::{self, net::TcpStream},
     uuid::Uuid,
 };
-use serde_json::{from_value, Value};
+use serde_json::Value;
 use std::time::Duration;
 use tokio_tungstenite::{client_async, tungstenite::Message, WebSocketStream};
 
@@ -101,14 +101,14 @@ impl BrokerUtils {
 
         if let Ok(res) = resp {
             if let Some(ExtnResponse::Value(val)) = res.payload.extract::<ExtnResponse>() {
-                return Ok(Value::from(val));
+                return Ok(val);
             }
         }
 
         // TODO: Update error handling
         Err(jsonrpsee::core::Error::Call(CallError::Custom {
             code: CAPABILITY_NOT_AVAILABLE,
-            message: format!("{} is not available", method.to_string()),
+            message: format!("{} is not available", method),
             data: None,
         }))
     }

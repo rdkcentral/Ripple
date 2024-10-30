@@ -46,7 +46,7 @@ use crate::{
     broker::broker_utils::BrokerUtils,
     firebolt::firebolt_gateway::{FireboltGatewayCommand, JsonRpcError},
     service::extn::ripple_client::RippleClient,
-    state::{self, platform_state::PlatformState},
+    state::platform_state::PlatformState,
     utils::router_utils::{
         add_telemetry_status_code, get_rpc_header, return_api_message_for_transport,
         return_extn_response,
