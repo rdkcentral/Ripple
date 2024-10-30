@@ -43,9 +43,10 @@ use std::{
 };
 
 use crate::{
+    broker::broker_utils::BrokerUtils,
     firebolt::firebolt_gateway::{FireboltGatewayCommand, JsonRpcError},
     service::extn::ripple_client::RippleClient,
-    state::platform_state::PlatformState,
+    state::{self, platform_state::PlatformState},
     utils::router_utils::{
         add_telemetry_status_code, get_rpc_header, return_api_message_for_transport,
         return_extn_response,
@@ -601,6 +602,7 @@ impl BrokerOutputForwarder {
 
                 if let Some(id) = id {
                     if let Ok(broker_request) = platform_state.endpoint_state.get_request(id) {
+                        let requires_event_handling = broker_request.rule.event_handler.is_some();
                         let sub_processed = broker_request.is_subscription_processed();
                         let rpc_request = broker_request.rpc.clone();
                         let session_id = rpc_request.ctx.get_id();
@@ -619,6 +621,51 @@ impl BrokerOutputForwarder {
                                 if !apply_filter(&broker_request, &result, &rpc_request) {
                                     continue;
                                 }
+
+                                // handle events with internal request if required
+                                if requires_event_handling {
+                                    if let Some(method) = broker_request.rule.event_handler.clone()
+                                    {
+                                        let session_id = rpc_request.ctx.get_id();
+                                        let request_id = rpc_request.ctx.call_id;
+                                        let protocol = rpc_request.ctx.protocol.clone();
+                                        let platform_state_c = platform_state.clone();
+                                        tokio::spawn(async move {
+                                            if let Ok(res) =
+                                                BrokerUtils::handle_main_internal_request(
+                                                    &platform_state_c,
+                                                    method.as_str(),
+                                                )
+                                                .await
+                                            {
+                                                response.result = Some(
+                                                    serde_json::to_value(res.clone()).unwrap(),
+                                                );
+                                            }
+                                            response.id = Some(request_id);
+
+                                            let message = ApiMessage::new(
+                                                protocol,
+                                                serde_json::to_string(&response).unwrap(),
+                                                request_id.to_string(),
+                                            );
+
+                                            if let Some(session) = platform_state_c
+                                                .session_state
+                                                .get_session_for_connection_id(&session_id)
+                                            {
+                                                return_api_message_for_transport(
+                                                    session,
+                                                    message,
+                                                    platform_state_c,
+                                                )
+                                                .await
+                                            }
+                                        });
+                                        continue;
+                                    }
+                                }
+
                                 // check if the request transform has event_decorator_method
                                 if let Some(decorator_method) =
                                     broker_request.rule.transform.event_decorator_method.clone()
@@ -911,6 +958,7 @@ mod tests {
                         transform: RuleTransform::default(),
                         endpoint: None,
                         filter: None,
+                        event_handler: None,
                     },
                     subscription_processed: None,
                 },
@@ -979,6 +1027,7 @@ mod tests {
                     transform: RuleTransform::default(),
                     endpoint: None,
                     filter: None,
+                    event_handler: None,
                 },
                 None,
             );
@@ -990,6 +1039,7 @@ mod tests {
                     transform: RuleTransform::default(),
                     endpoint: None,
                     filter: None,
+                    event_handler: None,
                 },
                 None,
             );

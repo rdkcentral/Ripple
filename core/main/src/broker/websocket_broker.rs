@@ -250,6 +250,7 @@ mod tests {
                 transform: RuleTransform::default(),
                 endpoint: None,
                 filter: None,
+                event_handler: None,
             },
             subscription_processed: None,
         };
@@ -289,6 +290,7 @@ mod tests {
                 transform: RuleTransform::default(),
                 endpoint: None,
                 filter: None,
+                event_handler: None,
             },
             subscription_processed: None,
         };
