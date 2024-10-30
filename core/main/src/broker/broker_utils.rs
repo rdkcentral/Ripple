@@ -19,7 +19,6 @@ use crate::{state::platform_state::PlatformState, utils::rpc_utils::extract_tcp_
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::StreamExt;
 use jsonrpsee::{core::RpcResult, types::error::CallError};
-use ripple_sdk::api::firebolt::fb_capabilities::CAPABILITY_NOT_AVAILABLE;
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest, RpcStats},
     extn::extn_client_message::ExtnResponse,
@@ -72,7 +71,7 @@ impl BrokerUtils {
         }
     }
 
-    pub async fn handle_main_internal_request<'a>(
+    pub async fn process_internal_main_request<'a>(
         state: &'a PlatformState,
         method: &'a str,
     ) -> RpcResult<Value> {
@@ -107,8 +106,8 @@ impl BrokerUtils {
 
         // TODO: Update error handling
         Err(jsonrpsee::core::Error::Call(CallError::Custom {
-            code: CAPABILITY_NOT_AVAILABLE,
-            message: format!("{} is not available", method),
+            code: -32100,
+            message: format!("failed to get {}", method),
             data: None,
         }))
     }
