@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use jsonrpsee::tracing::debug;
 use ripple_sdk::{
     api::{
         firebolt::fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
@@ -27,7 +26,7 @@ use ripple_sdk::{
     },
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
-    log::{error, trace},
+    log::{debug, error, trace},
     tokio::{
         self,
         sync::mpsc::{self, Receiver, Sender},
