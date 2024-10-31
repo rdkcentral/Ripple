@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs};
 
 use jsonschema::JSONSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 
 pub extern crate jsonschema;
 
@@ -29,6 +29,56 @@ impl FireboltOpenRpc {
             for m in &spec.methods {
                 if m.name.to_ascii_lowercase() == name.to_ascii_lowercase() {
                     return Some(m.clone());
+                }
+            }
+        }
+        None
+    }
+
+    fn get_result_ref_schemas(
+        &self,
+        result_schema_map: &Map<String, Value>,
+    ) -> Option<Map<String, Value>> {
+        if let Some(result_schema_value) = result_schema_map.get("$ref") {
+            if let Some(result_schema_string) = result_schema_value.as_str() {
+                let result_type_string = result_schema_string.split('/').last().unwrap();
+                for spec in self.apis.values() {
+                    if let Value::Object(components) = &spec.components {
+                        if let Some(Value::Object(schemas_map)) = components.get("schemas") {
+                            if let Some(result_type_value) = schemas_map.get(result_type_string) {
+                                if let Some(result_type_map) = result_type_value.as_object() {
+                                    if let Some(Value::Object(result_properties_map)) =
+                                        result_type_map.get("properties")
+                                    {
+                                        return Some(result_properties_map.clone());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    pub fn get_result_properties_schema_by_name(&self, name: &str) -> Option<Map<String, Value>> {
+        if let Some(method) = self.get_method_by_name(name) {
+            if let Some(result_schema_map) = method.result.schema.as_object() {
+                if let Some(any_of_map) = result_schema_map.get("anyOf") {
+                    if let Some(any_of_array) = any_of_map.as_array() {
+                        for value in any_of_array.iter() {
+                            if let Some(result_properties_map) =
+                                self.get_result_ref_schemas(value.as_object().unwrap())
+                            {
+                                return Some(result_properties_map);
+                            }
+                        }
+                    } else {
+                        return None;
+                    }
+                } else {
+                    return self.get_result_ref_schemas(result_schema_map);
                 }
             }
         }
@@ -205,7 +255,7 @@ pub struct RpcParam {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RpcResult {
     name: String,
-    schema: Value,
+    pub schema: Value,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
