@@ -105,7 +105,7 @@ impl FireboltOpenRpc {
     ) -> Result<JSONSchema, ValidationError> {
         if let Some(spec) = self.apis.get(&version) {
             let open_rpc_spec: OpenRpcSpec = spec.clone().into();
-            open_rpc_spec.result_validator(method)
+            open_rpc_spec.result_validator(&method)
         } else {
             Err(ValidationError::SpecVersionNotFound)
         }
@@ -130,8 +130,13 @@ impl From<FireboltOpenRpcSpec> for OpenRpcSpec {
         let mut additional_schemas = HashMap::default();
         additional_schemas.insert(String::from("components"), value.components);
         additional_schemas.insert(String::from("x-schemas"), value.x_schemas);
+        let methods = value
+            .methods
+            .iter()
+            .map(|x| (x.name.to_lowercase(), x.clone()))
+            .collect();
         OpenRpcSpec {
-            methods: value.methods,
+            methods,
             additional_schemas,
         }
     }
@@ -139,23 +144,21 @@ impl From<FireboltOpenRpcSpec> for OpenRpcSpec {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct OpenRpcSpec {
-    pub methods: Vec<RpcMethod>,
+    pub methods: HashMap<String, RpcMethod>,
     pub additional_schemas: HashMap<String, Value>,
 }
 
 impl OpenRpcSpec {
     pub fn params_validator(&self, method: &str) -> Result<JSONSchema, ValidationError> {
-        let method = self.methods.iter().find(|m| m.name == method);
-        if let Some(m) = method {
+        if let Some(m) = self.methods.get(method.to_lowercase().as_str()) {
             m.params_validator(self.additional_schemas.clone())
         } else {
             Err(ValidationError::MethodNotFound)
         }
     }
 
-    pub fn result_validator(&self, method: String) -> Result<JSONSchema, ValidationError> {
-        let rpc_method = self.methods.iter().find(|m| m.name == method);
-        if let Some(m) = rpc_method {
+    pub fn result_validator(&self, method: &str) -> Result<JSONSchema, ValidationError> {
+        if let Some(m) = self.methods.get(method.to_lowercase().as_str()) {
             m.result_validator(self.additional_schemas.clone())
         } else {
             Err(ValidationError::MethodNotFound)
@@ -335,8 +338,9 @@ pub mod tests {
                         assert_valid(&method.name, res);
 
                         // validate result
-                        let validator =
-                            open_rpc_spec.result_validator(method.name.clone()).unwrap();
+                        let validator = open_rpc_spec
+                            .result_validator(method.name.as_str())
+                            .unwrap();
                         let res = validator.validate(&ex.result.value);
                         assert_valid(&method.name, res);
                     }

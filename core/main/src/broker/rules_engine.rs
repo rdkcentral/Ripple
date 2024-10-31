@@ -18,13 +18,14 @@ use jaq_interpret::{Ctx, FilterT, ParseCtx, RcIter, Val};
 use ripple_sdk::api::{
     gateway::rpc_gateway_api::RpcRequest, manifest::extn_manifest::ExtnManifest,
 };
+use ripple_sdk::log::trace;
 use ripple_sdk::{
     chrono::Utc,
-    log::{debug, error, info, warn},
+    log::{error, info, warn},
     serde_json::Value,
     utils::error::RippleError,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::{fs, path::Path};
 
@@ -41,7 +42,7 @@ impl RuleSet {
             .rules
             .into_iter()
             .map(|(k, v)| {
-                debug!("Loading JQ Rule for {}", k.to_lowercase());
+                trace!("Loading JQ Rule for {}", k.to_lowercase());
                 (k.to_lowercase(), v)
             })
             .collect();
@@ -83,32 +84,38 @@ pub enum RuleEndpointProtocol {
     Thunder,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Rule {
     pub alias: String,
     // Not every rule needs transform
     #[serde(default)]
     pub transform: RuleTransform,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub filter: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub endpoint: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, Default, Serialize)]
 pub struct RuleTransform {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub request: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub response: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub event: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub event_decorator_method: Option<String>,
 }
 
 impl RuleTransform {
     pub fn apply_context(&mut self, rpc_request: &RpcRequest) {
         if let Some(value) = self.request.take() {
-            debug!("Check if value contains {}", value);
+            trace!("Check if value contains {}", value);
             if value.contains("$context.appId") {
-                debug!("has context");
+                trace!("has context");
                 let new_value = value.replace("$context.appId", &rpc_request.ctx.app_id);
-                debug!("changed value {}", new_value);
+                trace!("changed value {}", new_value);
                 let _ = self.request.insert(new_value);
             } else {
                 let _ = self.request.insert(value);
@@ -146,14 +153,14 @@ impl RuleEngine {
     }
 
     pub fn build(extn_manifest: &ExtnManifest) -> Self {
-        debug!("building rules engine {:?}", extn_manifest.rules_path);
+        trace!("building rules engine {:?}", extn_manifest.rules_path);
         let mut engine = RuleEngine::default();
         for path in extn_manifest.rules_path.iter() {
             let path_for_rule = Self::build_path(path, &extn_manifest.default_path);
-            debug!("loading rule {}", path_for_rule);
+            info!("loading rule {}", path_for_rule);
             if let Some(p) = Path::new(&path_for_rule).to_str() {
                 if let Ok(contents) = fs::read_to_string(p) {
-                    debug!("Rule content {}", contents);
+                    info!("Rule content {}", contents);
                     if let Ok((_, rule_set)) = Self::load_from_content(contents) {
                         engine.rules.append(rule_set)
                     } else {
@@ -195,17 +202,20 @@ impl RuleEngine {
             rule.transform.apply_context(rpc_request);
             return Some(rule);
         } else {
-            info!(
+            trace!(
                 "Rule not available for {}, hence falling back to extension handler",
                 rpc_request.method
             );
         }
         None
     }
+    pub fn get_rule_by_method(&self, method: &str) -> Option<Rule> {
+        self.rules.rules.get(&method.to_lowercase()).cloned()
+    }
 }
 
 pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value, RippleError> {
-    debug!("Jq rule {}  input {:?}", filter, input);
+    info!("Jq rule {}  input {:?}", filter, input);
     let start = Utc::now().timestamp_millis();
     // start out only from core filters,
     // which do not include filters in the standard library

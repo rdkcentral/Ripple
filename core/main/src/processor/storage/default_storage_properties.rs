@@ -25,12 +25,12 @@ use ripple_sdk::{
         KEY_ALLOW_WATCH_HISTORY, KEY_AUDIO_DESCRIPTION_ENABLED, KEY_BACKGROUND_COLOR,
         KEY_BACKGROUND_OPACITY, KEY_COUNTRY_CODE, KEY_ENABLED, KEY_FONT_COLOR, KEY_FONT_EDGE,
         KEY_FONT_EDGE_COLOR, KEY_FONT_FAMILY, KEY_FONT_OPACITY, KEY_FONT_SIZE, KEY_LANGUAGE,
-        KEY_LOCALE, KEY_NAME, KEY_POSTAL_CODE, KEY_SKIP_RESTRICTION, KEY_TEXT_ALIGN,
-        KEY_TEXT_ALIGN_VERTICAL, KEY_WINDOW_COLOR, KEY_WINDOW_OPACITY, NAMESPACE_ADVERTISING,
-        NAMESPACE_AUDIO_DESCRIPTION, NAMESPACE_CLOSED_CAPTIONS, NAMESPACE_DEVICE_NAME,
-        NAMESPACE_LOCALIZATION, NAMESPACE_PRIVACY,
+        KEY_LOCALE, KEY_NAME, KEY_SKIP_RESTRICTION, KEY_TEXT_ALIGN, KEY_TEXT_ALIGN_VERTICAL,
+        KEY_WINDOW_COLOR, KEY_WINDOW_OPACITY, NAMESPACE_ADVERTISING, NAMESPACE_AUDIO_DESCRIPTION,
+        NAMESPACE_CLOSED_CAPTIONS, NAMESPACE_DEVICE_NAME, NAMESPACE_LOCALIZATION,
+        NAMESPACE_PRIVACY,
     },
-    log::debug,
+    log::trace,
 };
 
 use crate::state::platform_state::PlatformState;
@@ -51,7 +51,7 @@ impl DefaultStorageProperties {
         namespace: &String,
         key: &'static str,
     ) -> Result<bool, DefaultStoragePropertiesError> {
-        debug!("get_bool: namespace={}, key={}", namespace, key);
+        trace!("get_bool: namespace={}, key={}", namespace, key);
         if namespace.eq(NAMESPACE_CLOSED_CAPTIONS) {
             match key {
                 KEY_ENABLED => Ok(state
@@ -158,7 +158,7 @@ impl DefaultStorageProperties {
         namespace: &String,
         key: &'static str,
     ) -> Result<String, DefaultStoragePropertiesError> {
-        debug!("get_string: namespace={}, key={}", namespace, key);
+        trace!("get_string: namespace={}, key={}", namespace, key);
         if namespace.eq(NAMESPACE_CLOSED_CAPTIONS) {
             let captions = state
                 .get_device_manifest()
@@ -251,15 +251,6 @@ impl DefaultStorageProperties {
                     key.to_owned(),
                 )),
             }
-        } else if let Some(defaults) = state
-            .get_device_manifest()
-            .get_settings_defaults_per_app()
-            .get(namespace)
-        {
-            match key {
-                KEY_POSTAL_CODE => Ok(defaults.postal_code.clone()),
-                _ => Err(DefaultStoragePropertiesError::NotFound(key.to_owned())),
-            }
         } else {
             Err(DefaultStoragePropertiesError::UnreconizedNamespace(
                 namespace.to_owned(),
@@ -272,7 +263,7 @@ impl DefaultStorageProperties {
         namespace: &String,
         key: &'static str,
     ) -> Result<u32, DefaultStoragePropertiesError> {
-        debug!("get_number_as_u32: namespace={}, key={}", namespace, key);
+        trace!("get_number_as_u32: namespace={}, key={}", namespace, key);
         if namespace.eq(NAMESPACE_CLOSED_CAPTIONS) {
             let captions = state
                 .get_device_manifest()
@@ -309,7 +300,7 @@ impl DefaultStorageProperties {
         namespace: &String,
         key: &'static str,
     ) -> Result<f32, DefaultStoragePropertiesError> {
-        debug!("get_number_as_f32: namespace={}, key={}", namespace, key);
+        trace!("get_number_as_f32: namespace={}, key={}", namespace, key);
         if namespace.eq(NAMESPACE_CLOSED_CAPTIONS) {
             let captions = state
                 .get_device_manifest()
