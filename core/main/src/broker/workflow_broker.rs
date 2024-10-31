@@ -283,7 +283,7 @@ pub mod tests {
                             "alias": "workflow",
                             "endpoint": "workflow",
                             "sources": [{
-                                "method": "static.rle"
+                                "method": "static.rule"
                             }]
                     }
                 }
