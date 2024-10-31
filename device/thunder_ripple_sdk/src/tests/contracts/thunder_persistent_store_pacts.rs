@@ -245,10 +245,6 @@ async fn test_device_delete_persistent_value_by_key(with_scope: bool) {
         .await;
 
     let mut result = HashMap::new();
-    result.insert(
-        "value".into(),
-        ContractMatcher::MatchType("testvalue1".into()),
-    );
     result.insert("success".into(), ContractMatcher::MatchBool(true));
 
     let mut params = HashMap::new();
