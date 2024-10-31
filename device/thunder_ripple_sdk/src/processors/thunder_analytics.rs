@@ -28,8 +28,7 @@ use ripple_sdk::{
         client::{
             extn_client::ExtnClient,
             extn_processor::{
-                DefaultExtnStreamer, ExtnEventProcessor, ExtnRequestProcessor, ExtnStreamProcessor,
-                ExtnStreamer,
+                DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
             },
         },
         extn_client_message::{ExtnMessage, ExtnResponse},
