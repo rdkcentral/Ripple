@@ -44,10 +44,10 @@ use ripple_sdk::{
         },
         gateway::rpc_gateway_api::{CallContext, CallerSession},
     },
-    log::{error, info},
+    log::{error, info, warn},
     tokio::{sync::oneshot, time::timeout},
 };
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 // TODO: Add to config
 const DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS: u64 = 15000;
@@ -290,22 +290,67 @@ impl ProviderRegistrar {
         );
         if let Some(event) = &context.provider_relation_set.provides_to {
             let mut params_sequence = params.sequence();
-            let _call_context: Option<CallContext> = params_sequence.next().ok();
+            let call_context: Option<CallContext> = params_sequence.next().ok();
 
-            let result: Value = match params_sequence.next() {
+            let mut event_data: Value = match params_sequence.next() {
                 Ok(r) => r,
                 Err(e) => {
                     error!("callback_app_event_emitter: Error: {:?}", e);
-                    return Err(Error::Custom("Missing result".to_string()));
+                    return Err(Error::Custom("Missing event_data".to_string()));
                 }
             };
 
-            AppEvents::emit(
-                &context.platform_state,
-                &FireboltOpenRpcMethod::name_with_lowercase_module(event),
-                &result,
-            )
-            .await;
+            if let Some(event_data_map) = event_data.as_object_mut() {
+                if let Some(event_schema_map) = context
+                    .platform_state
+                    .open_rpc_state
+                    .get_openrpc_validator()
+                    .get_result_properties_schema_by_name(event)
+                {
+                    // Populate the event result, injecting the app ID if the field exists in the event schema
+
+                    let mut result_map = Map::new();
+
+                    for key in event_schema_map.keys() {
+                        if let Some(event_value) = event_data_map.get(key) {
+                            result_map.insert(key.clone(), event_value.clone());
+                        } else if key.eq("appId") {
+                            if let Some(context) = call_context.clone() {
+                                result_map.insert(key.clone(), Value::String(context.app_id));
+                            } else {
+                                error!("callback_app_event_emitter: Missing call context, could not determine app ID");
+                                result_map.insert(key.clone(), Value::Null);
+                            }
+                        } else {
+                            error!(
+                                "callback_app_event_emitter: Missing field in event data: field={}",
+                                key
+                            );
+                            result_map.insert(key.clone(), Value::Null);
+                        }
+                    }
+
+                    AppEvents::emit(
+                        &context.platform_state,
+                        &FireboltOpenRpcMethod::name_with_lowercase_module(event),
+                        &Value::Object(result_map),
+                    )
+                    .await;
+                } else {
+                    error!("callback_app_event_emitter: Result schema not found");
+                    return Err(Error::Custom(String::from("Result schema not found")));
+                }
+            } else {
+                warn!(
+                    "callback_app_event_emitter: event data is not an object: event_data={:?}",
+                    event_data
+                );
+                return Err(Error::Custom(String::from("Event data is not an object")));
+            }
+        } else {
+            return Err(Error::Custom(String::from(
+                "Unexpected schema configuration",
+            )));
         }
 
         Ok(None)
@@ -391,36 +436,72 @@ impl ProviderRegistrar {
                         app_id: None,
                     };
 
-                    ProviderBroker::invoke_method(&context.platform_state, provider_broker_request)
-                        .await;
+                    let provider_app_id = ProviderBroker::invoke_method(
+                        &context.platform_state,
+                        provider_broker_request,
+                    )
+                    .await;
 
-                    match timeout(
+                    if let Ok(result) = timeout(
                         Duration::from_millis(DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS),
                         provider_response_payload_rx,
                     )
                     .await
                     {
-                        Ok(result) => match result {
-                            Ok(provider_response_payload) => {
-                                return if let Some(e) = provider_response_payload.is_error() {
-                                    Err(Error::Call(CallError::Custom {
+                        if let Ok(provider_response_payload) = result {
+                            match provider_response_payload {
+                                ProviderResponsePayload::GenericResponse(
+                                    provider_response_value,
+                                ) => {
+                                    if let Some(result_properties_map) = context
+                                        .platform_state
+                                        .open_rpc_state
+                                        .get_openrpc_validator()
+                                        .get_result_properties_schema_by_name(&context.method)
+                                    {
+                                        // Inject the provider app ID if the field exists in the provided-to response schema, the other field will be
+                                        // the provider response. The firebolt spec is not ideal in that the provider response data is captured
+                                        // within a field of the provided-to's response object, hence the somewhat arbritrary logic here. Ideally
+                                        // the provided-to response object would be identical to the provider response object aside from an optional
+                                        // appId field.
+
+                                        let mut response_map = Map::new();
+                                        for key in result_properties_map.keys() {
+                                            if key.eq("appId") {
+                                                response_map.insert(
+                                                    key.clone(),
+                                                    Value::String(
+                                                        provider_app_id.clone().unwrap_or_default(),
+                                                    ),
+                                                );
+                                            } else {
+                                                response_map.insert(
+                                                    key.clone(),
+                                                    provider_response_value.clone(),
+                                                );
+                                            }
+                                        }
+                                        return Ok(Value::Object(response_map));
+                                    }
+                                }
+                                ProviderResponsePayload::GenericError(e) => {
+                                    return Err(Error::Call(CallError::Custom {
                                         code: e.code,
                                         message: e.message,
                                         data: None,
-                                    }))
-                                } else {
-                                    Ok(provider_response_payload.as_value())
-                                };
+                                    }));
+                                }
+                                _ => {
+                                    return Ok(provider_response_payload.as_value());
+                                }
                             }
-                            Err(_) => {
-                                return Err(Error::Custom(String::from(
-                                    "Error returning from provider",
-                                )));
-                            }
-                        },
-                        Err(_) => {
-                            return Err(Error::Custom(String::from("Provider response timeout")));
+                        } else {
+                            return Err(Error::Custom(String::from(
+                                "Error returning from provider",
+                            )));
                         }
+                    } else {
+                        return Err(Error::Custom(String::from("Provider response timeout")));
                     }
                 }
             }

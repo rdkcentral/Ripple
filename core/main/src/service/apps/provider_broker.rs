@@ -220,28 +220,36 @@ impl ProviderBroker {
         ProviderResult::new(result)
     }
 
-    pub async fn invoke_method(pst: &PlatformState, request: ProviderBrokerRequest) {
+    pub async fn invoke_method(
+        pst: &PlatformState,
+        request: ProviderBrokerRequest,
+    ) -> Option<String> {
+        let mut provider_app_id = None;
+
         let cap_method = format!(
             "{}:{}",
             request.capability,
             FireboltOpenRpcMethod::name_with_lowercase_module(&request.method)
         );
+
         debug!("invoking provider for {}", cap_method);
 
         let provider_opt = {
             let provider_methods = pst.provider_broker_state.provider_methods.read().unwrap();
             provider_methods.get(&cap_method).cloned()
         };
-        if let Some(provider) = provider_opt {
-            let event_name = provider.event_name.clone();
+
+        if let Some(provider_method) = provider_opt {
+            let event_name = provider_method.event_name.clone();
             let req_params = request.request.clone();
             let app_id_opt = request.app_id.clone();
-            let c_id = ProviderBroker::start_provider_session(pst, request, provider);
+            let c_id =
+                ProviderBroker::start_provider_session(pst, request, provider_method.clone());
             if let Some(app_id) = app_id_opt {
                 debug!("Sending request to specific app {}", app_id);
                 AppEvents::emit_to_app(
                     pst,
-                    app_id,
+                    app_id.clone(),
                     &event_name,
                     &serde_json::to_value(ProviderRequest {
                         correlation_id: c_id,
@@ -250,6 +258,7 @@ impl ProviderBroker {
                     .unwrap(),
                 )
                 .await;
+                provider_app_id = Some(app_id.clone());
             } else {
                 debug!("Broadcasting request to all the apps!!");
                 AppEvents::emit(
@@ -262,11 +271,14 @@ impl ProviderBroker {
                     .unwrap(),
                 )
                 .await;
+                provider_app_id = Some(provider_method.provider.app_id);
             }
         } else {
             debug!("queuing provider request");
             ProviderBroker::queue_provider_request(pst, request);
         }
+
+        provider_app_id
     }
 
     fn start_provider_session(
