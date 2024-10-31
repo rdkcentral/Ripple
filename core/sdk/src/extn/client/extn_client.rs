@@ -254,7 +254,7 @@ impl ExtnClient {
                     continue;
                 }
             };
-            debug!("** receiving message latency={} msg={:?}", latency, message);
+            trace!("** receiving message latency={} msg={:?}", latency, message);
             if message.payload.is_response() {
                 Self::handle_single(message, self.response_processors.clone());
             } else if message.payload.is_event() {
@@ -268,9 +268,9 @@ impl ExtnClient {
                         &message.target_id.as_ref().unwrap().to_string(),
                     ) {
                         let send_response = self.sender.respond(message.into(), Some(sender));
-                        debug!("fwding event result: {:?}", send_response);
+                        trace!("fwding event result: {:?}", send_response);
                     } else {
-                        debug!("unable to get sender for target: {:?}", message.target_id);
+                        error!("unable to get sender for target: {:?}", message.target_id);
                         self.handle_no_processor_error(message);
                     }
                 } else {
@@ -378,7 +378,7 @@ impl ExtnClient {
         let new_context = { self.ripple_context.read().unwrap().clone() };
         let message = new_context.get_event_message();
         if propagate {
-            debug!("Formed Context update event: {:?}", message);
+            trace!("Formed Context update event: {:?}", message);
             let c_message: CExtnMessage = message.clone().into();
             {
                 let senders = self.get_other_senders();
@@ -389,7 +389,7 @@ impl ExtnClient {
             }
             Self::handle_vec_stream(message, self.event_processors.clone());
         } else {
-            debug!("Context information is already updated. Hence not propagating");
+            trace!("Context information is already updated. Hence not propagating");
         }
     }
 
@@ -697,7 +697,7 @@ impl ExtnClient {
             .send_request(id, payload, other_sender, Some(tx))?;
         match tokio::time::timeout(Duration::from_millis(timeout_in_msecs), tr.recv()).await {
             Ok(Ok(cmessage)) => {
-                debug!("** receiving message msg={:?}", cmessage);
+                trace!("** receiving message msg={:?}", cmessage);
                 let message: Result<ExtnMessage, RippleError> = cmessage.try_into();
 
                 if let Ok(message) = message {
@@ -777,7 +777,7 @@ impl ExtnClient {
         if let Some(sender) = self.get_extn_sender_with_extn_id(id) {
             self.sender.send_event(event, Some(sender))
         } else {
-            debug!("current client has so sender information so call forward event");
+            trace!("current client has so sender information so call forward event");
             self.sender.forward_event(id, event)
         }
     }
@@ -849,7 +849,7 @@ pub mod tests {
                 device_info_request::DeviceInfoRequest,
                 device_request::{AccountToken, DeviceRequest},
             },
-            gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
+            gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest, RpcStats},
             session::SessionAdjective,
         },
         extn::{
@@ -1260,6 +1260,7 @@ pub mod tests {
             ctx: new_ctx.clone(),
             method: "some.method".into(),
             params_json: RpcRequest::prepend_ctx(None, &new_ctx),
+            stats: RpcStats::default(),
         };
 
         tokio::spawn(async move {
